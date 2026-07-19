@@ -84,7 +84,7 @@ For EVERY page in the site map below, in order:
 
 Go element-by-element through this doc and confirm each is (a) present in the app's library, (b) offered/
 handled by the builder + sheet where it's a character choice, (c) tooltip-explained, and (d) editable
-manually + by the AI. Log gaps as follow-up slices in `docs/planning/in-progress/INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`.
+manually + by the AI. Log gaps as follow-up slices in `docs/planning/completed/INTUITIVE_GAMES_FULL_BUILDOUT_2026-07-17.md`.
 
 ---
 

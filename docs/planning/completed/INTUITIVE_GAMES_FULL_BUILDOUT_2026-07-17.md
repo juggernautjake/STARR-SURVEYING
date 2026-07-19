@@ -663,3 +663,32 @@ the structured rules A produces. Within A, do the rules-core + conditions + ance
 (B depends on them). Build the smallest meaningful slice, verify (typecheck + lint + test), commit, push,
 annotate here; move to `completed/` only when every item ships or is explicitly deferred with a rationale.
 Honor Ground Rule 2 relentlessly: a sparse/WIP page is recorded as WIP, never fabricated.
+
+---
+
+## Closeout (2026-07-18) — buildable-in-repo work COMPLETE; remainder is content-/QA-/polish-gated
+
+Every action item's buildable-in-repo portion has shipped and is tested. The IG platform is functional end to
+end: the **library** contains + expresses the site (Area A — classes, powers, ancestries, feats, conditions,
+stances, art, WIP-marked gaps), and the **builder + bespoke sheet** are functional, editable, and rules-aligned
+with live mechanics: ancestries/classes/feats/stances/conditions/powers/defensive-powers are all selectable,
+displayed, editable **manually AND by the AI** (B1/B2/B3/B6), the **mechanics AUTO-FOLD at roll time** (B4
+conditions + B5 stances → checks and damage), and every in-play effect is **touch/keyboard-reachable** (B7 —
+`InfoTip` on IG + PF2). The AI grounds on real feat/power/stance/condition text (no fabrication).
+
+Per-item deferral of what remains (each genuinely blocked, not a convenience — documented inline above):
+
+- **B3 per-level feat/power ladders; A10 Champion/Magician/Shaman full detail + per-level class ladders; A11
+  Advanced/Expert tier text** — **BLOCKED on Brendan's content.** intuitivegames.net doesn't publish these; Ground
+  Rule 2 forbids inventing them. They render today with honest WIP markers and are offered name-only where the
+  roster knows them. Unblocks the moment the owner pastes the text.
+- **A20/ART — more ancestry portraits** — needs the owner's drawn/licensed art files (8 already shipped).
+- **B8 — end-to-end build walkthrough** — a running-app human verification; that is the `pending/` QA-walkthrough
+  phase's job (this hook routes there once `in-progress/` is empty), not an autonomous code slice.
+- **B7 — bespoke tooltip bubble styling/animation** — pure visual polish; the accessibility/reachability
+  requirement itself is met. Needs in-app visual confirmation.
+
+These are tracked: content gaps as WIP markers in the code + `docs/reference/intuitive-games/SITE_MASTER.md`;
+the roller/mechanics decisions in `BLOCKERS.md §C` (resolved). This doc moves to `completed/` — its buildable
+feature has shipped; the remainder is owner-content / owner-art / the QA phase / visual polish. See
+[[project_dnd_pf2e_model]] / [[project_dnd_platform]].
