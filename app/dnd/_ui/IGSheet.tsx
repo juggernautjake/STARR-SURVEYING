@@ -196,7 +196,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       {/* Ability scores + modifiers */}
       <div>
         <div style={{ ...label, marginBottom: 6 }}>Ability Scores</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(60px, 1fr))', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
             <div key={k} style={{ display: 'grid', gap: 3 }}>
               {/* Tap an ability to roll an ability check (R1b): d20 + its modifier. */}
