@@ -10,6 +10,7 @@
 // streamer, and generated chat revolves around the poll for 5 minutes (until the DM changes the
 // AI-focus topic). Sync is 3s HTTP polling + a local time ticker for the trickle.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { pollConclude } from '../lib/audio'
 
 interface Poll {
   id: string
@@ -23,9 +24,21 @@ interface Poll {
   opened_at: string | null
 }
 
-const TRICKLE_MS = 60_000 // votes fill in over one minute
+const TRICKLE_MIN_MS = 30_000
+const TRICKLE_MAX_MS = 60_000
 const STEER_MS = 5 * 60_000 // generated chat revolves around the poll for five minutes
 const MIN_TURNOUT = 0.25 // at least a quarter of viewers vote on every poll
+
+// How long this poll's votes take to fill in (30–60s). Derived from the poll id
+// rather than Math.random() ON PURPOSE: every viewer runs this independently, so a
+// random draw would give each client a different duration and the bars would drift
+// apart. Hashing the id means everyone computes the same window from the same
+// `opened_at`, and the fill stays in lockstep across the whole audience.
+function trickleMsFor(pollId: string): number {
+  let h = 0
+  for (let i = 0; i < pollId.length; i++) h = (h * 31 + pollId.charCodeAt(i)) >>> 0
+  return TRICKLE_MIN_MS + (h % (TRICKLE_MAX_MS - TRICKLE_MIN_MS + 1))
+}
 
 // Compact vanity-scale formatting: 1.2K / 3.4M / 5.6B / 7.8T / 9.0Q.
 function fmt(n: number): string {
@@ -35,28 +48,6 @@ function fmt(n: number): string {
   return String(Math.round(n))
 }
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
-
-// A short two-note chime via WebAudio — no asset, and Susie has already interacted (she made
-// the poll), so autoplay is unlocked. Fails silent if the browser blocks it.
-function playConcludeChime() {
-  try {
-    const AC = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
-    if (!AC) return
-    const ctx = new AC()
-    const notes = [660, 990]
-    notes.forEach((f, i) => {
-      const osc = ctx.createOscillator(); const gain = ctx.createGain()
-      osc.type = 'sine'; osc.frequency.value = f
-      const t0 = ctx.currentTime + i * 0.16
-      gain.gain.setValueAtTime(0.0001, t0)
-      gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34)
-      osc.connect(gain); gain.connect(ctx.destination)
-      osc.start(t0); osc.stop(t0 + 0.36)
-    })
-    setTimeout(() => ctx.close().catch(() => {}), 900)
-  } catch { /* no audio — silent */ }
-}
 
 export default function StreamPoll({
   characterId, isController, isOwner, campaignId, initialPoll,
@@ -156,7 +147,8 @@ export default function StreamPoll({
   // ── Derived trickle / conclusion state (poll-null-safe so hooks below stay unconditional) ──
   const openedMs = poll?.opened_at ? new Date(poll.opened_at).getTime() : 0
   const elapsed = openedMs ? now - openedMs : 0
-  const frac = poll?.status === 'open' && openedMs ? Math.min(1, Math.max(0, elapsed / TRICKLE_MS)) : (poll?.status === 'closed' ? 1 : 0)
+  const trickleMs = poll ? trickleMsFor(poll.id) : TRICKLE_MAX_MS
+  const frac = poll?.status === 'open' && openedMs ? Math.min(1, Math.max(0, elapsed / trickleMs)) : (poll?.status === 'closed' ? 1 : 0)
   const concluded = poll?.status === 'closed' || (poll?.status === 'open' && frac >= 1)
 
   // Controller closes the poll server-side once the minute elapses (so late joiners see it done).
@@ -174,7 +166,7 @@ export default function StreamPoll({
   useEffect(() => {
     if (poll && concluded && isOwner && chimedRef.current !== poll.id) {
       chimedRef.current = poll.id
-      playConcludeChime()
+      pollConclude()
     }
   }, [concluded, isOwner, poll?.id])
 
@@ -239,7 +231,7 @@ export default function StreamPoll({
       )}
       {!concluded && (
         <div style={{ marginTop: 8, textAlign: 'center', color: 'var(--muted, #9aa)', fontSize: 12 }}>
-          Votes trickling in… {Math.max(0, Math.ceil((TRICKLE_MS - elapsed) / 1000))}s
+          Votes trickling in… {Math.max(0, Math.ceil((trickleMs - elapsed) / 1000))}s
         </div>
       )}
     </section>
