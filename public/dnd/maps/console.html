@@ -724,7 +724,7 @@ function render(){
     // — decorative backdrops (image, background) are NON-interactive so they don't hijack hover or jump in front,
     // while celestial bodies (planets, moons, stars, …) are interactive. See BODY_NONINTERACTIVE_DEFAULT.
     const interactive = i.interactable != null ? !!i.interactable : !BODY_NONINTERACTIVE_DEFAULT.has(i.kind);
-    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(interactive?" interactive":" noninteractive");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.kind==='galaxy'?4:10};`;
+    const el=document.createElement("div");el.className="body"+(selectedId===i.id?" selected":"")+(i.kind==="image"?" imgbody":"")+(["planet3d","planet","moon","star","station","debris","asteroid"].includes(i.kind)?" n3d":"")+(interactive?" interactive":" noninteractive");el.dataset.id=i.id;el.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);opacity:${op};z-index:${i.behind?3:(["galaxy","image","background","spingalaxy"].includes(i.kind)?4:10)};`;
     const secColor=(MAP.sectors.find(s=>s.id===i.sector)||{}).color||"#88aaff";
     const look=i.look||i;
     let bodyHTML;

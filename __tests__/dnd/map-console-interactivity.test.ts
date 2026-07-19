@@ -308,6 +308,11 @@ describe('sectors: layer + interactivity in the player (owner 2026-07-19)', () =
     expect(SRC).toContain('pointer-events:${inter?"auto":"none"}');
     expect(SRC).toContain('if(front)innerF+=piece;else innerB+=piece;');   // front → the above-bodies SVG layer
   });
+  it('2D: image/galaxy/backdrop instances render BEHIND sectors (z4) so a sector is never stuck behind an image', () => {
+    // Matches 3D (backdrops renderOrder -4 < sectors). Stack: backdrop(4) < back-sector(6) < body(10) < front-sector(11).
+    expect(SRC).toContain('z-index:${i.behind?3:(["galaxy","image","background","spingalaxy"].includes(i.kind)?4:10)}');
+    expect(SRC).toContain('const svg=mkSvg(6),svgF=mkSvg(11)');   // back sectors z6 (> backdrops), front sectors z11
+  });
   it('2D: a front sector is click-through — a body under it still wins the click', () => {
     expect(SRC).toContain('if(p.dataset.front){for(const el of document.elementsFromPoint');
   });
