@@ -1000,8 +1000,23 @@ select.input {
   position: relative;
 }
 .siteMenuToggle {
-  /* Hidden on desktop — the nav shows inline. Becomes the hamburger toggle on mobile (media query below). */
-  display: none;
+  /* The menu is a tap/click-to-open DROPDOWN on ALL sizes (a closed <details> won't reliably render an inline
+     nav on desktop, which was hiding the whole menu). Same working pattern as mobile → one uniform header. */
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  list-style: none;
+  padding: 7px 12px;
+  border: 1px solid var(--hx-line);
+  border-radius: 5px;
+  background: rgba(10, 200, 185, 0.06);
+  color: var(--hx-gold-3);
+  font-size: 13px;
+}
+.siteMenuToggle:hover {
+  border-color: var(--hx-gold-1);
+  background: rgba(212, 175, 55, 0.1);
 }
 .siteMenuToggle::-webkit-details-marker,
 .siteMenuToggle::marker {
@@ -1038,16 +1053,36 @@ select.input {
   background: rgba(212, 175, 55, 0.12);
 }
 .siteNav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  /* Dropdown panel under the toggle — hidden until the <details> is open, on every screen size. */
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 220px;
+  max-width: 90vw;
+  padding: 8px;
+  background: linear-gradient(180deg, rgba(9, 20, 40, 0.99), rgba(9, 20, 40, 0.97));
+  border: 1px solid var(--hx-gold-0);
+  border-radius: 7px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  z-index: 60;
 }
-/* Author `display:flex` on the panel overrides the UA "closed <details> hides its children" rule, so on
-   desktop the nav bar is always visible regardless of the (irrelevant, hidden-toggle) open state. */
+.siteMenu[open] .siteNav {
+  display: flex;
+}
 .siteNavUser {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  /* Stacked inside the dropdown: the "Signed in as {name}" line above a full-width Log out, set off from the
+     nav links with a divider. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+  margin-top: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--hx-line);
   font-size: 12px;
   color: var(--hx-muted);
 }

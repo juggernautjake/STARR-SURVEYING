@@ -34,11 +34,19 @@ describe('DnD header collapses to a dropdown on mobile (MOB1)', () => {
     expect((header.match(/onClick=\{closeMenu\}/g) || []).length).toBeGreaterThanOrEqual(4);
   });
 
-  it('CSS hides the toggle on desktop and turns it into a dropdown on mobile', () => {
-    // Desktop base: the hamburger toggle is display:none.
-    expect(css).toMatch(/\.siteMenuToggle\s*\{[^}]*display:\s*none/);
-    // Mobile: the toggle shows and the open menu reveals the nav panel.
+  it('CSS makes the menu a working dropdown on ALL sizes (fix: a closed <details> did not render an inline desktop nav)', () => {
+    // The toggle is a visible button on desktop too (inline-flex), not display:none — that hid the whole menu.
+    expect(css).toMatch(/\.siteMenuToggle\s*\{[^}]*display:\s*inline-flex/);
+    // The nav is a dropdown hidden until open, revealed by the open menu — the same pattern on every size.
+    expect(css).toMatch(/\.siteNav\s*\{[\s\S]*?display:\s*none/);
     expect(css).toContain('.siteMenu[open] .siteNav');
     expect(css).toMatch(/@media \(max-width: 640px\)/);
+  });
+
+  it('offers the full nav — Library, +Character, +Campaign, +Map, and sign-in/out', () => {
+    for (const item of ['Library', '＋ Character', '＋ Campaign', '＋ Map']) expect(header).toContain(item);
+    // sign in (signed-out) OR the LogoutButton (signed-in) are both present in the menu.
+    expect(header).toContain('Sign in');
+    expect(header).toContain('<LogoutButton />');
   });
 });

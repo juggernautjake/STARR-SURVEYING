@@ -62,6 +62,13 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
               ＋ Campaign
             </Link>
           )}
+          {/* Maps are created inside a campaign's Map Studio (a map needs a campaign to live in). This entry
+              takes a signed-in user to the campaigns hub to pick which campaign to make a map for. */}
+          {userName && (
+            <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={closeMenu}>
+              ＋ Map
+            </Link>
+          )}
           {userName ? (
             <span className={styles.siteNavUser}>
               <span style={{ opacity: 0.85 }}>
