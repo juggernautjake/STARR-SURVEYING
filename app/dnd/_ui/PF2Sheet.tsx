@@ -15,6 +15,7 @@ import {
 } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionRollEffect, pf2ConditionMechanics, type Pf2RollKind } from '@/lib/dnd/conditions/pathfinder2e';
+import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
@@ -141,13 +142,17 @@ export default function PF2Sheet({ pf2 }: { pf2: PF2Character }) {
           penalties apply automatically under PF2's non-stacking rule. Set/cleared via the AI edit tool. */}
       {(pf2.combat.conditions ?? []).length > 0 && (
         <div>
-          <div style={label}>Conditions <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}>· folded into rolls (worst status + worst circumstance)</span></div>
+          <div style={label}>Conditions <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}>· folded into rolls (worst status + worst circumstance) · hover or tap ⓘ</span></div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-            {(pf2.combat.conditions ?? []).map((c) => (
-              <span key={c.name} title={pf2ConditionMechanics(c.name)?.note ?? ''} style={{ fontSize: 11.5, padding: '3px 9px', border: '1px solid var(--hx-line)', borderRadius: 999, color: 'var(--hx-gold-2)', cursor: 'help' }}>
-                {c.name}{c.value && c.value > 1 ? ` ${c.value}` : ''}
-              </span>
-            ))}
+            {(pf2.combat.conditions ?? []).map((c) => {
+              const note = pf2ConditionMechanics(c.name)?.note ?? '';
+              return (
+                <span key={c.name} title={note} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, padding: '3px 9px', border: '1px solid var(--hx-line)', borderRadius: 999, color: 'var(--hx-gold-2)', cursor: 'help' }}>
+                  {c.name}{c.value && c.value > 1 ? ` ${c.value}` : ''}
+                  {note && <InfoTip tip={note} label={`${c.name} rules`} />}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

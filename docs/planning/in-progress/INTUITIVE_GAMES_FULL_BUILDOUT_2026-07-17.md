@@ -638,8 +638,9 @@ expanded requirements (2026-07-17):
       AND tap; dismisses on Escape, blur, and outside tap; accessible (labelled button + `role="tooltip"` +
       `aria-describedby`). Wired into IGSheet's shared `chip()` (stances/feats/powers/defensive powers) + the
       condition chips in one place; the native `title` stays for mouse users. `info-tip.test.ts` (5). **Remaining
-      (deferred — pure visual polish, needs in-app confirmation):** bespoke bubble styling/animation + porting the
-      same ⓘ to the PF2 sheet; the reachability requirement itself is now met.
+      (deferred — pure visual polish, needs in-app confirmation):** bespoke bubble styling/animation only. **PF2
+      parity shipped (2026-07-18):** `InfoTip` is now on the PF2 sheet's condition chips too (`info-tip.test.ts`
+      +1), so both bespoke sheets are touch/keyboard-reachable. The reachability requirement is fully met.
 - [~] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)

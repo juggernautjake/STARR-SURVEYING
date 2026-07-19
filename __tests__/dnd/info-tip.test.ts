@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 const tip = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/InfoTip.tsx'), 'utf8');
 const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+const pf2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
 
 describe('InfoTip is reachable by hover, focus, AND tap', () => {
   it('opens on mouse hover, keyboard focus, and click/tap', () => {
@@ -35,5 +36,12 @@ describe('IGSheet wires InfoTip onto in-play effect chips', () => {
     expect(sheet).toContain('{tip && <InfoTip tip={tip}');            // chip() helper
     expect(sheet).toContain('{e?.tooltip && <InfoTip tip={e.tooltip}'); // condition chips
     expect(sheet).toContain('hover or tap ⓘ for the full rules');     // the label reflects touch-reachability
+  });
+});
+
+describe('PF2Sheet condition chips also get InfoTip (touch parity)', () => {
+  it('the PF2 condition chip reveals its rules note on tap/focus, not just hover', () => {
+    expect(pf2).toContain("import InfoTip from '@/app/dnd/_sheet/components/InfoTip'");
+    expect(pf2).toContain('{note && <InfoTip tip={note}');
   });
 });
