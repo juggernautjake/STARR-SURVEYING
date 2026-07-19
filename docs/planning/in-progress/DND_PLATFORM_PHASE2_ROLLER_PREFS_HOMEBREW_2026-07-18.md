@@ -615,11 +615,15 @@ Players may OPT to replace their original with the in-campaign version."
       (DM-only; POST forks + stores the campaign copy, never touching the original; DELETE resets to original) +
       `POST .../promote` (creator-only; writes the override over `dnd_characters.data` then clears it).
       `campaign-override-routes.test.ts` green; tsc + lint clean.
-- [ ] **VIS6 — Campaign sheet renders the override + DM edit surface + promote button.** REMAINING (UI wiring):
-      the campaign-scoped sheet open path passes `campaignRenderData(original, override)` so the DM sees/edits the
-      isolated copy, the DM's sheet edits POST to the override route, and the owner gets a "Replace my original
-      with the campaign version" button calling promote. Pure cores + routes (VIS1–VIS5) are all in place; this is
-      the remaining view/controller glue.
+- [x] **VIS6a — Creator promote button on the sheet.** ✅ SHIPPED — `PromoteCampaignVersionButton.tsx`
+      (creator-only, confirm-then-overwrite, POSTs the promote route, reloads). The sheet page reads the roster's
+      `data_override` for the owner only and renders the button beside the visibility toggle when an override is
+      pending. `promote-campaign-version.test.ts` green; tsc + lint clean.
+- [ ] **VIS6b — Campaign sheet renders the override + DM edit surface.** REMAINING (view/controller glue that
+      touches the shared render/write path, so held for its own slice): the campaign-scoped sheet open path passes
+      `campaignRenderData(original, override)` so the DM sees/edits the isolated copy, and the DM's sheet edits
+      POST to the override route rather than the original. Pure cores + routes (VIS1–VIS5) and the creator promote
+      control (VIS6a) are all in place; this is the last piece.
 
 ### Area LU — AI/custom level-up for existing characters (owner 2026-07-18)
 

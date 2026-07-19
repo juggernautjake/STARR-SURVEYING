@@ -12,6 +12,7 @@ import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
+import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
@@ -61,6 +62,21 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     const { data: campPrefRow } = await supabaseAdmin.from('dnd_campaigns').select('theme, allow_custom').eq('id', character.campaign_id).maybeSingle();
     effectivePreferences = resolvePreferences(readCampaignPreferences((campPrefRow as { theme?: unknown } | null)?.theme));
     transposeAllowsCustom = (campPrefRow as { allow_custom?: boolean } | null)?.allow_custom !== false;
+  }
+
+  // Area VIS6a — the creator's "replace my original with the in-campaign version" offer. It appears ONLY when
+  // the character is in a campaign that holds its own edited copy (a DM override, seed 451) AND the viewer is the
+  // creator (only they own the original). The promote route (creator-only) does the overwrite; here we just
+  // decide whether to show the button by checking the override exists.
+  let campaignOverridePending = false;
+  if (isOwner && character.campaign_id) {
+    const { data: rosterRow } = await supabaseAdmin
+      .from('dnd_campaign_characters')
+      .select('data_override')
+      .eq('campaign_id', character.campaign_id)
+      .eq('character_id', character.id)
+      .maybeSingle();
+    campaignOverridePending = (rosterRow as { data_override?: unknown } | null)?.data_override != null;
   }
 
   // Submission/approval panel (IG builder Slice 5): show the custom/vanilla content summary + submit
@@ -173,6 +189,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {/* Private/Public is the creator's call — only the owner sees this control (the DM always sees the
           character regardless; other players' view is governed by this flag). */}
       {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}
+      {campaignOverridePending && character.campaign_id && (
+        <PromoteCampaignVersionButton campaignId={character.campaign_id} characterId={character.id} />
+      )}
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot
         characterId={character.id}
