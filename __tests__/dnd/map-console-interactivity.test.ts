@@ -143,7 +143,7 @@ describe('player map: procedural space audio (owner 2026-07-18)', () => {
     expect(SRC).toContain('function startDrone()'); // gliding sine-voice drone
     expect(SRC).toContain('const FAMILIES=['); // chatter/telemetry/sonar/servo/groan
     expect(SRC).toContain('function scheduleNoise()'); // Poisson-timed interjections
-    expect(SRC).toMatch(/select\(\)\{if\(!ctx\|\|muted\)return/); // select cue
+    expect(SRC).toMatch(/select\(\)\{if\(!ctx\|\|muted\|\|uiMuted\)return/); // select cue (also honours SFX mute)
   });
   it('exposes + wires the UI cues (click/hover/tick/zoom/select)', () => {
     expect(SRC).toContain('click(){this._blip(1200');
@@ -205,5 +205,39 @@ describe('3D body hover: enlarge + glow (owner 2026-07-18)', () => {
 describe('2D body hover is a clear enlarge + glow', () => {
   it('the art scales up and glows on hover (planet/star/moon/station — all interactive)', () => {
     expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.12);filter:drop-shadow(0 0 9px rgba(150,205,255,.95)) brightness(1.12);}');
+  });
+});
+
+describe('console deck rework (owner 2026-07-18): audio, magnify, meter, sfx, dpad', () => {
+  it('trimmed status lamps (navlink/comms/alert removed) + a scrollable bank so all toggles show', () => {
+    expect(SRC).not.toContain('id="lampNav"');
+    expect(SRC).not.toContain('id="lampComm"');
+    expect(SRC).not.toContain('id="lampAlert"');
+    expect(SRC).toMatch(/\.bank\{[^}]*overflow-y:auto/);
+  });
+  it('the GAIN dial is gone; MAGNIFY cycles 4 zoom framings on the selected target + spins', () => {
+    expect(SRC).not.toContain('id="dialGain"');
+    expect(SRC).toContain('const MAG=[6.5,4,2.6,1.7]'); // far → close framings
+    expect(SRC).toContain('magLevel=(magLevel+1)%MAG.length');
+    expect(SRC).toContain('dz.classList.add("spin")'); // physical spin on click
+    expect(SRC).toContain('.dial.spin{animation:dialspin');
+  });
+  it('SFX mutes ONLY the control/zoom cues (uiMuted), not the ambient drone/noises', () => {
+    expect(SRC).toContain('SpaceAudio.setUiMuted(!sfxOn)');
+    expect(SRC).toContain('setUiMuted(m){uiMuted=m;}');
+    expect(SRC).toContain('if(!ctx||muted||uiMuted)return'); // UI blip gated by uiMuted
+  });
+  it('the signal bar is a live ambient sound meter driven by an analyser', () => {
+    expect(SRC).toContain('analyser=ctx.createAnalyser()');
+    expect(SRC).toContain('level(){if(!analyser)return 0');
+    expect(SRC).toContain('function meterLoop()');
+  });
+  it('the d-pad supports press-and-hold continuous panning', () => {
+    expect(SRC).toContain('holdTO=setInterval(()=>panStep(dir),90)');
+    expect(SRC).toContain('b.addEventListener("pointerdown"');
+  });
+  it('Galaxy View + Clear Screen are wired', () => {
+    expect(SRC).toContain('$("#btnGalaxy").onclick=()=>{clearSelect();fit(true);magLevel=0');
+    expect(SRC).toContain('$("#btnClose").onclick=()=>{clearSelect()');
   });
 });

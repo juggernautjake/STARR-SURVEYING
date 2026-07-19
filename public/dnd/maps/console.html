@@ -113,7 +113,8 @@
   .minibtn.on{color:var(--scan);border-color:rgba(67,224,200,.5);}
   .minibtn:active{transform:translateY(1px);}
   #console::before{content:"";position:absolute;top:6px;left:0;right:0;height:3px;background:repeating-linear-gradient(90deg,transparent 0 26px,rgba(120,140,200,.25) 26px 28px);pointer-events:none;}
-  .bank{width:118px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:7px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);}
+  .bank{width:122px;flex:none;background:linear-gradient(160deg,var(--steel2),var(--steel));border:1px solid #000;border-radius:9px;padding:9px;display:flex;flex-direction:column;gap:6px;box-shadow:inset 0 1px 0 rgba(140,160,220,.15), inset 0 0 20px rgba(0,0,0,.4);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a3350 transparent;}
+  .bank::-webkit-scrollbar{width:5px;}.bank::-webkit-scrollbar-thumb{background:#2a3350;border-radius:3px;}
   .bank .bh{font-family:"Orbitron";font-size:8px;letter-spacing:1.5px;color:var(--faint);text-align:center;margin-bottom:1px;}
   .lamp{display:flex;align-items:center;gap:7px;font-family:"Share Tech Mono";font-size:9.5px;color:var(--dim);letter-spacing:.5px;}
   .lamp .led{width:9px;height:9px;border-radius:50%;flex:none;background:#20263c;box-shadow:inset 0 0 3px #000;transition:.3s;}
@@ -193,7 +194,9 @@
   .knob .dial::after{content:"";position:absolute;left:50%;top:4px;width:2px;height:11px;background:var(--scan);transform:translateX(-50%) rotate(var(--r,-90deg));border-radius:2px;box-shadow:0 0 5px var(--scan);transform-origin:50% 13px;transition:.2s;}
   .knob .kl{font-family:"Share Tech Mono";font-size:8px;color:var(--faint);letter-spacing:.5px;}
   .meter{height:7px;border-radius:4px;background:#0a0e1a;border:1px solid #000;overflow:hidden;box-shadow:inset 0 0 4px #000;}
-  .meter i{display:block;height:100%;width:60%;background:linear-gradient(90deg,var(--green),var(--scan));box-shadow:0 0 8px var(--scan);transition:width .5s;}
+  .meter i{display:block;height:100%;width:8%;background:linear-gradient(90deg,var(--green),var(--scan));box-shadow:0 0 8px var(--scan);}   /* width driven live by the audio meter (rAF) */
+  @keyframes dialspin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
+  .dial.spin{animation:dialspin .5s cubic-bezier(.25,.9,.3,1);}
   .modal{position:fixed;inset:0;z-index:400;background:rgba(2,4,8,.82);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;padding:24px;}
   .modal.show{display:flex;}
   .modalcard{width:100%;max-width:560px;max-height:80vh;background:linear-gradient(180deg,#0e1428,#0a0f1e);border:1px solid #2b3a5e;border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);}
@@ -234,23 +237,22 @@
   <button id="deckMin" title="Minimize / restore console">▾</button>
   <div id="deckLabel">▲ SENSOR CONSOLE — CLICK TO OPEN</div>
   <div class="bank">
-    <div class="bh">SYSTEM STATUS</div>
-    <div class="lamp g on" id="lampPwr"><span class="led"></span>REACTOR</div>
-    <div class="lamp c on" id="lampNav"><span class="led"></span>NAV-LINK</div>
-    <div class="lamp a" id="lampScan"><span class="led"></span>SCANNING</div>
-    <div class="lamp g on" id="lampComm"><span class="led"></span>COMMS</div>
-    <div class="lamp r" id="lampAlert"><span class="led"></span>ALERT</div>
-    <div class="toggles"><div class="tgl up" id="tgl1"></div><div class="tgl up" id="tgl2"></div><div class="tgl" id="tgl3"></div></div>
-    <!-- MAP LABELS: click a light to hide/show that category of text on the map (declutter the view). -->
-    <div class="bh" style="margin-top:9px">MAP LABELS</div>
+    <!-- MAP LABELS: click a light to hide/show that category of on-map text (declutter the view). -->
+    <div class="bh">MAP LABELS</div>
     <div class="lamp c on lbltgl" id="lblPlanets" title="Show/hide planet, moon & station names"><span class="led"></span>PLANETS</div>
     <div class="lamp c on lbltgl" id="lblStars" title="Show/hide star names"><span class="led"></span>STARS</div>
     <div class="lamp c on lbltgl" id="lblSystems" title="Show/hide system / region names"><span class="led"></span>SYSTEMS</div>
     <div class="lamp c on lbltgl" id="lblAll" title="Show/hide ALL map text at once"><span class="led"></span>ALL</div>
-    <!-- AUDIO: procedural space ambience — the SOUND lamp mutes/unmutes; the slider sets volume. -->
+    <!-- AUDIO: procedural space ambience. SOUND = master mute; the slider = volume; SFX (in HELM) mutes only the
+         control/zoom cues, not the ambience. -->
     <div class="bh" style="margin-top:9px">AUDIO</div>
-    <div class="lamp c on lbltgl" id="audMute" title="Mute / unmute the space ambience"><span class="led"></span>SOUND</div>
-    <input id="audVol" type="range" min="0" max="100" value="50" title="Ambience volume" style="width:100%;margin-top:5px;accent-color:var(--scan);cursor:pointer;">
+    <div class="lamp c on lbltgl" id="audMute" title="Mute / unmute ALL sound"><span class="led"></span>SOUND</div>
+    <input id="audVol" type="range" min="0" max="100" value="50" title="Sound volume" style="width:100%;margin-top:4px;accent-color:var(--scan);cursor:pointer;">
+    <!-- A couple of flavour status lamps + the scan toggles (SCANNING pulses when you pick a target). -->
+    <div class="bh" style="margin-top:9px">STATUS</div>
+    <div class="lamp g on" id="lampPwr"><span class="led"></span>REACTOR</div>
+    <div class="lamp a" id="lampScan"><span class="led"></span>SCANNING</div>
+    <div class="toggles"><div class="tgl up" id="tgl1"></div><div class="tgl up" id="tgl2"></div><div class="tgl" id="tgl3"></div></div>
   </div>
   <div class="screenframe">
     <div class="screen"><div class="scr-inner" id="scrInner"></div></div>
@@ -275,10 +277,9 @@
     <div class="bh">NAVIGATION</div>
     <button class="bigbtn scan" id="btnGalaxy">◈ GALAXY VIEW</button>
     <button class="bigbtn amber" id="btnClose">✕ CLEAR SCREEN</button>
-    <div class="meter" title="signal"><i id="sigMeter"></i></div>
-    <div class="knobs">
-      <div class="knob"><div class="dial" id="dialZoom"></div><div class="kl">MAGNIFY</div></div>
-      <div class="knob"><div class="dial" id="dialGain"></div><div class="kl">GAIN</div></div>
+    <div class="meter" title="Ambient sound level"><i id="sigMeter"></i></div>
+    <div class="knobs" style="justify-content:center">
+      <div class="knob"><div class="dial" id="dialZoom" title="Magnify the selected target — click to cycle zoom (far → close → far)"></div><div class="kl">MAGNIFY</div></div>
     </div>
   </div>
 </div>
@@ -873,12 +874,12 @@ function kindLabel(k){return ({planet:"planet",planet3d:"planet",moon:"moon",sta
 function hoverName(name,kind){hovering=true;scrInner.innerHTML=`<div class="scr-idle"><div class="sm" style="color:var(--amber);letter-spacing:4px">◈ TARGETING ◈</div><div class="lg" style="font-size:19px;margin:4px 0;color:var(--scan)">${esc(name||"UNKNOWN CONTACT")}</div><div class="sm">${esc((typeof kind==="string"&&kind.includes(" ")?kind:kindLabel(kind)).toUpperCase())}<span style="opacity:.55"> · CLICK TO LOCK ON</span></div></div>`;}
 function renderCurrent(){if(curSel&&curSel.type==="instance"){const i=MAP.instances.find(x=>x.id===curSel.id);if(i){if(i.kind==="galaxy"&&i.role==="core")renderScreen(coreScreen(i));else renderScreen(bodyScreen(i));return;}}if(curSel&&curSel.type==="sector"){const s=MAP.sectors.find(x=>x.id===curSel.id);if(s){renderScreen(sectorScreen(s));return;}}showIdle();}
 function endHover(){if(!hovering)return;hovering=false;renderCurrent();}
-$("#btnClose").onclick=clearSelect;
+$("#btnClose").onclick=()=>{clearSelect();beep(420,0.06);};   // CLEAR SCREEN — deselect + blank the info panel
 // Minimize / restore the console deck (slides down to a thin tab; click the tab or button to reopen).
 const consoleDeck=$("#console");
 $("#deckMin").onclick=e=>{e.stopPropagation();consoleDeck.classList.toggle("min");};
 consoleDeck.onclick=e=>{if(consoleDeck.classList.contains("min")&&e.target.id!=="deckMin")consoleDeck.classList.remove("min");};
-$("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
+$("#btnGalaxy").onclick=()=>{clearSelect();fit(true);magLevel=0;beep(600,0.07);};   // GALAXY VIEW — fit the whole map
 // MAP LABELS lamps — click a light to hide/show that category of on-map text (declutter the view). "ALL" is a
 // master: on when all three are on; clicking it flips everything. Toggling rebuilds just the label overlay.
 function syncLabelLamps(){
@@ -905,8 +906,8 @@ syncLabelLamps();
 // ════════════════════════════════════════════════════════════════════════════════════════════════════
 const SpaceAudio=(function(){
   let ctx=null,master=null,droneGain=null;let voices=[],started=false;
-  let muted=false,volume=0.5;let rootSemi=0,curTones=null,curSemis=[0,3,7],chordTO=null,noiseTO=null,burstLeft=0;
-  let _lastHover=0,_lastTick=0,_lastZoom=0;
+  let muted=false,volume=0.5,uiMuted=false;let rootSemi=0,curTones=null,curSemis=[0,3,7],chordTO=null,noiseTO=null,burstLeft=0;
+  let _lastHover=0,_lastTick=0,_lastZoom=0;let analyser=null,_lvlBuf=null;
   try{muted=localStorage.getItem("starmap.audio.muted")==="1";const v=parseFloat(localStorage.getItem("starmap.audio.vol"));if(!isNaN(v))volume=v;}catch(e){}
   const ROOT_HZ=34.65;   // C#1
   // Chord vocabulary (semitones over the root) + weights — weighted toward the unresolved (min/aug/sus…).
@@ -924,7 +925,11 @@ const SpaceAudio=(function(){
   function weighted(arr,wof){let tot=0;for(const x of arr)tot+=wof(x);let r=Math.random()*tot;for(const x of arr){r-=wof(x);if(r<=0)return x;}return arr[0];}
   function shared(a,b){let n=0;for(const x of a.t){for(const y of b.t){if(pc(x)===pc(y)){n++;break;}}}return n;}
   function pickChord(from){return weighted(VOCAB,c=>{let s=c.w;if(from){if(c===from)s*=0.15;s*=1+shared(from,c)*0.35;}return s;});}
-  function ensure(){if(ctx)return true;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;ctx=new AC();master=ctx.createGain();master.gain.value=muted?0:volume;master.connect(ctx.destination);droneGain=ctx.createGain();droneGain.gain.value=0;droneGain.connect(master);return true;}
+  function ensure(){if(ctx)return true;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;ctx=new AC();master=ctx.createGain();master.gain.value=muted?0:volume;
+    // An analyser between master and the speakers drives the on-deck sound METER (drone → gentle idle, a random
+    // space noise → a spike). It taps the signal without affecting it.
+    analyser=ctx.createAnalyser();analyser.fftSize=256;_lvlBuf=new Uint8Array(analyser.frequencyBinCount);master.connect(analyser);analyser.connect(ctx.destination);
+    droneGain=ctx.createGain();droneGain.gain.value=0;droneGain.connect(master);return true;}
   let curChord=null;
   function applyChord(chord,instant){const r=rootHz();const g=instant?0:8;   // ~8s glide
     for(let v=0;v<voices.length;v++){const semi=v===0?0:v===1?(chord.t.indexOf(7)>=0?7:0):chord.t[2+((v-2)%(chord.t.length-2))];let f=toneHz(r,semi);if(v%2===1)f*=1.0018;const o=voices[v].o;const now=ctx.currentTime;o.frequency.cancelScheduledValues(now);if(instant)o.frequency.setValueAtTime(f,now);else o.frequency.setTargetAtTime(f,now,g/3);}
@@ -956,10 +961,15 @@ const SpaceAudio=(function(){
     isMuted:()=>muted,volume:()=>volume,
     setVolume(v){volume=Math.max(0,Math.min(1,v));if(master&&!muted)master.gain.setTargetAtTime(volume,ctx.currentTime,0.05);try{localStorage.setItem("starmap.audio.vol",volume);}catch(e){}},
     setMuted(m){muted=m;if(master)master.gain.setTargetAtTime(muted?0:volume,ctx.currentTime,0.05);try{localStorage.setItem("starmap.audio.muted",muted?"1":"0");}catch(e){}},
-    // A quick upward sweep — the "you picked a thing" cue (600→950Hz).
-    select(){if(!ctx||muted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(600,now);o.frequency.linearRampToValueAtTime(950,now+0.12);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(0.28,now+0.01);g.gain.exponentialRampToValueAtTime(0.0001,now+0.18);o.connect(g);g.connect(master);o.start(now);o.stop(now+0.2);},
+    // A quick upward sweep — the "you picked a thing" cue (600→950Hz). A control cue → honours the SFX mute.
+    select(){if(!ctx||muted||uiMuted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(600,now);o.frequency.linearRampToValueAtTime(950,now+0.12);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(0.28,now+0.01);g.gain.exponentialRampToValueAtTime(0.0001,now+0.18);o.connect(g);g.connect(master);o.start(now);o.stop(now+0.2);},
+    // Whether the UI/control/zoom cues are muted (the SFX button — independent of the ambient drone + noises).
+    setUiMuted(m){uiMuted=m;},isUiMuted:()=>uiMuted,
+    // Current output loudness 0..1 (peak of the analyser), for the deck sound meter. 0 when audio isn't running.
+    level(){if(!analyser)return 0;analyser.getByteTimeDomainData(_lvlBuf);let peak=0;for(let i=0;i<_lvlBuf.length;i++){const v=Math.abs(_lvlBuf[i]-128)/128;if(v>peak)peak=v;}return Math.min(1,peak);},
     // A short decaying sine blip — the shared shape for the UI cues (freq/decay/amp per cue), pitch-randomised.
-    _blip(freq,dur,decay,amp,pitch){if(!ctx||muted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(freq*(pitch||1),now);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(amp,now+0.004);g.gain.exponentialRampToValueAtTime(0.0001,now+dur);o.connect(g);g.connect(master);o.start(now);o.stop(now+dur+0.02);},
+    // UI cues honour BOTH the master mute AND the SFX (uiMuted) toggle; ambient sounds ignore uiMuted.
+    _blip(freq,dur,decay,amp,pitch){if(!ctx||muted||uiMuted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(freq*(pitch||1),now);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(amp,now+0.004);g.gain.exponentialRampToValueAtTime(0.0001,now+dur);o.connect(g);g.connect(master);o.start(now);o.stop(now+dur+0.02);},
     // CLICK — a short clean high blip on every button/lamp/toggle press (pitch randomised 0.97–1.05×).
     click(){this._blip(1200,0.06,18,0.28,0.97+Math.random()*0.08);},
     // HOVER — a very soft tick on pointer-enter (throttled so sweeping the deck doesn't machine-gun).
@@ -1034,9 +1044,18 @@ function normalizeMap(m){m=m||{};return {type:"stardust-map",version:2,meta:m.me
 
 /* ---- console ambient life ---- */
 function updateDialZoom(){const d=$("#dialZoom");if(!d)return;const t=(view.scale-0.08)/(6-0.08);d.style.setProperty("--r",(t*270-135)+"deg");}
-$("#dialZoom").style.setProperty("--r","-90deg");$("#dialGain").style.setProperty("--r","20deg");
-$("#dialZoom").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);beep(720,0.05);};
-$("#dialGain").onclick=()=>{$("#lampScan").classList.toggle("on");beep(520,0.05);};
+$("#dialZoom").style.setProperty("--r","-90deg");
+// MAGNIFY dial — cycles the zoom on the SELECTED target through 4 framings (far → slight → medium → close), then
+// back to far on the 5th click. The dial physically spins on each click. The "far" framing still clearly shows
+// the selected item. With nothing selected it steps the whole-map zoom around the centre.
+let magLevel=0,magSpin=0;const MAG=[6.5,4,2.6,1.7];   // frame = size × this: bigger = further out
+{const dz=$("#dialZoom");if(dz)dz.onclick=()=>{
+  magLevel=(magLevel+1)%MAG.length;magSpin+=180;dz.classList.remove("spin");void dz.offsetWidth;dz.classList.add("spin");dz.style.setProperty("--r",(magLevel/(MAG.length-1)*270-135)+"deg");
+  const t=(curSel&&curSel.type==="instance")?MAP.instances.find(x=>x.id===curSel.id):null;
+  if(t){const s=(t.size||60)*MAG[magLevel];flyTo(t.x,t.y,fitZoomFor(s,s));}
+  else{const {w,h}=paneSize();const S=[0.45,1,2,3.5][magLevel];view.x=w/2-((w/2-view.x)/view.scale)*S;view.y=h/2-((h/2-view.y)/view.scale)*S;view.scale=S;apply(true);}
+  beep(680+magLevel*45,0.05);SpaceAudio.zoom(magLevel<2?-1:1);
+};}
 
 /* ---- HELM: functional + flavour controls (Slice 7) ---- */
 // Tiny WebAudio blips for that clicky spaceship feel (respects the SFX mute).
@@ -1045,8 +1064,13 @@ function beep(freq,dur){if(!sfxOn)return;try{_actx=_actx||new (window.AudioConte
 const deckEl=$("#console");
 // D-pad pan — steps scaled by the THRUST (pan-rate) slider.
 let panRate=40;
-function panStep(dir){const step=20+(panRate/100)*200;if(dir==="up")view.y+=step;else if(dir==="down")view.y-=step;else if(dir==="left")view.x+=step;else if(dir==="right")view.x-=step;else{fit(true);beep(600,0.06);return;}apply(true);beep(760,0.04);}
-document.querySelectorAll(".dpad button").forEach(b=>b.onclick=()=>panStep(b.dataset.pan));
+function panStep(dir){const step=20+(panRate/100)*200;if(dir==="up")view.y+=step;else if(dir==="down")view.y-=step;else if(dir==="left")view.x+=step;else if(dir==="right")view.x-=step;else{fit(true);beep(600,0.06);return;}apply(true);}
+// D-pad: a click nudges the view; PRESS-AND-HOLD an arrow pans continuously (another fun way to fly the map
+// alongside click-drag). Center recenters. Sound on each discrete nudge only (not every held frame).
+{let holdTO=null;const startHold=dir=>{if(dir==="center")return;stopHold();panStep(dir);holdTO=setInterval(()=>panStep(dir),90);};const stopHold=()=>{if(holdTO){clearInterval(holdTO);holdTO=null;}};
+ document.querySelectorAll(".dpad button").forEach(b=>{const dir=b.dataset.pan;
+   b.addEventListener("pointerdown",e=>{e.preventDefault();beep(760,0.04);if(dir==="center")panStep("center");else startHold(dir);});
+   ["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,stopHold));});}
 const pr=$("#panRate");if(pr)pr.oninput=e=>{panRate=+e.target.value;$("#panRateV").textContent=panRate;};
 // TINT dial — steps the info-panel screen hue through cyan → green → blue → amber → red.
 let tintStep=0;const TINTS=[0,90,180,255,300];
@@ -1062,12 +1086,18 @@ applyTune();
 setInterval(()=>{if(Math.random()<0.12){const base=Math.min(1,Math.abs(tune-SWEET)/50);deckEl.style.setProperty("--distort",Math.min(1,base+0.12).toFixed(3));setTimeout(()=>deckEl.style.setProperty("--distort",base.toFixed(3)),90);}},1600);
 // LIGHT dial — nudges scene lighting: brightens the 3D scene if shown, else the 2D stage.
 let lightStep=0;const LIGHTS=[1,1.18,1.35,0.85];
+// LIGHT — steps the map brightness (2D stage, and the 3D scene if shown). A clear dim ↔ bright cycle.
 $("#btnLight").onclick=()=>{lightStep=(lightStep+1)%LIGHTS.length;const l=LIGHTS[lightStep];try{if(window.Map3D&&window.Map3D.setLightLevel)window.Map3D.setLightLevel(l);}catch(e){}const st=$("#stage");if(st)st.style.filter=l===1?"":`brightness(${l})`;$("#btnLight").classList.toggle("on",l!==1);beep(420,0.05);};
-$("#btnSfx").onclick=()=>{sfxOn=!sfxOn;$("#btnSfx").classList.toggle("on",sfxOn);if(sfxOn)beep(660,0.06);};
+// SFX — mutes/unmutes ONLY the control + zoom cues (the beeps + SpaceAudio UI blips). It does NOT touch the
+// ambient drone or the random space noises (those are the SOUND lamp's job). Starts ON.
+$("#btnSfx").onclick=()=>{sfxOn=!sfxOn;$("#btnSfx").classList.toggle("on",sfxOn);SpaceAudio.setUiMuted(!sfxOn);if(sfxOn)beep(660,0.06);};
+SpaceAudio.setUiMuted(!sfxOn);
 ["tgl1","tgl2","tgl3"].forEach(id=>$("#"+id).onclick=()=>$("#"+id).classList.toggle("up"));
-setInterval(()=>{const l=$("#lampComm");if(Math.random()<0.3)l.classList.toggle("on");},1400);
-setInterval(()=>{$("#sigMeter").style.width=(selectedId?72:52)+Math.random()*22+"%";},2200);
-$("#sigMeter").style.width="58%";
+// The signal bar under CLEAR SCREEN is a live AMBIENT SOUND METER: the drone gives a gentle idle wobble, a random
+// space noise spikes it. Driven by the audio analyser (SpaceAudio.level()); reads ~0 when muted/not started yet.
+let _meterCur=8;
+function meterLoop(){const lv=(SpaceAudio.level&&SpaceAudio.level())||0;const target=6+lv*94;_meterCur+=(target-_meterCur)*(target>_meterCur?0.6:0.12);const el=$("#sigMeter");if(el)el.style.width=_meterCur.toFixed(1)+"%";requestAnimationFrame(meterLoop);}
+requestAnimationFrame(meterLoop);
 window.addEventListener("resize",()=>{if(selectedId){const i=MAP.instances.find(x=>x.id===selectedId);if(i){flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));return;}}fit(false);});
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1800);}
 
