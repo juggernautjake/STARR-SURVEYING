@@ -121,7 +121,7 @@ const Map3D = {
     el.addEventListener('pointerup', e => this._onPointerUp(e));
     // Hover: enlarge + glow the body under the cursor (planet/star/moon/station/…), matching the 2D view. Skip
     // while dragging (a pan/orbit/gizmo move shouldn't re-pick every frame).
-    el.addEventListener('pointermove', e => { if (this._downXY || this._rDownXY || (this.tcontrols && this.tcontrols.dragging)) return; this._setHover3D(this._pickHolder(e.clientX, e.clientY)); });
+    el.addEventListener('pointermove', e => { if (this._downXY || this._rDownXY || (this.tcontrols && this.tcontrols.dragging)) return; const h = this._pickHolder(e.clientX, e.clientY); this._setHover3D(h && h.userData.interactive ? h : null); });
     el.addEventListener('pointerleave', () => this._setHover3D(null));
     el.addEventListener('contextmenu', e => this._onContextMenu(e));
     this._onKey = e => {
@@ -150,7 +150,9 @@ const Map3D = {
       let poi = hits[0].object; while (poi && poi.userData.poiId === undefined && poi.parent) poi = poi.parent;
       if (poi && poi.userData.poiId !== undefined) { if (window.map3dSelectPoi) window.map3dSelectPoi(poi.userData.instId, poi.userData.poiId); return; }
       let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent;
-      if (o && o.userData.id !== undefined) return this._select(o);
+      // In the read-only player Console, a NON-interactive body (an image by default) can't be selected either —
+      // clicking it falls through to deselect, matching 2D. The DM Studio (_editable) can always select to edit.
+      if (o && o.userData.id !== undefined && (this._editable || o.userData.interactive)) return this._select(o);
     }
     this._deselect();
   },
@@ -188,9 +190,9 @@ const Map3D = {
     if (this.renderer) this.renderer.domElement.style.cursor = holder ? 'pointer' : '';
     if (holder && holder.parent) {
       if (holder.userData._baseScale == null) holder.userData._baseScale = holder.scale.x;
-      holder.scale.setScalar(holder.userData._baseScale * 1.12);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._hoverGlowTex(), transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
-      sp.scale.set(2.8, 2.8, 1); sp.renderOrder = 2; holder.add(sp); holder.userData._glow = sp;
+      holder.scale.setScalar(holder.userData._baseScale * 1.06);   // subtle enlarge (was 1.12)
+      const m = new THREE.SpriteMaterial({ map: this._hoverGlowTex(), transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, opacity: 0.5 });   // softer (was full)
+      const sp = new THREE.Sprite(m); sp.scale.set(2.15, 2.15, 1); sp.renderOrder = 2; holder.add(sp); holder.userData._glow = sp;
     }
   },
   // Right-click a body → a small "Focus" menu (a right-DRAG is an orbit, so only a click shows it).
@@ -699,6 +701,10 @@ const Map3D = {
       const _t3 = it.t3d || {};
       holder.rotation.set(_t3.rx || 0, _t3.ry || 0, _t3.rz != null ? _t3.rz : -((it.rot || 0) * Math.PI / 180));
       holder.userData.id = it.id;
+      // Interactivity parity with 2D: honour the per-element `interactable` flag, else default by kind (images +
+      // backdrops are NON-interactive). Non-interactive bodies get NO hover enlarge/glow (the 3D _setHover3D
+      // skips them), so an image never lights up unless the DM explicitly made it interactive.
+      holder.userData.interactive = it.interactable != null ? !!it.interactable : !(it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy');
       const imgUrl = it.kind === 'image' && it.look ? (it.look.src || it.look.image) : null;
       // planet3d uses its saved cfg3d; 2D planets/moons synthesize a config so they render as real 3D
       // spheres (not flat discs). Stations/debris/asteroids get their own generated 3D meshes.

@@ -26,7 +26,7 @@ describe('player console: default interactivity by kind', () => {
     expect(SRC).not.toContain('.body:hover{z-index:200 !important;}'); // the old unscoped rule is gone
   });
   it('interactive bodies get a hover affordance — enlarge + glow', () => {
-    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.12)');
+    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.06)');
     expect(SRC).toMatch(/\.body\.interactive:hover\{filter:drop-shadow/);
   });
   it('non-interactive bodies wire no select/hover handlers', () => {
@@ -191,12 +191,12 @@ describe('3D body hover: enlarge + glow (owner 2026-07-18)', () => {
   const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
   it('a pointermove raycasts the body under the cursor and hovers it', () => {
     expect(MAP3D).toContain("el.addEventListener('pointermove'");
-    expect(MAP3D).toContain('this._setHover3D(this._pickHolder(e.clientX, e.clientY))');
+    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
     expect(MAP3D).toContain("el.addEventListener('pointerleave'");
   });
   it('_setHover3D enlarges ~12% + adds a soft additive glow sprite, reverting the previous', () => {
     expect(MAP3D).toContain('_setHover3D(holder)');
-    expect(MAP3D).toContain('holder.scale.setScalar(holder.userData._baseScale * 1.12)');
+    expect(MAP3D).toContain('holder.scale.setScalar(holder.userData._baseScale * 1.06)');
     expect(MAP3D).toContain('_hoverGlowTex()');
     expect(MAP3D).toContain('this._hoverHolder = null;'); // reset on rebuild so no stale ref
   });
@@ -204,7 +204,7 @@ describe('3D body hover: enlarge + glow (owner 2026-07-18)', () => {
 
 describe('2D body hover is a clear enlarge + glow', () => {
   it('the art scales up and glows on hover (planet/star/moon/station — all interactive)', () => {
-    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.12);filter:drop-shadow(0 0 9px rgba(150,205,255,.95)) brightness(1.12);}');
+    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.06);filter:drop-shadow(0 0 5px rgba(150,205,255,.6)) brightness(1.06);}');
   });
 });
 
@@ -261,5 +261,22 @@ describe('meter smoothing + hybrid default + fullscreen (owner 2026-07-19)', () 
   it('the embedded console iframe allows fullscreen', () => {
     const PAGE = readFileSync(join(process.cwd(), 'app/dnd/campaigns/[id]/console/page.tsx'), 'utf8');
     expect(PAGE).toContain('allowFullScreen');
+  });
+});
+
+describe('images get NO 3D hover/select unless explicitly interactive (owner 2026-07-19)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('the 3D holder carries the interactable flag (default: images/backdrops non-interactive)', () => {
+    expect(MAP3D).toContain("holder.userData.interactive = it.interactable != null ? !!it.interactable : !(it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy')");
+  });
+  it('3D hover skips non-interactive bodies (no glow on an image)', () => {
+    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
+  });
+  it('the read-only player can only click-select interactive bodies (the editor can select anything)', () => {
+    expect(MAP3D).toContain('(this._editable || o.userData.interactive)) return this._select(o)');
+  });
+  it('the 3D hover glow is subtler (scale 1.06, half-opacity sprite)', () => {
+    expect(MAP3D).toContain('holder.userData._baseScale * 1.06');
+    expect(MAP3D).toContain('opacity: 0.5');
   });
 });
