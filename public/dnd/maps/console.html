@@ -751,7 +751,16 @@ function buildLegend(){const box=$("#legendRows");box.innerHTML="";const tops=(M
   if(subs.length){const d=document.createElement("div");d.className="legdiv";box.appendChild(d);subs.forEach(s=>{const r=document.createElement("div");r.className="legrow sub";r.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;r.onclick=()=>select({type:"sector",id:s.id});box.appendChild(r);});}}
 
 /* ---- view / pan / zoom ---- */
-function apply(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();
+// apply() is called on EVERY wheel/pan event; a trackpad fires many per second and each does a dial update +
+// a backdrop reproject. Coalesce to ONE apply per animation frame (rAF) so rapid zoom/pan can't queue redundant
+// work — the transform itself is GPU-composited (#viewport{will-change:transform}), so this keeps zoom smooth.
+let _applyRaf=null,_applyAnim=false;
+function apply(anim){
+  if(anim)_applyAnim=true;
+  if(_applyRaf!=null)return;          // already scheduled this frame — the latest view.* wins when it runs
+  _applyRaf=requestAnimationFrame(()=>{_applyRaf=null;const a=_applyAnim;_applyAnim=false;_applyNow(a);});
+}
+function _applyNow(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();
   // Parallax OFF (published by the DM) → world-lock the backdrop so it pans & zooms with the map, exactly
   // as in the Studio. setLock is idempotent; setView pushes the live pan/zoom each frame.
   if(window.Sky2D){const off=!!(MAP&&MAP.bg3d&&MAP.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}}

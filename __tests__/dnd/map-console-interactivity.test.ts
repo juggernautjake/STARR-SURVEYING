@@ -43,3 +43,11 @@ describe('stations render no phantom atmosphere (owner 2026-07-18)', () => {
     expect(STUDIO).toContain('if(!["planet","planet3d","moon"].includes(i.kind))return ""');
   });
 });
+
+describe('zoom/pan is rAF-throttled (no per-event jank)', () => {
+  it('apply() coalesces to one requestAnimationFrame instead of running synchronously each event', () => {
+    expect(SRC).toContain('if(_applyRaf!=null)return;');
+    expect(SRC).toContain('_applyRaf=requestAnimationFrame(');
+    expect(SRC).toContain('function _applyNow(anim)'); // the real work moved here, called once per frame
+  });
+});
