@@ -67,7 +67,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const role = await getCampaignRole(params.id);
   if (role === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
 
-  const mapId = req.nextUrl.searchParams.get('mapId');
+  const mapId = new URL(req.url).searchParams.get('mapId') || req.nextUrl.searchParams.get('mapId');
   if (mapId) {
     // Full map (with data) — for the editor (DM) or the console (members, published only).
     const { data } = await supabaseAdmin.from('dnd_maps').select('*').eq('id', mapId).eq('campaign_id', params.id).maybeSingle();
@@ -178,7 +178,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   if ((await getCampaignRole(params.id)) !== 'dm') return NextResponse.json({ error: 'Only the DM can delete maps.' }, { status: 403 });
 
-  const id = req.nextUrl.searchParams.get('id');
+  // Read the map id from the query string via the RAW request URL (req.nextUrl.searchParams has been observed to
+  // come back empty for some deployed requests — hence the "id is required" 400 even with ?id=… present). Fall
+  // back to nextUrl, then to a JSON body { id } the client also sends, so the delete can never lose the id.
+  let id = new URL(req.url).searchParams.get('id') || req.nextUrl.searchParams.get('id');
+  if (!id) { const b = await req.json().catch(() => null); if (b && typeof b.id === 'string') id = b.id; }
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
   // Delete and RETURN the deleted rows, so we can tell a real deletion from a no-op (wrong id / already gone)
   // instead of always reporting success — a silent no-op is exactly what made a "deleted" map reappear on refresh.

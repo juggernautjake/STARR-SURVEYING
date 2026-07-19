@@ -66,7 +66,11 @@ export default function CampaignMapsDm({ campaignId }: { campaignId: string }) {
     // (Previously the row was removed locally and the DELETE result was ignored, so a failed delete looked
     //  like it worked but the map returned on refresh.) We always re-load from the server afterwards. (2026-07-19)
     try {
-      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps?id=${encodeURIComponent(m.id)}`, { method: 'DELETE' })
+      // Send the id in the query AND the body — some deployed requests lose the query string server-side,
+      // which produced a spurious "id is required" 400. The body guarantees the id always arrives.
+      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps?id=${encodeURIComponent(m.id)}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: m.id }),
+      })
       if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error || `Delete failed (${r.status}). The map was not removed.`) }
     } catch { setErr('Delete failed — network error. The map was not removed.') }
     finally { await load() }   // reflect the server's actual state (gone if deleted, still here if not)
