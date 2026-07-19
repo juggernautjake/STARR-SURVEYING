@@ -20,8 +20,10 @@ const MOOD_REFRESH_MS = 15 * 60 * 1000 // AI refresh cadence
 const ALL_MOOD_IDS = MOODS.map((m) => m.id)
 
 export default function StreamOwnerControls() {
-  const { characterId, isDM, canWrite, reloadFromDb } = useChar()
-  const isOwner = canWrite && !isDM
+  const { characterId, isDM, canWrite, campaignId, reloadFromDb } = useChar()
+  // The owner's own stream bar shows only OUTSIDE a campaign (owner 2026-07-18): inside a campaign only the DM
+  // sees/edits the stream — not even the player. Outside a campaign the owner runs their own stream freely.
+  const isOwner = canWrite && !isDM && !campaignId
   const [stream, setStream] = useState<OwnerStream | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)

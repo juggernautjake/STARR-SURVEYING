@@ -37,7 +37,12 @@ const FOCUS_GAP = [12000, 9000, 7000, 5000, 3500]
 const FOCUS_COUNT = [6, 8, 10, 12, 16]
 
 export default function StreamControl() {
-  const { characterId, isDM } = useChar()
+  const { characterId, isDM, canWrite, campaignId } = useChar()
+  // Who may DRIVE the stream (owner 2026-07-18): the DM always (inside their campaign), OR the character's own
+  // owner when they open the sheet OUTSIDE a campaign — there they get the full director controls just like the
+  // DM. INSIDE a campaign the owner gets nothing here; only the DM sees/edits the stream (the gate below).
+  const isOwner = canWrite && !isDM
+  const canControl = isDM || (isOwner && !campaignId)
   const [stream, setStream] = useState<Stream | null>(null)
   const [busy, setBusy] = useState(false)
   // One merged AI chat-focus field: the DM types/pastes text (a topic, or a transcript of
@@ -297,8 +302,9 @@ export default function StreamControl() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream?.focus_topic])
 
-  // All hooks are declared above; bail out of the render for a non-DM / character-less mount.
-  if (!isDM || !characterId) return null
+  // All hooks are declared above; bail out unless the viewer may drive this stream (DM, or the owner outside a
+  // campaign) and we have a character.
+  if (!canControl || !characterId) return null
 
   const clearChat = async () => {
     if (busy) return

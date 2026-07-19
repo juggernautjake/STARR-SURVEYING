@@ -34,6 +34,7 @@ import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
 import DmOverridePanel from './components/DmOverridePanel'
 import StreamOwnerControls from './components/StreamOwnerControls'
+import StreamControl from './components/StreamControl'
 import MlmPanel from './components/MlmPanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
@@ -200,6 +201,12 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
           non-DM owner on a stream character (returns null otherwise). */}
       {hasStream && <StreamOwnerControls />}
 
+      {/* Outside a campaign, the character's OWNER gets the FULL stream director controls — go live, viewers,
+          AI chat director, polls/alerts, moderation — exactly like the DM (owner 2026-07-18). Inside a campaign
+          this is hidden for the owner; only the DM's panel (below) drives the stream. StreamControl self-gates
+          to isDM || (owner && !campaign), so this render is the owner-outside-campaign path. */}
+      {hasStream && canWrite && !isDM && !campaignId && <StreamControl />}
+
       {/* DM control panel — renders only in DM mode (§6.8.1 / C10). Stream controls
           inside it show only for characters with the `stream` module. */}
       <DmOverridePanel hasStream={hasStream} />
@@ -310,7 +317,7 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
       {/* Live-stream feature (chat + influence meter + alerts/polls) — only for
           characters whose sheet_type registers the `stream` module (§6.9). */}
       {hasStream && characterId && <StreamAlert characterId={characterId} />}
-      {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM} isOwner={canWrite && !isDM} campaignId={campaignId ?? undefined} />}
+      {hasStream && characterId && <StreamPoll characterId={characterId} isController={isDM || (canWrite && !isDM && !campaignId)} isOwner={canWrite && !isDM} campaignId={campaignId ?? undefined} />}
       {/* A fellow party member watching this stream (not the streamer/owner or DM) can
           chat as a viewer and tip the streamer their own notes. */}
       {hasStream && characterId && <StreamChat characterId={characterId} campaignId={campaignId} viewerCanChat={!isDM && !canWrite} />}
