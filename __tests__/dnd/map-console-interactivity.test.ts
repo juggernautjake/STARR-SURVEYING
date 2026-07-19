@@ -81,3 +81,20 @@ describe('player console: sectors visible + hover/focus (owner 2026-07-18)', () 
     expect(SRC).toContain('svgF=mkSvg(11)'); // front sectors above bodies; back sectors (6) below bodies (10)
   });
 });
+
+describe('3D/hybrid sector layering (owner 2026-07-18)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('3D sectors render at renderOrder -3 with depthTest off (paint order decides layering)', () => {
+    expect(MAP3D).toContain('fill.position.z = zPos; fill.renderOrder = -3;');
+  });
+  it('backdrops (image/galaxy/…) paint BEHIND the sectors; planets IN FRONT; behind = fully back', () => {
+    expect(MAP3D).toContain("const isBackdrop = it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy'");
+    expect(MAP3D).toContain('const bodyRO = it.behind ? -5 : (isBackdrop ? -4 : 1);');
+    expect(MAP3D).toContain('plane.renderOrder = bodyRO');
+    expect(MAP3D).toContain('disc.renderOrder = bodyRO');
+  });
+  it('the LOD-promoted full model keeps the impostor render order (send-back/front survives)', () => {
+    expect(MAP3D).toContain('const ro = b.disc ? b.disc.renderOrder : 1;');
+    expect(MAP3D).toContain('o.renderOrder = ro;');
+  });
+});

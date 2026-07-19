@@ -675,8 +675,14 @@ const Map3D = {
       // Every body starts as a cheap disc impostor; _applyLOD() promotes the large ones on-screen to
       // full 3D meshes. Unlimited impostors → a whole system fits; only a few big ones cost a mesh.
       let disc = null;
-      if (imgUrl) { const plane = this._imagePlane(it, imgUrl); holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
-      else { disc = this._discMesh(it, cfg); holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
+      // Layer parity with 2D (sectors use depthTest:false, so RENDER ORDER — not z — decides who's on top): a
+      // body sent to back (`behind`) and image BACKDROPS paint BEHIND the sectors (renderOrder -3), while normal
+      // bodies (planets/moons/…) paint IN FRONT. So the stack is image (back) < sectors < planets (front), and
+      // bring-to-front / send-to-back reorders a body across the sectors just like in 2D.
+      const isBackdrop = it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy';
+      const bodyRO = it.behind ? -5 : (isBackdrop ? -4 : 1);   // backdrops behind sectors(-3), planets/moons/etc. in front
+      if (imgUrl) { const plane = this._imagePlane(it, imgUrl); plane.renderOrder = bodyRO; holder.add(plane); if (plane.userData.spin) this._spinPlanes.push(plane); }
+      else { disc = this._discMesh(it, cfg); disc.renderOrder = bodyRO; holder.add(disc); if (disc.userData.spin) this._spinPlanes.push(disc); }
       if (it.pois && it.pois.length) this._addSurfacePois(holder, it);   // surface POIs on the body
       if (it.opacity != null && it.opacity < 1) holder.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = it.opacity; } });   // fade parity
       g.add(holder);
@@ -778,6 +784,10 @@ const Map3D = {
           : b.kind === 'asteroid' ? buildAsteroidModel(b.it.look || {}, { anisotropy: aniso })
             : b.kind === 'debris' ? this._debrisModel(b.it)
               : buildPlanetModel(b.cfg, { anisotropy: aniso, segments: 64 });
+      // Carry the impostor's render order onto the full model so its layer vs the sectors (send-to-back/front)
+      // survives the LOD promotion — a `behind` body stays behind the sectors even at full detail.
+      const ro = b.disc ? b.disc.renderOrder : 1;
+      model.group.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.renderOrder = ro; });
       if (b.disc) b.holder.remove(b.disc);
       if (b.it.opacity != null && b.it.opacity < 1) model.group.traverse(o => { if (o.material && !o.material.uniforms) { o.material.transparent = true; o.material.opacity = b.it.opacity; } });
       b.holder.add(model.group); b.model = model; b.hasModel = true; this._planets.push({ model });
