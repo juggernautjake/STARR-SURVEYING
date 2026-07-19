@@ -150,9 +150,11 @@ const Map3D = {
       let poi = hits[0].object; while (poi && poi.userData.poiId === undefined && poi.parent) poi = poi.parent;
       if (poi && poi.userData.poiId !== undefined) { if (window.map3dSelectPoi) window.map3dSelectPoi(poi.userData.instId, poi.userData.poiId); return; }
       let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent;
-      // In the read-only player Console, a NON-interactive body (an image by default) can't be selected either —
-      // clicking it falls through to deselect, matching 2D. The DM Studio (_editable) can always select to edit.
-      if (o && o.userData.id !== undefined && (this._editable || o.userData.interactive)) return this._select(o);
+      // A NON-interactive body (an image by default, or anything the DM unchecked) is INERT in the 3D view in
+      // BOTH player and editor — no hover, no click-select, no response of any kind (owner 2026-07-19). The DM
+      // still edits it via the 2D map-studio inspector/handles (the separate editing UI); the 3D view is a
+      // faithful preview of what players get. Clicking it falls through to deselect, exactly like empty space.
+      if (o && o.userData.id !== undefined && o.userData.interactive) return this._select(o);
     }
     this._deselect();
   },
