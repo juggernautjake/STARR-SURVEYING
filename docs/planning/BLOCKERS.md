@@ -113,17 +113,18 @@ overwrite a deliberate design.
       `set_condition` edit op (AI-callable), the PF2 sheet's `rollLine` auto-folding active conditions (naming
       the sources), and an active-conditions strip on the sheet. *Pinned by `pf2-conditions.test.ts`.* **Residual:**
       **focus points** (the Focus pool + Refocus) still aren't modeled — a smaller follow-up.
-- [~] **In-app roller for the bespoke sheets — MOSTLY RESOLVED (verified 2026-07-18): both bespoke sheets now
-      ROLL in-app.** When this was written PF2Sheet/IGSheet were display-only; Area R1b has since wired both to
-      the shared `resolveD20Roll` engine: tapping a check/save/skill/strike rolls a d20 + its modifier (and a
-      strike's damage via `rollDiceExpr`), with an optional **target-DC field** that resolves the four-step
-      degree of success (`pf2Degree` now has call sites; IG's ladder too), shown in a result banner. Tested
-      (`pf2-sheet-roller.test.ts`, `ig-sheet-roller.test.ts`). **The one residual — a genuine product call:** the
-      bespoke rollers pass the BASE modifier and show the condition/stance penalty **legibly** for the player to
-      apply (a deliberate transparency choice — see `IGSheet` "not folded into base numbers"), whereas the 5e
-      dice tray AUTO-FOLDS its exhaustion. Do you want the IG/PF2 rollers to auto-fold the displayed condition/
-      stance penalty into the rolled total like 5e, or keep the current show-and-apply pattern? (Only this
-      auto-fold choice is left; the roll surfaces themselves are shipped.)
+- [x] **In-app roller for the bespoke sheets — RESOLVED (2026-07-18; owner "real mechanics affecting checks/
+      rolls" + standing make-all-decisions directive → decided AUTO-FOLD, matching the 5e dice tray).** Both
+      bespoke sheets ROLL in-app via the shared `resolveD20Roll` engine (Area R1b): tapping a check/save/skill/
+      strike rolls a d20 + modifier (+ strike damage via `rollDiceExpr`), with a target-DC field resolving the
+      four-step degree of success. **The auto-fold product call is now made and implemented:** the rollers fold
+      the mechanics INTO the rolled total, not just display them —
+      • **Conditions (both IG + PF2):** `rollLine` passes `modifier + cond.penalty` and rolls at disadvantage when
+        the active conditions impose it (`igConditionRollEffect` / `pf2ConditionRollEffect`), naming the sources.
+      • **Stance (IG):** `igStanceRollEffect` folds the active stance's advantage/disadvantage into the die too;
+        opposing advantage+disadvantage cancel to a straight roll (the 5e rule). `ig-stance-roll.test.ts`.
+      So the IG/PF2 rollers now auto-apply like 5e's exhaustion — the mechanics are real, not hand-applied, while
+      still naming every source on the result so the player sees WHY. Nothing residual.
 - [ ] **Mobile upload runtime** — every decision in the capture→save→send→drain→notify→delete flow is a
       pure, tested function; the Expo runtime (true background upload task, MediaLibrary, notifications, the
       queue screen) can only be built + verified on real iOS/Android by you. *Detail: `SURVEYING_WORKMODE`
@@ -218,8 +219,8 @@ A fresh mechanic-by-mechanic audit of the rules engine and the mobile upload cor
 - **2014 exhaustion edition-merge (TRACKED, §A).** The sheet applies the 2024 flat −2/level to 2014
   characters, whose exhaustion is a tiered table — a Ground-Rule-2 violation. Owner-gated; guarded so it
   can't drift (`exhaustion-d20.test.ts`).
-- **PF2 has no in-app roller (SURFACED, §C).** `pf2Degree` is built + fully tested but has zero call sites;
-  `PF2Sheet` is display-only. Product call.
+- **PF2 in-app roller — RESOLVED (§C).** `PF2Sheet` now rolls in-app via `resolveD20Roll` (`pf2Degree` has call
+  sites), auto-folding the worst status/circumstance condition penalty + disadvantage into the total. Done.
 
 **Safety/security hardening (no behavior change; invariants pinned or made future-proof):** death-save
 state transition extracted to a pure `applyDeathSave` + guarded; weapon-crit "double dice not the flat"
