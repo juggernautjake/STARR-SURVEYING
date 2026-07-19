@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   originalSheetAccess, campaignSheetAccess, canPromoteCampaignToOriginal, fellowPlayerCanView,
+  campaignEditTarget, campaignReadFromOverride,
   type ViewerRelation,
 } from '@/lib/dnd/character-visibility';
 
@@ -47,5 +48,31 @@ describe('promote + fellow-player rule', () => {
   it('fellowPlayerCanView is the private/public headline rule', () => {
     expect(fellowPlayerCanView('public')).toBe(true);
     expect(fellowPlayerCanView('private')).toBe(false);
+  });
+});
+
+describe('campaignEditTarget (VIS6c write-routing decision)', () => {
+  it('the DM (not the creator/player) edits the ISOLATED campaign copy', () => {
+    expect(campaignEditTarget(rel({ isDM: true }), true)).toBe('campaign-override');
+  });
+  it('the creator / assigned player edits the ORIGINAL, never the override', () => {
+    expect(campaignEditTarget(rel({ isCreator: true }), true)).toBe('original');
+    expect(campaignEditTarget(rel({ isDM: true, isCreator: true }), true)).toBe('original'); // a DM editing their OWN character
+    expect(campaignEditTarget(rel({ isDM: true, isAssignedPlayer: true }), true)).toBe('original');
+  });
+  it('outside a campaign there is only the original', () => {
+    expect(campaignEditTarget(rel({ isDM: true }), false)).toBe('original');
+  });
+});
+
+describe('campaignReadFromOverride (see exactly what you would edit)', () => {
+  it('the DM reads the override when one exists (so view == what they edit)', () => {
+    expect(campaignReadFromOverride(rel({ isDM: true }), true, true)).toBe(true);
+  });
+  it('no override yet → everyone reads the original', () => {
+    expect(campaignReadFromOverride(rel({ isDM: true }), true, false)).toBe(false);
+  });
+  it('the creator always reads their original, never the override', () => {
+    expect(campaignReadFromOverride(rel({ isCreator: true }), true, true)).toBe(false);
   });
 });

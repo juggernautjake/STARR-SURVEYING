@@ -60,6 +60,27 @@ export function canPromoteCampaignToOriginal(rel: ViewerRelation): boolean {
   return rel.isCreator;
 }
 
+/**
+ * Where an EDIT to a character-in-a-campaign should land — the crux of the isolation rule:
+ *   • The DM (when they are NOT this character's creator) edits the ISOLATED campaign copy — their changes must
+ *     never touch the creator's original. → 'campaign-override'.
+ *   • Everyone else who can edit (the creator / assigned player editing their own) edits the ORIGINAL, which is
+ *     also what the campaign renders until the DM first forks a copy. → 'original'.
+ * This is the pure routing decision the load/save + AI/homebrew edit chokepoints consult to pick their write
+ * target (VIS6c). Kept framework-free + tested so the eventual wiring is trivial, reviewed glue.
+ */
+export type EditTarget = 'original' | 'campaign-override';
+export function campaignEditTarget(rel: ViewerRelation, inCampaign: boolean): EditTarget {
+  return inCampaign && rel.isDM && !rel.isCreator && !rel.isAssignedPlayer ? 'campaign-override' : 'original';
+}
+
+/** The mirror of {@link campaignEditTarget} for READS: a viewer sees the isolated campaign copy exactly when
+ *  their edits would land there — so what they see is what they'd change (never see the override but save the
+ *  original). Any override present is honoured for that viewer; otherwise the original renders. */
+export function campaignReadFromOverride(rel: ViewerRelation, inCampaign: boolean, overrideExists: boolean): boolean {
+  return overrideExists && campaignEditTarget(rel, inCampaign) === 'campaign-override';
+}
+
 /** Would a fellow player (a campaign member who isn't the owner/DM) be able to see this character? Encodes the
  *  headline rule: private hides from other players; public lets everyone review (but not edit). */
 export function fellowPlayerCanView(visibility: string | null | undefined): boolean {

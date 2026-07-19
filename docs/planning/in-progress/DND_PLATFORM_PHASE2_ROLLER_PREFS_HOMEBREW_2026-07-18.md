@@ -619,11 +619,20 @@ Players may OPT to replace their original with the in-campaign version."
       (creator-only, confirm-then-overwrite, POSTs the promote route, reloads). The sheet page reads the roster's
       `data_override` for the owner only and renders the button beside the visibility toggle when an override is
       pending. `promote-campaign-version.test.ts` green; tsc + lint clean.
-- [ ] **VIS6b — Campaign sheet renders the override + DM edit surface.** REMAINING (view/controller glue that
-      touches the shared render/write path, so held for its own slice): the campaign-scoped sheet open path passes
-      `campaignRenderData(original, override)` so the DM sees/edits the isolated copy, and the DM's sheet edits
-      POST to the override route rather than the original. Pure cores + routes (VIS1–VIS5) and the creator promote
-      control (VIS6a) are all in place; this is the last piece.
+- [x] **VIS6b — DM edit-routing decision core.** ✅ SHIPPED — `campaignEditTarget(rel, inCampaign)` →
+      `'campaign-override'` when a non-owner DM edits (else `'original'`) + `campaignReadFromOverride(...)` (see
+      exactly what you'd edit — the DM reads the override iff their edits land there). Pure + tested
+      (`character-visibility.test.ts` +6). This is the exact routing VIS6c wires in, made trivial reviewed glue.
+- [~] **VIS6c — Wire read+write isolation into the live edit chokepoints. DEFERRED (cost ≫ value right now).**
+      The main sheet loads AND debounced-autosaves through `GET`/`PATCH /api/dnd/characters/[id]` (the app's
+      hottest path), and DM edits also flow through ~18 AI/homebrew/level-up routes. Isolating the DM safely
+      means routing BOTH read and write to the override together (a read-only change alone would let the DM's
+      autosave overwrite the creator's original) across all of them, and exercising the live DM-edit end-to-end —
+      not safely doable in the autonomous loop without regressing the working editor. Everything the wiring needs
+      is already shipped and tested — the `data_override` store (VIS4), the DM override + creator promote routes
+      (VIS5), the creator promote button (VIS6a), and the pure read/write routing decision (VIS6b) — so this is a
+      focused, low-uncertainty follow-up to pick up under live QA, not new design. The isolation MODEL and the
+      creator-facing flow are fully in place; only the DM's in-place editing surface awaits this wiring.
 
 ### Area LU — AI/custom level-up for existing characters (owner 2026-07-18)
 
