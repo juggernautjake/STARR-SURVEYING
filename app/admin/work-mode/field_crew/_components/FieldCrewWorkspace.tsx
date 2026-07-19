@@ -14,7 +14,7 @@ import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 import { operationsByCategory, type SurveyingOperation } from '@/lib/surveying/calculator';
 import { resolveOdometerEntry } from '@/lib/mileage/odometer';
 
-type FieldTab = 'job' | 'calc' | 'notes' | 'instructions' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
+type FieldTab = 'job' | 'calc' | 'notes' | 'instructions' | 'ai' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
 
 /** The job fields the field hub reads (a subset of the jobs row + its team). */
 interface FieldJob {
@@ -40,6 +40,7 @@ const TABS: Array<{ id: FieldTab; label: string; icon: string }> = [
   { id: 'calc',      label: 'Calc',      icon: '🧮' },
   { id: 'notes',     label: 'Notes',     icon: '📝' },
   { id: 'instructions', label: 'Instructions', icon: '📋' },
+  { id: 'ai',        label: 'Ask AI',    icon: '🤖' },
   { id: 'photo',     label: 'Photo',     icon: '📷' },
   { id: 'points',    label: 'Points',    icon: '📍' },
   { id: 'mileage',   label: 'Mileage',   icon: '🚗' },
@@ -115,6 +116,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
           : activeTab === 'calc' ? <div style={{ display: 'grid', gap: 16 }}><FieldCalculator /><SurveyingTools /></div>
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
           : activeTab === 'instructions' ? <JobInstructions jobId={jobId} />
+          : activeTab === 'ai' ? <FieldAssistant job={activeJob} />
           : activeTab === 'files' ? <JobFiles jobId={jobId} />
           : activeTab === 'photo' ? <JobMedia jobId={jobId} />
           : activeTab === 'mileage' ? <MileageTracker />
@@ -442,6 +444,65 @@ function JobInstructions({ jobId }: { jobId: string | null }) {
   );
 }
 
+/** The in-Work-Mode AI field assistant (Area D8, text): a chat scoped to surveying/field work (bearings,
+ *  traverse, angle math, procedures, mileage) via POST /api/admin/work-mode/assistant. The active job's label is
+ *  passed as context so answers can reference it. Voice I/O is device-gated and layered on later. */
+function FieldAssistant({ job }: { job: FieldJob | null }) {
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send() {
+    const q = input.trim();
+    if (!q || busy) return;
+    const next = [...messages, { role: 'user' as const, content: q }];
+    setMessages(next); setInput(''); setBusy(true); setErr(null);
+    try {
+      const res = await fetch('/api/admin/work-mode/assistant', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: next, jobContext: job ? jobLabel(job) : undefined }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(j.error ?? 'The assistant is unavailable.'); return; }
+      setMessages((m) => [...m, { role: 'assistant', content: String(j.reply ?? '') }]);
+    } catch {
+      setErr('Network error.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 640, display: 'grid', gap: 12 };
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>🤖 Field assistant</div>
+      <div style={{ display: 'grid', gap: 10, maxHeight: 360, overflowY: 'auto' }}>
+        {messages.length === 0 && (
+          <div style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>
+            Ask about bearings & azimuths, angle math, traverse setup, mileage, or this job. e.g. “What’s the back-azimuth of N30°E?”
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{ justifySelf: m.role === 'user' ? 'end' : 'start', maxWidth: '90%', padding: '8px 11px', borderRadius: 10, fontSize: '0.9rem', whiteSpace: 'pre-wrap',
+            background: m.role === 'user' ? 'var(--theme-accent)' : 'var(--theme-bg-elevated)', color: m.role === 'user' ? '#fff' : 'var(--theme-fg-primary)', border: m.role === 'user' ? 'none' : '1px solid var(--theme-border)' }}>
+            {m.content}
+          </div>
+        ))}
+        {busy && <div style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>Thinking…</div>}
+      </div>
+      {err && <div style={{ fontSize: '0.8rem', color: 'var(--theme-warning, #c0392b)' }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+          placeholder="Ask the field assistant…" aria-label="ask the field assistant"
+          style={{ flex: 1, padding: '9px 11px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)' }} />
+        <button type="button" onClick={send} disabled={busy || !input.trim()}
+          style={{ padding: '9px 16px', borderRadius: 6, border: 'none', background: 'var(--theme-accent)', color: '#fff', cursor: busy ? 'wait' : 'pointer', fontWeight: 600 }}>Send</button>
+      </div>
+    </div>
+  );
+}
+
 /** The surveying-specific calculator (Area D): renders the shared operation catalog
  *  (`lib/surveying/calculator`) — pick an operation, fill its inputs, see the result. The compute is the pure,
  *  tested function; this component only binds inputs → compute → display, so the buttons and the math never
@@ -652,6 +713,7 @@ const TAB_DESCRIPTIONS: Record<FieldTab, { title: string; description: string }>
   calc:      { title: 'Calculator',        description: 'A quick field calculator.' },
   notes:     { title: 'Notes',             description: 'Per-job field notes.' },
   instructions: { title: 'Instructions',   description: 'RPLS-authored job instructions with linked files.' },
+  ai:        { title: 'Ask AI',            description: 'A field assistant for bearings, traverse, and job questions.' },
   photo:     { title: 'Photo + Video',     description: 'Camera capture wired to the job. OCR + caption + auto-upload.' },
   points:    { title: 'Point recording',   description: 'GPS point capture with description. PNEZD export.' },
   mileage:   { title: 'Mileage tracking',  description: 'GPS start/stop or manual entry. Auto-distance.' },

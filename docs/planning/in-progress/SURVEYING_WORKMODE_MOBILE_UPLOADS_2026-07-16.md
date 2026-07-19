@@ -416,8 +416,15 @@ below states what it reuses.
       returns null for a non-finite heading (UI shows "—"). `__tests__/surveying/compass.test.ts` (8).
       **Remaining (mobile-runtime):** the device magnetometer heading source (`expo-sensors`/`Magnetometer`) +
       the compass dial UI — feed the live heading into this pure formatter; device-tested.
-- [ ] **D8 — In-Work-Mode AI assistant (text + voice).** Type-or-talk assistant; reuse the existing DnD/library
-      chat + TTS/STT plumbing where possible. Voice I/O is device/runtime-gated (note honestly per slice).
+- [~] **D8 — In-Work-Mode AI assistant. ✅ TEXT shipped.** A Work Mode "🤖 Ask AI" tab (`FieldAssistant`) — a
+      chat scoped to surveying/field work (bearings↔azimuths + back-bearings, angle math, traverse + closure,
+      lat/departure, trig, GPS/total-station procedures, mileage, job logistics) via
+      `POST /api/admin/work-mode/assistant` (auth- + configured-gated; reuses the shared Anthropic pattern; the
+      active job's label is passed as context; last ~12 turns kept). `field-assistant.test.ts` (4) +
+      `field-crew-workspace.test.ts`. **Remaining: VOICE I/O** (mic STT + spoken TTS) — device/runtime-gated,
+      layered on the client on-device.
+      (Original scope: type-OR-talk assistant reusing the DnD/library chat + TTS/STT plumbing. Text is done;
+      voice STT/TTS is device/runtime-gated and layered on the client on-device.)
 
 ---
 
