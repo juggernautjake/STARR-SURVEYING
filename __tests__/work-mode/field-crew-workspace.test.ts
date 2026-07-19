@@ -53,4 +53,13 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('/field-data');
     expect(SRC).toContain('job_media');
   });
+
+  it('the Calc tab includes the surveying calculator bound to the shared operation catalog (Area D)', () => {
+    // Renders SurveyingTools alongside the arithmetic FieldCalculator, driven by the pure catalog — no
+    // re-implemented formula in the component.
+    expect(SRC).toContain("from '@/lib/surveying/calculator'");
+    expect(SRC).toContain('operationsByCategory()');
+    expect(SRC).toContain('<SurveyingTools />');
+    expect(SRC).toContain('op.compute(args)'); // the pure catalog compute drives the result
+  });
 });

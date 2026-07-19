@@ -11,6 +11,7 @@ import { jobMapsUrl, hasJobLocation, formatJobAddress, telHref } from '@/lib/job
 import { jobCrew, jobRpls, crewNames } from '@/lib/jobs/crew';
 import { jobLabel, groupFilesBySection, mediaDisplay } from '@/lib/jobs/hub';
 import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
+import { operationsByCategory, type SurveyingOperation } from '@/lib/surveying/calculator';
 
 type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
 
@@ -109,7 +110,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
 
       <section role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'job' ? <JobSummary job={activeJob} loading={loadingJobs} />
-          : activeTab === 'calc' ? <FieldCalculator />
+          : activeTab === 'calc' ? <div style={{ display: 'grid', gap: 16 }}><FieldCalculator /><SurveyingTools /></div>
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
           : activeTab === 'files' ? <JobFiles jobId={jobId} />
           : activeTab === 'photo' ? <JobMedia jobId={jobId} />
@@ -216,6 +217,55 @@ function FieldCalculator() {
         <button type="button" style={{ ...btn, gridColumn: 'span 2', color: 'var(--theme-warning)' }} onClick={() => setExpr('')}>C</button>
         <button type="button" style={{ ...btn }} onClick={() => setExpr((e) => e.slice(0, -1))}>⌫</button>
         <button type="button" style={{ ...btn, background: 'var(--theme-accent)', color: '#fff' }} onClick={() => { if (preview) setExpr(preview); }}>=</button>
+      </div>
+    </div>
+  );
+}
+
+/** The surveying-specific calculator (Area D): renders the shared operation catalog
+ *  (`lib/surveying/calculator`) — pick an operation, fill its inputs, see the result. The compute is the pure,
+ *  tested function; this component only binds inputs → compute → display, so the buttons and the math never
+ *  drift. Bearings↔azimuths, angle add/subtract, complement/supplement, back-azimuth/deflection/interior,
+ *  Pythagorean, law of sines/cosines, latitude & departure. */
+function SurveyingTools() {
+  const groups = operationsByCategory();
+  const [opId, setOpId] = useState(groups[0][1][0].id);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const op: SurveyingOperation | undefined = groups.flatMap(([, ops]) => ops).find((o) => o.id === opId);
+
+  // Coerce inputs: a numeric field → Number (blank → NaN → the op returns a friendly error); a quadrant → string.
+  const args: Record<string, number | string> = {};
+  for (const inp of op?.inputs ?? []) args[inp.key] = inp.kind === 'quadrant' ? (vals[inp.key] ?? 'NE') : Number(vals[inp.key]);
+  const res = op ? op.compute(args) : { error: 'Pick an operation.' };
+
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 360, display: 'grid', gap: 10 };
+  const field: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', width: '100%' };
+  const CAT_LABEL: Record<string, string> = { convert: 'Bearing / Azimuth', angle: 'Angles', triangle: 'Triangles & Trig', traverse: 'Traverse' };
+
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>📐 Surveying calculator</div>
+      <select value={opId} onChange={(e) => { setOpId(e.target.value); setVals({}); }} aria-label="surveying operation" style={field}>
+        {groups.map(([cat, ops]) => (
+          <optgroup key={cat} label={CAT_LABEL[cat] ?? cat}>
+            {ops.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </optgroup>
+        ))}
+      </select>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {op?.inputs.map((inp) => (
+          <label key={inp.key} style={{ display: 'grid', gap: 3, fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>
+            {inp.label}
+            {inp.kind === 'quadrant'
+              ? <select value={vals[inp.key] ?? 'NE'} onChange={(e) => setVals((v) => ({ ...v, [inp.key]: e.target.value }))} style={field}>
+                  {['NE', 'SE', 'SW', 'NW'].map((q) => <option key={q} value={q}>{q}</option>)}
+                </select>
+              : <input type="number" inputMode="decimal" value={vals[inp.key] ?? ''} onChange={(e) => setVals((v) => ({ ...v, [inp.key]: e.target.value }))} placeholder="0" aria-label={inp.label} style={field} />}
+          </label>
+        ))}
+      </div>
+      <div aria-live="polite" style={{ textAlign: 'right', fontSize: '1.15rem', minHeight: 26, color: 'error' in res ? 'var(--theme-fg-secondary)' : 'var(--theme-accent)' }}>
+        {'error' in res ? res.error : `= ${res.value}`}
       </div>
     </div>
   );
