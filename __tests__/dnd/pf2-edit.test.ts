@@ -117,3 +117,29 @@ describe('PF2 wounded escalation on recovery (rules correctness)', () => {
     expect(c.combat.dyingValue).toBe(2);
   });
 });
+
+describe('PF2 set_attribute (in-play stat edit, AI parity with IG set_ability)', () => {
+  it('sets one attribute modifier, immutably, leaving the rest', () => {
+    const c = fighter();
+    const before = JSON.stringify(c);
+    const out = applyPf2Edit(c, { op: 'set_attribute', attribute: 'STR', value: 6 });
+    expect(out.attributes.STR).toBe(6);
+    expect(out.attributes.DEX).toBe(c.attributes.DEX);
+    expect(JSON.stringify(c)).toBe(before); // input unchanged
+  });
+  it('clamps to the legal PF2 modifier range (−5..12)', () => {
+    const c = fighter();
+    expect(applyPf2Edit(c, { op: 'set_attribute', attribute: 'CON', value: 99 }).attributes.CON).toBe(12);
+    expect(applyPf2Edit(c, { op: 'set_attribute', attribute: 'CON', value: -20 }).attributes.CON).toBe(-5);
+  });
+  it('parses a case-insensitive attribute + numeric value; rejects bad ones', () => {
+    expect(parsePf2Edit({ op: 'set_attribute', attribute: 'dex', value: '3' })).toEqual({ edit: { op: 'set_attribute', attribute: 'DEX', value: 3 } });
+    expect('error' in parsePf2Edit({ op: 'set_attribute', attribute: 'LUK', value: 2 })).toBe(true);
+    expect('error' in parsePf2Edit({ op: 'set_attribute', attribute: 'STR', value: 'x' })).toBe(true);
+  });
+  it('is in PF2_EDIT_OPS, describes itself with a signed modifier, and is on the AI tool', () => {
+    expect(PF2_EDIT_OPS).toContain('set_attribute');
+    expect(describePf2Edit({ op: 'set_attribute', attribute: 'WIS', value: 2 })).toBe('Set WIS to +2.');
+    expect(JSON.stringify(PF2_EDIT_TOOL)).toContain('set_attribute');
+  });
+});

@@ -6,7 +6,8 @@
 //
 // HP note: PF2's stored `currentHp` uses 0 to mean "full/unset" (the sheet renders maxHp then). Damage/heal
 // therefore resolve against the EFFECTIVE current (currentHp || maxHp) and write a real value back.
-import type { PF2Character } from './model';
+import type { PF2Character, PF2AttributeKey } from './model';
+import { PF2_ATTRIBUTES } from './model';
 import { pf2MaxHp } from './rules';
 import type { DownedDamageModel } from '@/lib/dnd/preferences';
 
@@ -18,7 +19,10 @@ export type PF2Edit =
   | { op: 'set_wounded'; value: number }
   // Set (or, with value 0, clear) a PF2 condition by name — Frightened 2, Sickened 1, Prone. The sheet folds
   // active conditions into rolls under PF2's non-stacking penalty rule.
-  | { op: 'set_condition'; name: string; value: number };
+  | { op: 'set_condition'; name: string; value: number }
+  // Set one attribute MODIFIER directly (PF2 tracks modifiers in play, not scores) — e.g. STR +4. Clamped to the
+  // legal −5..12 range. Parity with the IG set_ability edit; lets the AI adjust a stat in place.
+  | { op: 'set_attribute'; attribute: PF2AttributeKey; value: number };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -29,7 +33,11 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute'] as const;
+
+/** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
+const ATTR_MIN = -5;
+const ATTR_MAX = 12;
 export type PF2EditOp = (typeof PF2_EDIT_OPS)[number];
 
 const DYING_MAX = 4; // PF2: Dying 4 = dead.
@@ -99,6 +107,11 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       combat.conditions = list;
       return { ...pf2, combat };
     }
+    case 'set_attribute': {
+      if (!(PF2_ATTRIBUTES as readonly string[]).includes(edit.attribute) || !Number.isFinite(edit.value)) return pf2;
+      const value = Math.min(ATTR_MAX, Math.max(ATTR_MIN, Math.round(edit.value)));
+      return { ...pf2, attributes: { ...pf2.attributes, [edit.attribute]: value } };
+    }
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -125,6 +138,13 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
     const value = Math.max(0, Math.min(10, Math.round(Number(o.value) || 0)));
     return { edit: { op, name, value } };
   }
+  if (op === 'set_attribute') {
+    const attribute = String(o.attribute ?? '').trim().toUpperCase() as PF2AttributeKey;
+    if (!(PF2_ATTRIBUTES as readonly string[]).includes(attribute)) return { error: `set_attribute needs an "attribute" of ${PF2_ATTRIBUTES.join('/')}.` };
+    const v = Number(o.value);
+    if (!Number.isFinite(v)) return { error: 'set_attribute needs a numeric "value" (the modifier).' };
+    return { edit: { op, attribute, value: Math.min(ATTR_MAX, Math.max(ATTR_MIN, Math.round(v))) } };
+  }
   // set_dying / set_wounded carry a `value` (0 is legal — it clears the track).
   const value = Math.max(0, Math.round(Number(o.value) || 0));
   return { edit: { op, value } as PF2Edit };
@@ -139,6 +159,7 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'set_dying': return edit.value ? `Now Dying ${edit.value}.` : 'No longer Dying.';
     case 'set_wounded': return edit.value ? `Now Wounded ${edit.value}.` : 'No longer Wounded.';
     case 'set_condition': return edit.value ? `Now ${edit.name} ${edit.value}.` : `No longer ${edit.name}.`;
+    case 'set_attribute': return `Set ${edit.attribute} to ${edit.value >= 0 ? '+' : ''}${edit.value}.`;
     default: return 'No change.';
   }
 }

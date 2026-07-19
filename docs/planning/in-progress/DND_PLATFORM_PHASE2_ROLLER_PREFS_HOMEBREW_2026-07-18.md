@@ -409,11 +409,14 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
 - [x] **R6 — Tests:** ✅ SHIPPED — `foldD20` golden-pinned (face+mod, crit/fumble, clamp, sign) in
       `manual-roll.test.ts`; the store's `manualD20`/`recordRoll` + the tray's two-mode entry panel are
       source-anchored there; the R2 auto-toggle gate is anchored in `exhaustion-d20.test.ts`. Full suite green.
-- [ ] **R4 — Manual stat / direct edit (DEFERRED — needs a focused, browser-verified session).** The 5e sheet
-      has full in-place edit (editMode number fields); the IG sheet edits via structured `postEdit` ops
-      (stances/conditions/powers/feats). `PF2Sheet.tsx` is still largely a read-only display — adding true
-      in-place stat/HP editing there is a substantial data-model + UI build best done where it can be exercised
-      live, so it's parked rather than half-built at scale. Rationale documented per the README defer rubric.
+- [~] **R4 — Manual stat / direct edit.** The 5e sheet has full in-place edit; the IG sheet edits via structured
+      `postEdit` ops. **Both bespoke systems now have a `set_ability`/`set_attribute` edit op (2026-07-18):** IG's
+      `set_ability` (STR/DEX/CON/… score) + an inline sheet input (manual + AI), and PF2's `set_attribute` (the
+      attribute MODIFIER, −5..12; PF2 tracks modifiers not scores) wired into the PF2 edit engine + `edit_pf2_sheet`
+      AI tool — so the AI can set a PF2 stat in place at parity with IG. `pf2-edit.test.ts` +4. **Remaining
+      (DEFERRED — browser-verified session):** the MANUAL in-place edit UI on `PF2Sheet.tsx` (which has no
+      edit-control infrastructure yet — a substantial data-model + UI build best exercised live), plus HP/other
+      direct fields. The edit OPS + AI path are done; only PF2's manual sheet controls are parked.
 
 ### Area D — Dice roller interfaces & styles (depends on R)
 - [x] **D1 — Style system.** ✅ SHIPPED — the dice tray's look is now driven by `preferences.diceRollerStyle`.
