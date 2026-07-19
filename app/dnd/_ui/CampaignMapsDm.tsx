@@ -26,7 +26,7 @@ export default function CampaignMapsDm({ campaignId }: { campaignId: string }) {
 
   async function load() {
     try {
-      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps`)
+      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps`, { cache: 'no-store' })   // always fresh — never a stale list
       const j = await r.json().catch(() => ({}))
       setMaps(r.ok ? (j.maps ?? []) : [])
     } catch {
@@ -49,16 +49,27 @@ export default function CampaignMapsDm({ campaignId }: { campaignId: string }) {
   }
 
   async function patch(id: string, body: Record<string, unknown>) {
-    setMaps((m) => (m ? m.map((x) => (x.id === id ? { ...x, ...body } : x)) : m))
-    await fetch(`/api/dnd/campaigns/${campaignId}/maps`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }),
-    }).catch(() => {})
+    setErr(null)
+    setMaps((m) => (m ? m.map((x) => (x.id === id ? { ...x, ...body } : x)) : m))   // optimistic for snappiness
+    try {
+      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }),
+      })
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error || `Update failed (${r.status}).`); await load() }
+    } catch { setErr('Update failed — network error.'); await load() }
   }
 
   async function remove(m: MapRow) {
     if (!window.confirm(`Delete the map “${m.name}”? This can't be undone.`)) return
-    setMaps((list) => (list ? list.filter((x) => x.id !== m.id) : list))
-    await fetch(`/api/dnd/campaigns/${campaignId}/maps?id=${m.id}`, { method: 'DELETE' }).catch(() => {})
+    setErr(null)
+    // Do NOT optimistically drop it: only remove it from the list once the SERVER confirms the delete.
+    // (Previously the row was removed locally and the DELETE result was ignored, so a failed delete looked
+    //  like it worked but the map returned on refresh.) We always re-load from the server afterwards. (2026-07-19)
+    try {
+      const r = await fetch(`/api/dnd/campaigns/${campaignId}/maps?id=${encodeURIComponent(m.id)}`, { method: 'DELETE' })
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error || `Delete failed (${r.status}). The map was not removed.`) }
+    } catch { setErr('Delete failed — network error. The map was not removed.') }
+    finally { await load() }   // reflect the server's actual state (gone if deleted, still here if not)
   }
 
   function rename(m: MapRow) {

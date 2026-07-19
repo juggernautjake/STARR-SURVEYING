@@ -146,21 +146,29 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             </section>
           )}
 
-          {/* The campaign's published map (image maps show inline; interactive maps get a button) */}
-          {data.publishedMap && (data.publishedMap.kind === 'image' ? data.publishedMap.imageUrl : true) && (
+          {/* Every published map for this campaign — players can view any of them (image maps show inline;
+              interactive built maps get an "Open" button that loads that specific map in the console). */}
+          {(data.publishedMaps ?? []).length > 0 && (
             <section className={styles.framedPanel}>
               <div className={styles.framedPanelTop} />
-              <h2 className={styles.panelTitle}>Galaxy Map — {data.publishedMap.name}</h2>
-              {data.publishedMap.kind === 'image' && data.publishedMap.imageUrl ? (
-                <button onClick={() => setLightbox(data.publishedMap!.imageUrl)} title="Click to expand" style={{ display: 'block', width: '100%', border: '1px solid var(--hx-line)', background: '#010a13', padding: 4, cursor: 'zoom-in', borderRadius: 4 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={data.publishedMap.imageUrl} alt={data.publishedMap.name} style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 460, objectFit: 'contain', borderRadius: 3 }} />
-                </button>
-              ) : (
-                <a href={`/dnd/campaigns/${data.id}/console?map=${data.publishedMap.id}`} className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ justifyContent: 'center', padding: '12px', textDecoration: 'none' }}>
-                  ✦ Open the interactive map
-                </a>
-              )}
+              <h2 className={styles.panelTitle}>Galaxy Maps{data.publishedMaps.length > 1 ? ` (${data.publishedMaps.length})` : ''}</h2>
+              <div style={{ display: 'grid', gap: 14 }}>
+                {data.publishedMaps.map((pm) => (
+                  <div key={pm.id}>
+                    <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)', marginBottom: 6, letterSpacing: '0.04em' }}>{pm.name}</div>
+                    {pm.kind === 'image' && pm.imageUrl ? (
+                      <button onClick={() => setLightbox(pm.imageUrl)} title="Click to expand" style={{ display: 'block', width: '100%', border: '1px solid var(--hx-line)', background: '#010a13', padding: 4, cursor: 'zoom-in', borderRadius: 4 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={pm.imageUrl} alt={pm.name} style={{ display: 'block', width: '100%', height: 'auto', maxHeight: 460, objectFit: 'contain', borderRadius: 3 }} />
+                      </button>
+                    ) : (
+                      <a href={`/dnd/campaigns/${data.id}/console?map=${pm.id}`} className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ justifyContent: 'center', padding: '12px', textDecoration: 'none' }}>
+                        ✦ Open “{pm.name}”
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 

@@ -315,8 +315,11 @@ export interface CampaignHubData {
   gallery: HubMedia[];
   /** The viewer's own character in this campaign (for the "your character" shortcut). */
   myCharacterId: string | null;
-  /** The campaign's published map (latest), shown to players. Null if none / unmigrated. */
+  /** The campaign's published map (latest), shown to players. Null if none / unmigrated.
+   *  Kept for back-compat; prefer `publishedMaps` (this is simply the first of that list). */
   publishedMap: { id: string; name: string; kind: string; imageUrl: string | null } | null;
+  /** ALL published maps in this campaign (newest first), so players can pick any of them to view. */
+  publishedMaps: { id: string; name: string; kind: string; imageUrl: string | null }[];
   viewerRole: 'dm' | 'player';
   /** The game system this campaign runs (Slice 38d). A brought-in character built for a different
    *  system is offered a translate into this one. `null`/`ambiguous` = no specific system set. */
@@ -377,24 +380,21 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
     .filter((m) => !(m.gallery_tags ?? []).includes('dm-only'))
     .map((m) => ({ id: m.id, url: m.url, kind: m.kind, label: m.label }));
 
-  // The campaign's published map (latest) — best-effort (the dnd_maps table may be unmigrated).
-  let publishedMap: CampaignHubData['publishedMap'] = null;
+  // ALL published maps (newest first) — best-effort (the dnd_maps table may be unmigrated). Players can pick any.
+  let publishedMaps: CampaignHubData['publishedMaps'] = [];
   try {
-    const { data: mapRow } = await supabaseAdmin
+    const { data: mapRows } = await supabaseAdmin
       .from('dnd_maps')
       .select('id, name, kind, image_url')
       .eq('campaign_id', campaignId)
       .eq('published', true)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (mapRow) {
-      const r = mapRow as { id: string; name: string; kind: string; image_url: string | null };
-      publishedMap = { id: r.id, name: r.name, kind: r.kind, imageUrl: r.image_url };
-    }
+      .order('updated_at', { ascending: false });
+    publishedMaps = ((mapRows ?? []) as { id: string; name: string; kind: string; image_url: string | null }[])
+      .map((r) => ({ id: r.id, name: r.name, kind: r.kind, imageUrl: r.image_url }));
   } catch {
     /* dnd_maps not present yet */
   }
+  const publishedMap = publishedMaps[0] ?? null;   // back-compat: the latest one
 
   const dmMem = members.find((m) => m.role === 'dm');
   return {
@@ -428,6 +428,7 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
       characters.find((ch) => ch.played_by_user_id === viewerId || ch.owner_user_id === viewerId)?.id ??
       null,
     publishedMap,
+    publishedMaps,
     viewerRole,
     system: campaign.system ?? null,
   };

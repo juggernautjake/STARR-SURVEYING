@@ -81,7 +81,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (role !== 'dm') query = query.eq('published', true);
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ maps: data ?? [] });
+  // Never let a stale list be cached — a just-deleted/renamed/published map must show correctly on reload.
+  return NextResponse.json({ maps: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -179,12 +180,19 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
-  const { data: row } = await supabaseAdmin.from('dnd_maps').select('storage_path').eq('id', id).eq('campaign_id', params.id).maybeSingle();
-  const { error } = await supabaseAdmin.from('dnd_maps').delete().eq('id', id).eq('campaign_id', params.id);
+  // Delete and RETURN the deleted rows, so we can tell a real deletion from a no-op (wrong id / already gone)
+  // instead of always reporting success — a silent no-op is exactly what made a "deleted" map reappear on refresh.
+  const { data: deleted, error } = await supabaseAdmin
+    .from('dnd_maps')
+    .delete()
+    .eq('id', id)
+    .eq('campaign_id', params.id)
+    .select('id, storage_path');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const path = (row as { storage_path: string | null } | null)?.storage_path;
+  if (!deleted || deleted.length === 0) return NextResponse.json({ error: 'Map not found in this campaign (nothing was deleted).' }, { status: 404 });
+  const path = (deleted[0] as { storage_path: string | null }).storage_path;
   if (path) {
     try { await supabaseAdmin.storage.from(BUCKET).remove([path]); } catch { /* orphan cleanup best-effort */ }
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, deleted: deleted.length });
 }
