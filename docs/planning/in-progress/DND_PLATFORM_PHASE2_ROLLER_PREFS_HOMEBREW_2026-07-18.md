@@ -593,6 +593,34 @@ player picks one and it executes immediately. Must be quick + easy to resolve fo
       exactly its one active sheet — flagged active, `active:`-slot-marked, correctly auto-named — so the
       switcher shows one real chip, never a phantom/broken slot. **Area MV tests complete.**
 
+### Area VIS — Character visibility + isolated in-campaign copies (owner 2026-07-18)
+Owner ruling, verbatim-in-intent: "Characters can be private or public. In a campaign the DM ALWAYS sees
+everything. Private → other players can't see the info; public → everyone reviews it but non-owners can't
+change it. The DM can change a character's info, but only the VERSION inside their campaign. The ORIGINAL
+exists outside the campaign and only its creator edits it. The campaign version is isolated to that campaign.
+Players may OPT to replace their original with the in-campaign version."
+- [x] **VIS1 — Decision core.** ✅ SHIPPED — `lib/dnd/character-visibility.ts`: `originalSheetAccess`
+      (creator-only edit; DM/public/creator view), `campaignSheetAccess` (DM + assigned-player edit; fellow
+      player views public only, private hidden), `canPromoteCampaignToOriginal` (creator only),
+      `fellowPlayerCanView`. Exhaustively unit-tested.
+- [x] **VIS2 — Isolated-copy plumbing.** ✅ SHIPPED — `lib/dnd/campaign-character-copy.ts`:
+      `cloneSheetData`/`campaignRenderData` (override else original)/`forkCampaignCopy` (deep snapshot on first
+      edit)/`promoteOverrideToOriginal`. `campaign-character-copy.test.ts` green.
+- [x] **VIS3 — Private/Public toggle UI.** ✅ SHIPPED — `SheetVisibilityToggle.tsx` (owner-only segmented
+      control PATCHing `/api/dnd/characters/[id] { visibility }`, optimistic + rollback), placed on the sheet
+      gated on `isOwner`. `sheet-visibility-toggle.test.ts` green.
+- [x] **VIS4 — data_override storage.** ✅ SHIPPED — `seeds/451_campaign_character_override.sql` (applied live,
+      idempotent): `dnd_campaign_characters.data_override JSONB` (null = show original) + `override_updated_at/by`.
+- [x] **VIS5 — Isolated edit + promote routes.** ✅ SHIPPED — `POST/DELETE .../characters/[characterId]/override`
+      (DM-only; POST forks + stores the campaign copy, never touching the original; DELETE resets to original) +
+      `POST .../promote` (creator-only; writes the override over `dnd_characters.data` then clears it).
+      `campaign-override-routes.test.ts` green; tsc + lint clean.
+- [ ] **VIS6 — Campaign sheet renders the override + DM edit surface + promote button.** REMAINING (UI wiring):
+      the campaign-scoped sheet open path passes `campaignRenderData(original, override)` so the DM sees/edits the
+      isolated copy, the DM's sheet edits POST to the override route, and the owner gets a "Replace my original
+      with the campaign version" button calling promote. Pure cores + routes (VIS1–VIS5) are all in place; this is
+      the remaining view/controller glue.
+
 ### Area LU — AI/custom level-up for existing characters (owner 2026-07-18)
 
 > Owner, verbatim intent: when a custom character (custom or highly-modified class) levels up, they can either
