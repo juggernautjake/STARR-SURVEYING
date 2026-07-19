@@ -13,6 +13,7 @@ import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
+import ExportSheetButton from '@/app/dnd/_ui/ExportSheetButton';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
@@ -192,6 +193,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {campaignOverridePending && character.campaign_id && (
         <PromoteCampaignVersionButton campaignId={character.campaign_id} characterId={character.id} />
       )}
+      {/* Export the whole sheet — PDF (via print), self-contained HTML, or JSON. Anyone who can view the sheet
+          can export it (the export route is read-gated the same as opening it). */}
+      <ExportSheetButton characterId={character.id} />
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot
         characterId={character.id}
