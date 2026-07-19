@@ -1070,7 +1070,7 @@ select.input {
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
   z-index: 60;
 }
-.siteMenu[open] .siteNav {
+.siteMenu[data-open='true'] .siteNav {
   display: flex;
 }
 .siteNavUser {
@@ -1286,7 +1286,7 @@ select.input {
     z-index: 60;
     display: none;
   }
-  .siteMenu[open] .siteNav {
+  .siteMenu[data-open='true'] .siteNav {
     display: flex;
   }
   .siteNavLink {

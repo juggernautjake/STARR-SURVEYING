@@ -3,17 +3,42 @@
 // the Starr marketing site (which has its own header suppressed by LayoutShell). Kept
 // self-contained: it links only within /dnd, never back out to the marketing pages, so
 // the hub stays reachable by direct link only.
+//
+// The nav is a click-to-open DROPDOWN driven by React state (not a <details>, which didn't reliably close on
+// navigation and can't close on an outside click). It closes: (a) when a nav item is picked — the Link routes
+// AND the menu closes; (b) on a click anywhere outside the menu; (c) on Escape; (d) whenever the route changes
+// (belt-and-braces, since the header persists in the layout across client-side navigations).
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import styles from './hextech.module.css';
 import HeaderBack from './HeaderBack';
 import LogoutButton from './LogoutButton';
 
 export default function DndHeader({ userName }: { userName?: string | null }) {
-  // Close the mobile <details> dropdown after picking a nav item (owner 2026-07-18) — otherwise the native
-  // menu stays open across the client-side route change (the header persists in the layout).
-  const closeMenu = (e: React.MouseEvent) => {
-    (e.currentTarget as HTMLElement).closest('details')?.removeAttribute('open');
-  };
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // (d) Close on any route change — the header stays mounted across client-side navigations, so without this
+  // the menu would linger open on the new page after a link is followed.
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  // (b) outside-click + (c) Escape close, wired only while the menu is open.
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   return (
     <header className={styles.siteHeader}>
       <HeaderBack />
@@ -21,68 +46,50 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
         {/* Four small diamonds arranged into one larger diamond (top · left · right · bottom),
             flanking the wordmark symmetrically on both sides. */}
         <span className={styles.siteBrandCluster} aria-hidden>
-          <span>◆</span>
-          <span>◆</span>
-          <span>◆</span>
-          <span>◆</span>
+          <span>◆</span><span>◆</span><span>◆</span><span>◆</span>
         </span>
         <span className={styles.siteBrandText}>Starr Tabletop</span>
         <span className={styles.siteBrandCluster} aria-hidden>
-          <span>◆</span>
-          <span>◆</span>
-          <span>◆</span>
-          <span>◆</span>
+          <span>◆</span><span>◆</span><span>◆</span><span>◆</span>
         </span>
       </Link>
-      {/* Collapsible nav (MOB1). Native <details> so this stays a server component with no client JS:
-          on desktop the summary/hamburger is hidden and the nav shows inline as a bar; on a phone the nav
-          collapses behind a "☰ {name}" toggle that opens as a dropdown — so the user's name is visible
-          without opening, and Log out lives one tap inside. */}
-      <details className={styles.siteMenu}>
-        <summary className={styles.siteMenuToggle} aria-label="Menu">
+      {/* The dropdown. `data-open` toggles the CSS that reveals the panel; the toggle is a real button (works
+          on desktop + mobile identically). */}
+      <div className={styles.siteMenu} data-open={open ? 'true' : 'false'} ref={menuRef}>
+        <button
+          type="button"
+          className={styles.siteMenuToggle}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Menu"
+          onClick={() => setOpen((o) => !o)}
+        >
           <span aria-hidden>☰</span>
           <span className={styles.siteMenuLabel}>{userName || 'Menu'}</span>
-        </summary>
-        <nav className={styles.siteNav}>
-          <Link href="/dnd" className={styles.siteNavLink} onClick={closeMenu}>
-            Lobby
-          </Link>
-          {/* The rules library — every system's classes, subclasses, features, conditions and rules,
-              searchable and AI-navigable. Given a top-level nav slot so it's always one click away. */}
-          <Link href="/dnd/library" className={styles.siteNavLink} onClick={closeMenu}>
-            Library
-          </Link>
-          <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={closeMenu}>
-            ＋ Character
-          </Link>
-          {/* Start a campaign (become its DM, invite players). Only for signed-in users — a campaign
-              needs an owner. Opens the campaigns dashboard with the New Campaign form ready. */}
+        </button>
+        <nav className={styles.siteNav} role="menu">
+          {/* Every item closes the menu on click; the Link still routes (we don't preventDefault). */}
+          <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>
+          <Link href="/dnd/library" className={styles.siteNavLink} onClick={() => setOpen(false)}>Library</Link>
+          <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Character</Link>
           {userName && (
-            <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={closeMenu}>
-              ＋ Campaign
-            </Link>
+            <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
           )}
-          {/* Maps are created inside a campaign's Map Studio (a map needs a campaign to live in). This entry
-              takes a signed-in user to the campaigns hub to pick which campaign to make a map for. */}
+          {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
+              pick which campaign to make a map for. */}
           {userName && (
-            <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={closeMenu}>
-              ＋ Map
-            </Link>
+            <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Map</Link>
           )}
           {userName ? (
             <span className={styles.siteNavUser}>
-              <span style={{ opacity: 0.85 }}>
-                Signed in as <strong>{userName}</strong>
-              </span>
+              <span style={{ opacity: 0.85 }}>Signed in as <strong>{userName}</strong></span>
               <LogoutButton />
             </span>
           ) : (
-            <Link href="/dnd" className={styles.siteNavLink} onClick={closeMenu}>
-              Sign in
-            </Link>
+            <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Sign in</Link>
           )}
         </nav>
-      </details>
+      </div>
     </header>
   );
 }
