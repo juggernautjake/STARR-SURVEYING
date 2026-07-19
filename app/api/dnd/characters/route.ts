@@ -82,7 +82,9 @@ export async function POST(req: NextRequest) {
         sheet_type,
         is_npc: !!isNpc,
         owner_user_id: isNpc ? session.userId : (ownerUserId ?? null),
-        visibility: isNpc ? 'private' : 'campaign',
+        // Player characters are PUBLIC by default (owner 2026-07-18) so everyone at the table can view them; the
+        // owner opts into private via the sheet's visibility toggle. NPCs stay private (DM tools).
+        visibility: isNpc ? 'private' : 'public',
         data: seedData,
       })
       .select(LIST_COLS)

@@ -386,8 +386,9 @@ below states what it reuses.
       RESOLVED segments (embeds attached to their `job_files` name+url server-side, broken ones flagged) + a
       `canEdit` flag; PUT is limited to the job's lead RPLS or an org admin and warns which referenced files are
       missing (`brokenRefs`). Org-scoped (another org's job is 404). `instructions-route.test.ts` (4).
-      **Remaining:** the Work Mode Instructions tab (a thin viewer of `segments` + a textarea editor for the
-      RPLS) — pure UI binding over this API.
+      **Instructions tab SHIPPED:** the Work Mode Instructions tab (`JobInstructions`) renders the resolved
+      segments (text / tap-through file links / inline images / "missing file" chip) and gives the lead RPLS/admin
+      a textarea + Save (PUT, surfacing broken links). **Remaining:** the mobile-native form only.
 - [~] **D6 — Mileage tracker + reusable vehicles. ✅ Pure math shipped.** `lib/mileage/odometer.ts` — the
       MANUAL odometer entry the owner described (start/end reading + vehicle), distinct from the existing
       GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):

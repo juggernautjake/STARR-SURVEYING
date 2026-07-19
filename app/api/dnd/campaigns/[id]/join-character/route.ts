@@ -49,11 +49,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     /* join table not present yet */
   }
 
-  // 3. Promote a personal character so it actually shows in the demo: give it a home campaign if it
-  //    had none, and make a private sheet campaign-visible so the campaign can see it.
+  // 3. Give the character a home campaign if it had none. We deliberately DO NOT touch visibility here anymore:
+  //    characters are public by default (owner 2026-07-18), and a character the owner has deliberately made
+  //    private stays private on join — the DM still always sees it; only fellow players are gated. (Was:
+  //    force-promoting private → campaign, which overrode the owner's privacy choice.)
   const patch: Record<string, unknown> = {};
   if (!ch.campaign_id) patch.campaign_id = params.id;
-  if (ch.visibility === 'private') patch.visibility = 'campaign';
   if (Object.keys(patch).length) await supabaseAdmin.from('dnd_characters').update(patch).eq('id', charId);
 
   return NextResponse.json({ ok: true, campaignId: params.id, characterId: charId });
