@@ -5,7 +5,7 @@
 // tool are thin wrappers over the same logic. Stance is one-active-at-a-time (combat.stances holds the
 // active stance; ig.stances holds the known set). Nothing here invents rules — it only moves names around.
 
-import type { IGCharacter } from './model';
+import type { IGCharacter, IGAbilityKey } from './model';
 import { findIGFeat } from './feats';
 import { igMaxHp } from './rules';
 
@@ -20,10 +20,16 @@ export type IGEdit =
   | { op: 'remove_power'; name: string }
   | { op: 'set_defensive_power'; name: string }
   | { op: 'apply_damage'; amount: number; nonlethal?: boolean }
-  | { op: 'heal'; amount: number };
+  | { op: 'heal'; amount: number }
+  | { op: 'set_ability'; ability: IGAbilityKey; value: number };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability'] as const;
+
+/** The IG ability keys + the sane bounds a set_ability edit clamps to. */
+const IG_ABILITY_KEYS: readonly IGAbilityKey[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+const ABILITY_MIN = 1;
+const ABILITY_MAX = 30;
 export type IGEditOp = typeof IG_EDIT_OPS[number];
 
 const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -114,6 +120,13 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (rest > 0) hp.nonlethal = Math.max(0, (Number(hp.nonlethal) || 0) - rest);
       return { ...ig, combat: { ...combat, hitPoints: hp } };
     }
+    case 'set_ability': {
+      // Set one ability score directly (IGS6 — make core stats interactable). Clamped to a sane range; an
+      // unknown key or non-finite value is a no-op (parseIgEdit already guards, this is belt-and-braces).
+      if (!IG_ABILITY_KEYS.includes(edit.ability) || !Number.isFinite(edit.value)) return ig;
+      const value = Math.min(ABILITY_MAX, Math.max(ABILITY_MIN, Math.round(edit.value)));
+      return { ...ig, abilities: { ...ig.abilities, [edit.ability]: value } };
+    }
     default: {
       // Compile-time exhaustiveness: EVERY IGEdit op must have a case above, or an op the AI can emit
       // would silently no-op (the AI reports success while the IG sheet is unchanged — breaking "editable
@@ -145,6 +158,14 @@ export function parseIgEdit(raw: unknown): { edit: IGEdit } | { error: string } 
     if (op === 'apply_damage') return { edit: { op, amount, nonlethal: o.nonlethal === true } };
     return { edit: { op, amount } };
   }
+  // set_ability carries an ability key + a numeric value (not a name).
+  if (op === 'set_ability') {
+    const ability = String(o.ability ?? '').trim().toUpperCase() as IGAbilityKey;
+    if (!IG_ABILITY_KEYS.includes(ability)) return { error: `set_ability needs an "ability" of ${IG_ABILITY_KEYS.join('/')}.` };
+    const value = Number(o.value);
+    if (!Number.isFinite(value)) return { error: 'set_ability needs a numeric "value".' };
+    return { edit: { op, ability, value: Math.min(ABILITY_MAX, Math.max(ABILITY_MIN, Math.round(value))) } };
+  }
   if (!name) return { error: `The "${op}" edit needs a non-empty "name".` };
   return { edit: { op, name } as IGEdit };
 }
@@ -163,6 +184,7 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'set_defensive_power': return edit.name ? `Set the defensive power to ${edit.name}.` : 'Cleared the defensive power.';
     case 'apply_damage': return `Took ${edit.amount} ${edit.nonlethal ? 'nonlethal ' : ''}damage.`;
     case 'heal': return `Healed ${edit.amount} HP.`;
+    case 'set_ability': return `Set ${edit.ability} to ${edit.value}.`;
     default: return 'No change.';
   }
 }

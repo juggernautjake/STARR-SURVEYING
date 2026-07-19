@@ -116,10 +116,12 @@ describe('applyIgEdit — defensive power (single slot)', () => {
 describe('parseIgEdit', () => {
   it('accepts every valid op and rejects unknown ones', () => {
     for (const op of IG_EDIT_OPS) {
-      // HP ops carry `amount`; the rest carry `name` (clear_stance carries neither).
+      // HP ops carry `amount`; set_ability carries `ability`+`value`; the rest carry `name` (clear_stance none).
       const payload = op === 'apply_damage' || op === 'heal'
         ? { op, amount: 5 }
-        : { op, name: op === 'clear_stance' ? undefined : 'Shaken' };
+        : op === 'set_ability'
+          ? { op, ability: 'STR', value: 14 }
+          : { op, name: op === 'clear_stance' ? undefined : 'Shaken' };
       const r = parseIgEdit(payload);
       expect('edit' in r).toBe(true);
     }
@@ -210,5 +212,30 @@ describe('IG sheet exposes a manual HP damage/heal control (SQ4)', () => {
     expect(SHEET).toContain("postEdit({ op: 'apply_damage', amount: n })");
     expect(SHEET).toContain("postEdit({ op: 'heal', amount: n })");
     expect(SHEET).toContain('canDoEdit &&'); // only for a viewer who can write
+  });
+});
+
+describe('applyIgEdit — set_ability (IGS6 core-stat editing)', () => {
+  it('sets one ability score, leaving the others + the input untouched', () => {
+    const ig = blankIGCharacter('Str Test');
+    const before = JSON.stringify(ig);
+    const out = applyIgEdit(ig, { op: 'set_ability', ability: 'STR', value: 16 });
+    expect(out.abilities.STR).toBe(16);
+    expect(out.abilities.DEX).toBe(ig.abilities.DEX);
+    expect(JSON.stringify(ig)).toBe(before); // immutable — input unchanged
+  });
+  it('clamps to the sane 1–30 range', () => {
+    const ig = blankIGCharacter('Clamp');
+    expect(applyIgEdit(ig, { op: 'set_ability', ability: 'CON', value: 99 }).abilities.CON).toBe(30);
+    expect(applyIgEdit(ig, { op: 'set_ability', ability: 'CON', value: -5 }).abilities.CON).toBe(1);
+  });
+  it('parseIgEdit validates the ability key + value (case-insensitive key)', () => {
+    expect(parseIgEdit({ op: 'set_ability', ability: 'dex', value: '14' })).toEqual({ edit: { op: 'set_ability', ability: 'DEX', value: 14 } });
+    expect('error' in parseIgEdit({ op: 'set_ability', ability: 'LUK', value: 10 })).toBe(true);
+    expect('error' in parseIgEdit({ op: 'set_ability', ability: 'STR', value: 'x' })).toBe(true);
+  });
+  it('is in IG_EDIT_OPS and describes itself', () => {
+    expect(IG_EDIT_OPS).toContain('set_ability');
+    expect(describeIgEdit({ op: 'set_ability', ability: 'WIS', value: 12 })).toBe('Set WIS to 12.');
   });
 });
