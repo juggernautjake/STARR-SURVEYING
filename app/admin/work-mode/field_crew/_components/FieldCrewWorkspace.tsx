@@ -12,6 +12,7 @@ import { jobCrew, jobRpls, crewNames } from '@/lib/jobs/crew';
 import { jobLabel, groupFilesBySection, mediaDisplay } from '@/lib/jobs/hub';
 import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 import { operationsByCategory, type SurveyingOperation } from '@/lib/surveying/calculator';
+import { resolveOdometerEntry } from '@/lib/mileage/odometer';
 
 type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
 
@@ -114,6 +115,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
           : activeTab === 'files' ? <JobFiles jobId={jobId} />
           : activeTab === 'photo' ? <JobMedia jobId={jobId} />
+          : activeTab === 'mileage' ? <MileageTracker />
           : <TabContent tab={activeTab} jobId={jobId} />}
       </section>
     </div>
@@ -217,6 +219,53 @@ function FieldCalculator() {
         <button type="button" style={{ ...btn, gridColumn: 'span 2', color: 'var(--theme-warning)' }} onClick={() => setExpr('')}>C</button>
         <button type="button" style={{ ...btn }} onClick={() => setExpr((e) => e.slice(0, -1))}>⌫</button>
         <button type="button" style={{ ...btn, background: 'var(--theme-accent)', color: '#fff' }} onClick={() => { if (preview) setExpr(preview); }}>=</button>
+      </div>
+    </div>
+  );
+}
+
+/** Manual mileage tracker (Area D6): pick a saved vehicle, enter the start + end odometer, and see the miles
+ *  and IRS reimbursement computed live by the pure `resolveOdometerEntry`. Vehicles come from the existing
+ *  /api/admin/vehicles endpoint (save/add/delete live there). Persisting the entry to financials is a small
+ *  follow-up (needs a manual-mileage POST); the compute + validation is the tested part. */
+function MileageTracker() {
+  const [vehicles, setVehicles] = useState<{ id: string; name: string }[]>([]);
+  const [vehicleId, setVehicleId] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  useEffect(() => {
+    let live = true;
+    fetch('/api/admin/vehicles').then((r) => r.ok ? r.json() : { vehicles: [] }).then((j) => {
+      if (!live) return;
+      const list = (j.vehicles ?? j ?? []) as { id: string; name: string }[];
+      setVehicles(list);
+      if (list[0]) setVehicleId(list[0].id);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const entry = resolveOdometerEntry(Number(start), Number(end));
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 360, display: 'grid', gap: 10 };
+  const field: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', width: '100%' };
+
+  return (
+    <div style={card}>
+      <div style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>🚚 Mileage</div>
+      <label style={{ display: 'grid', gap: 3, fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>
+        Vehicle
+        <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} aria-label="vehicle" style={field}>
+          {vehicles.length === 0 && <option value="">No saved vehicles — add one in Vehicles</option>}
+          {vehicles.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <label style={{ display: 'grid', gap: 3, fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>Start odometer
+          <input type="number" inputMode="decimal" value={start} onChange={(e) => setStart(e.target.value)} placeholder="0" aria-label="start odometer" style={field} /></label>
+        <label style={{ display: 'grid', gap: 3, fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>End odometer
+          <input type="number" inputMode="decimal" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="0" aria-label="end odometer" style={field} /></label>
+      </div>
+      <div aria-live="polite" style={{ textAlign: 'right', fontSize: '1.1rem', minHeight: 26, color: 'error' in entry ? 'var(--theme-fg-secondary)' : 'var(--theme-accent)' }}>
+        {'error' in entry ? entry.error : `${entry.miles} mi · $${entry.reimbursement.toFixed(2)}`}
       </div>
     </div>
   );

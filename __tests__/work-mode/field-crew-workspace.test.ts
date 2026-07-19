@@ -62,4 +62,11 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('<SurveyingTools />');
     expect(SRC).toContain('op.compute(args)'); // the pure catalog compute drives the result
   });
+
+  it('the Mileage tab is a real odometer tracker bound to the vehicles API + the pure entry resolver (D6)', () => {
+    expect(SRC).toContain("from '@/lib/mileage/odometer'");
+    expect(SRC).toContain('<MileageTracker />');
+    expect(SRC).toContain("fetch('/api/admin/vehicles')"); // reuses the existing vehicles endpoint
+    expect(SRC).toContain('resolveOdometerEntry(Number(start), Number(end))'); // pure compute drives miles + $
+  });
 });
