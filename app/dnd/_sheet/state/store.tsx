@@ -492,6 +492,10 @@ export function CharacterProvider({
   // nothing is lost); `retryTick` re-runs this effect to re-send the latest sheet.
   useEffect(() => {
     if (!dbMode || dbPhase !== 'ready') return
+    // A read-only viewer (e.g. a fellow player opening someone else's public character) must NEVER autosave:
+    // the PATCH would 403 and be misread as a failed save, falsely flagging "Offline — saved on this device".
+    // Only the owner / assigned player / DM (canWrite) autosaves. (Fixes the false offline banner for viewers.)
+    if (!(canWrite ?? isDM)) return
     const serialized = JSON.stringify(char)
     if (serialized === lastSavedRef.current) return
     const failed = () => {
@@ -532,7 +536,7 @@ export function CharacterProvider({
         })
     }, 800)
     return () => clearTimeout(t)
-  }, [char, dbMode, dbPhase, characterId, retryTick])
+  }, [char, dbMode, dbPhase, characterId, retryTick, canWrite, isDM])
 
   const setChar = useCallback((updater: (c: Character) => Character) => setCharState((c) => updater(c)), [])
 
