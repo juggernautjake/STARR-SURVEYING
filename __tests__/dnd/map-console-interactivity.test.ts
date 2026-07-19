@@ -26,7 +26,7 @@ describe('player console: default interactivity by kind', () => {
     expect(SRC).not.toContain('.body:hover{z-index:200 !important;}'); // the old unscoped rule is gone
   });
   it('interactive bodies get a hover affordance — enlarge + glow', () => {
-    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.07);}');
+    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.12)');
     expect(SRC).toMatch(/\.body\.interactive:hover\{filter:drop-shadow/);
   });
   it('non-interactive bodies wire no select/hover handlers', () => {
@@ -184,5 +184,26 @@ describe('player map: systems enlarge on hover + two-way legend highlight (2D/hy
   });
   it('the legend row shows a highlight style', () => {
     expect(SRC).toContain('.legrow:hover,.legrow.hl{color:var(--ink)');
+  });
+});
+
+describe('3D body hover: enlarge + glow (owner 2026-07-18)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('a pointermove raycasts the body under the cursor and hovers it', () => {
+    expect(MAP3D).toContain("el.addEventListener('pointermove'");
+    expect(MAP3D).toContain('this._setHover3D(this._pickHolder(e.clientX, e.clientY))');
+    expect(MAP3D).toContain("el.addEventListener('pointerleave'");
+  });
+  it('_setHover3D enlarges ~12% + adds a soft additive glow sprite, reverting the previous', () => {
+    expect(MAP3D).toContain('_setHover3D(holder)');
+    expect(MAP3D).toContain('holder.scale.setScalar(holder.userData._baseScale * 1.12)');
+    expect(MAP3D).toContain('_hoverGlowTex()');
+    expect(MAP3D).toContain('this._hoverHolder = null;'); // reset on rebuild so no stale ref
+  });
+});
+
+describe('2D body hover is a clear enlarge + glow', () => {
+  it('the art scales up and glows on hover (planet/star/moon/station — all interactive)', () => {
+    expect(SRC).toContain('.body.interactive:hover .artwrap{transform:scale(1.12);filter:drop-shadow(0 0 9px rgba(150,205,255,.95)) brightness(1.12);}');
   });
 });

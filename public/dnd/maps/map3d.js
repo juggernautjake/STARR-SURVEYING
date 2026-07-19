@@ -119,6 +119,10 @@ const Map3D = {
     const el = renderer.domElement;
     el.addEventListener('pointerdown', e => { this._downXY = [e.clientX, e.clientY]; if (e.button === 2) this._rDownXY = [e.clientX, e.clientY]; this._hideCtxMenu(); });
     el.addEventListener('pointerup', e => this._onPointerUp(e));
+    // Hover: enlarge + glow the body under the cursor (planet/star/moon/station/…), matching the 2D view. Skip
+    // while dragging (a pan/orbit/gizmo move shouldn't re-pick every frame).
+    el.addEventListener('pointermove', e => { if (this._downXY || this._rDownXY || (this.tcontrols && this.tcontrols.dragging)) return; this._setHover3D(this._pickHolder(e.clientX, e.clientY)); });
+    el.addEventListener('pointerleave', () => this._setHover3D(null));
     el.addEventListener('contextmenu', e => this._onContextMenu(e));
     this._onKey = e => {
       if (!this._shown || !this.tcontrols) return;
@@ -161,6 +165,33 @@ const Map3D = {
     const hits = this._ray.intersectObjects(this.bodyGroup.children, true);
     if (hits.length) { let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent; if (o && o.userData.id !== undefined) return o; }
     return null;
+  },
+  // A cached soft additive glow sprite (built once) for the 3D hover outline.
+  _hoverGlowTex() {
+    if (this._hgTex) return this._hgTex;
+    const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S; const c = cv.getContext('2d');
+    const g = c.createRadialGradient(S / 2, S / 2, S * 0.30, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(150,200,255,0.55)'); g.addColorStop(0.62, 'rgba(120,180,255,0.18)'); g.addColorStop(1, 'rgba(120,180,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, S, S);
+    this._hgTex = new THREE.CanvasTexture(cv); return this._hgTex;
+  },
+  // Set the hovered body — enlarge it ~12% and wrap it in a soft glow; revert the previous one. Matches the 2D
+  // body hover (scale + outline glow). No-op if the same holder is still under the cursor.
+  _setHover3D(holder) {
+    if (this._hoverHolder === holder) return;
+    const prev = this._hoverHolder;
+    if (prev && prev.parent) {
+      if (prev.userData._baseScale != null) prev.scale.setScalar(prev.userData._baseScale);
+      if (prev.userData._glow) { prev.remove(prev.userData._glow); prev.userData._glow.material.dispose(); prev.userData._glow = null; }
+    }
+    this._hoverHolder = holder;
+    if (this.renderer) this.renderer.domElement.style.cursor = holder ? 'pointer' : '';
+    if (holder && holder.parent) {
+      if (holder.userData._baseScale == null) holder.userData._baseScale = holder.scale.x;
+      holder.scale.setScalar(holder.userData._baseScale * 1.12);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._hoverGlowTex(), transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
+      sp.scale.set(2.8, 2.8, 1); sp.renderOrder = 2; holder.add(sp); holder.userData._glow = sp;
+    }
   },
   // Right-click a body → a small "Focus" menu (a right-DRAG is an orbit, so only a click shows it).
   _onContextMenu(e) {
@@ -644,6 +675,7 @@ const Map3D = {
     const insts = (this._map && this._map.instances) || [];
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     this._bodies = []; this._spinPlanes = []; this._spiralImages = [];
+    this._hoverHolder = null;   // the old holders are gone; drop the stale hover ref so _setHover3D re-hovers cleanly
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     const overlay = this._mode === 'overlay';
     for (const it of insts) {

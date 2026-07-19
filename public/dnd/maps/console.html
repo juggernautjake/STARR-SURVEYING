@@ -63,15 +63,15 @@
   .body .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
   /* Hybrid view: the 3D overlay draws the 3D-native bodies, so hide their 2D art/POIs/name */
   html.map-hybrid .body.n3d .art, html.map-hybrid .body.n3d .poilayer, html.map-hybrid .body.n3d .bname{opacity:0;}
-  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;transition:transform .15s ease;}
-  .body.interactive:hover .artwrap{transform:scale(1.07);}   /* enlarge slightly on hover (interactive only) */
+  .body .artwrap{position:relative;z-index:1;width:100%;height:100%;transition:transform .16s ease,filter .16s ease;}
+  .body.interactive:hover .artwrap{transform:scale(1.12);filter:drop-shadow(0 0 9px rgba(150,205,255,.95)) brightness(1.12);}   /* enlarge + glow the ART itself on hover */
   .body .poilayer{position:absolute;inset:0;pointer-events:none;z-index:6;}
   .body .poi{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 1px 3px #000);pointer-events:auto;cursor:pointer;}
   .body .poi svg{display:block;}
   .body .halo{position:absolute;inset:-35%;border-radius:50%;opacity:0;transition:opacity .25s;pointer-events:none;}
   .body.interactive:hover .halo{opacity:.85;}
   .body.selected .halo{opacity:1;}
-  .body.interactive:hover{filter:drop-shadow(0 0 10px rgba(130,190,255,.85));}   /* outline glow on hover */
+  .body.interactive:hover{filter:drop-shadow(0 0 14px rgba(140,195,255,.95));}   /* outline glow on hover (stronger) */
   .body .bname{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:5px;font-family:"Rajdhani";font-weight:600;font-size:12px;letter-spacing:.5px;color:#eaf2ff;white-space:nowrap;text-shadow:0 1px 6px #000,0 0 12px #000;pointer-events:none;opacity:.9;}
   .body .bname.cap{color:var(--gold);}
   .body.interactive:hover{z-index:200 !important;}   /* only an interactive body raises above the rest on hover */
