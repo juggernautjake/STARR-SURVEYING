@@ -1,9 +1,10 @@
 // __tests__/dnd/join-character-gate.test.ts — self-join security gates. The route lets a signed-in user
-// attach one of THEIR OWN characters to the open demo campaign, and (deliberately) promotes a private sheet to
-// campaign-visible so it shows there. Two gates keep that from becoming an exposure hole: (1) it's restricted
+// attach one of THEIR OWN characters to the open demo campaign. Two gates keep that safe: (1) it's restricted
 // to the DEMO campaign — you can't push into someone else's campaign; (2) an OWNERSHIP check — you can only
-// add your own character. Source-anchored: driving the route needs a live DB + session, so we lock the gates
-// against a silent regression (dropping either would let a user expose another person's private character).
+// add your own character. Since 2026-07-18 the route NO LONGER mutates visibility on join (characters are
+// public by default and a deliberately-private sheet stays private — the DM always sees it, only fellow players
+// are gated), so there's no private→campaign bump to guard anymore. Source-anchored: driving the route needs a
+// live DB + session, so we lock the gates against a silent regression.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,10 +28,11 @@ describe('join-character self-join gates', () => {
     expect(SRC).toMatch(/owner_user_id !== session\.userId[\s\S]{0,120}status: 403/);
   });
 
-  it('the private→campaign visibility promotion sits AFTER the ownership check (only your own sheet is bumped)', () => {
-    const ownerGate = SRC.indexOf('ch.owner_user_id !== session.userId');
-    const visBump = SRC.indexOf("visibility === 'private'");
-    expect(ownerGate).toBeGreaterThan(-1);
-    expect(visBump).toBeGreaterThan(ownerGate); // the bump can only be reached past the 403 ownership guard
+  it('no longer mutates visibility on join — a deliberately-private sheet stays private (public-by-default model)', () => {
+    // The old force-promote (private → campaign) was removed: characters are public by default, and if an owner
+    // made one private that choice is respected on join (the DM still always sees it). Guard the removal so a
+    // future edit doesn't quietly reintroduce a visibility mutation that would override the owner's privacy.
+    expect(SRC).not.toContain("patch.visibility");
+    expect(SRC).not.toContain("visibility === 'private'");
   });
 });
