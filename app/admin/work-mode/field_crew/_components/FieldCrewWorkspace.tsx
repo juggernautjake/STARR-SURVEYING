@@ -188,6 +188,10 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
         )}
       </div>
 
+      {/* Every job contact (client, county clerk, neighbor, title co…) with tap-to-call / tap-to-email (D2) —
+          the surveyor calls the right person from the field without leaving Work Mode. */}
+      <JobContacts jobId={job.id} label={label} />
+
       <div style={{ display: 'grid', gap: 4 }}>
         <div style={label}>Lead RPLS</div>
         <div style={{ fontSize: '0.95rem' }}>{rpls || '—'}</div>
@@ -197,6 +201,48 @@ function JobSummary({ job, loading }: { job: FieldJob | null; loading: boolean }
         <div style={label}>Crew ({crew.length})</div>
         <div style={{ fontSize: '0.95rem' }}>{crew.length ? crewNames(crew) : 'Just you'}</div>
       </div>
+    </div>
+  );
+}
+
+/** The active job's contacts (D2): every `job_contacts` pairing with a tap-to-call phone + tap-to-email, so the
+ *  field crew reaches the client, the county clerk, the neighbor, the title company — whoever is on the job —
+ *  without leaving Work Mode. Reads GET /api/admin/jobs/contacts?job_id=. */
+interface JobContact { id: string; role: string | null; contact: { name: string | null; company: string | null; email: string | null; phone: string | null } | null }
+function JobContacts({ jobId, label }: { jobId: string; label: React.CSSProperties }) {
+  const [contacts, setContacts] = useState<JobContact[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/admin/jobs/contacts?job_id=${encodeURIComponent(jobId)}`)
+      .then((r) => (r.ok ? r.json() : { links: [] }))
+      .then((j) => {
+        if (!live) return;
+        const rows = ((j.links ?? []) as Array<{ id: string; role: string | null; contacts: JobContact['contact'] }>)
+          .map((l) => ({ id: l.id, role: l.role, contact: l.contacts }));
+        setContacts(rows);
+      })
+      .catch(() => {})
+      .finally(() => { if (live) setLoaded(true); });
+    return () => { live = false; };
+  }, [jobId]);
+
+  if (loaded && contacts.length === 0) return null; // no contacts → don't clutter the header
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={label}>Contacts{contacts.length ? ` (${contacts.length})` : ''}</div>
+      {!loaded ? <div style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary)' }}>Loading…</div>
+        : contacts.map((c) => {
+            const tel = telHref(c.contact?.phone);
+            const name = c.contact?.name || c.contact?.company || 'Contact';
+            return (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: '0.9rem' }}>
+                <span><strong style={{ fontWeight: 600 }}>{name}</strong>{c.role ? <span style={{ color: 'var(--theme-fg-secondary)' }}> · {c.role}</span> : null}</span>
+                {tel && <a href={tel} className="btn tiny" style={{ textDecoration: 'none' }}>📞 {c.contact!.phone}</a>}
+                {c.contact?.email && <a href={`mailto:${c.contact.email}`} className="btn tiny" style={{ textDecoration: 'none' }}>✉️ Email</a>}
+              </div>
+            );
+          })}
     </div>
   );
 }

@@ -357,12 +357,17 @@ below states what it reuses.
       result, driven ENTIRELY by the pure catalog `compute` (no formula re-implemented in the component).
       `field-crew-workspace.test.ts` +1 (asserts the catalog wiring). **The web surveying calculator is
       complete;** the mobile-native keypad reuses the same catalog (a device-side render).
-- [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
-      Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
-      numbers via `telHref` for the client + every `job_contacts` phone). Reuse the A1/A2/B2 helpers.
-- [ ] **D3 — Tool launcher row.** The camera / files / instructions / mileage / compass / calculator / ask-AI
-      buttons on the hub, each opening its surface. Consolidate with the existing FieldCrewWorkspace tabs
-      (Photo/Files/Mileage/…) rather than adding a parallel nav.
+- [x] **D2 — Work Mode job switcher + job-info header. ✅ SHIPPED.** The `JobPicker` `<select>` switches the
+      active job (persisted to the work-mode store); `JobSummary` shows the formatted address (`lib/jobs/location`
+      `formatJobAddress`), county, job number + lat/long, and tap-to-navigate. This slice added `JobContacts` —
+      it reads `GET /api/admin/jobs/contacts?job_id=` and renders EVERY job contact (client, county clerk,
+      neighbor, title co…) with its role + a `telHref` tap-to-call and a mailto tap-to-email, so the crew reaches
+      the right person from the field (was: only the client's number). `field-crew-workspace.test.ts` +1.
+- [x] **D3 — Tool launcher row. ✅ SHIPPED (as the consolidated tab row, per the plan's own directive).** The
+      `FieldCrewWorkspace` `TABS` bar IS the launcher: Job, Calc (arithmetic + surveying calculator), Notes,
+      Instructions, Photo, Points, Mileage, Receipts, Crew, Equipment, Time, Files, Issue — each opening its
+      surface in-place. The plan said to consolidate with these tabs rather than add a parallel nav, which is
+      exactly the shape shipped. Camera/compass/ask-AI remain the device-gated surfaces tracked under D4/D7/D8.
 - [~] **D4 — Camera capture modes + metadata. ✅ Pure decision layer shipped.** `mobile/lib/captureIntent.ts` —
       `captureDestination(intent)` routes each camera option to its store + post-processing without a parallel
       pipeline: job photo/video → `field_media` (the existing GPS/compass/time-stamping capture path), receipt →

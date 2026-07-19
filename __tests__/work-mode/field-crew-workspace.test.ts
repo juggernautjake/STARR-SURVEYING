@@ -69,4 +69,16 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain("fetch('/api/admin/vehicles')"); // reuses the existing vehicles endpoint
     expect(SRC).toContain('resolveOdometerEntry(Number(start), Number(end))'); // pure compute drives miles + $
   });
+
+  it('D2 — the Job tab lists every job contact with tap-to-call / tap-to-email', () => {
+    expect(SRC).toContain('<JobContacts');
+    expect(SRC).toContain('/api/admin/jobs/contacts?job_id=');
+    expect(SRC).toContain('telHref(c.contact?.phone)'); // each contact phone is tappable, not just the client
+    expect(SRC).toContain('mailto:');
+  });
+
+  it('D5 — the Instructions tab renders resolved segments over the instructions API', () => {
+    expect(SRC).toContain('<JobInstructions');
+    expect(SRC).toContain('/api/admin/jobs/${jobId}/instructions');
+  });
 });
