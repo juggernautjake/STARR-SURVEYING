@@ -62,3 +62,22 @@ describe('editor per-element interactivity toggle (map-studio)', () => {
     expect(STUDIO2).toContain('iv.onchange=e=>{i.interactable=e.target.checked;renderInstances();markDirty();}');
   });
 });
+
+describe('player console: sectors visible + hover/focus (owner 2026-07-18)', () => {
+  it('back sectors render ABOVE the nebula fxCanvas (z-index 5) so the DM-drawn regions show', () => {
+    expect(SRC).toContain('const svg=mkSvg(6)'); // was mkSvg(2), buried under the z-index-5 nebula
+    expect(SRC).not.toContain('const svg=mkSvg(2),svgF=mkSvg(11)');
+  });
+  it('sectors get a slight hover animation + a stronger focus highlight', () => {
+    expect(SRC).toContain('[data-sector]:hover{opacity:1 !important;stroke-width:3.4 !important');
+    expect(SRC).toContain('[data-sector].sector-focus{');
+    expect(SRC).toContain('transition:opacity .22s ease,stroke-width .22s ease,filter .22s ease');
+  });
+  it('clicking a system in the legend focuses + highlights it via the sector-focus class', () => {
+    expect(SRC).toContain('r.onclick=()=>select({type:"sector",id:s.id})');
+    expect(SRC).toContain('p.classList.toggle("sector-focus",p.dataset.sector===s.id)');
+  });
+  it('sectors stay below the bodies (z-index 10) so planets in a region remain clickable', () => {
+    expect(SRC).toContain('svgF=mkSvg(11)'); // front sectors above bodies; back sectors (6) below bodies (10)
+  });
+});
