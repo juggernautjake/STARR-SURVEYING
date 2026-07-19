@@ -18,6 +18,7 @@ import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_PO
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
+import { igStanceRollEffect } from '@/lib/dnd/stances/intuitive-games';
 import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-games/companions';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
@@ -63,11 +64,22 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   const rollLine = (label: string, modifier: number, kind: IgRollKind = 'ability_check') => {
     const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
     const dc = Number.isFinite(dcNum) ? dcNum : undefined;
-    // Auto-fold active IG conditions into the roll (Area R2 — IG): Shaken/Sickened's flat −2, plus
-    // disadvantage from Blind/Prone/Deaf/etc. on the matching roll category. Disadvantage rolls two d20 and
-    // keeps the lower; the affecting conditions are named on the result so the player sees WHY.
+    // Auto-fold the character's active IG conditions AND active stance into the roll (Area R2 / B4-B5 — IG):
+    // Shaken/Sickened's flat −2 and disadvantage from Blind/Prone/Deaf/etc. on the matching category, PLUS the
+    // active stance's advantage/disadvantage for this kind (Offensive → advantage on attacks / disadvantage on
+    // Reflex saves, etc.). Opposing advantage + disadvantage cancel to a straight roll (the 5e rule the platform
+    // uses); advantage rolls two d20 and keeps the higher, disadvantage the lower. Every source is named on the
+    // result so the player sees WHY.
     const cond = igConditionRollEffect((ig.combat?.conditions ?? []) as string[], kind);
-    const natural = cond.disadvantage ? Math.min(rollNaturalD20(), rollNaturalD20()) : rollNaturalD20();
+    const stanceEff = igStanceRollEffect(ig.combat?.stances?.[0] ?? null, derived.level, kind);
+    let advantage = stanceEff.advantage;
+    let disadvantage = cond.disadvantage || stanceEff.disadvantage;
+    if (advantage && disadvantage) { advantage = false; disadvantage = false; } // cancel to a straight roll
+    const natural = advantage
+      ? Math.max(rollNaturalD20(), rollNaturalD20())
+      : disadvantage
+        ? Math.min(rollNaturalD20(), rollNaturalD20())
+        : rollNaturalD20();
     const r = resolveD20Roll({ natural, modifier: modifier + cond.penalty, dc, system: 'intuitive-games' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
@@ -78,7 +90,8 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
-    if (cond.sources.length) detail += ` · ⚠ ${cond.disadvantage ? 'DIS ' : ''}${cond.penalty ? `${cond.penalty} ` : ''}from ${cond.sources.join(', ')}`;
+    const sources = [...cond.sources, ...stanceEff.sources];
+    if (sources.length) detail += ` · ⚠ ${advantage ? 'ADV ' : ''}${disadvantage ? 'DIS ' : ''}${cond.penalty ? `${cond.penalty} ` : ''}from ${sources.join(', ')}`;
     setLastRoll({ label, total: r.total, detail, tone });
   };
   const rollDamage = (label: string, expr: string) => {

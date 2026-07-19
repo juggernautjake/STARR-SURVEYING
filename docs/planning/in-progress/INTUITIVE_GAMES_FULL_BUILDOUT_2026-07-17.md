@@ -545,8 +545,12 @@ expanded requirements (2026-07-17):
       `ig-mechanics-match-text.test.ts` +2. **Remaining:**
       add/remove condition editing (B6 route) + optionally folding the penalty through the rolls.
       **Audit finding 2026-07-17 — the mechanics are DISPLAYED but there is no in-app roll to apply them to.**
+      **RESOLVED 2026-07-18 — the IG sheet now HAS a roller** (`rollLine`) that auto-applies both the condition
+      penalty/disadvantage (`igConditionRollEffect`) and the active stance's advantage/disadvantage
+      (`igStanceRollEffect`) at roll time, so the mechanics are applied by the sheet, not by hand. (Historical
+      audit finding, kept for context:)
       `IGSheet` computes + shows the condition penalty (`igConditionSummary`) and the active stance's effect
-      (`igStanceMechanicNote`) but has **no roller** (zero `roll`/`dice` refs), exactly like `PF2Sheet`. The
+      (`igStanceMechanicNote`); at the time of the audit it had **no roller** (zero `roll`/`dice` refs), like `PF2Sheet`. The
       "shown, not folded — the exhaustion pattern" framing above is only half the 5e pattern: the 5e sheet
       shows exhaustion AND auto-applies it at ROLL time (`rollCheck` folds −2/level), whereas IG has no roll
       time. So the IG mechanics are real (computed, text-faithful, displayed) but the *player* applies them by
@@ -568,8 +572,15 @@ expanded requirements (2026-07-17):
       DISPLAYING new rules while APPLYING the old numbers. New `ig-mechanics-match-text.test.ts` (29)
       cross-checks each condition's/stance's structural signal (the penalty number, the advantage/
       disadvantage/DR keyword, per tier) against the text of the SAME entry — verified all 18 conditions +
-      10 stances currently agree, and fails if the two ever drift. **Remaining:** folding the structured
-      effect into the actual roll math on the sheet.
+      10 stances currently agree, and fails if the two ever drift. **✅ FOLDED INTO ROLL MATH (2026-07-18,
+      BLOCKERS §C decided — IG gets an in-app roller, matching the 5e exhaustion-at-roll pattern the owner
+      praised):** the IGSheet already auto-folded CONDITIONS at roll time (`igConditionRollEffect`); added the
+      parallel `lib/dnd/stances/intuitive-games.ts` `igStanceRollEffect(stance, level, kind)` and wired it into
+      `rollLine`, so the ACTIVE stance now drives the die — Offensive → advantage on attacks / disadvantage on
+      Reflex saves, Defensive the reverse, Menacing → advantage on combat skills, etc. Opposing advantage +
+      disadvantage cancel to a straight roll (the 5e rule); conditional stance effects ("when flanking") surface
+      as a note, never auto-applied; unknown stances fold to nothing. Every source is named on the result line
+      (ADV/DIS + who). `ig-stance-roll.test.ts` (6). **B5 mechanics are now real, not hand-applied.**
 - [x] **B6 — Editable IG sheet + AI edit route.** The bespoke `IGSheet` is read-only today; add an `ig-edit`
       route + write mode so stances/conditions/feats/traits are editable in place, and expose the same
       operations to the AI (edit + explain) — AI parity with the manual controls. **Edit engine + route
