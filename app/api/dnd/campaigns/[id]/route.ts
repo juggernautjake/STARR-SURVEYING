@@ -7,6 +7,7 @@ import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
 import { readCampaignPreferences, writeCampaignPreferencesToTheme } from '@/lib/dnd/campaign-preferences';
 import { rosterRoleOf } from '@/lib/dnd/roster';
+import { normalizeApproval } from '@/lib/dnd/campaign-approval';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -41,6 +42,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     id: string; name: string; token_url: string | null; art_url: string | null;
     owner_user_id: string | null; played_by_user_id: string | null; is_npc: boolean; roster_role: string | null; sheet_type: string | null;
   }[];
+
+  // DM approval state per character (Area approval) — stored on the roster join row. Merged in below so the DM
+  // sees who's approved / awaiting review, and a player sees their own build's status.
+  const { data: approvalRows } = charIds.length
+    ? await supabaseAdmin.from('dnd_campaign_characters').select('character_id, approval').eq('campaign_id', params.id).in('character_id', charIds)
+    : { data: [] };
+  const approvalByChar = new Map(((approvalRows ?? []) as { character_id: string; approval: unknown }[]).map((r) => [r.character_id, normalizeApproval(r.approval)]));
 
   // Names for members + character owners/players (owners may not be campaign members).
   const nameIds = Array.from(new Set([
@@ -81,6 +89,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       ownerName: c.owner_user_id ? userById.get(c.owner_user_id)?.display_name ?? null : null,
       playedByUserId: c.played_by_user_id ?? null,
       playedByName: c.played_by_user_id ? userById.get(c.played_by_user_id)?.display_name ?? null : null,
+      approval: approvalByChar.get(c.id) ?? null,
     })),
     sessions: sessions ?? [],
   });

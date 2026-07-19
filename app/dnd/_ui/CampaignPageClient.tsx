@@ -14,6 +14,8 @@ import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
 import CampaignPreferencesDm from './CampaignPreferencesDm'
+import CampaignApprovalControl from './CampaignApprovalControl'
+import type { CampaignApproval } from '@/lib/dnd/campaign-approval'
 
 export interface CampaignDetail {
   campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
@@ -22,6 +24,7 @@ export interface CampaignDetail {
     id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string;
     rosterRole?: string; // 'pc' | 'special_npc' | 'generic_npc' (Slice 30)
     ownerUserId?: string | null; ownerName?: string | null; playedByUserId?: string | null; playedByName?: string | null;
+    approval?: import('@/lib/dnd/campaign-approval').CampaignApproval | null; // DM approval into this campaign
   }[]
   sessions: { id: string; title: string; status: string; sort_order: number }[]
   /** Normalized campaign DM preferences (Area P) — returned by the campaign GET. */
@@ -114,6 +117,10 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
 
   // Move a character between roster categories (Slice 30). Editorial only — the sheet is untouched;
   // the server keeps is_npc in sync. Optimistic local update so the card jumps groups immediately.
+  function setApproval(id: string, approval: CampaignApproval) {
+    setData((d) => (d ? { ...d, characters: d.characters.map((c) => (c.id === id ? { ...c, approval } : c)) } : d))
+  }
+
   async function setRosterRole(id: string, rosterRole: string) {
     setData((d) => (d ? { ...d, characters: d.characters.map((c) => (c.id === id ? { ...c, rosterRole, is_npc: rosterRole !== 'pc' } : c)) } : d))
     await fetch(`/api/dnd/characters/${id}`, {
@@ -416,6 +423,11 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                             <option value="special_npc">Special NPC</option>
                             <option value="generic_npc">Generic NPC</option>
                           </select>
+                          {/* DM approval (Area approval) — for player characters only; the DM approves the build
+                              into the campaign or requests changes with a reason. NPCs are the DM's own. */}
+                          {!c.is_npc && (
+                            <CampaignApprovalControl campaignId={data.campaign.id} characterId={c.id} approval={c.approval ?? null} onChange={(a) => setApproval(c.id, a)} />
+                          )}
                           <button
                             onClick={() => removeFromCampaign(c.id, c.name)}
                             title="Remove this character from THIS campaign only. The owner keeps it — it just leaves this table. (A character can be in several campaigns.)"
