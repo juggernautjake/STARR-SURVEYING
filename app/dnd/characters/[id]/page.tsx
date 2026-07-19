@@ -11,6 +11,7 @@ import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
+import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
@@ -46,7 +47,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
 
   const res = await getCharacterAccess(params.id);
   if (!res.access) redirect('/dnd'); // no access → back to the hub
-  const { character, isDM, canWrite } = res.access;
+  const { character, isDM, canWrite, isOwner } = res.access;
 
   // Effective preferences (Area P2c) — the campaign's DM settings, resolved for this player, fed to the sheet
   // store so configurable mechanics (long-rest model, …) actually follow the campaign's house rules. Player-
@@ -169,6 +170,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         const sheets = listSheets(active, variants, systemLabel);
         return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} sheets={sheets} aiConfigured={dndAiConfigured()} allowCustom={transposeAllowsCustom} />;
       })()}
+      {/* Private/Public is the creator's call — only the owner sees this control (the DM always sees the
+          character regardless; other players' view is governed by this flag). */}
+      {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
       <SheetRoot
         characterId={character.id}
