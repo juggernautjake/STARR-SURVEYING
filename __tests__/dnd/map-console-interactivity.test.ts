@@ -98,3 +98,20 @@ describe('3D/hybrid sector layering (owner 2026-07-18)', () => {
     expect(MAP3D).toContain('o.renderOrder = ro;');
   });
 });
+
+describe('player map viewer: touch support (mobile)', () => {
+  it('handles 1-finger pan + 2-finger pinch-zoom (mouse handlers do not fire on touch)', () => {
+    expect(SRC).toContain('stage.addEventListener("touchstart"');
+    expect(SRC).toContain('stage.addEventListener("touchmove"');
+    expect(SRC).toContain('stage.addEventListener("touchend"');
+    expect(SRC).toContain('e.touches.length===2'); // pinch
+    expect(SRC).toMatch(/pinch=\{dist:Math\.hypot/); // pinch tracks finger distance
+  });
+  it('gives the stage touch-action:none so the browser hands us the gestures', () => {
+    expect(SRC).toContain('#stage{position:absolute;inset:0;cursor:grab;touch-action:none;}');
+  });
+  it('a tap on a body/sector still reaches its handler; a tap on empty deselects', () => {
+    expect(SRC).toContain('t.target.closest(".body")');
+    expect(SRC).toContain('if(!pan.moved&&(selectedId||curSel))clearSelect()');
+  });
+});

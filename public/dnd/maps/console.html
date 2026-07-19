@@ -21,7 +21,7 @@
   html,body{margin:0;height:100%;overflow:hidden;background:var(--void);}
   body{font-family:"Rajdhani",system-ui,sans-serif;color:var(--ink);display:flex;flex-direction:column;}
   #mapPane{position:relative;flex:1;min-height:0;overflow:hidden;background:radial-gradient(ellipse 62% 60% at 50% 46%,#1a1240 0%,#0c0820 42%,#04030a 82%);}
-  #stage{position:absolute;inset:0;cursor:grab;}
+  #stage{position:absolute;inset:0;cursor:grab;touch-action:none;}   /* touch-action:none → we own pan/pinch on touch devices */
   #stage.grabbing{cursor:grabbing;}
   #viewport{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}
   #viewport.animate{transition:transform .85s cubic-bezier(.55,.05,.2,1);}
@@ -785,6 +785,35 @@ stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.da
 window.addEventListener("mousemove",e=>{if(!pan)return;if(Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy)>4)pan.moved=true;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
 window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))clearSelect();pan=null;stage.classList.remove("grabbing");});   // click on empty space → deselect + blank the panel
 stage.addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();},{passive:false});
+// ── Touch: 1-finger pan + 2-finger pinch-zoom (mobile — the mouse handlers above don't fire on touch). A tap on
+//    a body/sector still bubbles to its click handler; a tap on empty space deselects. ──
+let pinch=null;
+stage.addEventListener("touchstart",e=>{
+  if(e.touches.length===1){
+    const t=e.touches[0];
+    if(t.target&&t.target.closest&&(t.target.closest(".body")||(t.target.dataset&&t.target.dataset.sector)))return;   // let the body/sector receive the tap
+    pinch=null;pan={sx:t.clientX,sy:t.clientY,ox:view.x,oy:view.y,moved:false};
+  }else if(e.touches.length===2){
+    pan=null;const a=e.touches[0],b=e.touches[1],r=$("#mapPane").getBoundingClientRect();
+    pinch={dist:Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY),mx:(a.clientX+b.clientX)/2-r.left,my:(a.clientY+b.clientY)/2-r.top,scale:view.scale,vx:view.x,vy:view.y};
+  }
+},{passive:true});
+stage.addEventListener("touchmove",e=>{
+  if(pinch&&e.touches.length===2){
+    e.preventDefault();const a=e.touches[0],b=e.touches[1],dist=Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+    const ns=clamp(pinch.scale*(dist/(pinch.dist||1)),0.08,6);
+    view.scale=ns;view.x=pinch.mx-(pinch.mx-pinch.vx)*(ns/pinch.scale);view.y=pinch.my-(pinch.my-pinch.vy)*(ns/pinch.scale);apply();
+  }else if(pan&&e.touches.length===1){
+    const t=e.touches[0];
+    if(Math.abs(t.clientX-pan.sx)+Math.abs(t.clientY-pan.sy)>4)pan.moved=true;
+    view.x=pan.ox+(t.clientX-pan.sx);view.y=pan.oy+(t.clientY-pan.sy);apply();
+    if(pan.moved)e.preventDefault();   // once actually panning, stop the page from scrolling underneath
+  }
+},{passive:false});
+stage.addEventListener("touchend",e=>{
+  if(pinch&&e.touches.length<2)pinch=null;
+  if(pan&&e.touches.length===0){if(!pan.moved&&(selectedId||curSel))clearSelect();pan=null;}
+},{passive:true});
 function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);}
 $("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
 $("#zoomOut").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1/1.3);};
