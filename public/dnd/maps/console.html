@@ -692,7 +692,11 @@ function render(){
       else bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
     else bodyHTML=art(look,true);
     const artStyle=i.kind==="image"?' style="overflow:hidden"':'';
-    const solid=["planet","planet3d","moon","station","debris","asteroid"].includes(i.kind);
+    // Only genuinely ROUND bodies (planet/moon) get the opaque circular backing (.artbg is a border-radius:50%
+    // disc that occludes the starfield behind the sphere). A station/debris/asteroid is NOT a filled circle, so
+    // that disc showed as a phantom coloured "atmosphere" halo behind it — they render their own shaped art with
+    // a transparent background instead. (owner 2026-07-18: stations must not render any atmosphere.)
+    const solid=["planet","planet3d","moon"].includes(i.kind);
     const bg=solid?`<div class="artbg" style="background:${(look.c1||look.c3||"#0b1526")}"></div>`:"";
     el.innerHTML=`<div class="halo" style="background:radial-gradient(circle,${secColor}66,transparent 62%)"></div><div class="selring"></div><div class="art"${artStyle}>${bg}<div class="artwrap">${fxOverlay(i.fx,look&&look.seed)}${bodyHTML}</div></div>${i.kind==="planet3d"?"":poiLayerHTML(i)}`;
     if(i.kind==="planet3d")el.dataset.p3=i.id;

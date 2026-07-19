@@ -33,3 +33,13 @@ describe('player console: default interactivity by kind', () => {
     expect(SRC).toContain('if(interactive){');
   });
 });
+
+describe('stations render no phantom atmosphere (owner 2026-07-18)', () => {
+  const STUDIO = readFileSync(join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+  it('only round bodies (planet/moon) get the circular .artbg backing — not stations/debris/asteroids', () => {
+    // The border-radius:50% .artbg disc behind a NON-round station read as an atmosphere halo.
+    expect(SRC).toContain('const solid=["planet","planet3d","moon"].includes(i.kind)');
+    expect(SRC).not.toContain('["planet","planet3d","moon","station","debris","asteroid"].includes(i.kind)');
+    expect(STUDIO).toContain('if(!["planet","planet3d","moon"].includes(i.kind))return ""');
+  });
+});

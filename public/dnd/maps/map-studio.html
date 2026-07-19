@@ -1343,7 +1343,10 @@ function renderSectors(){
 // Solid bodies get an opaque circular backing so the starfield can't show through them (the .inst's
 // own opacity still scales it, so a <100% body stays see-through). Glowy/gappy kinds are left alone.
 function bodyBacking(i){
-  if(!["planet","planet3d","moon","station","debris","asteroid"].includes(i.kind))return "";
+  // Only genuinely ROUND bodies (planet/moon) get the opaque circular .artbg backing. A station/debris/asteroid
+  // isn't a filled circle, so that border-radius:50% disc showed as a phantom "atmosphere" halo behind its
+  // shaped art — they render with a transparent background instead. (owner 2026-07-18.)
+  if(!["planet","planet3d","moon"].includes(i.kind))return "";
   const col=(i.look&&(i.look.c1||i.look.c3))||"#0b1526";
   return `<div class="artbg" style="background:${col}"></div>`;
 }
