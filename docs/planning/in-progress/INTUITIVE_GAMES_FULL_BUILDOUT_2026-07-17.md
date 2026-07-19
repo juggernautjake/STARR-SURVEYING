@@ -13,8 +13,15 @@ carries a foolproof page-by-page methodology + a scrub-status tracker; the verif
 every definition/rule/feat/stance/condition/class/subclass/action against the app (library + builder + sheet
 + tooltips + manual/AI edit) and logs gaps back here. **Scrub progress:** conditions, stances, ancestries,
 backgrounds, feats (both pages), skills, core rules, character-building, companions, armor/shields, magical
-items are transcribed + implemented; remaining scrub targets: `/spell-list` (verbatim re-verify), the full
-per-class ladders, `/redistribution`, `/game-list`, and the home page.
+items are transcribed + implemented. **ALL content scrub targets are now CLOSED (2026-07-18):** `/spell-list`
+(full Description + Advanced/Expert tiers — A19), the per-class ladders + power effect text (A10/A19,
+`IG_CLASS_POWER_EFFECTS`), `/companion-creatures` (A-companions, full catalog + engine), and `/redistribution`
+(A18, per-material Launch damage) are all captured with tests. The last two pages carry **no RPG content to
+mirror** and are closed with rationale: **`/game-list`** is Brendan's physical **board game "Overrun"** (a
+checkers-like territory game) — out of scope for the character-builder app; **the home page** is only the
+navigation index to pages already mirrored (Backgrounds/Classes/Feats/Stances/Conditions/…) plus an "Online
+Community" (Discord) link. Genuinely-unpublished, Brendan-only items (FAQs, some art) remain tracked in
+`BLOCKERS.md`, not here.
 
 > Owner (2026-07-17): "Flesh out all of the feats and conditions and all of the rules and everything that
 > you can for the Intuitive Games library page. Go to intuitivegames.net and pull all of your info from the
