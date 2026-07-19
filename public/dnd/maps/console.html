@@ -115,6 +115,7 @@
   .bank .bh{font-family:"Orbitron";font-size:8px;letter-spacing:1.5px;color:var(--faint);text-align:center;margin-bottom:1px;}
   .lamp{display:flex;align-items:center;gap:7px;font-family:"Share Tech Mono";font-size:9.5px;color:var(--dim);letter-spacing:.5px;}
   .lamp .led{width:9px;height:9px;border-radius:50%;flex:none;background:#20263c;box-shadow:inset 0 0 3px #000;transition:.3s;}
+  .lamp.lbltgl{cursor:pointer;user-select:none;}.lamp.lbltgl:hover{color:var(--ink);}
   .lamp.on .led{box-shadow:0 0 8px currentColor,0 0 3px #fff inset;}
   .lamp.g.on .led{background:var(--green);color:var(--green);}
   .lamp.a.on .led{background:var(--amber);color:var(--amber);}
@@ -238,6 +239,12 @@
     <div class="lamp g on" id="lampComm"><span class="led"></span>COMMS</div>
     <div class="lamp r" id="lampAlert"><span class="led"></span>ALERT</div>
     <div class="toggles"><div class="tgl up" id="tgl1"></div><div class="tgl up" id="tgl2"></div><div class="tgl" id="tgl3"></div></div>
+    <!-- MAP LABELS: click a light to hide/show that category of text on the map (declutter the view). -->
+    <div class="bh" style="margin-top:9px">MAP LABELS</div>
+    <div class="lamp c on lbltgl" id="lblPlanets" title="Show/hide planet, moon & station names"><span class="led"></span>PLANETS</div>
+    <div class="lamp c on lbltgl" id="lblStars" title="Show/hide star names"><span class="led"></span>STARS</div>
+    <div class="lamp c on lbltgl" id="lblSystems" title="Show/hide system / region names"><span class="led"></span>SYSTEMS</div>
+    <div class="lamp c on lbltgl" id="lblAll" title="Show/hide ALL map text at once"><span class="led"></span>ALL</div>
   </div>
   <div class="screenframe">
     <div class="screen"><div class="scr-inner" id="scrInner"></div></div>
@@ -627,24 +634,33 @@ function bodyLabelStyle(i){return mergeLabelStyle(Object.assign({},BODY_LABEL_DE
 function sectorLabelStyle(s){const isSub=!!s.parent;const base=Object.assign({size:s.meta?22:isSub?15:20,color:s.color,opacity:isSub?0.85:0.98},SECTOR_LABEL_DEFAULT);return mergeLabelStyle(Object.assign(base,s.label||{}));}
 function textLabelStyle(i){return mergeLabelStyle(Object.assign({},TEXT_LABEL_DEFAULT,i.label||{}));}
 function poiCaptionStyle(p){return mergeLabelStyle(Object.assign({show:false,font:'Rajdhani',size:12,weight:600,color:poiType(p.type).color,tracking:0.3},p.label||{}));}
+// Player label-visibility toggles (the MAP LABELS lamps on the console). Each category can be turned off so the
+// player can declutter the view: `planets` covers non-star body labels (planet/moon/station/debris/…) + their
+// POI captions + text objects; `stars` covers star labels; `systems` covers sector/system labels. All default on.
+const labelVis={planets:true,stars:true,systems:true};
+function bodyLabelCat(kind){return kind==="star"?"stars":"planets";}
 function buildLabelLayer(B,W,H){
-  const ll=document.createElementNS(NS,"svg");ll.setAttribute("width",W);ll.setAttribute("height",H);
+  const ll=document.createElementNS(NS,"svg");ll.id="labelLayer";ll.setAttribute("width",W);ll.setAttribute("height",H);
   ll.style.cssText=`position:absolute;left:${B.minX}px;top:${B.minY}px;overflow:visible;z-index:20;pointer-events:none;`;
   const ox=B.minX,oy=B.minY;let out="";
-  (MAP.sectors||[]).forEach(s=>{const st=sectorLabelStyle(s);if(st.show===false)return;const r=labelSVG(s.name,st);if(!r.g)return;
+  if(labelVis.systems)(MAP.sectors||[]).forEach(s=>{const st=sectorLabelStyle(s);if(st.show===false)return;const r=labelSVG(s.name,st);if(!r.g)return;
     const c=polyCentroid(s.points),area=polyArea(s.points);const cy=c.y-Math.sqrt(area)*0.42-st.size*0.4;
     out+=`<g transform="translate(${(c.x-ox).toFixed(1)},${(cy-oy).toFixed(1)})">${r.g}</g>`;});
   (MAP.instances||[]).forEach(i=>{
-    if(i.kind==="text"){const st=textLabelStyle(i);if(st.show===false)return;const rot=st.rotate||0;const r=labelSVG(i.name||"Text",Object.assign({},st,{rotate:0}));if(!r.g)return;
+    if(i.kind==="text"){if(!(labelVis.planets||labelVis.stars||labelVis.systems))return;const st=textLabelStyle(i);if(st.show===false)return;const rot=st.rotate||0;const r=labelSVG(i.name||"Text",Object.assign({},st,{rotate:0}));if(!r.g)return;
       out+=`<g transform="translate(${(i.x-ox).toFixed(1)},${(i.y-oy).toFixed(1)})${rot?` rotate(${rot})`:''}">${r.g}</g>`;return;}
-    const st=bodyLabelStyle(i);
-    if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const ih=i.h||i.size,cx=i.x,ay=i.y+ih/2+5;out+=`<g transform="translate(${(cx-ox).toFixed(1)},${(ay-oy).toFixed(1)})">${r.g}</g>`;}}   // centre the name under the centre-anchored body
-    (i.pois||[]).forEach(p=>{const ls=poiCaptionStyle(p);if(ls.show===false)return;const r2=labelSVG(p.title,ls);if(!r2.g)return;
+    const cat=bodyLabelCat(i.kind);
+    if(labelVis[cat]){const st=bodyLabelStyle(i);
+      if(st.show!==false){const r=labelSVG(i.name,st);if(r.g){const ih=i.h||i.size,cx=i.x,ay=i.y+ih/2+5;out+=`<g transform="translate(${(cx-ox).toFixed(1)},${(ay-oy).toFixed(1)})">${r.g}</g>`;}}   // centre the name under the centre-anchored body
+    }
+    if(labelVis.planets)(i.pois||[]).forEach(p=>{const ls=poiCaptionStyle(p);if(ls.show===false)return;const r2=labelSVG(p.title,ls);if(!r2.g)return;
       const wx=i.x+(0.5+(p.ax||0)*0.42)*i.size,wy=i.y+(0.5+(p.ay||0)*0.42)*i.size+Math.min(Math.max(i.size*0.14,8),20);
       out+=`<g transform="translate(${(wx-ox).toFixed(1)},${(wy-oy).toFixed(1)})">${r2.g}</g>`;});
   });
   ll.innerHTML=out;return ll;
 }
+// Rebuild just the label overlay after a toggle (cheap — no full map re-render).
+function refreshLabels(){const old=viewport&&viewport.querySelector("#labelLayer");if(!old)return;const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY;const fresh=buildLabelLayer(B,W,H);old.replaceWith(fresh);}
 function renderBackground(){const L=$("#bgLayer");if(!L)return;const bg=MAP&&MAP.background;
   if(bg&&bg.mode==="image"&&bg.src){const fit=bg.fit||"cover",s=bg.size!=null?bg.size:1,pct=Math.round(s*100);
     L.style.display="block";L.style.opacity=bg.opacity!=null?bg.opacity:1;L.style.backgroundImage=`url("${bg.src}")`;
@@ -845,6 +861,19 @@ const consoleDeck=$("#console");
 $("#deckMin").onclick=e=>{e.stopPropagation();consoleDeck.classList.toggle("min");};
 consoleDeck.onclick=e=>{if(consoleDeck.classList.contains("min")&&e.target.id!=="deckMin")consoleDeck.classList.remove("min");};
 $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);};
+// MAP LABELS lamps — click a light to hide/show that category of on-map text (declutter the view). "ALL" is a
+// master: on when all three are on; clicking it flips everything. Toggling rebuilds just the label overlay.
+function syncLabelLamps(){
+  const set=(id,on)=>{const el=$(id);if(el)el.classList.toggle("on",!!on);};
+  set("#lblPlanets",labelVis.planets);set("#lblStars",labelVis.stars);set("#lblSystems",labelVis.systems);
+  set("#lblAll",labelVis.planets&&labelVis.stars&&labelVis.systems);
+}
+function toggleLabel(cat){labelVis[cat]=!labelVis[cat];syncLabelLamps();refreshLabels();}
+{const p=$("#lblPlanets");if(p)p.onclick=()=>toggleLabel("planets");}
+{const s=$("#lblStars");if(s)s.onclick=()=>toggleLabel("stars");}
+{const y=$("#lblSystems");if(y)y.onclick=()=>toggleLabel("systems");}
+{const a=$("#lblAll");if(a)a.onclick=()=>{const allOn=labelVis.planets&&labelVis.stars&&labelVis.systems;const next=!allOn;labelVis.planets=labelVis.stars=labelVis.systems=next;syncLabelLamps();refreshLabels();};}
+syncLabelLamps();
 const scrInner=$("#scrInner");
 function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
 function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}

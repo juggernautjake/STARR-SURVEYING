@@ -115,3 +115,24 @@ describe('player map viewer: touch support (mobile)', () => {
     expect(SRC).toContain('if(!pan.moved&&(selectedId||curSel))clearSelect()');
   });
 });
+
+describe('player map: label-visibility toggles (owner 2026-07-18)', () => {
+  it('has MAP LABELS lamps for planets/stars/systems/all in the console deck', () => {
+    expect(SRC).toContain('id="lblPlanets"');
+    expect(SRC).toContain('id="lblStars"');
+    expect(SRC).toContain('id="lblSystems"');
+    expect(SRC).toContain('id="lblAll"');
+    expect(SRC).toContain('MAP LABELS');
+  });
+  it('labelVis gates each label category in buildLabelLayer', () => {
+    expect(SRC).toContain('const labelVis={planets:true,stars:true,systems:true}');
+    expect(SRC).toContain('if(labelVis.systems)(MAP.sectors||[]).forEach'); // systems → sector labels
+    expect(SRC).toContain('const cat=bodyLabelCat(i.kind)'); // planets vs stars by kind
+    expect(SRC).toContain('bodyLabelCat(kind){return kind==="star"?"stars":"planets";}');
+  });
+  it('toggling a lamp rebuilds just the label overlay (refreshLabels), and ALL is a master', () => {
+    expect(SRC).toContain('function refreshLabels()');
+    expect(SRC).toContain('function toggleLabel(cat){labelVis[cat]=!labelVis[cat]');
+    expect(SRC).toContain('labelVis.planets=labelVis.stars=labelVis.systems=next');
+  });
+});
