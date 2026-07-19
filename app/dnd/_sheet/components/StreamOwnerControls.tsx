@@ -21,9 +21,12 @@ const ALL_MOOD_IDS = MOODS.map((m) => m.id)
 
 export default function StreamOwnerControls() {
   const { characterId, isDM, canWrite, campaignId, reloadFromDb } = useChar()
-  // The owner's own stream bar shows only OUTSIDE a campaign (owner 2026-07-18): inside a campaign only the DM
-  // sees/edits the stream — not even the player. Outside a campaign the owner runs their own stream freely.
-  const isOwner = canWrite && !isDM && !campaignId
+  // The streamer runs her OWN stream, in a campaign or out of it (owner 2026-07-19, reversing
+  // the 2026-07-18 rule that hid this inside a campaign). She and the DM both hold the go-live
+  // switch; last write wins, and each side sees the other's flip via the `dnd-stream-state`
+  // event + the 5s poll below. The API already allowed this (isDM || isOwner) — only the UI
+  // was hiding it. The DM keeps the wider director panel (viewers, AI, moderation) to himself.
+  const isOwner = canWrite && !isDM
   const [stream, setStream] = useState<OwnerStream | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)

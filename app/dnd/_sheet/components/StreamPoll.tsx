@@ -60,6 +60,8 @@ export default function StreamPoll({
 }) {
   const [poll, setPoll] = useState<Poll | null>(initialPoll ?? null)
   const [now, setNow] = useState(() => Date.now())
+  // Controller collapsed the floating direction panel; a fresh poll re-opens it.
+  const [dismissed, setDismissed] = useState(false)
   const closingRef = useRef(false)
   const chimedRef = useRef<string | null>(null)
   const steerTimer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -127,6 +129,7 @@ export default function StreamPoll({
   // Reset per-poll refs when a fresh poll id appears.
   useEffect(() => {
     closingRef.current = false
+    setDismissed(false) // a new poll always re-opens the panel
     if (poll && steerFor.current && steerFor.current !== poll.id) stopSteer()
   }, [poll?.id, stopSteer])
 
@@ -174,7 +177,29 @@ export default function StreamPoll({
 
   // ── PENDING: DM sees the slider panel; everyone else sees a "waiting" card ──
   if (poll.status === 'pending') {
-    if (isController) return <DirectionPanel poll={poll} characterId={characterId} onSubmit={submitDirection} />
+    // The controller's panel FLOATS. It used to render inline at the very bottom of the
+    // sheet, below every tab and the dice tray, with nothing to announce it — so a poll
+    // could sit pending forever because the DM never scrolled down to find it (owner
+    // report 2026-07-19). Pinned bottom-left (the chat dock owns bottom-right) and
+    // collapsible, so it's unmissable without being in the way.
+    if (isController) {
+      return (
+        <div style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 60, width: 340, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
+          {dismissed ? (
+            <button
+              type="button" onClick={() => setDismissed(false)}
+              style={{ padding: '10px 14px', background: '#c8aa6e', color: '#1a1206', border: 'none', borderRadius: 4, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.4)' }}
+            >
+              🎛️ Poll waiting on you
+            </button>
+          ) : (
+            <div style={{ boxShadow: '0 6px 22px rgba(0,0,0,0.5)', borderRadius: 4 }}>
+              <DirectionPanel poll={poll} characterId={characterId} onSubmit={submitDirection} onHide={() => setDismissed(true)} />
+            </div>
+          )}
+        </div>
+      )
+    }
     return (
       <section className="card" style={{ marginTop: 12, borderColor: '#c8aa6e' }}>
         <div style={{ fontSize: 11, letterSpacing: '0.12em', color: '#c8aa6e', marginBottom: 6 }}>📊 POLL PROPOSED</div>
@@ -240,11 +265,12 @@ export default function StreamPoll({
 
 // ── The DM's outcome console: sliders (auto-balanced to 100%) + a viewer-scaled total ──
 function DirectionPanel({
-  poll, characterId, onSubmit,
+  poll, characterId, onSubmit, onHide,
 }: {
   poll: Poll
   characterId: string
   onSubmit: (percentages: Record<string, number>, totalVotes: number, directive: string) => Promise<unknown>
+  onHide?: () => void
 }) {
   const opts = poll.options
   // Start from an even split that sums to exactly 100.
@@ -308,7 +334,13 @@ function DirectionPanel({
 
   return (
     <section className="card" style={{ marginTop: 12, borderColor: '#c8aa6e' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.12em', color: '#c8aa6e', marginBottom: 6 }}>🎛️ DIRECT THE POLL (DM)</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, letterSpacing: '0.12em', color: '#c8aa6e' }}>🎛️ DIRECT THE POLL (DM)</span>
+        {onHide && (
+          <button type="button" onClick={onHide} title="Collapse — the poll stays pending" aria-label="Collapse"
+            style={{ background: 'none', border: 'none', color: 'var(--muted, #9aa)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>▾</button>
+        )}
+      </div>
       <div style={{ fontWeight: 700, marginBottom: 10 }}>{poll.question}</div>
       <div style={{ display: 'grid', gap: 10 }}>
         {opts.map((opt, i) => (

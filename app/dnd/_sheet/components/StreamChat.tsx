@@ -7,9 +7,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { makeUsernames, type ChatUser } from '@/lib/dnd/stream-names'
 import { parseEmotes } from '@/lib/dnd/stream-emotes'
-import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
+import {
+  allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES,
+  applyModAction, activeSilences, formatDuration, TIMEOUT_DURATIONS, DEFAULT_TIMEOUT_SEC, type Silence,
+} from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
+import { ambientBetween, beatAt, BEAT_MS, type AmbientLine } from '@/lib/dnd/stream-ambient'
 import { formatNuggets, superTier, SUPER_TIERS } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import StreamTip from './StreamTip'
@@ -39,16 +43,19 @@ function rand<T>(arr: T[]): T {
 // Build one chat line's body from the active phrase pool (default, or mood-biased): a
 // phrase with a heavy sprinkle of emojis, and every so often a pure-spam burst (repeated
 // emoji / hype word). The pool is chosen by the DM's selected moods (see buildMoodPool).
-function makeBody(pool: readonly string[]): string {
-  if (Math.random() < 0.16) {
-    const reps = 3 + Math.floor(Math.random() * 7)
-    const token = Math.random() < 0.6 ? rand(EMOJIS) : rand(['LETS GOOO', 'SPAM', 'POG', 'W', 'HYPE', 'AAAAA'])
-    return Array.from({ length: reps }, () => token).join(' ')
+const SPAM_TOKENS = ['LETS GOOO', 'SPAM', 'POG', 'W', 'HYPE', 'AAAAA']
+
+// Build a line's text from the pre-rolled indices in an AmbientLine. All the randomness
+// happened inside `ambientBeat` against a shared seed, so this is a pure render — which
+// is what lets every viewer's browser arrive at byte-identical chat.
+function bodyFromLine(l: AmbientLine, pool: readonly string[]): string {
+  if (l.spam) {
+    const token = SPAM_TOKENS[l.spamToken % SPAM_TOKENS.length]
+    return Array.from({ length: l.spamReps }, () => token).join(' ')
   }
-  let body = rand(pool as string[])
-  const n = Math.floor(Math.random() * 4) // 0–3 trailing emojis
-  for (let i = 0; i < n; i++) body += ' ' + rand(EMOJIS)
-  if (Math.random() < 0.3) body = rand(EMOJIS) + ' ' + body // sometimes lead with one too
+  let body = pool[l.bodyIndex % pool.length]
+  for (const t of l.trailing) body += ' ' + EMOJIS[t % EMOJIS.length]
+  if (l.lead) body = EMOJIS[l.leadEmoji % EMOJIS.length] + ' ' + body
   return body
 }
 
@@ -174,7 +181,20 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 360, h: 420 })
   // J10 moderation: active chat mode + banned handles (both DM-controlled, live).
   const [chatMode, setChatMode] = useState<ChatMode>('off')
-  const [banned, setBanned] = useState<Set<string>>(new Set())
+  // Silences carry an expiry: a ban is `until: null`, a timeout has a deadline and lapses
+  // on its own. `modNow` ticks so an expiring timeout actually un-silences on screen.
+  const [silences, setSilences] = useState<Silence[]>([])
+  const [timeoutSec, setTimeoutSec] = useState<number>(DEFAULT_TIMEOUT_SEC)
+  const [modNow, setModNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!silences.some((s) => s.until !== null)) return // nothing pending — no ticker
+    const t = setInterval(() => setModNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [silences])
+  const banned = useMemo(
+    () => new Set(activeSilences(silences, modNow).map((s) => s.username)),
+    [silences, modNow],
+  )
   // Local pause — freezes THIS viewer's feed (ambient + incoming) so they can read.
   const [pausedLocal, setPausedLocal] = useState(false)
   // Big procedural crowd (only used past 15 viewers, where handles vary widely).
@@ -183,6 +203,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   // moods (+ any AI-refreshed lines). Held in a ref so mood changes take effect on the
   // next line WITHOUT restarting the ambient loop/timers.
   const poolRef = useRef<string[]>(PHRASES)
+  // Last ambient beat drained. 0 means "not started" — the first tick snaps it to now so a
+  // new viewer joins the live schedule instead of replaying everything since the epoch.
+  const beatCursorRef = useRef(0)
   // When DM/AI messages land, ambient chatter is suppressed for a moment so the curated
   // lines dominate the feed (the AI/DM has "full sway" over what chat is saying).
   const dampenUntilRef = useRef(0)
@@ -278,11 +301,20 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     let stop = false
     let timer: ReturnType<typeof setTimeout>
 
+    // Walk the SHARED beat grid rather than scheduling our own jittered timeouts. Every
+    // client drains the same beats and derives the same lines from them, so two people
+    // watching this stream now see one identical feed (owner 2026-07-19). The cursor
+    // starts at "now" so a fresh viewer joins live instead of replaying history.
     const tick = () => {
       if (stop) return
-      // Suppression: a fresh curated burst briefly quiets ambient (perBurst); an active AI
-      // FOCUS almost fully silences premade chatter, then ramps it back over the fade window.
       const now = Date.now()
+      const upto = beatAt(now)
+      if (beatCursorRef.current === 0) beatCursorRef.current = upto
+
+      // Rate. IMPORTANT: only SHARED inputs may appear here — anything local (this
+      // viewer's pause, when their fetch happened) would fork the schedule per client.
+      // Suppression is therefore derived from the newest curated message's timestamp and
+      // the DM's focus window, both of which come from the server.
       const perBurst = dampenUntilRef.current > now ? 0.06 : 1
       let focusMul = 1
       if (now < focusSuppressUntilRef.current) focusMul = 0.02
@@ -292,29 +324,23 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
       }
       const perSec = Math.max(0.01, basePerSec * Math.min(perBurst, focusMul))
 
-      // Cluster size: mostly singles, occasional small clusters, rare flood at big crowds.
-      const r = Math.random()
-      let burst =
-        perSec < 0.5 ? 1 : // a quiet chat speaks one at a time
-        r < 0.62 ? 1 :
-        r < 0.9 ? 2 + Math.floor(Math.random() * 3) : // 2–4
-        4 + Math.floor(Math.random() * 5)             // 4–8
-      burst = Math.min(burst, maxBurst)
+      const due = ambientBetween(
+        { streamKey: characterId ?? 'preview', perSec, crowdSize: crowd.length, poolSize: poolRef.current.length, emojiCount: EMOJIS.length, spamTokenCount: SPAM_TOKENS.length, maxBurst },
+        beatCursorRef.current,
+        upto,
+      )
+      beatCursorRef.current = upto
 
-      const batch = Array.from({ length: burst }, () => ({ id: idRef.current++, user: crowd[Math.floor(Math.random() * crowd.length)], body: makeBody(poolRef.current) }))
+      const batch = due
+        .map((l) => ({ id: idRef.current++, user: crowd[l.userIndex], body: bodyFromLine(l, poolRef.current) }))
         .filter((l) => l.user && !banned.has(l.user.name) && allowedInMode({ badges: l.user.badges, hasEmote: hasEmote(l.body) }, chatMode))
       if (batch.length) { setLines((m) => [...m, ...batch].slice(-80)); bumpChat(batch.length) }
 
-      // Gap so (burst / gap) ≈ perSec on average, jittered hard so it feels human:
-      // sometimes a rapid cluster, sometimes a noticeable lull.
-      let gap = (burst / perSec) * 1000 * (0.5 + Math.random())
-      if (Math.random() < 0.2) gap *= 0.4 // rapid-fire cluster
-      if (Math.random() < 0.12) gap += 1000 + Math.random() * 2500 // a lull
-      timer = setTimeout(tick, Math.max(120, gap))
+      timer = setTimeout(tick, BEAT_MS)
     }
-    timer = setTimeout(tick, 400)
+    timer = setTimeout(tick, BEAT_MS)
     return () => { stop = true; clearTimeout(timer) }
-  }, [stream?.is_live, stream?.viewer_count, stream?.chat_speed, chatMode, banned, pausedLocal, bumpChat])
+  }, [stream?.is_live, stream?.viewer_count, stream?.chat_speed, chatMode, banned, pausedLocal, bumpChat, characterId])
 
   // Clear (J6): the DM's "Clear chat" wipes the visible feed on this client too.
   useEffect(() => {
@@ -336,29 +362,26 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     if (!characterId) return
     const pushSystem = (body: string) =>
       setLines((m) => [...m, { id: `sys-${idRef.current++}`, user: { name: 'Moderator', color: '#e0a83a', badges: ['mod'] }, body, system: true }].slice(-60))
-    const applyAction = (type: ModActionType, username: string) => {
-      setBanned((prev) => {
-        const next = new Set(prev)
-        if (type === 'unban') next.delete(username)
-        else next.add(username)
-        return next
-      })
-      pushSystem(formatModAction(type, username))
+    // Silences carry a deadline now, so a timeout releases itself instead of behaving
+    // like a permanent ban (which is what the old Set<string> made it).
+    const applyAction = (type: ModActionType, username: string, durationSec?: number) => {
+      setSilences((prev) => applyModAction(prev, { type, username, durationSec }, Date.now()))
+      pushSystem(formatModAction(type, username, durationSec))
     }
     const ch = supabase
       .channel(`dnd:stream:${characterId}:mod`, { config: { broadcast: { self: false } } })
       .on('broadcast', { event: 'mode' }, (m) => setChatMode((m.payload as { mode?: ChatMode })?.mode ?? 'off'))
       .on('broadcast', { event: 'action' }, (m) => {
-        const p = m.payload as { type?: ModActionType; username?: string }
-        if (p?.type && p.username) applyAction(p.type, p.username)
+        const p = m.payload as { type?: ModActionType; username?: string; durationSec?: number }
+        if (p?.type && p.username) applyAction(p.type, p.username, p.durationSec)
       })
       .subscribe()
     modSendRef.current = ch // reused by the owner's inline timeout/ban
     const onLocal = (e: Event) => {
-      const d = (e as CustomEvent).detail as { characterId?: string; kind?: string; mode?: ChatMode; type?: ModActionType; username?: string }
+      const d = (e as CustomEvent).detail as { characterId?: string; kind?: string; mode?: ChatMode; type?: ModActionType; username?: string; durationSec?: number }
       if (d?.characterId !== characterId) return
       if (d.kind === 'mode' && d.mode) setChatMode(d.mode)
-      else if (d.kind === 'action' && d.type && d.username) applyAction(d.type, d.username)
+      else if (d.kind === 'action' && d.type && d.username) applyAction(d.type, d.username, d.durationSec)
     }
     window.addEventListener('dnd-stream-mod', onLocal)
     return () => { window.removeEventListener('dnd-stream-mod', onLocal); modSendRef.current = null; void supabase.removeChannel(ch) }
@@ -396,7 +419,15 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
           }
           // Suppress ambient for a few seconds so the curated burst stands out (longer for
           // a bigger burst — a full AI trend drop briefly takes over the whole chat).
-          dampenUntilRef.current = Date.now() + Math.min(14000, 3000 + fresh.length * 700)
+          // Anchored to the newest message's SERVER timestamp, not to when this client
+          // happened to fetch: clients poll up to 1.2s apart, and anchoring locally would
+          // give each of them a different suppression window, forking the shared ambient
+          // schedule for its duration. Falls back to local time if the row has no date.
+          const newestAt = Math.max(
+            ...fresh.map((m: { created_at?: string }) => (m.created_at ? new Date(m.created_at).getTime() : 0)),
+            0,
+          )
+          dampenUntilRef.current = (newestAt || Date.now()) + Math.min(14000, 3000 + fresh.length * 700)
           bumpChat(fresh.length)
           setLines((prev) => [
             ...prev,
@@ -445,14 +476,21 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   }
 
   // Owner timeout/ban (broadcast to everyone + applied locally), reusing the mod channel.
-  const ownerMod = (type: ModActionType, username: string) => {
-    modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username } })
-    window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username } }))
+  const ownerMod = (type: ModActionType, username: string, durationSec?: number) => {
+    const sec = type === 'timeout' ? durationSec ?? timeoutSec : undefined
+    modSendRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username, durationSec: sec } })
+    window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username, durationSec: sec } }))
     touchActivity()
   }
 
   // Tap-a-name actions are available to the streamer (owner) AND the DM.
   const canModThis = isDM || isOwnerMod
+  // The deadline of a handle's TIMED silence, or null for a permanent ban / no silence —
+  // drives the "End timeout" button and its countdown.
+  const activeTimeoutFor = (username: string): number | null => {
+    const s = activeSilences(silences, modNow).find((x) => x.username === username)
+    return s && s.until !== null ? s.until : null
+  }
   // Message a viewer: filed to the DM's reply inbox (NOT posted to chat) so the DM can
   // choose to answer AS that viewer or ignore it. `pm` is the popover message draft.
   const [pm, setPm] = useState('')
@@ -825,8 +863,21 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
                 />
                 <button className="sd-pause" onClick={() => messageUser(historyOf)} disabled={pmBusy || !pm.trim()} title="Send to the DM — they decide how this viewer replies">✉ Message</button>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="sd-pause" onClick={() => ownerMod('timeout', historyOf)} title={`Time out ${historyOf}`}>⛔ Timeout</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="sd-pause" onClick={() => ownerMod('timeout', historyOf)} title={`Time out ${historyOf} for ${formatDuration(timeoutSec)}`}>⛔ Timeout</button>
+                <select
+                  value={timeoutSec} onChange={(e) => setTimeoutSec(Number(e.target.value))}
+                  title="How long the timeout lasts" aria-label="Timeout duration"
+                  style={{ padding: '4px 6px', fontSize: 12, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.18)', color: 'inherit', borderRadius: 4 }}
+                >
+                  {TIMEOUT_DURATIONS.map((d) => <option key={d.sec} value={d.sec}>{d.label}</option>)}
+                </select>
+                {/* A timed-out viewer can be released early; a permanent ban needs Unban. */}
+                {activeTimeoutFor(historyOf) && (
+                  <button className="sd-pause" onClick={() => ownerMod('untimeout', historyOf)} title={`End ${historyOf}'s timeout now`}>
+                    ▶ End timeout ({formatDuration((activeTimeoutFor(historyOf)! - modNow) / 1000)})
+                  </button>
+                )}
                 {banned.has(historyOf)
                   ? <button className="sd-pause" onClick={() => ownerMod('unban', historyOf)} title={`Unban ${historyOf}`}>♻️ Unban</button>
                   : <button className="sd-pause" onClick={() => ownerMod('ban', historyOf)} style={{ color: '#ff6b6b' }} title={`Ban ${historyOf}`}>🔨 Ban</button>}

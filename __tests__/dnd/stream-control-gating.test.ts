@@ -19,8 +19,11 @@ describe('StreamControl gating', () => {
 });
 
 describe('StreamOwnerControls gating', () => {
-  it('the owner’s own bar shows only outside a campaign', () => {
-    expect(owner).toContain('const isOwner = canWrite && !isDM && !campaignId');
+  // Owner 2026-07-19: the streamer holds her own go-live / end-stream switch in a campaign
+  // too, alongside the DM — reversing the 2026-07-18 rule that hid the bar inside one.
+  it('the owner’s own bar shows in a campaign as well as outside one', () => {
+    expect(owner).toContain('const isOwner = canWrite && !isDM');
+    expect(owner).not.toContain('const isOwner = canWrite && !isDM && !campaignId');
   });
 });
 

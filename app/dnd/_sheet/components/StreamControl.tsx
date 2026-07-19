@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useChar } from '../state/store'
 import type { AlertType, StreamAlert } from '@/lib/dnd/stream-alerts'
-import { CHAT_MODES, type ChatMode, type ModActionType } from '@/lib/dnd/stream-mod'
+import { CHAT_MODES, type ChatMode, type ModActionType, TIMEOUT_DURATIONS, DEFAULT_TIMEOUT_SEC, formatDuration } from '@/lib/dnd/stream-mod'
 import { resolveDC, MAX_DC, MIN_DC, chatRatePerSec } from '@/lib/dnd/stream-influence'
 import { MOODS } from '@/lib/dnd/stream-moods'
 import { GENEROSITY, GENEROSITY_LEVELS, rollDonationAmount, formatNuggets, nuggetsToNotes, type Generosity } from '@/lib/dnd/stream-currency'
@@ -70,6 +70,7 @@ export default function StreamControl() {
   const [pollQ, setPollQ] = useState(''); const [pollOpts, setPollOpts] = useState(''); const [polling, setPolling] = useState(false)
   const [alertType, setAlertType] = useState<AlertType>('sub'); const [alertUser, setAlertUser] = useState(''); const [alertDetail, setAlertDetail] = useState('')
   const [chatMode, setChatMode] = useState<ChatMode>('off'); const [modUser, setModUser] = useState('')
+  const [modTimeoutSec, setModTimeoutSec] = useState<number>(DEFAULT_TIMEOUT_SEC)
   const alertChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const modChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const patchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -325,7 +326,14 @@ export default function StreamControl() {
     try { const r = await fetch(`/api/dnd/characters/${characterId}/stream/polls`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, options }) }); if (r.ok) { setPollQ(''); setPollOpts('') } } finally { setPolling(false) }
   }
   const setMode = (mode: ChatMode) => { setChatMode(mode); modChanRef.current?.send({ type: 'broadcast', event: 'mode', payload: { mode } }); window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'mode', mode } })) }
-  const modAction = (type: ModActionType) => { const u = modUser.trim(); if (!u) return; modChanRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username: u } }); window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username: u } })); if (type !== 'unban') setModUser('') }
+  // Timeouts carry a duration so they lapse on their own; ban/unban/untimeout ignore it.
+  const modAction = (type: ModActionType) => {
+    const u = modUser.trim(); if (!u) return
+    const durationSec = type === 'timeout' ? modTimeoutSec : undefined
+    modChanRef.current?.send({ type: 'broadcast', event: 'action', payload: { type, username: u, durationSec } })
+    window.dispatchEvent(new CustomEvent('dnd-stream-mod', { detail: { characterId, kind: 'action', type, username: u, durationSec } }))
+    if (type !== 'unban' && type !== 'untimeout') setModUser('')
+  }
 
   const box: React.CSSProperties = { marginTop: 10, padding: '8px 10px', border: '1px solid var(--line, rgba(255,255,255,0.14))', borderRadius: 8 }
   const inp: React.CSSProperties = { padding: '6px 8px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--line, rgba(255,255,255,0.15))', color: 'inherit', fontSize: 13 }
@@ -528,9 +536,16 @@ export default function StreamControl() {
                 <span style={label}>MOD</span>
                 {CHAT_MODES.map((m) => <button key={m.id} className={`btn tiny ${chatMode === m.id ? 'on' : ''}`} onClick={() => setMode(m.id)} style={{ color: chatMode === m.id ? 'var(--gold)' : undefined }}>{m.icon} {m.label}</button>)}
                 <input value={modUser} onChange={(e) => setModUser(e.target.value)} placeholder="username" style={{ ...inp, width: 120 }} />
-                <button className="btn tiny" onClick={() => modAction('timeout')} disabled={!modUser.trim()}>⛔</button>
+                <button className="btn tiny" onClick={() => modAction('timeout')} disabled={!modUser.trim()} title={`Time out for ${formatDuration(modTimeoutSec)}`}>⛔</button>
+                <select
+                  value={modTimeoutSec} onChange={(e) => setModTimeoutSec(Number(e.target.value))}
+                  className="tiny" aria-label="Timeout duration" title="How long a timeout lasts"
+                >
+                  {TIMEOUT_DURATIONS.map((d) => <option key={d.sec} value={d.sec}>{d.label}</option>)}
+                </select>
+                <button className="btn tiny" onClick={() => modAction('untimeout')} disabled={!modUser.trim()} title="End this viewer's timeout now">▶</button>
                 <button className="btn tiny" onClick={() => modAction('ban')} disabled={!modUser.trim()} style={{ color: '#ff4d4d' }}>🔨</button>
-                <button className="btn tiny" onClick={() => modAction('unban')} disabled={!modUser.trim()}>♻️</button>
+                <button className="btn tiny" onClick={() => modAction('unban')} disabled={!modUser.trim()} title="Lift a ban or timeout">♻️</button>
               </div>
             </div>
           )}

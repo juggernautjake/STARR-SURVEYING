@@ -41,16 +41,79 @@ export function modeIntervalFactor(mode: ChatMode): number {
   return mode === 'slow' ? 4 : 1
 }
 
-export type ModActionType = 'timeout' | 'ban' | 'unban'
+export type ModActionType = 'timeout' | 'ban' | 'unban' | 'untimeout'
+
+/** Timeout lengths offered in the UI. A timeout EXPIRES on its own; a ban doesn't. */
+export const TIMEOUT_DURATIONS: { sec: number; label: string }[] = [
+  { sec: 30, label: '30s' },
+  { sec: 60, label: '1m' },
+  { sec: 300, label: '5m' },
+  { sec: 600, label: '10m' },
+  { sec: 1800, label: '30m' },
+  { sec: 3600, label: '1h' },
+]
+export const DEFAULT_TIMEOUT_SEC = 300
+
+/** "5m" / "1h 30m" / "45s" — for the system line and the pending-timeout list. */
+export function formatDuration(sec: number): string {
+  const s = Math.max(0, Math.round(sec))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return s % 60 ? `${m}m ${s % 60}s` : `${m}m`
+  const h = Math.floor(m / 60)
+  return m % 60 ? `${h}h ${m % 60}m` : `${h}h`
+}
 
 /** The system line a mod action posts into the feed. */
-export function formatModAction(type: ModActionType, username: string): string {
+export function formatModAction(type: ModActionType, username: string, durationSec?: number): string {
   switch (type) {
     case 'timeout':
-      return `⛔ ${username} has been timed out`
+      return durationSec
+        ? `⛔ ${username} has been timed out for ${formatDuration(durationSec)}`
+        : `⛔ ${username} has been timed out`
     case 'ban':
       return `🔨 ${username} has been permanently banned`
     case 'unban':
       return `♻️ ${username} has been unbanned`
+    case 'untimeout':
+      return `♻️ ${username}'s timeout has been lifted`
   }
+}
+
+/** A silenced viewer. `until` is an epoch ms deadline; a ban has no deadline. */
+export interface Silence { username: string; until: number | null }
+
+/** Fold a mod action into the silence map. Pure so the DM's panel, the streamer's
+ *  panel and every viewer derive the same state from the same broadcast. `unban`
+ *  clears anything (ban or timeout); `untimeout` only lifts a timed one, so it can't
+ *  be used to quietly undo a permanent ban. */
+export function applyModAction(
+  silences: Silence[],
+  action: { type: ModActionType; username: string; durationSec?: number },
+  now: number,
+): Silence[] {
+  const others = silences.filter((s) => s.username !== action.username)
+  switch (action.type) {
+    case 'ban':
+      return [...others, { username: action.username, until: null }]
+    case 'timeout':
+      return [...others, { username: action.username, until: now + (action.durationSec ?? DEFAULT_TIMEOUT_SEC) * 1000 }]
+    case 'unban':
+      return others
+    case 'untimeout': {
+      const cur = silences.find((s) => s.username === action.username)
+      return cur && cur.until !== null ? others : silences
+    }
+  }
+}
+
+/** The silences still in force at `now` — expired timeouts simply drop out, which is
+ *  what makes a timeout self-releasing without anyone having to act. */
+export function activeSilences(silences: Silence[], now: number): Silence[] {
+  return silences.filter((s) => s.until === null || s.until > now)
+}
+
+/** Whether this handle is silenced right now. */
+export function isSilenced(silences: Silence[], username: string, now: number): boolean {
+  return activeSilences(silences, now).some((s) => s.username === username)
 }

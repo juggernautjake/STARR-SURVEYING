@@ -197,8 +197,9 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
       <TokenFramer src={tokenUrl ?? artUrl ?? undefined} />
 
-      {/* The streamer's own controls (go live + NeoNuggets exchange) — renders only for a
-          non-DM owner on a stream character (returns null otherwise). */}
+      {/* The streamer's own controls (go live / end stream + NeoNuggets exchange) — renders for a
+          non-DM owner on a stream character, inside a campaign or out (owner 2026-07-19).
+          Returns null otherwise. */}
       {hasStream && <StreamOwnerControls />}
 
       {/* Outside a campaign, the character's OWNER gets the FULL stream director controls — go live, viewers,
