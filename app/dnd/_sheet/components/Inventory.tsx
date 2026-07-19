@@ -73,6 +73,37 @@ export default function Inventory() {
     setEquipConflict(null)
   }
 
+  // "Worn" is the SAME predicate the effect ledger and deriveAc use — the flag OR the
+  // legacy 'equipped' tag — so the row's state can never disagree with what's actually
+  // being applied to the character's stats.
+  const isWorn = (it: InvItem) => it.equipped === true || it.tags?.includes('equipped') === true
+  // Kinds worth offering a toggle for. Anything already marked equipped gets one too, so
+  // an item equipped by the AI or an older build can always be taken off here.
+  const EQUIPPABLE = new Set(['armor', 'shield', 'weapon', 'wondrous'])
+  const canEquip = (it: InvItem) => EQUIPPABLE.has(it.kind ?? 'gear') || isWorn(it)
+
+  // Equip / unequip from the Gear row. Routed through `upsert` on purpose: that's where
+  // equip-limit enforcement and the swap dialog live, so toggling here obeys the same
+  // slot rules as saving from the item editor. Unequipping also strips the legacy tag —
+  // leaving it behind would keep the item "worn" as far as the ledger is concerned.
+  function toggleEquip(it: InvItem) {
+    if (isWorn(it)) {
+      upsert({ ...it, equipped: false, tags: (it.tags ?? []).filter((t) => t !== 'equipped') })
+    } else {
+      upsert({ ...it, equipped: true })
+    }
+  }
+
+  // Attunement gates an item's effects independently of wearing it: an attunement item
+  // that's equipped but not attuned contributes nothing, which is a confusing dead end
+  // without a control for it right next to Equip.
+  function toggleAttune(it: InvItem) {
+    setChar((c) => ({
+      ...c,
+      inventory: c.inventory.map((x) => (x.id === it.id ? { ...x, attuned: !x.attuned } : x)),
+    }))
+  }
+
   function setQty(id: string, delta: number) {
     setChar((c) => ({
       ...c,
@@ -277,6 +308,39 @@ export default function Inventory() {
                 <button className="btn tiny gold" style={{ marginTop: 6 }} onClick={() => consume(it)} disabled={it.qty <= 0} title="Consume this item and apply its effect">
                   ⚗ {consumeLabel(it)}{it.consumable.effect.duration ? ` · ${it.consumable.effect.duration}` : ''}
                 </button>
+              )}
+              {/* Equip / attune straight from the Gear list. Equipping applies the item's
+                  effects (AC, ability bonuses, …) to the sheet immediately — the ledger and
+                  deriveAc both read the same worn state this button writes. */}
+              {canWrite && canEquip(it) && (
+                <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    className={`btn tiny ${isWorn(it) ? 'solid' : ''}`}
+                    onClick={() => toggleEquip(it)}
+                    title={isWorn(it) ? `Take off ${it.name} — its effects stop applying` : `Equip ${it.name} — its effects start applying`}
+                  >
+                    {isWorn(it) ? '✓ Equipped' : '○ Equip'}
+                  </button>
+                  {it.attuned !== undefined && (
+                    <button
+                      className={`btn tiny ${it.attuned ? 'gold' : ''}`}
+                      onClick={() => toggleAttune(it)}
+                      title={it.attuned ? 'End attunement — effects stop applying' : 'Attune — required before this item’s effects apply'}
+                    >
+                      {it.attuned ? '✦ Attuned' : '◇ Attune'}
+                    </button>
+                  )}
+                  {isWorn(it) && it.armor && (
+                    <span style={{ fontSize: 11.5, color: 'var(--muted, #9aa)' }}>
+                      {it.armor.category === 'shield' ? `+${it.armor.baseAC ?? 2} AC` : `base AC ${it.armor.baseAC ?? 10}`}
+                    </span>
+                  )}
+                  {/* An attunement item that's worn but not attuned contributes nothing —
+                      say so, rather than letting the player wonder why AC didn't move. */}
+                  {isWorn(it) && it.attuned === false && (
+                    <span style={{ fontSize: 11.5, color: '#e0a020' }}>not attuned — effects inactive</span>
+                  )}
+                </div>
               )}
             </div>
             {editMode ? (

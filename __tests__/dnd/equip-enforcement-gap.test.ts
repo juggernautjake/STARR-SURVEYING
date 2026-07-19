@@ -55,3 +55,40 @@ describe('equip enforcement is wired into the live paths (Area E)', () => {
     expect(inv).toContain('EquipConflictDialog');
   });
 });
+
+// Owner 2026-07-19: equip/unequip moved onto the Gear rows themselves. The risk of a new
+// equip path is that it writes `equipped` directly and skips the conflict rules the other
+// two paths obey — these pin it to the same enforced route.
+describe('the Gear-row equip toggle (Inventory)', () => {
+  const src = read('app/dnd/_sheet/components/Inventory.tsx');
+
+  it('routes equipping through upsert, so equip-limit enforcement still applies', () => {
+    expect(src).toContain('function toggleEquip');
+    // Both branches must go through upsert — a direct setChar here would bypass
+    // equipConflicts and let an illegal loadout through.
+    const body = src.slice(src.indexOf('function toggleEquip'), src.indexOf('function toggleAttune'));
+    expect(body).toContain('upsert({ ...it, equipped: true })');
+    expect(body).toContain('equipped: false');
+    expect(body).not.toContain('setChar(');
+  });
+
+  it('strips the legacy equipped TAG when taking an item off', () => {
+    // The ledger treats the tag as worn, so clearing only the flag would leave the item
+    // silently still applying its effects.
+    const body = src.slice(src.indexOf('function toggleEquip'), src.indexOf('function toggleAttune'));
+    expect(body).toContain("filter((t) => t !== 'equipped')");
+  });
+
+  it('reads worn state with the same predicate as the ledger and deriveAc', () => {
+    expect(src).toContain("it.equipped === true || it.tags?.includes('equipped') === true");
+  });
+
+  it('offers the toggle for equippable kinds and anything already worn', () => {
+    expect(src).toContain("EQUIPPABLE = new Set(['armor', 'shield', 'weapon', 'wondrous'])");
+    expect(src).toContain('EQUIPPABLE.has(it.kind ?? \'gear\') || isWorn(it)');
+  });
+
+  it('is gated on write access', () => {
+    expect(src).toContain('canWrite && canEquip(it)');
+  });
+});
