@@ -392,8 +392,12 @@ below states what it reuses.
       the Work Mode Mileage tab (`FieldCrewWorkspace` → `MileageTracker`) — a saved-vehicle picker loaded from
       `/api/admin/vehicles` (save/add/delete live there) + start/end odometer inputs + a live miles + IRS-$
       preview driven by `resolveOdometerEntry` (a friendly error for a reversed/absurd entry).
-      `field-crew-workspace.test.ts` +1. **Remaining:** persisting a submitted entry to financials via a
-      manual-mileage POST route (small API wiring) + the mobile-native form.
+      `field-crew-workspace.test.ts` +1. **Persist SHIPPED:** `POST /api/admin/mileage/manual` writes the
+      odometer entry as a `mileage_entries` row (`source: 'odometer'`, org- + caller-scoped, miles/rate/total
+      from the shared `resolveOdometerEntry` so no second rate can drift) — it flows straight into the existing
+      operations/job financial reports that already read that table. The Work Mode Mileage tab now has a "Log this
+      trip" button that POSTs and confirms (`manual-mileage-route.test.ts`, 4). **Remaining:** the mobile-native
+      form only.
 - [~] **D7 — Compass (azimuth + bearing). ✅ Pure formatter shipped.** `lib/surveying/compass.ts` —
       `compassReading(headingDeg)` → `{ azimuth, azimuthText, bearingText, cardinal }`, reusing
       `lib/cad/geometry/bearing.ts`'s `formatAzimuth`/`formatBearing` (single source of truth) and adding the

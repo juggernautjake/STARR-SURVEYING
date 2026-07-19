@@ -250,7 +250,30 @@ function MileageTracker() {
     return () => { live = false; };
   }, []);
 
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
   const entry = resolveOdometerEntry(Number(start), Number(end));
+  const canSave = !('error' in entry) && !saving;
+
+  async function save() {
+    if ('error' in entry) return;
+    setSaving(true); setSaved(null);
+    try {
+      const res = await fetch('/api/admin/mileage/manual', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startReading: Number(start), endReading: Number(end), vehicleId: vehicleId || undefined }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setSaved(j.error ?? 'Could not save.'); return; }
+      setSaved(`Logged ${j.miles} mi · $${Number(j.reimbursement).toFixed(2)} to the mileage report.`);
+      setStart(''); setEnd('');
+    } catch {
+      setSaved('Network error — the entry was not saved.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 360, display: 'grid', gap: 10 };
   const field: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', width: '100%' };
 
@@ -273,6 +296,11 @@ function MileageTracker() {
       <div aria-live="polite" style={{ textAlign: 'right', fontSize: '1.1rem', minHeight: 26, color: 'error' in entry ? 'var(--theme-fg-secondary)' : 'var(--theme-accent)' }}>
         {'error' in entry ? entry.error : `${entry.miles} mi · $${entry.reimbursement.toFixed(2)}`}
       </div>
+      <button type="button" onClick={save} disabled={!canSave}
+        style={{ padding: '9px 12px', borderRadius: 6, border: '1px solid var(--theme-border)', background: canSave ? 'var(--theme-accent)' : 'var(--theme-bg-elevated)', color: canSave ? '#fff' : 'var(--theme-fg-secondary)', cursor: canSave ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
+        {saving ? 'Saving…' : 'Log this trip'}
+      </button>
+      {saved && <div aria-live="polite" style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary)' }}>{saved}</div>}
     </div>
   );
 }
