@@ -136,3 +136,36 @@ describe('player map: label-visibility toggles (owner 2026-07-18)', () => {
     expect(SRC).toContain('labelVis.planets=labelVis.stars=labelVis.systems=next');
   });
 });
+
+describe('player map: procedural space audio (owner 2026-07-18)', () => {
+  it('has a SpaceAudio Web Audio module: drone bed + space noises + UI cues', () => {
+    expect(SRC).toContain('const SpaceAudio=(function()');
+    expect(SRC).toContain('function startDrone()'); // gliding sine-voice drone
+    expect(SRC).toContain('const FAMILIES=['); // chatter/telemetry/sonar/servo/groan
+    expect(SRC).toContain('function scheduleNoise()'); // Poisson-timed interjections
+    expect(SRC).toMatch(/select\(\)\{if\(!ctx\|\|muted\)return/); // select cue
+  });
+  it('exposes + wires the UI cues (click/hover/tick/zoom/select)', () => {
+    expect(SRC).toContain('click(){this._blip(1200');
+    expect(SRC).toContain('tick(){');
+    expect(SRC).toContain('zoom(dir){');
+    expect(SRC).toContain('pulseScan();hovering=false;SpaceAudio.select()'); // select cue on map pick
+    expect(SRC).toContain('SpaceAudio.hover();};p.onmouseleave'); // sector hover cue
+    expect(SRC).toContain('consoleDeck.addEventListener("click"'); // deck button clicks blip
+  });
+  it('has AUDIO controls (mute lamp + volume slider) persisted to localStorage', () => {
+    expect(SRC).toContain('id="audMute"');
+    expect(SRC).toContain('id="audVol"');
+    expect(SRC).toContain('localStorage.setItem("starmap.audio.muted"');
+  });
+  it('starts audio only on a user gesture (autoplay policy)', () => {
+    expect(SRC).toContain('["pointerdown","touchstart","keydown"].forEach');
+  });
+});
+
+describe('player map: wheel-zoom never scrolls the page (over text or anywhere)', () => {
+  it('binds the wheel handler to #mapPane (the whole container), not #stage', () => {
+    expect(SRC).toContain('$("#mapPane").addEventListener("wheel"');
+    expect(SRC).not.toContain('stage.addEventListener("wheel"'); // moved off stage so labels can\'t leak to page scroll
+  });
+});

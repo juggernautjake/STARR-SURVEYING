@@ -245,6 +245,10 @@
     <div class="lamp c on lbltgl" id="lblStars" title="Show/hide star names"><span class="led"></span>STARS</div>
     <div class="lamp c on lbltgl" id="lblSystems" title="Show/hide system / region names"><span class="led"></span>SYSTEMS</div>
     <div class="lamp c on lbltgl" id="lblAll" title="Show/hide ALL map text at once"><span class="led"></span>ALL</div>
+    <!-- AUDIO: procedural space ambience — the SOUND lamp mutes/unmutes; the slider sets volume. -->
+    <div class="bh" style="margin-top:9px">AUDIO</div>
+    <div class="lamp c on lbltgl" id="audMute" title="Mute / unmute the space ambience"><span class="led"></span>SOUND</div>
+    <input id="audVol" type="range" min="0" max="100" value="50" title="Ambience volume" style="width:100%;margin-top:5px;accent-color:var(--scan);cursor:pointer;">
   </div>
   <div class="screenframe">
     <div class="screen"><div class="scr-inner" id="scrInner"></div></div>
@@ -729,7 +733,7 @@ function render(){
     // Only an interactive body wires select/hover; a non-interactive one is inert (its POIs are also skipped).
     if(interactive){
       el.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});};
-      el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
+      el.onmouseenter=()=>{el.classList.add("hovered");hoverName(i.name,i.kind);SpaceAudio.hover();};el.onmouseleave=()=>{el.classList.remove("hovered");endHover();};
       el.querySelectorAll(".poi").forEach(p=>p.onclick=e=>{e.stopPropagation();select({type:"instance",id:i.id});});
     }
     viewport.appendChild(el);});
@@ -738,7 +742,7 @@ function render(){
       // A "front" sector renders above bodies; a body you can see through it must still win the click.
       if(p.dataset.front){for(const el of document.elementsFromPoint(e.clientX,e.clientY)){const bh=el.closest&&el.closest(".body[data-id]");if(bh){select({type:"instance",id:bh.dataset.id});return;}}}
       select({type:"sector",id:p.dataset.sector});};
-    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");};p.onmouseleave=endHover;});
+    p.onmouseenter=()=>{const s=(MAP.sectors||[]).find(x=>x.id===p.dataset.sector);hoverName(s?s.name:"",s&&s.meta?"meta-region":s&&s.parent?"sub-system":"system");SpaceAudio.hover();};p.onmouseleave=endHover;});
   viewport.appendChild(buildLabelLayer(B,W,H));   // rich formatted labels on top
   mountSpriteInstances();mountSpiralImages();buildLegend();
 }
@@ -800,7 +804,10 @@ let pan=null;
 stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y,moved:false};});
 window.addEventListener("mousemove",e=>{if(!pan)return;if(Math.abs(e.clientX-pan.sx)+Math.abs(e.clientY-pan.sy)>4)pan.moved=true;view.x=pan.ox+(e.clientX-pan.sx);view.y=pan.oy+(e.clientY-pan.sy);apply();});
 window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))clearSelect();pan=null;stage.classList.remove("grabbing");});   // click on empty space → deselect + blank the panel
-stage.addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();},{passive:false});
+// Wheel-zoom is bound to #mapPane (the whole map container), NOT #stage — so scrolling over a LABEL (labels sit
+// in a pointer-events:none overlay whose events could otherwise reach the page) still zooms the map and NEVER
+// scrolls the window. preventDefault on the pane stops the page from moving under any wheel over the map.
+$("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();SpaceAudio.zoom(e.deltaY<0?1:-1);},{passive:false});
 // ── Touch: 1-finger pan + 2-finger pinch-zoom (mobile — the mouse handlers above don't fire on touch). A tap on
 //    a body/sector still bubbles to its click handler; a tap on empty space deselects. ──
 let pinch=null;
@@ -830,7 +837,7 @@ stage.addEventListener("touchend",e=>{
   if(pinch&&e.touches.length<2)pinch=null;
   if(pan&&e.touches.length===0){if(!pan.moved&&(selectedId||curSel))clearSelect();pan=null;}
 },{passive:true});
-function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);}
+function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);SpaceAudio.zoom(fdir>1?1:-1);}
 $("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
 $("#zoomOut").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1/1.3);};
 $("#zoomFit").onclick=()=>{clearSelect();fit(true);};
@@ -840,7 +847,7 @@ function setSelectedEl(id){viewport.querySelectorAll(".body").forEach(el=>el.cla
 function pulseScan(){const l=$("#lampScan");l.classList.add("on");setTimeout(()=>l.classList.remove("on"),700);$("#tgl3").classList.add("up");setTimeout(()=>$("#tgl3").classList.remove("up"),700);$("#sigMeter").style.width=(70+Math.random()*28)+"%";}
 let curSel=null, hovering=false;
 function select(sel){
-  pulseScan();hovering=false;
+  pulseScan();hovering=false;SpaceAudio.select();
   if(sel.type==="sector"){const s=MAP.sectors.find(x=>x.id===sel.id);if(!s)return;selectedId=null;setSelectedEl(null);curSel={type:"sector",id:s.id};
     viewport.querySelectorAll("[data-sector]").forEach(p=>p.classList.toggle("sector-focus",p.dataset.sector===s.id));
     renderScreen(sectorScreen(s));const c=polyCentroid(s.points);const bb={w:Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)),h:Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y))};flyTo(c.x,c.y,fitZoomFor(bb.w*1.5,bb.h*1.5));return;}
@@ -874,6 +881,94 @@ function toggleLabel(cat){labelVis[cat]=!labelVis[cat];syncLabelLamps();refreshL
 {const y=$("#lblSystems");if(y)y.onclick=()=>toggleLabel("systems");}
 {const a=$("#lblAll");if(a)a.onclick=()=>{const allOn=labelVis.planets&&labelVis.stars&&labelVis.systems;const next=!allOn;labelVis.planets=labelVis.stars=labelVis.systems=next;syncLabelLamps();refreshLabels();};}
 syncLabelLamps();
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════════
+// SPACE AUDIO — a fully procedural Web Audio port of the 4X game's audio system (no sound files):
+//   • a continuous DRONE BED — 6 sine voices that GLIDE between unresolved chords (Strata style), a bed you
+//     notice when it stops. Chord vocabulary + small root wander + shared-tone voice leading, exactly as spec'd.
+//   • occasional SPACE NOISES on a memoryless (Poisson) timer — chatter / telemetry / sonar / servo / hull-groan,
+//     each with its own per-shot distance (low-pass + echo) so far ones are muffled and washed out (space feels big).
+//   • a SELECT cue (600→950Hz sweep) when the player picks a body/sector.
+// Master volume + mute live on the AUDIO controls in the console. Audio starts on the first user gesture
+// (browser autoplay policy); the mute preference persists in localStorage.
+// ════════════════════════════════════════════════════════════════════════════════════════════════════
+const SpaceAudio=(function(){
+  let ctx=null,master=null,droneGain=null;let voices=[],started=false;
+  let muted=false,volume=0.5;let rootSemi=0,curTones=null,curSemis=[0,3,7],chordTO=null,noiseTO=null,burstLeft=0;
+  let _lastHover=0,_lastTick=0,_lastZoom=0;
+  try{muted=localStorage.getItem("starmap.audio.muted")==="1";const v=parseFloat(localStorage.getItem("starmap.audio.vol"));if(!isNaN(v))volume=v;}catch(e){}
+  const ROOT_HZ=34.65;   // C#1
+  // Chord vocabulary (semitones over the root) + weights — weighted toward the unresolved (min/aug/sus…).
+  const VOCAB=[
+    {t:[0,3,7,12,15,19],w:1.4},{t:[0,3,7,10,15,22],w:1.5},{t:[0,3,10,14,19,26],w:1.1},
+    {t:[0,3,7,11,14,19],w:0.6},{t:[0,4,8,12,16,20],w:0.9},{t:[0,4,8,11,16,23],w:0.5},
+    {t:[0,2,7,12,14,19],w:1.0},{t:[0,5,7,12,17,19],w:0.9},{t:[0,3,6,10,15,18],w:0.5},
+    {t:[0,4,7,12,16,19],w:0.45},{t:[0,4,7,14,16,23],w:0.35},{t:[0,4,11,14,19,23],w:0.3},
+  ];
+  const ROOT_MOVES=[[-7,.5],[-5,.9],[-3,1],[-2,1.2],[-1,.6],[0,.3],[1,.6],[2,1.2],[3,1],[4,.7],[5,.9],[7,.5]];
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  const pc=s=>((s%12)+12)%12;
+  function toneHz(root,semi){let oct=(pc(semi)===0||pc(semi)===7)?0:1;let f=root*Math.pow(2,(semi+oct*12)/12);while(f>132)f*=0.5;while(f<18)f*=2;return f;}
+  function rootHz(){return ROOT_HZ*Math.pow(2,rootSemi/12);}
+  function weighted(arr,wof){let tot=0;for(const x of arr)tot+=wof(x);let r=Math.random()*tot;for(const x of arr){r-=wof(x);if(r<=0)return x;}return arr[0];}
+  function shared(a,b){let n=0;for(const x of a.t){for(const y of b.t){if(pc(x)===pc(y)){n++;break;}}}return n;}
+  function pickChord(from){return weighted(VOCAB,c=>{let s=c.w;if(from){if(c===from)s*=0.15;s*=1+shared(from,c)*0.35;}return s;});}
+  function ensure(){if(ctx)return true;const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;ctx=new AC();master=ctx.createGain();master.gain.value=muted?0:volume;master.connect(ctx.destination);droneGain=ctx.createGain();droneGain.gain.value=0;droneGain.connect(master);return true;}
+  let curChord=null;
+  function applyChord(chord,instant){const r=rootHz();const g=instant?0:8;   // ~8s glide
+    for(let v=0;v<voices.length;v++){const semi=v===0?0:v===1?(chord.t.indexOf(7)>=0?7:0):chord.t[2+((v-2)%(chord.t.length-2))];let f=toneHz(r,semi);if(v%2===1)f*=1.0018;const o=voices[v].o;const now=ctx.currentTime;o.frequency.cancelScheduledValues(now);if(instant)o.frequency.setValueAtTime(f,now);else o.frequency.setTargetAtTime(f,now,g/3);}
+    curSemis=chord.t;curChord=chord;}
+  function scheduleChord(){if(chordTO)clearTimeout(chordTO);chordTO=setTimeout(()=>{const mv=weighted(ROOT_MOVES,m=>m[1])[0];rootSemi=Math.max(-5,Math.min(5,rootSemi+mv));curChord=pickChord(curChord);applyChord(curChord,false);scheduleChord();},rnd(10000,30000));}
+  function startDrone(){voices=[];for(let v=0;v<6;v++){const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();g.gain.value=(1-0.84*Math.pow(v/5,0.75))*0.14;o.connect(g);g.connect(droneGain);o.start();voices.push({o,g});}
+    curChord=pickChord(null);applyChord(curChord,true);droneGain.gain.setTargetAtTime(1,ctx.currentTime,2);scheduleChord();}
+  // ---- space noises: procedural buffers, per-shot distance (low-pass + echo) ----
+  function buf(sec,fill){const n=Math.max(1,Math.floor(ctx.sampleRate*sec));const b=ctx.createBuffer(1,n,ctx.sampleRate);const d=b.getChannelData(0);fill(d,n,ctx.sampleRate);return b;}
+  function env(i,n){return Math.sin(Math.PI*i/n);}   // per-blip fade
+  function nChatter(){return buf(rnd(0.4,0.9),(d,n,sr)=>{let idx=0;const segs=4+(Math.random()*4|0);let f0=250+Math.random()*1200;for(let s=0;s<segs&&idx<n;s++){const dur=0.05+Math.random()*0.09,sn=dur*sr|0,f1=f0*rnd(0.6,1.5);let ph=0;for(let i=0;i<sn&&idx<n;i++){const f=f0+(f1-f0)*i/sn;ph+=2*Math.PI*f/sr;d[idx++]=(Math.sin(ph)*0.45+Math.sign(Math.sin(ph))*0.1)*env(i,sn)*0.45;}idx+=0.02*sr|0;f0=f1;}});}
+  function nTelemetry(){return buf(rnd(0.3,0.6),(d,n,sr)=>{let idx=0;const segs=6+(Math.random()*8|0),base=700+Math.random()*900;for(let s=0;s<segs&&idx<n;s++){const f=base*(1+(Math.random()*4|0)*0.25),sn=0.022*sr|0;let ph=0;for(let i=0;i<sn&&idx<n;i++){ph+=2*Math.PI*f/sr;d[idx++]=Math.sin(ph)*env(i,sn)*0.3;}idx+=0.014*sr|0;}});}
+  function nSonar(){return buf(rnd(0.6,1.1),(d,n,sr)=>{const f=320+Math.random()*340;let p1=0,p2=0;for(let i=0;i<n;i++){const t=i/n,ff=f*(1-0.06*t);p1+=2*Math.PI*ff/sr;p2+=2*Math.PI*ff*1.5/sr;d[i]=(Math.sin(p1)*0.5+Math.sin(p2)*0.12)*Math.exp(-2.2*t)*0.5;}});}
+  function nServo(){return buf(rnd(0.35,0.7),(d,n,sr)=>{const f0=90+Math.random()*70,f1=f0*rnd(1.5,2.7),fl=26+Math.random()*22;let ph=0,fp=0;for(let i=0;i<n;i++){const t=i/n,f=f0+(f1-f0)*Math.sin(Math.PI*t);ph+=2*Math.PI*f/sr;fp+=2*Math.PI*fl/sr;const saw=Math.sin(ph)*0.5+Math.sin(ph*2)*0.25+Math.sin(ph*3)*0.12;d[i]=saw*(0.72+0.28*Math.sin(fp))*0.3;}});}
+  function nGroan(){return buf(rnd(1.1,2.1),(d,n,sr)=>{const f=48+Math.random()*36,bend=rnd(0.9,1.1);let p1=0,p2=0,lp=0;for(let i=0;i<n;i++){const t=i/n,ff=f*(1+(bend-1)*t);p1+=2*Math.PI*ff/sr;p2+=2*Math.PI*ff*2.02/sr;const noise=Math.random()*2-1;lp+=(noise-lp)*0.012;d[i]=(Math.sin(p1)*0.55+Math.sin(p2)*0.18+lp*0.5)*Math.sin(Math.PI*t)*0.42;}});}
+  const FAMILIES=[{f:nChatter,echo:0.35,lvl:1},{f:nTelemetry,echo:0.2,lvl:0.85},{f:nSonar,echo:1,lvl:1},{f:nServo,echo:0.1,lvl:0.9},{f:nGroan,echo:0.55,lvl:1.1}];
+  function playNoise(){if(!ctx)return;const fam=FAMILIES[Math.random()*FAMILIES.length|0];const b=fam.f();const near=Math.random()<0.28,dist=near?rnd(0,0.35):rnd(0.55,1);
+    const src=ctx.createBufferSource();src.buffer=b;
+    const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.value=5500-(5500-950)*dist;
+    const wet=Math.min(1,fam.echo*(0.75+0.5*dist));const dry=ctx.createGain();dry.gain.value=1;
+    const dl=ctx.createDelay(1);dl.delayTime.value=(0.12+0.36*wet);const fb=ctx.createGain();fb.gain.value=0.25+0.45*wet;const wetG=ctx.createGain();wetG.gain.value=0.05+0.9*wet;
+    const out=ctx.createGain();out.gain.value=(0.30-0.21*dist)*fam.lvl;
+    src.connect(lp);lp.connect(dry);dry.connect(out);lp.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wetG);wetG.connect(out);out.connect(master);
+    src.start();src.stop(ctx.currentTime+b.duration+1.5);}
+  function scheduleNoise(){if(noiseTO)clearTimeout(noiseTO);let gap;if(burstLeft>0){burstLeft--;gap=rnd(0.45,1.6);}else{if(Math.random()<0.22)burstLeft=1+(Math.random()*3|0);gap=Math.min(40,Math.max(2.5,-7.5*Math.log(Math.max(1e-4,Math.random()))));}noiseTO=setTimeout(()=>{playNoise();scheduleNoise();},gap*1000);}
+  function start(){if(started||!ensure())return;started=true;if(ctx.state==="suspended")ctx.resume();startDrone();setTimeout(scheduleNoise,rnd(4000,9000));}
+  return {
+    start,
+    isMuted:()=>muted,volume:()=>volume,
+    setVolume(v){volume=Math.max(0,Math.min(1,v));if(master&&!muted)master.gain.setTargetAtTime(volume,ctx.currentTime,0.05);try{localStorage.setItem("starmap.audio.vol",volume);}catch(e){}},
+    setMuted(m){muted=m;if(master)master.gain.setTargetAtTime(muted?0:volume,ctx.currentTime,0.05);try{localStorage.setItem("starmap.audio.muted",muted?"1":"0");}catch(e){}},
+    // A quick upward sweep — the "you picked a thing" cue (600→950Hz).
+    select(){if(!ctx||muted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(600,now);o.frequency.linearRampToValueAtTime(950,now+0.12);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(0.28,now+0.01);g.gain.exponentialRampToValueAtTime(0.0001,now+0.18);o.connect(g);g.connect(master);o.start(now);o.stop(now+0.2);},
+    // A short decaying sine blip — the shared shape for the UI cues (freq/decay/amp per cue), pitch-randomised.
+    _blip(freq,dur,decay,amp,pitch){if(!ctx||muted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(freq*(pitch||1),now);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(amp,now+0.004);g.gain.exponentialRampToValueAtTime(0.0001,now+dur);o.connect(g);g.connect(master);o.start(now);o.stop(now+dur+0.02);},
+    // CLICK — a short clean high blip on every button/lamp/toggle press (pitch randomised 0.97–1.05×).
+    click(){this._blip(1200,0.06,18,0.28,0.97+Math.random()*0.08);},
+    // HOVER — a very soft tick on pointer-enter (throttled so sweeping the deck doesn't machine-gun).
+    hover(){const t=ctx?ctx.currentTime:0;if(t-_lastHover<0.03)return;_lastHover=t;this._blip(980,0.03,30,0.12,1);},
+    // TICK — a dry mid tick as a slider/dial is dragged (throttled; pitch randomised).
+    tick(){const t=ctx?ctx.currentTime:0;if(t-_lastTick<0.045)return;_lastTick=t;this._blip(760,0.035,26,0.18,0.95+Math.random()*0.13);},
+    // ZOOM — a soft airy tick per zoom step, pitch tracking direction (in = higher, out = lower); throttled.
+    zoom(dir){const t=ctx?ctx.currentTime:0;if(t-_lastZoom<0.05)return;_lastZoom=t;this._blip(dir>0?900:560,0.05,22,0.10,1);},
+  };
+})();
+// Start the audio on the first user gesture (autoplay policy). The mute state is respected.
+["pointerdown","touchstart","keydown"].forEach(ev=>window.addEventListener(ev,function once(){SpaceAudio.start();["pointerdown","touchstart","keydown"].forEach(e=>window.removeEventListener(e,once));},{once:false,passive:true}));
+// AUDIO controls (deck): the SOUND lamp mutes/unmutes; the slider sets volume.
+{const mute=$("#audMute");if(mute){const sync=()=>mute.classList.toggle("on",!SpaceAudio.isMuted());sync();mute.onclick=()=>{SpaceAudio.start();SpaceAudio.setMuted(!SpaceAudio.isMuted());sync();};}
+ const vol=$("#audVol");if(vol){vol.value=Math.round(SpaceAudio.volume()*100);vol.oninput=e=>{SpaceAudio.start();SpaceAudio.setVolume((+e.target.value)/100);SpaceAudio.tick();};}}
+// UI cues on the console deck + legend: a click on any button/lamp/legend row blips; hovering a button/lamp
+// ticks softly. Also blips when a body is hovered on the map. Delegated so it covers dynamically-built controls.
+consoleDeck.addEventListener("click",e=>{if(e.target.closest("button,.lamp,.legrow"))SpaceAudio.click();});
+consoleDeck.addEventListener("pointerover",e=>{if(e.target.closest("button,.lamp"))SpaceAudio.hover();});
+{const lr=$("#legendRows");if(lr){lr.addEventListener("click",e=>{if(e.target.closest(".legrow"))SpaceAudio.click();});lr.addEventListener("pointerover",e=>{if(e.target.closest(".legrow"))SpaceAudio.hover();});}}
 const scrInner=$("#scrInner");
 function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
 function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec}));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body}));}
