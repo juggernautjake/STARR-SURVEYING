@@ -50,11 +50,11 @@ export default async function DndHubPage() {
   const isDMAnywhere = ((memberships ?? []) as { role: string }[]).some((m) => m.role === 'dm');
 
   if (!isDMAnywhere) {
-    // A player: if they own exactly one character, go straight to it.
+    // A player: if they own or are assigned exactly one character, go straight to it.
     const { data: chars } = await supabaseAdmin
       .from('dnd_characters')
+      .or(`owner_user_id.eq.${user.id},played_by_user_id.eq.${user.id}`)
       .select('id')
-      .eq('owner_user_id', user.id)
       .limit(2);
     const owned = (chars ?? []) as { id: string }[];
     if (owned.length === 1) redirect(`/dnd/characters/${owned[0].id}`);

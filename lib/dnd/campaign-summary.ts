@@ -224,8 +224,11 @@ export async function loadUserProfile(userId: string): Promise<UserProfile> {
   const [{ data: chars }, { data: mems }] = await Promise.all([
     supabaseAdmin
       .from('dnd_characters')
+      // A user's characters = the ones they OWN or are the assigned PLAYER of (owner 2026-07-18: an assigned
+      // player, e.g. jgcabtx playing Jack, must see the character in their list and reach its campaign — the
+      // campaign is surfaced below from each character's campaign_id).
+      .or(`owner_user_id.eq.${userId},played_by_user_id.eq.${userId}`)
       .select('id, name, campaign_id, sheet_type, token_url, art_url')
-      .eq('owner_user_id', userId)
       .order('created_at', { ascending: true }),
     supabaseAdmin
       .from('dnd_campaign_members')
