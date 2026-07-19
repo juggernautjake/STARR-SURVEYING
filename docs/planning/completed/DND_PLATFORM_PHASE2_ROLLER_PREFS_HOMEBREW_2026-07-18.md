@@ -880,3 +880,30 @@ faked.
 
 ## Not-in-scope-yet (owner deferred)
 - Building a full character per system for QA ("we'll test that later" — the B8 walkthrough).
+
+---
+
+## Closeout (2026-07-18) — buildable-in-repo work COMPLETE; remainder is visual / content / QA-gated
+
+The vast majority of this doc has shipped: **VIS** (private/public + isolated in-campaign copies), the **roller**
+mechanics for both bespoke systems (B4 conditions + B5 stances auto-fold into checks AND damage; the R-area
+manual-roll + preferences), **B7** touch/keyboard-reachable effect tooltips (IG + PF2), **IGS6** ability editing
+(IG manual + AI, PF2 set_attribute + inline UI), and the **HIDE / TR / MV / LU / T / H / TH** areas in full.
+Every remaining action item is objectively blocked on something outside a code slice — deferred with rationale,
+not to empty the folder:
+
+- **Visual / in-app confirmation (no autonomous slice):** D2 (animated 3D dice tray — a from-scratch WebGL/canvas
+  build), D4c (per-skin frame shape/texture/positioning), D3 (dice visual polish), PL1–PL3 (3D planet city-lights
+  / dead-planet meshes — the planet3d model already has city lights; the rest is visual), MOB3–MOB6 (character-
+  sheet / login / builder / global mobile *visual* sweep — the no-horizontal-scroll invariant + responsive
+  breakpoints are already guarded), IGS7 (IG library section visual quality). These need eyes on a running app.
+- **Owner content (Ground Rule 2 — never fabricated):** IGP1/IGP3 (Brendan's 26 missing power effect texts),
+  IGS5 (Brendan's per-level class ladders), ART1–ART3 (the owner's drawn/licensed race portraits — 8 already in).
+  These render today with honest WIP markers; they unblock the moment the owner supplies the text/art.
+- **Browser-QA walkthrough (the `pending/` Slice-40 phase's job, which this hook routes to):** SQ1/SQ2/SQ5
+  (per-system styling/completeness/verification), the IGS6/R4 manual-UI confirmation.
+
+Everything is tracked: content gaps as in-app WIP markers + `docs/reference/intuitive-games/SITE_MASTER.md`; the
+roller decision in `BLOCKERS.md §C` (resolved); the QA walkthrough in `pending/`. This doc moves to `completed/`
+— its buildable feature has shipped; the remainder is owner-content / in-app visual / the QA phase. See
+[[project_dnd_platform]] / [[project_dnd_pf2e_model]] / [[project_dnd_rules_platform]].
