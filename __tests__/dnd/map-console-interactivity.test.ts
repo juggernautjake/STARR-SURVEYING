@@ -348,11 +348,18 @@ describe('player labels: toggles reach 3D + never block the wheel (owner 2026-07
 
 describe('player zoom: faster + double-click + works over any element (owner 2026-07-19)', () => {
   it('wheel zoom steps are larger (faster in/out) and captured before any overlay', () => {
-    expect(SRC).toContain('const fdir=e.deltaY<0?1.26:0.79;');   // was 1.14 / 0.88
+    expect(SRC).toContain('const fdir=e.deltaY<0?1.32:0.76;');   // was 1.14 / 0.88
     expect(SRC).toContain('{passive:false,capture:true}');       // capture phase → runs first, over labels too
   });
   it('double-clicking anywhere on the map zooms in on that point', () => {
     expect(SRC).toContain('$("#mapPane").addEventListener("dblclick"');
-    expect(SRC).toContain('zoomAround(e.clientX-r.left,e.clientY-r.top,1.9)');
+    expect(SRC).toContain('zoomAround(e.clientX-r.left,e.clientY-r.top,2.1)');
+  });
+  it('hybrid zoom syncs the 3D camera SYNCHRONOUSLY on input (not a frame later) so it is not slow/dead', () => {
+    expect(SRC).toContain('function sync3d()');
+    expect(SRC).toContain('window.Map3D._syncFromView()');
+    // called directly on the zoom inputs (wheel + zoomAround) AND from _applyNow for every view change
+    expect(SRC).toContain('view.scale=ns;apply();sync3d();');           // wheel
+    expect(SRC).toContain('view.scale=ns;apply(true);sync3d();');       // zoomAround (double-click, +/- buttons)
   });
 });

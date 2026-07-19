@@ -814,13 +814,19 @@ function apply(anim){
 function _applyNow(anim){viewport.classList.toggle("animate",!!anim);viewport.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.scale})`;updateDialZoom();
   // Parallax OFF (published by the DM) → world-lock the backdrop so it pans & zooms with the map, exactly
   // as in the Studio. setLock is idempotent; setView pushes the live pan/zoom each frame.
-  if(window.Sky2D){const off=!!(MAP&&MAP.bg3d&&MAP.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}}
+  if(window.Sky2D){const off=!!(MAP&&MAP.bg3d&&MAP.bg3d.parallax===false);window.Sky2D.setLock(off);if(off)window.Sky2D.setView(view.x,view.y,view.scale);}
+  sync3d();}
+// In HYBRID the 3D camera is locked to the 2D view, but only once per map3d animation frame — so zoom/pan
+// lagged a frame behind the input (and, since apply() is itself rAF-throttled, could feel dead). Push the
+// camera to the current 2D view SYNCHRONOUSLY on every view change so hybrid zoom (wheel + double-click)
+// responds on the input event itself, exactly as fast as pure-2D. No-op in 2D / when 3D isn't shown. (2026-07-19)
+function sync3d(){try{if(window.Map3D&&window.Map3D.isShown&&window.Map3D.isShown()&&window.Map3D._syncFromView)window.Map3D._syncFromView();}catch(e){}}
 function paneSize(){const r=$("#mapPane").getBoundingClientRect();return {w:r.width,h:r.height};}
 // 2D⇄3D origin/scale bridge (see map-studio) so the 3D viewer opens on the same centre + scale.
 window.map2dView=function(){const {w,h}=paneSize();return {cx:(w/2-view.x)/view.scale,cy:(h/2-view.y)/view.scale,scale:view.scale};};
 window.setMap2dView=function(cx,cy,scale){const {w,h}=paneSize();view.scale=clamp(scale,0.08,6);view.x=w/2-cx*view.scale;view.y=h/2-cy*view.scale;apply(false);};
 function fit(anim){const B=worldBounds(),W=B.maxX-B.minX,H=B.maxY-B.minY,{w,h}=paneSize();const s=Math.min(w/W,h/H)*0.92;view.scale=clamp(s,0.08,3);view.x=w/2-((B.minX+B.maxX)/2)*view.scale;view.y=(h-40)/2-((B.minY+B.maxY)/2)*view.scale;apply(anim);}
-function flyTo(x,y,scale){const {w,h}=paneSize();view.scale=scale;view.x=w/2-x*scale;view.y=(h-30)/2-y*scale;apply(true);}
+function flyTo(x,y,scale){const {w,h}=paneSize();view.scale=scale;view.x=w/2-x*scale;view.y=(h-30)/2-y*scale;apply(true);sync3d();}
 function fitZoomFor(ww,hh){const {w,h}=paneSize();return clamp(Math.min(w/ww,h/hh)*0.82,0.2,3);}
 let pan=null;
 stage.addEventListener("mousedown",e=>{if(e.target.closest(".body")||e.target.dataset&&e.target.dataset.sector)return;stage.classList.add("grabbing");pan={sx:e.clientX,sy:e.clientY,ox:view.x,oy:view.y,moved:false};});
@@ -832,10 +838,11 @@ window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))
 // Capture phase (true) so this fixed zoom handler runs FIRST for any wheel over the map — before any label,
 // sector, body or the 3D overlay could see or consume it. Combined with the pointer-events:none label layer,
 // the wheel now zooms on the cursor's location no matter what text/art sits under it.
-$("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.26:0.79;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();SpaceAudio.zoom(e.deltaY<0?1:-1);},{passive:false,capture:true});
-// Double-click anywhere on the map → zoom IN centred on that point (a quick way to dive into a region). It fires
-// after the single-click select, so double-clicking a body zooms in on it too; on empty space it just zooms.
-$("#mapPane").addEventListener("dblclick",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();zoomAround(e.clientX-r.left,e.clientY-r.top,1.9);},{passive:false});
+$("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.32:0.76;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();sync3d();SpaceAudio.zoom(e.deltaY<0?1:-1);},{passive:false,capture:true});
+// Double-click anywhere on the map → zoom IN centred on that point (a quick way to dive into a region). Capture
+// phase + sync3d so it lands instantly in hybrid too; it fires after the single-click select, so double-clicking
+// a body/region zooms in on it, and on empty space it just zooms toward the cursor.
+$("#mapPane").addEventListener("dblclick",e=>{e.preventDefault();e.stopPropagation();const r=$("#mapPane").getBoundingClientRect();zoomAround(e.clientX-r.left,e.clientY-r.top,2.1);},{passive:false,capture:true});
 // ── Touch: 1-finger pan + 2-finger pinch-zoom (mobile — the mouse handlers above don't fire on touch). A tap on
 //    a body/sector still bubbles to its click handler; a tap on empty space deselects. ──
 let pinch=null;
@@ -865,7 +872,7 @@ stage.addEventListener("touchend",e=>{
   if(pinch&&e.touches.length<2)pinch=null;
   if(pan&&e.touches.length===0){if(!pan.moved&&(selectedId||curSel))clearSelect();pan=null;}
 },{passive:true});
-function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);SpaceAudio.zoom(fdir>1?1:-1);}
+function zoomAround(cx,cy,fdir){const ns=clamp(view.scale*fdir,0.08,6);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;apply(true);sync3d();SpaceAudio.zoom(fdir>1?1:-1);}
 $("#zoomIn").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1.3);};
 $("#zoomOut").onclick=()=>{const {w,h}=paneSize();zoomAround(w/2,h/2,1/1.3);};
 $("#zoomFit").onclick=()=>{clearSelect();fit(true);};
