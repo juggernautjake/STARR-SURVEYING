@@ -150,11 +150,12 @@ const Map3D = {
       let poi = hits[0].object; while (poi && poi.userData.poiId === undefined && poi.parent) poi = poi.parent;
       if (poi && poi.userData.poiId !== undefined) { if (window.map3dSelectPoi) window.map3dSelectPoi(poi.userData.instId, poi.userData.poiId); return; }
       let o = hits[0].object; while (o && o.userData.id === undefined && o.parent) o = o.parent;
-      // A NON-interactive body (an image by default, or anything the DM unchecked) is INERT in the 3D view in
-      // BOTH player and editor — no hover, no click-select, no response of any kind (owner 2026-07-19). The DM
-      // still edits it via the 2D map-studio inspector/handles (the separate editing UI); the 3D view is a
-      // faithful preview of what players get. Clicking it falls through to deselect, exactly like empty space.
-      if (o && o.userData.id !== undefined && o.userData.interactive) return this._select(o);
+      // Owner 2026-07-19: the EDITOR (_editable) can always click-select an object to MOVE/edit it — including a
+      // non-interactive image — because that's editing, not a player effect. The read-only PLAYER Console can
+      // only select INTERACTIVE bodies; a non-interactive image is inert to a player (falls through to deselect).
+      // Either way the hover EFFECTS (glow/enlarge) are gated separately on `interactive`, so a non-interactive
+      // object never lights up in either view unless its interactive box is checked.
+      if (o && o.userData.id !== undefined && (this._editable || o.userData.interactive)) return this._select(o);
     }
     this._deselect();
   },

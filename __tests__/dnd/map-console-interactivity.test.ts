@@ -272,9 +272,11 @@ describe('images get NO 3D hover/select unless explicitly interactive (owner 202
   it('3D hover skips non-interactive bodies (no glow on an image)', () => {
     expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
   });
-  it('a non-interactive body is not click-selectable in the 3D view in EITHER player or editor', () => {
-    expect(MAP3D).toContain('o.userData.id !== undefined && o.userData.interactive) return this._select(o)');
-    expect(MAP3D).not.toContain('this._editable || o.userData.interactive'); // no editor exception — fully inert
+  it('editor can select-to-edit; player cannot; hover effects gated for both', () => {
+    // Editor can always select-to-edit (incl. non-interactive images); the player can only select interactive.
+    expect(MAP3D).toContain('(this._editable || o.userData.interactive)) return this._select(o)');
+    // But the hover EFFECTS are gated on interactive in BOTH views, so a non-interactive object never lights up.
+    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
   });
   it('the 3D hover glow is subtler (scale 1.06, half-opacity sprite)', () => {
     expect(MAP3D).toContain('holder.userData._baseScale * 1.06');
