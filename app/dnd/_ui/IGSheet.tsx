@@ -23,6 +23,7 @@ import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-g
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
+import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -265,6 +266,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
           return (
             <span key={name} title={tip || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: tip ? 'help' : 'default' }}>
               {name} {badgeFor(name)}
+              {tip && <InfoTip tip={tip} label={`${name} rules`} />}
             </span>
           );
         };
@@ -370,13 +372,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
             {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
             {(cb.conditions.length > 0 || canDoEdit) && (
               <div style={{ display: 'grid', gap: 4 }}>
-                <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover for the full rules)</span></span>
+                <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover or tap ⓘ for the full rules)</span></span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   {cb.conditions.map((c) => {
                     const e = igConditionInPlay(c);
                     return (
                       <span key={c} title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>
                         {c}
+                        {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                         {canDoEdit && (
                           <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                         )}

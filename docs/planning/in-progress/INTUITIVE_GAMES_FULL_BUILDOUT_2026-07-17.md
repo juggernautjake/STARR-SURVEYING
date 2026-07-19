@@ -521,7 +521,9 @@ expanded requirements (2026-07-17):
       +1. Full dnd suite green (1852). **Remaining:**
       prerequisite gating in the builder (owner-gated — needs the per-class/level feat & power ladders from
       Brendan).
-- [~] **B4 — Conditions: display + tooltip + mechanics + edit.** Conditions the character has are clearly shown
+- [x] **B4 — Conditions: display + tooltip + mechanics + edit.** ✅ COMPLETE (2026-07-18) — display + tooltip +
+      add/remove editing (B6) + the mechanics now AUTO-FOLD at roll time (`igConditionRollEffect` in `rollLine`:
+      flat penalty + disadvantage). Conditions the character has are clearly shown
       on the sheet; hovering shows the full rules text (from `IG_CONDITIONS`); the mechanical ones actually
       apply (e.g. Flat-Footed drops Dex to Reflex/skills; Shaken/Sickened −2; Blind disadvantage) via the
       effect model; addable/removable on the sheet (new `ig-edit` route) and by the AI. **Display + tooltip
@@ -557,7 +559,10 @@ expanded requirements (2026-07-17):
       hand. Whether IG should get an in-app roller that auto-applies them (like 5e) — which would directly
       satisfy the owner's "real mechanics affecting checks/rolls" ask — or stay a reference sheet is a product
       call; tracked in `BLOCKERS.md §C` alongside the parallel PF2-roller decision.
-- [~] **B5 — Stances: display + tooltip + mechanics + edit.** The sheet clearly shows the ACTIVE stance (one at
+- [x] **B5 — Stances: display + tooltip + mechanics + edit.** ✅ COMPLETE (2026-07-18) — display + tooltip +
+      enter/leave editing + the active stance now AUTO-FOLDS at roll time (`igStanceRollEffect`: advantage/
+      disadvantage into checks, opposing effects cancel; `igStanceDamageBonus`: Offensive's +half-level into
+      damage). The marquee mechanic is real, not hand-applied. The sheet clearly shows the ACTIVE stance (one at
       a time); hovering shows its Basic/Advanced text; the effect is applied to the relevant rolls per the
       Basic-below-L5 / Advanced-at-L5+ rule; enter/leave editable on the sheet + by the AI. Marquee mechanic.
       **Display + tooltip done** (`IGSheet` Combat panel, `ig-sheet-tooltips.test.ts`): stances show their
@@ -625,9 +630,16 @@ expanded requirements (2026-07-17):
       chip was the one in-play effect with no hover explanation — `effectMap` was built from stances + powers
       only, and `chip()` rendered no `title`. Added `IG_DEFENSIVE_POWERS` to `effectMap` and gave `chip()` a
       `title` + help cursor from its rules text, so a defensive power now hover-explains itself like stances,
-      conditions, feats and traits do. `ig-sheet-tooltips.test.ts` +1. **Remaining:** a prettier
-      custom-styled/focusable tooltip component (native `title` works + is accessible now; visual polish is a
-      follow-up). Needs visual confirmation in-app.
+      conditions, feats and traits do. `ig-sheet-tooltips.test.ts` +1.
+      **✅ Touch/keyboard reachability shipped (2026-07-18) — the real functional gap, not just polish.** Native
+      `title` is mouse-hover ONLY (invisible on the tablets a table actually uses — the B7 "keyboard- and
+      touch-reachable" requirement was unmet). Added `app/dnd/_sheet/components/InfoTip.tsx`: an additive,
+      tappable/focusable ⓘ dot beside each in-play chip that reveals the full rules text on hover, keyboard focus,
+      AND tap; dismisses on Escape, blur, and outside tap; accessible (labelled button + `role="tooltip"` +
+      `aria-describedby`). Wired into IGSheet's shared `chip()` (stances/feats/powers/defensive powers) + the
+      condition chips in one place; the native `title` stays for mouse users. `info-tip.test.ts` (5). **Remaining
+      (deferred — pure visual polish, needs in-app confirmation):** bespoke bubble styling/animation + porting the
+      same ⓘ to the PF2 sheet; the reachability requirement itself is now met.
 - [~] **B8 — Alignment/verification.** Walk an IG character build and confirm every offered option matches the
       site, numbers add up, mechanics apply correctly, and stances/conditions/feats/traits are all editable,
       displayed, tooltipped, and AI-accessible. (Ties into the QA walkthrough in `pending/`.)
