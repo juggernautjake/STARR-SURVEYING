@@ -339,7 +339,11 @@ below states what it reuses.
       components), `traverseMisclosure` (a closed loop's linear error + 1:N precision ratio; "exact" when it
       closes), `areaByCoordinates` (parcel area by the shoelace method, orientation-independent), and
       `squareFeetToAcres`. `__tests__/surveying/traverse.test.ts` (12: square closes exact, short-leg precision,
-      unit-square/rectangle area, acre conversion). *Next: the Work Mode calculator UI wires these + the
+      unit-square/rectangle area, acre conversion). **Direction angles added (`lib/surveying/angles.ts`):** the
+      per-station angle math the diagram module lacked — `backAzimuth` (reverse direction), `angleRight`
+      (clockwise sweep), `deflectionAngle` (magnitude + L/R/straight), and `interiorAngle` (verified: a square's
+      four interior angles sum to 360 = (n−2)×180). Reuses `normalizeAngle` from `triangle.ts`.
+      `__tests__/surveying/angles.test.ts` (9). *Next: the Work Mode calculator UI wires all of these + the
       existing convert/math modules into one surveying-focused keypad.*
 - [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
       Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
