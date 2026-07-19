@@ -368,3 +368,21 @@ describe('player zoom: faster + double-click + works over any element (owner 202
     expect(SRC).toContain('view.scale=ns;apply(true);sync3d();');       // zoomAround (double-click, +/- buttons)
   });
 });
+
+describe('player animations stay live across tab visibility (owner 2026-07-19)', () => {
+  it('re-fits + (re)starts every animation engine when the tab becomes visible', () => {
+    // rAF (and CSS animation) pauses while a tab is hidden; a map opened in a background tab must animate the
+    // instant the player focuses it — the swirling galaxy, spiral IMAGES, 3D-planet sprites and the starfield.
+    expect(SRC).toContain('function kickAnimations()');
+    expect(SRC).toContain('restart(dsCenter)');
+    expect(SRC).toContain('spiralLiveImg[id].engine');
+    expect(SRC).toContain('spriteLive[id]');
+    expect(SRC).toContain('document.addEventListener("visibilitychange"');
+  });
+  it('spiral IMAGES mount a DiffSpinGalaxy engine + start it (parity with the DM editor)', () => {
+    expect(SRC).toContain('function mountSpiralImages()');
+    expect(SRC).toContain('rec.engine.setImage(src).then(()=>{rec.engine.fromConfig(inst.spiral);rec.engine.start();})');
+    // normalizeMap must preserve each instance's spiral config + look so the player renders what the DM built
+    expect(SRC).toContain('role:"",...i,look:i.look||{kind:i.kind}');
+  });
+});

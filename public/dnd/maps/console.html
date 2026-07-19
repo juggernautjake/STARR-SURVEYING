@@ -1064,6 +1064,20 @@ function applyFx(){const f=MAP.mapFx||{};const bg=MAP.bg3d,solid=!!(bg&&(bg.temp
   const sp=(f.sparkles!==false)&&!solid,sh=!!f.shooting&&!solid;   // solid/glow bg → no ambient starfield
   ambient.set({sparkles:sp,shooting:sh,density:f.density!=null?f.density:0.5,speed:f.speed!=null?f.speed:1,rate:f.rate!=null?f.rate:0.3,color:f.color||"#cbd6ff"});if(sp||sh)ambient.start();else ambient.stop();}
 
+// Every animated surface (the swirling centre galaxy, spiral IMAGES, 3D-planet sprite sheets, the ambient
+// starfield) drives itself with requestAnimationFrame — which the browser PAUSES while the tab is hidden. If a
+// player opens the map in a background tab, the canvases can also be laid out at 0×0. When the tab becomes
+// visible we re-fit every surface and (re)start its loop, so the player always sees the full motion the DM sees
+// in the editor — no dead/frozen spirals. (owner 2026-07-19)
+function kickAnimations(){
+  const restart=e=>{ if(!e)return; try{ e._fit&&e._fit(); }catch(_){} try{ e.running=false; }catch(_){} try{ e.start&&e.start(); }catch(_){} };
+  restart(dsCenter);
+  try{ Object.keys(spiralLiveImg).forEach(id=>restart(spiralLiveImg[id]&&spiralLiveImg[id].engine)); }catch(_){}
+  try{ Object.keys(spriteLive).forEach(id=>{ const r=spriteLive[id]; if(r&&r.sp){ try{ r.sp._fit&&r.sp._fit(); r.sp.start&&r.sp.start(); }catch(_){} } }); }catch(_){}
+  restart(ambient);
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") kickAnimations(); });
+
 /* ---- campaigns ---- */
 const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
