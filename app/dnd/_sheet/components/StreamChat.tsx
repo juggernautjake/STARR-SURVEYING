@@ -10,13 +10,14 @@ import { parseEmotes } from '@/lib/dnd/stream-emotes'
 import { allowedInMode, modeIntervalFactor, formatModAction, type ChatMode, type ModActionType, CHAT_MODES } from '@/lib/dnd/stream-mod'
 import { viewerDC, resolveDC, chatRatePerSec, fluctuateViewers } from '@/lib/dnd/stream-influence'
 import { buildMoodPool } from '@/lib/dnd/stream-moods'
-import { formatNuggets } from '@/lib/dnd/stream-currency'
+import { formatNuggets, superTier, SUPER_TIERS } from '@/lib/dnd/stream-currency'
 import InfluenceMeter from './InfluenceMeter'
 import StreamTip from './StreamTip'
 import StreamPollCreate from './StreamPollCreate'
 import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
 import { rollD20 } from '../lib/dice'
+import { donationAlert } from '../lib/audio'
 import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
@@ -159,6 +160,10 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   const crowdRef = useRef<ChatUser[]>([])
   const idRef = useRef(0)
   const seenRef = useRef<Set<string>>(new Set())
+  // The first messages fetch returns the last 50 rows, all of which look "fresh". Without
+  // this latch every historical donation would fire an alert on page load. Sounds start
+  // from the SECOND batch on — i.e. only for money that arrives while you're watching.
+  const donoPrimedRef = useRef(false)
   // ── Floating dock (draggable + resizable, like the dice tray) ──────────────────
   const dockRef = useRef<HTMLDivElement>(null)
   const dragOff = useRef<{ dx: number; dy: number } | null>(null)
@@ -377,6 +382,17 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
           const fresh = (j.messages ?? []).filter((m: { id: string }) => !seenRef.current.has(m.id))
           if (fresh.length === 0) return
           fresh.forEach((m: { id: string }) => seenRef.current.add(m.id))
+          // Money alert: ring once per batch, at the size of the BIGGEST donation in it, so a
+          // burst of ten supers is one satisfying chime rather than ten overlapping ones.
+          if (donoPrimedRef.current) {
+            const paid = fresh.filter((m: { kind?: string }) => m.kind === 'superchat' || m.kind === 'donation')
+            if (paid.length > 0) {
+              const top = Math.max(...paid.map((m: { amount?: number | null }) => Number(m.amount) || 0))
+              donationAlert(undefined, SUPER_TIERS.indexOf(superTier(top)))
+            }
+          } else {
+            donoPrimedRef.current = true
+          }
           // Suppress ambient for a few seconds so the curated burst stands out (longer for
           // a bigger burst — a full AI trend drop briefly takes over the whole chat).
           dampenUntilRef.current = Date.now() + Math.min(14000, 3000 + fresh.length * 700)

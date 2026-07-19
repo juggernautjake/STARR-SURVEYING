@@ -119,6 +119,38 @@ export function whoosh(skin?: string) {
   tone({ freq: 180 * v.pitch, type: v.wave, dur: 0.22, gain: 0.08, glideTo: 900 * v.pitch })
 }
 
+// ── Stream SFX ──────────────────────────────────────────────────────────────
+// These live here rather than in the stream components so they share the single
+// AudioContext above and — crucially — honour `muted`. An earlier copy of the
+// poll chime built its own context and kept ringing after the sheet was muted.
+
+// A poll's votes have finished trickling in: a rising two-note chime for the
+// streamer, so she can look away from the sheet and still catch the result.
+export function pollConclude(skin?: string) {
+  const v = voice(skin)
+  const notes = [660, 990].map((f) => f * v.pitch)
+  notes.forEach((f, i) =>
+    tone({ freq: f, type: v.alt, dur: 0.34, gain: 0.22, attack: 0.006, when: i * 0.16 }),
+  )
+}
+
+// A donation / super chat landed. Deliberately unlike `pollConclude` and `tada`:
+// a bright three-note arpeggio with a coin-like shimmer, so the streamer can tell
+// money from a poll result without looking. `tier` (0-4, from superTier) makes the
+// bigger ones ring higher, longer and brighter.
+export function donationAlert(skin?: string, tier = 0) {
+  const v = voice(skin)
+  const t = Math.max(0, Math.min(4, tier))
+  const lift = 1 + t * 0.06
+  const notes = [783.99, 1046.5, 1318.5].map((f) => f * v.pitch * lift) // G5 C6 E6
+  notes.forEach((f, i) =>
+    tone({ freq: f, type: v.alt, dur: 0.2 + t * 0.04, gain: 0.16, attack: 0.004, when: i * 0.07 }),
+  )
+  // Coin shimmer on top; the top tiers get a second, longer ring.
+  tone({ freq: 2093 * v.pitch * lift, type: 'sine', dur: 0.3 + t * 0.1, gain: 0.07, when: 0.2 })
+  if (t >= 2) tone({ freq: 2637 * v.pitch, type: 'sine', dur: 0.45, gain: 0.05, when: 0.28 })
+}
+
 // Called on first user gesture to unlock audio on some browsers.
 export function primeAudio() {
   ac()
