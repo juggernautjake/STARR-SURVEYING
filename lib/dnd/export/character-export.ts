@@ -27,8 +27,19 @@ const esc = (s: unknown): string =>
   String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Turn a snake/camel key into a human heading: "currentHp" → "Current Hp", "save_dc" → "Save Dc". */
+// Keys that the generic title-caser would render awkwardly (acronyms, system sidecars, stat abbreviations).
+// Matched case-insensitively on the raw key so the export reads professionally for every system.
+const KEY_LABELS: Record<string, string> = {
+  ig: 'Intuitive Games', pf2e: 'Pathfinder 2e', dnd5e: 'D&D 5e', hp: 'HP', ac: 'AC', dc: 'DC',
+  savedc: 'Save DC', maxhp: 'Max HP', currenthp: 'Current HP', temphp: 'Temp HP', xp: 'XP', cr: 'CR',
+  str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA', id: 'ID', url: 'URL', npc: 'NPC',
+};
+
+/** Turn a snake/camel key into a human heading: "currentHp" → "Current Hp", "save_dc" → "Save DC", "ig" →
+ *  "Intuitive Games". Known acronyms/sidecar keys get a curated label so the export never shows "Ig"/"Pf2e". */
 export function humanizeKey(key: string): string {
+  const known = KEY_LABELS[key.toLowerCase().replace(/[_-]+/g, '')];
+  if (known) return known;
   const spaced = key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')

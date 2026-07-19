@@ -20,8 +20,15 @@ const sample: CharacterExport = {
 
 describe('humanizeKey', () => {
   it('turns camel/snake keys into headings', () => {
-    expect(humanizeKey('currentHp')).toBe('Current Hp');
-    expect(humanizeKey('save_dc')).toBe('Save Dc');
+    expect(humanizeKey('currentHp')).toBe('Current HP'); // known-key label beats the generic caser
+    expect(humanizeKey('save_dc')).toBe('Save DC');
+    expect(humanizeKey('movementSpeed')).toBe('Movement Speed'); // generic path still works
+  });
+  it('gives system sidecars + acronyms proper labels (never "Ig"/"Pf2e"/"Hp")', () => {
+    expect(humanizeKey('ig')).toBe('Intuitive Games');
+    expect(humanizeKey('pf2e')).toBe('Pathfinder 2e');
+    expect(humanizeKey('str')).toBe('STR');
+    expect(humanizeKey('ac')).toBe('AC');
   });
 });
 
