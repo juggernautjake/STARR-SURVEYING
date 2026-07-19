@@ -333,7 +333,13 @@ below states what it reuses.
       hypotenuse/leg, and law of sines/cosines (side + angle, with the SSA-impossible and triangle-inequality
       cases returning `null`, never NaN). Reuses the existing `Dms` type + `dmsToDecimal`/`decimalToDms` rather
       than re-deriving them. Pure + framework-free; `__tests__/surveying/triangle.test.ts` (15 — 3-4-5, 30-60-90,
-      equilateral, and every impossible-input path). *Next: the Work Mode calculator UI wires these + the
+      equilateral, and every impossible-input path). **Traverse math added (`lib/surveying/traverse.ts`):** the
+      point primitives already existed (`forwardPoint`/`inverseBearingDistance` in `cad/geometry`), so this adds
+      the missing TRAVERSE-level quantities a surveyor needs — `latitudeDeparture` (a course's N–S / E–W
+      components), `traverseMisclosure` (a closed loop's linear error + 1:N precision ratio; "exact" when it
+      closes), `areaByCoordinates` (parcel area by the shoelace method, orientation-independent), and
+      `squareFeetToAcres`. `__tests__/surveying/traverse.test.ts` (12: square closes exact, short-leg precision,
+      unit-square/rectangle area, acre conversion). *Next: the Work Mode calculator UI wires these + the
       existing convert/math modules into one surveying-focused keypad.*
 - [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
       Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
