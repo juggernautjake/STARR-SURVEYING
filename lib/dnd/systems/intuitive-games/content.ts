@@ -554,6 +554,20 @@ export const IG_REDISTRIBUTION_RULES =
   '(+1d4 per two levels after the first); the damage type is set by the material (Metal offers slashing/' +
   'piercing/bludgeoning; Gems deal piercing).';
 
+// The seven redistribution materials + their Launch Material damage type, verbatim from
+// intuitivegames.net/redistribution (2026-07-18). Structured (vs the prose above) so the library + a future
+// Conduit sheet can show a material's exact launch damage, not just the two the summary names.
+export interface IGRedistributionMaterial { name: string; description: string; launchDamage: string }
+export const IG_REDISTRIBUTION_MATERIALS: IGRedistributionMaterial[] = [
+  { name: 'Fine Particles', description: 'Dirt, sand, or any other material if it has been ground into fine pieces.', launchDamage: 'Slashing' },
+  { name: 'Fluids', description: 'Water in all of its forms and other liquids that are not components or byproducts of living creatures.', launchDamage: 'Liquid: Bludgeoning · Solid: Piercing' },
+  { name: 'Gems', description: 'Diamonds, rubies, etc.', launchDamage: 'Piercing' },
+  { name: 'Metal', description: 'All metallic substances, either worked or unworked.', launchDamage: 'Slashing, piercing, or bludgeoning (chosen when activated)' },
+  { name: 'Stone', description: 'All types of rock including coal, granite, shale, and more.', launchDamage: 'Slashing, piercing, or bludgeoning (chosen when activated)' },
+  { name: 'Oozes', description: 'Cooking oils, crude oil, and other viscous liquids.', launchDamage: 'Bludgeoning' },
+  { name: 'Organic Matter', description: 'Material from living organisms and their byproducts. You cannot transmute these if they are still alive or attached to a living being.', launchDamage: 'Plant: Slashing · Bones: Piercing · Liquids: Bludgeoning' },
+];
+
 // Combat & damage mechanics (from intuitivegames.net/core-rules).
 export const IG_DAMAGE_SAVE_RULES =
   'When you take damage, make a Fortitude save at the start of your next turn; the DC equals the total HP ' +
