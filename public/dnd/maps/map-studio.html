@@ -1235,7 +1235,7 @@ function clearBackground(){pushUndo();state.background=null;renderAll();renderLi
 function topSectorZ(){return (state.sectors.length?Math.max(0,...state.sectors.map(x=>x.z||0)):0)+1;}
 function createSectorFromSystem(a,x,y){pushUndo();const rx=180,ry=140;const pts=[];const rng=mulberry(a.seed||1);
   for(let i=0;i<12;i++){const an=i/12*6.28,jit=0.78+rng()*0.4;pts.push({x:x+Math.cos(an)*rx*jit,y:y+Math.sin(an)*ry*jit});}
-  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
+  const s={id:uid(),name:a.name,color:a.c1,points:pts,creed:a.creed||"",desc:"",z:topSectorZ(),front:true,layer:'front',interactive:true,fx:{sparkle:false,nebula:false,nebulaColor:a.c1,shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};}
 
 /* ============================================================ SECTOR PEN-DRAW ============================================================ */
@@ -1245,7 +1245,7 @@ function cancelDraw(){drawing=null;$("#drawBar").classList.remove("show");render
 function finishDraw(){
   if(!drawing||drawing.pts.length<3){cancelDraw();return;}
   pushUndo();const pts=drawing.pts.slice();
-  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",z:topSectorZ(),front:true,fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
+  const s={id:uid(),name:"New Sector",color:"#5fbf7a",points:pts,creed:"",desc:"",z:topSectorZ(),front:true,layer:'front',interactive:true,fx:{sparkle:false,nebula:false,nebulaColor:"#5fbf7a",shoot:false}};
   state.sectors.push(s);computeSectorParents();reassociateAll();selection={type:"sector",id:s.id};
   drawing=null;$("#drawBar").classList.remove("show");
   tool="select";toolRow.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.tool==="select"));$("#canvas").classList.remove("pen");
@@ -1303,7 +1303,7 @@ function bbox(pts){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};pts.forEach(p=>{a.x=Mat
 function renderSectors(){
   const svgBack=$("#svg"),svgF=$("#svgFront");svgBack.innerHTML="";if(svgF)svgF.innerHTML="";computeSectorParents();
   [...state.sectors].sort((a,b)=>((a.z||0)-(b.z||0))||(b._area-a._area)).forEach(s=>{
-    const svg=(s.front&&svgF)?svgF:svgBack;   // "front" sectors render into the above-bodies layer
+    const front=s.layer==="front"||s.front===true;const svg=(front&&svgF)?svgF:svgBack;   // "front" sectors render into the above-bodies layer
     const[r,g,b2]=hx(s.color);const isSub=!!s.parent;const bb=bbox(s.points);
     // per-sector nebula fill (clipped to polygon)
     if(s.fx&&s.fx.nebula){
@@ -1321,7 +1321,7 @@ function renderSectors(){
     p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";p.classList.add("hit");
     // A "front" sector renders ABOVE bodies, so its full-area fill could swallow a click meant for a body
     // you can see through it. Bodies always win: if one is under the cursor, hand the click to it instead.
-    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=s.front&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
+    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=(s.layer==="front"||s.front===true)&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
     if(sel&&mode==="dm")p.addEventListener("dblclick",e=>{e.stopPropagation();insertVertexAt(s,toWorld(e.clientX,e.clientY));});
     svg.appendChild(p);
     // per-sector sparkles
@@ -1779,7 +1779,13 @@ function renderSectorInspector(){
     <h4>Contents (${contents.length}${subs.length?` · ${subs.length} sub`:""})</h4>
     ${subs.map(x=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>◵ ${esc(x.name)} <span style="color:var(--faint);font-size:10px;margin-left:auto">sub-system</span></div>`).join('')}
     ${contents.length?contents.map(i=>`<div class="assoc" style="margin-bottom:5px;cursor:pointer" data-inst="${i.id}"><span class="cd" style="background:${(i.look||i).c1}"></span>${esc(i.name)}${i.pois&&i.pois.length?` <span style="color:var(--gold);font-size:10px;margin-left:auto">◈ ${i.pois.length}</span>`:""}</div>`).join(''):(subs.length?'':'<div style="font-size:12px;color:var(--faint)">Nothing inside yet. Drop bodies within the outline.</div>')}
-    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="sFront" ${s.front?"checked":""}> Draw above objects &amp; images</label>
+    <h4>Layer &amp; interactivity</h4>
+    <div class="field"><label>Map layer</label><select id="sLayer">
+      <option value="back" ${(s.layer==="front"||s.front)?"":"selected"}>Behind bodies (planets sit on top)</option>
+      <option value="front" ${(s.layer==="front"||s.front)?"selected":""}>In front of everything (click-through to bodies)</option>
+    </select></div>
+    <div style="font-size:11px;color:var(--faint);margin:-2px 0 6px"><b>In front</b> draws the region over planets &amp; images but still lets players click the bodies underneath.</div>
+    <label class="chk" style="display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer"><input type="checkbox" id="sInteract" ${s.interactive!==false?"checked":""}> Interactive — highlight &amp; enlarge on hover, selectable by players</label>
     ${layerControlsHTML(false)}
     <div class="actionbtns"><button class="danger" id="sDel">Delete system</button></div>`;
   wireLayerControls(state.sectors,s);
@@ -1792,7 +1798,8 @@ function renderSectorInspector(){
   $("#sBW").oninput=e=>{s.borderWidth=+e.target.value/10;$("#sBWV").textContent=s.borderWidth.toFixed(1);renderSectors();markDirty();};
   $("#sFO").oninput=e=>{s.fillOpacity=+e.target.value/100;$("#sFOV").textContent=Math.round(s.fillOpacity*100)+"%";renderSectors();markDirty();};
   $("#sCurved").onchange=e=>{s.curved=e.target.checked;renderSectors();markDirty();};
-  {const fr=$("#sFront");if(fr)fr.onchange=e=>{s.front=e.target.checked;renderSectors();markDirty();};}
+  {const ly=$("#sLayer");if(ly)ly.onchange=e=>{s.layer=e.target.value;s.front=(e.target.value==="front");renderSectors();markDirty();};}
+  {const it=$("#sInteract");if(it)it.onchange=e=>{s.interactive=e.target.checked;markDirty();};}
   $("#sDel").onclick=()=>{pushUndo();state.sectors=state.sectors.filter(x=>x.id!==s.id);selection=null;computeSectorParents();reassociateAll();renderAll();markDirty();};
   box.querySelectorAll("[data-inst]").forEach(el=>el.onclick=()=>{selection={type:"instance",id:el.dataset.inst};renderAll();});
   box.querySelectorAll("[data-sec]").forEach(el=>el.onclick=()=>{selection={type:"sector",id:el.dataset.sec};renderAll();});
@@ -2299,7 +2306,7 @@ const CAMP_KEY="stardust-campaigns";
 function loadCampaigns(){try{return JSON.parse(localStorage.getItem(CAMP_KEY)||"[]");}catch(e){return [];}}
 function saveCampaigns(list){try{localStorage.setItem(CAMP_KEY,JSON.stringify(list));}catch(e){toast("Storage full — export to a file instead");}}
 function mapData(){return {type:"stardust-map",version:2,meta:state.meta,background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front,layer:s.layer,interactive:s.interactive})),
   instances:state.instances,assets:state.assets};}
 function stamp(){const d=new Date();return d.toISOString();}
 function publishCurrent(name){
@@ -2343,6 +2350,8 @@ function applyMapData(m){resetDiffspin();
 /* ---- bridge for the 3D viewer (map3d.js): select / transform-writeback / undo checkpoint ---- */
 window.map3dSelect=function(id){const i=id&&state.instances.find(x=>x.id===id);selection=i?{type:"instance",id}:null;renderInspector();updateStatus();};
 window.map3dSelectPoi=function(instId,poiId){if(!state.instances.find(x=>x.id===instId))return;selection={type:"poi",id:instId,poi:poiId};renderInspector();updateStatus();};
+// Clicking a sector region in the 3D viewer selects it for editing (opens its inspector), just like a 2D click.
+window.map3dSelectSector=function(id){const s=id&&state.sectors.find(x=>x.id===id);selection=s?{type:"sector",id}:null;renderInspector();updateStatus();};
 window.map3dBeginEdit=function(){pushUndo();};
 // Gizmo write-back (3D→2D): update in place. Flag it so pushTo3D doesn't rebuild the body mid-drag.
 window.map3dApply=function(id,patch){const i=state.instances.find(x=>x.id===id);if(!i)return;fromGizmo=true;Object.assign(i,patch);if(typeof reassoc==="function")reassoc(i);renderInstances();renderLabels&&renderLabels();markDirty();fromGizmo=false;};
@@ -2367,7 +2376,7 @@ $("#refresh3dBtn").onclick=()=>map3dRefresh(false);
 
 /* ============================================================ HISTORY + SAVE/LOAD ============================================================ */
 function cleanState(){return JSON.stringify({assets:state.assets,instances:state.instances,
-  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front})),
+  sectors:state.sectors.map(s=>({id:s.id,name:s.name,color:s.color,points:s.points,creed:s.creed,desc:s.desc,fx:s.fx,parent:s.parent,borderStyle:s.borderStyle,borderWidth:s.borderWidth,fillOpacity:s.fillOpacity,label:s.label,curved:s.curved,z:s.z,front:s.front,layer:s.layer,interactive:s.interactive})),
   background:state.background,centerGalaxy:state.centerGalaxy,mapFx:state.mapFx,bg3d:state.bg3d,selStyle:state.selStyle,meta:state.meta});}
 function snap(){return cleanState();}
 function pushUndo(){undoStack.push(snap());if(undoStack.length>60)undoStack.shift();redoStack=[];markDirty();updUndo();}

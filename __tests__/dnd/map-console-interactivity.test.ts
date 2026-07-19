@@ -84,8 +84,20 @@ describe('player console: sectors visible + hover/focus (owner 2026-07-18)', () 
 
 describe('3D/hybrid sector layering (owner 2026-07-18)', () => {
   const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
-  it('3D sectors render at renderOrder -3 with depthTest off (paint order decides layering)', () => {
-    expect(MAP3D).toContain('fill.position.z = zPos; fill.renderOrder = -3;');
+  it('3D sectors layer back (renderOrder -3) OR front (6) per the sector layer flag', () => {
+    expect(MAP3D).toContain("const front = s.layer === 'front' || s.front === true;");
+    expect(MAP3D).toContain('const ro = front ? 6 : -3;');           // front paints above bodies (renderOrder 1)
+    expect(MAP3D).toContain('fill.position.set(cen.x, cen.y, zPos); fill.renderOrder = ro;');
+  });
+  it('3D sectors are pickable (recentred fill meshes) with hover + persistent-select styling', () => {
+    expect(MAP3D).toContain('this._sectorMeshes.push(fill);');
+    expect(MAP3D).toContain('_pickSector(clientX, clientY)');
+    expect(MAP3D).toContain('_setSectorHover3D(mesh)');
+    expect(MAP3D).toContain('_selectSector(mesh)');
+    // player picks only interactive regions; the editor can pick any (to edit) — like bodies
+    expect(MAP3D).toContain('if (h.object.userData._interactive || this._editable) return h.object;');
+    // hover enlarges slightly + brightens; select keeps a gentler glow
+    expect(MAP3D).toContain("const scale = state === 'hover' ? 1.04 : (state === 'select' ? 1.02 : 1);");
   });
   it('backdrops (image/galaxy/…) paint BEHIND the sectors; planets IN FRONT; behind = fully back', () => {
     expect(MAP3D).toContain("const isBackdrop = it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy'");
@@ -191,7 +203,8 @@ describe('3D body hover: enlarge + glow (owner 2026-07-18)', () => {
   const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
   it('a pointermove raycasts the body under the cursor and hovers it', () => {
     expect(MAP3D).toContain("el.addEventListener('pointermove'");
-    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
+    expect(MAP3D).toContain('const bodyHover = h && h.userData.interactive ? h : null;');
+    expect(MAP3D).toContain('this._setHover3D(bodyHover);');
     expect(MAP3D).toContain("el.addEventListener('pointerleave'");
   });
   it('_setHover3D enlarges ~12% + adds a soft additive glow sprite, reverting the previous', () => {
@@ -244,11 +257,12 @@ describe('console deck rework (owner 2026-07-18): audio, magnify, meter, sfx, dp
 
 describe('meter smoothing + hybrid default + fullscreen (owner 2026-07-19)', () => {
   const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
-  it('the sound meter uses smoothed RMS + a self-normalising floor (hum ~33%, noises spike ~50-75%)', () => {
+  it('the sound meter damps the hum (fast floor) and jumps hard on noise transients (owner 2026-07-19)', () => {
     expect(SRC).toContain('sum+=v*v'); // RMS, not raw peak
-    expect(SRC).toContain('_mFloor+=(lv-_mFloor)*(lv<_mFloor?0.05:0.006)'); // hum floor tracker
-    expect(SRC).toContain('33+Math.min(1,(ratio-1)/2.4)*44'); // 33% at hum → ~77% on a transient
-    expect(SRC).toContain('_mCur+=(target-_mCur)*(target>_mCur?0.16:0.055)'); // smoothed display
+    expect(SRC).toContain('_mFloor+=(lv-_mFloor)*(lv<_mFloor?0.06:0.02)');   // faster floor → the drone barely shows
+    expect(SRC).toContain('const excess=Math.max(0,lv-_mFloor)');            // meter driven by transient energy, not the hum
+    expect(SRC).toContain('28+spike*60');                                    // ~28% resting hum → leaps toward ~90% on a blip
+    expect(SRC).toContain('_mCur+=(target-_mCur)*(target>_mCur?0.34:0.05)'); // snappy jump up, gentle fall
   });
   it('the player map defaults to HYBRID once the map has loaded', () => {
     expect(MAP3D).toContain("md.instances && md.instances.length) { _defaulted = true; clearInterval(iv); apply('hybrid'); }");
@@ -270,16 +284,75 @@ describe('images get NO 3D hover/select unless explicitly interactive (owner 202
     expect(MAP3D).toContain("holder.userData.interactive = it.interactable != null ? !!it.interactable : !(it.kind === 'image' || it.kind === 'background' || it.kind === 'galaxy' || it.kind === 'spingalaxy')");
   });
   it('3D hover skips non-interactive bodies (no glow on an image)', () => {
-    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
+    expect(MAP3D).toContain('const bodyHover = h && h.userData.interactive ? h : null;');
+    expect(MAP3D).toContain('this._setHover3D(bodyHover);');
   });
   it('editor can select-to-edit; player cannot; hover effects gated for both', () => {
     // Editor can always select-to-edit (incl. non-interactive images); the player can only select interactive.
     expect(MAP3D).toContain('(this._editable || o.userData.interactive)) return this._select(o)');
     // But the hover EFFECTS are gated on interactive in BOTH views, so a non-interactive object never lights up.
-    expect(MAP3D).toContain('this._setHover3D(h && h.userData.interactive ? h : null)');
+    expect(MAP3D).toContain('const bodyHover = h && h.userData.interactive ? h : null;');
+    expect(MAP3D).toContain('this._setHover3D(bodyHover);');
   });
   it('the 3D hover glow is subtler (scale 1.06, half-opacity sprite)', () => {
     expect(MAP3D).toContain('holder.userData._baseScale * 1.06');
     expect(MAP3D).toContain('opacity: 0.5');
+  });
+});
+
+describe('sectors: layer + interactivity in the player (owner 2026-07-19)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  const STUDIO = readFileSync(join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+  it('2D: a sector honours layer (front/back) + interactive; non-interactive is pointer-events:none', () => {
+    expect(SRC).toContain('const front=s.layer==="front"||s.front===true;const inter=s.interactive!==false;');
+    expect(SRC).toContain('pointer-events:${inter?"auto":"none"}');
+    expect(SRC).toContain('if(front)innerF+=piece;else innerB+=piece;');   // front → the above-bodies SVG layer
+  });
+  it('2D: a front sector is click-through — a body under it still wins the click', () => {
+    expect(SRC).toContain('if(p.dataset.front){for(const el of document.elementsFromPoint');
+  });
+  it('a 3D sector pick drives the same CRT + legend as a 2D click (bridges)', () => {
+    expect(SRC).toContain('window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }); }');
+    expect(SRC).toContain('window.map3dSectorHover = (id, on) => { if(id) setSectorHover(id, !!on); }');
+    expect(SRC).toContain('else clearSelect();'); // a null 3D pick deselects the CRT
+  });
+  it('the editor exposes a per-sector Layer choice + Interactive toggle, and serialises them', () => {
+    expect(STUDIO).toContain('id="sLayer"');
+    expect(STUDIO).toContain('id="sInteract"');
+    expect(STUDIO).toContain('s.layer=e.target.value;s.front=(e.target.value==="front")');
+    expect(STUDIO).toContain('s.interactive=e.target.checked');
+    expect(STUDIO).toContain('z:s.z,front:s.front,layer:s.layer,interactive:s.interactive');
+  });
+  it('the editor 3D viewer can select a sector for editing', () => {
+    expect(STUDIO).toContain('window.map3dSelectSector=function(id)');
+  });
+});
+
+describe('player labels: toggles reach 3D + never block the wheel (owner 2026-07-19)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('3D CSS3D labels are tagged by category so MAP LABELS toggles hide them', () => {
+    expect(MAP3D).toContain('_addText(it, cat)');
+    expect(MAP3D).toContain('obj.userData.labelCat = cat || null;');
+    expect(MAP3D).toContain('setLabelVis(vis)');
+    expect(MAP3D).toContain("it.kind === 'star' ? 'stars' : 'planets'"); // body label category
+    expect(MAP3D).toContain("this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }, 'systems')"); // sector label category
+  });
+  it('the console pushes label visibility into the 3D engine on every toggle', () => {
+    expect(SRC).toContain('window.getLabelVis=()=>labelVis;');
+    expect(SRC).toContain('if(window.Map3D&&window.Map3D.setLabelVis)window.Map3D.setLabelVis(labelVis);');
+  });
+  it('the label overlay is pointer-events:none so labels never swallow a wheel-zoom or click', () => {
+    expect(SRC).toContain('#labelLayer,#labelLayer *{pointer-events:none !important;}');
+  });
+});
+
+describe('player zoom: faster + double-click + works over any element (owner 2026-07-19)', () => {
+  it('wheel zoom steps are larger (faster in/out) and captured before any overlay', () => {
+    expect(SRC).toContain('const fdir=e.deltaY<0?1.26:0.79;');   // was 1.14 / 0.88
+    expect(SRC).toContain('{passive:false,capture:true}');       // capture phase → runs first, over labels too
+  });
+  it('double-clicking anywhere on the map zooms in on that point', () => {
+    expect(SRC).toContain('$("#mapPane").addEventListener("dblclick"');
+    expect(SRC).toContain('zoomAround(e.clientX-r.left,e.clientY-r.top,1.9)');
   });
 });

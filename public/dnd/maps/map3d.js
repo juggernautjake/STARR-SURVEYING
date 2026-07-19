@@ -121,8 +121,14 @@ const Map3D = {
     el.addEventListener('pointerup', e => this._onPointerUp(e));
     // Hover: enlarge + glow the body under the cursor (planet/star/moon/station/…), matching the 2D view. Skip
     // while dragging (a pan/orbit/gizmo move shouldn't re-pick every frame).
-    el.addEventListener('pointermove', e => { if (this._downXY || this._rDownXY || (this.tcontrols && this.tcontrols.dragging)) return; const h = this._pickHolder(e.clientX, e.clientY); this._setHover3D(h && h.userData.interactive ? h : null); });
-    el.addEventListener('pointerleave', () => this._setHover3D(null));
+    el.addEventListener('pointermove', e => {
+      if (this._downXY || this._rDownXY || (this.tcontrols && this.tcontrols.dragging)) return;
+      const h = this._pickHolder(e.clientX, e.clientY);
+      const bodyHover = h && h.userData.interactive ? h : null;
+      this._setHover3D(bodyHover);
+      this._setSectorHover3D(bodyHover ? null : this._pickSector(e.clientX, e.clientY));   // sectors highlight only when no body is under the cursor
+    });
+    el.addEventListener('pointerleave', () => { this._setHover3D(null); this._setSectorHover3D(null); });
     el.addEventListener('contextmenu', e => this._onContextMenu(e));
     this._onKey = e => {
       if (!this._shown || !this.tcontrols) return;
@@ -157,10 +163,13 @@ const Map3D = {
       // object never lights up in either view unless its interactive box is checked.
       if (o && o.userData.id !== undefined && (this._editable || o.userData.interactive)) return this._select(o);
     }
+    // No body under the click → try a sector region (a real selectable/editable entity, front or back).
+    const smesh = this._pickSector(e.clientX, e.clientY);
+    if (smesh) return this._selectSector(smesh);
     this._deselect();
   },
-  _select(holder) { this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
-  _deselect() { this._selected = null; if (this.tcontrols) this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
+  _select(holder) { this._clearSectorSelection(); this._selected = holder; if (this.tcontrols) this.tcontrols.attach(holder); if (window.map3dSelect) window.map3dSelect(holder.userData.id); },
+  _deselect() { this._clearSectorSelection(); this._selected = null; if (this.tcontrols) this.tcontrols.detach(); if (window.map3dSelect) window.map3dSelect(null); },
 
   // Raycast a client point to the body holder under it (or null).
   _pickHolder(clientX, clientY) {
@@ -681,11 +690,12 @@ const Map3D = {
     const aniso = this.renderer.capabilities.getMaxAnisotropy();
     this._bodies = []; this._spinPlanes = []; this._spiralImages = [];
     this._hoverHolder = null;   // the old holders are gone; drop the stale hover ref so _setHover3D re-hovers cleanly
+    this._hoverSector = null; this._selectedSector = null;   // sector meshes are rebuilt too; drop stale refs
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     const overlay = this._mode === 'overlay';
     for (const it of insts) {
       if (overlay && !this._isNative3D(it.kind)) continue;   // hybrid: 2D handles images/text/html/spingalaxy/etc.
-      if (it.kind === 'text') { this._addText(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
+      if (it.kind === 'text') { this._addText(it, 'text'); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       if (it.kind === 'html') { this._addHtml(it); minX = Math.min(minX, it.x); minY = Math.min(minY, it.y); maxX = Math.max(maxX, it.x); maxY = Math.max(maxY, it.y); continue; }
       // The 2D `.inst` element is centred on (x,y) (translate(-50%,-50%)), so the body's CENTRE is
       // (x,y) — NOT its top-left. Mirror that exactly here, or the 3D body lands half its size down-
@@ -730,7 +740,7 @@ const Map3D = {
       // The body's name label (below it), matching the 2D label layer — kinds text/html are their own label.
       // Body name label — only in full 3D. In hybrid (overlay) the visible 2D label layer already
       // draws it (and it's the editable/draggable one), so adding a 3D label here would double it up.
-      if (!overlay && it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 });
+      if (!overlay && it.name && (!it.label || it.label.show !== false)) this._addText({ name: it.name, label: it.label, x: cx, y: it.y + s / 2 + 6 }, it.kind === 'star' ? 'stars' : 'planets');
       this._bodies.push({ holder, it, disc, isStar: it.kind === 'star', kind: it.kind, cfg, canFull: !imgUrl && (it.kind === 'star' || !!cfg || genMesh), hasModel: false, model: null });
       minX = Math.min(minX, it.x - s / 2); minY = Math.min(minY, it.y - s / 2); maxX = Math.max(maxX, it.x + s / 2); maxY = Math.max(maxY, it.y + s / 2);
     }
@@ -988,21 +998,79 @@ const Map3D = {
   _buildSectors() {
     const g = this._sectorGroup; if (!g) return;
     for (let i = g.children.length - 1; i >= 0; i--) { const c = g.children[i]; g.remove(c); c.geometry && c.geometry.dispose && c.geometry.dispose(); c.material && c.material.dispose && c.material.dispose(); }
-    if (this._mode === 'overlay') return;   // hybrid: sectors are drawn by the 2D map
+    this._sectorMeshes = [];   // pickable fill meshes for hover/select (rebuilt each pass)
+    if (this._mode === 'overlay') return;   // hybrid: sectors are drawn by the 2D map (which is interactive there)
     // Draw in the same z order as the 2D map (depthTest is off, so paint order sets who's on top) →
-    // sending a sector forward/back reorders it identically in both views.
+    // sending a sector forward/back reorders it identically in both views. A `front` sector (s.layer==='front',
+    // or the legacy s.front flag) paints IN FRONT of the bodies (renderOrder 6, above the body renderOrder 1);
+    // a normal sector paints behind them (-3). Bodies are ray-picked before sectors, so a front sector is
+    // click-through — you still select a planet under it — while it can still hover-highlight (see _pickSector).
     const sectors = [...((this._map && this._map.sectors) || [])].sort((a, b) => (a.z || 0) - (b.z || 0));
     for (const s of sectors) {
       const outline = this._sectorOutline(s); if (!outline) continue;
+      const front = s.layer === 'front' || s.front === true;
       const col = new THREE.Color(s.color || '#5fbf7a');
-      const zPos = Math.min(-0.4, -2 + (s.z || 0) * 0.02);   // behind bodies (z=0), ordered by the 2D z field
-      const fill = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(outline)), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: (s.fillOpacity != null ? s.fillOpacity : 0.12), side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
-      fill.position.z = zPos; fill.renderOrder = -3;
-      g.add(fill);
-      const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(outline.map(p => new THREE.Vector3(p.x, p.y, zPos + 0.15))), new THREE.LineBasicMaterial({ color: new THREE.Color(s.borderColor || s.color || '#5fbf7a'), transparent: true, opacity: 0.85 }));
-      border.renderOrder = -3; g.add(border);
-      if (s.name && (!s.label || s.label.show !== false)) { const c = this._centroid(s.points); this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }); }
+      const cen = this._centroid(outline);   // recentre geometry on the centroid so hover can scale about it
+      const zPos = front ? (0.6 + (s.z || 0) * 0.02) : Math.min(-0.4, -2 + (s.z || 0) * 0.02);
+      const ro = front ? 6 : -3;
+      const baseOp = (s.fillOpacity != null ? s.fillOpacity : 0.12);
+      const fgeo = new THREE.ShapeGeometry(new THREE.Shape(outline)); fgeo.translate(-cen.x, -cen.y, 0);
+      const fill = new THREE.Mesh(fgeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: baseOp, side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+      fill.position.set(cen.x, cen.y, zPos); fill.renderOrder = ro;
+      const bgeo = new THREE.BufferGeometry().setFromPoints(outline.map(p => new THREE.Vector3(p.x - cen.x, p.y - cen.y, 0.15)));
+      const border = new THREE.LineLoop(bgeo, new THREE.LineBasicMaterial({ color: new THREE.Color(s.borderColor || s.color || '#5fbf7a'), transparent: true, opacity: 0.85 }));
+      border.position.set(cen.x, cen.y, zPos); border.renderOrder = ro;
+      fill.userData = { sectorId: s.id, _border: border, _fillOpacity: baseOp, _interactive: s.interactive !== false, _front: front };
+      g.add(fill); g.add(border);
+      this._sectorMeshes.push(fill);
+      if (s.name && (!s.label || s.label.show !== false)) { const c = this._centroid(s.points); this._addText({ name: s.name, label: s.label, x: c.x, y: c.y }, 'systems'); }
     }
+  },
+  // Raycast a client point to the interactive sector fill under it (or null). Used for hover + click-select in
+  // 3D. Bodies are always tested first by the callers, so a body under a front sector wins (click-through).
+  _pickSector(clientX, clientY) {
+    if (!this._sectorMeshes || !this._sectorMeshes.length) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this._ray.setFromCamera(ndc, this.camera);
+    const hits = this._ray.intersectObjects(this._sectorMeshes, false);
+    // Players can only pick an INTERACTIVE region; the editor can pick any region (to select/edit it), the same
+    // rule bodies follow — `interactive` gates the player's effects, not the DM's ability to edit.
+    for (const h of hits) if (h.object.userData._interactive || this._editable) return h.object;
+    return null;
+  },
+  // Style a sector fill+border for a state: 'base' (rest), 'hover' (slight enlarge + brighter glow), or
+  // 'select' (persistent glow, gentler than hover). Scales about the recentred centroid.
+  _applySectorStyle(mesh, state) {
+    if (!mesh) return; const u = mesh.userData, border = u._border;
+    const on = state === 'hover' || state === 'select';
+    const scale = state === 'hover' ? 1.04 : (state === 'select' ? 1.02 : 1);
+    mesh.scale.setScalar(scale); if (border) border.scale.setScalar(scale);
+    mesh.material.opacity = on ? Math.min(0.4, u._fillOpacity + (state === 'hover' ? 0.2 : 0.13)) : u._fillOpacity;
+    if (border) border.material.opacity = on ? 1 : 0.85;
+  },
+  // Hover a sector region (or null to clear). A selected sector keeps its glow when the cursor leaves.
+  _setSectorHover3D(mesh) {
+    if (this._hoverSector === mesh) return;
+    const prev = this._hoverSector; this._hoverSector = mesh;
+    if (prev) { this._applySectorStyle(prev, prev === this._selectedSector ? 'select' : 'base'); if (window.map3dSectorHover) window.map3dSectorHover(prev.userData.sectorId, false); }
+    if (mesh) {
+      this._applySectorStyle(mesh, 'hover');
+      if (window.map3dSectorHover) window.map3dSectorHover(mesh.userData.sectorId, true);
+      if (this.renderer) this.renderer.domElement.style.cursor = 'pointer';
+    } else if (this.renderer && !this._hoverHolder) this.renderer.domElement.style.cursor = '';
+  },
+  // Click-select a sector region: clears any body/sector selection, keeps a persistent glow, drives the 2D CRT.
+  _selectSector(mesh) {
+    this._deselect();                          // clear body gizmo + any prior sector glow
+    this._selectedSector = mesh;
+    this._applySectorStyle(mesh, this._hoverSector === mesh ? 'hover' : 'select');
+    if (window.map3dSelectSector) window.map3dSelectSector(mesh.userData.sectorId);
+  },
+  _clearSectorSelection() {
+    if (!this._selectedSector) return;
+    const s = this._selectedSector; this._selectedSector = null;
+    this._applySectorStyle(s, this._hoverSector === s ? 'hover' : 'base');
   },
 
   // A small glowing pin texture for surface POIs (cached).
@@ -1028,8 +1096,10 @@ const Map3D = {
     }
   },
 
-  // Free text object → a crisp DOM element in the CSS3D layer, styled from its LabelStyle.
-  _addText(it) {
+  // Free text object → a crisp DOM element in the CSS3D layer, styled from its LabelStyle. `cat` is the
+  // label category (planets|stars|systems|text) so the player's MAP LABELS toggles can hide/show it in 3D,
+  // exactly as they hide the 2D #labelLayer. Without a category (older callers) the label is always shown.
+  _addText(it, cat) {
     if (!this.cssScene) return;
     const st = window.mergeLabelStyle ? window.mergeLabelStyle(it.label) : Object.assign({ font: 'Cinzel', size: 28, weight: 600, color: '#f0e6d2', align: 'middle' }, it.label || {});
     const el = document.createElement('div');
@@ -1049,7 +1119,23 @@ const Map3D = {
     obj.position.set(it.x, -it.y, 0);
     if (st.rotate) obj.rotation.z = -st.rotate * Math.PI / 180;
     obj.userData.id = it.id;
+    obj.userData.labelCat = cat || null;
+    if (this._labelVis) obj.visible = this._labelVisShows(cat);   // honour a toggle set before this rebuild
     this.cssScene.add(obj);
+  },
+  // Does the current MAP LABELS toggle state show a label of category `cat`? Free text (`text`) follows the
+  // 2D rule — visible unless ALL three categories are off; a categorised label follows its own switch.
+  _labelVisShows(cat) {
+    const v = this._labelVis; if (!v) return true;
+    if (cat === 'text') return !!(v.planets || v.stars || v.systems);
+    return cat ? v[cat] !== false : true;
+  },
+  // Player MAP LABELS toggle bridge: hide/show the 3D CSS3D labels by category (the 2D layer is handled by the
+  // host's refreshLabels). Stored so a later _rebuild re-applies it. Called from console.html on every toggle.
+  setLabelVis(vis) {
+    this._labelVis = vis || null;
+    if (!this.cssScene) return;
+    for (const o of this.cssScene.children) o.visible = this._labelVisShows(o.userData && o.userData.labelCat);
   },
 
   // HTML card → a sandboxed iframe DOM element in the CSS3D layer (same safe render as 2D).
@@ -1243,6 +1329,7 @@ window.Map3D = Map3D;
     }
     if (next === '3d') {
       Map3D.setMode('full'); Map3D.setData(typeof window.mapData === 'function' ? window.mapData() : { instances: [] });
+      if (Map3D.setLabelVis && typeof window.getLabelVis === 'function') Map3D.setLabelVis(window.getLabelVis());   // carry the MAP LABELS toggles into 3D
       hide2d(); gl.style.pointerEvents = ''; Map3D.show(); btn.classList.add('aether'); btn.textContent = '⧉ Hybrid'; mode = '3d';
     } else if (next === 'hybrid') {
       if (Map3D.isShown() && Map3D._syncToView) Map3D._syncToView();   // carry the current 3D view back to 2D so hybrid preserves it

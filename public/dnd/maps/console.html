@@ -43,6 +43,10 @@
   .campbtn{position:absolute;top:14px;right:60px;z-index:21;background:rgba(20,26,48,.85);border:1px solid rgba(200,138,255,.4);color:var(--aether);border-radius:8px;padding:8px 13px;font-size:12px;cursor:pointer;backdrop-filter:blur(6px);letter-spacing:.5px;}
   .campbtn:hover{border-color:var(--aether);color:#fff;}
   .sector-label{position:absolute;transform:translate(-50%,-50%);font-family:"Cinzel",serif;font-weight:600;letter-spacing:3px;text-transform:uppercase;pointer-events:none;text-align:center;white-space:nowrap;text-shadow:0 0 16px currentColor,0 2px 7px #000;}
+  /* Player labels are PURELY decorative (selection happens on the bodies/sector polygons beneath). Force the whole
+     label overlay click-through so a label under the cursor can never swallow a wheel-zoom or a click — the wheel
+     was being intercepted by each label's background <rect> (pointer-events:auto). owner 2026-07-19. */
+  #labelLayer,#labelLayer *{pointer-events:none !important;}
   /* System/sector regions: a slight animation on hover (brighten + thicken the border), and a stronger
      highlight when one is focused (clicked here or from the systems list). The fill stays low-alpha so bodies
      inside stay legible; only the paint changes, so planets/stations over the region remain clickable. */
@@ -697,14 +701,19 @@ function render(){
   const sorted=[...(MAP.sectors||[])].map(s=>({s,area:polyArea(s.points),c:polyCentroid(s.points)})).sort((a,b)=>((a.s.z||0)-(b.s.z||0))||(b.area-a.area));
   let innerB="",innerF="";
   sorted.forEach(({s,area,c})=>{const[r,g,b2]=hx(s.color);const isSub=!!s.parent,off=p=>({x:p.x-B.minX,y:p.y-B.minY});const pts=s.points.map(off);let piece="";
+    // Layer: a sector can sit BEHIND the bodies (default) or IN FRONT of everything (layer:'front' / legacy .front)
+    // — a front region paints above planets/images but is click-through (a body under it still wins the click; see
+    // the sector click handler). Interactive (default true) → it highlights on hover + is selectable; false → a
+    // purely decorative region (pointer-events:none), so it never reacts and clicks pass straight through.
+    const front=s.layer==="front"||s.front===true;const inter=s.interactive!==false;
     if(s.fx&&s.fx.nebula){const bb={x:Math.min(...pts.map(p=>p.x)),y:Math.min(...pts.map(p=>p.y))};const bw=Math.max(...pts.map(p=>p.x))-bb.x,bh=Math.max(...pts.map(p=>p.y))-bb.y;
       piece+=`<clipPath id="cl${s.id}"><path d="${sectorPath(pts)}"/></clipPath><g clip-path="url(#cl${s.id})">`+nebulaSVG(bw,bh,s.fx.nebulaColor||s.color,D(s.fx.nebulaColor||s.color,30),seedFrom(s.id),0.7).replace(/cx="([\d.]+)"/g,(m,n)=>`cx="${(+n+bb.x).toFixed(0)}"`).replace(/cy="([\d.]+)"/g,(m,n)=>`cy="${(+n+bb.y).toFixed(0)}"`)+`</g>`;}
     const bstyle=s.borderStyle||(s.meta?"dotted":"dashed");const bw=s.borderWidth!=null?s.borderWidth:(s.meta?2.5:isSub?1.6:2.2);
     const fillOp=s.fillOpacity!=null?s.fillOpacity:(s.meta?0.04:isSub?0.13:0.09);
     const dash=bstyle==="dotted"?`${(bw*0.5).toFixed(1)} ${(bw*2.2).toFixed(1)}`:bstyle==="dashed"?"8 7":"none";
-    piece+=`<path d="${sectorPath(pts)}" fill="rgba(${r},${g},${b2},${fillOp})" stroke="${bstyle==="none"?"none":s.color}" stroke-width="${bw}" stroke-dasharray="${dash}" opacity="${s.meta?0.5:0.85}" data-sector="${s.id}"${s.front?' data-front="1"':''} style="cursor:pointer;pointer-events:auto"/>`;
+    piece+=`<path d="${sectorPath(pts)}" fill="rgba(${r},${g},${b2},${fillOp})" stroke="${bstyle==="none"?"none":s.color}" stroke-width="${bw}" stroke-dasharray="${dash}" opacity="${s.meta?0.5:0.85}" data-sector="${s.id}"${front?' data-front="1"':''}${inter?"":' data-inert="1"'} style="cursor:${inter?"pointer":"default"};pointer-events:${inter?"auto":"none"}"/>`;
     if(s.fx&&s.fx.sparkle){const rng=mulberry(seedFrom(s.id)*7);for(let k=0;k<14;k++){const wx=Math.min(...s.points.map(p=>p.x))+rng()*(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x))),wy=Math.min(...s.points.map(p=>p.y))+rng()*(Math.max(...s.points.map(p=>p.y))-Math.min(...s.points.map(p=>p.y)));if(!pointInPoly({x:wx,y:wy},s.points))continue;piece+=`<circle cx="${(wx-B.minX).toFixed(0)}" cy="${(wy-B.minY).toFixed(0)}" r="${(0.6+rng()*1.6).toFixed(1)}" fill="#fff" style="animation:twinkle ${(1.4+rng()*2).toFixed(1)}s ease-in-out infinite;animation-delay:${(rng()*3).toFixed(1)}s"/>`;}}
-    if(s.front)innerF+=piece;else innerB+=piece;
+    if(front)innerF+=piece;else innerB+=piece;
   });
   svg.innerHTML=innerB;svgF.innerHTML=innerF;viewport.appendChild(svg);viewport.appendChild(svgF);
   // sector names, body names, text objects & POI captions are drawn in the rich label overlay below
@@ -820,7 +829,13 @@ window.addEventListener("mouseup",()=>{if(pan&&!pan.moved&&(selectedId||curSel))
 // Wheel-zoom is bound to #mapPane (the whole map container), NOT #stage — so scrolling over a LABEL (labels sit
 // in a pointer-events:none overlay whose events could otherwise reach the page) still zooms the map and NEVER
 // scrolls the window. preventDefault on the pane stops the page from moving under any wheel over the map.
-$("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.14:0.88;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();SpaceAudio.zoom(e.deltaY<0?1:-1);},{passive:false});
+// Capture phase (true) so this fixed zoom handler runs FIRST for any wheel over the map — before any label,
+// sector, body or the 3D overlay could see or consume it. Combined with the pointer-events:none label layer,
+// the wheel now zooms on the cursor's location no matter what text/art sits under it.
+$("#mapPane").addEventListener("wheel",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const fdir=e.deltaY<0?1.26:0.79;const ns=clamp(view.scale*fdir,0.08,6);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;apply();SpaceAudio.zoom(e.deltaY<0?1:-1);},{passive:false,capture:true});
+// Double-click anywhere on the map → zoom IN centred on that point (a quick way to dive into a region). It fires
+// after the single-click select, so double-clicking a body zooms in on it too; on empty space it just zooms.
+$("#mapPane").addEventListener("dblclick",e=>{e.preventDefault();const r=$("#mapPane").getBoundingClientRect();zoomAround(e.clientX-r.left,e.clientY-r.top,1.9);},{passive:false});
 // ── Touch: 1-finger pan + 2-finger pinch-zoom (mobile — the mouse handlers above don't fire on touch). A tap on
 //    a body/sector still bubbles to its click handler; a tap on empty space deselects. ──
 let pinch=null;
@@ -898,11 +913,16 @@ function syncLabelLamps(){
   set("#lblPlanets",labelVis.planets);set("#lblStars",labelVis.stars);set("#lblSystems",labelVis.systems);
   set("#lblAll",labelVis.planets&&labelVis.stars&&labelVis.systems);
 }
-function toggleLabel(cat){labelVis[cat]=!labelVis[cat];syncLabelLamps();refreshLabels();}
+// Apply the MAP LABELS toggles to BOTH label systems: the 2D SVG overlay (#labelLayer, rebuilt) AND the 3D
+// engine's CSS3D labels (map3d.js draws those in full-3D mode; the 2D refresh can't reach them). Without the
+// 3D push, toggling in 3D did nothing (owner 2026-07-19).
+window.getLabelVis=()=>labelVis;
+function applyLabelVis(){syncLabelLamps();refreshLabels();if(window.Map3D&&window.Map3D.setLabelVis)window.Map3D.setLabelVis(labelVis);}
+function toggleLabel(cat){labelVis[cat]=!labelVis[cat];applyLabelVis();}
 {const p=$("#lblPlanets");if(p)p.onclick=()=>toggleLabel("planets");}
 {const s=$("#lblStars");if(s)s.onclick=()=>toggleLabel("stars");}
 {const y=$("#lblSystems");if(y)y.onclick=()=>toggleLabel("systems");}
-{const a=$("#lblAll");if(a)a.onclick=()=>{const allOn=labelVis.planets&&labelVis.stars&&labelVis.systems;const next=!allOn;labelVis.planets=labelVis.stars=labelVis.systems=next;syncLabelLamps();refreshLabels();};}
+{const a=$("#lblAll");if(a)a.onclick=()=>{const allOn=labelVis.planets&&labelVis.stars&&labelVis.systems;const next=!allOn;labelVis.planets=labelVis.stars=labelVis.systems=next;applyLabelVis();};}
 syncLabelLamps();
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1112,19 +1132,25 @@ SpaceAudio.setUiMuted(!sfxOn);
 // it toward ~50–75% then eases back. `_mFloor` slowly tracks the hum's own level (a transient barely lifts it),
 // so ratio = current/floor is ~1 during the hum and >1 on a noise; the display is exponentially smoothed (rises
 // a bit quicker than it falls) so it moves smoothly, never jittery.
-let _mFloor=0,_mCur=30,_mStarted=false;
+let _mFloor=0,_mCur=28,_mStarted=false;
 function meterLoop(){
   const lv=(SpaceAudio.level&&SpaceAudio.level())||0;
   let target;
   if(lv<0.0008){target=4;}                                   // silent (muted / not yet started) → flat + low
   else{
     if(!_mStarted){_mFloor=lv;_mStarted=true;}
-    _mFloor+=(lv-_mFloor)*(lv<_mFloor?0.05:0.006);           // track the hum floor; spikes barely raise it
+    // The floor tracks the DRONE'S own level and now follows it a bit FASTER, so the hum (and its slow pitch
+    // drift) is absorbed into the baseline and barely moves the bar — the meter sits near a flat ~28% resting
+    // level during the hum. A NOISE is a fast transient the slow floor can't keep up with, so `excess` (how far
+    // the level jumps above the ambient floor) is what drives the bar — amplified hard so the alien/robot blips
+    // make a big, obvious jump toward ~60–90% before easing back down. (owner 2026-07-19)
+    _mFloor+=(lv-_mFloor)*(lv<_mFloor?0.06:0.02);            // faster floor → the drone barely shows
     if(_mFloor<0.0006)_mFloor=0.0006;
-    const ratio=lv/_mFloor;                                  // ~1 on the hum, climbs on a transient
-    target=Math.max(20,Math.min(78,33+Math.min(1,(ratio-1)/2.4)*44));   // 33% at the hum → up toward ~77% on a noise
+    const excess=Math.max(0,lv-_mFloor);                     // transient energy above the hum (≈0 during the drone)
+    const spike=Math.min(1,excess/(_mFloor*0.9+0.003));      // 0 on the hum → 1 on a strong blip (relative to ambient)
+    target=lv<0.0008?4:Math.max(24,Math.min(92,28+spike*60));  // ~28% resting hum → leaps toward ~90% on a noise
   }
-  _mCur+=(target-_mCur)*(target>_mCur?0.16:0.055);           // smooth: quicker up, gentler down — no jitter
+  _mCur+=(target-_mCur)*(target>_mCur?0.34:0.05);            // snappy jump UP on a blip, gentle fall — hum stays calm
   const el=$("#sigMeter");if(el)el.style.width=_mCur.toFixed(1)+"%";
   requestAnimationFrame(meterLoop);
 }
@@ -1151,9 +1177,13 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   let curData = null, curStamp = null, curMapId = wanted || null;
   // Expose the live map to the 3D viewer (map3d.js); a 3D pick drives the CRT readout.
   window.mapData = () => curData || (typeof MAP !== "undefined" ? MAP : { instances: [] });
-  window.map3dSelect = (id) => { if(id) select({ type:"instance", id }); };
+  window.map3dSelect = (id) => { if(id) select({ type:"instance", id }); else clearSelect(); };
   // A 3D surface-POI pick shows the parent body's readout — same as clicking a POI on the 2D map.
   window.map3dSelectPoi = (instId, poiId) => { if(instId) select({ type:"instance", id:instId }); };
+  // A 3D sector pick selects the region (drives the CRT + persistent glow), matching a 2D sector click.
+  window.map3dSelectSector = (id) => { if(id) select({ type:"sector", id }); };
+  // Two-way hover link: hovering a sector in 3D also highlights its row in the SYSTEMS legend (and vice-versa).
+  window.map3dSectorHover = (id, on) => { if(id) setSectorHover(id, !!on); };
   // Paint the 2D backdrop to match the published sky (parity with the 3D viewer).
   function applySky(data){ try{ if(window.Sky2D){ const cv=document.getElementById("skyCanvas"); if(cv){ window.Sky2D.mount(cv); window.Sky2D.set((data&&data.bg3d)||undefined); } }
     const bg=data&&data.bg3d, solid=bg&&(bg.template==="solid"||bg.template==="glow"), mp=document.getElementById("mapPane");
