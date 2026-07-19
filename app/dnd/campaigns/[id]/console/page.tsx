@@ -27,6 +27,8 @@ export default async function ConsolePage({ params, searchParams }: { params: { 
       <iframe
         src={src}
         title="Galactic Console"
+        allow="fullscreen"
+        allowFullScreen
         style={{ flex: 1, width: '100%', border: 0, background: '#010a13' }}
       />
     </div>

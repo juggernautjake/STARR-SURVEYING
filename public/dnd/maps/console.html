@@ -222,6 +222,7 @@
   <div class="legend"><h3>◈ SYSTEMS</h3><div id="legendRows"></div></div>
   <button class="campbtn" id="campBtn">🗂 Load campaign</button>
   <button class="campbtn" id="view3dBtn" style="right:200px" title="Switch between the 2D map and the 3D viewer">⛶ 3D</button>
+  <button class="campbtn" id="fsBtn" style="right:330px" title="Enter / exit full screen">⛶ Full screen</button>
   <div class="mapnav">
     <button id="zoomIn">+</button>
     <button id="zoomOut">−</button>
@@ -880,6 +881,16 @@ const consoleDeck=$("#console");
 $("#deckMin").onclick=e=>{e.stopPropagation();consoleDeck.classList.toggle("min");};
 consoleDeck.onclick=e=>{if(consoleDeck.classList.contains("min")&&e.target.id!=="deckMin")consoleDeck.classList.remove("min");};
 $("#btnGalaxy").onclick=()=>{clearSelect();fit(true);magLevel=0;beep(600,0.07);};   // GALAXY VIEW — fit the whole map
+// FULL SCREEN toggle — enter true browser fullscreen, and (the point) a clearly-labelled way to EXIT it. The
+// button text/style flips to "✕ Exit full screen" while fullscreen so it's obvious how to get back.
+{const fsBtn=$("#fsBtn");if(fsBtn){
+  const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const sync=()=>{const on=!!fsEl();fsBtn.textContent=on?"✕ Exit full screen":"⛶ Full screen";fsBtn.classList.toggle("aether",on);fsBtn.title=on?"Exit full screen":"Enter full screen";};
+  fsBtn.onclick=()=>{beep(560,0.05);try{if(fsEl()){(document.exitFullscreen||document.webkitExitFullscreen).call(document);}else{const el=document.documentElement;(el.requestFullscreen||el.webkitRequestFullscreen).call(el);}}catch(e){}};
+  ["fullscreenchange","webkitfullscreenchange"].forEach(ev=>document.addEventListener(ev,sync));
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&fsEl()){/* browser exits fullscreen itself; sync updates the label */}});
+  sync();
+}}
 // MAP LABELS lamps — click a light to hide/show that category of on-map text (declutter the view). "ALL" is a
 // master: on when all three are on; clicking it flips everything. Toggling rebuilds just the label overlay.
 function syncLabelLamps(){
@@ -965,8 +976,10 @@ const SpaceAudio=(function(){
     select(){if(!ctx||muted||uiMuted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(600,now);o.frequency.linearRampToValueAtTime(950,now+0.12);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(0.28,now+0.01);g.gain.exponentialRampToValueAtTime(0.0001,now+0.18);o.connect(g);g.connect(master);o.start(now);o.stop(now+0.2);},
     // Whether the UI/control/zoom cues are muted (the SFX button — independent of the ambient drone + noises).
     setUiMuted(m){uiMuted=m;},isUiMuted:()=>uiMuted,
-    // Current output loudness 0..1 (peak of the analyser), for the deck sound meter. 0 when audio isn't running.
-    level(){if(!analyser)return 0;analyser.getByteTimeDomainData(_lvlBuf);let peak=0;for(let i=0;i<_lvlBuf.length;i++){const v=Math.abs(_lvlBuf[i]-128)/128;if(v>peak)peak=v;}return Math.min(1,peak);},
+    // Current output loudness 0..1 as RMS (steadier than peak — no per-frame jitter), for the deck sound meter.
+    // 0 when audio isn't running / muted. RMS averages the window, so the drone reads a smooth level and a
+    // transient noise reads clearly higher without the frame-to-frame spikiness of a raw peak.
+    level(){if(!analyser)return 0;analyser.getByteTimeDomainData(_lvlBuf);let sum=0;for(let i=0;i<_lvlBuf.length;i++){const v=(_lvlBuf[i]-128)/128;sum+=v*v;}return Math.min(1,Math.sqrt(sum/_lvlBuf.length));},
     // A short decaying sine blip — the shared shape for the UI cues (freq/decay/amp per cue), pitch-randomised.
     // UI cues honour BOTH the master mute AND the SFX (uiMuted) toggle; ambient sounds ignore uiMuted.
     _blip(freq,dur,decay,amp,pitch){if(!ctx||muted||uiMuted)return;const o=ctx.createOscillator();o.type="sine";const g=ctx.createGain();const now=ctx.currentTime;o.frequency.setValueAtTime(freq*(pitch||1),now);g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(amp,now+0.004);g.gain.exponentialRampToValueAtTime(0.0001,now+dur);o.connect(g);g.connect(master);o.start(now);o.stop(now+dur+0.02);},
@@ -1095,8 +1108,26 @@ SpaceAudio.setUiMuted(!sfxOn);
 ["tgl1","tgl2","tgl3"].forEach(id=>$("#"+id).onclick=()=>$("#"+id).classList.toggle("up"));
 // The signal bar under CLEAR SCREEN is a live AMBIENT SOUND METER: the drone gives a gentle idle wobble, a random
 // space noise spikes it. Driven by the audio analyser (SpaceAudio.level()); reads ~0 when muted/not started yet.
-let _meterCur=8;
-function meterLoop(){const lv=(SpaceAudio.level&&SpaceAudio.level())||0;const target=6+lv*94;_meterCur+=(target-_meterCur)*(target>_meterCur?0.6:0.12);const el=$("#sigMeter");if(el)el.style.width=_meterCur.toFixed(1)+"%";requestAnimationFrame(meterLoop);}
+// The meter self-normalises so the steady DRONE settles the bar around a third, and a random space NOISE spikes
+// it toward ~50–75% then eases back. `_mFloor` slowly tracks the hum's own level (a transient barely lifts it),
+// so ratio = current/floor is ~1 during the hum and >1 on a noise; the display is exponentially smoothed (rises
+// a bit quicker than it falls) so it moves smoothly, never jittery.
+let _mFloor=0,_mCur=30,_mStarted=false;
+function meterLoop(){
+  const lv=(SpaceAudio.level&&SpaceAudio.level())||0;
+  let target;
+  if(lv<0.0008){target=4;}                                   // silent (muted / not yet started) → flat + low
+  else{
+    if(!_mStarted){_mFloor=lv;_mStarted=true;}
+    _mFloor+=(lv-_mFloor)*(lv<_mFloor?0.05:0.006);           // track the hum floor; spikes barely raise it
+    if(_mFloor<0.0006)_mFloor=0.0006;
+    const ratio=lv/_mFloor;                                  // ~1 on the hum, climbs on a transient
+    target=Math.max(20,Math.min(78,33+Math.min(1,(ratio-1)/2.4)*44));   // 33% at the hum → up toward ~77% on a noise
+  }
+  _mCur+=(target-_mCur)*(target>_mCur?0.16:0.055);           // smooth: quicker up, gentler down — no jitter
+  const el=$("#sigMeter");if(el)el.style.width=_mCur.toFixed(1)+"%";
+  requestAnimationFrame(meterLoop);
+}
 requestAnimationFrame(meterLoop);
 window.addEventListener("resize",()=>{if(selectedId){const i=MAP.instances.find(x=>x.id===selectedId);if(i){flyTo(i.x,i.y,i.kind==="galaxy"?fitZoomFor(i.size*3,i.size*3):clamp(1400/(i.size||50),1.4,4.2));return;}}fit(false);});
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1800);}

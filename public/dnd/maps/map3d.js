@@ -1242,4 +1242,15 @@ window.Map3D = Map3D;
     }
   };
   btn.addEventListener('click', () => apply({ '2d': '3d', '3d': 'hybrid', 'hybrid': '2d' }[mode]));
+
+  // Default the player's view to HYBRID (owner 2026-07-19). Wait until the map has actually loaded content so the
+  // 3D overlay opens on the real map (not an empty frame), then apply hybrid once. If the map is genuinely empty
+  // or the 3D engine can't load, it gracefully stays in 2D.
+  let _defaulted = false;
+  const iv = setInterval(() => {
+    if (_defaulted) { clearInterval(iv); return; }
+    const md = typeof window.mapData === 'function' ? window.mapData() : null;
+    if (md && md.instances && md.instances.length) { _defaulted = true; clearInterval(iv); apply('hybrid'); }
+  }, 250);
+  setTimeout(() => clearInterval(iv), 9000);   // give up after ~9s → stay 2D
 })();

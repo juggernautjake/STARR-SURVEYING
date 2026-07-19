@@ -241,3 +241,25 @@ describe('console deck rework (owner 2026-07-18): audio, magnify, meter, sfx, dp
     expect(SRC).toContain('$("#btnClose").onclick=()=>{clearSelect()');
   });
 });
+
+describe('meter smoothing + hybrid default + fullscreen (owner 2026-07-19)', () => {
+  const MAP3D = readFileSync(join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  it('the sound meter uses smoothed RMS + a self-normalising floor (hum ~33%, noises spike ~50-75%)', () => {
+    expect(SRC).toContain('sum+=v*v'); // RMS, not raw peak
+    expect(SRC).toContain('_mFloor+=(lv-_mFloor)*(lv<_mFloor?0.05:0.006)'); // hum floor tracker
+    expect(SRC).toContain('33+Math.min(1,(ratio-1)/2.4)*44'); // 33% at hum → ~77% on a transient
+    expect(SRC).toContain('_mCur+=(target-_mCur)*(target>_mCur?0.16:0.055)'); // smoothed display
+  });
+  it('the player map defaults to HYBRID once the map has loaded', () => {
+    expect(MAP3D).toContain("md.instances && md.instances.length) { _defaulted = true; clearInterval(iv); apply('hybrid'); }");
+  });
+  it('has a fullscreen toggle whose label flips to "Exit full screen"', () => {
+    expect(SRC).toContain('id="fsBtn"');
+    expect(SRC).toContain('fsBtn.textContent=on?"✕ Exit full screen":"⛶ Full screen"');
+    expect(SRC).toContain('document.exitFullscreen||document.webkitExitFullscreen');
+  });
+  it('the embedded console iframe allows fullscreen', () => {
+    const PAGE = readFileSync(join(process.cwd(), 'app/dnd/campaigns/[id]/console/page.tsx'), 'utf8');
+    expect(PAGE).toContain('allowFullScreen');
+  });
+});
