@@ -388,9 +388,12 @@ below states what it reuses.
       GPS-ping mileage but reusing the SAME `IRS_BUSINESS_RATE_2025` (no second rate to drift):
       `odometerMiles`/`validateOdometerEntry` (reversed/negative/absurd-day guards), `mileageReimbursement`,
       and `resolveOdometerEntry` → `{ miles, reimbursement, rate }` | `{ error }` (one call so the form preview
-      and the saved financial line agree). `__tests__/mileage/odometer.test.ts` (8). **Remaining:** the Work
-      Mode odometer form + vehicle picker (save/add/delete reuse `app/api/admin/vehicles`) + persisting the
-      entry to financials via a route — UI + API wiring.
+      and the saved financial line agree). `__tests__/mileage/odometer.test.ts` (8). **Web tracker UI shipped:**
+      the Work Mode Mileage tab (`FieldCrewWorkspace` → `MileageTracker`) — a saved-vehicle picker loaded from
+      `/api/admin/vehicles` (save/add/delete live there) + start/end odometer inputs + a live miles + IRS-$
+      preview driven by `resolveOdometerEntry` (a friendly error for a reversed/absurd entry).
+      `field-crew-workspace.test.ts` +1. **Remaining:** persisting a submitted entry to financials via a
+      manual-mileage POST route (small API wiring) + the mobile-native form.
 - [~] **D7 — Compass (azimuth + bearing). ✅ Pure formatter shipped.** `lib/surveying/compass.ts` —
       `compassReading(headingDeg)` → `{ azimuth, azimuthText, bearingText, cardinal }`, reusing
       `lib/cad/geometry/bearing.ts`'s `formatAzimuth`/`formatBearing` (single source of truth) and adding the
