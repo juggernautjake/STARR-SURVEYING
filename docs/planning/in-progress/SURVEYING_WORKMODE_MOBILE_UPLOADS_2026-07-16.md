@@ -350,8 +350,13 @@ below states what it reuses.
       a pure `compute` that calls the existing module function and returns a FORMATTED value or a friendly
       error (never NaN, never throws). `operationsByCategory` groups them for a tabbed keypad. So the calculator
       SCREEN just renders this list — the buttons and the math can't drift. `__tests__/surveying/calculator.test.ts`
-      (10: catalog integrity, no-throw on empty args, and representative correct computes). **The calculator's
-      logic is now complete; only the React keypad component (binding to this catalog) remains — a UI slice.**
+      (10: catalog integrity, no-throw on empty args, and representative correct computes). **Web keypad UI
+      shipped:** the Work Mode Calc tab (`FieldCrewWorkspace`) now renders `SurveyingTools` alongside the
+      arithmetic calc — a category-grouped operation picker (Bearing/Azimuth · Angles · Triangles & Trig ·
+      Traverse) that fills each op's declared inputs (number fields or a quadrant select) and shows the live
+      result, driven ENTIRELY by the pure catalog `compute` (no formula re-implemented in the component).
+      `field-crew-workspace.test.ts` +1 (asserts the catalog wiring). **The web surveying calculator is
+      complete;** the mobile-native keypad reuses the same catalog (a device-side render).
 - [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
       Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
       numbers via `telHref` for the client + every `job_contacts` phone). Reuse the A1/A2/B2 helpers.
