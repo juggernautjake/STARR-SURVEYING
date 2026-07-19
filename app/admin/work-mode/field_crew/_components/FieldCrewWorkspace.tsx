@@ -14,7 +14,7 @@ import { evalArithmetic, formatCalcResult } from '@/lib/jobs/calc';
 import { operationsByCategory, type SurveyingOperation } from '@/lib/surveying/calculator';
 import { resolveOdometerEntry } from '@/lib/mileage/odometer';
 
-type FieldTab = 'job' | 'calc' | 'notes' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
+type FieldTab = 'job' | 'calc' | 'notes' | 'instructions' | 'photo' | 'points' | 'mileage' | 'receipts' | 'crew' | 'equipment' | 'time' | 'files' | 'issue';
 
 /** The job fields the field hub reads (a subset of the jobs row + its team). */
 interface FieldJob {
@@ -39,6 +39,7 @@ const TABS: Array<{ id: FieldTab; label: string; icon: string }> = [
   { id: 'job',       label: 'Job',       icon: '🧭' },
   { id: 'calc',      label: 'Calc',      icon: '🧮' },
   { id: 'notes',     label: 'Notes',     icon: '📝' },
+  { id: 'instructions', label: 'Instructions', icon: '📋' },
   { id: 'photo',     label: 'Photo',     icon: '📷' },
   { id: 'points',    label: 'Points',    icon: '📍' },
   { id: 'mileage',   label: 'Mileage',   icon: '🚗' },
@@ -113,6 +114,7 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
         {activeTab === 'job' ? <JobSummary job={activeJob} loading={loadingJobs} />
           : activeTab === 'calc' ? <div style={{ display: 'grid', gap: 16 }}><FieldCalculator /><SurveyingTools /></div>
           : activeTab === 'notes' ? <FieldNotes jobId={jobId} />
+          : activeTab === 'instructions' ? <JobInstructions jobId={jobId} />
           : activeTab === 'files' ? <JobFiles jobId={jobId} />
           : activeTab === 'photo' ? <JobMedia jobId={jobId} />
           : activeTab === 'mileage' ? <MileageTracker />
@@ -301,6 +303,95 @@ function MileageTracker() {
         {saving ? 'Saving…' : 'Log this trip'}
       </button>
       {saved && <div aria-live="polite" style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary)' }}>{saved}</div>}
+    </div>
+  );
+}
+
+/** The Work Mode JOB INSTRUCTIONS tab (Area D5): reads the RPLS-authored instructions for the active job via
+ *  GET /api/admin/jobs/[id]/instructions (which resolves each [label](job-file:id) embed to its file server-
+ *  side) and renders the segments — text, tap-through file links, inline images, and a "missing file" chip for a
+ *  broken reference. The lead RPLS / admin (canEdit) also gets a textarea + Save that PUTs the text, surfacing
+ *  any broken links the save reports. The parse/resolve is the shared pure lib/jobs/instructions.ts. */
+interface ResolvedSeg {
+  type: 'text' | 'link';
+  text?: string;
+  label?: string;
+  fileId?: string;
+  image?: boolean;
+  file?: { id: string; name?: string | null; url?: string | null } | null;
+}
+function JobInstructions({ jobId }: { jobId: string | null }) {
+  const [segments, setSegments] = useState<ResolvedSeg[]>([]);
+  const [text, setText] = useState('');
+  const [canEdit, setCanEdit] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!jobId) { setSegments([]); setText(''); setCanEdit(false); return; }
+    let live = true;
+    setLoading(true); setStatus(null);
+    fetch(`/api/admin/jobs/${jobId}/instructions`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('load'))))
+      .then((j) => { if (!live) return; setSegments((j.segments ?? []) as ResolvedSeg[]); setText(j.instructions ?? ''); setCanEdit(!!j.canEdit); })
+      .catch(() => { if (live) setStatus('Could not load instructions.'); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [jobId]);
+
+  async function save() {
+    if (!jobId) return;
+    setStatus(null);
+    try {
+      const res = await fetch(`/api/admin/jobs/${jobId}/instructions`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instructions: text }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setStatus(j.error ?? 'Could not save.'); return; }
+      const broken = (j.brokenRefs ?? []) as string[];
+      setStatus(broken.length ? `Saved — but ${broken.length} linked file(s) no longer exist.` : 'Saved.');
+      setEditing(false);
+      // Re-fetch to render the freshly-resolved segments.
+      const r2 = await fetch(`/api/admin/jobs/${jobId}/instructions`);
+      if (r2.ok) { const j2 = await r2.json(); setSegments((j2.segments ?? []) as ResolvedSeg[]); }
+    } catch { setStatus('Network error — not saved.'); }
+  }
+
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 640, display: 'grid', gap: 12 };
+  if (!jobId) return <div style={card}>Pick an active job to see its instructions.</div>;
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>📋 Job instructions</div>
+        {canEdit && !editing && <button type="button" onClick={() => setEditing(true)} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', cursor: 'pointer', fontSize: '0.8rem' }}>Edit</button>}
+      </div>
+
+      {loading ? <div style={{ color: 'var(--theme-fg-secondary)' }}>Loading…</div>
+        : editing ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} aria-label="job instructions"
+              placeholder="List the instructions. Link a file with [label](job-file:FILE_ID) or an image with ![alt](job-file:FILE_ID)."
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontFamily: 'inherit', resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={save} style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Save</button>
+              <button type="button" onClick={() => setEditing(false)} style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-secondary)', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        ) : segments.length === 0 ? (
+          <div style={{ color: 'var(--theme-fg-secondary)' }}>No instructions yet{canEdit ? ' — tap Edit to add them.' : '.'}</div>
+        ) : (
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55, color: 'var(--theme-fg-primary)' }}>
+            {segments.map((seg, i) => {
+              if (seg.type === 'text') return <span key={i}>{seg.text}</span>;
+              if (!seg.file) return <span key={i} style={{ color: 'var(--theme-fg-secondary)', border: '1px dashed var(--theme-border)', borderRadius: 4, padding: '0 5px' }} title="This linked file no longer exists.">⚠ {seg.label} (missing)</span>;
+              if (seg.image && seg.file.url) return <img key={i} src={seg.file.url} alt={seg.label ?? ''} style={{ display: 'block', maxWidth: '100%', borderRadius: 6, margin: '6px 0' }} />;
+              return <a key={i} href={seg.file.url ?? '#'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--theme-accent)', textDecoration: 'underline' }}>{seg.label || seg.file.name || 'file'}</a>;
+            })}
+          </div>
+        )}
+      {status && <div aria-live="polite" style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary)' }}>{status}</div>}
     </div>
   );
 }
@@ -514,6 +605,7 @@ const TAB_DESCRIPTIONS: Record<FieldTab, { title: string; description: string }>
   job:       { title: 'Job summary',       description: "Job header, tasks, and notes for the active job." },
   calc:      { title: 'Calculator',        description: 'A quick field calculator.' },
   notes:     { title: 'Notes',             description: 'Per-job field notes.' },
+  instructions: { title: 'Instructions',   description: 'RPLS-authored job instructions with linked files.' },
   photo:     { title: 'Photo + Video',     description: 'Camera capture wired to the job. OCR + caption + auto-upload.' },
   points:    { title: 'Point recording',   description: 'GPS point capture with description. PNEZD export.' },
   mileage:   { title: 'Mileage tracking',  description: 'GPS start/stop or manual entry. Auto-distance.' },
