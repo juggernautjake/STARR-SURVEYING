@@ -81,4 +81,15 @@ describe('FieldCrewWorkspace is job-driven (B1/B2)', () => {
     expect(SRC).toContain('<JobInstructions');
     expect(SRC).toContain('/api/admin/jobs/${jobId}/instructions');
   });
+
+  it('MOBILE — the tab bar is a single swipeable row (no wrap) with touch-sized targets', () => {
+    expect(SRC).toContain("flexWrap: 'nowrap'"); // one scrollable row, not a wrapped block on a phone
+    expect(SRC).toContain("overflowX: 'auto'");
+    expect(SRC).toContain('minHeight: 44'); // ≥44px touch target on each tab
+    expect(SRC).toContain("touchAction: 'manipulation'");
+  });
+  it('MOBILE — cards never exceed the viewport width (responsive maxWidth)', () => {
+    expect(SRC).toContain("maxWidth: 'min(360px, 100%)'"); // fixed 360 would overflow a 375px phone with padding
+    expect(SRC).not.toMatch(/maxWidth: 360[,\s}]/); // no bare fixed widths left
+  });
 });

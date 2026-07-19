@@ -84,7 +84,10 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
         <JobPicker value={jobId} onChange={setJobId} jobs={jobs} loading={loadingJobs} />
       </div>
 
-      <nav role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, borderBottom: '1px solid var(--theme-border)' }}>
+      {/* Mobile-first tab bar: a single swipeable row (horizontal scroll) instead of wrapping 14 tabs into a
+          cluttered block on a phone; touch-sized targets (≥44px). The scrollbar is hidden for a clean field look. */}
+      <style>{`.wm-tabs{scrollbar-width:none;-ms-overflow-style:none;}.wm-tabs::-webkit-scrollbar{height:0;display:none;}`}</style>
+      <nav className="wm-tabs" role="tablist" style={{ display: 'flex', flexWrap: 'nowrap', gap: 2, borderBottom: '1px solid var(--theme-border)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -93,7 +96,10 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
             aria-selected={activeTab === t.id}
             onClick={() => setActiveTab(t.id)}
             style={{
-              padding: '6px 12px',
+              padding: '11px 14px',
+              minHeight: 44,
+              flex: '0 0 auto',
+              whiteSpace: 'nowrap',
               border: 'none',
               borderBottom: activeTab === t.id ? '2px solid var(--theme-accent)' : '2px solid transparent',
               background: 'transparent',
@@ -103,7 +109,8 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 4,
+              gap: 5,
+              touchAction: 'manipulation',
             }}
           >
             <span aria-hidden>{t.icon}</span> {t.label}
@@ -128,13 +135,13 @@ export default function FieldCrewWorkspace({ userEmail: _ }: FieldCrewWorkspaceP
 
 function JobPicker({ value, onChange, jobs, loading }: { value: string | null; onChange: (id: string | null) => void; jobs: FieldJob[]; loading: boolean }) {
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--hub-font-sm, 0.875rem)' }}>
-      <span style={{ color: 'var(--theme-fg-secondary)' }}>Active job:</span>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--hub-font-sm, 0.875rem)', flex: '1 1 240px', minWidth: 0 }}>
+      <span style={{ color: 'var(--theme-fg-secondary)', whiteSpace: 'nowrap' }}>Active job:</span>
       <select
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value || null)}
         disabled={loading}
-        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.85rem', minWidth: 200 }}
+        style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '0.9rem', flex: 1, minWidth: 0, minHeight: 40 }}
       >
         <option value="">{loading ? 'Loading jobs…' : 'Select a job…'}</option>
         {jobs.map((j) => (
@@ -256,7 +263,7 @@ function FieldCalculator() {
   const preview = result === null ? '' : formatCalcResult(result);
   const push = (s: string) => setExpr((e) => e + s);
   const keys: string[] = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '0', '.', '(', ')'];
-  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 320 };
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 'min(320px, 100%)' };
   const btn: React.CSSProperties = { padding: '12px 0', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', fontSize: '1.05rem', cursor: 'pointer' };
 
   return (
@@ -324,7 +331,7 @@ function MileageTracker() {
     }
   }
 
-  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 360, display: 'grid', gap: 10 };
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 'min(360px, 100%)', display: 'grid', gap: 10 };
   const field: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', width: '100%' };
 
   return (
@@ -406,7 +413,7 @@ function JobInstructions({ jobId }: { jobId: string | null }) {
     } catch { setStatus('Network error — not saved.'); }
   }
 
-  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 640, display: 'grid', gap: 12 };
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 'min(640px, 100%)', display: 'grid', gap: 12 };
   if (!jobId) return <div style={card}>Pick an active job to see its instructions.</div>;
 
   return (
@@ -473,7 +480,7 @@ function FieldAssistant({ job }: { job: FieldJob | null }) {
     }
   }
 
-  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 640, display: 'grid', gap: 12 };
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 'min(640px, 100%)', display: 'grid', gap: 12 };
   return (
     <div style={card}>
       <div style={{ fontWeight: 600, color: 'var(--theme-fg-primary)' }}>🤖 Field assistant</div>
@@ -519,7 +526,7 @@ function SurveyingTools() {
   for (const inp of op?.inputs ?? []) args[inp.key] = inp.kind === 'quadrant' ? (vals[inp.key] ?? 'NE') : Number(vals[inp.key]);
   const res = op ? op.compute(args) : { error: 'Pick an operation.' };
 
-  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 360, display: 'grid', gap: 10 };
+  const card: React.CSSProperties = { padding: 'var(--hub-spc-4, 16px)', borderRadius: 8, background: 'var(--theme-bg-surface)', border: '1px solid var(--theme-border)', maxWidth: 'min(360px, 100%)', display: 'grid', gap: 10 };
   const field: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--theme-border)', background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-primary)', width: '100%' };
   const CAT_LABEL: Record<string, string> = { convert: 'Bearing / Azimuth', angle: 'Angles', triangle: 'Triangles & Trig', traverse: 'Traverse' };
 
