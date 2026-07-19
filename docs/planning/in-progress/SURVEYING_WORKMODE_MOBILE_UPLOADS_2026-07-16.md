@@ -343,8 +343,15 @@ below states what it reuses.
       per-station angle math the diagram module lacked — `backAzimuth` (reverse direction), `angleRight`
       (clockwise sweep), `deflectionAngle` (magnitude + L/R/straight), and `interiorAngle` (verified: a square's
       four interior angles sum to 360 = (n−2)×180). Reuses `normalizeAngle` from `triangle.ts`.
-      `__tests__/surveying/angles.test.ts` (9). *Next: the Work Mode calculator UI wires all of these + the
-      existing convert/math modules into one surveying-focused keypad.*
+      `__tests__/surveying/angles.test.ts` (9). **Operation CATALOG shipped (`lib/surveying/calculator.ts`):**
+      the UI-ready single source of truth — `SURVEYING_OPERATIONS` lists every calculator operation
+      (bearing↔azimuth, angle add/subtract, complement/supplement, back-azimuth, deflection, interior angle,
+      Pythagorean hyp/leg, law of sines/cosines side+angle, latitude & departure), each with declared inputs +
+      a pure `compute` that calls the existing module function and returns a FORMATTED value or a friendly
+      error (never NaN, never throws). `operationsByCategory` groups them for a tabbed keypad. So the calculator
+      SCREEN just renders this list — the buttons and the math can't drift. `__tests__/surveying/calculator.test.ts`
+      (10: catalog integrity, no-throw on empty args, and representative correct computes). **The calculator's
+      logic is now complete; only the React keypad component (binding to this catalog) remains — a UI slice.**
 - [ ] **D2 — Work Mode job switcher + job-info header.** A job `<select>` to switch the active job in Work
       Mode (extends B1's picker) + a formatted header (address via `lib/jobs/location`, property id, tap-to-call
       numbers via `telHref` for the client + every `job_contacts` phone). Reuse the A1/A2/B2 helpers.
