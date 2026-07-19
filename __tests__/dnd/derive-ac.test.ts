@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { deriveAc } from '@/app/dnd/_sheet/lib/derive-ac';
-import type { InvItem } from '@/app/dnd/_sheet/types';
+import type { InvItem, ArmorStats } from '@/app/dnd/_sheet/types';
 
 // Slice 5 of DND_ITEM_BUILDER: equipped armor/shield/effects → AC.
 const armor = (over: Partial<InvItem>): InvItem => ({ id: 'x', name: 'Item', desc: '', qty: 1, tags: [], ...over });
@@ -118,5 +118,47 @@ describe('deriveAc', () => {
     expect(r.ac).toBe(17);
     expect(r.effectBonus).toBe(2);
     expect(r.source).toContain('Shield of Faith');
+  });
+});
+
+// Owner request 2026-07-19: pick the base AC *and* the modifier when building armor.
+// The category still supplies the defaults; modAbility/modCap override them.
+describe('deriveAc — chosen modifier', () => {
+  const worn = (a: Partial<ArmorStats>): InvItem[] => [
+    { id: 'a', name: 'Homebrew', desc: '', qty: 1, tags: [], kind: 'armor', equipped: true, armor: { category: 'light', ...a } },
+  ];
+  const mods = { str: 1, dex: 3, con: 2, int: 0, wis: 4, cha: -1 };
+
+  it('scales off a non-dex ability when asked', () => {
+    // A wisdom-keyed robe: 11 base + WIS 4 = 15, ignoring the dex 3 passed positionally.
+    expect(deriveAc(worn({ baseAC: 11, modAbility: 'wis' }), 3, 10, undefined, true, mods).ac).toBe(15);
+  });
+
+  it('honours an explicit cap over the category default', () => {
+    // Medium would cap at 2; modCap 1 wins.
+    expect(deriveAc(worn({ category: 'medium', baseAC: 14, modCap: 1 }), 3, 10, undefined, true, mods).ac).toBe(15);
+  });
+
+  it('lets heavy armor allow a modifier when explicitly set', () => {
+    expect(deriveAc(worn({ category: 'heavy', baseAC: 18, modAbility: 'dex', modCap: 1 }), 3, 10, undefined, true, mods).ac).toBe(19);
+  });
+
+  it("applies 'none' as a flat base with no modifier", () => {
+    expect(deriveAc(worn({ baseAC: 16, modAbility: 'none' }), 5, 10, undefined, true, mods).ac).toBe(16);
+  });
+
+  it('keeps the old category defaults when no modifier is chosen', () => {
+    expect(deriveAc(worn({ category: 'light', baseAC: 11 }), 3, 10).ac).toBe(14); // full dex
+    expect(deriveAc(worn({ category: 'medium', baseAC: 14 }), 3, 10).ac).toBe(16); // dex capped at 2
+    expect(deriveAc(worn({ category: 'heavy', baseAC: 18 }), 3, 10).ac).toBe(18); // none
+  });
+
+  it('still respects the legacy dexCap field on items saved before modCap existed', () => {
+    expect(deriveAc(worn({ category: 'medium', baseAC: 14, dexCap: 3 }), 5, 10).ac).toBe(17);
+  });
+
+  it('applies nothing at all when the armor is not equipped', () => {
+    const off = worn({ baseAC: 18, modAbility: 'wis' }).map((i) => ({ ...i, equipped: false }));
+    expect(deriveAc(off, 3, 12, undefined, true, mods).ac).toBe(12);
   });
 });

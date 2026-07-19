@@ -4,7 +4,7 @@
 //     heavy = base (no DEX). No equipped body armor → the character's manual AC is the base.
 //   • an equipped shield adds its bonus.
 //   • every equipped/attuned item's `ac`-add effects stack on top (e.g. Ring of Protection +1).
-import type { InvItem, ActiveEffect } from '../types'
+import type { InvItem, ActiveEffect, ArmorStats } from '../types'
 import { isItemActive } from '@/lib/dnd/effects/ledger'
 
 export interface AcResult {
@@ -35,9 +35,27 @@ function acEffectBonus(items: InvItem[], autoAttune: boolean): { bonus: number; 
   return { bonus, sources }
 }
 
+export type AbilityMods = Partial<Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>>
+
+/** The ability bonus an armor contributes on top of its base AC.
+ *
+ *  The CATEGORY supplies the defaults — light adds full dex, medium adds dex capped
+ *  at 2, heavy adds nothing — but an item may override both which ability it scales
+ *  with (`modAbility`) and how much of it counts (`modCap`), which is what makes
+ *  homebrew armor expressible. `dexCap` is the older field and is still honoured so
+ *  items saved before this existed keep their behaviour. */
+export function armorModBonus(a: ArmorStats, dexMod: number, abilityMods?: AbilityMods): number {
+  const ability = a.modAbility ?? (a.category === 'heavy' ? 'none' : 'dex')
+  if (ability === 'none') return 0
+  const raw = ability === 'dex' ? (abilityMods?.dex ?? dexMod) : (abilityMods?.[ability] ?? 0)
+  const cap = a.modCap ?? a.dexCap ?? (a.category === 'medium' ? 2 : null)
+  return cap == null ? raw : Math.min(raw, cap)
+}
+
 /** Compute AC from the inventory + any active temporary effects. `manualAc` is the
- *  character's hand-set / unarmored value, used as the base when no body armor is equipped. */
-export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[], autoAttune = true): AcResult {
+ *  character's hand-set / unarmored value, used as the base when no body armor is equipped.
+ *  `abilityMods` lets armor scale off an ability other than dex; without it only dex works. */
+export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manualAc: number, activeEffects?: ActiveEffect[], autoAttune = true, abilityMods?: AbilityMods): AcResult {
   const items = inventory ?? []
   // "Worn" = equipped by the flag OR by the 'equipped' TAG — the SAME predicate the ledger's isEquipped
   // uses (and that acEffectBonus above already honors). Without this, a body armor equipped via the tag
@@ -64,7 +82,7 @@ export function deriveAc(inventory: InvItem[] | undefined, dexMod: number, manua
   if (bodyArmor?.armor) {
     const a = bodyArmor.armor
     const b = a.baseAC ?? 10
-    base = a.category === 'light' ? b + dexMod : a.category === 'medium' ? b + Math.min(dexMod, a.dexCap ?? 2) : b
+    base = b + armorModBonus(a, dexMod, abilityMods)
     baseSource = bodyArmor.name
   }
 

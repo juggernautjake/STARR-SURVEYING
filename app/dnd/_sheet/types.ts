@@ -173,8 +173,14 @@ export interface WeaponStats {
 export interface ArmorStats {
   category: 'light' | 'medium' | 'heavy' | 'shield'
   baseAC?: number // body-armor base AC, or a shield's flat bonus
-  dexCap?: number | null // medium = 2, heavy = 0, light = null (uncapped)
+  dexCap?: number | null // legacy cap, superseded by modCap; still honoured on old items
   stealthDisadvantage?: boolean
+  // Which ability modifier adds to the base AC, and how much of it counts. The
+  // category only supplies the DEFAULTS (light = uncapped dex, medium = dex capped
+  // at 2, heavy = none); setting these lets a homebrew piece do anything — a
+  // wisdom-scaling robe, a heavy plate that still allows +1, and so on.
+  modAbility?: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha' | 'none'
+  modCap?: number | null // null/undefined = uncapped
 }
 
 export interface ConsumableStats {

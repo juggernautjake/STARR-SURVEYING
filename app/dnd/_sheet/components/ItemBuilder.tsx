@@ -14,6 +14,9 @@ import { findTarget, targetsInGroup, describeEffect, validateEffect, TARGET_GROU
 import { nextCustomized } from '../lib/customized'
 import { diffFields, logManualEdits } from '../lib/log-edit'
 import { cleanTriggers } from '@/lib/dnd/effects/triggers'
+import { armorModBonus } from '../lib/derive-ac'
+import { abilityMod } from '../rules/dnd'
+import { useChar } from '../state/store'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -42,10 +45,28 @@ export default function ItemBuilder({
   const [uploading, setUploading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { abilities } = useChar()
 
   const patch = (p: Partial<InvItem>) => setIt((v) => ({ ...v, ...p }))
   const patchWeapon = (p: Partial<WeaponStats>) => setIt((v) => ({ ...v, weapon: { damage: { dice: '1d6', type: 'slashing' }, ...v.weapon, ...p } }))
   const patchArmor = (p: Partial<ArmorStats>) => setIt((v) => ({ ...v, armor: { category: v.kind === 'shield' ? 'shield' : 'light', ...v.armor, ...p } }))
+
+  // Live AC preview for the armor block, resolved against THIS character's effective mods
+  // (the same ledger-overlaid scores the sheet uses) so the number here matches what the
+  // Combat panel will show once the piece is equipped.
+  const previewMods = {
+    str: abilityMod(abilities.str), dex: abilityMod(abilities.dex), con: abilityMod(abilities.con),
+    int: abilityMod(abilities.int), wis: abilityMod(abilities.wis), cha: abilityMod(abilities.cha),
+  }
+  const acPreview = (() => {
+    const a: ArmorStats = it.armor ?? { category: 'light' }
+    const base = a.baseAC ?? 10
+    const bonus = armorModBonus(a, previewMods.dex, previewMods)
+    const ability = a.modAbility ?? (a.category === 'heavy' ? 'none' : 'dex')
+    const cap = a.modCap ?? a.dexCap ?? (a.category === 'medium' ? 2 : null)
+    const uncapped = ability === 'none' ? 0 : previewMods[ability as keyof typeof previewMods] ?? 0
+    return { total: base + bonus, base, bonus, label: ability === 'none' ? '' : ability.toUpperCase(), capped: cap != null && uncapped > cap }
+  })()
   const patchConsumable = (p: Partial<ConsumableStats['effect']>) => setIt((v) => ({ ...v, consumable: { effect: { kind: 'heal', ...v.consumable?.effect, ...p } } }))
 
   async function uploadImage(file: File) {
@@ -218,10 +239,43 @@ export default function ItemBuilder({
             <input style={fieldStyle} type="number" value={it.armor?.baseAC ?? ''} placeholder={kind === 'shield' ? '2' : '14'} onChange={(e) => patchArmor({ baseAC: Number(e.target.value) || 0 })} />
           </div>
           {kind !== 'shield' && (
-            <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)', alignSelf: 'flex-end' }}>
-              <input type="checkbox" checked={!!it.armor?.stealthDisadvantage} onChange={(e) => patchArmor({ stealthDisadvantage: e.target.checked })} /> Stealth disadvantage
-            </label>
+            <>
+              <div style={{ width: 130 }}>
+                <label style={lab}>Modifier</label>
+                <select
+                  style={fieldStyle}
+                  value={it.armor?.modAbility ?? (it.armor?.category === 'heavy' ? 'none' : 'dex')}
+                  onChange={(e) => patchArmor({ modAbility: e.target.value as NonNullable<ArmorStats['modAbility']> })}
+                >
+                  <option value="none">none</option>
+                  {(['str', 'dex', 'con', 'int', 'wis', 'cha'] as const).map((a) => <option key={a} value={a}>{a.toUpperCase()}</option>)}
+                </select>
+              </div>
+              <div style={{ width: 110 }}>
+                <label style={lab}>Max modifier</label>
+                <input
+                  style={fieldStyle} type="number"
+                  value={it.armor?.modCap ?? it.armor?.dexCap ?? ''}
+                  placeholder={it.armor?.category === 'medium' ? '2' : 'none'}
+                  onChange={(e) => patchArmor({ modCap: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </div>
+              <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)', alignSelf: 'flex-end' }}>
+                <input type="checkbox" checked={!!it.armor?.stealthDisadvantage} onChange={(e) => patchArmor({ stealthDisadvantage: e.target.checked })} /> Stealth disadvantage
+              </label>
+            </>
           )}
+          {/* Live total, using THIS character's current mods — so you can see what the piece
+              will actually give you before saving, and that it only counts when equipped. */}
+          <div style={{ width: '100%', fontSize: 12, color: 'var(--muted, #9aa)', paddingTop: 2 }}>
+            {kind === 'shield'
+              ? <>Adds <b style={{ color: 'var(--ink)' }}>+{it.armor?.baseAC ?? 2}</b> to AC while equipped.</>
+              : <>
+                  AC while equipped: <b style={{ color: 'var(--ink)' }}>{acPreview.total}</b>
+                  {' '}= {acPreview.base} base{acPreview.bonus !== 0 ? ` ${acPreview.bonus > 0 ? '+' : '−'} ${Math.abs(acPreview.bonus)} ${acPreview.label}` : ''}
+                  {acPreview.capped ? ' (capped)' : ''}
+                </>}
+          </div>
         </div>
       )}
 

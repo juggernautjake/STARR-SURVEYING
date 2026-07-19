@@ -18,6 +18,7 @@ import { useLiveEngagement } from './useLiveEngagement'
 import { useChar } from '../state/store'
 import { rollD20 } from '../lib/dice'
 import { donationAlert } from '../lib/audio'
+import { clampBox, isStranded, RESET_TITLE } from '../lib/floating'
 import { abilityMod } from '../rules/dnd'
 import { postRoll } from '@/app/dnd/_ui/RollFeed'
 
@@ -516,7 +517,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
       if (!raw) return
       const saved = JSON.parse(raw) as { pos?: { x: number; y: number } | null; size?: { w: number; h: number }; open?: boolean }
       if (saved.size) setSize(saved.size)
-      if (saved.pos) setPos(saved.pos)
+      // Drop a saved position that would come back unreachable (e.g. one stored under the
+      // header by an older build). Falling back to null re-docks it in the corner.
+      if (saved.pos) setPos(isStranded(saved.pos.y, saved.pos.x, saved.size?.w ?? size.w) ? null : saved.pos)
       if (typeof saved.open === 'boolean') setOpen(saved.open)
     } catch { /* ignore bad saved state */ }
   }, [dockKey])
@@ -528,7 +531,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
   // Keep the dock on-screen when the window shrinks.
   useEffect(() => {
     const onResize = () =>
-      setPos((p) => (p ? { x: Math.min(p.x, window.innerWidth - 80), y: Math.min(p.y, window.innerHeight - 44) } : p))
+      setPos((p) => (p ? clampBox(p.x, p.y, size.w, size.h) : p))
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -549,10 +552,13 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
     if (!dragOff.current) return
     const el = dockRef.current
     const w = el?.offsetWidth ?? size.w
-    const x = Math.min(window.innerWidth - w - 6, Math.max(6, e.clientX - dragOff.current.dx))
-    const y = Math.min(window.innerHeight - 44, Math.max(6, e.clientY - dragOff.current.dy))
-    setPos({ x, y })
+    const h = el?.offsetHeight ?? size.h
+    // Clamped below the sticky header so the drag bar can never slide under it.
+    setPos(clampBox(e.clientX - dragOff.current.dx, e.clientY - dragOff.current.dy, w, h))
   }
+  // Re-dock to the default corner — the escape hatch when the dock ends up somewhere
+  // awkward. Also bound to a double-click on the header.
+  const resetDock = () => setPos(null)
   const onDragEnd = () => {
     dragOff.current = null
     window.removeEventListener('pointermove', onDragMove)
@@ -642,7 +648,7 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
 
   return (
     <div className="stream-dock" ref={dockRef} style={dockStyle}>
-      <div className="stream-dock-head" onPointerDown={onDragStart} title="Drag to move">
+      <div className="stream-dock-head" onPointerDown={onDragStart} onDoubleClick={resetDock} title="Drag to move · double-click to reset position">
         <span className="sd-live">● LIVE</span>
         <span className="sd-count" title="Live viewers (fluctuates as people come and go)">{displayViewers.toLocaleString()} watching</span>
         {(isOwnerMod || isDM) && (
@@ -653,6 +659,9 @@ export default function StreamChat({ characterId, campaignId, initialStream, vie
         {pausedLocal && <span className="sd-mode" style={{ background: '#ff5252', color: '#fff', borderColor: '#ff5252' }}>⏸ paused</span>}
         {chatMode !== 'off' && modeMeta && (
           <span className="sd-mode">{modeMeta.icon} {modeMeta.label}</span>
+        )}
+        {pos && (
+          <button className="sd-min" onClick={resetDock} title={RESET_TITLE} aria-label={RESET_TITLE}>↺</button>
         )}
         <button className="sd-min" onClick={() => setOpen(false)} title="Minimize the chat to a floating button">▾</button>
       </div>

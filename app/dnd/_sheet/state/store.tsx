@@ -618,9 +618,14 @@ export function CharacterProvider({
   // Derived Armor Class — ONE source so the StatRail and the Combat panel can never disagree (Slice 13's
   // "one answer" rule). Equipped armor/shield + effective DEX + item/effect AC bonuses; falls back to the
   // manual `combat.ac` when nothing is equipped. Uses the effective DEX so a DEX item raises AC.
+  // All six effective mods go through, so armor that scales off something other than DEX
+  // (a wisdom-keyed robe, say) resolves against the same ledger-overlaid scores.
   const acInfo = useMemo(
-    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects, autoAttune),
-    [char.inventory, abilities.dex, char.combat.ac, char.activeEffects, autoAttune],
+    () => deriveAc(char.inventory, abilityMod(abilities.dex), char.combat.ac, char.activeEffects, autoAttune, {
+      str: abilityMod(abilities.str), dex: abilityMod(abilities.dex), con: abilityMod(abilities.con),
+      int: abilityMod(abilities.int), wis: abilityMod(abilities.wis), cha: abilityMod(abilities.cha),
+    }),
+    [char.inventory, abilities, char.combat.ac, char.activeEffects, autoAttune],
   )
 
   // The generic STR-based Save DC (8 + PB + STR, or the manual override) — derived once so the StatRail

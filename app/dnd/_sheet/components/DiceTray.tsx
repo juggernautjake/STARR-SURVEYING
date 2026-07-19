@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
+import { clampBox, RESET_TITLE } from '../lib/floating'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
@@ -87,10 +88,14 @@ export default function DiceTray() {
     if (!dragOff.current) return
     const w = dragWidth.current ?? trayRef.current?.offsetWidth ?? 366
     const h = trayRef.current?.offsetHeight ?? 300
-    const x = Math.min(window.innerWidth - w - 6, Math.max(6, e.clientX - dragOff.current.dx))
-    const y = Math.min(window.innerHeight - h - 6, Math.max(6, e.clientY - dragOff.current.dy))
+    // clampBox keeps the head below the sticky header — dragging it under there used to
+    // hide the handle behind the header and strand the tray permanently.
+    const { x, y } = clampBox(e.clientX - dragOff.current.dx, e.clientY - dragOff.current.dy, w, h)
     setPos({ x, y, w })
   }
+  // Snap back to the docked sidebar position. Also reachable by double-clicking the head,
+  // for when the tray has been dragged somewhere awkward.
+  const resetPos = () => { setPos(null); dragWidth.current = null }
   const onDragEnd = () => {
     dragOff.current = null
     window.removeEventListener('pointermove', onDragMove)
@@ -111,9 +116,12 @@ export default function DiceTray() {
 
   return (
     <div className={`tray ${pos ? 'floating' : ''}`} data-dice-style={diceStyle} ref={trayRef} style={posStyle} onMouseDown={primeAudio}>
-      <div className="tray-head drag-handle" onPointerDown={onDragStart} title="Drag to move">
+      <div className="tray-head drag-handle" onPointerDown={onDragStart} onDoubleClick={resetPos} title="Drag to move · double-click to reset position">
         <div className="tray-title">⠿ Dice Core</div>
         <div className="btn-row">
+          {pos && (
+            <button type="button" onClick={resetPos} title={RESET_TITLE} aria-label={RESET_TITLE}>↺</button>
+          )}
           {/* Dice-roller style selector (owner 2026-07-18) — switch the roller's look from the roller itself.
               Defaults to the campaign/player preference; the override is per-session. */}
           <select
