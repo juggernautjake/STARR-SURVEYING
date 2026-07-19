@@ -406,3 +406,20 @@ describe('player renders spinning galaxies (kind "spingalaxy") like the editor (
     expect(MAP3D).not.toContain("kind === 'spingalaxy' || kind === 'planet3d'"); // spingalaxy is NOT native-3D
   });
 });
+
+describe('player edge-feather (fade) parity with the editor (owner 2026-07-19)', () => {
+  it('the console applies the same fadeMask (radial + edges shapes) as map-studio', () => {
+    expect(SRC).toContain('function fadeMask(i){const f=i.fade||0;if(f<=0)return "";');
+    expect(SRC).toContain('radial-gradient(closest-side, #000 ${start}%, rgba(0,0,0,${endA}) 100%)'); // radial fade
+    expect(SRC).toContain('mask-composite:intersect;'); // rectangular "edges" fade
+  });
+  it('the fade mask is applied to a body\'s .art (image + spinning galaxy feathered to transparent)', () => {
+    expect(SRC).toContain('const fadeCss=fadeMask(i);');
+    expect(SRC).toContain('(i.kind==="image"||i.kind==="spingalaxy")?` style="overflow:hidden;${fadeCss}"`');
+  });
+  it('spiral RING blending is the engine feather (fromConfig(dsCfg) sets it) — same slices as the DM', () => {
+    // DiffSpinGalaxy.fromConfig copies cfg.feather → this.feather, then re-slices with feathered ring edges.
+    expect(SRC).toContain('if(cfg.feather!=null)this.feather=cfg.feather;');
+    expect(SRC).toMatch(/fromConfig\(cfg\)\{[\s\S]*if\(this\.img\)this\._slice\(\);\}/);
+  });
+});

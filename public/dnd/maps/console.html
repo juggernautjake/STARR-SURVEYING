@@ -634,6 +634,21 @@ function polyArea(poly){let a=0;for(let i=0,j=poly.length-1;i<poly.length;j=i++)
 function polyCentroid(poly){let x=0,y=0;poly.forEach(p=>{x+=p.x;y+=p.y;});return {x:x/poly.length,y:y/poly.length};}
 function worldBounds(){let a={x:1e9,y:1e9},b={x:-1e9,y:-1e9};(MAP.sectors||[]).forEach(s=>s.points.forEach(p=>{a.x=Math.min(a.x,p.x);a.y=Math.min(a.y,p.y);b.x=Math.max(b.x,p.x);b.y=Math.max(b.y,p.y);}));(MAP.instances||[]).forEach(i=>{a.x=Math.min(a.x,i.x-i.size);a.y=Math.min(a.y,i.y-i.size);b.x=Math.max(b.x,i.x+i.size);b.y=Math.max(b.y,i.y+i.size);});if(a.x>b.x){a={x:-600,y:-600};b={x:600,y:600};}return {minX:a.x-200,minY:a.y-200,maxX:b.x+200,maxY:b.y+200};}
 function sectorPath(pts){return "M "+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" L ")+" Z";}
+// Edge feather — fade an image / spinning-galaxy's outer edge to transparent (how far in = fadeSpread, how much
+// = fade), radial (rounded) or from each edge (rectangular). Exactly the CSS mask the DM editor uses, so players
+// see the same soft blend. Returns "" when there's no fade (a no-op for planets/etc.). (owner 2026-07-19)
+function fadeMask(i){const f=i.fade||0;if(f<=0)return "";
+  const spread=Math.max(1,i.fadeSpread!=null?i.fadeSpread:35),endA=(1-f/100).toFixed(3);
+  if((i.fadeShape||"radial")==="edges"){
+    const s=Math.min(49,spread/2);
+    const h=`linear-gradient(to right, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    const v=`linear-gradient(to bottom, rgba(0,0,0,${endA}) 0%, #000 ${s}%, #000 ${100-s}%, rgba(0,0,0,${endA}) 100%)`;
+    return `-webkit-mask-image:${h},${v};-webkit-mask-composite:source-in;mask-image:${h},${v};mask-composite:intersect;`;
+  }
+  const start=Math.max(0,100-spread);
+  const m=`radial-gradient(closest-side, #000 ${start}%, rgba(0,0,0,${endA}) 100%)`;
+  return `-webkit-mask-image:${m};mask-image:${m};`;
+}
 function poiLayerHTML(i){if(!i.pois||!i.pois.length)return "";const sz=i.size,iconPx=clamp(sz*0.22,11,26);
   return `<div class="poilayer">`+i.pois.map(p=>{const lx=(0.5+(p.ax||0)*0.42)*100,ly=(0.5+(p.ay||0)*0.42)*100;
     return `<div class="poi" data-poi="${p.id}" data-body="${i.id}" title="${esc(p.title)} — ${poiType(p.type).label}" style="left:${lx}%;top:${ly}%">${poiIconSVG(p.type,iconPx)}</div>`;}).join("")+`</div>`;}
@@ -734,7 +749,8 @@ function render(){
       if(i.spiral&&i.spiral.on&&src)bodyHTML=`<canvas class="spiralcanvas" style="width:100%;height:100%;display:block"></canvas>`;   // layered spiral of the image
       else bodyHTML=src?`<img src="${src}" draggable="false" style="width:100%;height:100%;display:block;object-fit:${fit};object-position:${px}% ${py}%;pointer-events:none">`:(look.svgData?`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">${look.svgData}</div>`:art(look,true));}
     else bodyHTML=art(look,true);
-    const artStyle=i.kind==="image"?' style="overflow:hidden"':'';
+    const fadeCss=fadeMask(i);   // outer-edge feather (image / spinning galaxy), parity with the editor
+    const artStyle=(i.kind==="image"||i.kind==="spingalaxy")?` style="overflow:hidden;${fadeCss}"`:(fadeCss?` style="${fadeCss}"`:'');
     // Only genuinely ROUND bodies (planet/moon) get the opaque circular backing (.artbg is a border-radius:50%
     // disc that occludes the starfield behind the sphere). A station/debris/asteroid is NOT a filled circle, so
     // that disc showed as a phantom coloured "atmosphere" halo behind it — they render their own shaped art with
