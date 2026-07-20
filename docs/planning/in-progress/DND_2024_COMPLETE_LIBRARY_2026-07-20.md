@@ -63,7 +63,15 @@ character's own gallery and be **published deliberately**.
 - Deletion: confirm prompt (exists), row deleted (fixed 2026-07-19), **storage object removed**
   (fixed 2026-07-19) — verify end-to-end and make sure nothing renders a deleted image.
 
-### S2 — Tag + metadata model for every library entry
+### S2 — Tag + metadata model for every library entry ✅ SHIPPED 2026-07-20
+`lib/dnd/library-tags.ts` + 18 tests. Tags are DERIVED from fields the entry already carries —
+never hand-maintained, because a hand-authored tag rots the moment someone edits the underlying
+field and the filters then quietly lie. Groups: type, level, school, class, casting, duration,
+range, effect, damage, source. `effect` is the valuable one and the only bucket no single field
+carries — it is computed from the structured resolution (deals damage / healing / attack roll /
+saving throw / utility). Faceting semantics are OR-within-group, AND-across-groups; AND-within
+would make selecting two levels return nothing, the classic faceted-search bug.
+Original plan for reference:
 One vocabulary, applied to all content types, so filtering is uniform.
 - `LibraryTag` shape: `{ key, label, group }` with groups like `type`, `school`, `level`,
   `class`, `damage`, `range`, `duration`, `rarity`, `source`.
