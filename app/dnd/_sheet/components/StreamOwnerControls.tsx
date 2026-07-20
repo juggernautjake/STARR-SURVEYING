@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../state/store'
 import { formatNuggets, nuggetsToNotes, NUGGETS_PER_NOTE } from '@/lib/dnd/stream-currency'
+import { readNotes } from '@/lib/dnd/currency'
 import { MOODS } from '@/lib/dnd/stream-moods'
 
 interface OwnerStream { is_live: boolean; kibbles_earned: number }
@@ -20,7 +21,7 @@ const MOOD_REFRESH_MS = 15 * 60 * 1000 // AI refresh cadence
 const ALL_MOOD_IDS = MOODS.map((m) => m.id)
 
 export default function StreamOwnerControls() {
-  const { characterId, isDM, canWrite, campaignId, reloadFromDb } = useChar()
+  const { characterId, isDM, canWrite, campaignId, reloadFromDb, char } = useChar()
   // The streamer runs her OWN stream, in a campaign or out of it (owner 2026-07-19, reversing
   // the 2026-07-18 rule that hid this inside a campaign). She and the DM both hold the go-live
   // switch; last write wins, and each side sees the other's flip via the `dnd-stream-state`
@@ -30,6 +31,7 @@ export default function StreamOwnerControls() {
   const [stream, setStream] = useState<OwnerStream | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const [manualNotes, setManualNotes] = useState('')
   const heartbeatMoodAt = useRef(0)
 
   useEffect(() => {
@@ -98,6 +100,9 @@ export default function StreamOwnerControls() {
 
   const nuggets = stream.kibbles_earned
   const notes = nuggetsToNotes(nuggets)
+  // Read notes through the shared helper so this bar and the sheet's money panel agree —
+  // the flexible `currencies` list wins over the legacy `currency.credits` when present.
+  const heldNotes = readNotes(char.currencies, char.currency?.credits)
 
   const toggleLive = async () => {
     if (busy) return
@@ -115,6 +120,26 @@ export default function StreamOwnerControls() {
     } finally { setBusy(false) }
   }
 
+  const setNotesManually = async () => {
+    const n = Number(manualNotes)
+    if (busy || manualNotes.trim() === '' || !Number.isFinite(n) || n < 0) return
+    setBusy(true); setNote(null)
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/stream/convert`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setNotes: Math.floor(n) }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) {
+        setNote(`✍️ Notes set to ${j.totalNotes}.`)
+        setManualNotes('')
+        await reloadFromDb()
+      } else {
+        setNote(j.error || 'Could not set notes.')
+      }
+    } finally { setBusy(false) }
+  }
+
   const exchange = async () => {
     if (busy || notes < 1) return
     setBusy(true); setNote(null)
@@ -123,7 +148,12 @@ export default function StreamOwnerControls() {
       const j = await r.json().catch(() => ({}))
       if (r.ok) {
         setStream((s) => (s ? { ...s, kibbles_earned: Number(j.nuggetsLeft ?? 0) } : s))
-        setNote(`💰 Exchanged for ${j.notesAdded} note${j.notesAdded === 1 ? '' : 's'} — added to your inventory.`)
+        // Say what happened to the sub-note remainder rather than letting it vanish quietly.
+        const rem = Number(j.spentRemainder ?? 0)
+        setNote(
+          `💰 Exchanged for ${j.notesAdded} note${j.notesAdded === 1 ? '' : 's'} — you now hold ${j.totalNotes}.` +
+          (rem > 0 ? ` Your stash reset to zero (${formatNuggets(rem)} NeoNuggets under the next note were cashed with it).` : ' Your stash reset to zero.'),
+        )
         // Managing her stream counts as interaction (holds off the idle auto-end).
         void fetch(`/api/dnd/characters/${characterId}/stream`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ touchActivity: true }) }).catch(() => {})
         await reloadFromDb() // pull the updated notes onto the sheet
@@ -147,10 +177,29 @@ export default function StreamOwnerControls() {
         <span style={chip} title="Your running NeoNuggets from super chats (10,000 = 1 note)">
           {formatNuggets(nuggets)} <span style={{ color: 'var(--muted)', fontSize: 11 }}>NeoNuggets</span>
         </span>
+        {/* What's on the sheet right now, read through the same helper the sheet uses — so this
+            and the inventory can't disagree about how many notes you have. */}
+        <span style={chip} title="Notes currently on your sheet">
+          {heldNotes} <span style={{ color: 'var(--muted)', fontSize: 11 }}>notes</span>
+        </span>
         <button className="btn gold" onClick={exchange} disabled={busy || notes < 1}
-          title={notes < 1 ? `Need ${NUGGETS_PER_NOTE.toLocaleString()} NeoNuggets for 1 note` : `Exchange ${formatNuggets(nuggets)} for ${notes} note${notes === 1 ? '' : 's'}`}>
+          title={notes < 1 ? `Need ${NUGGETS_PER_NOTE.toLocaleString()} NeoNuggets for 1 note` : `Cash out ${formatNuggets(nuggets)} for ${notes} note${notes === 1 ? '' : 's'} — the stash resets to zero`}>
           💱 Exchange → {notes} note{notes === 1 ? '' : 's'}
         </button>
+      </div>
+
+      {/* Manual entry — for correcting a sheet whose notes drifted, or one that never received
+          an earlier conversion back when the payout wrote to a field the sheet didn't render. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12, color: 'var(--muted)' }} htmlFor="notes-manual">Set notes manually</label>
+        <input
+          id="notes-manual" type="number" min={0} value={manualNotes}
+          onChange={(e) => setManualNotes(e.target.value)}
+          placeholder={String(heldNotes)}
+          style={{ width: 110, padding: '4px 8px', fontSize: 13, background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 6, color: 'inherit' }}
+        />
+        <button className="btn tiny" onClick={setNotesManually} disabled={busy || manualNotes.trim() === ''}
+          title="Set your notes to exactly this number">Save</button>
       </div>
       {note && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--tealbright)' }}>{note}</p>}
     </section>

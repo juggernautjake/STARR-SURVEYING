@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { nuggetsToNotes, nuggetsRemainder, NUGGETS_PER_NOTE } from '@/lib/dnd/stream-currency';
+import { readNotes, writeNotes, type Currency } from '@/lib/dnd/currency';
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -17,22 +18,51 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const isDM = row.campaign_id ? (await getCampaignRole(row.campaign_id)) === 'dm' : false;
   if (!isDM && row.owner_user_id !== session.userId) return NextResponse.json({ error: 'Only the DM or owner can convert.' }, { status: 403 });
 
+  const body = await _req.json().catch(() => ({}));
+  const data = (row.data ?? {}) as { currency?: { credits?: number }; currencies?: Currency[] };
+  const before = readNotes(data.currencies, data.currency?.credits);
+
+  // MANUAL SET — the owner types the number of notes they actually have. Independent of the
+  // stash, so a sheet whose notes drifted (or never received an earlier broken conversion) can
+  // be corrected without inventing NeoNuggets to convert.
+  if (body.setNotes != null) {
+    const exact = Math.max(0, Math.floor(Number(body.setNotes) || 0));
+    const nextData = applyNotes(data, exact);
+    const { error } = await supabaseAdmin.from('dnd_characters').update({ data: nextData, updated_at: new Date().toISOString() }).eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, mode: 'set', notesAdded: exact - before, totalNotes: exact, nuggetsLeft: null });
+  }
+
   const { data: st } = await supabaseAdmin.from('dnd_stream_state').select('kibbles_earned').eq('character_id', params.id).maybeSingle();
   const earned = Number((st as { kibbles_earned?: number } | null)?.kibbles_earned ?? 0);
   const notes = nuggetsToNotes(earned);
   if (notes < 1) return NextResponse.json({ error: `Need at least ${NUGGETS_PER_NOTE.toLocaleString()} NeoNuggets to convert 1 note.` }, { status: 400 });
-  const leftover = nuggetsRemainder(earned);
+  // The whole stash is cashed out and the balance returns to zero, so the bar plainly reads
+  // "you have been paid" rather than leaving a confusing sub-note remainder sitting there
+  // (owner 2026-07-19). `spentRemainder` is reported, never silently swallowed.
+  const spentRemainder = nuggetsRemainder(earned);
 
-  // Add the notes onto the sheet. Notes are the campaign's base currency, stored on the
-  // sheet's `currency.credits` field (labelled "Notes" in the UI). Read-modify-write.
-  const data = (row.data ?? {}) as { currency?: { credits?: number } };
-  const currency = { ...(data.currency ?? {}) } as Record<string, number>;
-  currency.credits = Math.max(0, Math.floor(Number(currency.credits ?? 0))) + notes;
-  const nextData = { ...data, currency };
+  // Write the notes WHERE THE SHEET READS THEM. This is the bug: notes went onto the legacy
+  // fixed-key `currency.credits`, but a sheet with the flexible `currencies` list renders that
+  // list instead — so the payout was invisible and the feature looked broken.
+  const total = before + notes;
+  const nextData = applyNotes(data, total);
 
   const { error: dErr } = await supabaseAdmin.from('dnd_characters').update({ data: nextData, updated_at: new Date().toISOString() }).eq('id', params.id);
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
-  await supabaseAdmin.from('dnd_stream_state').upsert({ character_id: params.id, kibbles_earned: leftover }, { onConflict: 'character_id' });
+  await supabaseAdmin.from('dnd_stream_state').upsert({ character_id: params.id, kibbles_earned: 0 }, { onConflict: 'character_id' });
 
-  return NextResponse.json({ ok: true, notesAdded: notes, nuggetsLeft: leftover, totalNotes: currency.credits });
+  return NextResponse.json({ ok: true, mode: 'convert', notesAdded: notes, nuggetsLeft: 0, spentRemainder, totalNotes: total });
+}
+
+/** Put an exact note total onto the sheet, in whichever money model it uses. Keeps the legacy
+ *  field in step when a flexible list exists, so nothing reading the old shape goes stale. */
+function applyNotes(
+  data: { currency?: { credits?: number }; currencies?: Currency[] },
+  total: number,
+): Record<string, unknown> {
+  const flexible = writeNotes(data.currencies, total);
+  const legacy = { ...(data.currency ?? {}) } as Record<string, number>;
+  legacy.credits = total;
+  return flexible ? { ...data, currencies: flexible, currency: legacy } : { ...data, currency: legacy };
 }

@@ -92,3 +92,46 @@ export function fmtAmount(n: number): string {
   if (!isFiniteNum(n)) return '0';
   return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
 }
+
+// ── Notes: the streamer's payout currency ───────────────────────────────────
+// NeoNuggets convert into "notes" (the campaign's base currency, ≈ $1 each). The convert
+// route used to write them onto the LEGACY fixed-key `currency.credits`, but a sheet that has
+// migrated to the flexible `currencies` list renders that list INSTEAD — so the notes landed
+// in a field nothing displayed and the payout looked broken (owner report 2026-07-19).
+// These helpers put the money wherever the sheet is actually reading from.
+
+/** The id used for the notes currency when we have to create it. */
+export const NOTES_CURRENCY_ID = 'notes';
+
+/** The character's notes currency, matched by id or name (case-insensitive), or null. */
+export function findNotesCurrency(currencies: Currency[] | undefined): Currency | null {
+  if (!currencies?.length) return null;
+  return (
+    currencies.find((c) => c.id.toLowerCase() === NOTES_CURRENCY_ID) ??
+    currencies.find((c) => c.name.trim().toLowerCase() === 'notes') ??
+    null
+  );
+}
+
+/** How many notes the character holds, reading the flexible list first and falling back to the
+ *  legacy `currency.credits`. One answer, so the stream bar and the sheet can't disagree. */
+export function readNotes(
+  currencies: Currency[] | undefined,
+  legacyCredits?: number | null,
+): number {
+  const note = findNotesCurrency(currencies);
+  if (note) return Math.max(0, Math.floor(note.amount || 0));
+  return Math.max(0, Math.floor(Number(legacyCredits ?? 0)));
+}
+
+/** Set the character's notes to an exact amount, returning the updated list. Creates the notes
+ *  currency if the sheet has a `currencies` list but no notes entry yet — it enters at the BASE
+ *  rate, because notes are the campaign's base currency. Returns null when the sheet has no
+ *  flexible list at all, so the caller knows to write the legacy field instead. */
+export function writeNotes(currencies: Currency[] | undefined, amount: number): Currency[] | null {
+  if (!currencies) return null;
+  const next = Math.max(0, Math.floor(amount || 0));
+  const existing = findNotesCurrency(currencies);
+  if (existing) return currencies.map((c) => (c.id === existing.id ? { ...c, amount: next } : c));
+  return [...currencies, { id: NOTES_CURRENCY_ID, name: 'Notes', abbrev: 'n', amount: next, rate: 1 }];
+}
