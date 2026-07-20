@@ -69,24 +69,28 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
         </button>
         <nav className={styles.siteNav} role="menu">
           {/* Every item closes the menu on click; the Link still routes (we don't preventDefault). */}
-          <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>
+          {/* SIGNED OUT: the library is readable by anyone with the link, so the menu offers
+              exactly that plus a way to sign in (owner 2026-07-20). Everything else here
+              CREATES something and needs an account — "＋ Character" used to show signed-out and
+              would have dead-ended a visitor who tapped it. Reading is open; creating is gated. */}
           <Link href="/dnd/library" className={styles.siteNavLink} onClick={() => setOpen(false)}>Library</Link>
-          <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Character</Link>
-          {userName && (
-            <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
-          )}
-          {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
-              pick which campaign to make a map for. */}
-          {userName && (
-            <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Map</Link>
-          )}
           {userName ? (
-            <span className={styles.siteNavUser}>
-              <span style={{ opacity: 0.85 }}>Signed in as <strong>{userName}</strong></span>
-              <LogoutButton />
-            </span>
+            <>
+              <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>
+              <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Character</Link>
+              <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
+              {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
+                  pick which campaign to make a map for. */}
+              <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Map</Link>
+              <span className={styles.siteNavUser}>
+                <span style={{ opacity: 0.85 }}>Signed in as <strong>{userName}</strong></span>
+                <LogoutButton />
+              </span>
+            </>
           ) : (
-            <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Sign in</Link>
+            // Straight to the hub: /dnd/login is a legacy route that only redirects here, and
+            // the real sign-in / claim-name form lives on the hub itself.
+            <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Log in / Create account</Link>
           )}
         </nav>
       </div>

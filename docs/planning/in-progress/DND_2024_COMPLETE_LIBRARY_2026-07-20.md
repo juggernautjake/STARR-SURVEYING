@@ -165,6 +165,38 @@ assumption to drop silently; a test asserts every weapon has one. Wired into the
 a granted Longsword arrives as 1d8 slashing, Versatile, Mastery: Sap — not a bare name. Unknown
 items still grant WITHOUT stats rather than invented ones.
 
+### S12 — Public library: readable without an account ✅ SHIPPED 2026-07-20
+Narrower than expected: `/dnd` is already public by default (`DND_REQUIRE_LOGIN` unset) and the
+library pages never demanded a session, so shared links already worked. What was actually
+needed and is now done:
+- **Middleware** exempts `/dnd/library` even when `DND_REQUIRE_LOGIN=1`, so shared links survive
+  the day that switch is flipped rather than breaking silently.
+- **Signed-out menu** is exactly Library + "Log in / Create account". Everything that CREATES
+  something is hidden — "＋ Character" previously rendered signed-out and would have dead-ended
+  a visitor who tapped it. Reading is open, creating is gated.
+- **Relabelled** from "Sign in" to "Log in / Create account": a first-time visitor arriving on a
+  shared link needs to know they can make an account, not just sign into one they lack.
+- **Give-to-character** now tells a signed-out reader what to do instead of showing an empty
+  character list that looks broken.
+6 tests pin all of it. The library's AI chat already handles 401 by reporting the error, so it
+degrades rather than crashing — left as is.
+
+Original plan:
+The owner wants library pages shareable by URL: anyone opening the link reads the whole thing
+without signing in. Building a character or a campaign still requires an account — the gate
+moves from *reading* to *creating*.
+- Every `/dnd/library` route (index, `[key]`, and any deep link) accessible signed-out.
+- The signed-out navbar dropdown carries exactly two things: **Log in / Create account** and
+  **Library**. Signed-in keeps the existing menu with Library in it.
+- A Library link must be present on the login page itself and on every `/dnd` page.
+- Care needed: the library's grounded AI chat and the give-to-character button both require a
+  session. Signed-out they should be hidden or invite sign-in rather than erroring — a dead
+  button on a page you shared is worse than no button.
+- Check `middleware.ts` and the `/dnd` auth wrapper for what currently forces a session; the
+  D&D area is already "PUBLIC by direct link" for some routes, so this may be narrower than it
+  looks.
+**Not started.**
+
 ### S11 — Intuitive Games: complete system + full sheet maths (owner 2026-07-20)
 The owner asked for IG to be brought to the same standard as 2024: every weapon, item, armour,
 spell/power, stance, condition, ability, feat, occupation and ancestry present in the library,

@@ -112,6 +112,10 @@ function dndGate(req: Parameters<Parameters<typeof auth>[0]>[0]): NextResponse |
   const isPublic =
     pathname === '/dnd/login' ||
     pathname.startsWith('/dnd/join') ||
+    // The RULES LIBRARY is readable by anyone with the link, even when login is enforced
+    // (owner 2026-07-20): the owner shares library URLs with people who have no account.
+    // Reading rules is open; building a character or campaign still needs a session.
+    pathname.startsWith('/dnd/library') ||
     pathname === '/dnd/Lazzuh_Gun' ||
     pathname.startsWith('/dnd/Lazzuh_Gun/');
 

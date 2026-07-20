@@ -87,10 +87,14 @@ export default function GiveToCharacter({
         {chars === null ? (
           <p style={{ fontSize: 13, opacity: 0.75, marginTop: 12 }}>Loading your characters…</p>
         ) : chars.length === 0 ? (
-          // Honest empty state — this is also what a signed-out reader sees.
+          // Also what a SIGNED-OUT reader sees: the library is public, so someone with the link
+          // can open this dialog without an account. Say what to do rather than showing an empty
+          // list that looks broken (owner 2026-07-20).
           <p style={{ fontSize: 13, opacity: 0.8, marginTop: 12 }}>
-            You don’t have any characters you can edit. Create one, or ask your DM to assign you a
-            character, and it will appear here.
+            No characters you can edit. If you’re not signed in, the library is open to read but
+            you’ll need an account to add anything to a sheet —{' '}
+            <a href="/dnd" style={{ color: 'var(--hx-teal, #0ac8b9)' }}>log in or create one</a>.
+            Otherwise, create a character or ask your DM to assign you one.
           </p>
         ) : (
           <>

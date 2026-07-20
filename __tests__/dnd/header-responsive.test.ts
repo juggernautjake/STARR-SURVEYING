@@ -52,7 +52,10 @@ describe('DnD header nav dropdown', () => {
 
   it('offers the full nav — Library, +Character, +Campaign, +Map, sign-in/out', () => {
     for (const item of ['Library', '＋ Character', '＋ Campaign', '＋ Map']) expect(header).toContain(item);
-    expect(header).toContain('Sign in');
+    // Relabelled 2026-07-20: the signed-out menu now says "Log in / Create account", because
+    // the library is public and a first-time visitor arriving on a shared link needs to know
+    // they can make an account, not just sign into an existing one.
+    expect(header).toContain('Log in / Create account');
     expect(header).toContain('<LogoutButton />');
   });
 });
