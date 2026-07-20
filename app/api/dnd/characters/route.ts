@@ -20,10 +20,29 @@ export async function GET(req: NextRequest) {
   const campaignId = req.nextUrl.searchParams.get('campaignId');
   const npcOnly = req.nextUrl.searchParams.get('npc');
   const libraryOnly = req.nextUrl.searchParams.get('library');
+  // ?writable=1 — every character this user may EDIT, not just the ones they own.
+  //
+  // Without it the list and the write boundary disagree: resolveCharacterAccess grants
+  // canWrite to owner OR assigned player OR DM, but this route only ever matched
+  // owner_user_id, so a DM could edit a sheet that appeared in no list they could fetch.
+  // Anything that needs to OFFER a character to write to (the library's give-to-character
+  // chooser) needs the same set the write path will accept (owner 2026-07-19).
+  const writable = req.nextUrl.searchParams.get('writable');
 
   let query = supabaseAdmin.from('dnd_characters').select(LIST_COLS).order('updated_at', { ascending: false });
 
-  if (campaignId) {
+  if (writable && !campaignId) {
+    // Owned or played directly, plus every character in a campaign this user DMs.
+    const { data: dmRows } = await supabaseAdmin
+      .from('dnd_campaign_members')
+      .select('campaign_id')
+      .eq('user_id', session.userId)
+      .eq('role', 'dm');
+    const dmCampaigns = ((dmRows ?? []) as { campaign_id: string }[]).map((r) => r.campaign_id);
+    const clauses = [`owner_user_id.eq.${session.userId}`, `played_by_user_id.eq.${session.userId}`];
+    if (dmCampaigns.length) clauses.push(`campaign_id.in.(${dmCampaigns.join(',')})`);
+    query = query.or(clauses.join(','));
+  } else if (campaignId) {
     const isDM = (await getCampaignRole(campaignId)) === 'dm';
     query = query.eq('campaign_id', campaignId);
     // A DM sees all characters in their campaign; a player sees only their own.

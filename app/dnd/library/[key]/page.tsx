@@ -15,6 +15,7 @@ import { GAME_SYSTEMS, isSystemAvailable } from '@/lib/dnd/systems';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
+import GiveEntryButton from '@/app/dnd/_ui/GiveEntryButton';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
 import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -176,6 +177,9 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                       <div style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.65, marginTop: 6 }}>
                         <Rich text={e.detail} />
                       </div>
+                      {/* Hand this entry to one of your characters. Renders only for sections we
+                          can deliver as real sheet mechanics — see grantKindForSection. */}
+                      <GiveEntryButton sectionId={s.id} name={e.name} system={page.key} detail={e.detail} />
                     </details>
                   ))}
                 </div>
