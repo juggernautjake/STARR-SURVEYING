@@ -32,7 +32,11 @@ const CATEGORY_LABEL: Record<FeatCategory, string> = {
 }
 
 export default function FeatPicker({ onClose }: { onClose: () => void }) {
-  const { char, setChar, isDM } = useChar()
+  const { char, setChar, isDM, variantKind } = useChar()
+  // A VANILLA character is hard-blocked from an ineligible feat; a custom one may take it and is
+  // told what it is doing (owner 2026-07-20). This picker previously offered "＋ Anyway" to
+  // everyone, which made "rules-legal by default" a suggestion rather than a rule.
+  const isVanilla = variantKind === 'vanilla'
   const system = useSheetSystem()
   const [slot, setSlot] = useState<FeatSlot>('origin')
   const [q, setQ] = useState('')
@@ -61,6 +65,11 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
   }, [pool, q, ctx])
 
   const add = (f: Feat) => {
+    const elig = featEligibility(f, ctx)
+    // Re-checked here, not only on the button: `disabled` is an affordance, not an enforcement
+    // point.
+    if (isVanilla && !elig.ok && !isDM) return
+    const offRules = elig.ok ? undefined : (isDM ? `granted by the DM — ${elig.reason}` : elig.reason)
     setChar((c) => ({
       ...c,
       features: [...(c.features ?? []), {
@@ -69,6 +78,7 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
         source: `${CATEGORY_LABEL[f.category]} feat`,
         body: [f.benefit],
         unlockLevel: c.meta.level,
+        ...(offRules ? { offRules } : {}),
       }],
     }))
   }
@@ -111,7 +121,11 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={{ overflowY: 'auto', padding: '8px 14px 14px' }}>
-              {results.map(({ feat, elig }) => (
+              {results.map(({ feat, elig }) => {
+                // The DM is never blocked — granting a feat a character could not normally take
+                // is a legitimate DM act.
+                const blocked = isVanilla && !elig.ok && !isDM
+                return (
                 <div key={feat.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--line)', opacity: elig.ok ? 1 : 0.6 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>
@@ -124,22 +138,28 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
                     <div style={{ fontSize: 12.5, marginTop: 2 }}>{feat.benefit}</div>
                     {/* Why it's barred — the question the sheet should answer rather than hide. */}
                     {!elig.ok && (
-                      <div style={{ fontSize: 11.5, color: '#e0a020', marginTop: 3 }}>⚠ {elig.reason}</div>
+                      <div style={{ fontSize: 11.5, color: blocked ? 'var(--danger)' : '#e0a020', marginTop: 3 }}>
+                        {blocked ? '✕' : '⚠'} {elig.reason}
+                      </div>
                     )}
                   </div>
                   <button
                     className={`btn tiny ${elig.ok && !already(feat) ? 'solid' : ''}`}
                     onClick={() => add(feat)}
+                    disabled={blocked}
                     title={
-                      already(feat) ? `${feat.name} is already on this sheet — adding again makes a second copy`
-                        : elig.ok ? `Add ${feat.name}`
-                          : `Not legal here: ${elig.reason} — adding anyway is a deliberate override`
+                      blocked ? `Not available: ${elig.reason} (this is a vanilla character — build a custom one to take it anyway)`
+                        : already(feat) ? `${feat.name} is already on this sheet — adding again makes a second copy`
+                          : elig.ok ? `Add ${feat.name}`
+                            : `Not legal here: ${elig.reason} — adding anyway is a deliberate override`
                     }
+                    style={blocked ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                   >
-                    {already(feat) ? '＋ again' : elig.ok ? '＋ Add' : '＋ Anyway'}
+                    {blocked ? '✕ Blocked' : already(feat) ? '＋ again' : elig.ok ? '＋ Add' : '＋ Anyway'}
                   </button>
                 </div>
-              ))}
+                )
+              })}
               {results.length === 0 && (
                 <p style={{ color: 'var(--muted)', fontSize: 13, margin: '12px 0' }}>Nothing matches that search.</p>
               )}

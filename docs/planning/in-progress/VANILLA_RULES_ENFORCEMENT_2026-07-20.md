@@ -102,9 +102,13 @@ distinguishes "the DM gave me this" from "I took this outside the rules".
 here is *"was it legal for THIS character at THIS level?"* — a different question, so off-rules
 picks carry their own `Spell.offRules` field. **S6 should be re-planned accordingly.**
 
-### S4 — Same treatment for feats
-The feat picker currently warns and offers "＋ Anyway" to everyone. Under the new rule, vanilla
-must hard-block it. The eligibility core already exists — this is the gate, not new logic.
+### S4 — Same treatment for feats ✅ SHIPPED 2026-07-20
+As predicted, this was the gate and not new logic: `featEligibility` was already consulted and
+its reason already displayed — the picker then offered "＋ Anyway" to everyone, which made
+"rules-legal by default" a suggestion. Now `blocked = isVanilla && !elig.ok && !isDM` disables
+the button, `add()` re-checks, and a custom character's off-rules feat lands carrying `offRules`
+on the created feature. 9 tests. Same shape as S3 throughout, deliberately — two pickers that
+enforce differently is how one of them silently stops enforcing.
 
 ### S5 — Close the other two doors
 `buildGrantEdits` and the AI `add_spell` op both currently bypass everything. A DM grant stays

@@ -98,6 +98,11 @@ export interface FeatureBlock {
   image?: string
   /** Event-triggered reactions this feature carries (Slice 15) — surfaced when their event fires. */
   triggers?: Trigger[]
+  /** Why this feature is outside what the character's slot, level and prerequisites allow, e.g.
+   *  "requires Strength 13" (Area MV). Set when a CUSTOM character takes a feat a vanilla one
+   *  would be blocked from. Absent = taken legally. See `Spell.offRules` for why this is not
+   *  `provenance.ts`. */
+  offRules?: string
 }
 
 export interface FormAbility {
