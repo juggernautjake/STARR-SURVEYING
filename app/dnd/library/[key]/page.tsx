@@ -16,6 +16,7 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import GiveEntryButton from '@/app/dnd/_ui/GiveEntryButton';
+import SpellBrowser from '@/app/dnd/_ui/SpellBrowser';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
 import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -110,6 +111,10 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           />
 
           <LibrarySearch system={page.key} systemName={page.name} />
+
+          {/* Faceted spell browser — search + filter the whole catalog. Renders only for a
+              system that HAS one, so it simply doesn't appear where there's nothing to browse. */}
+          <SpellBrowser system={page.key} />
 
           {/* ── the rules, section by section ──────────────────────────── */}
           {/* Each section is a collapsible <details>, DEFAULT CLOSED (owner 2026-07-18): the page opens as a

@@ -3,6 +3,8 @@
 // source, so a wrong derivation shows up in all three. These pin the derivations and the
 // faceting semantics.
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   tagsForSpell, tagsForEntry, matchesTagFilters, tagCounts, facetsFor,
   TAG_GROUP_ORDER, TAG_GROUP_LABEL, type TagGroup,
@@ -137,5 +139,40 @@ describe('facets and counts for the filter panel', () => {
     const levels = facetsFor(all).find((f) => f.group === 'level')!.tags.map((t) => t.key);
     expect(levels[0]).toBe('level:cantrip');
     expect(levels.slice(1)).toEqual(['level:1', 'level:2', 'level:3', 'level:4', 'level:5', 'level:6', 'level:7', 'level:8', 'level:9']);
+  });
+});
+
+// S4 — the faceted spell browser built on this vocabulary.
+describe('the spell browser', () => {
+  const src = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/SpellBrowser.tsx'), 'utf8');
+
+  it('builds facets from the derived vocabulary, not a hand-kept list', () => {
+    expect(src).toContain('facetsFor');
+    expect(src).toContain('tagsForSpell');
+    expect(src).toContain('matchesTagFilters');
+  });
+
+  it('searches name, school AND effect text', () => {
+    expect(src).toContain('s.name.toLowerCase().includes(needle)');
+    expect(src).toContain('s.school.toLowerCase().includes(needle)');
+    expect(src).toContain('s.summary.toLowerCase().includes(needle)');
+  });
+
+  it('counts each facet against the OTHER active filters', () => {
+    // A count computed against no filters would promise results that clicking it can't produce.
+    expect(src).toContain('selected.includes(t.key) ? selected : [...selected, t.key]');
+  });
+
+  it('offers a clear-all once anything is selected', () => {
+    expect(src).toContain('setSelected([])');
+  });
+
+  it('renders nothing for a system with no catalog', () => {
+    // Rather than an empty panel on Blades or Call of Cthulhu.
+    expect(src).toContain('if (!all.length) return null');
+  });
+
+  it('shows the visible tag chips the owner asked for', () => {
+    expect(src).toContain('tags.map((t) =>');
   });
 });

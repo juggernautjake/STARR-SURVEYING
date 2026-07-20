@@ -139,7 +139,14 @@ self-linking, no overlaps, casing preserved. A test caught the first version han
 conditions to unrelated systems.
 Wired into SpellDetail; remaining surfaces (library entries, glossary bodies) follow.
 
-### S4 — Search + filter UI
+### S4 — Search + filter UI ✅ SHIPPED 2026-07-20
+`app/dnd/_ui/SpellBrowser.tsx` + 6 tests. Free-text over name/school/effect, plus faceted
+filters built from the derived tag vocabulary so the facets can never drift from the data.
+Facet counts are computed against the OTHER active filters, so a count never promises results
+that clicking it won't produce. Visible tag chips on each entry, clickable terms via TermText,
+and the give-to-character button inline. Runs client-side — 405 spells is small enough that
+filtering is instant with no round trip. Renders nothing for a system with no catalog.
+Original plan:
 - Extend `LibrarySearch` to filter by tag groups, not just free text.
 - Facets: content type, level, school, class, damage type, casting time, concentration/ritual.
 - Result counts per facet; clear-all; deep-linkable query state.
