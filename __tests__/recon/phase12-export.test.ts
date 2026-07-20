@@ -342,7 +342,14 @@ describe('renderToPng', () => {
 
 // ── PDF Tests ────────────────────────────────────────────────────────────────
 
-describe('renderToPdf', () => {
+// renderToPdf legitimately takes 4.7–6.6s per call, which straddles vitest's 5000ms default —
+// so these were a coin flip on every run, and two identical whole-suite runs would disagree
+// (fixed 2026-07-20). That is far worse than a slow test: intermittent red trains everyone to
+// ignore the suite, and a real regression hides in the noise. The work is genuinely slow, not
+// broken, so the honest fix is a timeout that matches reality rather than a retry.
+const PDF_TIMEOUT_MS = 30_000;
+
+describe('renderToPdf', { timeout: PDF_TIMEOUT_MS }, () => {
   it('returns a non-empty Buffer', async () => {
     const drawing = makeDrawing();
     const el = makeLineElement('e1', 'property_boundary');
