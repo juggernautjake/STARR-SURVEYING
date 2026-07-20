@@ -72,10 +72,18 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
   const hasMlm = config.modules.includes('mlm')
-  // Module tabs gate on sheet_type; the Spells tab is DATA-gated — shown only for casters
-  // (characters that actually have spells), so martials like Lazzuh don't get an empty tab.
+  // Module tabs gate on sheet_type. The Spells tab is DATA-gated so martials like Lazzuh don't
+  // get an empty tab — but that alone was a chicken-and-egg trap: a caster with no spells YET
+  // had no tab, and the only place to add spells is inside it, so they could never get any
+  // (owner 2026-07-19). Anyone who can edit the sheet now sees it, plus anyone who has spells,
+  // spell slots, or a spellcasting ability set. A read-only viewer of a spell-less character
+  // still doesn't get an empty tab.
+  const hasSpellcasting =
+    (char.spells?.length ?? 0) > 0 ||
+    !!char.spellcasting?.ability ||
+    Object.keys(char.spellcasting?.slots ?? {}).length > 0
   const visibleTabs = TABS.filter(
-    (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || (char.spells?.length ?? 0) > 0),
+    (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || hasSpellcasting || canWrite),
   )
 
   // Colour theme / skin variant (Area TH). A skin can offer several palettes (the default Hextech skin's

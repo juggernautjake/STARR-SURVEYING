@@ -13,6 +13,7 @@ import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import SpellEditor from './ui/SpellEditor'
 import SpellPicker from './ui/SpellPicker'
+import SpellDetail from './ui/SpellDetail'
 import type { Spell, SpellLevel } from '../types'
 
 const ORDINAL = ['Cantrips', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level', '9th Level']
@@ -26,9 +27,10 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, abilities, pb, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences } = useChar()
+  const { char, abilities, pb, setChar, editMode, canWrite, isDM, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const [picking, setPicking] = useState(false)
+  const [viewing, setViewing] = useState<Spell | null>(null)
   const duplicate = (sp: Spell) =>
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
   const remove = (sp: Spell) => {
@@ -48,8 +50,11 @@ export default function SpellsPanel() {
     setChar((c) => ({ ...c, spells: (c.spells ?? []).map((s) => (s.id === id ? { ...s, prepared: !s.prepared } : s)) }))
   }
 
-  // Show the tab if the character casts OR an item grants them a spell.
-  if ((!sc || spells.length === 0) && grantedSpells.length === 0) return null
+  // Show the panel if the character casts, an item grants them a spell, OR the viewer can edit.
+  // That last clause is the other half of the tab fix (owner 2026-07-19): App.tsx now shows the
+  // Spells tab to anyone who can write, but this early return would still have rendered an empty
+  // tab with no way to add anything — the add button below lives past this line.
+  if ((!sc || spells.length === 0) && grantedSpells.length === 0 && !canWrite) return null
 
   // Effective spellcasting ability + proficiency (Slice 10): a Headband of Intellect must raise the
   // Wizard's Spell Save DC and attack, not just the INT pill. The DC/attack then fold their own
@@ -125,7 +130,15 @@ export default function SpellsPanel() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={s.image} alt="" className="inv-thumb" />
                       )}
-                      {s.name}
+                      {/* Click the name for the full read: library detail, this character's
+                          numbers, and the AI ask box. */}
+                      <button
+                        type="button" onClick={() => setViewing(s)}
+                        title={`Read everything about ${s.name}`}
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}
+                      >
+                        {s.name}
+                      </button>
                       <EditMark on={s.customized} />
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}
                       {canWrite && (
@@ -214,11 +227,12 @@ export default function SpellsPanel() {
       {canWrite && (
         <div style={{ marginTop: 12 }}>
           <button className="btn tiny solid" onClick={() => setPicking(true)} title="Search the spell library and add a spell with its mechanics filled in">
-            ✦ Add spell from library
+            {isDM ? '✦ Grant a spell' : '✦ Add spell from library'}
           </button>
         </div>
       )}
 
+      {viewing && <SpellDetail spell={viewing} onClose={() => setViewing(null)} />}
       {picking && <SpellPicker onClose={() => setPicking(false)} />}
       {editing && <SpellEditor spell={editing} onClose={() => setEditing(null)} />}
     </section>

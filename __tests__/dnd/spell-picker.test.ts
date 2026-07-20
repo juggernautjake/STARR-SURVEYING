@@ -148,3 +148,71 @@ describe('the catalog’s roll data is internally consistent', () => {
     }
   });
 });
+
+// Owner 2026-07-19: full spell management on the sheet — the tab must be reachable, spells
+// clickable, the right spells offered to the right class, and the DM able to grant.
+describe('the Spells tab is reachable before you have any spells', () => {
+  it('App shows the tab to anyone who can edit, not only to characters with spells', () => {
+    // The old gate was `char.spells.length > 0`, which was a trap: the only place to ADD a
+    // spell lives inside the tab, so a caster with none could never get one.
+    const app = read('app/dnd/_sheet/App.tsx');
+    expect(app).toContain('hasSpellcasting || canWrite');
+    expect(app).not.toContain("(t.id !== 'spells' || (char.spells?.length ?? 0) > 0)");
+  });
+
+  it('the panel renders for an editor instead of bailing out early', () => {
+    // Second half of the same trap: the tab could be visible while the panel returned null.
+    const panel = read('app/dnd/_sheet/components/SpellsPanel.tsx');
+    expect(panel).toContain('grantedSpells.length === 0 && !canWrite) return null');
+  });
+});
+
+describe('spells are clickable and readable in full', () => {
+  const panel = read('app/dnd/_sheet/components/SpellsPanel.tsx');
+  const detail = read('app/dnd/_sheet/components/ui/SpellDetail.tsx');
+
+  it('the spell name opens the detail view', () => {
+    expect(panel).toContain('setViewing(s)');
+    expect(panel).toContain('<SpellDetail');
+  });
+
+  it('the detail resolves numbers against the character, not the spell record', () => {
+    expect(detail).toContain('spellSaveDc');
+    expect(detail).toContain("ledger.value('spell_attack'");
+  });
+
+  it('the detail enriches from the library for material, classes and edition notes', () => {
+    expect(detail).toContain('findSpellForSystem');
+    expect(detail).toContain('editionNote');
+  });
+
+  it('the AI ask passes the character so it can answer situationally', () => {
+    expect(detail).toContain('/api/dnd/library/chat');
+    expect(detail).toContain('characterId');
+  });
+});
+
+describe('class and level targeting', () => {
+  const picker = read('app/dnd/_sheet/components/ui/SpellPicker.tsx');
+
+  it('defaults to the character’s own class list', () => {
+    expect(picker).toContain('onlyMyClass');
+    expect(picker).toContain('char.meta.className');
+  });
+
+  it('flags off-list and above-slot spells rather than blocking them', () => {
+    // Subclasses, feats, scrolls and the DM all legitimately grant off-curve spells.
+    expect(picker).toContain('off-list');
+    expect(picker).toContain('above your slots');
+  });
+
+  it('derives the castable ceiling from the character’s own slots', () => {
+    expect(picker).toContain('maxCastable');
+    expect(picker).toContain('char.spellcasting');
+  });
+
+  it('tells the DM they are granting, and that off-curve is deliberate', () => {
+    expect(picker).toContain('Grant a spell to');
+    expect(picker).toContain('isDM');
+  });
+});

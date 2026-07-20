@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react'
 import { useChar } from '../../state/store'
 import { useSheetSystem } from '../../state/sheetConfig'
-import { spellsForSystem, spellCatalog, type SpellDef } from '@/lib/dnd/spells'
+import { spellsForSystem, spellCatalog, type SpellDef, type SpellClass } from '@/lib/dnd/spells'
 import type { Spell, SpellLevel } from '../../types'
 
 /** Turn a catalog entry into a sheet spell. The catalog holds the MECHANICS; the sheet copy is
@@ -44,7 +44,7 @@ export function spellFromCatalog(def: SpellDef, existingCount: number): Spell {
 }
 
 export default function SpellPicker({ onClose }: { onClose: () => void }) {
-  const { char, setChar } = useChar()
+  const { char, setChar, isDM } = useChar()
   const system = useSheetSystem()
   const [q, setQ] = useState('')
   const [level, setLevel] = useState<number | 'all'>('all')
@@ -57,13 +57,36 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
     [char.spells],
   )
 
+  // The character's class, matched against the catalog's class lists. Defaults the picker to
+  // spells this character can actually learn, which is the difference between a usable list
+  // and 357 undifferentiated rows.
+  const charClass = useMemo(() => {
+    const raw = (char.meta.className ?? '').trim().toLowerCase()
+    return (['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard'] as SpellClass[])
+      .find((c) => c.toLowerCase() === raw) ?? null
+  }, [char.meta.className])
+  const [onlyMyClass, setOnlyMyClass] = useState(true)
+
+  // The highest spell level this character can currently cast, from their own slot table.
+  // Spells above it are still ADDABLE — a subclass, a feat, a scroll or the DM can legitimately
+  // grant something off-curve — but they are flagged so nobody adds a 9th-level spell to a
+  // 3rd-level caster by accident.
+  const maxCastable = useMemo(() => {
+    const slots = char.spellcasting?.slots ?? {}
+    const levels = Object.entries(slots)
+      .filter(([, v]) => (v?.max ?? 0) > 0)
+      .map(([k]) => Number(k))
+    return levels.length ? Math.max(...levels) : 0
+  }, [char.spellcasting])
+
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return catalog
       .filter((s) => (level === 'all' || s.level === level))
+      .filter((s) => !onlyMyClass || !charClass || s.classes.includes(charClass))
       .filter((s) => !needle || s.name.toLowerCase().includes(needle) || s.school.toLowerCase().includes(needle))
-      .slice(0, 60)
-  }, [catalog, q, level])
+      .slice(0, 80)
+  }, [catalog, q, level, onlyMyClass, charClass])
 
   const add = (def: SpellDef) => {
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), spellFromCatalog(def, (c.spells ?? []).length)] }))
@@ -76,9 +99,19 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
         style={{ width: 'min(720px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', background: 'var(--panel)', border: '1px solid var(--line-strong)', borderRadius: 12, overflow: 'hidden' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
-          <strong style={{ flex: 1 }}>Add a spell from the library</strong>
+          {/* The DM holds write access on a player's sheet, so this same picker is how they hand
+              out a spell — the wording just says so, rather than leaving them to guess. */}
+          <strong style={{ flex: 1 }}>
+            {isDM ? `Grant a spell to ${char.meta.name || 'this character'}` : 'Add a spell from the library'}
+          </strong>
           <button className="btn tiny" onClick={onClose} aria-label="Close">✕</button>
         </div>
+        {isDM && (
+          <div style={{ padding: '6px 14px', fontSize: 11.5, color: 'var(--muted)', borderBottom: '1px solid var(--line)' }}>
+            Anything you add lands on their sheet immediately — off-list and above-slot spells are
+            allowed on purpose, so you can hand out something they could not normally learn.
+          </div>
+        )}
 
         {catalog.length === 0 ? (
           // Honest empty state: this system has no catalogued spells, which is NOT the same as
@@ -104,6 +137,12 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                 <option value="0">Cantrips</option>
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((l) => <option key={l} value={l}>Level {l}</option>)}
               </select>
+              {charClass && (
+                <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 12.5, color: 'var(--ink)' }}>
+                  <input type="checkbox" checked={onlyMyClass} onChange={(e) => setOnlyMyClass(e.target.checked)} />
+                  {charClass} list only
+                </label>
+              )}
             </div>
 
             <div style={{ overflowY: 'auto', padding: '8px 14px 14px' }}>
@@ -115,6 +154,8 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
               )}
               {results.map((s) => {
                 const already = have.has(s.name.toLowerCase())
+                const offList = !!charClass && !s.classes.includes(charClass)
+                const tooHigh = s.level > 0 && maxCastable > 0 && s.level > maxCastable
                 return (
                   <div key={s.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -124,6 +165,14 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                           {s.level === 0 ? 'cantrip' : `level ${s.level}`} · {s.school}
                           {s.concentration ? ' · concentration' : ''}{s.ritual ? ' · ritual' : ''}
                         </span>
+                        {/* Warnings, not blocks: a subclass, feat, scroll or the DM can all
+                            legitimately hand you something off your list or above your level. */}
+                        {offList && (
+                          <span className="tag" style={{ marginLeft: 6, color: '#e0a020' }} title={`Not on the ${charClass} spell list`}>off-list</span>
+                        )}
+                        {tooHigh && (
+                          <span className="tag" style={{ marginLeft: 6, color: '#e0a020' }} title={`You have no level-${s.level} slots yet (highest: ${maxCastable})`}>above your slots</span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)', margin: '1px 0 3px' }}>
                         {s.castTime} · {s.range} · {s.components} · {s.duration}
