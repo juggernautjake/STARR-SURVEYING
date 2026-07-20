@@ -67,7 +67,28 @@ describe('the 2024 spell catalog is structurally sound', () => {
   });
 
   it('attributes every record to a source', () => {
-    for (const s of SPELLS_2024) expect(s.source, s.key).toBe('PHB 2024');
+    // Two legitimate sources since the 2026-07-20 verification pass: the 2024 PHB, and earlier
+    // 5e books for spells the 2024 PHB does not reprint. Labelling the latter 'PHB 2024' would
+    // tell a player filtering by source that they are current 2024 options when they are not.
+    for (const s of SPELLS_2024) {
+      expect(['PHB 2024', 'Earlier 5e sourcebook (not in the 2024 PHB)'], s.key).toContain(s.source);
+    }
+  });
+
+  it('does not offer Feeblemind, which 2024 replaced with Befuddlement', () => {
+    expect(SPELLS_2024.find((s) => s.key === 'feeblemind')).toBeUndefined();
+    const b = SPELLS_2024.find((s) => s.key === 'befuddlement');
+    expect(b?.level).toBe(8);
+    expect(b?.school).toBe('Enchantment');
+  });
+
+  it('carries the full 2024 Summon line', () => {
+    // Nine spells the 2024 PHB leans on heavily that recall had missed entirely.
+    for (const k of ['summon-beast', 'summon-fey', 'summon-undead', 'summon-aberration',
+                     'summon-construct', 'summon-elemental', 'summon-celestial',
+                     'summon-dragon', 'summon-fiend']) {
+      expect(SPELLS_2024.find((s) => s.key === k), k).toBeDefined();
+    }
   });
 
   it('keeps summaries short — paraphrase, never rulebook prose', () => {

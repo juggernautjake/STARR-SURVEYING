@@ -58,6 +58,17 @@ extracted and diffed field-by-field against all 383 catalogued entries.
 
 Re-audit after correction: **0 mismatches across 383 spells.**
 
+**Second pass, same day — both lists closed.** The catalog now holds **405 spells: 388 sourced
+`PHB 2024`, 17 re-sourced `Earlier 5e sourcebook (not in the 2024 PHB)`.** The 23 additions took
+every mechanical field from aidedd's index rather than recall — including the entire **Summon
+line** (beast, fey, undead, aberration, construct, elemental, celestial, dragon, fiend), which
+the 2024 PHB leans on heavily and recall had missed completely. Feeblemind was **removed**, not
+re-sourced: 2024 replaced it with Befuddlement, and offering both would hand a player a spell
+their edition no longer has. Tests pin the Summon line's presence, Feeblemind's absence, and
+that both source strings are legitimate.
+
+Historic note (resolved):
+
 Still open: **26 spells present in aidedd and absent here** (the whole Summon line — beast, fey,
 undead, aberration, construct, elemental, celestial, dragon, fiend — plus Friends, Ice Knife,
 Mind Spike, Vitriolic Sphere, Arcane Vigor, Fount of Moonlight, Power Word Fortify, Shining
