@@ -18,10 +18,14 @@ interface MediaRow {
   caption?: string | null
   label?: string | null
   kind?: string | null
+  /** Whether this image also appears in the shared campaign gallery (owner 2026-07-20).
+   *  Character art starts unpublished — uploading to your own sheet is not the same as
+   *  sharing it with the whole table. */
+  published_to_campaign?: boolean | null
 }
 
 export default function CharacterGallery() {
-  const { characterId, canWrite, char, setChar, media, setMedia } = useChar()
+  const { characterId, campaignId, canWrite, char, setChar, media, setMedia } = useChar()
   const [items, setItems] = useState<MediaRow[]>([])
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -96,6 +100,31 @@ export default function CharacterGallery() {
       await fetch(`/api/dnd/characters/${characterId}/media`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, url }),
       }).catch(() => {})
+    } finally { setBusy(null) }
+  }
+
+  // Publish / unpublish to the shared campaign gallery. Optimistic, with a rollback on failure
+  // so the tile can't sit showing a state the server rejected.
+  const togglePublish = async (row: MediaRow) => {
+    if (!canWrite) return
+    const next = !row.published_to_campaign
+    setBusy(`pub:${row.id}`)
+    setItems((prev) => prev.map((m) => (m.id === row.id ? { ...m, published_to_campaign: next } : m)))
+    try {
+      const r = await fetch('/api/dnd/media', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, published: next }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        setItems((prev) => prev.map((m) => (m.id === row.id ? { ...m, published_to_campaign: !next } : m)))
+        setUpMsg({ ok: false, text: j?.error ?? 'Could not change publishing.' })
+      } else {
+        setUpMsg({ ok: true, text: next ? 'Published to the campaign gallery.' : 'Removed from the campaign gallery (still here on the sheet).' })
+      }
+    } catch {
+      setItems((prev) => prev.map((m) => (m.id === row.id ? { ...m, published_to_campaign: !next } : m)))
+      setUpMsg({ ok: false, text: 'Network error — publishing unchanged.' })
     } finally { setBusy(null) }
   }
 
@@ -190,6 +219,13 @@ export default function CharacterGallery() {
                   onClick={() => setLightbox(it.url)}
                   style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                 />
+                {/* Published state is worth seeing at a glance — you should be able to tell which
+                    of your art the rest of the table can see without clicking anything. */}
+                {it.published_to_campaign && (
+                  <div style={{ position: 'absolute', top: 4, right: 4 }}>
+                    <span title="Visible in the campaign gallery" style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', padding: '2px 5px', borderRadius: 3, background: 'var(--tealbright, #22d3ee)', color: 'var(--void)' }}>◈ SHARED</span>
+                  </div>
+                )}
                 {(isArt || isToken) && (
                   <div style={{ position: 'absolute', top: 4, left: 4, display: 'flex', gap: 4 }}>
                     {/* #fff is correct here: the badge sits on a SOLID accent fill, which is dark
@@ -219,6 +255,19 @@ export default function CharacterGallery() {
                       style={{ ...galBtn(false), borderLeft: '1px solid var(--line, #1e2d3d)', flex: '0 0 34px', color: 'var(--danger)' }}
                     >{busy === `del:${it.id}` ? '…' : '🗑'}</button>
                   </div>
+                )}
+                {/* Share to the campaign gallery — only meaningful for a character in a campaign. */}
+                {canWrite && campaignId && (
+                  <button
+                    onClick={() => togglePublish(it)}
+                    disabled={busy != null}
+                    title={it.published_to_campaign
+                      ? 'Remove from the campaign gallery — it stays here on the sheet'
+                      : 'Publish to the campaign gallery so the whole table can see it'}
+                    style={{ ...galBtn(false), width: '100%', borderTop: '1px solid var(--line, #1e2d3d)', color: it.published_to_campaign ? 'var(--tealbright)' : 'var(--ink)' }}
+                  >
+                    {busy === `pub:${it.id}` ? '…' : it.published_to_campaign ? '◈ Shared — unshare' : '◇ Share to campaign'}
+                  </button>
                 )}
               </div>
             )

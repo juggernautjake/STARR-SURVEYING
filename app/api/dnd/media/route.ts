@@ -44,7 +44,11 @@ export async function GET(req: NextRequest) {
     if ((await getCampaignRole(campaignId)) === null) {
       return NextResponse.json({ error: 'Not a member of that campaign.' }, { status: 403 });
     }
-    query = query.eq('campaign_id', campaignId);
+    // The campaign gallery shows only PUBLISHED images. Character art is scoped to a campaign
+    // (campaign_id) so permissions and cleanup work, but that is not the same as the player
+    // choosing to share it — before this, uploading art to your own sheet put it in the shared
+    // gallery unasked (owner 2026-07-20). Campaign-level uploads are published on creation.
+    query = query.eq('campaign_id', campaignId).eq('published_to_campaign', true);
   } else {
     return NextResponse.json({ error: 'characterId, sessionId, or campaignId is required.' }, { status: 400 });
   }
@@ -89,7 +93,8 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('dnd_media')
-      .insert({ campaign_id: campaignId, url, kind: mediaKind, label, uploaded_by: session.userId, gallery_tags: isPrivate ? [DM_ONLY_TAG] : [] })
+      // A DM uploading here IS uploading to the campaign gallery, so it publishes on creation.
+      .insert({ campaign_id: campaignId, url, kind: mediaKind, label, uploaded_by: session.userId, published_to_campaign: true, gallery_tags: isPrivate ? [DM_ONLY_TAG] : [] })
       .select('*')
       .single();
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Upload failed.' }, { status: 500 });
@@ -99,16 +104,33 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH — flip a campaign media item's player visibility (DM only). Body: { id, private }.
+// PATCH — flip a campaign media item's player visibility (DM only), or publish/unpublish a
+// CHARACTER's art to the campaign gallery. Body: { id, private } or { id, published }.
 export async function PATCH(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
-  const { id, private: isPrivate } = await req.json().catch(() => ({}));
+  const { id, private: isPrivate, published } = await req.json().catch(() => ({}));
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
 
-  const { data: row } = await supabaseAdmin.from('dnd_media').select('id, campaign_id, gallery_tags').eq('id', id).maybeSingle();
-  const media = row as { id: string; campaign_id: string | null; gallery_tags: string[] | null } | null;
-  if (!media || !media.campaign_id) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  const { data: row } = await supabaseAdmin.from('dnd_media').select('id, campaign_id, character_id, gallery_tags').eq('id', id).maybeSingle();
+  const media = row as { id: string; campaign_id: string | null; character_id: string | null; gallery_tags: string[] | null } | null;
+  if (!media) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  // Publishing a character's art to the shared gallery is the PLAYER's call (or their DM's), so
+  // it authorizes through the character write gate rather than demanding DM. Sharing your own
+  // art shouldn't require asking someone else.
+  if (typeof published === 'boolean') {
+    if (!media.character_id) return NextResponse.json({ error: 'Only character art is published this way.' }, { status: 400 });
+    if (!media.campaign_id) return NextResponse.json({ error: 'This character is not in a campaign, so there is no gallery to publish to.' }, { status: 400 });
+    const access = await requireCharacterWrite(media.character_id);
+    if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+    const { data, error } = await supabaseAdmin
+      .from('dnd_media').update({ published_to_campaign: published }).eq('id', id).select('*').single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ media: data, published });
+  }
+
+  if (!media.campaign_id) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
   if ((await getCampaignRole(media.campaign_id)) !== 'dm') return NextResponse.json({ error: 'DM only.' }, { status: 403 });
 
   const tags = new Set((media.gallery_tags ?? []).filter((t) => t !== DM_ONLY_TAG));

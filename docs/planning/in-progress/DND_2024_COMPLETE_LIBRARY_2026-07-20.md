@@ -1,0 +1,118 @@
+# D&D 2024 — the complete library, tagged, searchable, and wired to the sheet
+
+**Status:** IN PROGRESS · started 2026-07-20
+**Goal:** every part of the 2024 ruleset — spells, classes, feats, species, backgrounds,
+conditions, weapons, armour, items, and the core mechanics — defined in the library, carrying
+real metadata and visible tags, findable by name/type/filter, reachable by the AI, and fully
+integrated into the character sheet with the right mechanics at the right level, resolved
+against the player's own stats.
+
+Plus a separate, immediate fix the owner asked for in the same breath: **character art must not
+auto-publish to the campaign gallery**, and **deleting art must truly delete it**.
+
+Work in **slices, in order**. Each slice ends green: `npx tsc --noEmit`, `npx vitest run
+__tests__/dnd`, **and `npm run build`** (a route-export mistake once reached main because
+`tsc` alone does not catch Next's generated route types). Commit and push per slice.
+
+---
+
+## Ground rules
+
+These are inherited from the platform and are not negotiable.
+
+1. **Paraphrase, never transcribe.** Content is "concise MECHANICAL FACTS + numbers
+   (paraphrased, not verbatim rulebook prose), each attributed to its source book"
+   (`lib/dnd/system-rules.ts`). Game mechanics are not copyrightable; the book's expression of
+   them is. **A "spell block" here therefore means the complete mechanical block** — level,
+   school, casting time, range, components, material, duration, concentration, ritual, class
+   lists, damage/save/attack, higher-level scaling — **plus a paraphrased effect summary.** It
+   does not mean the book's descriptive text. A test enforces a summary length ceiling because
+   a creeping word count is the signal someone has started transcribing.
+2. **Never invented (Ground Rule 2).** An entry whose details we are unsure of is LEFT OUT and
+   reported as "not yet catalogued", never guessed. This data drives a builder that COMPUTES
+   from it; a wrong casting time is worse than a missing spell.
+3. **Systems never leak.** Everything is keyed by system and reached through a dispatcher.
+   2014 and 2024 are different systems.
+4. **Source verification.** See the open risk below — this doc cannot honestly claim
+   "complete" until the content is checked against a source rather than recall.
+
+---
+
+## ⚠ Open risk: completeness cannot be self-certified
+
+The catalog stands at **383 spells** of roughly 400, authored from model recall. Recall is good
+for the commonly-played core and degrades on niche entries — and the failure mode is not a
+missing spell (visible, honest) but a *plausible wrong number* (invisible, and it silently
+computes). The same applies to the remaining content types.
+
+**This doc's definition of done requires a verification pass against a real source** — SRD 5.2
+(CC-BY-4.0, covers the 2024 ruleset and is safe to copy from) or the owner's own PHB. Until
+that happens, `SPELL_CATALOG_STATUS.complete` stays `false` and the UI keeps saying so.
+**Owner input needed:** point at a source, or accept "broad coverage, honestly labelled".
+
+---
+
+## Slices
+
+### S1 — Campaign gallery: opt-in publishing + true deletion ✅ (started 2026-07-20)
+Character art currently flows straight into the campaign gallery. It should live on the
+character's own gallery and be **published deliberately**.
+- `dnd_media` gains a publish flag; character uploads default to unpublished.
+- The campaign gallery reads only published rows.
+- A publish/unpublish control on each tile in the character gallery (owner/DM only).
+- Deletion: confirm prompt (exists), row deleted (fixed 2026-07-19), **storage object removed**
+  (fixed 2026-07-19) — verify end-to-end and make sure nothing renders a deleted image.
+
+### S2 — Tag + metadata model for every library entry
+One vocabulary, applied to all content types, so filtering is uniform.
+- `LibraryTag` shape: `{ key, label, group }` with groups like `type`, `school`, `level`,
+  `class`, `damage`, `range`, `duration`, `rarity`, `source`.
+- Derive tags automatically where the data already implies them (a spell's school/level/classes
+  are tags; a weapon's properties are tags) so tagging is a projection, not hand-maintenance.
+- Visible tag chips on entries; the same tags carried into `dnd_system_entries.data` for the AI.
+
+### S3 — Search + filter UI
+- Extend `LibrarySearch` to filter by tag groups, not just free text.
+- Facets: content type, level, school, class, damage type, casting time, concentration/ritual.
+- Result counts per facet; clear-all; deep-linkable query state.
+
+### S4 — Spells: finish and verify
+- Close the remaining ~17 to the full PHB list.
+- Verification pass against a source (see open risk).
+- Every spell carries structured `attack` / `save` / `damage` / `heal` so it rolls.
+
+### S5 — Weapons, armour, and equipment
+2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a
+sheet as real items with working stats, not names.
+
+### S6 — Classes, subclasses, species, backgrounds
+The 2024 class data exists (`lib/dnd/classes/dnd5e-2024/`, 13 files). Audit for completeness to
+level 20, add subclasses, wire species/background choices into the builder.
+
+### S7 — Conditions, mechanics, and the rest of the rules
+Conditions are done (14 + exhaustion, each with a worked example). Add the remaining core
+mechanics as first-class entries: cover, surprise, resting, travel, mounted/underwater combat,
+object interaction, death saves.
+
+### S8 — AI reaches all of it
+- Project every content type into `dnd_system_entries` (spells done 2026-07-20; 383 live).
+- Tags into the retrieval payload so the AI can filter as well as match.
+- Embeddings when `VOYAGE_API_KEY` is configured — today entries are text-only and retrieval
+  falls back to keyword, which works but ranks worse.
+
+### S9 — Sheet integration for every content type
+Spells are done (picker → detail → cast, using the character's own stats). Repeat for feats,
+items, and features: add-from-library, read in full, use, edit.
+
+### S10 — Final QA walkthrough
+Build one 2024 character start to level 20 in the running app. Every tab, every content type,
+every filter. Fix what it finds.
+
+---
+
+## Done means
+
+- Every content type has entries, tags, search, filters, AI retrieval, and a sheet path.
+- `npm run build` green; full suite green across **repeated** runs (the suite was flaky until
+  2026-07-20 — see `vitest.config.ts`).
+- `SPELL_CATALOG_STATUS.complete === true` **only after** a source-verified pass.

@@ -94,3 +94,58 @@ describe('the media route exports only route handlers', () => {
     expect(bad, `illegal route exports (move them to lib/): ${bad.join(', ')}`).toEqual([]);
   });
 });
+
+// Owner 2026-07-20: character art must not auto-publish to the campaign gallery, and deleting
+// it must truly delete it. S1 of DND_2024_COMPLETE_LIBRARY_2026-07-20.
+describe('character art does not auto-publish to the campaign gallery', () => {
+  const route = read('app/api/dnd/media/route.ts');
+  const seed = read('seeds/454_dnd_media_publish_flag.sql');
+
+  it('the campaign gallery reads only published rows', () => {
+    // Previously it read every row with the campaign_id, and character uploads stamp that id
+    // for scoping — so scoping and publishing were accidentally the same thing.
+    expect(route).toContain("eq('published_to_campaign', true)");
+  });
+
+  it('a DM uploading to the campaign gallery publishes on creation', () => {
+    expect(route).toContain('published_to_campaign: true');
+  });
+
+  it('publishing authorizes through the character write gate, not DM-only', () => {
+    // Sharing your OWN character's art shouldn't require asking the DM.
+    const patch = route.slice(route.indexOf('export async function PATCH'));
+    expect(patch).toContain('requireCharacterWrite(media.character_id)');
+  });
+
+  it('refuses to publish something that is not character art', () => {
+    const patch = route.slice(route.indexOf('export async function PATCH'));
+    expect(patch).toContain('Only character art is published this way');
+  });
+
+  it('defaults the column to FALSE so new character art starts private', () => {
+    expect(seed).toMatch(/published_to_campaign BOOLEAN NOT NULL DEFAULT FALSE/i);
+  });
+
+  it('backfills only campaign-level media as published, never character art', () => {
+    // The safe direction: un-publishing something visible is one click; leaving art shared that
+    // the player never chose to share is the complaint being fixed.
+    expect(seed).toContain('WHERE character_id IS NULL');
+  });
+
+  it('the gallery offers a share toggle and shows shared state', () => {
+    const ui = read('app/dnd/_sheet/components/CharacterGallery.tsx');
+    expect(ui).toContain('togglePublish');
+    expect(ui).toContain('Share to campaign');
+    expect(ui).toContain('SHARED');
+    // Optimistic update must roll back if the server refuses, or the tile lies.
+    expect(ui).toContain('published_to_campaign: !next');
+  });
+
+  it('still confirms before deleting, and deletes for real', () => {
+    const ui = read('app/dnd/_sheet/components/CharacterGallery.tsx');
+    expect(ui).toContain('window.confirm');
+    const del = route.slice(route.indexOf('export async function DELETE'));
+    expect(del).toContain("from('dnd_media').delete()");
+    expect(del).toContain('storage.from(BUCKET).remove'); // the object, not just the row
+  });
+});
