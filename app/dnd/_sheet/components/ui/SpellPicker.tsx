@@ -32,6 +32,14 @@ export function spellFromCatalog(def: SpellDef, existingCount: number): Spell {
     description: def.summary,
     higher: def.higher,
     prepared: false,
+    // Structured resolution — this is what lets the sheet ROLL the spell rather than only
+    // display it. The attack bonus and save DC are NOT copied: the sheet derives those from
+    // the character (proficiency + spellcasting ability, ledger-overlaid), so a catalogued
+    // spell automatically uses whoever is holding it.
+    attack: def.attack,
+    save: def.save,
+    damage: def.damage,
+    heal: def.heal,
   }
 }
 
