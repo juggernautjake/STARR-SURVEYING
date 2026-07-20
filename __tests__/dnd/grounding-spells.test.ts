@@ -85,3 +85,24 @@ describe('companions and conditions reach the AI prompt', () => {
     expect(ig.block).not.toContain('Find Familiar');
   });
 });
+
+// S9 — the derived tags reach the AI, so it can filter as well as match.
+describe('tags reach the AI prompt', () => {
+  it('a retrieved spell carries its tag keys', async () => {
+    const g = await systemGroundingBlock('dnd5e-2024', 'how does fireball work');
+    expect(g.block).toContain('Tags:');
+    expect(g.block).toContain('school:evocation');
+    expect(g.block).toContain('effect:damage');
+    expect(g.block).toContain('damage:fire');
+  });
+
+  it('the tags are the SAME vocabulary the filters use', async () => {
+    // One source for chips, facets and the AI payload — three consumers of a hand-kept list
+    // would drift three different ways.
+    const { tagsForSpell } = await import('@/lib/dnd/library-tags');
+    const { findSpell2024 } = await import('@/lib/dnd/spells/dnd5e-2024');
+    const keys = tagsForSpell(findSpell2024('fireball')!).map((t) => t.key);
+    const g = await systemGroundingBlock('dnd5e-2024', 'fireball');
+    for (const k of keys) expect(g.block, k).toContain(k);
+  });
+});

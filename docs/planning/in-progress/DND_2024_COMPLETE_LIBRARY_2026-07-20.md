@@ -169,7 +169,17 @@ Conditions are done (14 + exhaustion, each with a worked example). Add the remai
 mechanics as first-class entries: cover, surprise, resting, travel, mounted/underwater combat,
 object interaction, death saves.
 
-### S8 — AI reaches all of it
+### S8 — AI reaches all of it ✅ SPELLS DONE 2026-07-20
+Spell entries project into `dnd_system_entries` (405 live) **and now carry their derived tag
+keys** in `data` and in the grounding block, so the AI can FILTER as well as name-match — "which
+of these need concentration", "show me the healing ones". This is the third surface the one
+vocabulary drives, which is the whole reason the tags are derived: three consumers of a
+hand-kept list would drift three different ways. A test asserts the AI sees exactly the keys the
+filter panel uses. Embeddings still absent (`VOYAGE_API_KEY` unset) so retrieval is keyword —
+works today, ranks better when a key is added, no re-seed needed.
+**Remaining for later slices:** the same projection for weapons/armour/feats once S6/S7 exist.
+
+Original plan:
 - Project every content type into `dnd_system_entries` (spells done 2026-07-20; 383 live).
 - Tags into the retrieval payload so the AI can filter as well as match.
 - Embeddings when `VOYAGE_API_KEY` is configured — today entries are text-only and retrieval

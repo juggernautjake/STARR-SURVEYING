@@ -14,6 +14,7 @@ import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
 import { spellsForSystem, type SpellDef } from './spells';
+import { tagsForSpell } from './library-tags';
 import { SPELL_MECHANICS, type SpellMechanic } from './spells/mechanics';
 import { COMPANION_RULE_SETS, type CompanionRuleSet } from './companions/dnd5e-2024';
 import { CONDITION_MECHANICS_5E, type ConditionMechanics } from './conditions/dnd5e';
@@ -267,12 +268,16 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
     ? `\n\nRELEVANT ${label} SPELLS (authoritative mechanical detail — use exactly):\n` +
       spellHits.map((s) => {
         const tags = [s.concentration ? 'Concentration' : '', s.ritual ? 'Ritual' : ''].filter(Boolean).join(', ');
+        // The derived tag keys, so the AI can answer "which of these are concentration" or
+        // "show me the healing ones" by reading the same vocabulary the filters use (S9).
+        const tagKeys = tagsForSpell(s).map((t) => t.key).join(' ');
         return `## ${s.name} (${s.level === 0 ? 'cantrip' : `level ${s.level}`} ${s.school})\n` +
           `Casting time: ${s.castTime} · Range: ${s.range} · Components: ${s.components}` +
           `${s.material ? ` (${s.material})` : ''} · Duration: ${s.duration}${tags ? ` · ${tags}` : ''}\n` +
           `Classes: ${s.classes.join(', ')}\n${s.summary}` +
           `${s.higher ? `\nAt higher levels: ${s.higher}` : ''}` +
-          `${s.editionNote ? `\n2024 vs 2014: ${s.editionNote}` : ''}`;
+          `${s.editionNote ? `\n2024 vs 2014: ${s.editionNote}` : ''}` +
+          `\nTags: ${tagKeys}`;
       }).join('\n\n')
     : '';
 

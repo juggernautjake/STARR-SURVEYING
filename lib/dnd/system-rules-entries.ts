@@ -8,6 +8,7 @@ import type { CharacterSystem } from './systems';
 import { spellCatalog } from './spells';
 import { SPELL_MECHANICS } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
+import { tagsForSpell } from './library-tags';
 
 /** Turn a system's catalog into a flat list of store entries (rules, classes, species, conditions). */
 export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] {
@@ -77,6 +78,11 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
       // The system's canonical source string, so every projected entry is consistent in the
       // store (the catalog's own 'PHB 2024' names the same book more tersely).
       source: src,
+      // Tags ride along in `data` so retrieval can FILTER as well as match (S9). This is the
+      // third surface the one vocabulary drives — visible chips, filter facets, and now the
+      // AI's payload — which is why they are derived rather than hand-kept: three consumers of
+      // a hand-maintained list would drift three different ways.
+      data: { tags: tagsForSpell(sp).map((t) => t.key), level: sp.level, school: sp.school, classes: sp.classes },
     });
   }
 
