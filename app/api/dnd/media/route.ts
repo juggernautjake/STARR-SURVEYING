@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
-import { getCharacterAccess } from '@/lib/dnd/characters';
+import { getCharacterAccess, requireCharacterWrite } from '@/lib/dnd/characters';
 
 // Gallery visibility (Phase P): a `dm-only` tag on a media row means the DM keeps it
 // private — players never see it. Everything else is player-visible on the campaign hub.
@@ -115,19 +115,56 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ media: data });
 }
 
-// DELETE — remove a campaign media item (DM only). Query: ?id=…
+// DELETE — remove a media item. Query: ?id=…
+//
+// Two ownerships, two rules:
+//   • CHARACTER media (character_id set) → anyone who can WRITE that character, i.e. its
+//     owner, its assigned player, or a DM of a campaign it's in.
+//   • CAMPAIGN media (campaign_id, no character) → DM only, as before.
+//
+// This handler used to require a campaign_id and DM role unconditionally, so deleting from
+// a CHARACTER gallery answered 404 ("not found", for a character image with no campaign) or
+// 403 ("DM only", for the character's own player). The gallery only removes a tile when the
+// response is ok, so the image neither deleted nor disappeared — it looked like a dead
+// button (owner report 2026-07-19).
 export async function DELETE(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
 
-  const { data: row } = await supabaseAdmin.from('dnd_media').select('id, campaign_id').eq('id', id).maybeSingle();
-  const media = row as { id: string; campaign_id: string | null } | null;
-  if (!media || !media.campaign_id) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
-  if ((await getCampaignRole(media.campaign_id)) !== 'dm') return NextResponse.json({ error: 'DM only.' }, { status: 403 });
+  const { data: row } = await supabaseAdmin.from('dnd_media').select('id, campaign_id, character_id, url').eq('id', id).maybeSingle();
+  const media = row as { id: string; campaign_id: string | null; character_id: string | null; url: string | null } | null;
+  if (!media) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+
+  if (media.character_id) {
+    const res = await requireCharacterWrite(media.character_id);
+    if (!res.access) return NextResponse.json({ error: res.error }, { status: res.status });
+  } else if (media.campaign_id) {
+    if ((await getCampaignRole(media.campaign_id)) !== 'dm') return NextResponse.json({ error: 'DM only.' }, { status: 403 });
+  } else {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  }
 
   const { error } = await supabaseAdmin.from('dnd_media').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Drop the stored object too, so "delete" means gone rather than an orphaned file still
+  // sitting in the bucket (and still reachable by URL). Best-effort: the row is already
+  // gone, and a storage hiccup shouldn't turn a successful delete into an error.
+  const key = storageKeyFromUrl(media.url);
+  if (key) await supabaseAdmin.storage.from(BUCKET).remove([key]).catch(() => {});
+
   return NextResponse.json({ ok: true });
+}
+
+/** The in-bucket path from a public storage URL, or null if it isn't one of ours.
+ *  Public URLs look like …/storage/v1/object/public/<bucket>/<key>. */
+export function storageKeyFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  const marker = `/storage/v1/object/public/${BUCKET}/`;
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  const key = url.slice(i + marker.length).split('?')[0];
+  return key ? decodeURIComponent(key) : null;
 }

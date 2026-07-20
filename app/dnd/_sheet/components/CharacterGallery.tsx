@@ -103,9 +103,15 @@ export default function CharacterGallery() {
     if (!canWrite) return
     if (typeof window !== 'undefined' && !window.confirm('Delete this image? This cannot be undone.')) return
     setBusy(`del:${row.id}`)
+    setUpMsg(null)
     try {
       const r = await fetch(`/api/dnd/media?id=${row.id}`, { method: 'DELETE' })
-      if (r.ok) {
+      if (!r.ok) {
+        // Previously a failed delete was swallowed entirely: the tile stayed put with no
+        // explanation, which read as "the button does nothing". Say what went wrong.
+        const j = await r.json().catch(() => ({}))
+        setUpMsg({ ok: false, text: `Could not delete: ${j?.error ?? `error ${r.status}`}` })
+      } else {
         // If it was the current art/token, drop that reference so nothing points at a gone image.
         if (curArt === row.url || curToken === row.url) {
           if (variant) {
@@ -118,8 +124,13 @@ export default function CharacterGallery() {
           }
           setMedia({ artUrl: curArt === row.url ? null : media.artUrl, tokenUrl: curToken === row.url ? null : media.tokenUrl })
         }
+        // Drop the tile straight away — the delete is confirmed server-side at this point,
+        // so there's nothing to wait for.
         setItems((prev) => prev.filter((m) => m.id !== row.id))
+        setLightbox((cur) => (cur === row.url ? null : cur)) // don't leave a deleted image open
       }
+    } catch {
+      setUpMsg({ ok: false, text: 'Could not delete: network error.' })
     } finally { setBusy(null) }
   }
 
