@@ -104,7 +104,7 @@ describe('a catalogued spell arrives rollable', () => {
   it('does NOT bake in an attack bonus or save DC', () => {
     // Those come from the character. Copying them would freeze a spell to the stats of
     // whoever added it — the bug this separation exists to prevent.
-    const s = spellFromCatalog(findSpell2024('guiding-bolt')!, 0) as Record<string, unknown>;
+    const s = spellFromCatalog(findSpell2024('guiding-bolt')!, 0) as unknown as Record<string, unknown>;
     expect(s.attackBonus).toBeUndefined();
     expect(s.saveDc).toBeUndefined();
     expect(s.dc).toBeUndefined();

@@ -142,7 +142,8 @@ describe('the system dispatcher (Ground Rule 1)', () => {
     // The field is `levelsCovered`, not `levelsComplete`, precisely so a caller cannot read
     // "level 3 is done" out of it. ~400 spells exist; this is the commonly-played subset.
     expect(SPELL_CATALOG_STATUS.note).toMatch(/not yet catalogued/i);
-    expect(SPELL_CATALOG_STATUS.note).toMatch(/no level is exhaustive/i);
+    expect(SPELL_CATALOG_STATUS.note).toMatch(/not guaranteed exhaustive/i);
+    expect(SPELL_CATALOG_STATUS.complete).toBe(false);
   });
 });
 
