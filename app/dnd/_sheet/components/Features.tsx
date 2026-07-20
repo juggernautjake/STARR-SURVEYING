@@ -6,6 +6,7 @@ import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import FeatureEditor from './ui/FeatureEditor'
+import FeatPicker from './ui/FeatPicker'
 import type { FeatureBlock } from '../types'
 
 const SOURCE_TONE: Record<string, string> = {
@@ -22,6 +23,7 @@ function sourceColor(source: string) {
 export default function Features() {
   const { char, activateFeature, canWrite, setChar, ledger } = useChar()
   const [editing, setEditing] = useState<FeatureBlock | null>(null)
+  const [pickingFeat, setPickingFeat] = useState(false)
   const level = char.meta.level
 
   // Features GRANTED by an active effect (Slice 11 grant-half): the pendant that gives you a
@@ -153,9 +155,15 @@ export default function Features() {
           >
             ＋ Add feature
           </button>
+          {/* Feats come from the library with their real benefit text and their eligibility
+              checked, rather than being hand-typed as a blank feature (S9). */}
+          <button className="btn tiny solid" onClick={() => setPickingFeat(true)} title="Browse the feat library — only what you can legally take is offered as eligible">
+            ✦ Add feat
+          </button>
         </div>
       )}
 
+      {pickingFeat && <FeatPicker onClose={() => setPickingFeat(false)} />}
       {editing && <FeatureEditor feature={editing} onClose={() => setEditing(null)} />}
     </section>
   )

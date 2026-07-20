@@ -301,7 +301,21 @@ Original plan:
 - Embeddings when `VOYAGE_API_KEY` is configured — today entries are text-only and retrieval
   falls back to keyword, which works but ranks worse.
 
-### S9 — Sheet integration for every content type
+### S9 — Sheet integration for every content type ⏳ FEATS DONE 2026-07-20
+`FeatPicker.tsx` + 10 tests. Feats had no picker, so the only route onto a sheet was hand-typing
+a blank feature — losing the feat's real benefit text and its ability increase, and silently
+allowing anything. The picker runs every feat through `featEligibility` with the slot, level,
+abilities and already-taken feats, because the standing rule is that builders offer only
+rules-legal choices with custom as the EXPLICIT escape hatch; a third door that ignored it would
+make that rule meaningless.
+Ineligible feats are shown greyed WITH their reason rather than hidden — "why can't I take
+Grappler?" is a question the sheet should answer, and hiding it makes the list look arbitrary.
+Taking one anyway is possible but reads "＋ Anyway" and is deliberate.
+**Still open in S9:** items already have ItemBuilder + equip/attune + library grant, so they are
+effectively covered; a dedicated in-sheet item picker (as opposed to the library's
+give-to-character) would be the remaining nicety.
+
+Original plan:
 Spells are done (picker → detail → cast, using the character's own stats). Repeat for feats,
 items, and features: add-from-library, read in full, use, edit.
 
