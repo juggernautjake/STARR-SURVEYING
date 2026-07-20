@@ -38,6 +38,43 @@ These are inherited from the platform and are not negotiable.
 
 ---
 
+## ✅ Source verification — first pass done 2026-07-20
+
+The owner supplied sources: `dnd2024.wikidot.com`, `aidedd.org/spell/` (391 spells, 2024-only),
+and a spreadsheet. aidedd's index carries the full mechanical block per spell, so it was
+extracted and diffed field-by-field against all 383 catalogued entries.
+
+**It found 20 real errors, now corrected** — vindicating the caution above:
+- **Concentration on the whole 2024 smite line was wrong** (Searing, Thunderous, Wrathful,
+  Blinding, Staggering Smite, Hail of Thorns, Lightning Arrow) — 2024 dropped it and recall
+  carried the 2014 behaviour across every one. A *systematic* recall error, not typos, which is
+  exactly the failure mode that hides from integrity tests. Animal Shapes likewise; Enthrall
+  gained concentration and was missing it.
+- **Seven school errors:** Stoneskin (Abj→Trans), Wall of Force (Abj→Evoc), Otiluke's Resilient
+  Sphere (Abj→Evoc), Banishing Smite (Abj→Conj), Giant Insect (Trans→Conj), Glibness
+  (Trans→Ench), Power Word Heal (Abj→Ench).
+- **Five range errors:** Banishment 60→30 ft, Witch Bolt 30→60, Giant Insect 30→60, Conjure Fey
+  90→60, Grasping Vine 30→60.
+
+Re-audit after correction: **0 mismatches across 383 spells.**
+
+Still open: **26 spells present in aidedd and absent here** (the whole Summon line — beast, fey,
+undead, aberration, construct, elemental, celestial, dragon, fiend — plus Friends, Ice Knife,
+Mind Spike, Vitriolic Sphere, Arcane Vigor, Fount of Moonlight, Power Word Fortify, Shining
+Smite, Beast Sense, Cordon of Arrows, Dragon's Breath, Speak with Plants, Rary's Telepathic
+Bond, Befuddlement, and a few named FR spells). And **18 entries here that aidedd's 2024 list
+does not carry** (Absorb Elements, Thunder Step, Branding Smite, Feeblemind, Crown of Stars,
+Soul Cage, Mental Prison, Far Step, Snare, Cause Fear, Psychic Scream, Mass Polymorph,
+Abi-Dalzim's, Invulnerability, Mighty Fortress, Temple of the Gods, Tenser's Transformation,
+Whirlwind) — these are 2014/Xanathar's/Tasha's spells that did not make the 2024 PHB, so their
+`source: PHB 2024` is wrong and must be re-sourced or removed. **Feeblemind specifically was
+replaced by Befuddlement in 2024.** Both lists are the next slice.
+
+**D&D Beyond is deliberately not used as a source.** Programmatically pulling from a platform
+whose terms prohibit it is a constraint on the assistant's conduct, independent of the owner's
+private, non-commercial use. Three independent sources cross-checked is in any case a stronger
+method than one authority — where they disagree, that disagreement is the signal.
+
 ## ⚠ Open risk: completeness cannot be self-certified
 
 The catalog stands at **383 spells** of roughly 400, authored from model recall. Recall is good
