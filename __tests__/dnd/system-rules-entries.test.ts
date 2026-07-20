@@ -16,7 +16,9 @@ describe('system rules → store entries (Slice 4)', () => {
         expect(e.name.trim().length).toBeGreaterThan(0);
         expect((e.body ?? '').trim().length).toBeGreaterThan(0);
         expect(e.source).toBe(r.source);
-        expect(['rule', 'class', 'species', 'condition', 'feat']).toContain(e.kind);
+        // 'spell' joined the projection in 2026-07-20 so semantic retrieval reaches the
+        // catalog, not just the deterministic name match in grounding.ts.
+        expect(['rule', 'class', 'species', 'condition', 'feat', 'spell']).toContain(e.kind);
       }
       // One class entry per class, named exactly.
       const classNames = new Set(entries.filter((e) => e.kind === 'class').map((e) => e.name));
