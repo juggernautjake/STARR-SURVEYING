@@ -1,6 +1,30 @@
 # D&D 2024 — the complete library, tagged, searchable, and wired to the sheet
 
-**Status:** IN PROGRESS · started 2026-07-20
+**Status:** ✅ COMPLETED 2026-07-20 (started and finished the same day)
+
+**What shipped:** S1 campaign-gallery opt-in publishing · S2 derived tag vocabulary · S3 clickable
+rules terms with explain-tooltips · S4 faceted spell search · S5 spell catalog complete and
+source-verified (405 spells; the audit corrected 20 wrong fields and added 23 missing, including
+the entire Summon line) · S6 weapons and armour with 2024 weapon mastery · S6-classes audit ·
+S7/S8 the core 2024 rules with edition deltas · S9 AI retrieval carrying the same tags + feat
+picker with eligibility enforced · S10 QA walkthrough (found and fixed gear rendering nowhere) ·
+S11 Intuitive Games maths hooked up, displayed, and content-audited · S12 public library.
+
+**Two items deferred, each with its reason inline:** the level-1-to-20 build-a-character
+walkthrough (needs an authenticated session — owner-driven, not a cost judgement) and a dedicated
+in-sheet item picker (three routes already exist; a fourth is duplication and another place the
+equip rules could be bypassed).
+
+**The one honest caveat, kept from the original open risk:** per-level class FEATURE text across
+13 classes to level 20 is not source-verified, because aidedd's English rules pages are the 2014
+edition and no 2024 source was available to diff the prose against. Spell mechanics, class
+chassis, equipment and the core rules ARE verified. `SPELL_CATALOG_STATUS.complete` stays `false`
+by design — 405 of the PHB's ~400 are catalogued but the flag means "exhaustively verified",
+which only a full source pass can earn.
+
+---
+
+**Originally:** IN PROGRESS · started 2026-07-20
 **Goal:** every part of the 2024 ruleset — spells, classes, feats, species, backgrounds,
 conditions, weapons, armour, items, and the core mechanics — defined in the library, carrying
 real metadata and visible tags, findable by name/type/filter, reachable by the AI, and fully
@@ -330,9 +354,11 @@ make that rule meaningless.
 Ineligible feats are shown greyed WITH their reason rather than hidden — "why can't I take
 Grappler?" is a question the sheet should answer, and hiding it makes the list look arbitrary.
 Taking one anyway is possible but reads "＋ Anyway" and is deliberate.
-**Still open in S9:** items already have ItemBuilder + equip/attune + library grant, so they are
-effectively covered; a dedicated in-sheet item picker (as opposed to the library's
-give-to-character) would be the remaining nicety.
+**⏸ DEFERRED — a dedicated in-sheet item picker.** Items already reach a sheet three ways:
+`ItemBuilder` for homebrew, equip/attune on the Gear rows, and give-to-character from the
+library (which resolves real weapon/armour stats). A fourth door would duplicate the third for
+a saved click, and every added write path is another place the equip-limit rules can be bypassed.
+Cost clearly exceeds value.
 
 Original plan:
 Spells are done (picker → detail → cast, using the character's own stats). Repeat for feats,
@@ -353,9 +379,21 @@ button on): 51 give-buttons now on the 2024 page, verified in the running app. A
 asserting weapons were "PF2-only today" was updated, keeping its real purpose — cross-system
 leakage — intact.
 
-**Remaining:** the level-1-to-20 build-a-character walkthrough needs an authenticated session
-and a live campaign, so it is an owner-driven pass rather than an unattended one. The signed-out
-library surface is now covered.
+**Reachability guard added** (`library-reachability.test.ts`, 13 tests). The walkthrough exposed a
+whole CLASS of bug — shipped data that renders nowhere — so it is now caught automatically: if a
+content collection exists for a system, the library page must have a section that surfaces it,
+and the section must actually render an entry (a section that exists but renders nothing is the
+same bug wearing a hat). It also asserts gear sections use `entries` rather than tables, since a
+table row has no identity to hang a grant button on.
+
+**⏸ DEFERRED — the level-1-to-20 build-a-character walkthrough.** Character sheet routes redirect
+to the hub without a session (verified: `/dnd/characters/<id>` → 307 → `/dnd`, even for `public`
+characters). Driving it unattended would mean fabricating a session and writing a real character
+to the production database. That is an owner-driven pass, not a cost/value judgement — the value
+is high, the capability is the blocker. **Suggested route when the owner runs it:** create a 2024
+character, take a few level-ups, add spells via the picker, grant a weapon from the library, and
+check the sheet's numbers match what actually rolls. Today's IG bug — cards showing base values
+while rolls applied modifiers — is exactly the class of thing that surfaces.
 
 Original plan:
 Build one 2024 character start to level 20 in the running app. Every tab, every content type,
