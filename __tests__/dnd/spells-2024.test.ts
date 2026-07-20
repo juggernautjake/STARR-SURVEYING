@@ -132,10 +132,17 @@ describe('the system dispatcher (Ground Rule 1)', () => {
     expect(spellCatalog('dnd5e-2024').note.length).toBeGreaterThan(0);
   });
 
-  it('covers every level it claims to have finished', () => {
-    for (const lvl of SPELL_CATALOG_STATUS.levelsComplete) {
-      expect(spellsAtLevel2024(lvl).length, `level ${lvl} claimed complete but empty`).toBeGreaterThan(0);
+  it('has entries at every level it claims to cover', () => {
+    for (const lvl of SPELL_CATALOG_STATUS.levelsCovered) {
+      expect(spellsAtLevel2024(lvl).length, `level ${lvl} claimed covered but empty`).toBeGreaterThan(0);
     }
+  });
+
+  it('does not claim any level is exhaustive', () => {
+    // The field is `levelsCovered`, not `levelsComplete`, precisely so a caller cannot read
+    // "level 3 is done" out of it. ~400 spells exist; this is the commonly-played subset.
+    expect(SPELL_CATALOG_STATUS.note).toMatch(/not yet catalogued/i);
+    expect(SPELL_CATALOG_STATUS.note).toMatch(/no level is exhaustive/i);
   });
 });
 

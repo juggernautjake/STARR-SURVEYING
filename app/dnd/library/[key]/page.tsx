@@ -14,7 +14,7 @@ import { classesForSystem, subclassesFor } from '@/lib/dnd/classes/registry';
 import { GAME_SYSTEMS, isSystemAvailable } from '@/lib/dnd/systems';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
-import LibraryChat from '@/app/dnd/_ui/LibraryChat';
+import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
 import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -297,7 +297,8 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
           {/* ── the glossary ───────────────────────────────────────────── */}
           {glossary.length > 0 && <GlossaryList system={page.key} systemName={page.name} entries={glossary} />}
 
-          <LibraryChat aiConfigured={dndAiConfigured()} system={page.key} title={`Ask the librarian — ${page.name}`} />
+          {/* Floating launcher, pinned to THIS system so every answer stays scoped to it. */}
+          <LibraryChatDock aiConfigured={dndAiConfigured()} system={page.key} systemName={page.name} />
         </div>
       </div>
     </div>

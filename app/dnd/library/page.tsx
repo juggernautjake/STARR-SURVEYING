@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { allLibraryPages } from '@/lib/dnd/library';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
-import LibraryChat from '@/app/dnd/_ui/LibraryChat';
+import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 
 export const metadata: Metadata = { title: 'Rules Library | Starr Tabletop' };
@@ -68,9 +68,12 @@ export default function LibraryIndexPage() {
             </div>
           </section>
 
-          <LibraryChat aiConfigured={aiConfigured} />
         </div>
       </div>
+
+      {/* The librarian rides along as a floating launcher rather than sitting at the bottom
+          of the page, where it was only findable by scrolling past everything it explains. */}
+      <LibraryChatDock aiConfigured={aiConfigured} />
     </div>
   );
 }

@@ -7,6 +7,9 @@ import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { getCharacterAccess, requireCharacterWrite } from '@/lib/dnd/characters';
+// NOTE: helpers live in lib/, never exported from this file — a route module may only export
+// recognised handlers, and an extra export fails `next build` (not `tsc --noEmit`).
+import { storageKeyFromUrl } from '@/lib/dnd/media-storage';
 
 // Gallery visibility (Phase P): a `dm-only` tag on a media row means the DM keeps it
 // private — players never see it. Everything else is player-visible on the campaign hub.
@@ -156,15 +159,4 @@ export async function DELETE(req: NextRequest) {
   if (key) await supabaseAdmin.storage.from(BUCKET).remove([key]).catch(() => {});
 
   return NextResponse.json({ ok: true });
-}
-
-/** The in-bucket path from a public storage URL, or null if it isn't one of ours.
- *  Public URLs look like …/storage/v1/object/public/<bucket>/<key>. */
-export function storageKeyFromUrl(url: string | null): string | null {
-  if (!url) return null;
-  const marker = `/storage/v1/object/public/${BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i === -1) return null;
-  const key = url.slice(i + marker.length).split('?')[0];
-  return key ? decodeURIComponent(key) : null;
 }

@@ -13,6 +13,10 @@ import { igSpellTiers } from './systems/intuitive-games/spell-tiers';
 import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
+import { spellsForSystem, type SpellDef } from './spells';
+import { SPELL_MECHANICS, type SpellMechanic } from './spells/mechanics';
+import { COMPANION_RULE_SETS, type CompanionRuleSet } from './companions/dnd5e-2024';
+import { CONDITION_MECHANICS_5E, type ConditionMechanics } from './conditions/dnd5e';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -66,6 +70,74 @@ function matchFeats(system: string, keywords: string, limit: number): Groundable
   if (!words.length) return [];
   return groundingFeats(system)
     .filter((f) => { const n = f.name.toLowerCase(); return words.some((w) => n.includes(w)); })
+    .slice(0, limit);
+}
+
+/** The 5e spells whose NAME matches a keyword in the query. Goes through the spell DISPATCHER, so a
+ *  2014 sheet retrieves nothing rather than 2024 data — several spells changed materially between
+ *  editions, and answering a 2014 question with 2024 numbers is the quiet-wrongness this scoping exists
+ *  to prevent. Name-only match, like matchFeats: a spell summary mentions many incidental words. */
+function matchSpells(system: string, keywords: string, limit: number): SpellDef[] {
+  const words = keywords.split(/\s+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return spellsForSystem(system)
+    .filter((s) => nameMatchesWords(s.name, words))
+    .slice(0, limit);
+}
+
+/** Whether a query word matches a WORD of the name — not a substring of it.
+ *
+ *  Plain `name.includes(word)` looks fine until "who is the king of the realm" retrieves
+ *  Shoc-KING Grasp, and the AI is handed a spell nobody asked about. Matching on word
+ *  boundaries (with a prefix allowance so "hunters" still finds "Hunter's Mark") keeps the
+ *  retrieval precise, which matters more here than recall: a spurious spell in the prompt is
+ *  an invitation to answer the wrong question confidently. */
+function nameMatchesWords(name: string, words: string[]): boolean {
+  const nameWords = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return words.some((w) =>
+    nameWords.some((n) => n === w || (w.length >= 4 && n.startsWith(w)) || (n.length >= 4 && w.startsWith(n))),
+  );
+}
+
+/** The spellcasting-machinery explainers relevant to the query. Unlike spells this matches on the
+ *  TITLE AND the topic, because the question is phrased as a concept ("how does concentration work",
+ *  "what's my save DC") rather than as a proper noun. 5e only — the explainers are 2024 PHB rules. */
+function matchSpellMechanics(system: string, keywords: string, limit: number): SpellMechanic[] {
+  if (system !== 'dnd5e-2024') return [];
+  const words = keywords.split(/\s+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return SPELL_MECHANICS
+    .map((m) => {
+      const hay = `${m.title} ${m.topic} ${m.key.replace(/-/g, ' ')}`.toLowerCase();
+      return { m, score: words.filter((w) => hay.includes(w)).length };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.m);
+}
+
+/** Familiar / steed / companion rule sets matching the query. 5e 2024 only. */
+function matchCompanions(system: string, keywords: string, limit: number): CompanionRuleSet[] {
+  if (system !== 'dnd5e-2024') return [];
+  const words = keywords.split(/\s+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return COMPANION_RULE_SETS
+    .filter((c) => {
+      const hay = `${c.name} ${c.grantedBy} ${c.kind.replace(/-/g, ' ')}`.toLowerCase();
+      return words.some((w) => hay.includes(w));
+    })
+    .slice(0, limit);
+}
+
+/** Conditions named in the query, carrying their worked example. Both 5e editions share the
+ *  condition list, and the modelled disadvantage/advantage parts are identical across them. */
+function matchConditionExamples(system: string, keywords: string, limit: number): ConditionMechanics[] {
+  if (system !== 'dnd5e-2024' && system !== 'dnd5e-2014') return [];
+  const words = keywords.split(/\s+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return CONDITION_MECHANICS_5E
+    .filter((c) => nameMatchesWords(c.name, words))
     .slice(0, limit);
 }
 
@@ -187,6 +259,49 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       powerHits.map((p) => `## ${p.name} (${p.school})\n${p.effect}`).join('\n\n')
     : '';
 
+  // Full mechanical detail for 5e spells named in the query — so "how does Fireball work" or
+  // "what's the range on Misty Step" answers from the catalog rather than recall. Scoped through
+  // the spell dispatcher, so a 2014 sheet gets nothing here rather than 2024 data (owner 2026-07-19).
+  const spellHits = keywords ? matchSpells(sys, keywords, 4) : [];
+  const spellBlock = spellHits.length
+    ? `\n\nRELEVANT ${label} SPELLS (authoritative mechanical detail — use exactly):\n` +
+      spellHits.map((s) => {
+        const tags = [s.concentration ? 'Concentration' : '', s.ritual ? 'Ritual' : ''].filter(Boolean).join(', ');
+        return `## ${s.name} (${s.level === 0 ? 'cantrip' : `level ${s.level}`} ${s.school})\n` +
+          `Casting time: ${s.castTime} · Range: ${s.range} · Components: ${s.components}` +
+          `${s.material ? ` (${s.material})` : ''} · Duration: ${s.duration}${tags ? ` · ${tags}` : ''}\n` +
+          `Classes: ${s.classes.join(', ')}\n${s.summary}` +
+          `${s.higher ? `\nAt higher levels: ${s.higher}` : ''}` +
+          `${s.editionNote ? `\n2024 vs 2014: ${s.editionNote}` : ''}`;
+      }).join('\n\n')
+    : '';
+
+  // How the spellcasting MACHINERY works — concentration, upcasting vs cantrip scaling, save DCs,
+  // components. These are the "how does X work" questions the catalog itself can't answer, and each
+  // carries a worked example so the AI can teach rather than recite.
+  const mechanicHits = keywords ? matchSpellMechanics(sys, keywords, 3) : [];
+  const mechanicBlock = mechanicHits.length
+    ? `\n\nRELEVANT ${label} SPELLCASTING RULES (explain using these, including the example):\n` +
+      mechanicHits.map((m) => `## ${m.title}\n${m.rule}\nEXAMPLE: ${m.example}` +
+        `${m.gotchas?.length ? `\nWatch out: ${m.gotchas.join(' ')}` : ''}`).join('\n\n')
+    : '';
+
+  // Familiar / steed / companion rules, for "what can my familiar do" questions.
+  const companionHits = keywords ? matchCompanions(sys, keywords, 2) : [];
+  const companionBlock = companionHits.length
+    ? `\n\nRELEVANT ${label} COMPANION RULES (authoritative — use exactly):\n` +
+      companionHits.map((c) => `## ${c.name} (from ${c.grantedBy})\n${c.rules.map((r) => `- ${r}`).join('\n')}` +
+        `${c.editionNote ? `\n2024 vs 2014: ${c.editionNote}` : ''}`).join('\n\n')
+    : '';
+
+  // Worked examples for any CONDITION named in the query — the note states the rule, the example
+  // shows it resolving, which is what "can I still attack while Frightened?" actually needs.
+  const conditionHits = keywords ? matchConditionExamples(sys, keywords, 3) : [];
+  const conditionBlock = conditionHits.length
+    ? `\n\nRELEVANT ${label} CONDITIONS (rule + worked example — use both):\n` +
+      conditionHits.map((c) => `## ${c.name}\n${c.note}${c.example ? `\nEXAMPLE: ${c.example}` : ''}`).join('\n\n')
+    : '';
+
   // IG class taxonomy (Area T1) — the site organises classes as 4 parents × subclasses, so the AI must build
   // an IG character as a parent class + one of ITS subclasses (never a subclass under the wrong parent).
   const taxonomyBlock = sys === 'intuitive-games'
@@ -213,7 +328,12 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
       `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
-    block: rulesBlock + glossaryBlock + featBlock + powerBlock + taxonomyBlock + homebrewBlock + ragBlock,
-    matched: entries.length + glossaryHits.length + featHits.length + powerHits.length,
+    block:
+      rulesBlock + glossaryBlock + featBlock + powerBlock +
+      spellBlock + mechanicBlock + companionBlock + conditionBlock +
+      taxonomyBlock + homebrewBlock + ragBlock,
+    matched:
+      entries.length + glossaryHits.length + featHits.length + powerHits.length +
+      spellHits.length + mechanicHits.length + companionHits.length + conditionHits.length,
   };
 }

@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { storageKeyFromUrl } from '@/app/api/dnd/media/route';
+import { storageKeyFromUrl } from '@/lib/dnd/media-storage';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
@@ -77,5 +77,20 @@ describe('the character gallery reflects a delete immediately', () => {
 
   it('closes the lightbox if the deleted image was open in it', () => {
     expect(src).toContain('setLightbox((cur) => (cur === row.url ? null : cur))');
+  });
+});
+
+// A route module may export ONLY recognised handlers. Exporting a helper alongside them
+// (storageKeyFromUrl once was) compiles fine under `tsc --noEmit` but FAILS `next build`
+// in Next's generated route types — which is how it reached main unnoticed. This catches it
+// in the unit suite instead of in the deploy.
+describe('the media route exports only route handlers', () => {
+  const ALLOWED = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'runtime', 'dynamic', 'revalidate', 'maxDuration', 'fetchCache', 'preferredRegion', 'config', 'generateStaticParams']);
+
+  it('exports nothing a Next.js route module disallows', () => {
+    const src = read('app/api/dnd/media/route.ts');
+    const names = [...src.matchAll(/^export\s+(?:async\s+)?(?:function|const|let|var)\s+([A-Za-z0-9_]+)/gm)].map((m) => m[1]);
+    const bad = names.filter((n) => !ALLOWED.has(n));
+    expect(bad, `illegal route exports (move them to lib/): ${bad.join(', ')}`).toEqual([]);
   });
 });

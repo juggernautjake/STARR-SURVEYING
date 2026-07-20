@@ -288,16 +288,146 @@ const LEVEL_3: SpellDef[] = [
     summary: 'Up to ten creatures can breathe underwater for the duration.', source: PHB },
 ];
 
+// ── 4th level ───────────────────────────────────────────────────────────────
+const LEVEL_4: SpellDef[] = [
+  { key: 'banishment', name: 'Banishment', level: 4, school: 'Abjuration', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'an item distasteful to the target', duration: '1 minute', concentration: true, classes: ['Cleric', 'Paladin', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Charisma save or the target is banished to a harmless demiplane; a native of another plane banished for the full minute does not return.', higher: 'One additional target per slot level above 4th.', source: PHB },
+  { key: 'blight', name: 'Blight', level: 4, school: 'Necromancy', castTime: '1 action', range: '30 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Druid', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Constitution save or 8d8 necrotic damage, half on a success. Plants have disadvantage and take maximum damage; undead and constructs are unaffected.', higher: '+1d8 per slot level above 4th.', source: PHB },
+  { key: 'confusion', name: 'Confusion', level: 4, school: 'Enchantment', castTime: '1 action', range: '90 feet', components: 'V, S, M', material: 'three nut shells', duration: '1 minute', concentration: true, classes: ['Bard', 'Druid', 'Sorcerer', 'Wizard'],
+    summary: 'Creatures in a 10-foot-radius sphere make a Wisdom save or act randomly each turn, repeating the save at the end of their turns.', higher: '+5 feet radius per slot level above 4th.', source: PHB },
+  { key: 'dimension-door', name: 'Dimension Door', level: 4, school: 'Conjuration', castTime: '1 action', range: '500 feet', components: 'V', duration: 'Instantaneous', classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Teleport yourself, and one willing creature you touch, to a spot you can picture up to 500 feet away.', source: PHB },
+  { key: 'divination', name: 'Divination', level: 4, school: 'Divination', castTime: '1 action', range: 'Self', components: 'V, S, M', material: 'incense worth 25+ GP, consumed', duration: 'Instantaneous', ritual: true, classes: ['Cleric', 'Druid', 'Wizard'],
+    summary: 'Receive a short truthful answer about a goal or event within 7 days. Casting more than once per day risks a false reading.', source: PHB },
+  { key: 'freedom-of-movement', name: 'Freedom of Movement', level: 4, school: 'Abjuration', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'a leather strap', duration: '1 hour', classes: ['Bard', 'Cleric', 'Druid', 'Ranger'],
+    summary: 'The target ignores difficult terrain, cannot be Restrained or Paralyzed by magic, and can spend 5 feet of movement to escape a grapple.', source: PHB },
+  { key: 'greater-invisibility', name: 'Greater Invisibility', level: 4, school: 'Illusion', castTime: '1 action', range: 'Touch', components: 'V, S', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Wizard'],
+    summary: 'The target has the Invisible condition and stays invisible even when it attacks or casts spells.', source: PHB },
+  { key: 'ice-storm', name: 'Ice Storm', level: 4, school: 'Evocation', castTime: '1 action', range: '300 feet', components: 'V, S, M', material: 'a pinch of dust and a few drops of water', duration: 'Instantaneous', classes: ['Druid', 'Sorcerer', 'Wizard'],
+    summary: 'A 20-foot-radius, 40-foot-high cylinder of hail: Dexterity save for 2d8 bludgeoning + 4d6 cold, half on a success. The ground becomes difficult terrain.', higher: '+1d8 bludgeoning per slot level above 4th.', source: PHB },
+  { key: 'polymorph', name: 'Polymorph', level: 4, school: 'Transmutation', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a caterpillar cocoon', duration: '1 hour', concentration: true, classes: ['Bard', 'Druid', 'Sorcerer', 'Wizard'],
+    summary: 'Wisdom save or the target becomes a Beast whose challenge rating is no higher than its own level; it gains the beast\'s statistics and reverts when it drops to 0 hit points in that form.', source: PHB },
+  { key: 'stoneskin', name: 'Stoneskin', level: 4, school: 'Abjuration', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'diamond dust worth 100+ GP, consumed', duration: '1 hour', concentration: true, classes: ['Druid', 'Ranger', 'Sorcerer', 'Wizard'],
+    summary: 'The target gains resistance to bludgeoning, piercing, and slashing damage from nonmagical attacks.', source: PHB },
+  { key: 'wall-of-fire', name: 'Wall of Fire', level: 4, school: 'Evocation', castTime: '1 action', range: '120 feet', components: 'V, S, M', material: 'a small piece of phosphorus', duration: '1 minute', concentration: true, classes: ['Druid', 'Sorcerer', 'Wizard'],
+    summary: 'A 60-foot-long, 20-foot-high wall of flame; one side deals 5d8 fire damage on a failed Dexterity save to creatures entering or ending their turn there.', higher: '+1d8 per slot level above 4th.', source: PHB },
+];
+
+// ── 5th level ───────────────────────────────────────────────────────────────
+const LEVEL_5: SpellDef[] = [
+  { key: 'animate-objects', name: 'Animate Objects', level: 5, school: 'Transmutation', castTime: '1 action', range: '120 feet', components: 'V, S', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Wizard'],
+    summary: 'Animate up to ten nonmagical objects to fight for you; smaller objects are weaker but more numerous.', higher: 'More objects per slot level above 5th.', source: PHB },
+  { key: 'cloudkill', name: 'Cloudkill', level: 5, school: 'Conjuration', castTime: '1 action', range: '120 feet', components: 'V, S', duration: '10 minutes', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'A 20-foot-radius sphere of poisonous fog; creatures inside make a Constitution save for 5d8 poison damage, half on a success. It moves 10 feet away from you each round.', higher: '+1d8 per slot level above 5th.', source: PHB },
+  { key: 'cone-of-cold', name: 'Cone of Cold', level: 5, school: 'Evocation', castTime: '1 action', range: 'Self (60-foot cone)', components: 'V, S, M', material: 'a small crystal or glass cone', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Constitution save or 8d8 cold damage, half on a success. A creature killed by it becomes a frozen statue.', higher: '+1d8 per slot level above 5th.', source: PHB },
+  { key: 'contact-other-plane', name: 'Contact Other Plane', level: 5, school: 'Divination', castTime: '1 minute', range: 'Self', components: 'V', duration: '1 minute', ritual: true, classes: ['Warlock', 'Wizard'],
+    summary: 'Ask up to five one-word-answer questions of an extraplanar intelligence. Failing an Intelligence save damages you and leaves you unable to act for a time.', source: PHB },
+  { key: 'dominate-person', name: 'Dominate Person', level: 5, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V, S', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Wizard'],
+    summary: 'A Humanoid makes a Wisdom save or is Charmed and obeys your commands; it repeats the save each time it takes damage.', higher: 'Longer duration at higher slot levels.', source: PHB },
+  { key: 'geas', name: 'Geas', level: 5, school: 'Enchantment', castTime: '1 minute', range: '60 feet', components: 'V', duration: '30 days', classes: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Wizard'],
+    summary: 'Wisdom save or the target is magically compelled to carry out a command, taking 5d10 psychic damage each day it acts against it.', higher: 'Longer duration at higher slot levels.', source: PHB },
+  { key: 'greater-restoration', name: 'Greater Restoration', level: 5, school: 'Abjuration', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'diamond dust worth 100+ GP, consumed', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Druid'],
+    summary: 'End one effect Charming or Petrifying the target, one curse, one reduction to an ability score, or one reduction to its hit point maximum. Also reduces Exhaustion by one level.', source: PHB },
+  { key: 'hold-monster', name: 'Hold Monster', level: 5, school: 'Enchantment', castTime: '1 action', range: '90 feet', components: 'V, S, M', material: 'a straight piece of iron', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Any creature that is not Undead makes a Wisdom save or gains the Paralyzed condition, repeating the save at the end of each of its turns.', higher: 'One additional target per slot level above 5th.', source: PHB },
+  { key: 'legend-lore', name: 'Legend Lore', level: 5, school: 'Divination', castTime: '10 minutes', range: 'Self', components: 'V, S, M', material: 'incense worth 250+ GP (consumed) and four ivory strips worth 50+ GP each', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Wizard'],
+    summary: 'Learn significant lore about a person, place, or object you name, in the form of a cryptic but true account.', source: PHB },
+  { key: 'mass-cure-wounds', name: 'Mass Cure Wounds', level: 5, school: 'Abjuration', castTime: '1 action', range: '60 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Druid'],
+    summary: 'Up to six creatures in a 30-foot-radius sphere each regain 3d8 + your spellcasting ability modifier hit points.', higher: '+1d8 per slot level above 5th.', source: PHB },
+  { key: 'raise-dead', name: 'Raise Dead', level: 5, school: 'Necromancy', castTime: '1 hour', range: 'Touch', components: 'V, S, M', material: 'a diamond worth 500+ GP, consumed', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Paladin'],
+    summary: 'Return a creature dead no more than 10 days to life with 1 hit point. It takes a penalty to rolls that wears off over several days.', source: PHB },
+  { key: 'scrying', name: 'Scrying', level: 5, school: 'Divination', castTime: '10 minutes', range: 'Self', components: 'V, S, M', material: 'a focus worth 1,000+ GP such as a crystal ball', duration: '10 minutes', concentration: true, classes: ['Bard', 'Cleric', 'Druid', 'Warlock', 'Wizard'],
+    summary: 'Observe a creature at any distance through an invisible sensor; it resists with a Wisdom save, easier to fail the better you know it.', source: PHB },
+  { key: 'telekinesis', name: 'Telekinesis', level: 5, school: 'Transmutation', castTime: '1 action', range: '60 feet', components: 'V, S', duration: '10 minutes', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'Move a creature (contested by a Strength save) or an object up to 1,000 pounds with your mind, 30 feet per action.', source: PHB },
+  { key: 'wall-of-force', name: 'Wall of Force', level: 5, school: 'Abjuration', castTime: '1 action', range: '120 feet', components: 'V, S, M', material: 'a pinch of powder from a clear gemstone', duration: '10 minutes', concentration: true, classes: ['Wizard'],
+    summary: 'An invisible, immovable wall that nothing physical can pass; it is immune to damage and can only be brought down by Disintegrate or Dispel Magic.', source: PHB },
+];
+
+// ── 6th level ───────────────────────────────────────────────────────────────
+const LEVEL_6: SpellDef[] = [
+  { key: 'chain-lightning', name: 'Chain Lightning', level: 6, school: 'Evocation', castTime: '1 action', range: '150 feet', components: 'V, S, M', material: 'a bit of fur, a rod of amber, and three silver pins', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'A bolt strikes one target for 10d8 lightning damage on a failed Dexterity save, then leaps to up to three more within 30 feet.', higher: 'One additional bolt per slot level above 6th.', source: PHB },
+  { key: 'disintegrate', name: 'Disintegrate', level: 6, school: 'Transmutation', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a lodestone and dust', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Dexterity save or 10d6 + 40 force damage; a creature reduced to 0 hit points is disintegrated to dust. Destroys nonmagical objects and Wall of Force.', higher: '+3d6 per slot level above 6th.', source: PHB },
+  { key: 'globe-of-invulnerability', name: 'Globe of Invulnerability', level: 6, school: 'Abjuration', castTime: '1 action', range: 'Self (10-foot radius)', components: 'V, S, M', material: 'a glass bead', duration: '1 minute', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'A shimmering barrier blocks spells of 5th level or lower cast from outside it.', higher: 'Blocks one level higher per slot level above 6th.', source: PHB },
+  { key: 'heal', name: 'Heal', level: 6, school: 'Abjuration', castTime: '1 action', range: '60 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Cleric', 'Druid'],
+    summary: 'A creature regains 70 hit points and is freed of Blinded, Deafened, and any diseases.', higher: '+10 hit points per slot level above 6th.', source: PHB },
+  { key: 'mass-suggestion', name: 'Mass Suggestion', level: 6, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V, M', material: 'a drop of honey', duration: '24 hours', classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Up to twelve creatures make a Wisdom save or follow a reasonable-sounding suggestion.', higher: 'Longer duration at higher slot levels.', source: PHB },
+  { key: 'true-seeing', name: 'True Seeing', level: 6, school: 'Divination', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'a mushroom powder ointment worth 25+ GP, consumed', duration: '1 hour', classes: ['Bard', 'Cleric', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'For 1 hour the target has Truesight out to 120 feet: it sees invisible creatures, through illusions, and the true form of shapechangers.', source: PHB },
+];
+
+// ── 7th level ───────────────────────────────────────────────────────────────
+const LEVEL_7: SpellDef[] = [
+  { key: 'etherealness', name: 'Etherealness', level: 7, school: 'Conjuration', castTime: '1 action', range: 'Self', components: 'V, S', duration: 'Up to 8 hours', classes: ['Bard', 'Cleric', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Step into the Ethereal Plane, able to move through solid objects and perceive the plane you left, unable to affect it.', source: PHB },
+  { key: 'finger-of-death', name: 'Finger of Death', level: 7, school: 'Necromancy', castTime: '1 action', range: '60 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Constitution save or 7d8 + 30 necrotic damage, half on a success. A Humanoid killed by it rises as a zombie under your command.', higher: '+1d8 per slot level above 7th.', source: PHB },
+  { key: 'forcecage', name: 'Forcecage', level: 7, school: 'Evocation', castTime: '1 action', range: '100 feet', components: 'V, S, M', material: 'ruby dust worth 1,500+ GP, consumed', duration: '1 hour', concentration: true, classes: ['Bard', 'Warlock', 'Wizard'],
+    summary: 'An inescapable cage or box of force. Teleporting out requires a Charisma save; the cage cannot be dispelled by damage.', source: PHB },
+  { key: 'plane-shift', name: 'Plane Shift', level: 7, school: 'Conjuration', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'a forked metal rod worth 250+ GP attuned to a plane', duration: 'Instantaneous', classes: ['Cleric', 'Druid', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Transport yourself and up to eight willing creatures to another plane of existence, or banish one unwilling creature there on a failed Charisma save.', source: PHB },
+  { key: 'regenerate', name: 'Regenerate', level: 7, school: 'Transmutation', castTime: '1 minute', range: 'Touch', components: 'V, S, M', material: 'a prayer wheel and holy water', duration: '1 hour', classes: ['Bard', 'Cleric', 'Druid'],
+    summary: 'The target regains 4d8 + 15 hit points, then 1 hit point at the start of each of its turns; severed limbs regrow over the duration.', source: PHB },
+  { key: 'resurrection', name: 'Resurrection', level: 7, school: 'Necromancy', castTime: '1 hour', range: 'Touch', components: 'V, S, M', material: 'a diamond worth 1,000+ GP, consumed', duration: 'Instantaneous', classes: ['Bard', 'Cleric'],
+    summary: 'Return a creature dead no more than a century to life with all its hit points, restoring missing body parts.', source: PHB },
+  { key: 'teleport', name: 'Teleport', level: 7, school: 'Conjuration', castTime: '1 action', range: '10 feet', components: 'V', duration: 'Instantaneous', classes: ['Bard', 'Sorcerer', 'Wizard'],
+    summary: 'Transport yourself and up to eight willing creatures to a destination you know. Accuracy depends on how well you know it — an unfamiliar place risks a mishap.', source: PHB },
+];
+
+// ── 8th level ───────────────────────────────────────────────────────────────
+const LEVEL_8: SpellDef[] = [
+  { key: 'dominate-monster', name: 'Dominate Monster', level: 8, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V, S', duration: '1 hour', concentration: true, classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Any creature makes a Wisdom save or is Charmed and obeys your commands; it repeats the save each time it takes damage.', higher: 'Longer duration at 9th level.', source: PHB },
+  { key: 'feeblemind', name: 'Feeblemind', level: 8, school: 'Enchantment', castTime: '1 action', range: '150 feet', components: 'V, S, M', material: 'a handful of clay, crystal, glass, or mineral spheres', duration: 'Instantaneous', classes: ['Bard', 'Druid', 'Warlock', 'Wizard'],
+    summary: 'Intelligence save or 4d6 psychic damage and the target\'s Intelligence and Charisma drop to 1, losing speech and spellcasting until removed by powerful magic.', source: PHB },
+  { key: 'maze', name: 'Maze', level: 8, school: 'Conjuration', castTime: '1 action', range: '60 feet', components: 'V, S', duration: '10 minutes', concentration: true, classes: ['Wizard'],
+    summary: 'Banish a creature into a labyrinthine demiplane; it escapes with a successful Intelligence check as an action.', source: PHB },
+  { key: 'power-word-stun', name: 'Power Word Stun', level: 8, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V', duration: 'Instantaneous', classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'A creature with 150 hit points or fewer gains the Stunned condition, with no saving throw to resist the initial effect.', source: PHB },
+  { key: 'sunburst', name: 'Sunburst', level: 8, school: 'Evocation', castTime: '1 action', range: '150 feet', components: 'V, S, M', material: 'fire and a piece of sunstone', duration: 'Instantaneous', classes: ['Druid', 'Sorcerer', 'Wizard'],
+    summary: 'A 60-foot-radius burst of sunlight: Constitution save for 12d6 radiant damage, half on a success, and Blinded for a minute on a failure. Undead have disadvantage.', source: PHB },
+];
+
+// ── 9th level ───────────────────────────────────────────────────────────────
+const LEVEL_9: SpellDef[] = [
+  { key: 'foresight', name: 'Foresight', level: 9, school: 'Divination', castTime: '1 minute', range: 'Touch', components: 'V, S, M', material: 'a hummingbird feather', duration: '8 hours', classes: ['Bard', 'Druid', 'Warlock', 'Wizard'],
+    summary: 'For 8 hours the target has advantage on attack rolls, ability checks, and saving throws, and attacks against it have disadvantage.', source: PHB },
+  { key: 'gate', name: 'Gate', level: 9, school: 'Conjuration', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a diamond worth 5,000+ GP', duration: '1 minute', concentration: true, classes: ['Cleric', 'Sorcerer', 'Wizard'],
+    summary: 'Open a portal to another plane; you can name a creature there and draw it to you.', source: PHB },
+  { key: 'meteor-swarm', name: 'Meteor Swarm', level: 9, school: 'Evocation', castTime: '1 action', range: '1 mile', components: 'V, S', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Four 40-foot-radius blasts: Dexterity save for 20d6 fire and 20d6 bludgeoning damage, half on a success. A creature in more than one blast is only affected once.', source: PHB },
+  { key: 'power-word-kill', name: 'Power Word Kill', level: 9, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V', duration: 'Instantaneous', classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'A creature with 100 hit points or fewer dies outright, with no saving throw.', source: PHB },
+  { key: 'time-stop', name: 'Time Stop', level: 9, school: 'Transmutation', castTime: '1 action', range: 'Self', components: 'V', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Take 1d4 + 1 turns in a row while time halts for everyone else. The effect ends early if you affect another creature or an object someone else carries.', source: PHB },
+  { key: 'true-resurrection', name: 'True Resurrection', level: 9, school: 'Necromancy', castTime: '1 hour', range: 'Touch', components: 'V, S, M', material: 'holy water and diamonds worth 25,000+ GP, consumed', duration: 'Instantaneous', classes: ['Cleric', 'Druid'],
+    summary: 'Return a creature dead up to 200 years to life with all its hit points, restoring the body entirely — even if none remains, provided you speak its name.', source: PHB },
+  { key: 'wish', name: 'Wish', level: 9, school: 'Conjuration', castTime: '1 action', range: 'Self', components: 'V', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Duplicate any spell of 8th level or lower with no components, or attempt a greater effect at the DM\'s discretion. Non-duplication uses risk severe strain and may cost you the ability to cast it again.', source: PHB },
+];
+
 /** The catalog. Ordered by level, then name. */
-export const SPELLS_2024: SpellDef[] = [...CANTRIPS, ...LEVEL_1, ...LEVEL_2, ...LEVEL_3];
+export const SPELLS_2024: SpellDef[] = [
+  ...CANTRIPS, ...LEVEL_1, ...LEVEL_2, ...LEVEL_3, ...LEVEL_4,
+  ...LEVEL_5, ...LEVEL_6, ...LEVEL_7, ...LEVEL_8, ...LEVEL_9,
+];
 
 /** Honest coverage statement. The 2024 PHB has roughly 400 spells; this catalog is built in
  *  verified tranches so that nothing in it is guessed. Callers that need to tell a user
  *  "no such spell" versus "not catalogued yet" should read this rather than assume. */
 export const SPELL_CATALOG_STATUS = {
   complete: false,
-  levelsComplete: [0, 1, 2, 3] as SpellCatalogLevel[],
-  note: 'Cantrips through 3rd-level spells catalogued. Levels 4–9 land in later tranches; a spell missing from this list is not yet catalogued, not necessarily nonexistent.',
+  /** Levels with catalogued entries. NOT a claim that the level is exhaustive — see `note`. */
+  levelsCovered: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as SpellCatalogLevel[],
+  note:
+    'Every spell level 0–9 has entries, but NO level is exhaustive: the 2024 PHB holds roughly 400 spells and this catalog covers the commonly-played subset of each level. ' +
+    'A spell missing from this list is NOT YET CATALOGUED — it is not a claim that the spell does not exist. Entries are added only when their mechanical details are known, never guessed.',
 } as const;
 
 const BY_KEY = new Map(SPELLS_2024.map((s) => [s.key, s]));

@@ -52,6 +52,7 @@ export default function LibraryChat({
   characterId,
   characterName,
   title = 'Ask the librarian',
+  embedded = false,
 }: {
   aiConfigured: boolean;
   /** When set, the focus is pinned (a system's own page); otherwise the reader picks. */
@@ -60,6 +61,9 @@ export default function LibraryChat({
   characterId?: string;
   characterName?: string;
   title?: string;
+  /** Rendered inside another panel (LibraryChatDock) — suppress this component's own
+   *  frame and heading so the chrome isn't doubled. */
+  embedded?: boolean;
 }) {
   const [focus, setFocus] = useState<string>(fixedSystem ?? SYSTEM_AMBIGUOUS);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -139,14 +143,21 @@ export default function LibraryChat({
   const focusName = focus === SYSTEM_AMBIGUOUS ? 'No system chosen' : GAME_SYSTEMS.find((s) => s.key === focus)?.name ?? focus;
 
   return (
-    <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
-      <div className={styles.framedPanelTop} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <h2 className={styles.panelTitle} style={{ margin: 0 }}>{title}</h2>
-        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
-          {characterName ? `Reading ${characterName}’s sheet · ` : ''}Answers are grounded in the focused system only
-        </span>
-      </div>
+    <section
+      className={embedded ? undefined : styles.framedPanel}
+      style={{ padding: embedded ? '10px 12px' : '14px 16px', display: 'grid', gap: 10 }}
+    >
+      {/* `embedded` drops the framed chrome + heading because LibraryChatDock already
+          supplies its own panel and header — nesting both gave two frames and two titles. */}
+      {!embedded && <div className={styles.framedPanelTop} />}
+      {!embedded && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <h2 className={styles.panelTitle} style={{ margin: 0 }}>{title}</h2>
+          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
+            {characterName ? `Reading ${characterName}’s sheet · ` : ''}Answers are grounded in the focused system only
+          </span>
+        </div>
+      )}
 
       {/* System focus — the whole contract of this chat. */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
