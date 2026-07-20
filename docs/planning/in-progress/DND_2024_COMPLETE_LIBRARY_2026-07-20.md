@@ -209,7 +209,25 @@ renders them. The gaps are (a) auditing each content type for completeness again
 intuitivegames.net, and (b) the sheet's derived maths — IG uses DR rather than AC and stances
 that modify rolls, so the ledger needs IG-shaped targets. Verify content against the source site
 per Ground Rule 3, exactly as the 2024 spells were verified.
-**Not started.** Sized as several slices: content audit, then stance/DR maths, then roll wiring.
+**Slice 1 of 3 ✅ SHIPPED 2026-07-20 — the maths is hooked up.**
+`lib/dnd/systems/intuitive-games/resolve.ts` + 14 tests. The gap was not missing data:
+`modifiers.ts` already modelled every stance and condition, and `rules.ts` already computed
+attack bonuses, saves and skills — **the two never met.** A Shaken character saw "−2 to rolls"
+as a NOTE while their attack bonus on the sheet stayed unchanged, and a Defensive stance at
+level 5 granted DR that appeared in no number anywhere. Everything was displayed for the player
+to apply by hand, which is the one thing a character sheet exists to prevent.
+Now folded in: condition flat penalties reach attacks, saves AND skills; stance advantage /
+disadvantage resolves against attacks and the right save; Advanced Offensive adds half level to
+damage; Advanced Defensive adds half level to DR on top of gear; advantage and disadvantage
+cancel rather than stack. Every resolved number carries `reasons`, so it is explicable rather
+than mysterious.
+**Deliberate restraint:** a CONDITIONAL stance clause ("advantage on attack rolls *when
+flanking*") is surfaced as a reason, never auto-applied — the sheet cannot know whether you are
+flanking, and assuming it would silently inflate every attack. `rules.ts` still answers "what is
+the base bonus"; `resolve.ts` answers "what is it right now".
+**Remaining for S11:** (2) IG content audit against intuitivegames.net for completeness across
+weapons/items/armour/spells/stances/conditions/abilities/feats/occupations/ancestries; (3) wire
+`igInPlayState` into `IGSheet.tsx` so the displayed numbers are the resolved ones.
 
 ### S5 — Weapons, armour, and equipment (superseded by S6 above)
 2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a
