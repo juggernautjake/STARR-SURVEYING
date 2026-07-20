@@ -12,6 +12,7 @@
 
 import type { SheetEdit } from './sheet-edits';
 import { findSpellForSystem } from './spells';
+import { findWeapon2024, findArmor2024, weaponPropertyLine } from './equipment/dnd5e-2024';
 
 /** What kind of library content is being granted. */
 export type GrantKind = 'spell' | 'weapon' | 'armor' | 'item' | 'feature' | 'condition';
@@ -105,15 +106,49 @@ export function buildGrantEdits(req: GrantRequest): GrantOutcome {
     case 'item': {
       const qty = Math.max(1, Math.floor(opts.quantity ?? 1));
       const kind = req.kind === 'item' ? 'gear' : req.kind;
+
+      // Resolve against the real equipment tables where we can, so a granted Longsword arrives
+      // with 1d8 slashing, Versatile and its MASTERY property — not a bare name the player has
+      // to look up and type in. 2024 mastery is the part most easily lost (S6).
+      const weapon = req.kind === 'weapon' ? findWeapon2024(name) : undefined;
+      const armor = req.kind === 'armor' ? findArmor2024(name) : undefined;
+
+      const base = { op: 'add_item' as const, name, kind, qty, equipped: !!opts.equipped };
+
+      if (weapon) {
+        return {
+          edits: [{
+            ...base,
+            desc: opts.note || `${weapon.damage} ${weapon.damageType}. ${weaponPropertyLine(weapon)}.`,
+            weapon: {
+              damage: { dice: weapon.damage, type: weapon.damageType },
+              properties: [...weapon.properties, `Mastery: ${weapon.mastery}`],
+            },
+          } as SheetEdit],
+          summary: `Granted ${qty}× ${weapon.name} (${weapon.damage} ${weapon.damageType}, mastery ${weapon.mastery})${opts.equipped ? ' — equipped' : ''}.`,
+        };
+      }
+
+      if (armor) {
+        return {
+          edits: [{
+            ...base,
+            desc: opts.note || `${armor.category === 'shield' ? `+${armor.baseAC} AC` : `Base AC ${armor.baseAC}`}${armor.stealthDisadvantage ? ', stealth disadvantage' : ''}.`,
+            armor: {
+              category: armor.category,
+              baseAC: armor.baseAC,
+              // The sheet's own AC maths reads modCap; the table's dexCap maps straight onto it.
+              modCap: armor.dexCap,
+              stealthDisadvantage: armor.stealthDisadvantage,
+            },
+          } as SheetEdit],
+          summary: `Granted ${qty}× ${armor.name} (${armor.category === 'shield' ? `+${armor.baseAC} AC` : `base AC ${armor.baseAC}`})${opts.equipped ? ' — equipped' : ''}.`,
+        };
+      }
+
+      // Not in the tables — still grantable, just without stats rather than invented ones.
       return {
-        edits: [{
-          op: 'add_item',
-          name,
-          kind,
-          qty,
-          equipped: !!opts.equipped,
-          desc: opts.note ?? '',
-        } as SheetEdit],
+        edits: [{ ...base, desc: opts.note ?? '' } as SheetEdit],
         summary: `Granted ${qty}× ${name}${opts.equipped ? ' (equipped)' : ''}.`,
       };
     }

@@ -195,3 +195,44 @@ describe('glossary entries can be granted where that makes sense', () => {
     expect(giveIdx).toBeGreaterThan(bodyIdx); // inside the isOpen body, after the toggle closes
   });
 });
+
+// S6 — granted equipment arrives with real stats, not a bare name.
+describe('equipment grants resolve against the 2024 tables', () => {
+  it('a granted weapon carries its damage and MASTERY property', () => {
+    // Mastery is the 2024 headline and the part most easily lost in a hand-typed item.
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Greatsword', system: 'dnd5e-2024' }));
+    const e = r.edits[0] as { weapon?: { damage?: { dice: string; type: string }; properties?: string[] } };
+    expect(e.weapon?.damage).toEqual({ dice: '2d6', type: 'slashing' });
+    expect(e.weapon?.properties).toContain('Mastery: Graze');
+    expect(r.summary).toContain('Graze');
+  });
+
+  it('a granted armour carries its base AC and dex cap', () => {
+    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Breastplate', system: 'dnd5e-2024' }));
+    const e = r.edits[0] as { armor?: { baseAC?: number; modCap?: number | null; category?: string } };
+    expect(e.armor?.baseAC).toBe(14);
+    expect(e.armor?.modCap).toBe(2);
+    expect(e.armor?.category).toBe('medium');
+  });
+
+  it('maps a shield as a flat bonus', () => {
+    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Shield', system: 'dnd5e-2024' }));
+    const e = r.edits[0] as { armor?: { category?: string; baseAC?: number } };
+    expect(e.armor?.category).toBe('shield');
+    expect(e.armor?.baseAC).toBe(2);
+  });
+
+  it('grants an unknown item WITHOUT stats rather than inventing them', () => {
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Lightsaber', system: 'dnd5e-2024' }));
+    const e = r.edits[0] as { weapon?: unknown; name: string };
+    expect(e.name).toBe('Lightsaber');
+    expect(e.weapon).toBeUndefined();
+  });
+
+  it('still honours quantity and equipped for table-resolved items', () => {
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Dagger', system: 'dnd5e-2024', options: { quantity: 2, equipped: true } }));
+    const e = r.edits[0] as { qty?: number; equipped?: boolean };
+    expect(e.qty).toBe(2);
+    expect(e.equipped).toBe(true);
+  });
+});

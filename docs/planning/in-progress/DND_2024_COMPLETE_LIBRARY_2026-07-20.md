@@ -156,7 +156,30 @@ Original plan:
 - Verification pass against a source (see open risk).
 - Every spell carries structured `attack` / `save` / `damage` / `heal` so it rolls.
 
-### S5 — Weapons, armour, and equipment
+### S6 — Weapons, armour, and equipment ✅ SHIPPED 2026-07-20
+`lib/dnd/equipment/dnd5e-2024.ts` + 15 tests. All 38 weapons and 13 armours with damage, damage
+type, properties, weight, cost, DEX caps, strength requirements and stealth flags — **and every
+weapon's 2024 MASTERY property** (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex) with what
+each does. Mastery did not exist in 2014 and is the single most likely thing for a carried-over
+assumption to drop silently; a test asserts every weapon has one. Wired into the grant path, so
+a granted Longsword arrives as 1d8 slashing, Versatile, Mastery: Sap — not a bare name. Unknown
+items still grant WITHOUT stats rather than invented ones.
+
+### S11 — Intuitive Games: complete system + full sheet maths (owner 2026-07-20)
+The owner asked for IG to be brought to the same standard as 2024: every weapon, item, armour,
+spell/power, stance, condition, ability, feat, occupation and ancestry present in the library,
+and the IG character sheet doing **all** the calculations — spell and weapon mechanics wired
+into real rolls and attacks, stances fully accounted for, and the arithmetic hooked up end to
+end rather than displayed for the player to apply by hand.
+Substantial existing base to build on: `lib/dnd/systems/intuitive-games/` already holds content,
+feats (151), powers, stances, companions, spell tiers and a taxonomy, and the library page
+renders them. The gaps are (a) auditing each content type for completeness against
+intuitivegames.net, and (b) the sheet's derived maths — IG uses DR rather than AC and stances
+that modify rolls, so the ledger needs IG-shaped targets. Verify content against the source site
+per Ground Rule 3, exactly as the 2024 spells were verified.
+**Not started.** Sized as several slices: content audit, then stance/DR maths, then roll wiring.
+
+### S5 — Weapons, armour, and equipment (superseded by S6 above)
 2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a
 sheet as real items with working stats, not names.
 
