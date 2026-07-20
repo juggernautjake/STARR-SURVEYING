@@ -392,8 +392,9 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     }
   }
 
-  // Backgrounds (PF2 only today) — a real table of what each grants, since backgrounds are a level-1
-  // choice as consequential as ancestry/class in Pathfinder 2e.
+  // Backgrounds — a real table of what each grants, since a background is a level-1 choice as
+  // consequential as ancestry/class. (This block is PF2's; the 2024 and IG background tables follow
+  // below — the comment used to say "PF2 only today" and had been stale for some time.)
   const backgrounds = backgroundsForSystem(key);
   if (backgrounds.length) {
     sections.push({

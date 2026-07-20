@@ -240,10 +240,20 @@ names every contributing source, and DR includes Advanced Defensive's half-level
 (with gear called out separately). Showing base-alongside-resolved is deliberate — a number that
 silently differs from what the player expects is worse than no number at all.
 
-**Remaining for S11:** (3) IG content audit against intuitivegames.net for completeness across
-weapons/items/armour/spells/stances/conditions/abilities/feats/occupations/ancestries. This is
-a research-heavy slice, not a code one — the same source-verification method the 2024 spells got,
-which is what caught 20 wrong fields there.
+**Slice 3 of 3 ✅ SHIPPED 2026-07-20 — content audit done, no structural gaps.**
+Fetched intuitivegames.net and enumerated its 19 content pages, then checked each against the
+71 IG collections in `lib/dnd/systems/intuitive-games/`. **Every page has a collection behind
+it.** `__tests__/dnd/ig-site-coverage.test.ts` (20 tests) pins the mapping so a whole content
+category cannot go missing unnoticed.
+Two naming notes that make the coverage look worse than it is: the owner's "occupations" are the
+site's **Backgrounds** (`IG_BACKGROUND_DEFS`, 10 present) and "races" are its **Ancestries**
+(`IG_ANCESTRIES`) — so grepping for "occupation" finds nothing and that is not a gap. Also
+corrected a stale comment in `library.ts` claiming backgrounds were "PF2 only today"; IG and 2024
+backgrounds have both rendered for some time.
+**Depth, as opposed to breadth, was already covered** by `ig-content-complete.test.ts` and
+`ig-content-gaps.test.ts`, which track the powers still awaiting effect text from Brendan against
+`SITE_MASTER.md` and fail when a NEW gap appears. That is the right place for it and is left as
+the owner set it up — those gaps are content Brendan has not published, not omissions here.
 
 ### S5 — Weapons, armour, and equipment (superseded by S6 above)
 2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a
