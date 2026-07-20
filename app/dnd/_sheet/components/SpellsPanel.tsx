@@ -12,6 +12,7 @@ import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
 import SpellEditor from './ui/SpellEditor'
+import SpellPicker from './ui/SpellPicker'
 import type { Spell, SpellLevel } from '../types'
 
 const ORDINAL = ['Cantrips', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level', '9th Level']
@@ -27,6 +28,7 @@ function damageLine(s: Spell): string {
 export default function SpellsPanel() {
   const { char, abilities, pb, setChar, editMode, canWrite, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
+  const [picking, setPicking] = useState(false)
   const duplicate = (sp: Spell) =>
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
   const remove = (sp: Spell) => {
@@ -207,6 +209,17 @@ export default function SpellsPanel() {
         </div>
       )}
 
+      {/* Add from the rules library — pre-fills level/school/casting time/range/components so a
+          sheet can't end up with a Fireball that has the wrong range. Hand-authoring still works. */}
+      {canWrite && (
+        <div style={{ marginTop: 12 }}>
+          <button className="btn tiny solid" onClick={() => setPicking(true)} title="Search the spell library and add a spell with its mechanics filled in">
+            ✦ Add spell from library
+          </button>
+        </div>
+      )}
+
+      {picking && <SpellPicker onClose={() => setPicking(false)} />}
       {editing && <SpellEditor spell={editing} onClose={() => setEditing(null)} />}
     </section>
   )
