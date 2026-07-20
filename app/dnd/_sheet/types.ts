@@ -293,6 +293,13 @@ export interface Spell {
   customized?: boolean
   /** Uploaded art for this spell, shown as a thumbnail in the spell list (Slice 28). */
   image?: string
+  /** Why this spell is outside what the character's class and level grant, e.g. "not on the
+   *  Wizard spell list" (Area MV). Set when a CUSTOM character takes something a vanilla one
+   *  would be blocked from, so the choice stays visible on the sheet instead of reading as a
+   *  normal class pick. Absent = taken legally. Note this is NOT `provenance.ts`: that asks
+   *  "does this exist in the system?" (Wish does), where this asks "was it legal for THIS
+   *  character?" — a different question needing its own marker. */
+  offRules?: string
 }
 
 export interface SpellcastingInfo {

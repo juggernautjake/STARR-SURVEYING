@@ -13,12 +13,18 @@ import { useMemo, useState } from 'react'
 import { useChar } from '../../state/store'
 import { useSheetSystem } from '../../state/sheetConfig'
 import { spellsForSystem, spellCatalog, type SpellDef, type SpellClass } from '@/lib/dnd/spells'
+import { spellEligibility } from '@/lib/dnd/spells/eligibility'
 import type { Spell, SpellLevel } from '../../types'
 
 /** Turn a catalog entry into a sheet spell. The catalog holds the MECHANICS; the sheet copy is
- *  the player's own (they can then edit it freely without touching the library). */
-export function spellFromCatalog(def: SpellDef, existingCount: number): Spell {
+ *  the player's own (they can then edit it freely without touching the library).
+ *
+ *  `offRules` carries WHY the pick was outside the character's class and level — set when a
+ *  custom character takes something a vanilla one could not, so the sheet keeps a record rather
+ *  than letting it pass as a normal class pick. */
+export function spellFromCatalog(def: SpellDef, existingCount: number, offRules?: string): Spell {
   return {
+    ...(offRules ? { offRules } : {}),
     id: `${def.key}-${existingCount}`,
     name: def.name,
     level: def.level as SpellLevel,
@@ -44,7 +50,7 @@ export function spellFromCatalog(def: SpellDef, existingCount: number): Spell {
 }
 
 export default function SpellPicker({ onClose }: { onClose: () => void }) {
-  const { char, setChar, isDM } = useChar()
+  const { char, setChar, isDM, variantKind } = useChar()
   const system = useSheetSystem()
   const [q, setQ] = useState('')
   const [level, setLevel] = useState<number | 'all'>('all')
@@ -67,10 +73,9 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
   }, [char.meta.className])
   const [onlyMyClass, setOnlyMyClass] = useState(true)
 
-  // The highest spell level this character can currently cast, from their own slot table.
-  // Spells above it are still ADDABLE — a subclass, a feat, a scroll or the DM can legitimately
-  // grant something off-curve — but they are flagged so nobody adds a 9th-level spell to a
-  // 3rd-level caster by accident.
+  // The highest spell level this character can currently cast, from their OWN slot table. Used
+  // as an override so a multiclass or DM-adjusted sheet is judged on what it actually has,
+  // rather than on what its class alone would grant.
   const maxCastable = useMemo(() => {
     const slots = char.spellcasting?.slots ?? {}
     const levels = Object.entries(slots)
@@ -78,6 +83,20 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
       .map(([k]) => Number(k))
     return levels.length ? Math.max(...levels) : 0
   }, [char.spellcasting])
+
+  // Rules eligibility, from the shared core. A VANILLA character is hard-blocked from anything
+  // ineligible; a CUSTOM one may take it and is told what it is doing (owner 2026-07-20).
+  const eligCtx = useMemo(() => ({
+    system,
+    className: char.meta.className,
+    level: char.meta.level,
+    // Spells already on the sheet count as granted, so a subclass or DM gift the character
+    // already holds never reads as illegal on a second look.
+    extraSpells: (char.spells ?? []).map((s) => s.name),
+    ...(maxCastable > 0 ? { maxSpellLevel: maxCastable } : {}),
+  }), [system, char.meta.className, char.meta.level, char.spells, maxCastable])
+
+  const isVanilla = variantKind === 'vanilla'
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -89,7 +108,12 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
   }, [catalog, q, level, onlyMyClass, charClass])
 
   const add = (def: SpellDef) => {
-    setChar((c) => ({ ...c, spells: [...(c.spells ?? []), spellFromCatalog(def, (c.spells ?? []).length)] }))
+    const elig = spellEligibility(def, eligCtx)
+    // Belt and braces: the button is already disabled, but a blocked spell must not be addable
+    // by any path through this component — a disabled attribute is a UI affordance, not a rule.
+    if (isVanilla && !elig.ok && !isDM) return
+    const reason = elig.ok ? undefined : (isDM ? `granted by the DM — ${elig.reason}` : elig.reason)
+    setChar((c) => ({ ...c, spells: [...(c.spells ?? []), spellFromCatalog(def, (c.spells ?? []).length, reason)] }))
   }
 
   return (
@@ -154,8 +178,13 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
               )}
               {results.map((s) => {
                 const already = have.has(s.name.toLowerCase())
-                const offList = !!charClass && !s.classes.includes(charClass)
-                const tooHigh = s.level > 0 && maxCastable > 0 && s.level > maxCastable
+                // One decision, from the shared core — replacing the ad-hoc off-list / too-high
+                // checks this used to do inline, so the picker, the grant path and the AI all
+                // agree on what is legal.
+                const elig = spellEligibility(s, eligCtx)
+                // The DM is never blocked: granting a spell a character could not normally take
+                // is a legitimate DM act, and blocking it would make their job impossible.
+                const blocked = isVanilla && !elig.ok && !isDM
                 return (
                   <div key={s.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -165,13 +194,10 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                           {s.level === 0 ? 'cantrip' : `level ${s.level}`} · {s.school}
                           {s.concentration ? ' · concentration' : ''}{s.ritual ? ' · ritual' : ''}
                         </span>
-                        {/* Warnings, not blocks: a subclass, feat, scroll or the DM can all
-                            legitimately hand you something off your list or above your level. */}
-                        {offList && (
-                          <span className="tag" style={{ marginLeft: 6, color: '#e0a020' }} title={`Not on the ${charClass} spell list`}>off-list</span>
-                        )}
-                        {tooHigh && (
-                          <span className="tag" style={{ marginLeft: 6, color: '#e0a020' }} title={`You have no level-${s.level} slots yet (highest: ${maxCastable})`}>above your slots</span>
+                        {!elig.ok && (
+                          <span className="tag" style={{ marginLeft: 6, color: blocked ? 'var(--danger)' : '#e0a020' }} title={elig.reason}>
+                            {blocked ? 'not available' : 'off-rules'}
+                          </span>
                         )}
                       </div>
                       <div style={{ fontSize: 11.5, color: 'var(--muted)', margin: '1px 0 3px' }}>
@@ -180,10 +206,21 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                       <div style={{ fontSize: 12.5 }}>{s.summary}</div>
                     </div>
                     <button
-                      className={`btn tiny ${already ? '' : 'solid'}`} onClick={() => add(s)}
-                      title={already ? `${s.name} is already on this sheet — adding again makes a second copy` : `Add ${s.name}`}
+                      className={`btn tiny ${already || blocked ? '' : 'solid'}`}
+                      onClick={() => add(s)}
+                      // HARD BLOCK for a vanilla character. The row still renders, greyed, with
+                      // its reason — "why can't I take this?" is a question the sheet should
+                      // answer, and hiding the spell just makes the list look arbitrary.
+                      disabled={blocked}
+                      title={
+                        blocked ? `Not available: ${elig.reason} (this is a vanilla character — build a custom one to take it anyway)`
+                          : already ? `${s.name} is already on this sheet — adding again makes a second copy`
+                            : !elig.ok ? `Off-rules: ${elig.reason} — allowed because this character is custom`
+                              : `Add ${s.name}`
+                      }
+                      style={blocked ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     >
-                      {already ? '＋ again' : '＋ Add'}
+                      {blocked ? '✕ Blocked' : already ? '＋ again' : !elig.ok ? '＋ Anyway' : '＋ Add'}
                     </button>
                   </div>
                 )

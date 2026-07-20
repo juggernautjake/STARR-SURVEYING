@@ -83,9 +83,24 @@ Original plan:
 not surface it, so nothing can gate on it. Thread it into `useChar()` as `variantKind` and make
 the default explicit and safe.
 
-### S3 — Enforce in the spell picker
-Vanilla: ineligible spells greyed, Add **disabled**, reason shown.
-Custom: Add enabled, labelled "＋ Anyway", and the added spell carries an off-rules marker.
+### S3 — Enforce in the spell picker ✅ SHIPPED 2026-07-20
+The reported bug is now closed on the player route: a level-4 vanilla Wizard sees Wish greyed,
+labelled "not available", with the Add button **disabled** and the reason on hover. A custom
+character gets "＋ Anyway" and the spell lands carrying `offRules` — the reason it was outside
+the rules. 12 new tests; one older test **reversed on purpose** (`spell-picker.test.ts` asserted
+the warn-only behaviour and cited the legitimate-exception argument; that argument is now served
+by `extraSpells` rather than by enforcing nothing).
+**The handler re-checks, not just the button.** `disabled` is an affordance, not an enforcement
+point — `add()` returns early on a blocked spell so no stale render or programmatic click walks
+through it.
+**The DM is explicitly exempt** (`isVanilla && !elig.ok && !isDM`): blocking a DM grant would
+make their job impossible. Their grants land marked `granted by the DM — <reason>`, so the sheet
+distinguishes "the DM gave me this" from "I took this outside the rules".
+
+**`provenance.ts` cannot carry this marker** — worth knowing before S6 plans to reuse it. It asks
+*"does this content exist in the system?"*; Wish does, so it classifies as vanilla. The question
+here is *"was it legal for THIS character at THIS level?"* — a different question, so off-rules
+picks carry their own `Spell.offRules` field. **S6 should be re-planned accordingly.**
 
 ### S4 — Same treatment for feats
 The feat picker currently warns and offers "＋ Anyway" to everyone. Under the new rule, vanilla
@@ -97,8 +112,9 @@ legal and lands marked; a player-initiated grant to their own vanilla character 
 
 ### S6 — Mark off-rules content on the sheet
 An off-rules spell/feat should be visibly flagged wherever it renders, so a DM reading a sheet
-can see what was taken outside the rules. `provenance.ts` already classifies
-vanilla/custom/dm-granted — reuse it rather than inventing a parallel marker.
+can see what was taken outside the rules. Render the `offRules` reason carried on the element
+(S3) — **not** `provenance.ts`, which answers a different question (see S3's note: it classifies
+whether content exists in the system, not whether it was legal for this character).
 
 ---
 

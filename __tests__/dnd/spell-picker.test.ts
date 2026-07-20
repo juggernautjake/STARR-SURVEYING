@@ -200,10 +200,17 @@ describe('class and level targeting', () => {
     expect(picker).toContain('char.meta.className');
   });
 
-  it('flags off-list and above-slot spells rather than blocking them', () => {
-    // Subclasses, feats, scrolls and the DM all legitimately grant off-curve spells.
-    expect(picker).toContain('off-list');
-    expect(picker).toContain('above your slots');
+  it('blocks off-curve spells for a vanilla character and flags them for a custom one', () => {
+    // This REPLACES an earlier assertion that the picker only ever warned. That behaviour was
+    // justified on the grounds that subclasses, feats, scrolls and the DM all legitimately grant
+    // off-curve spells — true for the DM grant path, and wrong for a player building a vanilla
+    // character, who could add Wish at level 4 (owner 2026-07-20). The legitimate exceptions are
+    // now modelled as rules (`extraSpells`) instead of being an excuse to enforce nothing.
+    expect(picker).toContain('off-rules');
+    expect(picker).toContain('not available');
+    expect(picker).toContain('disabled={blocked}');
+    // The DM keeps their override.
+    expect(picker).toContain('&& !isDM');
   });
 
   it('derives the castable ceiling from the character’s own slots', () => {
