@@ -233,9 +233,17 @@ than mysterious.
 flanking*") is surfaced as a reason, never auto-applied — the sheet cannot know whether you are
 flanking, and assuming it would silently inflate every attack. `rules.ts` still answers "what is
 the base bonus"; `resolve.ts` answers "what is it right now".
-**Remaining for S11:** (2) IG content audit against intuitivegames.net for completeness across
-weapons/items/armour/spells/stances/conditions/abilities/feats/occupations/ancestries; (3) wire
-`igInPlayState` into `IGSheet.tsx` so the displayed numbers are the resolved ones.
+**Slice 2 of 3 ✅ SHIPPED 2026-07-20 — the sheet shows them.**
+`IGSheet.tsx` reads `igInPlayState`: saves render their resolved total with the base shown
+underneath when something is modifying it, a ⌃/⌄ marks advantage or disadvantage, the tooltip
+names every contributing source, and DR includes Advanced Defensive's half-level on top of gear
+(with gear called out separately). Showing base-alongside-resolved is deliberate — a number that
+silently differs from what the player expects is worse than no number at all.
+
+**Remaining for S11:** (3) IG content audit against intuitivegames.net for completeness across
+weapons/items/armour/spells/stances/conditions/abilities/feats/occupations/ancestries. This is
+a research-heavy slice, not a code one — the same source-verification method the 2024 spells got,
+which is what caught 20 wrong fields there.
 
 ### S5 — Weapons, armour, and equipment (superseded by S6 above)
 2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a

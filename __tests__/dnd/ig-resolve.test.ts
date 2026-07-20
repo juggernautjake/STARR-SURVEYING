@@ -146,3 +146,37 @@ describe('no third implementation of the rules', () => {
     expect(atk(c).toHit).toBe(raw - 2);
   });
 });
+
+// S11.3 — the resolved numbers actually RENDER on the sheet, not just compute.
+describe('IGSheet displays the resolved numbers', () => {
+  const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+
+  it('computes in-play state once, memoised', () => {
+    expect(sheet).toContain('igInPlayState(ig)');
+    expect(sheet).toContain('useMemo(() => igInPlayState(ig), [ig])');
+  });
+
+  it('shows the resolved save rather than the base one', () => {
+    expect(sheet).toContain('resolvedSave(s)');
+    expect(sheet).toContain('rs?.total ?? derived.saves[s]');
+  });
+
+  it('shows the base alongside when something is modifying it', () => {
+    // A number that silently differs from what the player expects is worse than no number.
+    expect(sheet).toContain('base {fmt(derived.saves[s])}');
+  });
+
+  it('marks advantage and disadvantage on the card', () => {
+    expect(sheet).toContain('swingMark');
+  });
+
+  it('names the sources in the tooltip, so a changed number is explicable', () => {
+    expect(sheet).toContain('rs.sources.join');
+  });
+
+  it('shows DR including the stance contribution, with gear called out', () => {
+    // Advanced Defensive granted DR that previously appeared in no number anywhere.
+    expect(sheet).toContain('inPlay.damageReduction.dr');
+    expect(sheet).toContain('gear {cb.damageReduction}');
+  });
+});

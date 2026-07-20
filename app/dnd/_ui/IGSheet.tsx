@@ -13,6 +13,7 @@ import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
+import { igInPlayState } from '@/lib/dnd/systems/intuitive-games/resolve';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
@@ -51,6 +52,13 @@ const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
 export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string }) {
   const derived = useMemo(() => igDerived(ig), [ig]);
+  // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
+  // The roll path has always applied these; the cards showed base values, so a Shaken character
+  // read "+7 Reflex" and rolled +5 (S11, owner 2026-07-20). Now the card says what you'll roll.
+  const inPlay = useMemo(() => igInPlayState(ig), [ig]);
+  const resolvedSave = (k: (typeof IG_SAVES)[number]) => inPlay.saves.find((s) => s.key === k);
+  /** ⌃/⌄ marks a save or attack that will roll with advantage/disadvantage. */
+  const swingMark = (sw?: string) => (sw === 'advantage' ? ' ⌃' : sw === 'disadvantage' ? ' ⌄' : '');
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   // In-app roller (Area R1b) — tap a save/skill/attack to roll a d20 + its modifier, or an attack's damage
@@ -238,13 +246,22 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
 
       {/* Saves + top-line stats — tap a save to roll it in-app (R1b). */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {IG_SAVES.map((s) => (
-          <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')} title={`Roll ${s} (d20 ${fmt(derived.saves[s])})`}
-            style={{ flex: 1, minWidth: 90, textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'none', cursor: 'pointer' }}>
-            <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s} 🎲</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{fmt(derived.saves[s])}</div>
-          </button>
-        ))}
+        {IG_SAVES.map((s) => {
+          const rs = resolvedSave(s);
+          const shown = rs?.total ?? derived.saves[s];
+          const changed = shown !== derived.saves[s];
+          return (
+            <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')}
+              // The tooltip explains WHY the number moved, so a changed value is never mysterious.
+              title={`Roll ${s} (d20 ${fmt(shown)})${rs?.sources.length ? ` · ${rs.sources.join(', ')}` : ''}`}
+              style={{ flex: 1, minWidth: 90, textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '8px 6px', background: 'none', cursor: 'pointer' }}>
+              <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s} 🎲{swingMark(rs?.swing)}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
+              {/* Base shown alongside when something is modifying it, so the player can see both. */}
+              {changed && <div style={{ fontSize: 9.5, color: 'var(--hx-muted)' }}>base {fmt(derived.saves[s])}</div>}
+            </button>
+          );
+        })}
         <div style={{ flex: 1, minWidth: 90, textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px' }}>
           <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Hit Points</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--hx-text)' }}>{derived.currentHp}<span style={{ fontSize: 12, color: 'var(--hx-muted)' }}> / {derived.maxHp}</span></div>
@@ -328,7 +345,18 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 {cb.hitPoints.lethal ? <span style={{ color: 'var(--hx-danger)' }}> · {cb.hitPoints.lethal} lethal</span> : null}
                 {cb.hitPoints.nonlethal ? <span style={{ color: 'var(--hx-muted)' }}> · {cb.hitPoints.nonlethal} nonlethal</span> : null}
               </div>
-              {cb.damageReduction > 0 && <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{cb.damageReduction}</div>}
+              {/* DR includes Advanced Defensive's "half your level", which previously appeared in
+                  no number anywhere — the stance granted it and the sheet never showed it. */}
+              {inPlay.damageReduction.dr > 0 && (
+                <div title={inPlay.damageReduction.sources.join(' · ')}
+                  style={{ border: `1px solid ${inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '6px 10px', fontSize: 12.5 }}>
+                  <span style={{ color: 'var(--hx-muted)' }}>DR </span>
+                  <span style={{ color: inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold-2)' : undefined }}>{inPlay.damageReduction.dr}</span>
+                  {inPlay.damageReduction.dr !== cb.damageReduction && (
+                    <span style={{ color: 'var(--hx-muted)', fontSize: 10.5 }}> (gear {cb.damageReduction})</span>
+                  )}
+                </div>
+              )}
             </div>
             {(cb.stances.length > 0 || canDoEdit) && (
               <div style={{ display: 'grid', gap: 4 }}>
