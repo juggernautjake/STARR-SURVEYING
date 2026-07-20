@@ -50,11 +50,15 @@ describe('library pages', () => {
     expect(titles('dnd5e-2024')).toContain('Backgrounds');
     expect(titles('dnd5e-2024')).toContain('Languages');
     expect(titles('dnd5e-2024')).toContain('Tools');
-    // Armor/Weapons remain PF2-only library sections today — they must NOT leak into 5e pages.
-    expect(titles('dnd5e-2024')).not.toContain('Weapons');
-    expect(titles('dnd5e-2024')).not.toContain('Armor');
-    // ...nor do the 5e-only Languages/Tools leak into a PF2 page.
+    // 2024 gained its OWN Weapons and Armour sections on 2026-07-20 — a QA walkthrough found the
+    // tables existed as data and reached the AI but rendered nowhere, so a reader browsing 2024
+    // saw no gear at all. They are 2024's own entries, not PF2's leaking across.
+    expect(titles('dnd5e-2024')).toContain('Weapons');
+    expect(titles('dnd5e-2024')).toContain('Armour & Shields');
+    // The point of this test is still cross-system leakage: 5e-only Languages/Tools must not
+    // appear on a PF2 page, and PF2 keeps its own 'Armor' spelling rather than 5e's section.
     expect(titles('pathfinder2e')).not.toContain('Languages');
+    expect(titles('pathfinder2e')).not.toContain('Armour & Shields');
   });
 
   it('states plainly when a system has no levels', () => {

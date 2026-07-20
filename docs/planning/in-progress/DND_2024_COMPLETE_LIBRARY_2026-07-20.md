@@ -338,7 +338,26 @@ Original plan:
 Spells are done (picker → detail → cast, using the character's own stats). Repeat for feats,
 items, and features: add-from-library, read in full, use, edit.
 
-### S10 — Final QA walkthrough
+### S10 — QA walkthrough ⏳ LIBRARY PASS DONE 2026-07-20
+Ran the app and drove the real pages rather than trusting unit tests. Verified signed-out: the
+library index, the 2024 page and the IG page all return 200 without a session (S12 holds), the
+spell browser renders all 405 spells with its facets, the librarian dock is present, and the
+glossary and IG sections render.
+
+**It found a gap no test could see.** The 2024 page had **zero** give-to-character buttons while
+IG had 248 — because the S6 weapon and armour tables existed as data and reached the AI, but had
+**no library section at all**. A reader browsing 2024 saw no gear. Every unit test passed and the
+build was green throughout, because nothing asserted that shipped data must also be *reachable*.
+Fixed by rendering both as `entries` (not tables — a table row has no identity to hang a grant
+button on): 51 give-buttons now on the 2024 page, verified in the running app. An existing test
+asserting weapons were "PF2-only today" was updated, keeping its real purpose — cross-system
+leakage — intact.
+
+**Remaining:** the level-1-to-20 build-a-character walkthrough needs an authenticated session
+and a live campaign, so it is an owner-driven pass rather than an unattended one. The signed-out
+library surface is now covered.
+
+Original plan:
 Build one 2024 character start to level 20 in the running app. Every tab, every content type,
 every filter. Fix what it finds.
 

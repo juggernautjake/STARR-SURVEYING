@@ -11,6 +11,7 @@ import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
 import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
+import { WEAPONS_2024, ARMOR_2024, masteryEffect } from './equipment/dnd5e-2024';
 import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
 import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
@@ -426,6 +427,42 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
           b.toolProficiency,
         ]),
       },
+    });
+  }
+
+  // Weapons + armour (5e 2024). Added 2026-07-20 after a QA walkthrough found the tables existed
+  // as data and reached the AI, but had NO library section — a reader browsing 2024 saw no
+  // Weapons or Armour at all. Rendered as ENTRIES rather than a table so each gets its own
+  // expandable detail AND a give-to-character button; a table row has no identity to hang one on.
+  if (key === 'dnd5e-2024') {
+    sections.push({
+      id: 'weapons',
+      title: 'Weapons',
+      lead: `${WEAPONS_2024.length} weapons — every one carries a 2024 Mastery property.`,
+      entries: WEAPONS_2024.map((w) => ({
+        name: w.name,
+        brief: `${w.damage} ${w.damageType} · ${w.category} ${w.kind} · Mastery: ${w.mastery}`,
+        detail:
+          `**Damage:** ${w.damage} ${w.damageType}\n` +
+          `**Properties:** ${w.properties.length ? w.properties.join(', ') : '—'}\n` +
+          `**Mastery — ${w.mastery}:** ${masteryEffect(w.mastery) ?? ''}\n` +
+          `**Weight:** ${w.weight} lb · **Cost:** ${w.cost} GP`,
+      })),
+    });
+    sections.push({
+      id: 'armor',
+      title: 'Armour & Shields',
+      lead: `${ARMOR_2024.length} armours — base AC, Dexterity cap, strength requirement and stealth.`,
+      entries: ARMOR_2024.map((a) => ({
+        name: a.name,
+        brief: a.category === 'shield' ? `+${a.baseAC} AC` : `Base AC ${a.baseAC} · ${a.category}`,
+        detail:
+          `**${a.category === 'shield' ? 'AC bonus' : 'Base AC'}:** ${a.baseAC}\n` +
+          `**Dexterity:** ${a.dexCap === null ? 'add your full modifier' : a.dexCap > 0 ? `add up to +${a.dexCap}` : 'not added'}\n` +
+          (a.strengthReq ? `**Requires:** Strength ${a.strengthReq} (or lose 10 feet of speed)\n` : '') +
+          (a.stealthDisadvantage ? '**Stealth:** disadvantage\n' : '') +
+          `**Weight:** ${a.weight} lb · **Cost:** ${a.cost} GP`,
+      })),
     });
   }
 
