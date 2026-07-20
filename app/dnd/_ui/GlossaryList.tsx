@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import styles from './hextech.module.css';
 import type { GlossaryEntry } from '@/lib/dnd/glossary';
+import GiveEntryButton, { grantKindForGlossary } from './GiveEntryButton';
 
 const KIND_LABEL: Record<string, string> = {
   condition: 'Conditions',
@@ -130,6 +131,11 @@ export default function GlossaryList({
                 {isOpen && (
                   <div style={{ padding: '2px 2px 12px', fontSize: 13.5, color: 'var(--hx-text)' }}>
                     <Rich text={e.body} />
+                    {/* Give this to a character — conditions and features only; a term like
+                        "Advantage" describes how the game works, it isn't something you can be
+                        given. Must sit OUTSIDE the toggle <button> above: nesting would be
+                        invalid HTML and would swallow the click. */}
+                    <GiveEntryButton kind={grantKindForGlossary(e.kind)} name={e.term} system={system} detail={e.body} />
                     {e.seeAlso?.length ? (
                       <div style={{ marginTop: 6, fontSize: 12, color: 'var(--hx-muted)' }}>
                         See also:{' '}

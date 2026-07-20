@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildGrantEdits, isGrantError } from '@/lib/dnd/library-grant';
-import { grantKindForSection } from '@/app/dnd/_ui/GiveEntryButton';
+import { grantKindForSection, grantKindForGlossary } from '@/app/dnd/_ui/GiveEntryButton';
 import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 
@@ -168,5 +168,29 @@ describe('the character chooser offers what the write path accepts', () => {
     expect(listRoute).toContain('played_by_user_id');
     const dialog = read('app/dnd/_ui/GiveToCharacter.tsx');
     expect(dialog).toContain('/api/dnd/characters?writable=1');
+  });
+});
+
+describe('glossary entries can be granted where that makes sense', () => {
+  it('conditions apply, features and class abilities land as features', () => {
+    expect(grantKindForGlossary('condition')).toBe('condition');
+    expect(grantKindForGlossary('feature')).toBe('feature');
+    expect(grantKindForGlossary('class')).toBe('feature');
+  });
+
+  it('offers nothing for entries that describe HOW THE GAME WORKS', () => {
+    // "Advantage" is not something you can be given; a button there would be nonsense.
+    for (const k of ['mechanic', 'term', 'stat', 'action', 'whatever']) {
+      expect(grantKindForGlossary(k), k).toBeNull();
+    }
+  });
+
+  it('the button sits outside the accordion toggle button', () => {
+    // Nesting a <button> inside a <button> is invalid HTML and swallows the click.
+    const src = read('app/dnd/_ui/GlossaryList.tsx');
+    const bodyIdx = src.indexOf('<Rich text={e.body} />');
+    const giveIdx = src.indexOf('<GiveEntryButton');
+    expect(bodyIdx).toBeGreaterThan(-1);
+    expect(giveIdx).toBeGreaterThan(bodyIdx); // inside the isOpen body, after the toggle closes
   });
 });

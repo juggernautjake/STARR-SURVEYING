@@ -42,17 +42,32 @@ export function grantKindForSection(sectionId: string, system: string): GiveKind
   }
 }
 
+/** What a GLOSSARY entry can be granted as, by its `kind`. Conditions apply directly;
+ *  features and class abilities land as features carrying their article text. Mechanics,
+ *  terms, stats and actions describe how the game WORKS rather than something you can be
+ *  given — "Advantage" is not an item — so they get no button. */
+export function grantKindForGlossary(kind: string): GiveKind | null {
+  switch (kind) {
+    case 'condition': return 'condition';
+    case 'feature':
+    case 'class': return 'feature';
+    default: return null; // mechanic, term, stat, action
+  }
+}
+
 export default function GiveEntryButton({
-  sectionId, name, system, detail,
+  sectionId, name, system, detail, kind: kindOverride,
 }: {
-  sectionId: string;
+  sectionId?: string;
   name: string;
   system: string;
   /** The entry's library text — becomes the feature/item note so the grant carries its rules. */
   detail?: string;
+  /** Pass the resolved kind directly when the caller isn't a library SECTION (the glossary). */
+  kind?: GiveKind | null;
 }) {
   const [open, setOpen] = useState(false);
-  const kind = grantKindForSection(sectionId, system);
+  const kind = kindOverride ?? (sectionId ? grantKindForSection(sectionId, system) : null);
   if (!kind) return null;
 
   return (
