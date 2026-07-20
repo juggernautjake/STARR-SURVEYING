@@ -22,6 +22,7 @@ import { SPELL_MECHANICS } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
 import { glossaryFor } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
+import { RULES_2024 } from './mechanics/dnd5e-2024';
 
 export type TermKind =
   | 'condition' | 'damage' | 'spell' | 'feat' | 'mechanic' | 'glossary' | 'companion';
@@ -128,6 +129,12 @@ export function termIndexFor(system: string): LibraryTerm[] {
     }
     for (const c of COMPANION_RULE_SETS) {
       out.push({ term: c.name, kind: 'companion', short: abbreviate(c.rules[0] ?? c.grantedBy), href: `${lib}#classes` });
+    }
+    // Core rules — cover, surprise, death saves, the action list. These are the terms that
+    // appear constantly inside other entries' text ("gains the Prone condition", "takes the
+    // Dash action") and previously had nothing to click through to.
+    for (const r of RULES_2024) {
+      out.push({ term: r.name, kind: 'mechanic', short: abbreviate(r.rule), href: `${lib}#overview` });
     }
   }
 

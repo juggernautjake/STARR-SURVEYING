@@ -9,6 +9,8 @@ import { spellCatalog } from './spells';
 import { SPELL_MECHANICS } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
 import { tagsForSpell } from './library-tags';
+import { RULES_2024 } from './mechanics/dnd5e-2024';
+import { WEAPONS_2024, ARMOR_2024, weaponPropertyLine, masteryEffect } from './equipment/dnd5e-2024';
 
 /** Turn a system's catalog into a flat list of store entries (rules, classes, species, conditions). */
 export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] {
@@ -103,6 +105,37 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
         name: `${c.name} (${c.grantedBy})`,
         body: `${c.rules.join(' ')}${c.editionNote ? ` 2024 vs 2014: ${c.editionNote}` : ''}`,
         source: src,
+      });
+    }
+    // Core rules — cover, surprise, death saves, resting, the action list (S8). Each carries
+    // its worked example AND its edition note, so "did surprise change?" is answerable.
+    for (const r of RULES_2024) {
+      entries.push({
+        kind: 'rule',
+        name: r.name,
+        body: `${r.rule} Example: ${r.example}${r.editionNote ? ` 2024 vs 2014: ${r.editionNote}` : ''}`,
+        source: src,
+        data: { tags: [`type:rule`, `category:${r.category}`], changedIn2024: !!r.editionNote },
+      });
+    }
+    // Weapons and armour with their full mechanical line, so "what does a glaive do" and
+    // "which weapons have Cleave" are both answerable from the store (S6).
+    for (const wp of WEAPONS_2024) {
+      entries.push({
+        kind: 'item',
+        name: wp.name,
+        body: `${wp.category} ${wp.kind} weapon. ${wp.damage} ${wp.damageType}. Properties: ${weaponPropertyLine(wp)}. Weight ${wp.weight} lb, cost ${wp.cost} GP. Mastery ${wp.mastery}: ${masteryEffect(wp.mastery) ?? ''}`,
+        source: src,
+        data: { tags: [`type:weapon`, `category:${wp.category}`, `mastery:${wp.mastery.toLowerCase()}`, `damage:${wp.damageType}`] },
+      });
+    }
+    for (const ar of ARMOR_2024) {
+      entries.push({
+        kind: 'item',
+        name: ar.name,
+        body: `${ar.category} armor. ${ar.category === 'shield' ? `+${ar.baseAC} AC` : `Base AC ${ar.baseAC}`}${ar.dexCap === null ? ' plus full Dex' : ar.dexCap > 0 ? ` plus Dex (max ${ar.dexCap})` : ' with no Dex'}.${ar.strengthReq ? ` Requires Strength ${ar.strengthReq}.` : ''}${ar.stealthDisadvantage ? ' Disadvantage on Stealth.' : ''} Weight ${ar.weight} lb, cost ${ar.cost} GP.`,
+        source: src,
+        data: { tags: [`type:armor`, `category:${ar.category}`] },
       });
     }
   }

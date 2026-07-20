@@ -187,7 +187,24 @@ sheet as real items with working stats, not names.
 The 2024 class data exists (`lib/dnd/classes/dnd5e-2024/`, 13 files). Audit for completeness to
 level 20, add subclasses, wire species/background choices into the builder.
 
-### S7 — Conditions, mechanics, and the rest of the rules
+### S7 — Conditions, mechanics, and the rest of the rules ✅ SHIPPED 2026-07-20
+`lib/dnd/mechanics/dnd5e-2024.ts` + 12 tests. 24 core rules — D20 Tests, advantage, proficiency,
+Heroic Inspiration, initiative, surprise, cover, unarmed strike, two-weapon fighting, death
+saves, criticals, the action list, opportunity attacks, hiding, difficult terrain, jumping,
+falling, vision/light, carrying capacity, travel pace, short/long rest, exhaustion — each with a
+worked example carrying real numbers (a test enforces the digits; it caught three entries that
+had none).
+**The value is the edition deltas.** 2024 rewrote several of these and each carries an
+`editionNote`: surprise no longer costs a turn (only initiative disadvantage), exhaustion is a
+flat −2 per level to every D20 Test, grapple/shove are Unarmed Strike options with a save rather
+than contested checks, spell attacks no longer crit, Heroic Inspiration is a reroll not
+advantage. These are precisely the rules a group plays wrong from 2014 habit because they never
+think to look them up.
+Wired into the term index (so they are clickable everywhere) and projected into
+`dnd_system_entries` **with the weapon/armour tables** — 71 new entries seeded live, so "which
+weapons have Cleave" and "did surprise change?" are both answerable.
+
+Original plan:
 Conditions are done (14 + exhaustion, each with a worked example). Add the remaining core
 mechanics as first-class entries: cover, surprise, resting, travel, mounted/underwater combat,
 object interaction, death saves.
