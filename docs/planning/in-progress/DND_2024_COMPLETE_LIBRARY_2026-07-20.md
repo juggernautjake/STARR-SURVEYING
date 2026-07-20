@@ -209,6 +209,14 @@ renders them. The gaps are (a) auditing each content type for completeness again
 intuitivegames.net, and (b) the sheet's derived maths — IG uses DR rather than AC and stances
 that modify rolls, so the ledger needs IG-shaped targets. Verify content against the source site
 per Ground Rule 3, exactly as the 2024 spells were verified.
+**⚠ CORRECTION (same day).** The first cut of `resolve.ts` re-derived stance and condition
+effects from `modifiers.ts` — but the sheet's ROLL path already folded them correctly via
+`lib/dnd/{stances,conditions}/intuitive-games.ts`. That made it a THIRD implementation of the
+same rules, the exact split-brain this repo already carries between `engine/armor.ts` and
+`derive-ac.ts`. Rewritten to DELEGATE to those canonical functions; a test now asserts the
+delegation, so a fix to stance logic lands in the roll and the display together instead of
+drifting apart. The genuinely-missing piece was narrower than it first appeared — see below.
+
 **Slice 1 of 3 ✅ SHIPPED 2026-07-20 — the maths is hooked up.**
 `lib/dnd/systems/intuitive-games/resolve.ts` + 14 tests. The gap was not missing data:
 `modifiers.ts` already modelled every stance and condition, and `rules.ts` already computed
