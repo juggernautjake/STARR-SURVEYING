@@ -18,6 +18,7 @@ import { applyDeathSave } from '../lib/death-save'
 import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences'
 import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
 import { exhaustionD20Effect, type Edition } from '@/lib/dnd/mechanics/exhaustion'
+import type { SheetVariantKind } from '@/lib/dnd/system-variants'
 
 // The no-op exhaustion effect used when auto-mechanics is OFF (Area R2) — a stable module constant so it never
 // destabilises the roll callbacks' dependency arrays.
@@ -119,6 +120,10 @@ interface Ctx {
   isDM: boolean
   /** Viewer can edit this character (owner OR DM) — gates owner-level tools. */
   canWrite: boolean
+  /** Vanilla vs custom build. Builders HARD-BLOCK a vanilla character from content its class
+   *  and level do not grant, and merely flag it for a custom one. Defaults to 'vanilla', so an
+   *  unlabelled sheet obeys the rules rather than escaping them. */
+  variantKind: SheetVariantKind
   /** The DB-backed character id (null in localStorage/preview mode) — used by the
    *  DM edit log (C11a) and realtime sync (C11b). */
   characterId: string | null
@@ -267,6 +272,7 @@ export function CharacterProvider({
   canWrite,
   system,
   preferences,
+  variantKind = 'vanilla',
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -287,6 +293,11 @@ export function CharacterProvider({
    *  The single seam every swappable rule reads. Omitted → the full VANILLA set (resolvePreferences of the
    *  defaults), so a sheet opened outside a campaign behaves exactly as it always has. */
   preferences?: EffectivePreferences
+  /** Vanilla vs custom build (Area MV). A VANILLA character is hard-blocked from content its
+   *  class and level do not grant; a CUSTOM one may take it and is flagged instead. Defaults to
+   *  'vanilla' deliberately — an unlabelled or legacy sheet should obey the rules rather than
+   *  escape them, so the safe direction is the default. */
+  variantKind?: SheetVariantKind
 }) {
   // Effective preferences, defaulting to the vanilla set when none were supplied (standalone sheet).
   const prefs: EffectivePreferences = preferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES)
@@ -1206,6 +1217,7 @@ export function CharacterProvider({
     activeFormId,
     isDM,
     canWrite: canWrite ?? isDM,
+    variantKind,
     characterId: characterId ?? null,
     campaignId: campaignId ?? null,
     media,

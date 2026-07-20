@@ -207,6 +207,10 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         customLayout={character.custom_layout}
         customCss={character.custom_css}
         preferences={effectivePreferences}
+        // Vanilla vs custom, read from the ACTIVE sheet slot's own metadata. Drives whether the
+        // builders hard-block off-rules content or merely flag it. `readActiveSlotMeta` already
+        // defaults to 'vanilla' for an unlabelled slot, which is the safe direction.
+        variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind}
       />
       {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
           force and which the DM locked. Only shown for a character in a campaign. */}

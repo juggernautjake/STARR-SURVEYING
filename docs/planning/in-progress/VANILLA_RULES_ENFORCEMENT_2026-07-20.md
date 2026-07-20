@@ -67,7 +67,18 @@ Original plan:
 - Cantrips are never slot-gated. Rituals follow the class's ritual capability.
 - Pure + exhaustively tested, including the exceptions above.
 
-### S2 — Expose the vanilla/custom flag to the sheet
+### S2 — Expose the vanilla/custom flag to the sheet ✅ SHIPPED 2026-07-20
+`variantKind` now flows: character page → `readActiveSlotMeta` (the ACTIVE slot's own metadata,
+not an assumption) → `SheetRoot` → `CharacterProvider` → `useChar()`. 8 tests.
+**Defaults to `'vanilla'` at the store**, deliberately: `readActiveSlotMeta` reports ABSENCE
+(`kind: undefined`) rather than guessing, and the store supplies the safe default. The property
+that matters is that the CHAIN ends at vanilla — a legacy or unlabelled sheet obeys the rules
+rather than escaping them. Defaulting to custom would have let every existing sheet silently
+bypass the enforcement this whole doc is about.
+A test asserts the flag is in the context VALUE, not only its type — a type-only addition
+compiles happily and hands every consumer `undefined` at runtime.
+
+Original plan:
 `SheetVariantKind` exists (`system-variants.ts`, defaults `'vanilla'`) but the sheet store does
 not surface it, so nothing can gate on it. Thread it into `useChar()` as `variantKind` and make
 the default explicit and safe.

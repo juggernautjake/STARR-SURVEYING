@@ -5,6 +5,7 @@
 // loadInitial falls back to the bundled `lazzuh` character); the DB-backed store
 // arrives in C3, and this becomes the canonical /dnd/Lazzuh_Gun render in C6.
 import { CharacterProvider } from './state/store';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 import App from './App';
 import CustomSheet from './components/CustomSheet';
 import InteractiveSheet from './components/InteractiveSheet';
@@ -26,6 +27,7 @@ export default function SheetRoot({
   customLayout,
   customCss,
   preferences,
+  variantKind,
 }: {
   characterId?: string;
   campaignId?: string;
@@ -45,6 +47,10 @@ export default function SheetRoot({
   /** Effective preferences (campaign DM ∩ player) for configurable mechanics (Area P2c). Forwarded to the
    *  store; omitted → the store's vanilla default, so a standalone/preview sheet is unchanged. */
   preferences?: EffectivePreferences;
+  /** Vanilla vs custom build (Area MV). Vanilla characters are hard-blocked from content their
+   *  class and level do not grant; custom characters may take it, flagged. Defaults to vanilla
+   *  in the store — the safe direction for an unlabelled sheet. */
+  variantKind?: SheetVariantKind;
 }) {
   // A custom (AI-composed) sheet takes over rendering when it has valid blocks. If it
   // contains interactive widgets (Slice 11), render it via React inside the provider so
@@ -53,7 +59,7 @@ export default function SheetRoot({
   if (sheetType === 'custom' && hasCustomLayout(customLayout)) {
     if (layoutHasInteractive(customLayout)) {
       return (
-        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} preferences={preferences}>
+        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
           <div className="dnd-sheet skin-hextech" style={{ padding: 16 }}>
             <InteractiveSheet layout={customLayout} />
           </div>
@@ -63,7 +69,7 @@ export default function SheetRoot({
     return <CustomSheet layout={customLayout} css={customCss} />;
   }
   return (
-    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system}>
+    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind}>
       <App sheetType={sheetType} system={system} theme={theme} />
     </CharacterProvider>
   );
