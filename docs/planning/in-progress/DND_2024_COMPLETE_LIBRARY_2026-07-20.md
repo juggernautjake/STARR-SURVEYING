@@ -259,7 +259,26 @@ the owner set it up — those gaps are content Brendan has not published, not om
 2024 weapon mastery properties, armour tables, adventuring gear, magic items. Grantable to a
 sheet as real items with working stats, not names.
 
-### S6 — Classes, subclasses, species, backgrounds
+### S6 — Classes, subclasses, species, backgrounds ✅ AUDITED 2026-07-20
+`__tests__/dnd/classes-2024-audit.test.ts` (8 tests). All 12 official classes present with the
+correct chassis — hit die, primary ability, saving throws — plus the homebrew Pugilist. Features
+run to the top of the table and every class carries its **Epic Boon at 19**.
+**The 2024 change now pinned:** every class chooses its subclass at level 3. In 2014 this varied
+(Cleric/Sorcerer/Warlock at 1, Wizard/Druid at 2), so a 2014 assumption offers the choice far too
+early for exactly the classes a new player is most likely to pick. The data was already correct;
+the test stops it regressing.
+**The audit found no data bugs — it found two wrong assumptions in my own test**, worth recording
+because both look like defects at a glance: (a) Paladin has no level-20 CLASS feature because in
+2024 its capstone comes from the Oath, and (b) `asiLevels` omits 19 because the Epic Boon is
+modelled as a FEATURE rather than a free ASI, which is the better reading — an Epic Boon is a
+specific feat category, not an ability bump. Asserting either "fix" would have corrupted correct
+data.
+**Not verified:** per-level feature TEXT across 13 classes to level 20. aidedd's English rules
+pages are the 2014 edition, so the 2024 feature prose has no available source to diff against —
+unlike the spells, where aidedd's 2024 index made a field-by-field audit possible. Left honest
+rather than claimed.
+
+Original plan:
 The 2024 class data exists (`lib/dnd/classes/dnd5e-2024/`, 13 files). Audit for completeness to
 level 20, add subclasses, wire species/background choices into the builder.
 
