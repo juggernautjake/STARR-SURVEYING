@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseIGPicks, IG_PICKS_TOOL, igBuilderSystemPrompt, IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { assembleIGVanillaCharacter } from '@/lib/dnd/systems/intuitive-games/builder';
+import { IG_EDIT_OPS } from '@/lib/dnd/systems/intuitive-games/edit';
 import { summarizeCharacterProvenance } from '@/lib/dnd/provenance';
 
 describe('IG AI-customize core (full-sheet Slice 10)', () => {
@@ -42,10 +43,12 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
   });
 
   it('the AI edit tool exposes the same validated ops as the manual route (AI parity)', () => {
-    // The tool enumerates exactly the validated edit ops (stance/condition/feat/power/defensive) and requires op.
-    expect((IG_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual(
-      ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal'],
-    );
+    // The tool must enumerate exactly the ops the manual route validates. Compared against
+    // IG_EDIT_OPS itself rather than a copy of it: this assertion used to hardcode the list and
+    // went red the moment `set_ability` was added on both sides — a stale test reporting a
+    // parity break that did not exist. Against the real source, adding an op keeps it green and
+    // a GENUINE divergence (an AI-only op the route can't validate) still fails.
+    expect((IG_EDIT_TOOL.input_schema.properties.op as { enum: string[] }).enum).toEqual([...IG_EDIT_OPS]);
     expect(IG_EDIT_TOOL.input_schema.required).toContain('op');
     // A tool call runs through the SAME parser the API route uses.
     expect(parseIGEditToolCall({ op: 'add_condition', name: 'Shaken' })).toEqual({ edit: { op: 'add_condition', name: 'Shaken' } });
