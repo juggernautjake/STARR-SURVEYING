@@ -79,7 +79,19 @@ One vocabulary, applied to all content types, so filtering is uniform.
   are tags; a weapon's properties are tags) so tagging is a projection, not hand-maintenance.
 - Visible tag chips on entries; the same tags carried into `dnd_system_entries.data` for the AI.
 
-### S3 — Search + filter UI
+### S3 — Clickable rules terms with tooltips ✅ SHIPPED 2026-07-20
+`lib/dnd/term-index.ts` + `app/dnd/_ui/TermText.tsx` + 22 tests. Any condition, damage type,
+spell, feat, mechanic or glossary term in body text is bolded and clickable, opening a short
+explanation with an ✕, click-away, Escape, and a Read-more deep-link. Abbreviations are DERIVED
+(glossary `short`, condition `note`, spell `summary`, feat benefit) — hand-writing several
+hundred blurbs would drift from the content immediately. Damage types were the one category
+with nothing to project from, so they are defined here. Matcher pins: longest-term-first
+("Magic Missile" beats "Magic"), whole-words-only ("action" not inside "reaction"), no
+self-linking, no overlaps, casing preserved. A test caught the first version handing 5e
+conditions to unrelated systems.
+Wired into SpellDetail; remaining surfaces (library entries, glossary bodies) follow.
+
+### S4 — Search + filter UI
 - Extend `LibrarySearch` to filter by tag groups, not just free text.
 - Facets: content type, level, school, class, damage type, casting time, concentration/ritual.
 - Result counts per facet; clear-all; deep-linkable query state.

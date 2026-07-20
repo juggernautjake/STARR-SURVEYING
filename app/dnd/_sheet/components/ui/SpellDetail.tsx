@@ -20,6 +20,7 @@ import { useSheetSystem } from '../../state/sheetConfig'
 import { findSpellForSystem } from '@/lib/dnd/spells'
 import { abilityMod, signed } from '../../rules/dnd'
 import { md } from '../../lib/inline'
+import TermText from '@/app/dnd/_ui/TermText'
 import type { Spell } from '../../types'
 
 export default function SpellDetail({ spell, onClose }: { spell: Spell; onClose: () => void }) {
@@ -100,9 +101,18 @@ export default function SpellDetail({ spell, onClose }: { spell: Spell; onClose:
           </div>
         )}
 
-        {spell.description && <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>{md(spell.description)}</div>}
+        {/* Conditions, damage types and other spells named in the text become clickable, each
+            opening a short explanation with a Read-more into the library (owner 2026-07-20).
+            `selfTerm` stops the spell linking its own name back to itself. */}
+        {spell.description && (
+          <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+            <TermText text={spell.description} system={system} selfTerm={spell.name} />
+          </div>
+        )}
         {spell.higher && (
-          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}><b>At higher levels:</b> {spell.higher}</p>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}>
+            <b>At higher levels:</b> <TermText text={spell.higher} system={system} selfTerm={spell.name} />
+          </p>
         )}
 
         {/* Library extras — the class lists and the edition difference. */}
