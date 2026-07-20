@@ -213,16 +213,91 @@ const LEVEL_1: SpellDef[] = [
     summary: 'Constitution save or 2d8 thunder damage and pushed 10 feet away; half damage and no push on a success.', higher: '+1d8 per slot level above 1st.', source: PHB },
 ];
 
+// ── 2nd level ───────────────────────────────────────────────────────────────
+const LEVEL_2: SpellDef[] = [
+  { key: 'aid', name: 'Aid', level: 2, school: 'Abjuration', castTime: '1 action', range: '30 feet', components: 'V, S, M', material: 'a strip of white cloth', duration: '8 hours', classes: ['Cleric', 'Druid', 'Paladin', 'Ranger'],
+    summary: 'Three creatures each gain 5 hit points now and have their hit point maximum raised by 5 for the duration.', higher: '+5 more per slot level above 2nd.', source: PHB },
+  { key: 'blur', name: 'Blur', level: 2, school: 'Illusion', castTime: '1 action', range: 'Self', components: 'V', duration: '1 minute', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'Your form blurs; attack rolls against you have disadvantage unless the attacker ignores sight, such as with Blindsight.', source: PHB },
+  { key: 'darkness', name: 'Darkness', level: 2, school: 'Evocation', castTime: '1 action', range: '60 feet', components: 'V, M', material: 'bat fur and a drop of pitch or coal', duration: '10 minutes', concentration: true, classes: ['Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'A 15-foot-radius sphere of magical darkness that normal light cannot illuminate and darkvision cannot see through.', source: PHB },
+  { key: 'detect-thoughts', name: 'Detect Thoughts', level: 2, school: 'Divination', castTime: '1 action', range: 'Self', components: 'V, S, M', material: 'a copper coin', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Wizard'],
+    summary: 'Read a creature\'s surface thoughts; you can probe deeper on a failed Wisdom save, which the target then notices.', source: PHB },
+  { key: 'enhance-ability', name: 'Enhance Ability', level: 2, school: 'Transmutation', castTime: '1 action', range: 'Touch', components: 'V, S', duration: '1 hour', concentration: true, classes: ['Bard', 'Cleric', 'Druid', 'Sorcerer'],
+    summary: 'The target gains advantage on ability checks with one ability you choose.', higher: 'One additional target per slot level above 2nd.', source: PHB },
+  { key: 'hold-person', name: 'Hold Person', level: 2, school: 'Enchantment', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a small straight piece of iron', duration: '1 minute', concentration: true, classes: ['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'A Humanoid makes a Wisdom save or gains the Paralyzed condition; it repeats the save at the end of each of its turns.', higher: 'One additional target per slot level above 2nd.', source: PHB },
+  { key: 'invisibility', name: 'Invisibility', level: 2, school: 'Illusion', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'an eyelash in gum arabic', duration: '1 hour', concentration: true, classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'The target has the Invisible condition until it attacks or casts a spell.', higher: 'One additional target per slot level above 2nd.', source: PHB },
+  { key: 'lesser-restoration', name: 'Lesser Restoration', level: 2, school: 'Abjuration', castTime: '1 action', range: 'Touch', components: 'V, S', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger'],
+    summary: 'End one disease or the Blinded, Deafened, Paralyzed, or Poisoned condition on a creature you touch.', source: PHB },
+  { key: 'levitate', name: 'Levitate', level: 2, school: 'Transmutation', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a small leather loop or golden wire bent into a cup', duration: '10 minutes', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'A creature or object up to 500 pounds rises vertically up to 20 feet and stays there; an unwilling target resists with a Constitution save.', source: PHB },
+  { key: 'misty-step', name: 'Misty Step', level: 2, school: 'Conjuration', castTime: '1 bonus action', range: 'Self', components: 'V', duration: 'Instantaneous', classes: ['Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Teleport up to 30 feet to an unoccupied space you can see.', source: PHB },
+  { key: 'moonbeam', name: 'Moonbeam', level: 2, school: 'Evocation', castTime: '1 action', range: '120 feet', components: 'V, S, M', material: 'several seeds of any moonseed plant', duration: '1 minute', concentration: true, classes: ['Druid'],
+    summary: 'A 5-foot-radius cylinder of light; creatures entering or starting their turn there make a Constitution save or take 2d10 radiant damage. You can move the beam 60 feet as an action.', higher: '+1d10 per slot level above 2nd.', source: PHB },
+  { key: 'pass-without-trace', name: 'Pass without Trace', level: 2, school: 'Abjuration', castTime: '1 action', range: 'Self', components: 'V, S, M', material: 'ashes from burned mistletoe', duration: '1 hour', concentration: true, classes: ['Druid', 'Ranger'],
+    summary: 'You and allies within 30 feet gain +10 to Stealth checks and leave no tracks.', source: PHB },
+  { key: 'scorching-ray', name: 'Scorching Ray', level: 2, school: 'Evocation', castTime: '1 action', range: '120 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'Three rays, each a separate ranged spell attack dealing 2d6 fire damage; you may aim them at one target or several.', higher: 'One additional ray per slot level above 2nd.', source: PHB },
+  { key: 'silence', name: 'Silence', level: 2, school: 'Illusion', castTime: '1 action', range: '120 feet', components: 'V, S', duration: '10 minutes', concentration: true, ritual: true, classes: ['Bard', 'Cleric', 'Ranger'],
+    summary: 'No sound exists in a 20-foot-radius sphere; creatures inside are Deafened and cannot cast spells with verbal components.', source: PHB },
+  { key: 'spider-climb', name: 'Spider Climb', level: 2, school: 'Transmutation', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'a drop of bitumen and a spider', duration: '1 hour', concentration: true, classes: ['Druid', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'The target can climb walls and ceilings with its hands free, gaining a climb speed equal to its walking speed.', source: PHB },
+  { key: 'spiritual-weapon', name: 'Spiritual Weapon', level: 2, school: 'Evocation', castTime: '1 bonus action', range: '60 feet', components: 'V, S', duration: '1 minute', concentration: true, classes: ['Cleric'],
+    summary: 'A floating spectral weapon attacks as a Bonus Action for 1d8 + your spellcasting modifier force damage; you can move it 20 feet.', higher: '+1d8 per two slot levels above 2nd.',
+    editionNote: '2024 requires concentration, which the 2014 version did not — a significant nerf for Clerics.', source: PHB },
+  { key: 'suggestion', name: 'Suggestion', level: 2, school: 'Enchantment', castTime: '1 action', range: '30 feet', components: 'V, M', material: 'a drop of honey', duration: '8 hours', concentration: true, classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Wisdom save or the target pursues a reasonable-sounding course of action you suggest. Obviously harmful suggestions fail automatically.', source: PHB },
+  { key: 'web', name: 'Web', level: 2, school: 'Conjuration', castTime: '1 action', range: '60 feet', components: 'V, S, M', material: 'a bit of spiderweb', duration: '1 hour', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'Fills a 20-foot cube with difficult terrain; a Dexterity save avoids being Restrained, and a Strength check breaks free. Fire burns the webs away.', source: PHB },
+];
+
+// ── 3rd level ───────────────────────────────────────────────────────────────
+const LEVEL_3: SpellDef[] = [
+  { key: 'animate-dead', name: 'Animate Dead', level: 3, school: 'Necromancy', castTime: '1 minute', range: '10 feet', components: 'V, S, M', material: 'a drop of blood, a piece of flesh, and a pinch of bone dust', duration: 'Instantaneous', classes: ['Cleric', 'Wizard'],
+    summary: 'Raise a Medium or Small corpse as a skeleton or zombie under your command; recast within 24 hours to keep controlling it.', higher: 'Two additional undead per slot level above 3rd.', source: PHB },
+  { key: 'counterspell', name: 'Counterspell', level: 3, school: 'Abjuration', castTime: '1 reaction', range: '60 feet', components: 'S', duration: 'Instantaneous', classes: ['Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Interrupt a creature casting a spell: it makes a Constitution save against your spell save DC, and on a failure the spell fails with no effect.',
+    editionNote: 'Redesigned in 2024 — the caster makes a Constitution save rather than the counterspeller making an ability check, and it works regardless of the spell\'s level.', source: PHB },
+  { key: 'dispel-magic', name: 'Dispel Magic', level: 3, school: 'Abjuration', castTime: '1 action', range: '120 feet', components: 'V, S', duration: 'Instantaneous', classes: ['Bard', 'Cleric', 'Druid', 'Paladin', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'End a spell of 3rd level or lower on a target automatically; for higher-level spells make an ability check with your spellcasting ability against DC 10 + the spell\'s level.', higher: 'Automatically ends spells at or below the slot level used.', source: PHB },
+  { key: 'fireball', name: 'Fireball', level: 3, school: 'Evocation', castTime: '1 action', range: '150 feet', components: 'V, S, M', material: 'a ball of bat guano and sulfur', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'A 20-foot-radius sphere of flame; each creature makes a Dexterity save, taking 8d6 fire damage or half as much on a success.', higher: '+1d6 per slot level above 3rd.', source: PHB },
+  { key: 'fly', name: 'Fly', level: 3, school: 'Transmutation', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'a feather from a wing', duration: '10 minutes', concentration: true, classes: ['Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'The target gains a flying speed of 60 feet.', higher: 'One additional target per slot level above 3rd.', source: PHB },
+  { key: 'haste', name: 'Haste', level: 3, school: 'Transmutation', castTime: '1 action', range: '30 feet', components: 'V, S, M', material: 'a shaving of licorice root', duration: '1 minute', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'The target\'s speed doubles, it gains +2 AC and advantage on Dexterity saves, and it gains an extra limited action each turn. When the spell ends it cannot move or act on its next turn.', source: PHB },
+  { key: 'hypnotic-pattern', name: 'Hypnotic Pattern', level: 3, school: 'Illusion', castTime: '1 action', range: '120 feet', components: 'S, M', material: 'a pinch of confetti', duration: '1 minute', concentration: true, classes: ['Bard', 'Sorcerer', 'Warlock', 'Wizard'],
+    summary: 'Creatures in a 30-foot cube make a Wisdom save or become Charmed and Incapacitated, ending if they take damage or are shaken awake.', source: PHB },
+  { key: 'lightning-bolt', name: 'Lightning Bolt', level: 3, school: 'Evocation', castTime: '1 action', range: 'Self (100-foot line)', components: 'V, S, M', material: 'a bit of fur and a crystal rod', duration: 'Instantaneous', classes: ['Sorcerer', 'Wizard'],
+    summary: 'A 100-foot line, 5 feet wide; Dexterity save for 8d6 lightning damage, half on a success.', higher: '+1d6 per slot level above 3rd.', source: PHB },
+  { key: 'mass-healing-word', name: 'Mass Healing Word', level: 3, school: 'Abjuration', castTime: '1 bonus action', range: '60 feet', components: 'V', duration: 'Instantaneous', classes: ['Bard', 'Cleric'],
+    summary: 'Up to six creatures each regain 2d4 + your spellcasting ability modifier hit points.', higher: '+1d4 per slot level above 3rd.', source: PHB },
+  { key: 'revivify', name: 'Revivify', level: 3, school: 'Necromancy', castTime: '1 action', range: 'Touch', components: 'V, S, M', material: 'diamonds worth 300+ GP, consumed', duration: 'Instantaneous', classes: ['Cleric', 'Paladin'],
+    summary: 'Return a creature that died within the last minute to life with 1 hit point. It does not restore missing body parts.', source: PHB },
+  { key: 'sending', name: 'Sending', level: 3, school: 'Divination', castTime: '1 action', range: 'Unlimited', components: 'V, S, M', material: 'a short copper wire', duration: '1 round', classes: ['Bard', 'Cleric', 'Wizard'],
+    summary: 'Send a message of 25 words or fewer to a creature you know, anywhere; it can reply in kind.', source: PHB },
+  { key: 'slow', name: 'Slow', level: 3, school: 'Transmutation', castTime: '1 action', range: '120 feet', components: 'V, S, M', material: 'a drop of molasses', duration: '1 minute', concentration: true, classes: ['Sorcerer', 'Wizard'],
+    summary: 'Up to six creatures in a 40-foot cube make a Wisdom save or have their speed halved, take −2 AC and Dexterity saves, and act less freely each turn.', source: PHB },
+  { key: 'spirit-guardians', name: 'Spirit Guardians', level: 3, school: 'Conjuration', castTime: '1 action', range: 'Self (15-foot emanation)', components: 'V, S, M', material: 'a holy symbol', duration: '10 minutes', concentration: true, classes: ['Cleric'],
+    summary: 'Spirits fill a 15-foot emanation around you; enemies there have their speed halved and take 3d8 radiant or necrotic damage on a failed Wisdom save, half on a success.', higher: '+1d8 per slot level above 3rd.',
+    editionNote: '2024 defines this as an emanation, so it moves with you and only affects creatures that enter it or start their turn there.', source: PHB },
+  { key: 'water-breathing', name: 'Water Breathing', level: 3, school: 'Transmutation', castTime: '1 action', range: '30 feet', components: 'V, S, M', material: 'a short reed or piece of straw', duration: '24 hours', ritual: true, classes: ['Druid', 'Ranger', 'Sorcerer', 'Wizard'],
+    summary: 'Up to ten creatures can breathe underwater for the duration.', source: PHB },
+];
+
 /** The catalog. Ordered by level, then name. */
-export const SPELLS_2024: SpellDef[] = [...CANTRIPS, ...LEVEL_1];
+export const SPELLS_2024: SpellDef[] = [...CANTRIPS, ...LEVEL_1, ...LEVEL_2, ...LEVEL_3];
 
 /** Honest coverage statement. The 2024 PHB has roughly 400 spells; this catalog is built in
  *  verified tranches so that nothing in it is guessed. Callers that need to tell a user
  *  "no such spell" versus "not catalogued yet" should read this rather than assume. */
 export const SPELL_CATALOG_STATUS = {
   complete: false,
-  levelsComplete: [0, 1] as SpellCatalogLevel[],
-  note: 'Cantrips and 1st-level spells catalogued. Higher levels land in later tranches; a spell missing from this list is not yet catalogued, not necessarily nonexistent.',
+  levelsComplete: [0, 1, 2, 3] as SpellCatalogLevel[],
+  note: 'Cantrips through 3rd-level spells catalogued. Levels 4–9 land in later tranches; a spell missing from this list is not yet catalogued, not necessarily nonexistent.',
 } as const;
 
 const BY_KEY = new Map(SPELLS_2024.map((s) => [s.key, s]));

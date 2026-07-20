@@ -45,7 +45,7 @@ describe('every 5e condition has a mechanical model', () => {
     // Its effects are tier-scaled, so a single flat record could not express it.
     expect(conditionMechanics5e(EXHAUSTION)).toBeUndefined();
     // Returns a SIGNED penalty (−5 ft per level in 2024), so it reads as negative.
-    expect(exhaustionSpeedPenalty(3, '2024', 'linear')).toBe(-15);
+    expect(exhaustionSpeedPenalty(3, '2024', 'vanilla')).toBe(-15);
   });
 
   it('every modelled condition carries either effects or an explanatory note', () => {
