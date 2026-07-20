@@ -17,9 +17,12 @@ import GiveToCharacter, { type GiveKind } from './GiveToCharacter';
 export function grantKindForSection(sectionId: string, system: string): GiveKind | null {
   switch (sectionId) {
     case 'spells':
-      // Only where a real spell catalog backs it; otherwise the server would reject the name
-      // anyway, and a button that always errors is worse than no button.
-      return system === 'dnd5e-2024' ? 'spell' : null;
+      // A real SpellDef catalog backs 2024, so those grant as proper spells with structured
+      // mechanics. Other systems' spells have effect TEXT but no catalog, so they land as
+      // features carrying that text — the same honest treatment IG powers get. Better than no
+      // button (the reader could see the spell but hand it to nobody) and better than a
+      // 'spell' grant the server would reject for want of a catalogue entry.
+      return system === 'dnd5e-2024' ? 'spell' : 'feature';
     // Intuitive Games powers have full effect text but no structured spell catalog, so they
     // land as FEATURES carrying that text — honest, and immediately readable on the sheet.
     case 'powers':

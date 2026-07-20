@@ -505,10 +505,15 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       id: 'spells',
       title: 'Spells',
       lead: `${spells.length} spells — a representative sample (rank, traditions, effect), not the full list.`,
-      table: {
-        headers: ['Spell', 'Rank', 'Traditions', 'Cast', 'Effect'],
-        rows: spells.map((s) => [s.name, pf2RankLabel(s.rank), s.traditions.join(', '), s.cast, s.effect]),
-      },
+      // Rendered as ENTRIES rather than a table (2026-07-20). A table row has no identity, so
+      // there was nowhere to hang the "give to a character" button — Pathfinder spells were the
+      // one content type a reader could see but not hand to anyone. Entries also let each spell
+      // expand on its own, matching how every other system presents its spells.
+      entries: spells.map((s) => ({
+        name: s.name,
+        brief: `${pf2RankLabel(s.rank)} · ${s.traditions.join(', ')}`,
+        detail: `**Cast:** ${s.cast}\n**Traditions:** ${s.traditions.join(', ')}\n\n${s.effect}`,
+      })),
     });
   }
 

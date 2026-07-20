@@ -107,8 +107,9 @@ describe('granted edits actually land on a sheet', () => {
 describe('section → grant kind mapping', () => {
   it('offers spells only where a catalog backs them', () => {
     expect(grantKindForSection('spells', 'dnd5e-2024')).toBe('spell');
-    // PF2 renders spells as a table with no catalog behind it — a button here would always error.
-    expect(grantKindForSection('spells', 'pathfinder2e')).toBeNull();
+    // PF2 spells have effect text but no SpellDef catalog, so they land as features
+    // carrying that text rather than being ungiftable.
+    expect(grantKindForSection('spells', 'pathfinder2e')).toBe('feature');
   });
 
   it('maps IG powers and feats to features', () => {
