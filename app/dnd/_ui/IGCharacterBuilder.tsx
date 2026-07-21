@@ -17,8 +17,34 @@ import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
+/**
+ * Every distinct option name of a kind, across all of that kind's catalog groups.
+ *
+ * DISTINCT is the operative word, and it is not a tidiness measure. Intuitive Games publishes
+ * three feats — Armor Proficiency, Shield Proficiency and Weapon Training — on BOTH its general
+ * and combat feat pages, with differently-worded effects (`feats.ts` records this, deliberately
+ * preserving both as the site has them). Flattening the groups therefore yielded the same name
+ * twice, which caused two real problems and one visible symptom:
+ *
+ *   · The chips were keyed by name, so React warned about duplicate keys and reserved the right
+ *     to duplicate or omit either one. That was the symptom, and fixing it with a composite key
+ *     would have silenced the warning while leaving the actual bug in place.
+ *   · The actual bug: a character's `feats` is a bare `string[]`. Both chips store the SAME
+ *     string, and selection is tested with `includes(name)` — so the two chips toggled in
+ *     lockstep. The UI offered a choice between two things that the sheet cannot tell apart.
+ *
+ * Since storage is by name, exactly one takeable thing called "Armor Proficiency" exists, and
+ * showing one chip is the only presentation that matches what selecting it actually does.
+ *
+ * KNOWN GAP, recorded rather than papered over: which of the two published effect texts applies
+ * is a content question this UI cannot answer, and deduping here does not resolve it. Resolving
+ * it properly means either reconciling the two entries in `feats.ts` or giving IG feats a
+ * category-qualified identity in storage — a model change, not a rendering fix.
+ */
 function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[] {
-  return groups.filter((g) => g.kind === kind).flatMap((g) => g.entries.map((e) => e.name));
+  return Array.from(
+    new Set(groups.filter((g) => g.kind === kind).flatMap((g) => g.entries.map((e) => e.name))),
+  );
 }
 
 export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla' }: { characterId: string; initialName: string; aiConfigured?: boolean;

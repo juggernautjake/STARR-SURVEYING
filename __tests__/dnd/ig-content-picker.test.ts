@@ -21,6 +21,7 @@ import { gateIgEdit } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { blankIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { IG_SPELL_ROSTER } from '@/lib/dnd/systems/intuitive-games/content';
+import { allFeats } from '@/app/dnd/_ui/IGContentPicker';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const picker = read('app/dnd/_ui/IGContentPicker.tsx');
@@ -229,5 +230,46 @@ describe('KNOWN: three IG feat names collide across the two source pages', () =>
       expect(c.feats.general, `${name} is bucketed General`).toContain(name);
       expect(c.feats.combat, `${name} never reaches the Combat bucket`).not.toContain(name);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Duplicate feat names across IG's two feat pages (found by driving the app in a browser —
+// React was warning about duplicate keys on the IG builder's chips).
+//
+// The key collision was the SYMPTOM. The bug underneath it: a character's `feats` is a bare
+// `string[]`, so the general and combat "Armor Proficiency" write the same string and selection
+// is tested by name. Two rows for one storable value is the UI offering a choice that does not
+// exist, and a composite React key would have silenced the warning while leaving that in place.
+//
+// These tests pin the invariant that makes the options safe to key by name AND honest to show:
+// one row per distinct name.
+describe('IG feat options are distinct by name', () => {
+  it('the source genuinely publishes three feats on both pages', () => {
+    // Asserted rather than described, so this test explains itself if the source is ever
+    // reconciled and the dedupe becomes unnecessary — the list changing is the signal to revisit.
+    const general = new Set(IG_GENERAL_FEATS.map((f) => f.name));
+    const both = IG_COMBAT_FEATS.filter((f) => general.has(f.name)).map((f) => f.name).sort();
+    expect(both).toEqual(['Armor Proficiency', 'Shield Proficiency', 'Weapon Training']);
+  });
+
+  it('the picker emits one row per name, so no two rows can share a React key', () => {
+    const names = allFeats().map((r) => r.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('a merged row keeps BOTH published effect texts rather than picking a winner', () => {
+    // The combat version of Armor Proficiency is materially stronger than the general one
+    // (all armor types vs only the Reflex penalty), so dropping either silently misinforms.
+    const row = allFeats().find((r) => r.name === 'Armor Proficiency')!;
+    expect(row.effect).toContain('Reflex saves')   // the General wording
+    expect(row.effect).toMatch(/all types of armor/i) // the Combat wording
+    expect(row.category).toMatch(/General/)
+    expect(row.category).toMatch(/Combat/)
+  });
+
+  it('the builder deduplicates its chip options for the same reason', () => {
+    const src = read('app/dnd/_ui/IGCharacterBuilder.tsx');
+    expect(src).toMatch(/new Set\([\s\S]{0,160}e\.name/);
   });
 });

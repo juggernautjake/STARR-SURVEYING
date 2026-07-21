@@ -38,8 +38,10 @@ import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 
 export type IGPickerKind = 'power' | 'feat';
 
-/** One selectable row, normalised across the two kinds so the list body stays single-purpose. */
-interface Row {
+/** One selectable row, normalised across the two kinds so the list body stays single-purpose.
+ *  Exported alongside `allFeats` so the merge rule can be tested on its RESULT rather than by
+ *  reading the source — the duplicate-name bug it fixes was invisible to a source-text check. */
+export interface Row {
   name: string;
   /** School for a power, General/Combat for a feat. */
   category: string;
@@ -83,13 +85,45 @@ function allPowers(): Row[] {
   return [...rows.values()];
 }
 
-function allFeats(): Row[] {
-  return [...IG_GENERAL_FEATS, ...IG_COMBAT_FEATS].map((f: IGFeat) => ({
-    name: f.name,
-    category: f.group === f.category ? f.category : `${f.category} · ${f.group}`,
-    effect: f.effect,
-    prerequisites: f.prerequisites,
-  }));
+/**
+ * Every distinct feat, MERGED BY NAME across the general and combat lists.
+ *
+ * Three feats — Armor Proficiency, Shield Proficiency and Weapon Training — are published on both
+ * of IG's feat pages with differently-worded effects, and `feats.ts` deliberately keeps both as
+ * the site has them. Listing both here would render two rows that look like two different picks
+ * and are not: a character's `feats` is a bare `string[]`, so both write the SAME string, and
+ * taking either one marks both as held.
+ *
+ * So one row per name. Where the two entries genuinely disagree, the row shows BOTH effect texts
+ * labelled by their category rather than silently choosing a winner — the player is picking one
+ * thing, and the honest thing to tell them is that the source describes it two ways. Quietly
+ * keeping whichever came first would present one book's wording as though it were the only one,
+ * and the combat version is the materially stronger of the two, so the choice is not cosmetic.
+ */
+export function allFeats(): Row[] {
+  const rows = new Map<string, Row>();
+  for (const f of [...IG_GENERAL_FEATS, ...IG_COMBAT_FEATS] as IGFeat[]) {
+    const key = norm(f.name);
+    const category = f.group === f.category ? f.category : `${f.category} · ${f.group}`;
+    const existing = rows.get(key);
+    if (!existing) {
+      rows.set(key, { name: f.name, category, effect: f.effect, prerequisites: f.prerequisites });
+      continue;
+    }
+    // Same name, same text: nothing to reconcile, keep the first and note both categories.
+    if (norm(existing.effect ?? '') === norm(f.effect ?? '')) {
+      rows.set(key, { ...existing, category: `${existing.category} · ${category}` });
+      continue;
+    }
+    // Same name, DIFFERENT text: surface both, attributed, so neither wording is hidden.
+    rows.set(key, {
+      ...existing,
+      category: `${existing.category} · ${category}`,
+      effect: `${existing.category}: ${existing.effect ?? '—'}\n\n${category}: ${f.effect ?? '—'}`,
+      prerequisites: existing.prerequisites ?? f.prerequisites,
+    });
+  }
+  return [...rows.values()];
 }
 
 export default function IGContentPicker({
