@@ -9,6 +9,8 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { assembleIGVanillaCharacter, type IGPicks } from '@/lib/dnd/systems/intuitive-games/builder';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
+import { gateIgPicks } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 const strArr = (v: unknown): string[] => Array.isArray(v) ? v.map((x) => String(x ?? '').trim()).filter(Boolean) : [];
 
@@ -42,6 +44,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     stances: strArr(p.stances), powers: strArr(p.powers), feats: strArr(p.feats),
     weapons: strArr(p.weapons), weaponTypes: strArr(p.weaponTypes),
   };
+
+  // Rules gate (IG S4). The vanilla-only CAMPAIGN gate at submission is a different axis and does
+  // not cover this: `igIsVanilla` is name-in-catalog only, so a Druid power on an Arcanist reads
+  // as vanilla book content and passes submission untouched. That asks "is this from the book";
+  // this asks "may this character have it".
+  const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const buildGate = gateIgPicks(picks, {
+    enforce: !access.access.isDM && buildVariant === 'vanilla',
+    unboundReason: access.access.isDM ? 'dm-grant' : buildVariant === 'custom' ? 'custom-character' : undefined,
+  });
+  if (buildGate.refused.length) {
+    return NextResponse.json({
+      error: `This is a vanilla character, so it can only take what its class and level grant. Remove or change: ${
+        buildGate.refused.map((r) => `${r.name} (${r.reason})`).join('; ')
+      } — or build a custom character instead.`,
+      refused: buildGate.refused,
+    }, { status: 400 });
+  }
 
   const assembled = assembleIGVanillaCharacter(picks);
   const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];

@@ -22,6 +22,7 @@ import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { gateIgEdit } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -193,15 +194,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!isIG) return NextResponse.json({ error: 'This character has no Intuitive Games sheet to edit.' }, { status: 400 });
     const parsed = parseIGEditToolCall(result.input);
     if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const nextIg = applyIgEdit(igData as IGCharacter, parsed.edit);
+    // Rules gate (IG S2). This branch returns before the shared mechanics path, so IG content
+    // reached the sheet completely unchecked — an IG character could be handed another class's
+    // power just by asking. Server-derived inputs only, as on the 5e path.
+    const igVariant = readActiveSlotMeta((row as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+    const igGate = gateIgEdit(igData as IGCharacter, parsed.edit, {
+      enforce: !isDM && igVariant === 'vanilla',
+      unboundReason: isDM ? 'dm-grant' : igVariant === 'custom' ? 'custom-character' : undefined,
+    });
+    if (!igGate.edit) return NextResponse.json({ error: igGate.refusal ?? 'That edit was refused.' }, { status: 400 });
+    const nextIg = applyIgEdit(igData as IGCharacter, igGate.edit);
     const { error: igErr } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, ig: nextIg } }).eq('id', params.id);
     if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
     await supabaseAdmin.from('dnd_sheet_edits').insert({
       character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
       field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
-      source: 'ai', summary: describeIgEdit(parsed.edit),
+      source: 'ai', summary: describeIgEdit(parsed.edit) + (igGate.offRules ? ` — off-rules: ${igGate.offRules}` : ''),
     }).then(() => {}, () => {});
-    return NextResponse.json({ ok: true, kind: 'ig-edit', summary: describeIgEdit(parsed.edit), stances: nextIg.combat.stances, conditions: nextIg.combat.conditions });
+    return NextResponse.json({
+      ok: true, kind: 'ig-edit',
+      summary: describeIgEdit(parsed.edit) + (igGate.offRules ? `\n⚑ Off-rules: ${igGate.offRules}` : ''),
+      stances: nextIg.combat.stances, conditions: nextIg.combat.conditions,
+    });
   }
 
   // ── Pathfinder 2e incremental edit (edit_pf2_sheet → applyPf2Edit on data.pf2e) ───────

@@ -70,7 +70,10 @@ describe('IG AI-customize core (full-sheet Slice 10)', () => {
     // A returned edit_ig_sheet call is validated (same parser) and applied to the sidecar, then persisted.
     expect(SRC).toContain("result?.name === 'edit_ig_sheet'");
     expect(SRC).toContain('parseIGEditToolCall(result.input)');
-    expect(SRC).toContain('applyIgEdit(igData as IGCharacter, parsed.edit)');
+    // The parsed edit now passes through the IG rules gate before it is applied, so a vanilla
+    // character can't be handed another class's power by asking the AI for it (IG S2).
+    expect(SRC).toContain('gateIgEdit(igData as IGCharacter, parsed.edit');
+    expect(SRC).toContain('applyIgEdit(igData as IGCharacter, igGate.edit)');
     expect(SRC).toContain('ig: nextIg');
   });
 

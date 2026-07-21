@@ -155,7 +155,10 @@ describe('ig-edit route wiring', () => {
   const SRC = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[id]/ig-edit/route.ts'), 'utf8');
   it('is write-gated and runs the pure edit on the IG sidecar', () => {
     expect(SRC).toContain('requireCharacterWrite'); // owner/player/DM only
-    expect(SRC).toContain('applyIgEdit(ig, parsed.edit)');
+    // Gated first (IG S2) — gating only the AI path would make the manual control a way around
+    // the rules.
+    expect(SRC).toContain('gateIgEdit(ig, parsed.edit');
+    expect(SRC).toContain('applyIgEdit(ig, gate.edit)');
     expect(SRC).toContain('isIGCharacter(ig)'); // rejects non-IG characters
     expect(SRC).toContain("update({ data: nextData })"); // persists the patched sidecar
   });

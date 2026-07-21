@@ -8,6 +8,8 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { applyIgEdit, parseIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { gateIgEdit } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -26,7 +28,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = parseIgEdit(await req.json().catch(() => ({})));
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  const nextIg = applyIgEdit(ig, parsed.edit);
+  // Rules gate (IG S2) — the same check the AI path runs. Gating only the AI would make "use the
+  // manual control instead" a way around the rules, which is the exact shape of hole this work
+  // exists to close. Server-derived: the variant from the character's own stored metadata, the
+  // DM flag from the access check.
+  const igVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const gate = gateIgEdit(ig, parsed.edit, {
+    enforce: !access.access.isDM && igVariant === 'vanilla',
+    unboundReason: access.access.isDM ? 'dm-grant' : igVariant === 'custom' ? 'custom-character' : undefined,
+  });
+  if (!gate.edit) return NextResponse.json({ error: gate.refusal ?? 'That edit was refused.' }, { status: 400 });
+
+  const nextIg = applyIgEdit(ig, gate.edit);
   const nextData = { ...data, ig: nextIg };
 
   const { error } = await supabaseAdmin
