@@ -9,6 +9,7 @@
 // on ctx.system), because "human"/"elf" mean different things in other games — Ground Rule 1.
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { Species } from './dnd5e-2024';
+import type { ResolvedRace2014 } from './dnd5e-2014';
 
 /**
  * The mechanical effects a 2024 species grants, as ledger overlays. Size and creature type are
@@ -28,6 +29,45 @@ export function speciesEffects(sp: Species, baseWalk?: number): Effect[] {
   }
   if (baseWalk == null || sp.speed !== baseWalk) {
     out.push({ target: 'speed_walk', operation: 'set', value: sp.speed });
+  }
+  return out;
+}
+
+/**
+ * The mechanical effects a **2014 RACE** grants, as ledger overlays (Slice 14-S7). Same contract as
+ * `speciesEffects` above — size, senses and a differing walk speed become live numbers on the Combat
+ * panel and appear in Active Effects sourced to the race — but a separate function because the two
+ * editions' catalogs are separate types on purpose (see dnd5e-2014.ts's header).
+ *
+ * Two deliberate differences from the 2024 version:
+ *
+ * · **No creature type.** The 2014 race entries do not record one — SRD 5.1 states it in the race's
+ *   prose rather than as a line of the stat block — so emitting "Humanoid" here would be asserting a
+ *   fact the catalog does not hold. Every SRD race is in fact Humanoid, but "true as far as I recall"
+ *   is not the standard this subsystem works to.
+ *
+ * · **NO ABILITY SCORE INCREASES, on purpose.** This is the one that needs the argument, because the
+ *   racial increase is the headline 2014 rule and leaving it out looks like the bug. The sheet stores
+ *   `abilities` as running TOTALS that the player typed in, and 2014 character creation folds the
+ *   racial bonus into the number you write on the sheet — so a dwarf's Constitution 16 already
+ *   includes the +2. Emitting an `add` here would double it, silently, for every existing 2014
+ *   character in the database. The 2024 side has the same hazard and solves it with an explicit
+ *   Apply button (`reconcileBackgroundIncreases`); 2014 has no equivalent UI yet, and inventing an
+ *   auto-apply that cannot be reversed is worse than the gap. The increases ARE surfaced — as data on
+ *   `SpeciesView.abilityIncreases` and as the leading trait line — so the player can see and apply
+ *   them. Recorded as an open gap in the 14-S7 slice notes rather than quietly half-done.
+ */
+export function race2014Effects(resolved: ResolvedRace2014, baseWalk?: number): Effect[] {
+  const { race } = resolved;
+  const out: Effect[] = [{ target: 'size', operation: 'set', value: race.size }];
+  if (race.darkvision) {
+    out.push({ target: 'grant_sense', operation: 'set', value: `Darkvision ${race.darkvision} ft.` });
+  }
+  // Only when it differs from the stored base, so a 30-speed race on a default-30 sheet does not
+  // light a permanent "modified" star for a no-op contribution (Slice 13). Dwarves, gnomes and
+  // halflings are 25 in 2014, so this fires for exactly the races where it means something.
+  if (baseWalk == null || race.speed !== baseWalk) {
+    out.push({ target: 'speed_walk', operation: 'set', value: race.speed });
   }
   return out;
 }

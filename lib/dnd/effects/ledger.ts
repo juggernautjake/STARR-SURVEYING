@@ -20,7 +20,8 @@ import type { Character, InvItem, ActiveEffect } from '@/app/dnd/_sheet/types';
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import { findTarget, describeEffect } from './targets';
 import { findSpecies } from '@/lib/dnd/species/dnd5e-2024';
-import { speciesEffects } from '@/lib/dnd/species/apply';
+import { resolveRace2014 } from '@/lib/dnd/species/dnd5e-2014';
+import { speciesEffects, race2014Effects } from '@/lib/dnd/species/apply';
 import { exhaustionSpeedFactor, exhaustionHpMaxFactor, type Edition } from '@/lib/dnd/mechanics/exhaustion';
 import type { ExhaustionModel, ShapeshiftStats } from '@/lib/dnd/preferences';
 import { conditionMechanics5e } from '@/lib/dnd/conditions/dnd5e';
@@ -248,6 +249,21 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     if (sp) {
       const effs = speciesEffects(sp, char.combat?.speed);
       if (effs.length) base = [...base, { id: `species:${sp.key}`, kind: 'species', name: sp.name, effects: effs }];
+    }
+  }
+
+  // The same, for a 2014 RACE (Slice 14-S7). A separate arm rather than a shared one, because the
+  // two editions' catalogs are separate types on purpose and — more to the point — the numbers
+  // differ: a 2014 dwarf walks 25 feet and sees 60 in the dark, where a 2024 Dwarf walks 30 and sees
+  // 120. Serving one edition's block to the other would be plausible, well-formed and wrong, which
+  // is the failure shape `system-bleed.test.ts` exists to catch. Note `race2014Effects` deliberately
+  // emits no ability increases — see its doc comment for why that is a decision, not an omission.
+  if (ctx.system === 'dnd5e-2014' && char.meta?.species) {
+    const hit = resolveRace2014(char.meta.species);
+    if (hit) {
+      const effs = race2014Effects(hit, char.combat?.speed);
+      const name = hit.subrace ? hit.subrace.name : hit.race.name;
+      if (effs.length) base = [...base, { id: `species:${hit.race.key}`, kind: 'species', name, effects: effs }];
     }
   }
 
