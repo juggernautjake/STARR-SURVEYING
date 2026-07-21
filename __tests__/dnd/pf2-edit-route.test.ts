@@ -18,7 +18,10 @@ describe('pf2-edit route (SQ4)', () => {
   it('runs the SAME validated parser + pure apply the manual/AI path uses, persisting only data.pf2e', () => {
     expect(route).toContain('parsePf2Edit(await req.json()');
     expect(route).toContain("if ('error' in parsed)"); // a bad payload is rejected 400
-    expect(route).toContain('applyPf2Edit(pf2, parsed.edit, { downedDamageModel })');
+    // The parsed edit now passes through the PF2 rules gate before it is applied (Area MV), so a
+    // vanilla character can't be handed a feat or spell its class and level don't grant.
+    expect(route).toContain('gatePf2Edit(pf2, parsed.edit');
+    expect(route).toContain('applyPf2Edit(pf2, gate.edit, { downedDamageModel })');
     expect(route).toContain('const nextData = { ...data, pf2e: nextPf2 }');
     expect(route).toContain("change: describePf2Edit(parsed.edit)");
   });
@@ -30,7 +33,8 @@ describe('ai-edit route dispatches edit_pf2_sheet (SQ4)', () => {
     expect(SRC).toMatch(/isPF2 \? \[PF2_EDIT_TOOL\] : \[\]/); // tool added only when PF2
     expect(SRC).toContain("result?.name === 'edit_pf2_sheet'");
     expect(SRC).toContain('parsePF2EditToolCall(result.input)');
-    expect(SRC).toContain('applyPf2Edit(pf2Data as PF2Character, parsed.edit, { downedDamageModel })');
+    expect(SRC).toContain('gatePf2Edit(pf2Data as PF2Character, parsed.edit');
+    expect(SRC).toContain('applyPf2Edit(pf2Data as PF2Character, pf2Gate.edit, { downedDamageModel })');
     expect(SRC).toContain('pf2e: nextPf2');
     expect(SRC).toContain("field_path: `pf2:${parsed.edit.op}`"); // audited to dnd_sheet_edits
   });

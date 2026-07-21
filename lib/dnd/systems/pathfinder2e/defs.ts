@@ -26,8 +26,16 @@ import type { PF2Tradition, PF2AttributeKey } from './model';
  *  `'1-3'` covers spells like Heal whose effect scales with the actions spent. */
 export type PF2Cost = 'free' | 'reaction' | '1' | '2' | '3' | '1-3' | '2-3' | 'varies';
 
-/** Where an entry came from. Rulebook titles only — no Product Identity. */
-export type PF2Source = 'Player Core' | 'Player Core 2' | 'GM Core' | 'Monster Core' | 'Legacy';
+/** Where an entry came from. Rulebook titles only — no Product Identity.
+ *
+ *  The last three were added for data/classes.ts. Four of the twenty classes it covers were never
+ *  printed in a Core book: Thaumaturge and Kineticist are remaster-current but live in their own
+ *  rulebooks, and Magus/Summoner have not been remastered at all. Tagging any of them 'Legacy' would
+ *  be a lie about two of them and tagging them 'Player Core' a lie about all four, so the union
+ *  grew instead. Additive only — nothing switches exhaustively on this type. */
+export type PF2Source =
+  | 'Player Core' | 'Player Core 2' | 'GM Core' | 'Monster Core' | 'Legacy'
+  | 'Dark Archives' | 'Rage of Elements' | 'Secrets of Magic';
 
 /** A save a target rolls against the caster's DC. `basic` is PF2's four-degree damage template
  *  (crit fail = double, fail = full, success = half, crit success = none) — it is a specific rule,

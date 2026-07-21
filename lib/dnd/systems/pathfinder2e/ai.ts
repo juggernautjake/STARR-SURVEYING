@@ -83,15 +83,23 @@ export const PF2_PICKS_TOOL = {
 export const PF2_EDIT_TOOL = {
   name: 'edit_pf2_sheet',
   description:
-    "Change ONE thing on a Pathfinder 2e character's sheet in place: apply damage (apply_damage with `amount` — soaked by temp HP first, floors at 0), heal (heal with `amount` — regaining HP while Dying clears Dying), set temporary HP (set_temp_hp with `amount`, 0 clears), set the death track (set_dying with `value` 0–4 where 4 = dead; set_wounded with `value`, 0 clears), or set a condition (set_condition with `name` e.g. \"Frightened\"/\"Sickened\"/\"Prone\" and `value` — its numeric value, or 0 to clear; the sheet folds active conditions into rolls under PF2's non-stacking penalty rule), or set an attribute modifier (set_attribute with `attribute` STR/DEX/CON/INT/WIS/CHA and `value` the modifier, −5..12; PF2 tracks modifiers, not scores).",
+    "Change ONE thing on a Pathfinder 2e character's sheet in place: apply damage (apply_damage with `amount` — soaked by temp HP first, floors at 0), heal (heal with `amount` — regaining HP while Dying clears Dying), set temporary HP (set_temp_hp with `amount`, 0 clears), set the death track (set_dying with `value` 0–4 where 4 = dead; set_wounded with `value`, 0 clears), or set a condition (set_condition with `name` e.g. \"Frightened\"/\"Sickened\"/\"Prone\" and `value` — its numeric value, or 0 to clear; the sheet folds active conditions into rolls under PF2's non-stacking penalty rule), or set an attribute modifier (set_attribute with `attribute` STR/DEX/CON/INT/WIS/CHA and `value` the modifier, −5..12; PF2 tracks modifiers, not scores). You can also ADD CONTENT: add_feat (`name`, plus `level` and `track` when you know them) and add_spell (`name` and `rank`, where rank 0 is a cantrip — PF2 uses ranks, not spell levels), with remove_feat / remove_spell to undo. A vanilla character can only take what its class, level and tradition actually grant; anything outside that is refused with a reason, so pick content the character is genuinely eligible for.",
   input_schema: {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...PF2_EDIT_OPS], description: 'The edit operation.' },
       amount: { type: 'integer', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP.' },
       value: { type: 'integer', description: 'For set_dying (0–4) / set_wounded / set_condition: the track/condition value (0 clears). For set_attribute: the modifier (−5..12).' },
-      name: { type: 'string', description: 'For set_condition: the condition name, e.g. "Frightened", "Sickened", "Prone".' },
+      name: { type: 'string', description: 'For set_condition: the condition name, e.g. "Frightened", "Sickened", "Prone". For add_feat / remove_feat: the feat name. For add_spell / remove_spell: the spell name.' },
       attribute: { type: 'string', enum: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], description: 'For set_attribute: which attribute modifier to set.' },
+      // Content-adding fields (S13). `offRules` is deliberately NOT offered — it is stamped by the
+      // rules gate after its own check, and letting the model set it would turn "this isn't
+      // off-rules" into a claim rather than a fact.
+      rank: { type: 'integer', minimum: 0, maximum: 10, description: 'For add_spell: the spell RANK (0 = cantrip). PF2 uses ranks, not spell levels — a rank is NOT the character\'s level.' },
+      level: { type: 'integer', minimum: 1, maximum: 20, description: 'For add_feat: the level at which the feat becomes available.' },
+      track: { type: 'string', enum: ['ancestry', 'class', 'skill', 'general', 'archetype', 'feature'], description: 'For add_feat: which of PF2\'s feat tracks it comes from. Each track has its own level schedule.' },
+      prepared: { type: 'boolean', description: 'For add_spell: prepared today (prepared casters only; a spontaneous caster\'s repertoire is always castable).' },
+      focus: { type: 'boolean', description: 'For add_spell: a focus spell, cast from Focus Points rather than a slot.' },
     },
     required: ['op'],
   },

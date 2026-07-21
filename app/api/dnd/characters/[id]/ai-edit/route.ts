@@ -29,6 +29,8 @@ import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2
 import { pf2CharacterDigest } from '@/lib/dnd/systems/pathfinder2e/digest';
 import { PF2_EDIT_TOOL, parsePF2EditToolCall } from '@/lib/dnd/systems/pathfinder2e/ai';
 import { applyPf2Edit, describePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
+import { gatePf2Edit } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
+import { PF2_ALL_FEATS, PF2_ALL_SPELLS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { LEVEL_UP_TOOL, parseLevelUpToolCall, applyLevelUpDraft } from '@/lib/dnd/classes/level-up-ai';
 
 // Routing hint so the agent picks the right tool: mechanics → edit_sheet, look/layout →
@@ -235,7 +237,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const prefs = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme);
       downedDamageModel = prefs.downedDamageModel.value;
     }
-    const nextPf2 = applyPf2Edit(pf2Data as PF2Character, parsed.edit, { downedDamageModel });
+    // Rules gate (Area MV, PF2 S13) — the PF2 branch returns before the shared mechanics path, so
+    // without this the AI could hand a vanilla PF2 character any feat or spell just by asking.
+    // Server-derived inputs only, as on the 5e and IG paths.
+    const pf2Variant = readActiveSlotMeta((row as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+    const pf2Gate = gatePf2Edit(pf2Data as PF2Character, parsed.edit, {
+      enforce: !isDM && pf2Variant === 'vanilla',
+      unboundReason: isDM ? 'dm-grant' : pf2Variant === 'custom' ? 'custom-character' : undefined,
+    }, { feats: PF2_ALL_FEATS, spells: PF2_ALL_SPELLS });
+    if (!pf2Gate.edit) return NextResponse.json({ error: pf2Gate.refusal ?? 'That edit was refused.' }, { status: 400 });
+
+    const nextPf2 = applyPf2Edit(pf2Data as PF2Character, pf2Gate.edit, { downedDamageModel });
     const { error: pf2Err } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, pf2e: nextPf2 } }).eq('id', params.id);
     if (pf2Err) return NextResponse.json({ error: pf2Err.message }, { status: 500 });
     await supabaseAdmin.from('dnd_sheet_edits').insert({

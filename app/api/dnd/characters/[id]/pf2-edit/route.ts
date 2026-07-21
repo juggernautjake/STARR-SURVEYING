@@ -9,6 +9,9 @@ import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { applyPf2Edit, parsePf2Edit, describePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
+import { gatePf2Edit } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
+import { PF2_ALL_FEATS, PF2_ALL_SPELLS } from '@/lib/dnd/systems/pathfinder2e/data';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -36,7 +39,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const prefs = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme);
     downedDamageModel = prefs.downedDamageModel.value;
   }
-  const nextPf2 = applyPf2Edit(pf2, parsed.edit, { downedDamageModel });
+  // Rules gate (Area MV, PF2 S13). Every input is SERVER-derived — the variant from the
+  // character's own stored metadata, the DM flag from the access check, class/level/tradition from
+  // the saved sheet — so nothing in the request body decides whether the rules apply to it.
+  const pf2Variant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const gate = gatePf2Edit(pf2, parsed.edit, {
+    enforce: !access.access.isDM && pf2Variant === 'vanilla',
+    unboundReason: access.access.isDM ? 'dm-grant' : pf2Variant === 'custom' ? 'custom-character' : undefined,
+  }, { feats: PF2_ALL_FEATS, spells: PF2_ALL_SPELLS });
+  if (!gate.edit) return NextResponse.json({ error: gate.refusal ?? 'That edit was refused.' }, { status: 400 });
+
+  const nextPf2 = applyPf2Edit(pf2, gate.edit, { downedDamageModel });
   const nextData = { ...data, pf2e: nextPf2 };
 
   const { error } = await supabaseAdmin
