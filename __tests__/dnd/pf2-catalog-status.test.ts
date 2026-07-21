@@ -85,11 +85,26 @@ describe('the data is internally consistent', () => {
     expect(new Set(featNames).size).toBe(featNames.length);
   });
 
-  it('every spell has at least one tradition', () => {
-    // A spell with no tradition can never be legally taken by anyone — it would be invisible to
-    // the gate rather than refused by it.
+  it('every SLOT-CAST spell has at least one tradition', () => {
+    // A ranked spell with no tradition is invisible to the gate rather than refused by it.
+    //
+    // Focus spells are deliberately exempt: a witch's hex takes its tradition from her patron and
+    // a monk's qi spells have none at all, so an empty list is CORRECT there rather than missing
+    // data. `pf2SpellEligibility` returns on the focus branch before it reads `traditions`, so the
+    // exemption is safe — and this test originally asserted the stronger invariant and would have
+    // rejected accurate data.
     for (const s of PF2_ALL_SPELLS) {
+      if (s.focus) continue;
       expect(s.traditions.length, `${s.name} has no tradition`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every focus spell names the class that grants it', () => {
+    // The focus branch judges on ownership instead of tradition, so `focusClass` is what makes a
+    // focus spell gateable at all. Without it the spell is legal for everyone.
+    for (const s of PF2_ALL_SPELLS) {
+      if (!s.focus) continue;
+      expect(s.focusClass, `${s.name} is a focus spell with no focusClass`).toBeTruthy();
     }
   });
 

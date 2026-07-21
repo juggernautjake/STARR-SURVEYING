@@ -8,6 +8,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -254,8 +255,53 @@ export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Charac
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{f.name}</strong>
                   <span style={{ fontSize: 9, color: 'var(--hx-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.track}{f.level ? ` · L${f.level}` : ''}</span>
+                  <OffRulesMark reason={f.offRules} />
                 </div>
                 {f.body && <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 2 }}>{f.body}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Spells. Previously the sheet showed slot COUNTS with no way to see which spells filled
+          them — a caster could read "3 rank-2 slots" and not know a single spell they had. Grouped
+          by rank, because that is how a PF2 caster actually prepares and casts. */}
+      {(pf2.spellcasting.spells?.length ?? 0) > 0 && (
+        <div>
+          <div style={label}>Spells</div>
+          <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+            {[...new Set((pf2.spellcasting.spells ?? []).map((s) => s.rank))].sort((a, b) => a - b).map((rank) => (
+              <div key={rank}>
+                <div style={{ fontSize: 9.5, color: 'var(--hx-teal-1)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                  {rank === 0 ? 'Cantrips' : `Rank ${rank}`}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {(pf2.spellcasting.spells ?? []).filter((s) => s.rank === rank).map((s) => (
+                    <span
+                      key={s.name}
+                      title={[
+                        s.focus ? 'Focus spell — cast from Focus Points, not a slot.' : null,
+                        // A prepared caster's unprepared spell is in the book but not castable
+                        // today; a spontaneous caster's repertoire always is, so `prepared` is
+                        // only meaningful for the former.
+                        pf2.spellcasting.kind === 'prepared' ? (s.prepared ? 'Prepared today.' : 'Known, not prepared today.') : null,
+                      ].filter(Boolean).join(' ') || undefined}
+                      style={{
+                        fontSize: 11.5, padding: '3px 8px', borderRadius: 12,
+                        border: '1px solid var(--hx-line)',
+                        color: 'var(--hx-text)',
+                        // Dim an unprepared spell for a prepared caster — it is on the sheet but
+                        // not castable right now, and showing it identically would misinform.
+                        opacity: pf2.spellcasting.kind === 'prepared' && !s.prepared && !s.focus ? 0.55 : 1,
+                      }}
+                    >
+                      {s.name}
+                      {s.focus ? ' ✦' : ''}
+                      <OffRulesMark reason={s.offRules} />
+                    </span>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

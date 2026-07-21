@@ -21,6 +21,11 @@ import {
 } from './equipment';
 import { PF2_FEATS_GENERAL, PF2_FEATS_SKILL, PF2_FEATS_GENERAL_SKILL, pf2GeneralOrSkillFeat } from './feats-general-skill';
 import { PF2_SPELLS_R0_3, pf2SpellR0_3 } from './spells-0-3';
+import { PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10 } from './spells-4-10';
+import {
+  PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
+  pf2MaxSpellRankFromProgression, PF2_CLASS_PROGRESSION_GAPS,
+} from './classes';
 import { PF2_CLASSES, PF2_ANCESTRIES } from '../content';
 import type { PF2CatalogStatus } from '../defs';
 
@@ -30,15 +35,22 @@ export {
   PF2_WEAPONS_FULL, PF2_ARMORS_FULL, PF2_SHIELDS, PF2_RUNES, PF2_ITEMS,
   PF2_FEATS_GENERAL, PF2_FEATS_SKILL, PF2_FEATS_GENERAL_SKILL, pf2GeneralOrSkillFeat,
   PF2_SPELLS_R0_3, pf2SpellR0_3,
+  PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10,
+  PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
+  pf2MaxSpellRankFromProgression,
 };
+export type {
+  PF2ClassProgression, PF2ProficiencyTrack, PF2ProficiencyStep, PF2ClassFeature,
+  PF2ClassSpellcasting, PF2Subclass,
+} from './classes';
 
 /** Every catalogued feat, from whichever tranche holds it. Class and ancestry feats are not
  *  authored yet, so today this is the general/skill set — the shape is what matters, so adding a
  *  tranche later is one line here and nothing changes at the call sites. */
 export const PF2_ALL_FEATS = [...PF2_FEATS_GENERAL_SKILL];
 
-/** Every catalogued spell. Ranks 4–10 and focus spells are not authored yet. */
-export const PF2_ALL_SPELLS = [...PF2_SPELLS_R0_3];
+/** Every catalogued spell, slot-cast and focus alike. */
+export const PF2_ALL_SPELLS = [...PF2_SPELLS_R0_3, ...PF2_SPELLS_R4_10, ...PF2_FOCUS_SPELLS];
 
 /** What the catalog actually holds. `complete` is false wherever it is — no exceptions, and no
  *  rounding up. The notes say what is missing in one line so a reader does not have to diff. */
@@ -46,7 +58,7 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
   spells: {
     count: PF2_ALL_SPELLS.length,
     complete: false,
-    note: 'Ranks 0–3 only, and partial within those. Ranks 4–10 and all focus spells are not catalogued yet. Spells whose remaster name or tradition list could not be confirmed were deliberately omitted — a wrong tradition silently breaks the eligibility gate.',
+    note: 'Partial at every rank. Spells whose remaster name or tradition list could not be confirmed were deliberately omitted — a wrong tradition silently breaks the eligibility gate, which is the worst failure available here because it looks fine. Psychic, Summoner, Magus and Thaumaturge focus spells are absent, and 46 focus spells carry source "Legacy" because their remastered form could not be confirmed.',
   },
   feats: {
     count: PF2_ALL_FEATS.length,
@@ -56,7 +68,7 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
   classes: {
     count: PF2_CLASSES.length,
     complete: false,
-    note: 'Class definitions exist with key attribute, proficiencies and subclass options, but not the full level 1–20 feature progression.',
+    note: `Level-1 definitions for ${PF2_CLASSES.length} classes in content.ts, plus full level 1–20 progressions for ${PF2_CLASS_PROGRESSIONS.length} of them in data/classes.ts (proficiency steps, class-feat schedule, features, subclass options). Still incomplete: class FEATS are not catalogued at all, spell-slot COUNTS are not modelled, and the Magus/Summoner reduced-caster slot tables are deliberately absent. See PF2_CLASS_PROGRESSION_GAPS.`,
   },
   ancestries: {
     count: PF2_ANCESTRIES.length,
