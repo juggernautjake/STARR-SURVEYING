@@ -31,7 +31,22 @@ export interface TaggedElement {
 const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 // Kinds handled by the Intuitive Games content library.
-const IG_KINDS = new Set<ElementKind>(['stance', 'feat', 'power', 'spell', 'defensive-power', 'weapon-type', 'movement-type', 'creature-type', 'subclass']);
+//
+// This set MUST stay in step with `IGContentKind` in the IG content module. It fell out of step
+// once already, and the failure was silent by construction: `background` was missing here while
+// IG's own `KIND_NAMES.background` listed all ten catalogued backgrounds and `igIsVanilla` would
+// have classified them correctly. The shared layer simply never asked. An untracked kind resolves
+// to `vanilla` (see `vanillaNamesFor` — deliberately, so an unknown kind is never FALSELY flagged
+// custom), so the effect was that a completely invented IG background passed as official on a
+// vanilla character. A hole in the gate that fails open, in the one place the gate is supposed to
+// fail closed.
+//
+// That is why this is a Set literal checked against `IGContentKind` by test, rather than a list
+// someone remembers to update: the omission produced no type error, no test failure, and no
+// visible symptom — only content sneaking through unflagged.
+// Exported so the drift test can assert the RELATIONSHIP to `IGContentKind` rather than pin a
+// hand-copied list — a test that restates the list would have been just as wrong as the list was.
+export const IG_KINDS = new Set<ElementKind>(['stance', 'feat', 'power', 'spell', 'defensive-power', 'weapon-type', 'movement-type', 'creature-type', 'subclass', 'background']);
 
 /**
  * The vanilla names for a (system, kind), or `null` when the system does not track that kind (so it can't
