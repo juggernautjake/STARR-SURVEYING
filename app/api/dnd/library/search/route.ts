@@ -8,6 +8,7 @@
 // every hit is labelled with the system it came from.
 import { NextRequest, NextResponse } from 'next/server';
 import { searchLibrary } from '@/lib/dnd/library';
+import { resolveLibraryHref } from '@/lib/dnd/library-anchor-map';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 
 export function GET(req: NextRequest) {
@@ -21,6 +22,13 @@ export function GET(req: NextRequest) {
     return NextResponse.json({ error: `Unknown system: ${systemParam}` }, { status: 400 });
   }
 
-  const hits = searchLibrary(q, systemParam || null);
+  // The link is resolved HERE rather than in the browser. Working out where a hit actually lands
+  // means reading the target system's whole rendered page (see library-anchor-map.ts), which is
+  // hundreds of kilobytes of catalog the search box must not ship to the client — and doing it
+  // by assumption instead is what made every condition/skill/feat result a dead link.
+  const hits = searchLibrary(q, systemParam || null).map((h) => ({
+    ...h,
+    href: resolveLibraryHref(h.system, h.kind, h.name),
+  }));
   return NextResponse.json({ query: q, system: systemParam || null, hits });
 }

@@ -33,6 +33,11 @@ export default defineConfig({
     // failures against the live tree.
     exclude: ['**/node_modules/**', '.next', 'worker/**', '.claude/**'],
   },
+  // The AUTOMATIC JSX runtime, matching Next — components in app/ never import React, so under
+  // esbuild's default (classic) they compile to `React.createElement` against an undefined `React`
+  // and throw the moment a test renders one. Needed since library-deep-links.test.tsx started
+  // rendering the real library page to check the ids it actually stamps.
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),

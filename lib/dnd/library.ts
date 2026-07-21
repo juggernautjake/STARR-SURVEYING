@@ -7,7 +7,7 @@
 // key and no seeded rows.
 import { GAME_SYSTEMS, isSystemAvailable, systemLabel, type CharacterSystem } from './systems';
 import { rulesForSystem, type SystemRules } from './system-rules';
-import { glossaryFor, searchGlossary } from './glossary';
+import { findTerm, glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { FEATS_2014 } from './feats/dnd5e-2014';
@@ -620,20 +620,38 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
   }
 
   if (r.content.conditions.length) {
+    // Full rules text (IG today): each condition is its own collapsible entry (MOB2c) — the reader scans
+    // the 18 names and expands the one they need for its full mechanical effect, instead of a wall-of-text
+    // two-column table. Far more usable on mobile; the full effect still reaches the AI via the digest.
     const condText = conditionsWithTextFor(key).filter((c) => c.effect);
-    if (condText.length) {
-      // Full rules text (IG today): each condition is its own collapsible entry (MOB2c) — the reader scans
-      // the 18 names and expands the one they need for its full mechanical effect, instead of a wall-of-text
-      // two-column table. Far more usable on mobile; the full effect still reaches the AI via the digest.
-      sections.push({
-        id: 'conditions',
-        title: 'Conditions',
-        lead: `${condText.length} standardized states — tap a condition for its full rules text.`,
-        entries: condText.map((c) => ({ name: c.name, detail: c.effect as string })),
-      });
-    } else {
-      sections.push({ id: 'conditions', title: 'Conditions', lead: `${r.content.conditions.length} standardized states.`, chips: r.content.conditions });
+    // Everyone else used to get name-only CHIPS — which is why a search hit for "Grappled" landed on
+    // nothing at all (chips carried no id), and why even after they gained one it would land on the
+    // word rather than the rule. The written article already exists: since CX-12 the glossary covers
+    // every condition in all four playable systems, so read the article in here.
+    const fromGlossary: LibraryEntry[] = [];
+    const stillChips: string[] = [];
+    for (const name of condText.length ? [] : r.content.conditions) {
+      const g = findTerm(key, name);
+      // `findTerm` falls back to a PREFIX match, so a condition with no article of its own can
+      // resolve to a different term's. Publishing that under this condition's name would be an
+      // invented rule, so an inexact match is refused and the condition stays a chip.
+      const exact = g && [g.term, ...(g.aliases ?? [])].some((t) => t.toLowerCase() === name.toLowerCase());
+      if (g && exact) fromGlossary.push({ name, brief: g.short, detail: g.body });
+      else stillChips.push(name);
     }
+    const entries = condText.length ? condText.map((c) => ({ name: c.name, detail: c.effect as string })) : fromGlossary;
+    sections.push({
+      id: 'conditions',
+      title: 'Conditions',
+      lead: entries.length
+        ? `${r.content.conditions.length} standardized states — tap a condition for its full rules text.`
+        : `${r.content.conditions.length} standardized states.`,
+      entries: entries.length ? entries : undefined,
+      // Partial coverage renders BOTH: expandable entries for what we can explain, chips for the
+      // rest. All-or-nothing would have thrown away real articles the moment one condition lacked
+      // an entry — and would have put the deep-link gap straight back for that one condition.
+      chips: stillChips.length ? stillChips : undefined,
+    });
   }
 
   const igFeats = igFeatsFor(key);
@@ -654,8 +672,26 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
         detail: `**${f.category} feat${f.prerequisites ? ` · Prerequisites: ${f.prerequisites}` : ''}**\n\n${f.effect}`,
       })),
     });
-  } else if (r.content.sampleFeats.length) {
-    sections.push({ id: 'feats', title: featNoun(r.key), lead: 'A representative sample — not the complete list.', chips: r.content.sampleFeats });
+  } else if (r.content.sampleFeats.length || featsForSystem(key).length) {
+    // The same merge `searchLibrary` does for feats, and for the same reason — except the SECTION
+    // never learned it. 2014 and 2024 both ship a full feat registry with real benefit text, search
+    // offered every one of those feats, and the page rendered only the ~10-name sample: clicking the
+    // "Grappler" result could not land anywhere, because Grappler was not on the page at all.
+    // Full entries first, then any sample name the registry does not already cover.
+    const full = featsForSystem(key);
+    const covered = new Set(full.map((f) => f.name.toLowerCase()));
+    const extras = r.content.sampleFeats.filter((f) => !covered.has(f.toLowerCase()));
+    sections.push({
+      id: 'feats',
+      title: featNoun(r.key),
+      lead: full.length
+        ? `${full.length} with full rules text — tap one to read it.${extras.length ? ` ${extras.length} more are named below; their text is not ours to publish.` : ''}`
+        : 'A representative sample — not the complete list.',
+      entries: full.length
+        ? full.map((f) => ({ name: f.name, brief: f.category, detail: f.benefit }))
+        : undefined,
+      chips: extras.length ? extras : undefined,
+    });
   }
 
   // Powers / spells (IG): grouped by school, each with its effect. Defensive powers + the action economy
@@ -848,6 +884,189 @@ export function allLibraryPages(): LibrarySystemPage[] {
     .filter((p): p is LibrarySystemPage => !!p);
 }
 
+/** One catalog line: a named thing in a system, and the prose that describes it. */
+export interface LibraryCatalogEntry {
+  kind: string;
+  name: string;
+  body: string;
+}
+
+/**
+ * EVERY named thing `searchLibrary` can return for a system, before any query is applied.
+ *
+ * Split out of the search loop so it can be enumerated rather than only sampled. The deep-link test
+ * walks this list and checks that the href each entry resolves to lands on an id the page really
+ * stamps — which is only possible if "what search can emit" is something you can ask for. While this
+ * lived inline in `searchLibrary`, the only way to see a kind was to guess a query that matched it,
+ * and the kinds nobody guessed (condition, skill, feat) were exactly the ones that were broken.
+ *
+ * Order is preserved from the original loop: it decides which of two identically-named entries wins
+ * a scoring tie, so shuffling it would quietly reorder search results.
+ */
+export function libraryCatalogFor(key: CharacterSystem): LibraryCatalogEntry[] {
+  const r = rulesForSystem(key);
+  if (!r) return [];
+  const out: LibraryCatalogEntry[] = [];
+  const push = (kind: string, n: string, b: string) => { out.push({ kind, name: n, body: b }); };
+  push('rule', 'Core resolution', r.coreResolution);
+  push('rule', 'Action economy', r.actionEconomy);
+  push('rule', 'Saving throws', r.saves);
+  push('rule', 'Rest & recovery', r.rest);
+  push('rule', 'Proficiency', r.proficiency);
+  push('rule', 'Advancement', r.advancement);
+  push('rule', 'Progression cadence', r.progressionCadence);
+  push('rule', 'Ability generation', r.ability.generation);
+  push('rule', 'Ability range & cap', r.ability.range);
+  push('rule', 'Ability modifier', r.ability.modifier);
+  // Their own kind, not 'rule': these render in the `gotchas` section ("Must-know facts"), and a
+  // 'rule' hit resolves to `#core`. Landing on the wrong shelf is a quieter bug than a dead link
+  // but the same kind of bug, so the kind names where the text actually is.
+  r.keyFacts.forEach((f, i) => push('key-fact', `Key fact ${i + 1}`, f));
+  for (const c of r.content.classes) {
+    const hp = c.hitDie != null ? `Hit die d${c.hitDie}` : c.hpPerLevel != null ? `${c.hpPerLevel} HP/level` : 'no hit die';
+    push('class', c.name, `${c.name} — key ability ${c.keyAbility}; ${hp}; saves ${c.saves.join(' & ') || '—'}; ${c.caster === 'none' ? 'non-caster' : `${c.caster} caster`}.`);
+  }
+  for (const n of r.content.classNames ?? []) if (!r.content.classes.some((c) => c.name === n)) push('class', n, `${n} — a ${r.label} class.`);
+  // Systems with FULL class data (dnd5e-2024 AND now dnd5e-2014) also expose every class feature by
+  // name, so "action surge", "sneak attack", or "brutal critical" finds the actual rules text and
+  // its level — the whole 2014 roster projects into library search automatically once registered.
+  for (const c of classesForSystem(key)) {
+    for (const f of c.features) {
+      if (f.choice && !f.body) continue;
+      push('feature', f.name, `${c.name} · level ${f.level} — ${f.body}`);
+    }
+  }
+  for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
+  if (key === 'intuitive-games') {
+    for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
+    for (const d of IG_DAMAGE_TYPE_DATA) push('damage-type', d.name, `${d.name} — a damage type in ${r.label}: ${d.note}`);
+    for (const c of IG_COVER) push('cover', c.name, `${c.name} cover in ${r.label}: ${c.effect}`);
+    // The IG-specific core mechanics as searchable rules (so "redistribution" / "fortitude save on damage"
+    // / "take 10" resolve to the real text, not just live inside a section body).
+    push('rule', 'Taking damage (Fortitude save)', IG_DAMAGE_SAVE_RULES);
+    push('rule', 'Skill checks', IG_SKILL_RULES);
+    push('rule', 'Redistribution', IG_REDISTRIBUTION_RULES);
+    push('rule', 'Movement', IG_MOVEMENT_RULES);
+  }
+  // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
+  // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.
+  const igAncestries = ancestriesWithTraitsFor(key);
+  if (igAncestries.length) {
+    const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
+    for (const a of igAncestries) {
+      push('species', a.name, `${a.name} — a playable ${noun} in ${r.label}. ${a.blurb} Ancestry traits: ${a.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
+      for (const t of a.traits) push('trait', t.name, `${t.name} — a ${a.name} ancestry trait in ${r.label}: ${t.text}`);
+    }
+  } else {
+    const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
+    // 2024 5e species carry full trait text (SPECIES_2024) — surface it like IG does, so "what does a
+    // Tiefling get" / "which species have Darkvision" resolve. Other systems fall back to the name blurb.
+    const dnd2024Species = key === 'dnd5e-2024' ? new Map(SPECIES_2024.map((sp) => [sp.name.toLowerCase(), sp])) : null;
+    for (const s of r.content.species) {
+      const sp = dnd2024Species?.get(s.toLowerCase());
+      if (sp) {
+        push('species', s, `${s} — a playable ${noun} in ${r.label}: size ${sp.size}, speed ${sp.speed} ft${sp.darkvision ? `, darkvision ${sp.darkvision} ft` : ''}. Traits: ${sp.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
+        for (const t of sp.traits) push('trait', t.name, `${t.name} — a ${s} trait in ${r.label}: ${t.text}`);
+      } else {
+        push('species', s, `${s} — a playable ${noun} in ${r.label}.`);
+      }
+    }
+    for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
+  }
+  // Systems with full condition text (IG) expose each condition's real mechanical effect, so
+  // "grappled" or "flat-footed" returns the actual rules; the rest fall back to a one-line stub.
+  const condText = conditionsWithTextFor(key);
+  if (condText.length) {
+    for (const c of condText) push('condition', c.name, `${c.name} — ${c.effect ?? `a condition in ${r.label}.`}`);
+  } else {
+    for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
+  }
+  // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
+  // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
+  const fullFeats = featsForSystem(key);
+  const igFeatList = igFeatsFor(key);
+  if (igFeatList.length) {
+    // IG feats: each with its real prerequisites + effect, so "toughness" or "quick caster" resolves the
+    // actual rules text (IG's own IGFeat shape).
+    for (const f of igFeatList) push('feat', f.name, `${f.name} — ${f.category} feat${f.prerequisites ? ` (prereq: ${f.prerequisites})` : ''}: ${f.effect}`);
+  } else {
+    // Full entries first, then any SAMPLE names not already covered.
+    //
+    // These used to be either/or, and that quietly regressed 2014 the moment it gained a feat
+    // catalog: one real feat (Grappler, the only one in the SRD) REPLACED the ~40-name sample
+    // list, so searching "lucky" stopped finding anything. Merging is strictly better than
+    // either alone — a player gets full rules text where we can legitimately publish it, and
+    // still learns the feat EXISTS where we cannot, without anything being fabricated.
+    const covered = new Set(fullFeats.map((f) => f.name.toLowerCase()));
+    for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
+    for (const f of r.content.sampleFeats) {
+      if (covered.has(f.toLowerCase())) continue;
+      push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+    }
+  }
+  // Backgrounds (PF2 only today): each grants attribute boosts, a trained skill, a Lore, and a skill
+  // feat — real structured data from the PF2 content library, searchable by name or "background".
+  for (const b of backgroundsForSystem(key)) {
+    push('background', b.name, `${b.name} background — trains ${b.skill} + ${b.lore}; grants the ${b.feat} skill feat; boosts ${b.boosts.join(', ')}. ${b.summary}`);
+  }
+  // 2024 5e backgrounds — the ability increases + Origin feat live here in 2024, so they're first-class
+  // rules content; surface them by name (they were shipped but nothing in the library referenced them).
+  for (const b of dnd2024BackgroundsFor(key)) {
+    push('background', b.name, `${b.name} background — ability options ${b.abilityScores.map((a) => a.toUpperCase()).join('/')}; Origin feat ${b.originFeat}; skills ${b.skillProficiencies.join(', ')}; tool ${b.toolProficiency}.`);
+  }
+  // 2024 languages + tools — findable by name ("is Draconic a standard language?", "what family is
+  // Thieves' Tools?"). Shipped data that previously answered nothing in search.
+  // Kinds of their own, and named PLAINLY. As 'rule' they resolved to `#core`, and the "(language)"
+  // suffix made the anchor `entry-draconic-language` while the Languages table row is
+  // `entry-draconic` — a link that could not match by construction. The kind now carries the
+  // disambiguation the suffix was doing, and the name matches what the page renders.
+  for (const l of dnd2024LanguagesFor(key)) push('language', l.name, `${l.name} — a ${l.rarity} language, spoken by ${l.origin}.`);
+  for (const t of dnd2024ToolsFor(key)) push('tool', t.name, `${t.name} — a ${t.family} tool proficiency.`);
+  // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
+  // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.
+  for (const a of armorsForSystem(key)) {
+    if (a.category === 'unarmored') continue;
+    push('armor', a.name, `${a.name} — ${a.category} armor; +${a.acBonus} AC, Dex cap +${a.dexCap ?? '∞'}, Str ${a.strength}, check ${a.checkPenalty}, speed ${a.speedPenalty} ft.`);
+  }
+  for (const w of weaponsForSystem(key)) {
+    push('weapon', w.name, `${w.name} — ${w.category} ${w.group.toLowerCase()}; ${w.damageDie} ${DMG_TYPE[w.damageType] ?? w.damageType}${w.range ? `, ranged ${w.range} ft` : ''}${w.traits.length ? `; ${w.traits.join(', ')}` : ''}.`);
+  }
+  for (const s of pf2SubclassOptions(key)) {
+    push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
+  }
+  // Stances (IG): each searchable by name ("defensive stance") with its Basic + Advanced benefits.
+  for (const st of stancesForSystem(key)) {
+    push('stance', `${st.name} Stance`, `${st.name} Stance — Basic (below Lv 5): ${st.basic} Advanced (Lv 5+): ${st.advanced}`);
+  }
+  // Powers/spells + defensive powers (IG): searchable by name with full effect text.
+  for (const p of igPowersFor(key)) push('power', p.name, `${p.name} — ${p.category ?? ''} power in ${r.label}: ${p.effect ?? ''}`);
+  for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
+  for (const c of igCompanionsFor(key)) push('companion', c.name, `${c.name} — a ${c.subclass} companion in ${r.label}: ${c.text}`);
+  if (key === 'intuitive-games') {
+    for (const f of IG_COMPANION_FEATURES) push('companion-feature', f.name, `${f.name} — a companion creature feature: ${f.effect}`);
+    for (const a of IG_COMPANION_ASPECTS) push('companion-aspect', a.name, `${a.name} — a companion creature aspect (Archon's Aspect power): ${a.effect}`);
+  }
+  for (const b of igBackgroundsFor(key)) push('background', b.name, `${b.name} background — ${b.hp} HP; boosts ${b.boosts}; trains ${b.proficiencies.join(', ')}; grants the ${b.stance} Stance.`);
+  // IG gear: weapon classes + properties, armor (with DR), and shields — searchable by name.
+  if (key === 'intuitive-games') {
+    for (const w of IG_WEAPON_CLASS_DATA) push('weapon', w.name, `${w.name} — a ${w.kind.toLowerCase()} weapon class in ${r.label}: ${w.cost}. ${w.notes}`);
+    for (const p of IG_WEAPON_PROPERTIES) push('weapon-property', p.name, `${p.name} — a weapon property (${p.appliesTo}): ${p.text}`);
+    for (const a of IG_ARMORS) push('armor', a.name, `${a.name} — ${a.group} armor, DR ${a.dr}, ${a.strength}, ${a.cost}${a.notes ? `; ${a.notes}` : ''}.`);
+    for (const s of IG_SHIELDS) push('shield', s.name, `${s.name} — a ${s.group} shield in ${r.label}, ${s.cost}${s.notes ? `; ${s.notes}` : ''}.`);
+    for (const p of IG_EQUIPMENT_PACKS) push('equipment', p.name, `${p.name} — ${p.cost}: ${p.contents}`);
+    for (const e of IG_ENCHANTMENTS) push('magic-item', e.name, `${e.name} — an Eldritch Jewel enchantment in ${r.label}: ${e.effect}`);
+  }
+  for (const sp of spellsForSystem(key)) {
+    push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
+  }
+  // Homebrew content is searchable too (Area H2) — the published, in-system pieces surface by name/kind/creator.
+  for (const hb of browseHomebrew(HOMEBREW_SEEDS, { system: key })) {
+    push(hb.kind, hb.name, `${hb.summary ?? ''} ${hb.description ?? ''} — homebrew by ${hb.creator.name}`.trim());
+  }
+
+  return out;
+}
+
 export interface LibraryHit {
   system: string;
   systemName: string;
@@ -918,154 +1137,7 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       if (score > 0) hits.push({ system: key, systemName: name, kind, name: n, body: b, score });
     };
 
-    push('rule', 'Core resolution', r.coreResolution);
-    push('rule', 'Action economy', r.actionEconomy);
-    push('rule', 'Saving throws', r.saves);
-    push('rule', 'Rest & recovery', r.rest);
-    push('rule', 'Proficiency', r.proficiency);
-    push('rule', 'Advancement', r.advancement);
-    push('rule', 'Progression cadence', r.progressionCadence);
-    push('rule', 'Ability generation', r.ability.generation);
-    push('rule', 'Ability range & cap', r.ability.range);
-    push('rule', 'Ability modifier', r.ability.modifier);
-    r.keyFacts.forEach((f, i) => push('rule', `Key fact ${i + 1}`, f));
-    for (const c of r.content.classes) {
-      const hp = c.hitDie != null ? `Hit die d${c.hitDie}` : c.hpPerLevel != null ? `${c.hpPerLevel} HP/level` : 'no hit die';
-      push('class', c.name, `${c.name} — key ability ${c.keyAbility}; ${hp}; saves ${c.saves.join(' & ') || '—'}; ${c.caster === 'none' ? 'non-caster' : `${c.caster} caster`}.`);
-    }
-    for (const n of r.content.classNames ?? []) if (!r.content.classes.some((c) => c.name === n)) push('class', n, `${n} — a ${r.label} class.`);
-    // Systems with FULL class data (dnd5e-2024 AND now dnd5e-2014) also expose every class feature by
-    // name, so "action surge", "sneak attack", or "brutal critical" finds the actual rules text and
-    // its level — the whole 2014 roster projects into library search automatically once registered.
-    for (const c of classesForSystem(key)) {
-      for (const f of c.features) {
-        if (f.choice && !f.body) continue;
-        push('feature', f.name, `${c.name} · level ${f.level} — ${f.body}`);
-      }
-    }
-    for (const s of r.content.skills) push('skill', s.name, `${s.name} — governed by ${s.ability} in ${r.label}.`);
-    if (key === 'intuitive-games') {
-      for (const cs of IG_COMBAT_SKILLS) push('combat-skill', cs, `${cs} — an Intuitive Games combat skill (opposed vs the target's Reflex save). ${IG_COMBAT_SKILL_RULES}`);
-      for (const d of IG_DAMAGE_TYPE_DATA) push('damage-type', d.name, `${d.name} — a damage type in ${r.label}: ${d.note}`);
-      for (const c of IG_COVER) push('cover', c.name, `${c.name} cover in ${r.label}: ${c.effect}`);
-      // The IG-specific core mechanics as searchable rules (so "redistribution" / "fortitude save on damage"
-      // / "take 10" resolve to the real text, not just live inside a section body).
-      push('rule', 'Taking damage (Fortitude save)', IG_DAMAGE_SAVE_RULES);
-      push('rule', 'Skill checks', IG_SKILL_RULES);
-      push('rule', 'Redistribution', IG_REDISTRIBUTION_RULES);
-      push('rule', 'Movement', IG_MOVEMENT_RULES);
-    }
-    // Systems with full ancestry data (IG) expose each ancestry with its trait text, and each trait by
-    // name ("barkskin", "cave vision"); the rest fall back to the name stub + prose notes.
-    const igAncestries = ancestriesWithTraitsFor(key);
-    if (igAncestries.length) {
-      const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
-      for (const a of igAncestries) {
-        push('species', a.name, `${a.name} — a playable ${noun} in ${r.label}. ${a.blurb} Ancestry traits: ${a.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
-        for (const t of a.traits) push('trait', t.name, `${t.name} — a ${a.name} ancestry trait in ${r.label}: ${t.text}`);
-      }
-    } else {
-      const noun = speciesNoun(r.key).toLowerCase().replace(/s$/, '');
-      // 2024 5e species carry full trait text (SPECIES_2024) — surface it like IG does, so "what does a
-      // Tiefling get" / "which species have Darkvision" resolve. Other systems fall back to the name blurb.
-      const dnd2024Species = key === 'dnd5e-2024' ? new Map(SPECIES_2024.map((sp) => [sp.name.toLowerCase(), sp])) : null;
-      for (const s of r.content.species) {
-        const sp = dnd2024Species?.get(s.toLowerCase());
-        if (sp) {
-          push('species', s, `${s} — a playable ${noun} in ${r.label}: size ${sp.size}, speed ${sp.speed} ft${sp.darkvision ? `, darkvision ${sp.darkvision} ft` : ''}. Traits: ${sp.traits.map((t) => `${t.name} (${t.text})`).join('; ')}`);
-          for (const t of sp.traits) push('trait', t.name, `${t.name} — a ${s} trait in ${r.label}: ${t.text}`);
-        } else {
-          push('species', s, `${s} — a playable ${noun} in ${r.label}.`);
-        }
-      }
-      for (const n of r.content.ancestryNotes ?? []) push('species', n.split(/[—-]/)[0].trim() || 'Ancestry', n);
-    }
-    // Systems with full condition text (IG) expose each condition's real mechanical effect, so
-    // "grappled" or "flat-footed" returns the actual rules; the rest fall back to a one-line stub.
-    const condText = conditionsWithTextFor(key);
-    if (condText.length) {
-      for (const c of condText) push('condition', c.name, `${c.name} — ${c.effect ?? `a condition in ${r.label}.`}`);
-    } else {
-      for (const c of r.content.conditions) push('condition', c, `${c} — a condition in ${r.label}.`);
-    }
-    // Systems with a full FEATS registry (dnd5e-2024) expose EVERY feat with its real benefit text and
-    // category, so "great weapon master" or "alert" returns the actual rules, not a one-line stub.
-    const fullFeats = featsForSystem(key);
-    const igFeatList = igFeatsFor(key);
-    if (igFeatList.length) {
-      // IG feats: each with its real prerequisites + effect, so "toughness" or "quick caster" resolves the
-      // actual rules text (IG's own IGFeat shape).
-      for (const f of igFeatList) push('feat', f.name, `${f.name} — ${f.category} feat${f.prerequisites ? ` (prereq: ${f.prerequisites})` : ''}: ${f.effect}`);
-    } else {
-      // Full entries first, then any SAMPLE names not already covered.
-      //
-      // These used to be either/or, and that quietly regressed 2014 the moment it gained a feat
-      // catalog: one real feat (Grappler, the only one in the SRD) REPLACED the ~40-name sample
-      // list, so searching "lucky" stopped finding anything. Merging is strictly better than
-      // either alone — a player gets full rules text where we can legitimately publish it, and
-      // still learns the feat EXISTS where we cannot, without anything being fabricated.
-      const covered = new Set(fullFeats.map((f) => f.name.toLowerCase()));
-      for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
-      for (const f of r.content.sampleFeats) {
-        if (covered.has(f.toLowerCase())) continue;
-        push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
-      }
-    }
-    // Backgrounds (PF2 only today): each grants attribute boosts, a trained skill, a Lore, and a skill
-    // feat — real structured data from the PF2 content library, searchable by name or "background".
-    for (const b of backgroundsForSystem(key)) {
-      push('background', b.name, `${b.name} background — trains ${b.skill} + ${b.lore}; grants the ${b.feat} skill feat; boosts ${b.boosts.join(', ')}. ${b.summary}`);
-    }
-    // 2024 5e backgrounds — the ability increases + Origin feat live here in 2024, so they're first-class
-    // rules content; surface them by name (they were shipped but nothing in the library referenced them).
-    for (const b of dnd2024BackgroundsFor(key)) {
-      push('background', b.name, `${b.name} background — ability options ${b.abilityScores.map((a) => a.toUpperCase()).join('/')}; Origin feat ${b.originFeat}; skills ${b.skillProficiencies.join(', ')}; tool ${b.toolProficiency}.`);
-    }
-    // 2024 languages + tools — findable by name ("is Draconic a standard language?", "what family is
-    // Thieves' Tools?"). Shipped data that previously answered nothing in search.
-    for (const l of dnd2024LanguagesFor(key)) push('rule', `${l.name} (language)`, `${l.name} — a ${l.rarity} language, spoken by ${l.origin}.`);
-    for (const t of dnd2024ToolsFor(key)) push('rule', `${t.name} (tool)`, `${t.name} — a ${t.family} tool proficiency.`);
-    // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
-    // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.
-    for (const a of armorsForSystem(key)) {
-      if (a.category === 'unarmored') continue;
-      push('armor', a.name, `${a.name} — ${a.category} armor; +${a.acBonus} AC, Dex cap +${a.dexCap ?? '∞'}, Str ${a.strength}, check ${a.checkPenalty}, speed ${a.speedPenalty} ft.`);
-    }
-    for (const w of weaponsForSystem(key)) {
-      push('weapon', w.name, `${w.name} — ${w.category} ${w.group.toLowerCase()}; ${w.damageDie} ${DMG_TYPE[w.damageType] ?? w.damageType}${w.range ? `, ranged ${w.range} ft` : ''}${w.traits.length ? `; ${w.traits.join(', ')}` : ''}.`);
-    }
-    for (const s of pf2SubclassOptions(key)) {
-      push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
-    }
-    // Stances (IG): each searchable by name ("defensive stance") with its Basic + Advanced benefits.
-    for (const st of stancesForSystem(key)) {
-      push('stance', `${st.name} Stance`, `${st.name} Stance — Basic (below Lv 5): ${st.basic} Advanced (Lv 5+): ${st.advanced}`);
-    }
-    // Powers/spells + defensive powers (IG): searchable by name with full effect text.
-    for (const p of igPowersFor(key)) push('power', p.name, `${p.name} — ${p.category ?? ''} power in ${r.label}: ${p.effect ?? ''}`);
-    for (const d of igDefensivePowersFor(key)) push('defensive-power', d.name, `${d.name} — a defensive power (reaction) in ${r.label}: ${d.effect ?? ''}`);
-    for (const c of igCompanionsFor(key)) push('companion', c.name, `${c.name} — a ${c.subclass} companion in ${r.label}: ${c.text}`);
-    if (key === 'intuitive-games') {
-      for (const f of IG_COMPANION_FEATURES) push('companion-feature', f.name, `${f.name} — a companion creature feature: ${f.effect}`);
-      for (const a of IG_COMPANION_ASPECTS) push('companion-aspect', a.name, `${a.name} — a companion creature aspect (Archon's Aspect power): ${a.effect}`);
-    }
-    for (const b of igBackgroundsFor(key)) push('background', b.name, `${b.name} background — ${b.hp} HP; boosts ${b.boosts}; trains ${b.proficiencies.join(', ')}; grants the ${b.stance} Stance.`);
-    // IG gear: weapon classes + properties, armor (with DR), and shields — searchable by name.
-    if (key === 'intuitive-games') {
-      for (const w of IG_WEAPON_CLASS_DATA) push('weapon', w.name, `${w.name} — a ${w.kind.toLowerCase()} weapon class in ${r.label}: ${w.cost}. ${w.notes}`);
-      for (const p of IG_WEAPON_PROPERTIES) push('weapon-property', p.name, `${p.name} — a weapon property (${p.appliesTo}): ${p.text}`);
-      for (const a of IG_ARMORS) push('armor', a.name, `${a.name} — ${a.group} armor, DR ${a.dr}, ${a.strength}, ${a.cost}${a.notes ? `; ${a.notes}` : ''}.`);
-      for (const s of IG_SHIELDS) push('shield', s.name, `${s.name} — a ${s.group} shield in ${r.label}, ${s.cost}${s.notes ? `; ${s.notes}` : ''}.`);
-      for (const p of IG_EQUIPMENT_PACKS) push('equipment', p.name, `${p.name} — ${p.cost}: ${p.contents}`);
-      for (const e of IG_ENCHANTMENTS) push('magic-item', e.name, `${e.name} — an Eldritch Jewel enchantment in ${r.label}: ${e.effect}`);
-    }
-    for (const sp of spellsForSystem(key)) {
-      push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
-    }
-    // Homebrew content is searchable too (Area H2) — the published, in-system pieces surface by name/kind/creator.
-    for (const hb of browseHomebrew(HOMEBREW_SEEDS, { system: key })) {
-      push(hb.kind, hb.name, `${hb.summary ?? ''} ${hb.description ?? ''} — homebrew by ${hb.creator.name}`.trim());
-    }
+    for (const c of libraryCatalogFor(key)) push(c.kind, c.name, c.body);
   }
 
   return hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);

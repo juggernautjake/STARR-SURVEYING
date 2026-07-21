@@ -4,9 +4,11 @@
 // Every entry is expanded from a real article (not a stub), grouped by kind, with a filter for
 // looking something up mid-session. seeAlso links jump within the same system — never across, since
 // the same word means different things in different games.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './hextech.module.css';
 import type { GlossaryEntry } from '@/lib/dnd/glossary';
+import { anchorAliases, glossaryAnchorId } from '@/lib/dnd/library-anchors';
+import { watchLibraryAnchor } from './library-anchor-client';
 import GiveEntryButton, { grantKindForGlossary } from './GiveEntryButton';
 
 const KIND_LABEL: Record<string, string> = {
@@ -73,6 +75,34 @@ export default function GlossaryList({
 
   const kinds = KIND_ORDER.filter((k) => grouped[k]?.length);
 
+  // ── arriving from a deep link ─────────────────────────────────────────────
+  // A glossary article is opened by REACT STATE, not by a <details>, so `DeepLinkOpener` — which
+  // works by setting `open` on ancestor <details> elements — cannot reveal one. Landing on
+  // `#term-concentration` scrolled to a collapsed one-line row: the reader saw the term they clicked
+  // and none of the article, which is the same "the link is broken" experience the entry anchors had.
+  //
+  // Both prefixes are honoured. `#entry-…` is the alias a link written against the catalog uses when
+  // the article is where the text actually lives, and the FIRST matching entry wins so an exact
+  // `term-` hash is never overridden by a coincidental alias.
+  useEffect(() => watchLibraryAnchor((hash) => {
+    const id = hash.replace(/^#/, '');
+    if (!id) return;
+    const [exact, ...aliases] = anchorAliases(id);
+    // An alias is a FALLBACK, never a competitor: if some other renderer on the page already carries
+    // this id (a conditions entry, a table row), that element is the destination and DeepLinkOpener
+    // is revealing it. Two components scrolling to two places is worse than one scrolling to a
+    // slightly weaker one.
+    const wanted = new Set(document.getElementById(id) ? [exact] : [exact, ...aliases]);
+    const found = entries.find((e) => wanted.has(glossaryAnchorId(e.term)));
+    if (!found) return;
+    setOpen(found.term);
+    // Deferred a frame: the article's body only exists after this state change renders, and
+    // scrolling before it does measures the collapsed row and lands short.
+    requestAnimationFrame(() => {
+      document.getElementById(glossaryAnchorId(found.term))?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }), [entries]);
+
   return (
     <section id="glossary" className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12, scrollMarginTop: 16 }}>
       <div className={styles.framedPanelTop} />
@@ -104,7 +134,7 @@ export default function GlossaryList({
           {grouped[kind].map((e) => {
             const isOpen = open === e.term;
             return (
-              <div key={e.term} id={`term-${e.term.replace(/\s+/g, '-').toLowerCase()}`} style={{ borderBottom: '1px solid rgba(30,45,61,0.5)' }}>
+              <div key={e.term} id={glossaryAnchorId(e.term)} style={{ borderBottom: '1px solid rgba(30,45,61,0.5)', scrollMarginTop: 72 }}>
                 <button
                   onClick={() => setOpen(isOpen ? null : e.term)}
                   aria-expanded={isOpen}
@@ -145,7 +175,7 @@ export default function GlossaryList({
                             <button
                               onClick={() => {
                                 setOpen(ref);
-                                document.getElementById(`term-${ref.replace(/\s+/g, '-').toLowerCase()}`)?.scrollIntoView({ block: 'center' });
+                                document.getElementById(glossaryAnchorId(ref))?.scrollIntoView({ block: 'center' });
                               }}
                               style={{ background: 'none', border: 'none', padding: 0, color: 'var(--hx-teal-1)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}
                             >

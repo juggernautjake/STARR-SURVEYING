@@ -8,7 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './hextech.module.css';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
-import { libraryHref } from '@/lib/dnd/library-anchors';
+import { libraryHref, sectionForKind } from '@/lib/dnd/library-anchors';
+import { rememberFallbackSection } from './library-anchor-client';
 
 interface Hit {
   system: string;
@@ -17,6 +18,10 @@ interface Hit {
   name: string;
   body: string;
   score: number;
+  /** Resolved SERVER-side against what the target page really renders — see library-anchor-map.ts.
+   *  Optional only because a hit could arrive from an older cached response; `libraryHref` is the
+   *  client-side approximation used then. */
+  href?: string;
 }
 
 const KIND_COLOR: Record<string, string> = {
@@ -183,12 +188,17 @@ export default function LibrarySearch({ system, systemName }: { system?: string;
               </div>
               {/* Each hit is a LINK to the thing itself. It used to be a plain <div>: the reader
                   could see that a rule existed and had no way to open it, which is the one thing a
-                  search result must do. `libraryHref` resolves kind → section → entry anchor, and
-                  `DeepLinkOpener` on the target page expands the collapsed <details> on arrival. */}
+                  search result must do. The href is resolved on the SERVER against the target page's
+                  real content (`h.href`), because the client-side `libraryHref` can only assume the
+                  page stamps an id for this name — and for conditions, skills and feats it did not,
+                  which is exactly how this link came to navigate nowhere for a year. The click also
+                  leaves behind the section it was heading for, so `DeepLinkOpener` has somewhere to
+                  land even if the id it is given turns out to be missing after all. */}
               {list.map((h, i) => (
                 <Link
                   key={`${h.system}-${h.kind}-${h.name}-${i}`}
-                  href={libraryHref(h.system, h.kind, h.name)}
+                  href={h.href ?? libraryHref(h.system, h.kind, h.name)}
+                  onClick={() => rememberFallbackSection(sectionForKind(h.kind))}
                   className={styles.searchHit}
                   style={{ display: 'grid', gap: 2, padding: '5px 7px', textDecoration: 'none', borderRadius: 4 }}
                 >

@@ -64,6 +64,24 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
   const glossary = glossaryFor(params.key);
   const classes = classesForSystem(params.key);
 
+  // ── deep-link anchors ─────────────────────────────────────────────────────
+  // EVERY named thing on this page gets an id, not just the `s.entries` collapsibles. For a long
+  // time only those carried one, so a search hit for a condition (chips), a skill (a table row) or
+  // a rule (a fact row) navigated to an id nothing on the page had: the reader clicked a result and
+  // landed nowhere, silently. The renderers below all stamp through `anchor`.
+  //
+  // FIRST NAME WINS. A name can legitimately repeat — "Ability Score Improvement" is a feature of
+  // every class, "Common" is both a language and a rarity — and duplicate ids are invalid HTML that
+  // resolves to whichever element the browser met first anyway. De-duplicating makes that choice
+  // explicit and stable (top of the page wins) rather than incidental.
+  const claimed = new Set<string>();
+  const anchor = (name: string): string | undefined => {
+    const id = entryAnchorId(name);
+    if (claimed.has(id)) return undefined;
+    claimed.add(id);
+    return id;
+  };
+
   return (
     <div className={styles.root}>
       <div className={styles.screen} style={{ alignItems: 'flex-start' }}>
@@ -141,7 +159,9 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
               {s.facts && (
                 <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
                   {s.facts.map((f, i) => (
-                    <div key={i} style={{ display: 'grid', gap: 2 }}>
+                    // Fact rows are the `rule` kind's home (search emits "Core resolution",
+                    // "Action economy"… by their label), so the label is the anchor name.
+                    <div key={i} id={anchor(f.label)} style={{ display: 'grid', gap: 2, scrollMarginTop: 72 }}>
                       <dt style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>{f.label}</dt>
                       <dd style={{ margin: 0, fontSize: 13.5, color: 'var(--hx-text)', lineHeight: 1.65 }}>{f.value}</dd>
                     </div>
@@ -161,8 +181,13 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
 
               {s.chips && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {/* Chips are the weakest landing we have — a name and nothing else — but a chip
+                      with an id is a real destination and a chip without one is a dead link, which
+                      is what a `species` or sample-`feat` search hit used to be. `resolveLibraryHref`
+                      prefers a full entry or a glossary article over one of these when either
+                      exists; it falls back here rather than to nothing. */}
                   {s.chips.map((c) => (
-                    <span key={c} style={{ fontSize: 12, padding: '4px 9px', border: '1px solid var(--hx-line)', background: 'rgba(10,200,185,0.06)', color: 'var(--hx-text)' }}>
+                    <span key={c} id={anchor(c)} style={{ fontSize: 12, padding: '4px 9px', border: '1px solid var(--hx-line)', background: 'rgba(10,200,185,0.06)', color: 'var(--hx-text)', scrollMarginTop: 72 }}>
                       {c}
                     </span>
                   ))}
@@ -173,11 +198,15 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                   section <details>, also default-closed. The owner's "click a race to expand every detail". */}
               {s.entries && (
                 <div style={{ display: 'grid', gap: 6 }}>
-                  {s.entries.map((e) => (
+                  {/* Keyed on name AND index: a catalog can legitimately hold the same name twice
+                      (IG lists "Armor Proficiency" as both a General and a Combat feat), and a
+                      duplicate React key is licensed to omit one of them — which would delete an
+                      entry from the page while every catalog test still passed. */}
+                  {s.entries.map((e, i) => (
                     // `id` from the SHARED anchor helper, so a search hit's href and this element
                     // cannot drift apart. `scrollMarginTop` keeps the row clear of the sticky header
                     // when DeepLinkOpener scrolls to it.
-                    <details key={e.name} id={entryAnchorId(e.name)} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px', scrollMarginTop: 72 }}>
+                    <details key={`${e.name}-${i}`} id={anchor(e.name)} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px', scrollMarginTop: 72 }}>
                       <summary style={{ cursor: 'pointer', fontSize: 13.5 }}>
                         <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
                         {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}
@@ -216,8 +245,11 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                       </tr>
                     </thead>
                     <tbody>
+                      {/* The first cell is the name column in every table the library builds
+                          (Skill, Class, Language, Weapon…), so it is what a search hit of that
+                          kind is named after and what the row's id has to be derived from. */}
                       {s.table.rows.map((row, i) => (
-                        <tr key={i}>
+                        <tr key={i} id={row[0] ? anchor(row[0]) : undefined} style={{ scrollMarginTop: 72 }}>
                           {row.map((cell, j) => (
                             <td key={j} style={{ padding: '5px 8px', borderBottom: '1px solid var(--hx-line)', color: j === 0 ? 'var(--hx-text)' : 'var(--hx-muted)', fontWeight: j === 0 ? 600 : 400 }}>
                               {cell}
@@ -277,8 +309,14 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
                         return (
                           <div key={lv} style={{ display: 'grid', gap: 3, borderTop: '1px solid var(--hx-line)', paddingTop: 6 }}>
                             <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--hx-teal-1)' }}>Level {lv}</div>
+                            {/* Class features are searchable by name ("action surge", "sneak
+                                attack") and their rules text only exists HERE, in the class table —
+                                the `classes` section lists classes, not their features. Without an
+                                id a `feature` hit had nowhere to land. Names repeat across classes
+                                ("Ability Score Improvement"), which `anchor`'s first-wins rule
+                                handles. */}
                             {feats.map((f, i) => (
-                              <div key={i}>
+                              <div key={i} id={anchor(f.name)} style={{ scrollMarginTop: 72 }}>
                                 <strong style={{ color: 'var(--hx-gold-2)', fontSize: 13.5 }}>{f.name}</strong>
                                 {f.choice && (
                                   <span style={{ fontSize: 10, marginLeft: 6, padding: '1px 5px', border: '1px solid var(--hx-teal-2)', color: 'var(--hx-teal-1)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>

@@ -11,19 +11,22 @@
 // So arriving at an anchor has to OPEN it, and open every ancestor that contains it — an entry
 // lives inside a section, and both are closed.
 //
+// AND IT HAS TO FAIL LOUDLY-ENOUGH. The original bug was not that this component misbehaved: it was
+// that the id it was handed did not exist, so it returned early and the page sat there looking
+// exactly as if nothing had been clicked. `reveal` now walks a chain — the id, then the same slug
+// under the glossary's `term-` prefix, then the section the link came from — so a gap between what
+// search can name and what the page renders costs the reader a slightly worse landing instead of
+// costing them the click. There is no branch left that silently does nothing when it can do
+// something.
+//
 // Deliberately a no-JS-graceful enhancement: without it the link still navigates to the right
 // place, it just does not expand. Nothing here is required for the page to work.
 import { useEffect } from 'react';
+import { anchorAliases } from '@/lib/dnd/library-anchors';
+import { takeFallbackSection, watchLibraryAnchor } from '@/app/dnd/_ui/library-anchor-client';
 
-/** Open the target and every `<details>` above it, then bring it into view. */
-function reveal(hash: string) {
-  const id = hash.replace(/^#/, '');
-  if (!id) return;
-  // `getElementById` rather than `querySelector('#'+id)`: an id derived from a content name can
-  // contain characters that are not a valid CSS selector, and querySelector would throw on them.
-  const el = document.getElementById(id);
-  if (!el) return;
-
+/** Open every `<details>` above (and including) `el`, then bring it into view. */
+function open(el: HTMLElement) {
   // Walk UP opening every ancestor <details>, then the target itself if it is one. Order matters:
   // a child of a closed parent has no layout, so scrolling before opening measures the wrong place.
   let node: HTMLElement | null = el;
@@ -47,23 +50,32 @@ function reveal(hash: string) {
   });
 }
 
-export default function DeepLinkOpener() {
-  useEffect(() => {
-    // On arrival. Deferred a tick because the sections render server-side but hydration may not
-    // have attached everything yet on a slow client.
-    const initial = window.location.hash;
-    if (!initial) return;
-    const t = setTimeout(() => reveal(initial), 60);
-    return () => clearTimeout(t);
-  }, []);
+/** Reveal the best element this hash can reach, trying each candidate in turn. */
+function reveal(hash: string) {
+  const id = hash.replace(/^#/, '');
+  if (!id) return;
+  // A link straight to a SECTION (the jump nav, or a hit that degraded to its shelf) needs no
+  // alias walk and must not consume the fallback hint.
+  const direct = document.getElementById(id);
+  if (direct) { open(direct); return; }
 
-  useEffect(() => {
-    // On every subsequent same-page hash change — clicking a second search result, or the back
-    // button returning to an earlier anchor. Without this, only the first link of a session works.
-    const onHash = () => reveal(window.location.hash);
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  // Nothing carries this id. Try the same slug under the glossary's prefix (GlossaryList stands
+  // down whenever the exact id exists, so only one of the two of us ever scrolls), then the section
+  // the reader was heading for, which is known when they arrived by clicking a search result.
+  //
+  // `getElementById` throughout rather than `querySelector('#'+id)`: an id derived from a content
+  // name can contain characters that are not a valid CSS selector, and querySelector would throw.
+  for (const candidate of [...anchorAliases(id).slice(1), takeFallbackSection()]) {
+    if (!candidate) continue;
+    const el = document.getElementById(candidate);
+    if (el) { open(el); return; }
+  }
+}
+
+export default function DeepLinkOpener() {
+  // On arrival, on back/forward, and on every click into an anchor on this page — see
+  // `watchLibraryAnchor` for why the obvious `hashchange` listener misses the case that matters.
+  useEffect(() => watchLibraryAnchor(reveal), []);
 
   return null;
 }

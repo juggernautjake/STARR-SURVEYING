@@ -151,10 +151,16 @@ describe('searchLibrary', () => {
   });
 
   it('finds a 5e 2024 language and tool by name', () => {
-    const draconic = searchLibrary('draconic', 'dnd5e-2024').find((h) => /language/i.test(h.name));
+    // Asserted on the KIND, not on a "(language)" suffix in the name. The suffix used to be how a
+    // reader told a language from anything else — but it also made the hit's anchor
+    // `entry-draconic-language` while the Languages table row is `entry-draconic`, so the link could
+    // not resolve by construction. The kind carries the disambiguation now and the name matches what
+    // the page renders.
+    const draconic = searchLibrary('draconic', 'dnd5e-2024').find((h) => h.kind === 'language');
     expect(draconic, 'Draconic should be searchable as a language').toBeTruthy();
+    expect(draconic!.name).toBe('Draconic');
     expect(draconic!.body).toMatch(/standard language/i);
-    expect(searchLibrary('thieves', 'dnd5e-2024').some((h) => /tool/i.test(h.name))).toBe(true);
+    expect(searchLibrary('thieves', 'dnd5e-2024').some((h) => h.kind === 'tool')).toBe(true);
   });
 
   it('surfaces individual PF2 subclass options by name (draconic bloodline, thief racket)', () => {

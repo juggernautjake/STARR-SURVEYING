@@ -18,6 +18,7 @@
 
 import { CONDITION_MECHANICS_5E } from './conditions/dnd5e';
 import { spellsForSystem } from './spells';
+import { glossaryAnchorId } from './library-anchors';
 import { spellMechanicsFor } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
 import { glossaryFor } from './glossary';
@@ -115,7 +116,9 @@ export function termIndexFor(system: string): LibraryTerm[] {
       term: g.term,
       kind: 'glossary',
       short: abbreviate(g.short || g.body),
-      href: `${lib}#term-${g.term.replace(/\s+/g, '-').toLowerCase()}`,
+      // The shared helper, not a local `replace(/\s+/g,'-')`: the two disagreed for any term with
+      // punctuation ("Heroes' Feast"), and GlossaryList stamps the shared one.
+      href: `${lib}#${glossaryAnchorId(g.term)}`,
       aliases: g.aliases,
     });
   }
