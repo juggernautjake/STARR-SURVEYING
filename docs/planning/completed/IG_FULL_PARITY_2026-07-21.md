@@ -231,6 +231,37 @@ This doc therefore stays open on **source questions only**, the same posture as 
 infrastructure is finished, and what remains is content the source has not published, has published
 twice differently, or has published as an empty header.
 
+### IG-S6 — two holes the audit exposed, closed ✅ SHIPPED 2026-07-21
+
+Not planned slices. Both came out of IG-S5's audit and a browser pass, and both are the same
+defect this project keeps meeting in new costumes: **content authored and tracked, with nothing
+wired to consult it.**
+
+- **An invented IG background passed as official** (`c5094eb5`). `background` was absent from
+  `IG_KINDS` in `provenance.ts`, while IG's own `KIND_NAMES.background` listed all ten catalogued
+  backgrounds and `igIsVanilla` classified them correctly. The shared layer never asked, so
+  `classifyElement` fell through to the untracked-kind arm — which returns `vanilla` deliberately,
+  so an unknown kind is never falsely flagged, and which is exactly wrong when the kind IS
+  tracked. Net effect: a made-up background on a *vanilla* character read as official. The gate
+  failing open in the one place it must fail closed.
+
+  The guard asserts the RELATIONSHIP, not the list: every kind `IGContentKind` can classify must
+  be routed by the shared layer. A test restating `IG_KINDS` by hand would have been just as wrong
+  as `IG_KINDS` was. Behaviour change stated plainly in the commit: an IG character already
+  holding an off-catalog background now reads custom, which is correct and is visible.
+
+- **The builder offered two chips for one feat** (`468a8aa6`). IG publishes Armor Proficiency,
+  Shield Proficiency and Weapon Training on BOTH feat pages with differently-worded effects, which
+  `feats.ts` deliberately preserves. React's duplicate-key warning was the symptom; the bug was
+  that `feats` is a bare `string[]`, so both chips wrote the same value and toggled in lockstep —
+  the UI offering a choice the sheet cannot represent. Fixed by deduping at the option level,
+  since storage is by name. The sheet's picker merges too but keeps BOTH published effects,
+  attributed by category: it displays rules text, and the combat version is materially stronger,
+  so silently keeping whichever was iterated first would misinform a player about what they took.
+
+  Left unresolved and recorded: WHICH published effect applies is a content question. It belongs
+  in the open questions below, and it is question 6.
+
 ## Open questions for the owner, recorded rather than guessed
 
 1. **IG's crit rule, stated two ways in this repo.** `system-rules.ts` says IG resolves as an OPPOSED
@@ -246,13 +277,34 @@ twice differently, or has published as an empty header.
    subclass DEFENSIVE powers but their text lives in `IG_POWERS`. Which list owns them?
 4. **Homebrew scope** — per-character (assumed, matching 2024) or promoted to a shared per-campaign
    library other characters can draw from?
-5. **Archives of Nethys sourcing** — two PF2 tranches (classes, ancestries) were authored using AoN
+6. **Three feats published twice, with different effects.** Armor Proficiency, Shield Proficiency
+   and Weapon Training appear on both the general and combat feat pages. The combat wording is
+   materially stronger in each case (Armor Proficiency: "proficient with all types of armor" vs
+   merely removing the Reflex penalty). The sheet stores feats by name and so can hold only one.
+   Which wording is current — or are they genuinely two feats that need distinct names?
+7. **Archives of Nethys sourcing** — two PF2 tranches (classes, ancestries) were authored using AoN
    after I said I would avoid it, because my agent prompts did not carry that constraint. The facts
    are ORC-licensed mechanics and were paraphrased, but the boundary I stated was not enforced.
    Re-deriving gets more expensive as content layers on top.
 
-## Done means
+## Done means — and where it actually landed
 
-- All six criteria hold for IG.
-- `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run`, and `npm run build` green per slice.
-- Every slice committed and pushed.
+Original bar, with the honest outcome against each:
+
+- **All six criteria hold for IG.** ✅ for five. **Computing** holds for every NUMBER — attack
+  bonuses, damage, stance and condition effects all resolve through the engine, pinned by 26 tests
+  asserting resolved totals rather than rendered fields. It does NOT hold for the nine weapon
+  PROPERTIES, and IG-S4 established that this is not engineering work: four are range/damage-type
+  rules with no number to move, one names no skill, one is ambiguously worded, and the two crit
+  properties are blocked on the repo containing two contradictory statements of IG's crit rule
+  (open question 1). Wiring any of them means inventing a rule the source does not state.
+- `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run` ✅ green (1076 files / 15,365 tests
+  at the last full run). `npm run build` ✅.
+- Every slice committed ✅.
+
+**This doc is CLOSED and moved to `completed/`.** Every engineering action item is shipped. What
+remains is seven questions about what Intuitive Games *says* — content the source has not
+published, has published twice differently, or has published as an empty header. Those are the
+owner's to answer, not work anyone can do from here, and guessing at them is precisely what this
+project has repeatedly refused to do. When the owner answers questions 1, 2, 3 or 6, the follow-up
+work is small and well-specified above; open a new doc for it rather than reopening this one.
