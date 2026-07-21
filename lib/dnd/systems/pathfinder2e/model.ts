@@ -109,6 +109,11 @@ export interface PF2Attack {
   traits: string[];           // agile, finesse, reach, …
   /** The striking rune line, which multiplies WEAPON dice only. */
   striking?: string;
+  /** Runes etched on this weapon, by name (e.g. "+1 weapon potency", "greater striking",
+   *  "flaming"). When present these DERIVE `weaponBonus` and `striking` at render via
+   *  `pf2ResolveRunes`, so the sheet's numbers follow the runes the character actually has instead
+   *  of being hand-entered and drifting out of sync. Absent → the manual fields stand alone. */
+  runes?: string[];
   /** Hand-tuned away from how it came (S15) → drives the ✎ marker. */
   customized?: boolean;
 }

@@ -97,6 +97,36 @@ const STRIKING_NAMES: Record<string, PF2StrikingRune> = {
 };
 const RESILIENT: Record<string, number> = { resilient: 1, 'greater resilient': 2, 'major resilient': 3 };
 
+/** What a weapon's runes contribute, folded together with any hand-entered values.
+ *
+ *  Runes WIN over the manual fields when present, rather than adding to them: a weapon listing
+ *  "+2 weapon potency" alongside a typed `weaponBonus: 1` has one potency rune, not three. Summing
+ *  them is the obvious implementation and it is wrong — potency does not stack with itself.
+ *  Absent runes leave the manual fields untouched, so nothing changes for a weapon that never
+ *  listed any. */
+export function pf2WeaponNumbers(weapon: { weaponBonus?: number; striking?: string; runes?: string[] }): {
+  weaponBonus: number;
+  striking: PF2StrikingRune;
+  properties: string[];
+  notes: string[];
+} {
+  const runes = weapon.runes ?? [];
+  if (!runes.length) {
+    return {
+      weaponBonus: weapon.weaponBonus ?? 0,
+      striking: (weapon.striking as PF2StrikingRune) ?? 'none',
+      properties: [], notes: [],
+    };
+  }
+  const r = pf2ResolveRunes(runes);
+  return {
+    weaponBonus: r.itemBonus,
+    striking: r.striking,
+    properties: r.properties,
+    notes: r.notes,
+  };
+}
+
 /** Resolve equipped rune NAMES into their mechanical contribution.
  *
  *  Unknown names are ignored rather than guessed at — a rune we do not have catalogued contributes

@@ -42,8 +42,8 @@ export type PF2Edit =
   // A Strike on the sheet. `damage` is the BASE die ("1d8"); traits, striking runes and the crit
   // rules are resolved at render by pf2ResolveStrike rather than baked into a string, so an edited
   // weapon computes instead of merely displaying.
-  | { op: 'add_attack'; name: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
-  | { op: 'update_attack'; name: string; to?: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
+  | { op: 'add_attack'; name: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string; runes?: string[] }
+  | { op: 'update_attack'; name: string; to?: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string; runes?: string[] }
   | { op: 'remove_attack'; name: string }
   // ── Armor (S15d) ──────────────────────────────────────────────────────────────────────────────
   // Armor is a single worn set, not a list, so this SETS rather than adds. Every field feeds
@@ -235,6 +235,7 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
         damageType: edit.damageType ?? '',
         traits: edit.traits ?? [],
         ...(edit.striking ? { striking: edit.striking } : {}),
+        ...(edit.runes?.length ? { runes: edit.runes } : {}),
       } as PF2Character['attacks'][number];
       return { ...pf2, attacks: [...(pf2.attacks ?? []).filter((a) => a.name.toLowerCase() !== name.toLowerCase()), attack] };
     }
@@ -252,6 +253,7 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
         ...(edit.traits ? { traits: edit.traits } : {}),
         ...(Number.isFinite(edit.weaponBonus as number) ? { weaponBonus: Math.max(0, Math.min(3, Math.round(edit.weaponBonus as number))) } : {}),
         ...(edit.striking ? { striking: edit.striking } : {}),
+        ...(edit.runes ? { runes: edit.runes } : {}),
         customized: true,
       } as PF2Character['attacks'][number];
       const attacks = [...pf2.attacks];
@@ -399,6 +401,7 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
         // than store it.
         ...(Number.isFinite(bonus) ? { weaponBonus: Math.max(0, Math.min(3, Math.round(bonus))) } : {}),
         ...(STRIKING.includes(striking) ? { striking } : {}),
+        ...(Array.isArray(o.runes) ? { runes: o.runes.map((r) => String(r ?? '').trim()).filter(Boolean) } : {}),
       } as PF2Edit,
     };
   }

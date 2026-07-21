@@ -7,7 +7,9 @@
 // 5e has nothing like this, so the instinctive implementation (sum everything) produces numbers
 // that look reasonable and are wrong. A +1 item bonus plus a +2 item bonus is +2, not +3.
 import { describe, it, expect } from 'vitest';
-import { pf2StackModifiers, pf2ResolveRunes, type PF2Modifier } from '@/lib/dnd/systems/pathfinder2e/bonuses';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pf2StackModifiers, pf2ResolveRunes, pf2WeaponNumbers, type PF2Modifier } from '@/lib/dnd/systems/pathfinder2e/bonuses';
 
 const m = (type: PF2Modifier['type'], value: number, source = 'x'): PF2Modifier => ({ type, value, source });
 
@@ -120,5 +122,39 @@ describe('rune resolution', () => {
     expect(r.itemBonus).toBe(2);
     expect(r.striking).toBe('greater');
     expect(r.properties).toContain('Flaming');
+  });
+});
+
+describe('runes DERIVE the weapon numbers, and are actually wired in', () => {
+  it('a weapon listing runes takes its bonus from them', () => {
+    const w = pf2WeaponNumbers({ runes: ['+2 weapon potency', 'greater striking'] });
+    expect(w.weaponBonus).toBe(2);
+    expect(w.striking).toBe('greater');
+  });
+
+  it('runes WIN over a hand-entered value rather than adding to it', () => {
+    // A weapon listing "+2 potency" alongside a typed weaponBonus of 1 has ONE potency rune, not
+    // three. Summing is the obvious implementation and it is wrong.
+    const w = pf2WeaponNumbers({ weaponBonus: 1, runes: ['+2 weapon potency'] });
+    expect(w.weaponBonus).toBe(2);
+  });
+
+  it('a weapon with no runes keeps its manual fields untouched', () => {
+    // Nothing changes for a weapon that never listed any.
+    const w = pf2WeaponNumbers({ weaponBonus: 1, striking: 'striking' });
+    expect(w).toMatchObject({ weaponBonus: 1, striking: 'striking' });
+  });
+
+  it('an empty rune list is treated as no runes, not as zero bonus', () => {
+    expect(pf2WeaponNumbers({ weaponBonus: 3, runes: [] }).weaponBonus).toBe(3);
+  });
+
+  it('the sheet uses it for BOTH the to-hit and the damage line', () => {
+    // Reading a.weaponBonus for to-hit while damage used the rune value would show a weapon
+    // hitting at +0 and damaging as though it were +2.
+    const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+    expect(sheet).toContain('pf2WeaponNumbers(a).weaponBonus');
+    expect(sheet).toContain('itemBonus: runeNums.weaponBonus');
+    expect(sheet).toContain('striking: runeNums.striking');
   });
 });

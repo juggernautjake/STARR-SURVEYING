@@ -20,6 +20,7 @@ import {
   pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { pf2ResolveStrike } from '@/lib/dnd/systems/pathfinder2e/strike';
+import { pf2WeaponNumbers } from '@/lib/dnd/systems/pathfinder2e/bonuses';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionRollEffect, pf2ConditionMechanics, type Pf2RollKind } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
@@ -251,17 +252,25 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           </div>
           <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
             {pf2.attacks.map((a) => {
-              const bonus = pf2AttackBonus(a, id.level, pf2.attributes);
+              // Rune-derived item bonus feeds the TO-HIT roll too. Reading `a.weaponBonus` here
+              // while the damage line used the rune value would show a weapon hitting at +0 and
+              // damaging as though it were +2.
+              const runeBonus = pf2WeaponNumbers(a).weaponBonus;
+              const bonus = pf2AttackBonus({ ...a, weaponBonus: runeBonus }, id.level, pf2.attributes);
               // Resolve the weapon's TRAITS into real numbers (S13b/S15d). The sheet previously
               // rendered a stored damage string, so `deadly`, `striking` and the crit rules never
               // computed — a Rapier and a Shortsword rolled identically on a critical hit.
+              // Runes DERIVE the item bonus and striking line when the weapon lists them, so the
+              // numbers follow the runes the character actually has rather than a hand-entered
+              // value that drifts out of sync.
+              const runeNums = pf2WeaponNumbers(a);
               const strike = pf2ResolveStrike(
                 { name: a.name, damageDie: a.damage, damageType: a.damageType ?? '', traits: a.traits ?? [] },
                 {
                   level: id.level, attributes: pf2.attributes,
                   proficiency: pf2Proficiency(a.rank, id.level),
-                  itemBonus: a.weaponBonus,
-                  striking: (a.striking as 'none' | 'striking' | 'greater' | 'major') ?? 'none',
+                  itemBonus: runeNums.weaponBonus,
+                  striking: runeNums.striking,
                   ranged: (a.traits ?? []).some((t) => t.toLowerCase().startsWith('thrown') || t.toLowerCase() === 'ranged'),
                 },
               );
