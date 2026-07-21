@@ -17,6 +17,7 @@
 
 import type { IGCharacter, IGAttack, IGSaveKey } from './model';
 import { igAbilityMod, igAttackBonus, igDamageBonus, igSaves, igSkillTotals } from './rules';
+import { igParseAttackProperties, igUncomputedPropertyNotes, type IGAttackProperty } from './attack';
 import { igStanceRollEffect, igStanceDamageBonus } from '@/lib/dnd/stances/intuitive-games';
 import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
 
@@ -60,8 +61,18 @@ export interface ResolvedAttack {
   damage: string;
   swing: RollSwing;
   sources: string[];
-  /** Clauses the sheet will not decide for you ("advantage when flanking"). */
+  /** Clauses the sheet will not decide for you ("advantage when flanking").
+   *
+   *  IG-S4 folds the weapon's UNCOMPUTED properties in here too. They belong in the same list for the
+   *  same reason the stance clauses do: they are in force, and the resolver deliberately will not decide
+   *  them. Keeping them in a separate list would have invited a sheet to render one and forget the other. */
   conditional: string[];
+  /** The published weapon properties this attack carries, structured (IG-S4). `computed` on each says
+   *  whether `toHit`/`damage` above already account for it — today none do, and each carries why. */
+  properties: IGAttackProperty[];
+  /** Anything in `atk.properties` that is not a published property. Homebrew is allowed to have its own,
+   *  so this is surfaced as information, never as a refusal. */
+  unknownProperties: string[];
 }
 
 /** One attack as it stands right now. */
@@ -73,13 +84,16 @@ export function igResolveAttackInPlay(char: IGCharacter, atk: IGAttack): Resolve
   const dmgStance = igStanceDamageBonus(activeStanceOf(char), level);
   const dmgBonus = igDamageBonus(atk, mod) + (dmgStance?.bonus ?? 0);
   const die = atk.damage || '1d6';
+  const props = igParseAttackProperties(atk.properties);
 
   return {
     toHit: igAttackBonus(atk, level, mod) + e.penalty,
     damage: dmgBonus === 0 ? die : `${die}${dmgBonus > 0 ? '+' : ''}${dmgBonus}`,
     swing: e.swing,
     sources: [...e.sources, ...(dmgStance ? [dmgStance.source] : [])],
-    conditional: e.conditional,
+    conditional: [...e.conditional, ...igUncomputedPropertyNotes(atk.properties)],
+    properties: props.recognized,
+    unknownProperties: props.unrecognized,
   };
 }
 

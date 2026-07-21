@@ -3,7 +3,7 @@
 // flagged vanilla, with stance/power effect text carried through and classifier agreement.
 import { describe, it, expect } from 'vitest';
 import { igCatalog, igCatalogCount } from '@/lib/dnd/systems/intuitive-games/catalog';
-import { classifyElement } from '@/lib/dnd/provenance';
+import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 import { igAllSpellNames } from '@/lib/dnd/systems/intuitive-games/content';
 import { igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
 
@@ -57,11 +57,15 @@ describe('igCatalog (Slice 7)', () => {
 
   it('every catalog entry classifies as vanilla for the intuitive-games system', () => {
     // The catalog IS the vanilla library, so the provenance classifier must agree on the tracked kinds.
-    const tracked = new Set(['ancestry', 'class', 'subclass', 'skill', 'condition', 'stance', 'feat', 'power', 'defensive-power', 'weapon-type', 'movement-type', 'creature-type']);
+    // The catalog's kind vocabulary is WIDER than ElementKind since IG-S5 (gear tables, cover, damage
+    // types and companion build options are reference content nobody holds, so they have no provenance
+    // kind). `tracked` is the intersection, and the cast is safe because membership in it proves the
+    // kind is an ElementKind.
+    const tracked = new Set<string>(['ancestry', 'class', 'subclass', 'skill', 'condition', 'stance', 'feat', 'power', 'defensive-power', 'weapon-type', 'movement-type', 'creature-type']);
     for (const g of groups) {
       for (const e of g.entries) {
         if (!tracked.has(e.kind)) continue;
-        expect(classifyElement('intuitive-games', e.kind, e.name)).toBe('vanilla');
+        expect(classifyElement('intuitive-games', e.kind as ElementKind, e.name)).toBe('vanilla');
       }
     }
   });

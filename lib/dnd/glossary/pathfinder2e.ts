@@ -4,8 +4,11 @@
 // Opportunity), spell RANKS (not levels), attribute modifiers (not scores). PF2 has no Base Attack
 // Bonus, no advantage/disadvantage, and no per-ability saves — do not import those from other d20s.
 import type { SystemGlossary } from './types';
+import { pf2DerivedEntries } from './pathfinder2e-derived';
 
-export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
+// The hand-authored articles. These take priority over anything derived: where both cover a term this
+// file wins, because a worked example beats a projection of the same rule.
+const PF2_AUTHORED: SystemGlossary = [
   // ── Core resolution ───────────────────────────────────────────────────────────────────────
   {
     term: 'Degrees of Success',
@@ -834,3 +837,8 @@ export const PATHFINDER2E_GLOSSARY: SystemGlossary = [
     aliases: ['hunter\'s edge', 'hunters edge', 'flurry', 'precision', 'outwit'],
   },
 ];
+
+// Plus one derived article for every condition, skill and damage type the authored list does not reach,
+// so no tooltip on a PF2 sheet comes up empty (CX-12). See pathfinder2e-derived.ts for why those are
+// projected from the catalog rather than written out a second time here.
+export const PATHFINDER2E_GLOSSARY: SystemGlossary = [...PF2_AUTHORED, ...pf2DerivedEntries(PF2_AUTHORED)];

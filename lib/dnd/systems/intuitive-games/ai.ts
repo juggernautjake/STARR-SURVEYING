@@ -8,6 +8,7 @@ import { systemRulesBlock } from '../../system-rules';
 import { igCatalog } from './catalog';
 import { IG_EDIT_OPS, parseIgEdit, type IGEdit } from './edit';
 import { IG_STANCE_DEFS, IG_CONDITIONS, IG_DEFENSIVE_POWERS, igAllSpellNames } from './content';
+import { IG_CATALOG_STATUS, igIncompleteKinds } from './status';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
@@ -144,5 +145,16 @@ export function igBuilderSystemPrompt(): string {
     '',
     'VANILLA CATALOG (prefer these exact names):',
     cat,
+    '',
+    // The catalog's absences are not all the same thing, and the model cannot tell them apart from the
+    // list alone. Without this, a kind we simply have not finished transcribing reads as a kind the
+    // system does not have — and the model then either refuses a legitimate build or invents a
+    // replacement for content that already exists on the site. Naming the known-partial kinds is the
+    // same honesty the status object exists for (IG-S5), pointed at the consumer most likely to be
+    // misled by a silent gap.
+    'KNOWN GAPS IN THE CATALOG ABOVE — an absence here is OUR missing transcription, not a statement',
+    'that Intuitive Games lacks the thing. Do not invent replacements for these, and do not tell the',
+    'player the system has no such content:',
+    ...igIncompleteKinds().map((k) => `  • ${k}: ${IG_CATALOG_STATUS[k].note}`),
   ].join('\n');
 }

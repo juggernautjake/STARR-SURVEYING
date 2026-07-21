@@ -305,10 +305,49 @@ Merge the two `InfoTip`s into `Tip`; hover + focus + tap + Escape.
 ⚑ ✎ ⚙ and both `?` dots onto `Tip`, each with text explaining what the marker MEANS. Test that no
 marker can render without a tip.
 
-### CX-12 — Glossary coverage sweep
+### CX-12 — Glossary coverage sweep ✅ SHIPPED 2026-07-21
 Every condition, stance, skill, damage type and rules term in all four systems has glossary text, so
 every tooltip and `RuleTip` has something to show. A coverage test that FAILS on a term with no
 article, per system — the honest-coverage pattern used by the spell catalogs.
+
+**The table above was wrong.** It recorded "Glossary coverage ✅" for all four systems. Measured
+rather than assumed, the four systems covered **68 of 244** terms a tooltip can be handed — 28%.
+Conditions were largely fine (which is why the row looked green); **skills, damage types and stances
+were almost entirely absent**, and IG had no condition articles at all.
+
+| | 2024 | 2014 | PF2 | IG |
+|---|---|---|---|---|
+| before | 15/46 | 15/46 | 29/74 | 9/78 |
+| after | **46/46** | **46/46** | **74/74** | **78/78** |
+
+- **`lib/dnd/glossary/coverage.ts`** computes the DEMAND SURFACE from each system's own content —
+  never a hand-kept list, because a hand-kept list goes stale and the test then passes while the
+  tooltip is empty, which is worse than no test. `__tests__/dnd/glossary-coverage.test.ts` fails by
+  name on any term with no article, and additionally holds every article the demand *reaches* to the
+  substantive-body bar, since coverage that resolves to a one-liner is still an empty tooltip.
+- **Coverage is exact term-or-alias, never `findTerm`'s prefix fallback.** Prefix matching is right
+  for a search box and wrong for a coverage check: it certifies "Prone" as covered by an article
+  called "Pronouncement". Asserted directly.
+- **PF2 and IG articles are DERIVED from their catalogs, not retyped.** `data/conditions.ts` and
+  `intuitive-games/content.ts` already hold the rules text under the same never-invent ground rules;
+  a second hand-written copy is two rules that drift apart, and a rules reference that contradicts
+  itself is worse than one with a gap. Hand-authored articles always win where both exist.
+- **5e skills and damage types went in `dnd5e-shared.ts`**, because both books define them
+  identically — and while writing them I put 2014's contested-grapple rule into a shared Athletics
+  article, which is exactly the CX-16 bleed. Caught before commit; the shared articles now point at
+  each edition's own `Grappled` entry rather than picking a winner.
+- **A real find in `library.ts`.** Its search drops a catalog entry when the glossary covers the same
+  term. Once every skill and stance had an article, that silently emptied `skill`, `stance` and
+  `combat-skill` out of CX-15's kind filter. The glossary hit now **inherits the catalog's kind**, so
+  the richer body and the library's own taxonomy both survive.
+
+**Recorded rather than invented** (`GLOSSARY_KNOWN_GAPS`): IG has **no per-skill rules text anywhere
+in the repo** — the source page was truncated when `content.ts` was captured — so all 36 IG skill
+articles state the governing ability, the check maths and the combat-skill resolution, then say
+plainly that the per-use breakdown is not published. They read thinner than 5e's, and that is the
+correct outcome: filling that space confidently would mean borrowing another game's skill. Also
+recorded: seven PF2 skills have no catalogued skill actions, and PF2's spirit/holy/unholy damage is
+absent because nothing in the repo attests them as damage types.
 
 ### CX-15 — Library search results are reachable ✅ SHIPPED 2026-07-21
 *Owner: "make sure that in the library, the search works to pull up the names of things related to

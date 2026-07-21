@@ -24,6 +24,16 @@ const EXEMPT: Record<string, string> = {
     'Documentation-as-code: the authoritative statement of the AI permission boundary, asserted by ' +
     'its own tests and cited by comment in grant-content/route.ts. It is meant to be read, not called.',
 
+  'lib/dnd/glossary/coverage.ts':
+    'Documentation-as-code, same shape as ai-scope.ts above: it states what a tooltip can ask for in ' +
+    'each of the four systems, computes whether an article exists for every one of those terms, and ' +
+    'records the gaps this sweep chose to REPORT rather than invent text for (CX-12). Nothing at ' +
+    'runtime consults it because nothing should — the sheet looks a term up through findTerm and ' +
+    'handles a miss itself. Its consumer is glossary-coverage.test.ts, which fails the build when a ' +
+    'term stops resolving; that is the whole point of the module, and a runtime caller would not ' +
+    'make the claim any more true. If a UI ever wants to state coverage honestly, import ' +
+    'GLOSSARY_COVERAGE_STATUS here and delete this entry.',
+
   // (system-rules-entries.ts was listed here until `scripts` was added to the walk — it is
   // consumed by dnd-seed-system-rules.ts and is genuinely reachable, so the staleness check below
   // correctly rejected the exemption. Left as a note because it is a good example of the list

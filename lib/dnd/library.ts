@@ -879,7 +879,11 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     // The GLOSSARY first: these are the fully-written articles, so a lookup returns a real
     // explanation rather than a one-line stub. Scored high so they outrank the generated
     // catalog lines for the same word (e.g. the "Blinded" article beats the conditions list).
+    // Where a glossary hit lands in `hits`, by lowercased term, so the catalog pass below can
+    // reclassify it rather than being dropped whole. See the note on `push`.
+    const glossaryHitAt = new Map<string, number>();
     for (const g of searchGlossary(key, q, 30)) {
+      glossaryHitAt.set(g.term.toLowerCase(), hits.length);
       hits.push({ system: key, systemName: name, kind: g.kind, name: g.term, body: g.body, score: g.score + 6 });
     }
     // Terms already covered by the glossary shouldn't also appear as thin catalog entries.
@@ -887,7 +891,21 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
     const push = (kind: string, n: string, b: string) => {
       // Skip anything the glossary already explains properly — its article is strictly better
       // than the one-line summary generated here.
-      if (explained.has(n.toLowerCase())) return;
+      //
+      // But INHERIT THIS CATALOG'S KIND before dropping it. The glossary's `kind` is a coarse
+      // reading category ('term', 'feature'); the catalog's is the library's own taxonomy
+      // ('skill', 'stance', 'combat-skill'), and that is what the kind filter offers and what
+      // library-anchors.ts resolves a result's link from. Losing it means a search result that
+      // still reads correctly but can no longer be filtered to, or linked to, as a skill.
+      //
+      // This only started mattering once CX-12 gave every skill, stance and damage type an
+      // article: before that the two sets barely overlapped, so dropping the catalog entry lost
+      // nothing. Now it would silently empty whole categories out of the filter.
+      if (explained.has(n.toLowerCase())) {
+        const at = glossaryHitAt.get(n.toLowerCase());
+        if (at !== undefined) hits[at] = { ...hits[at], kind };
+        return;
+      }
       const hay = `${n}\n${b}`.toLowerCase();
       let score = 0;
       for (const w of words) {

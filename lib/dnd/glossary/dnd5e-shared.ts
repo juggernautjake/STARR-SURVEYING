@@ -4,7 +4,151 @@
 // anything the editions changed (Exhaustion, Grappled, Prone, Surprise, Inspiration, feats,
 // Unconscious) lives in the per-edition files, because getting those confused is exactly the
 // mistake this library exists to prevent.
-import type { SystemGlossary } from './types';
+import type { GlossaryEntry, SystemGlossary } from './types';
+
+// ── The 18 skills, built from one scaffold ───────────────────────────────────────────
+//
+// A scaffold rather than 18 hand-written bodies, because every skill article says the same three
+// things — governing ability, what you roll it for, how proficiency and Expertise apply — and only
+// the middle one differs. Eighteen independently-worded copies of the proficiency paragraph is
+// eighteen chances for one of them to be subtly wrong, and no way to fix them all at once.
+//
+// SOURCE: SRD 5.1 (CC-BY-4.0) skill descriptions, paraphrased to mechanical facts. `uses` are the
+// canonical examples the SRD itself gives; where the SRD offers no specific number, none is stated.
+interface SkillArticle {
+  name: string;
+  /** The default governing ability. The DM can pair a skill with a different one — see `Ability Check`. */
+  ability: 'Strength' | 'Dexterity' | 'Intelligence' | 'Wisdom' | 'Charisma';
+  /** One line for the `short` — what the skill is FOR. */
+  purpose: string;
+  /** The canonical uses, rendered as bullets. */
+  uses: string[];
+  /** A rule specific to this skill that players get wrong, where there is one. */
+  note?: string;
+  aliases?: string[];
+}
+
+const SKILL_ARTICLES: SkillArticle[] = [
+  { name: 'Athletics', ability: 'Strength', purpose: 'climbing, jumping, swimming, and the physical contests of grappling and shoving',
+    uses: ['Climb a sheer or slippery surface, or one with few handholds', 'Jump an unusually long distance, or pull off a stunt mid-jump', 'Swim in treacherous water, or against a strong current'],
+    // NOT stated here: how a grapple or shove resolves. That is the one part of Athletics the two
+    // editions genuinely changed (2014 contests Athletics vs Athletics/Acrobatics; 2024 makes it an
+    // Unarmed Strike the target saves against), so putting either version in the SHARED file would
+    // hand one edition the other's rule — the exact bleed CX-16 spent a session removing. Each
+    // edition's own `Grappled` article carries its own procedure.
+    note: 'Athletics is also the skill behind **grappling** and **shoving** — but *how* those resolve is one of the few things the 2014 and 2024 books genuinely changed. Read your edition’s **Grappled** article for the actual procedure rather than assuming it matches the other one.' },
+  { name: 'Acrobatics', ability: 'Dexterity', purpose: 'staying on your feet and moving your body precisely in difficult circumstances',
+    // Deliberately no "escape a grapple" bullet: that is Acrobatics in 2014 and a Dexterity SAVE in
+    // 2024, so it cannot be stated once for both editions. See the note on Athletics.
+    uses: ['Keep your balance on ice, a tightrope, or a heaving deck', 'Dive, roll, somersault, or flip out of a dangerous position', 'Stay upright when the ground or the ship beneath you moves'] },
+  { name: 'Sleight of Hand', ability: 'Dexterity', purpose: 'manual trickery — planting, lifting, palming and concealing',
+    uses: ['Plant something on someone, or take something off them', 'Conceal an object on your person', 'Perform close-up legerdemain'],
+    note: 'This is the skill for **pickpocketing**; picking a lock or disarming a trap is a Dexterity check with **thieves\' tools**, which is a tool proficiency rather than this skill.',
+    aliases: ['pickpocket'] },
+  { name: 'Stealth', ability: 'Dexterity', purpose: 'hiding and moving without being seen or heard',
+    uses: ['Conceal yourself from enemies', 'Slip away unnoticed', 'Approach without being heard'],
+    note: 'A Stealth check is normally opposed by an observer\'s **passive Perception**, and you generally cannot hide from a creature that can plainly see you. Attacking usually gives your position away.',
+    aliases: ['hiding', 'sneak'] },
+  { name: 'Arcana', ability: 'Intelligence', purpose: 'recalling what you know about magic itself',
+    uses: ['Recall lore about spells, magic items, and eldritch symbols', 'Identify a magical tradition or the planes of existence', 'Recognise the work of a magical creature'] },
+  { name: 'History', ability: 'Intelligence', purpose: 'recalling what you know about the past',
+    uses: ['Recall lore about historical events and legendary people', 'Recall ancient kingdoms, past disputes, recent wars', 'Recognise a lost civilisation’s work'] },
+  { name: 'Investigation', ability: 'Intelligence', purpose: 'reasoning from clues to a conclusion',
+    uses: ['Deduce where a hidden object is likely to be concealed', 'Work out what kind of weapon made a wound', 'Find the weak point in a structure, or spot what is off about a forgery'],
+    note: 'The line players argue about: **Perception notices, Investigation concludes.** You Perceive that a book is slightly out of line; you Investigate to work out that it opens a door.' },
+  { name: 'Nature', ability: 'Intelligence', purpose: 'recalling what you know about the natural world',
+    uses: ['Recall lore about terrain, plants, and animals', 'Recall the weather and the natural cycles of a region', 'Identify a natural hazard or a beast’s habits'] },
+  { name: 'Religion', ability: 'Intelligence', purpose: 'recalling what you know about faiths and the divine',
+    uses: ['Recall lore about deities, rites, and prayers', 'Recognise religious hierarchies and holy symbols', 'Identify the practices of a secret cult'] },
+  { name: 'Animal Handling', ability: 'Wisdom', purpose: 'reading and managing animals',
+    uses: ['Calm a domesticated animal, or keep a mount from spooking', 'Intuit an animal’s intentions', 'Control a mount through a difficult manoeuvre'] },
+  { name: 'Insight', ability: 'Wisdom', purpose: 'reading a creature’s true intentions',
+    uses: ['Determine whether someone is lying', 'Predict someone’s next move', 'Read body language, speech habits, and changes in manner'],
+    note: 'Insight is usually **contested by the other creature\'s Deception**, rather than rolled against a flat DC. It tells you whether something is off — it is not a lie detector, and it does not tell you what the truth is.',
+    aliases: ['sense motive'] },
+  { name: 'Medicine', ability: 'Wisdom', purpose: 'diagnosing and treating injury and illness',
+    uses: ['Stabilise a dying companion — DC 10', 'Diagnose an illness', 'Judge how long a body has been dead, or what killed it'],
+    note: 'A **healer’s kit** stabilises a dying creature with **no check at all**, which is strictly better than this skill for that one job.' },
+  { name: 'Perception', ability: 'Wisdom', purpose: 'noticing things — spotting, hearing, and sensing what is there',
+    uses: ['Spot a hidden creature or object', 'Hear a whispered conversation or an approaching footstep', 'Notice a smell, a draught, or something out of place'],
+    note: 'Its **passive** score — **10 + your Perception modifier** (+5 with advantage, −5 with disadvantage) — is what a hiding creature\'s Stealth is measured against, and it applies without you rolling or even asking.',
+    aliases: ['spot', 'listen'] },
+  { name: 'Survival', ability: 'Wisdom', purpose: 'staying alive and finding your way in the wild',
+    uses: ['Follow tracks, and identify what made them', 'Hunt game, forage, and guide a party through wilderness', 'Predict the weather, or avoid quicksand and other natural hazards'] },
+  { name: 'Deception', ability: 'Charisma', purpose: 'convincingly hiding the truth',
+    uses: ['Tell a convincing lie, or fast-talk your way past a guard', 'Wear a disguise convincingly, or fake a document’s provenance', 'Misdirect with ambiguous but technically true words'],
+    note: 'Usually **contested by the target\'s Insight**. A lie the target has every reason to disbelieve can simply fail regardless of the roll — the DM sets whether it is possible at all.',
+    aliases: ['lying', 'bluff'] },
+  { name: 'Intimidation', ability: 'Charisma', purpose: 'influencing someone through threat',
+    uses: ['Extract information with a threat', 'Cow a hostile creature into backing down', 'Make it clear what happens if you are refused'],
+    note: 'The DM may call for **Strength (Intimidation)** when you are physically looming rather than talking — the ability and the skill are chosen separately.' },
+  { name: 'Performance', ability: 'Charisma', purpose: 'entertaining an audience',
+    uses: ['Play music, dance, act, or tell a story to an audience', 'Hold a crowd’s attention, or turn its mood', 'Earn coin busking in a settlement'] },
+  { name: 'Persuasion', ability: 'Charisma', purpose: 'influencing someone in good faith',
+    uses: ['Negotiate, or ask a favour honestly', 'Influence a group with tact and social grace', 'Establish friendly relations, or defuse a confrontation'],
+    note: 'Persuasion is the *honest* counterpart to Deception and Intimidation. What it can achieve depends on the target\'s attitude, not on the roll alone — no check makes a sworn enemy an ally.',
+    aliases: ['diplomacy'] },
+];
+
+const SKILL_ENTRIES: GlossaryEntry[] = SKILL_ARTICLES.map((s) => ({
+  term: s.name,
+  kind: 'term',
+  short: `A ${s.ability} skill: ${s.purpose}.`,
+  body:
+    `**${s.name}** is a **${s.ability}** skill — roll **d20 + your ${s.ability} modifier**, plus your ` +
+    '**proficiency bonus** if you are proficient in it, and double that bonus if you have **Expertise**.\n\n' +
+    'What you roll it for:\n\n' +
+    s.uses.map((u) => `· ${u}`).join('\n') +
+    (s.note ? `\n\n${s.note}` : '') +
+    '\n\nThe ability pairing above is the **default, not a law**: the DM chooses the ability and the skill ' +
+    'separately, so a Strength (Intimidation) or Intelligence (Perception) check is legitimate when the ' +
+    'fiction calls for it. Being proficient in the skill still adds your bonus whichever ability is used.',
+  seeAlso: ['Skill', 'Ability Check', 'Proficiency Bonus'],
+  aliases: s.aliases,
+}));
+
+// ── The 13 damage types ──────────────────────────────────────────────────────────────
+//
+// Terms are "<Type> Damage" rather than the bare word, deliberately. A bare "Poison" entry would win
+// an exact-term lookup over the **Poisoned** condition's "poison" alias, and in "takes poison damage
+// and is poisoned" those are two different articles a reader might want. The bare word is kept as an
+// alias where it is unambiguous, and omitted where it is not.
+interface DamageArticle { type: string; group: string; blurb: string; aliases?: string[] }
+
+const DAMAGE_ARTICLES: DamageArticle[] = [
+  { type: 'Bludgeoning', group: 'physical', blurb: 'Blunt force — hammers, falling, and constriction. One of the three physical damage types, and the one most often reduced by non-magical resistance on skeletons and similar creatures.', aliases: ['bludgeoning'] },
+  { type: 'Piercing', group: 'physical', blurb: 'Punctures — arrows, spears, and bites. One of the three physical damage types.', aliases: ['piercing'] },
+  { type: 'Slashing', group: 'physical', blurb: 'Cuts — swords and claws. One of the three physical damage types.', aliases: ['slashing'] },
+  { type: 'Acid', group: 'elemental', blurb: 'Corrosive damage that eats through material — black dragon breath, oozes, and thrown vials.', aliases: ['acid'] },
+  { type: 'Cold', group: 'elemental', blurb: 'Freezing damage. Creatures native to cold environments commonly resist it, and it can freeze liquids and slow what it touches.', aliases: ['cold'] },
+  { type: 'Fire', group: 'elemental', blurb: 'Burning damage — the most commonly resisted type in the game. It ignites unattended flammable objects, which is as often a problem as a benefit.', aliases: ['fire'] },
+  { type: 'Lightning', group: 'elemental', blurb: 'Electrical damage, frequently shaped as a line. Conducts through metal and water.', aliases: ['lightning'] },
+  { type: 'Thunder', group: 'elemental', blurb: 'Concussive sound. It is audible far beyond its area, so it is a poor choice when staying quiet matters.', aliases: ['thunder'] },
+  { type: 'Force', group: 'magical', blurb: 'Pure magical energy. Almost nothing resists it, which is why force damage is the most reliable damage in the game and the standard answer to incorporeal creatures.', aliases: ['force'] },
+  { type: 'Necrotic', group: 'magical', blurb: 'Withering life-force. It frequently prevents or reduces healing, and undead are typically immune to it.', aliases: ['necrotic'] },
+  { type: 'Radiant', group: 'magical', blurb: 'Searing divine or solar light. Undead and fiends are often vulnerable to it, and very few creatures resist it.', aliases: ['radiant'] },
+  { type: 'Psychic', group: 'magical', blurb: 'Damage to the mind itself. Rarely resisted, but mindless creatures — many constructs, oozes and plants — are often immune.', aliases: ['psychic'] },
+  // No bare "poison" alias: that word belongs to the Poisoned condition, which is what a reader
+  // almost always means when they hover it in a rules sentence.
+  { type: 'Poison', group: 'other', blurb: 'Toxic damage, very widely resisted — constructs and undead are usually outright immune, which makes it the least reliable damage type to build around. It is frequently paired with the **Poisoned** condition, but the two are separate: an effect can deal one without applying the other.' },
+];
+
+const DAMAGE_ENTRIES: GlossaryEntry[] = DAMAGE_ARTICLES.map((d) => ({
+  term: `${d.type} Damage`,
+  kind: 'term',
+  short: `${d.type} damage — one of the 13 damage types (${d.group}).`,
+  body:
+    `**${d.type}** damage.\n\n${d.blurb}\n\n` +
+    'A damage type never changes the attack roll or the save; it changes only what the target does with ' +
+    'the damage once it lands:\n\n' +
+    '· **Resistance** — the target takes **half**, rounded down\n' +
+    '· **Vulnerability** — the target takes **double**\n' +
+    '· **Immunity** — the target takes **none**\n\n' +
+    'Resistance and vulnerability to the same type **cancel out**, and neither ever applies twice however ' +
+    'many sources grant it. Halving is applied **after** every other modifier to the damage roll.',
+  seeAlso: ['Damage Types & Resistance'],
+  aliases: d.aliases,
+}));
 
 export const DND5E_SHARED_GLOSSARY: SystemGlossary = [
   // ── core mechanics ───────────────────────────────────────────────────────────────
@@ -264,4 +408,23 @@ export const DND5E_SHARED_GLOSSARY: SystemGlossary = [
     seeAlso: ['Incapacitated', 'Paralyzed'],
     aliases: ['stun', 'stunning strike'],
   },
+  // ── the 18 skills ────────────────────────────────────────────────────────────────
+  //
+  // These live in the SHARED file, not the per-edition ones, because both editions' own `Skill`
+  // articles already state that the 18 skills and their governing abilities are unchanged between
+  // them — the 2024 entry says so in as many words. Shared is therefore the accurate placement and
+  // the one that cannot drift: an edition-specific copy would let 2014's Athletics and 2024's
+  // Athletics disagree about a rule that is identical in both books.
+  //
+  // What is DELIBERATELY not here: anything about where proficiency comes from. That genuinely
+  // differs (2024 leans on backgrounds, 2014 spreads it across class/background/race), and each
+  // edition's own `Skill` article carries it.
+  ...SKILL_ENTRIES,
+  // ── damage types ─────────────────────────────────────────────────────────────────
+  //
+  // Also shared, and for the same reason: the 13 types and what resists them are unchanged across
+  // the editions. The general resistance/vulnerability arithmetic lives in each edition's own
+  // `Damage Types & Resistance` article; these are the per-type entries a tooltip asks for when a
+  // spell says "6d8 radiant".
+  ...DAMAGE_ENTRIES,
 ];

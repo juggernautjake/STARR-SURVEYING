@@ -6,8 +6,11 @@
 // have — authored from the engine's own numbers (igProficiency = level, igDegreeOfSuccess, igSaveTotal,
 // igMaxHp) and the content module, so nothing here is invented (Ground Rule 3).
 import type { SystemGlossary } from './types';
+import { igDerivedEntries } from './intuitive-games-derived';
 
-export const INTUITIVE_GAMES_GLOSSARY: SystemGlossary = [
+// The hand-authored articles. These take priority over anything derived: where both cover a term this
+// file wins, because a worked example beats a projection of the same rule.
+const IG_AUTHORED: SystemGlossary = [
   {
     term: 'Core Roll',
     kind: 'mechanic',
@@ -218,3 +221,8 @@ export const INTUITIVE_GAMES_GLOSSARY: SystemGlossary = [
     aliases: ['ability scores', 'abilities', 'stats', 'attributes'],
   },
 ];
+
+// Plus one derived article for every condition, stance, skill and damage type the authored list does not
+// reach, so no tooltip on an IG sheet comes up empty (CX-12). See intuitive-games-derived.ts — including
+// why the skill articles are deliberately thin rather than borrowed from another game.
+export const INTUITIVE_GAMES_GLOSSARY: SystemGlossary = [...IG_AUTHORED, ...igDerivedEntries(IG_AUTHORED)];
