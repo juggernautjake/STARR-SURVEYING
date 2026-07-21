@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
+import IGElementEditor, { type IGEditorKind, type IGEditableElement } from './IGElementEditor';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
@@ -129,6 +130,35 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
       setEditing(false);
     }
   };
+
+  /** Apply a SEQUENCE of ops in order, for the editor (IG-S2).
+   *
+   *  Authoring a power with rules text needs an add THEN an update, because IG's add ops carry only
+   *  a name. They are applied here rather than as two user actions so a half-finished element
+   *  cannot be left behind if the second call fails — and the refresh happens once, at the end.
+   *  If an op fails mid-sequence the sheet simply does not change; the retry is re-opening the
+   *  editor, which is already how every other failure here behaves. */
+  const postEdits = async (edits: Record<string, unknown>[]) => {
+    if (!characterId || editing || !edits.length) return;
+    setEditing(true);
+    try {
+      for (const edit of edits) {
+        const res = await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
+        });
+        if (!res.ok) break; // the gate refused it; stop rather than applying a partial edit
+      }
+      router.refresh();
+    } catch {
+      /* surfaced by the unchanged sheet */
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  // The element editor (IG-S2). `initial` absent = authoring homebrew; present = editing.
+  const [igEditor, setIgEditor] = useState<{ kind: IGEditorKind; initial?: IGEditableElement } | null>(null);
+
   const srcByName = useMemo(() => {
     const m = new Map<string, Source>();
     for (const e of elements ?? []) m.set(e.name.trim().toLowerCase(), e.source);
@@ -155,6 +185,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
 
   return (
     <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+      {igEditor && (
+        <IGElementEditor
+          kind={igEditor.kind} initial={igEditor.initial}
+          onClose={() => setIgEditor(null)}
+          onSave={(edits) => { setIgEditor(null); void postEdits(edits); }}
+        />
+      )}
+
       {/* Header + summary top-line */}
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -505,17 +543,43 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
           <div style={label}>Reference — powers, feats &amp; stances</div>
           {(ig.powers.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 6 }}>
-              <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>Powers</span>
+              <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>
+                Powers
+                {canDoEdit && (
+                  <button
+                    type="button" disabled={editing}
+                    onClick={() => setIgEditor({ kind: 'power' })}
+                    title="Author a homebrew power"
+                    style={{ marginLeft: 8, background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 10, padding: '1px 7px' }}
+                  >✎ New</button>
+                )}
+              </span>
               {ig.powers.map((p) => (
                 <div key={p} style={{ display: 'grid', gap: 1 }}>
                   <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {p} {badgeFor(p)}
+                    {/* ✎ = hand-tuned away from how it came. Presence of an override IS the
+                        signal — a separate flag could disagree with the text it describes. */}
+                    {ig.customEffects?.[p] && <span title="Hand-customized — edited away from how it came." style={{ color: 'var(--hx-gold-2)' }}>✎</span>}
                     <OffRulesMark reason={ig.offRules?.[p]} />
+                    {canDoEdit && (
+                      <button
+                        type="button" disabled={editing}
+                        onClick={() => setIgEditor({ kind: 'power', initial: { name: p, effect: ig.customEffects?.[p] ?? effectOf(p) } })}
+                        title={`Edit ${p}`}
+                        style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                      >✎</button>
+                    )}
                     {canDoEdit && (
                       <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                     )}
                   </span>
-                  {effectOf(p)
+                  {/* A player's override WINS over the catalogue text — that is the point of
+                      editing it. Falling back to the catalogue when the override is cleared is
+                      why clearing stores nothing rather than an empty string. */}
+                  {ig.customEffects?.[p]
+                    ? <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{ig.customEffects[p]}</span>
+                    : effectOf(p)
                     ? <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>
                     // A recognized (non-custom) power with no effect text is a roster power pending
                     // Brendan's rules — say so (Ground Rule 2) rather than leaving a bare name that reads
