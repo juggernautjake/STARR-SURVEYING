@@ -10,7 +10,7 @@
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import type { ClassDefinition, SubclassDefinition, ClassFeature } from './types';
 import { clampLevel, snapshotAtLevel } from './engine';
-import { validateFeatKey } from '../feats/eligibility';
+import { featEligibilityForSystem } from '../feats/eligibility';
 
 export type ChoiceKind = NonNullable<ClassFeature['choice']>;
 
@@ -222,6 +222,15 @@ export interface ChoiceValidation {
 export function validateChoice(
   choice: RecordedChoice,
   ctx: {
+    /**
+     * The character's game system. **REQUIRED, and deliberately not defaulted** (14-S6b): the
+     * feat rules differ by edition — 2014 trades an ASI for a feat at its class's ASI levels,
+     * 2024 sorts feats into origin / fighting-style / general-and-epic tracks — so a default
+     * would silently apply one edition's schedule to another edition's sheet. Requiring it makes
+     * the compiler name every call site that has to decide, exactly as CX-17 B1 did for
+     * `resolveFeat(ref, system)` one layer down.
+     */
+    system: string;
     abilities?: Record<AbilityKey, number>;
     cap?: number;
     legalSkills?: string[];
@@ -230,22 +239,33 @@ export function validateChoice(
     takenFeatKeys?: string[];
     /** Named capabilities (e.g. 'spellcasting') for feat prerequisites. */
     has?: string[];
-  } = {},
+    /** The class taking the level, for 2014's "a feat replaces an ASI" schedule. */
+    className?: string;
+    /** The class's own ASI levels, when the caller has resolved the `ClassDefinition` (and so can
+     *  see homebrew classes the registry cannot). */
+    asiLevels?: number[];
+  },
 ): ChoiceValidation {
   const cap = ctx.cap ?? 20;
   switch (choice.kind) {
     case 'asi': {
       if (choice.featKey) {
-        // A feat taken INSTEAD of the ability bumps must be one the character can legally take at an
-        // ASI slot (a General/Epic feat, prerequisites met, not already taken). Unknown keys are
-        // treated as custom/homebrew and allowed — the explicit-custom escape hatch. This is the gate
-        // that stops "getting feats when we're not supposed to" through the official path.
-        const v = validateFeatKey(choice.featKey, {
+        // A feat taken INSTEAD of the ability bumps must be one the character can legally take at
+        // an ASI slot, BY THEIR OWN EDITION'S RULES — in 2024 a General/Epic feat with its
+        // prerequisites met and not already taken; in 2014 any feat at all, but only at a level
+        // their class actually grants an ASI. Unknown keys are treated as custom/homebrew and
+        // allowed past the checks the catalog is needed for — the explicit-custom escape hatch —
+        // but 2014's schedule check still applies to them, because it asks about the CHARACTER
+        // rather than the feat. This is the gate that stops "getting feats when we're not supposed
+        // to" through the official path.
+        const v = featEligibilityForSystem(ctx.system, choice.featKey, {
           slot: 'asi',
           level: choice.level,
           abilities: ctx.abilities,
           takenFeatKeys: ctx.takenFeatKeys,
           has: ctx.has,
+          className: ctx.className,
+          asiLevels: ctx.asiLevels,
         });
         return v.ok ? { ok: true } : { ok: false, error: v.reason };
       }

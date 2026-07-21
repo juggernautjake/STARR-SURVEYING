@@ -204,47 +204,50 @@ describe('recording + replaying choices', () => {
 
 describe('validateChoice', () => {
   const abilities = { str: 19, dex: 10, con: 10, int: 10, wis: 10, cha: 10 } as const;
+  // `system` is REQUIRED on the context since 14-S6b — the feat rules differ by edition, so the
+  // compiler makes every call site say which one it means rather than inheriting 2024 by default.
+  const D2024 = { system: 'dnd5e-2024' };
 
   it('requires exactly two points of ability increase', () => {
-    expect(validateChoice({ level: 4, kind: 'asi', abilities: ['str'] }).ok).toBe(false);
-    expect(validateChoice({ level: 4, kind: 'asi', abilities: ['str', 'con'] }).ok).toBe(true);
+    expect(validateChoice({ level: 4, kind: 'asi', abilities: ['str'] }, D2024).ok).toBe(false);
+    expect(validateChoice({ level: 4, kind: 'asi', abilities: ['str', 'con'] }, D2024).ok).toBe(true);
   });
 
   it('refuses an increase that would exceed 20', () => {
-    const r = validateChoice({ level: 4, kind: 'asi', abilities: ['str', 'str'] }, { abilities: { ...abilities } });
+    const r = validateChoice({ level: 4, kind: 'asi', abilities: ['str', 'str'] }, { ...D2024, abilities: { ...abilities } });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/exceed the maximum of 20/);
   });
 
   it('allows a General feat at an ASI slot, but rejects an Origin feat there', () => {
     // A General feat is what an ASI slot may grant (level 4+ met).
-    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'resilient' }).ok).toBe(true);
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'resilient' }, D2024).ok).toBe(true);
     // 'lucky' is an ORIGIN feat — it comes from a Background, not an ASI. Rules-legal builders reject it.
-    const bad = validateChoice({ level: 4, kind: 'asi', featKey: 'lucky' });
+    const bad = validateChoice({ level: 4, kind: 'asi', featKey: 'lucky' }, D2024);
     expect(bad.ok).toBe(false);
     expect(bad.error).toMatch(/Origin feat/);
   });
 
   it('enforces a feat\'s own prerequisites (ability, level) at the ASI slot', () => {
     // Grappler needs STR 13. A STR-8 character can't take it...
-    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { abilities: { ...abilities, str: 8 } }).ok).toBe(false);
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { ...D2024, abilities: { ...abilities, str: 8 } }).ok).toBe(false);
     // ...but the STR-19 fixture can.
-    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { abilities: { ...abilities } }).ok).toBe(true);
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'grappler' }, { ...D2024, abilities: { ...abilities } }).ok).toBe(true);
   });
 
   it('treats an unknown feat key as custom/homebrew and allows it (the escape hatch)', () => {
-    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'my-homebrew-feat' }).ok).toBe(true);
+    expect(validateChoice({ level: 4, kind: 'asi', featKey: 'my-homebrew-feat' }, D2024).ok).toBe(true);
   });
 
   it('refuses duplicate or non-proficient expertise', () => {
-    expect(validateChoice({ level: 2, kind: 'expertise', skills: ['Athletics', 'Athletics'] }).ok).toBe(false);
-    const r = validateChoice({ level: 2, kind: 'expertise', skills: ['Arcana'] }, { legalSkills: PROFICIENT });
+    expect(validateChoice({ level: 2, kind: 'expertise', skills: ['Athletics', 'Athletics'] }, D2024).ok).toBe(false);
+    const r = validateChoice({ level: 2, kind: 'expertise', skills: ['Arcana'] }, { ...D2024, legalSkills: PROFICIENT });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/proficient in Arcana/);
   });
 
   it('refuses an option that is not on the list', () => {
-    const r = validateChoice({ level: 3, kind: 'subclass', value: 'not-real' }, { legalOptions: ['path-a', 'path-b'] });
+    const r = validateChoice({ level: 3, kind: 'subclass', value: 'not-real' }, { ...D2024, legalOptions: ['path-a', 'path-b'] });
     expect(r.ok).toBe(false);
   });
 });

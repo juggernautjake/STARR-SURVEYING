@@ -16,6 +16,7 @@ import { cleanTriggers } from '@/lib/dnd/effects/triggers';
 import { equipConflicts, resolveEquipSwap } from '@/lib/dnd/equip-conflicts';
 import type { EquipLimits } from '@/lib/dnd/preferences';
 import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
+import { FEATS_2014 } from '@/lib/dnd/feats/dnd5e-2014';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
  *  the AI authors and refines an item through the SAME shape — a generated item is indistinguishable
@@ -546,7 +547,29 @@ export function applySheetEdits(
         // would write 5e rules text onto a Pathfinder sheet, which is the same bleed the gate
         // now prevents — caught in the same audit, one layer down.
         const def = resolveFeat(e.feat, system);
-        if (!def) break;
+        if (!def) {
+          // 2014 keeps its own catalog and its own TYPE (`Feat2014` has no `category`, on purpose),
+          // so it cannot travel through `resolveFeat`, whose return type is the 2024 `Feat` —
+          // widening that type is the thing 14-S6b exists to avoid. A separate branch instead: the
+          // gate one layer up (`featEligibilityForSystem`) can now refuse an illegal 2014 feat, and
+          // a gate over content that could never land afterwards would be theatre.
+          const def14 = system === 'dnd5e-2014'
+            ? FEATS_2014.find((f) => f.key.toLowerCase() === String(e.feat ?? '').trim().toLowerCase())
+              ?? FEATS_2014.find((f) => f.name.toLowerCase() === String(e.feat ?? '').trim().toLowerCase())
+            : undefined;
+          if (!def14) break;
+          const feat14: FeatureBlock = {
+            id: `feat-${slug(def14.key)}`,
+            name: def14.name,
+            // Bare "Feat" rather than a track name: 2014 has no origin/general/fighting-style
+            // tiers to label it with, and inventing one would put a 2024 word on a 2014 sheet.
+            source: 'Feat',
+            body: [def14.benefit],
+            ...(e.offRules ? { offRules: e.offRules } : {}),
+          };
+          c.features = [...c.features.filter((f) => !eqName(f.name, def14.name)), feat14];
+          break;
+        }
         const feat: FeatureBlock = {
           id: `feat-${slug(def.key)}`,
           name: def.name,

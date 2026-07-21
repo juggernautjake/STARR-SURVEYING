@@ -12,11 +12,10 @@
 // WHAT IT DOES NOT DO. It refuses; it never rewrites an edit into something legal. Silently
 // downgrading "add Wish" to "add Magic Missile" would be worse than either allowing or refusing
 // it, because the player would be told they got something they did not get.
-import { resolveFeat, type SheetEdit } from './sheet-edits';
+import { type SheetEdit } from './sheet-edits';
 import { spellEligibility } from './spells/eligibility';
 import { findSpellForSystem } from './spells';
-import { featEligibility } from './feats/eligibility';
-import { FEATS_2024 } from './feats/dnd5e-2024';
+import { featEligibilityForSystem } from './feats/eligibility';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 
 export interface RulesGateContext {
@@ -75,28 +74,38 @@ export function gateEdits(edits: SheetEdit[], ctx: RulesGateContext): RulesGateR
       // The concrete harm: Alert, Lucky, Great Weapon Fighting and Two-Weapon Fighting all exist
       // in BOTH 2024 and Intuitive Games. A vanilla IG character asking for Alert resolved the 5e
       // feat — an ORIGIN feat, against a slot defaulting to `asi` — and was REFUSED a feat its own
-      // game grants freely. Non-2024 systems now fall through ungated here — which is correct, not a
+      // game grants freely. Non-5e systems fall through ungated here — which is correct, not a
       // hole: PF2 and IG each have their own gate (`systems/*/rules-gate.ts`) that knows their
       // rules, and this one judging them was the bug.
-      const def = resolveFeat(e.feat, ctx.system);
-      if (!def) { out.push(e); continue; } // unresolvable, or not this system's — pass through
-
-      const elig = featEligibility(def, {
+      //
+      // 14-S6b: resolution AND judgement now happen inside `featEligibilityForSystem`, which keys
+      // BOTH off the character's system. Doing them separately here was what left 2014 half-wired
+      // — the resolve was scoped while the judgement was 2024-shaped by construction, so a 2014
+      // character was about to be held to 2024's origin/fighting-style/ASI-tier tracks. 2014's
+      // actual rule (a feat replaces an ASI, at the levels its class grants one) needs the class
+      // name and the level, which is why both are passed rather than just the level.
+      const v = featEligibilityForSystem(ctx.system, e.feat, {
         slot: e.slot ?? 'asi',
         level: ctx.level,
+        className: ctx.className,
         ...(ctx.abilities ? { abilities: ctx.abilities } : {}),
-        takenFeatKeys: FEATS_2024.filter((f) => (ctx.featureNames ?? []).some((n) => n.toLowerCase() === f.name.toLowerCase())).map((f) => f.key),
+        // Names, not keys: each system's gate resolves them against its own catalog, so this call
+        // site never has to know which catalog is in play.
+        takenFeatureNames: ctx.featureNames ?? [],
         has: ctx.hasSpellcasting ? ['spellcasting'] : [],
       });
 
-      if (elig.ok) { out.push(e); continue; }
+      if (v.ok) { out.push(e); continue; }
+      // The catalogued name when it resolved, the raw ref when it did not — a refusal naming a
+      // string the player never typed reads as the machine talking to itself.
+      const shown = v.name ?? e.feat;
       if (ctx.enforce) {
-        refused.push({ name: def.name, reason: elig.reason ?? 'not available to this character' });
+        refused.push({ name: shown, reason: v.reason ?? 'not available to this character' });
         continue;
       }
       out.push({
         ...e,
-        offRules: ctx.unboundReason === 'dm-grant' ? `granted by the DM — ${elig.reason}` : elig.reason,
+        offRules: ctx.unboundReason === 'dm-grant' ? `granted by the DM — ${v.reason}` : v.reason,
       });
       continue;
     }

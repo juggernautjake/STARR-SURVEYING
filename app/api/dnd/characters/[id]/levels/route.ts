@@ -119,6 +119,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const canCast = !!next.spellcasting || !!def?.spellcasting;
 
     const v = validateChoice(choice, {
+      // The character's own system, so an ASI-slot feat is judged by their edition's rules and not
+      // by 2024's tracks (14-S6b). `def` is passed alongside because it is the only place that can
+      // see a HOMEBREW class's ASI levels — the registry lookup inside the gate cannot.
+      system,
+      className: def?.name ?? next.meta?.className ?? '',
+      asiLevels: def?.asiLevels,
       abilities: next.abilities,
       takenFeatKeys,
       has: canCast ? ['spellcasting'] : [],
