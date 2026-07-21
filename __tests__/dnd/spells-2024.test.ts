@@ -94,8 +94,24 @@ describe('the 2024 spell catalog is structurally sound', () => {
   it('keeps summaries short — paraphrase, never rulebook prose', () => {
     // A guard on the house style AND on copyright: a creeping word count is the signal
     // that someone has started transcribing the book instead of paraphrasing mechanics.
+    //
+    // THE GUARD IS ON `summary` AND ONLY ON `summary` (14-S8). `detail` deliberately has no
+    // length limit — see the field's comment in dnd5e-2024.ts. Asserting the two separately is
+    // what stops the pair collapsing into one weak rule: if a future edit reaches for
+    // `s.summary + s.detail` here, the cap has been quietly loosened on every entry.
     for (const s of SPELLS_2024) {
       expect(s.summary.length, `${s.key} summary is too long — paraphrase it`).toBeLessThan(320);
+    }
+  });
+
+  it('exempts `detail` from the summary cap without weakening it', () => {
+    // The point of `detail` is that a spell whose rules genuinely need 1,500 characters can hold
+    // them. A test that let the cap leak onto `detail` would make the field useless, so the
+    // exemption is asserted rather than merely intended: any populated `detail` is allowed past
+    // 320, and an empty one is a bug (omit the field instead of shipping '').
+    for (const s of SPELLS_2024) {
+      if (s.detail === undefined) continue;
+      expect(s.detail.trim().length, `${s.key} has an empty detail — omit the field instead`).toBeGreaterThan(0);
     }
   });
 

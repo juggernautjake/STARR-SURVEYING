@@ -152,6 +152,16 @@ export default function SpellBrowser({ system }: { system: string }) {
                     </div>
                     {/* Terms in the summary are clickable, with their own explain-tooltips. */}
                     <TermText text={spell.summary} system={system} selfTerm={spell.name} />
+                    {/* The full mechanics, for the few spells whose rules do not fit a summary.
+                        ONLY here, never in the collapsed row: the list's job is orientation and a
+                        thousand-character block in it would destroy that. `white-space: pre-line`
+                        keeps the authored paragraph and bullet breaks without needing markup. */}
+                    {spell.detail && (
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(30,45,61,0.7)', fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                        <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)', marginBottom: 4 }}>Full mechanics</div>
+                        <TermText text={spell.detail} system={system} selfTerm={spell.name} />
+                      </div>
+                    )}
                     {spell.higher && (
                       <p style={{ marginTop: 6, color: 'var(--hx-muted)', fontSize: 12.5 }}>
                         <b>At higher levels:</b> {spell.higher}

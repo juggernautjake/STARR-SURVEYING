@@ -109,6 +109,17 @@ export default function SpellDetail({ spell, onClose }: { spell: Spell; onClose:
             <TermText text={spell.description} system={system} selfTerm={spell.name} />
           </div>
         )}
+        {/* The library's FULL mechanics, where the catalogued summary had to leave rules out —
+            Prismatic Wall's per-layer destruction conditions, Symbol's differing save abilities.
+            This modal is the sheet's "on expand" view, so it is the right and only place for it:
+            the spell card in SpellsPanel stays a card. It comes from `def`, not from the player's
+            copy, because the copy carries only what the picker filled in. */}
+        {def?.detail && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.08em', color: 'var(--muted)', fontWeight: 700, marginBottom: 4 }}>FULL MECHANICS</div>
+            <TermText text={def.detail} system={system} selfTerm={spell.name} />
+          </div>
+        )}
         {spell.higher && (
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 8 }}>
             <b>At higher levels:</b> <TermText text={spell.higher} system={system} selfTerm={spell.name} />

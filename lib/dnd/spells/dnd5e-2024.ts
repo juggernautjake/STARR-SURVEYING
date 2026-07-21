@@ -61,6 +61,27 @@ export interface SpellDef {
   summary: string;
   /** Scaling at higher levels / higher character level, paraphrased. */
   higher?: string;
+  /** FULL paraphrased mechanics for the handful of spells whose rules genuinely do not fit a
+   *  summary — Prismatic Wall's seven per-layer destruction conditions, Symbol's eight glyphs
+   *  with four different save abilities, Magic Jar's death outcomes. Rendered ON EXPAND, never
+   *  in a list: the list's job is orientation and it stays scannable.
+   *
+   *  WHY THIS IS A SEPARATE FIELD AND NOT A LONGER `summary`. The 320-character cap on `summary`
+   *  (asserted in spells-2014.test.ts / spells-2024.test.ts) is a COPYRIGHT GUARD, not a layout
+   *  preference: a creeping word count is the signal that someone has stopped paraphrasing
+   *  mechanics and started transcribing a publisher's expression of them. Raising the cap to fit
+   *  a dozen 9th-level spells would retire that guard across ~600 entries to buy headroom almost
+   *  none of them need — the 2024 catalog averages ~120 characters at EVERY level, so "high-level
+   *  spells are inherently longer" is measurably false.
+   *
+   *  So the cap stays exactly where it is, and `detail` carries NO length limit. The transcription
+   *  risk is bounded by scope rather than by length: `detail` is populated only where a compression
+   *  loss was actually recorded (see DND5E_2014_BUILDOUT 14-S8), it is still written in our own
+   *  words from SRD 5.1, and the tests assert the cap applies to `summary` and explicitly not to
+   *  `detail`. Leave it UNSET wherever the summary already says everything the rules say — an
+   *  empty `detail` is the normal case, and Ground Rule 2 still holds: a rule we cannot confirm
+   *  is omitted, never invented to fill the field. */
+  detail?: string;
 
   // ── Structured resolution (optional) ──────────────────────────────────────
   // The prose `summary` is for READING; these are for ROLLING. A spell added to a sheet

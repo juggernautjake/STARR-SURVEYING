@@ -80,9 +80,82 @@ describe('the 2014 spell catalog is structurally sound', () => {
   it('keeps summaries short — paraphrase, never rulebook prose', () => {
     // A guard on the house style AND on copyright: a creeping word count is the signal that
     // someone has started transcribing the book instead of paraphrasing mechanics.
+    //
+    // THE GUARD IS ON `summary` AND ONLY ON `summary` (14-S8). It is asserted here over EVERY
+    // entry including the ones that now carry a `detail`, because the whole design depends on
+    // the summary staying short once a longer field exists next to it — the temptation after
+    // adding `detail` is to let the summary drift too.
     for (const s of SPELLS_2014) {
       expect(s.summary.length, `${s.key} summary is too long — paraphrase it`).toBeLessThan(320);
     }
+  });
+
+  it('exempts `detail` from the summary cap without weakening it', () => {
+    // `detail` exists precisely because some spells' rules do not fit 320 characters. If this
+    // cap leaked onto it the field would be pointless, so the exemption is a test rather than an
+    // intention — and at least one populated `detail` must actually exceed the cap, or the
+    // exemption is untested in practice and could be reintroduced without anything failing.
+    const detailed = SPELLS_2014.filter((s) => s.detail !== undefined);
+    expect(detailed.length, 'no spell carries a detail — 14-S8 populated several').toBeGreaterThan(0);
+    expect(detailed.some((s) => (s.detail as string).length >= 320)).toBe(true);
+    for (const s of detailed) {
+      expect(s.detail!.trim().length, `${s.key} has an empty detail — omit the field instead`).toBeGreaterThan(0);
+    }
+  });
+
+  it('restores the mechanics that summary compression dropped', () => {
+    // 14-S8's actual deliverable, asserted as CONTENT rather than as "the field is non-empty".
+    // Each probe is a rule the compression pass reported losing by name; a `detail` that reads
+    // well but omits the thing it was written to carry would pass a length check and fail here.
+    const detail = (key: string) => {
+      const s = SPELLS_2014.find((x) => x.key === key);
+      expect(s, `${key} is missing from the catalog`).toBeDefined();
+      expect(s!.detail, `${key} should carry a detail`).toBeDefined();
+      return s!.detail!.toLowerCase();
+    };
+
+    // Every layer's destruction condition, and indigo's three-failures structure.
+    const prismatic = detail('prismatic-wall');
+    for (const probe of ['25 cold', 'strong wind', '60 force', 'passwall', '25 fire', 'daylight', 'dispel magic']) {
+      expect(prismatic, `prismatic-wall detail should name "${probe}"`).toContain(probe);
+    }
+    expect(prismatic).toContain('petrif');
+
+    // Symbol's per-glyph save ability — the detail that varies and is played wrong.
+    const symbol = detail('symbol');
+    for (const probe of ['constitution', 'wisdom', 'charisma', 'intelligence', 'discord', 'hopelessness', 'insanity']) {
+      expect(symbol, `symbol detail should name "${probe}"`).toContain(probe);
+    }
+
+    // Wall of Stone's >20-foot-span support rule and its breach-collapse rule.
+    const wallOfStone = detail('wall-of-stone');
+    expect(wallOfStone).toContain('20 feet');
+    expect(wallOfStone).toContain('collapse');
+
+    // The cast-daily-for-a-year (or 30 days) permanence clauses.
+    expect(detail('guards-and-wards')).toContain('year');
+    expect(detail('teleportation-circle')).toContain('year');
+    expect(detail('forbiddance')).toContain('30 days');
+
+    // Guards and Wards' per-effect counts, which the summary flattened.
+    const guards = detail('guards-and-wards');
+    for (const probe of ['four corridors', 'ten doors']) {
+      expect(guards, `guards-and-wards detail should name "${probe}"`).toContain(probe);
+    }
+
+    // Magic Jar's 24-hour immunity and its container-destruction outcomes.
+    const magicJar = detail('magic-jar');
+    expect(magicJar).toContain('24 hours');
+    expect(magicJar).toContain('container is destroyed');
+
+    // The smaller named losses.
+    expect(detail('incendiary-cloud')).toContain('10 miles per hour');
+    expect(detail('antimagic-field')).toContain('artifact');
+    expect(detail('mirage-arcane')).toContain('creatures');
+    expect(detail('project-image')).toContain('investigation');
+    expect(detail('meteor-swarm')).toContain('ignites');
+    expect(detail('earthquake')).toContain('buried');
+    expect(detail('simulacrum')).toContain('100 gp');
   });
 
   it('only claims an edition note where it says something', () => {

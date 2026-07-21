@@ -293,6 +293,12 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
           `Casting time: ${s.castTime} · Range: ${s.range} · Components: ${s.components}` +
           `${s.material ? ` (${s.material})` : ''} · Duration: ${s.duration}${tags ? ` · ${tags}` : ''}\n` +
           `Classes: ${s.classes.join(', ')}\n${s.summary}` +
+          // `detail` carries the mechanics the 320-character summary cap could not hold (per-layer
+          // destruction conditions, per-glyph save abilities). The librarian is exactly who gets
+          // asked "which layer does cold destroy" — sending only the summary would have it answer
+          // from a text that provably lacks the answer, which is how a confident wrong ruling gets
+          // made. Only ~14 spells carry it, so the prompt cost is bounded.
+          `${s.detail ? `\nFull mechanics: ${s.detail}` : ''}` +
           `${s.higher ? `\nAt higher levels: ${s.higher}` : ''}` +
           `${s.editionNote ? `\n2024 vs 2014: ${s.editionNote}` : ''}` +
           `\nTags: ${tagKeys}`;
