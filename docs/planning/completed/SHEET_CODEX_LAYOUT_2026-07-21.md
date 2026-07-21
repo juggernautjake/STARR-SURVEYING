@@ -636,15 +636,78 @@ Two smaller things found and left alone, both outside this slice: `igPowerEligib
 `app/api/dnd/characters/[id]/grant-content/route.ts`, `app/dnd/_ui/GiveEntryButton.tsx`,
 `app/dnd/_ui/GiveToCharacter.tsx`, `__tests__/dnd/ig-library-grant.test.ts` (17 tests).
 
-### CX-14 — Codex QA pass
-Drive it in a browser: build one character per system, open every pane, resize to extremes, verify
-reflow and that no tooltip is empty. Folds into the standing final-QA slice.
+### CX-14 — Codex QA pass ✅ SHIPPED 2026-07-21 (Codex + tooltips); full-system sweep folds into the standing final-QA slice
 
-## Done means
+Driven in a real browser against local dev, with QA fixture characters created directly in the DB
+per system and **deleted afterwards**.
 
-- Codex is selectable, and the classic layout is untouched for everyone who does not pick it.
-- Every pane reflows by its own height, scrolls internally when it must, and is keyboard-operable.
-- No marker anywhere on the sheet relies on a native `title` alone, and none renders without text.
-- All four systems are reachable from the library, can give content to a character, and have glossary
-  text behind every term a tooltip might show.
-- `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run`, `npm run build` green per slice.
+**What was verified, with the evidence rather than the intention:**
+- **The Codex renders and behaves.** 11 rail tabs with vertical labels; Skills open by default with
+  its count badge; opening Spells, Gear and Combat left all four open simultaneously in CANONICAL
+  order (Skills, Combat, Spells, Gear — not click order). Proportional shrink observed: the
+  newly-opened pane arrived at its full 380px default while the others gave up height. Density
+  tiers switched live (`data-density` short/medium at the measured heights). The stack overflowed
+  and scrolled internally — the owner's asked-for second scrollbar — with the rail and identity
+  column staying put.
+- **Skins apply to the Codex with no Codex-specific CSS**, which was the load-bearing structural
+  claim. The QA character's skin restyled the whole layout untouched.
+- **The per-system descriptor holds in the real DOM.** A PF2 character's column reads "Ancestry",
+  renders no Inspiration, no rests, no hit dice, no Passive Perception, and carries the pointer
+  line naming where PF2's own numbers live. A 2014 character reads "Race" and gets all four.
+- **Tooltips open on TAP with explanatory text** — the owner's original complaint. Clicking ⚙
+  produced a `role="tooltip"` popover reading "This behaviour is a setting… That makes it a
+  campaign preference rather than a fixed rule…", i.e. what the marker MEANS, not just its data.
+- **Zero console errors** on the 5e and PF2 sheets after fixes.
+
+**Three bugs found that the tests structurally could not see**, which is the argument for this
+slice existing at all:
+1. **The resize handle was absent from the default view** — one pane open, which is the state every
+   user starts in and no fixture sits in. The arithmetic was correct and fully tested; a rendering
+   condition around it was not.
+2. **Library search results linked to anchors nothing carried** (CX-15b) — 65 dead links for 2014
+   alone, on a page whose test suite was green.
+3. **The IG builder offered two chips for one feat**, React warning about duplicate keys, with both
+   chips writing the same string and toggling in lockstep.
+
+**Not done here, and deliberately:** building one character per system through the full builder
+flow, level by level. That is the standing final-QA walkthrough (Slice 40 of the rules-platform
+doc), it is a different exercise from verifying this layout, and it needs the owner driving product
+decisions rather than an agent clicking. What CX-14 owed was proof the Codex works in a browser,
+and that is done.
+
+## Done means — and where it landed
+
+- **Codex is selectable, and the classic layout is untouched for everyone who does not pick it.** ✅
+  `char.sheetLayout` defaults to `'classic'`, so every existing character is unchanged.
+- **Every pane reflows by its own height, scrolls internally when it must, and is keyboard-operable.**
+  ✅ Container queries (never media queries), four density tiers pinned to the CSS by test, and a
+  `role="separator"` handle with arrow/Home/End/Enter.
+- **No marker anywhere on the sheet relies on a native `title` alone, and none renders without text.**
+  ✅ One `Tip` primitive; every marker converted; a test fails on any marker that could render
+  without a tip, plus a `readdirSync` scan so a NEW `*Mark.tsx` cannot silently escape the registry.
+- **All four systems are reachable from the library, can give content to a character, and have
+  glossary text behind every term a tooltip might show.** ✅ Glossary went 28% → 100% (244/244
+  terms); search results now land on the rule they name; IG grants route through IG's own gate.
+- `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run` ✅ green.
+
+---
+
+**This doc is CLOSED and moved to `completed/` on 2026-07-21.** Every slice is shipped. Two items
+are held for the owner rather than deferred, because both are rules decisions and neither is mine
+to make:
+
+- **CX-17 B3 — IG's degrees of success.** IG is currently given PF2's four-step ±10 ladder; IG's own
+  system-rules text, its Critical Focus feat, its Expanded Critical enchantment and ~30 of its
+  spells all describe a five-step ladder on ±20 with Partial Success on a tie. Changing it alters
+  IG combat maths and existing tests. It is a rules change, not a bug fix.
+- **PF2 vs IG authoring gate** (recorded in the PF2 doc, repeated here because it is cross-system):
+  IG gates homebrew authoring to DM-or-custom; PF2 does not gate it at all, so a vanilla PF2
+  character can author a rank-1 spell that does anything. Two stated rationales that contradict
+  each other.
+
+**The lesson this doc bought, and the reason CX-14 was not optional.** Three bugs were found by
+driving a browser that a green 15,000-test suite did not see, and all three were the same shape:
+correct logic wrapped in a rendering condition nothing asserted. The sharpest is CX-15b — CX-15's
+own test verified that every search kind maps to a real SECTION, and never that an ENTRY id was
+stamped, so it passed throughout while 65 links per system led nowhere. **A test can verify the
+half of a contract that works.** When a claim needs rendering to check, render it.
