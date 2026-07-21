@@ -63,9 +63,27 @@ it held or author anything new, and it had no way to add or edit a weapon at all
   catalogue text instead of rendering as having no rules at all.
 - **An update never CREATES** — a typo must not conjure content past the gate.
 
-### IG-S2 — Editor + authoring UI on the IG sheet
-Port `PF2ElementEditor` / `PF2WeaponEditor` to IG: per-element ✎ Edit, ＋ New for homebrew, and a
-weapon editor. Wire to the gated `ig-edit` route. Render ✎ beside the existing ⚑.
+### IG-S2 — Editor + authoring UI on the IG sheet ✅ SHIPPED 2026-07-21
+`IGElementEditor` (one component, all three kinds) with per-element ✎ Edit, ✎ New for homebrew, and
+a weapon editor, wired to the gated `ig-edit` route and rendering ✎ beside the existing ⚑.
+
+Completed 2026-07-21 with the two things the first pass left:
+
+- **The gate's refusal now reaches the player.** Every failure was swallowed, on the stated theory
+  that "the unchanged sheet surfaces it". It does not — an unchanged sheet is indistinguishable
+  from a slow one, so a refused edit read as the app ignoring you. `gateIgEdit` composes a genuinely
+  useful sentence (names the element, the reason, and both ways forward) and it was being discarded.
+  One `postOne` helper now backs both the single-op and sequence paths, so they cannot report
+  failures differently — which is how one of them ends up reporting nothing. A later op failing
+  mid-sequence says the element was created but its details were not, because add-then-update can
+  genuinely half-apply and a confusing result is worth one extra clause to make finishable.
+- **Authoring a power is predicted, not merely refused.** `canAuthorPowers = isDM || custom`
+  mirrors `gateIgEdit` exactly, and the ✎ New button explains itself rather than failing on press.
+  It gates **only** powers, because the server gates only `add_power` — IG feats have free-prose
+  prerequisites and stances may legitimately be held off-list, both deliberately ungated. Disabling
+  those here would be the UI inventing a restriction the rules do not have: the mirror image of a
+  bleed, and just as wrong. `isDM` and the variant are passed as props from the page, derived the
+  same server-side way the route derives them, so the hint cannot drift from the gate that decides.
 
 ### IG-S3 — Sheet pickers
 IG can only add content from the BUILDER. The sheet needs the same picker PF2 got, so content can be

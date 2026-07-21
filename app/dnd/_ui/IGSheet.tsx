@@ -52,7 +52,13 @@ function Badge({ source }: { source: Source }) {
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
-export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string }) {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla' }: {
+  ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
+  isDM?: boolean;
+  /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
+   *  vanilla — the safe direction, matching the server. */
+  variantKind?: 'vanilla' | 'custom';
+}) {
   const derived = useMemo(() => igDerived(ig), [ig]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
   // The roll path has always applied these; the cards showed base values, so a Shaken character
@@ -116,16 +122,36 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.
   const canDoEdit = !!(canEdit && characterId);
+  /** The last refusal from the gate, shown to the player.
+   *
+   *  Every failure here used to be swallowed on the theory that "the unchanged sheet surfaces it".
+   *  It does not: an unchanged sheet is indistinguishable from a slow one, and the gate writes a
+   *  genuinely useful sentence ("build a custom one, or have the DM grant it") that was being
+   *  thrown away. A silent refusal reads as the app ignoring you — the same reasoning the IG gate
+   *  itself gives for returning a `refusal` string at all. */
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  /** POST one op, returning its refusal message or null. Shared so the single-op and sequence
+   *  paths cannot report failures differently. */
+  const postOne = async (edit: unknown): Promise<string | null> => {
+    const res = await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
+    });
+    if (res.ok) return null;
+    const body = await res.json().catch(() => null) as { error?: string } | null;
+    return body?.error || 'That edit was refused.';
+  };
+
   const postEdit = async (edit: IGEdit) => {
     if (!characterId || editing) return;
     setEditing(true);
+    setRefusal(null);
     try {
-      await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
-      });
-      router.refresh();
+      const err = await postOne(edit);
+      if (err) setRefusal(err);
+      else router.refresh();
     } catch {
-      /* surfaced by the unchanged sheet; a retry is a re-tap */
+      setRefusal('Could not reach the server. Try again.');
     } finally {
       setEditing(false);
     }
@@ -136,21 +162,26 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
    *  Authoring a power with rules text needs an add THEN an update, because IG's add ops carry only
    *  a name. They are applied here rather than as two user actions so a half-finished element
    *  cannot be left behind if the second call fails — and the refresh happens once, at the end.
-   *  If an op fails mid-sequence the sheet simply does not change; the retry is re-opening the
-   *  editor, which is already how every other failure here behaves. */
+   *  If an op fails mid-sequence we stop and REPORT, rather than continuing and leaving a
+   *  half-authored element behind. */
   const postEdits = async (edits: Record<string, unknown>[]) => {
     if (!characterId || editing || !edits.length) return;
     setEditing(true);
+    setRefusal(null);
     try {
-      for (const edit of edits) {
-        const res = await fetch(`/api/dnd/characters/${characterId}/ig-edit`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
-        });
-        if (!res.ok) break; // the gate refused it; stop rather than applying a partial edit
+      for (const [i, edit] of edits.entries()) {
+        const err = await postOne(edit);
+        if (err) {
+          // Name the position when a LATER op failed: the add succeeded and the rules text did
+          // not, so the sheet now holds a bare-named element. Saying so is the difference between
+          // a confusing half-result and a clear one the player can finish by re-editing.
+          setRefusal(i === 0 ? err : `${err} (The element was created, but its later details were not saved — edit it to finish.)`);
+          break;
+        }
       }
       router.refresh();
     } catch {
-      /* surfaced by the unchanged sheet */
+      setRefusal('Could not reach the server. Try again.');
     } finally {
       setEditing(false);
     }
@@ -158,6 +189,19 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
 
   // The element editor (IG-S2). `initial` absent = authoring homebrew; present = editing.
   const [igEditor, setIgEditor] = useState<{ kind: IGEditorKind; initial?: IGEditableElement } | null>(null);
+
+  /** May this character author a brand-new POWER?
+   *
+   *  Mirrors `gateIgEdit` exactly, which gates `add_power` and NOTHING else. So this deliberately
+   *  does not touch the feat or weapon editors: IG feats have free-prose prerequisites and stances
+   *  can legitimately be held off-list, and both are ungated on the server for those stated
+   *  reasons. Disabling them here would be the UI inventing a restriction the rules do not have —
+   *  the mirror image of the bug, and just as wrong.
+   *
+   *  Predicting the refusal rather than only reporting it, because a button that always fails is
+   *  worse than one that explains why before you press it. The server stays authoritative — this
+   *  is a hint, and every op is still gated there. */
+  const canAuthorPowers = !!isDM || variantKind === 'custom';
 
   const srcByName = useMemo(() => {
     const m = new Map<string, Source>();
@@ -191,6 +235,27 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
           onClose={() => setIgEditor(null)}
           onSave={(edits) => { setIgEditor(null); void postEdits(edits); }}
         />
+      )}
+
+      {/* The gate's own words, not a generic failure. Dismissible, because it describes the LAST
+          action rather than the state of the sheet — leaving it up would make it read as a
+          standing problem with the character. */}
+      {refusal && (
+        <div
+          role="status"
+          style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8,
+            border: '1px solid var(--hx-line)', background: 'rgba(220,120,120,0.09)',
+            fontSize: 12.5, color: 'var(--hx-text)',
+          }}
+        >
+          <span aria-hidden style={{ color: 'var(--hx-gold-2)' }}>⚑</span>
+          <span style={{ flex: 1 }}>{refusal}</span>
+          <button
+            type="button" onClick={() => setRefusal(null)} aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
       )}
 
       {/* Header + summary top-line */}
@@ -547,10 +612,16 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 Powers
                 {canDoEdit && (
                   <button
-                    type="button" disabled={editing}
+                    type="button" disabled={editing || !canAuthorPowers}
                     onClick={() => setIgEditor({ kind: 'power' })}
-                    title="Author a homebrew power"
-                    style={{ marginLeft: 8, background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 10, padding: '1px 7px' }}
+                    title={canAuthorPowers
+                      ? 'Author a homebrew power'
+                      : 'This is a vanilla character, so its powers are held to its class and level. Build a custom character, or ask the DM to grant it.'}
+                    style={{
+                      marginLeft: 8, background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10,
+                      color: 'var(--hx-muted)', cursor: canAuthorPowers ? 'pointer' : 'not-allowed',
+                      fontSize: 10, padding: '1px 7px', opacity: canAuthorPowers ? 1 : 0.5,
+                    }}
                   >✎ New</button>
                 )}
               </span>
