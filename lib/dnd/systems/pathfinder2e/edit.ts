@@ -6,7 +6,7 @@
 //
 // HP note: PF2's stored `currentHp` uses 0 to mean "full/unset" (the sheet renders maxHp then). Damage/heal
 // therefore resolve against the EFFECTIVE current (currentHp || maxHp) and write a real value back.
-import type { PF2Character, PF2AttributeKey, PF2Feat, PF2KnownSpell } from './model';
+import type { PF2Character, PF2AttributeKey, PF2Feat, PF2KnownSpell, PF2Rank } from './model';
 import { PF2_ATTRIBUTES } from './model';
 import { pf2MaxHp } from './rules';
 import type { DownedDamageModel } from '@/lib/dnd/preferences';
@@ -44,7 +44,12 @@ export type PF2Edit =
   // weapon computes instead of merely displaying.
   | { op: 'add_attack'; name: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
   | { op: 'update_attack'; name: string; to?: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
-  | { op: 'remove_attack'; name: string };
+  | { op: 'remove_attack'; name: string }
+  // ── Armor (S15d) ──────────────────────────────────────────────────────────────────────────────
+  // Armor is a single worn set, not a list, so this SETS rather than adds. Every field feeds
+  // `pf2ArmorClass` directly, which is why the editor exists at all: armor that displays but does
+  // not move AC is worse than no armor field.
+  | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -55,7 +60,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -258,6 +263,26 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       if (!name) return pf2;
       return { ...pf2, attacks: (pf2.attacks ?? []).filter((a) => a.name.toLowerCase() !== name) };
     }
+    case 'set_armor': {
+      // Only the fields supplied are touched, so changing a rune's AC bonus does not silently
+      // reset the Dex cap. `dexCap: null` is MEANINGFUL (uncapped/unarmored) and must survive the
+      // partial-update logic, which is why it is checked with `!== undefined` rather than a
+      // truthiness test that would swallow both null and 0.
+      if (edit.name !== undefined) combat.armorName = edit.name.trim();
+      if (edit.acBonus !== undefined && Number.isFinite(edit.acBonus)) {
+        combat.acItemBonus = Math.max(0, Math.min(10, Math.round(edit.acBonus)));
+      }
+      if (edit.dexCap !== undefined) {
+        combat.dexCap = edit.dexCap === null ? null : Math.max(0, Math.min(10, Math.round(edit.dexCap)));
+      }
+      if (edit.checkPenalty !== undefined && Number.isFinite(edit.checkPenalty)) {
+        // A check penalty is a PENALTY: stored ≤ 0, so a caller passing 2 means −2 rather than a
+        // bonus that would silently improve four skills.
+        combat.armorCheckPenalty = -Math.abs(Math.round(edit.checkPenalty));
+      }
+      if (edit.rank) combat.armorRank = edit.rank;
+      return { ...pf2, combat };
+    }
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -377,6 +402,26 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
       } as PF2Edit,
     };
   }
+  if (op === 'set_armor') {
+    const RANKS = ['untrained', 'trained', 'expert', 'master', 'legendary'];
+    const rank = String(o.rank ?? '').trim().toLowerCase();
+    const ac = Number(o.acBonus);
+    const cp = Number(o.checkPenalty);
+    // `dexCap: null` means uncapped and must reach the apply step intact, so null is forwarded
+    // rather than filtered out with the absent case.
+    const dexCapGiven = o.dexCap !== undefined;
+    const dexNum = Number(o.dexCap);
+    return {
+      edit: {
+        op,
+        ...(typeof o.name === 'string' ? { name: o.name.trim() } : {}),
+        ...(Number.isFinite(ac) ? { acBonus: Math.max(0, Math.min(10, Math.round(ac))) } : {}),
+        ...(dexCapGiven ? { dexCap: o.dexCap === null || !Number.isFinite(dexNum) ? null : Math.max(0, Math.min(10, Math.round(dexNum))) } : {}),
+        ...(Number.isFinite(cp) ? { checkPenalty: -Math.abs(Math.round(cp)) } : {}),
+        ...(RANKS.includes(rank) ? { rank: rank as PF2Rank } : {}),
+      } as PF2Edit,
+    };
+  }
   if (op === 'remove_attack') {
     const name = typeof o.name === 'string' ? o.name.trim() : '';
     if (!name) return { error: 'The "remove_attack" edit needs a weapon "name".' };
@@ -412,6 +457,7 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'add_attack': return `Added the weapon ${edit.name}.`;
     case 'update_attack': return `Customised ${edit.name}${edit.to ? ` → ${edit.to}` : ''}.`;
     case 'remove_attack': return `Removed the weapon ${edit.name}.`;
+    case 'set_armor': return edit.name ? `Now wearing ${edit.name}.` : 'Updated armor.';
     default: return 'No change.';
   }
 }

@@ -12,6 +12,7 @@ import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from './PF2ContentPicker';
 import PF2ElementEditor, { type PF2EditableElement } from './PF2ElementEditor';
 import PF2WeaponEditor, { type PF2EditableWeapon } from './PF2WeaponEditor';
+import PF2ArmorEditor from './PF2ArmorEditor';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -78,6 +79,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // Weapons get their own editor: traits are the mechanically important field and need a picker,
   // not a text box, so a typo cannot silently disable a weapon's defining property.
   const [weaponEditor, setWeaponEditor] = useState<PF2EditableWeapon | null | 'new'>(null);
+  const [armorOpen, setArmorOpen] = useState(false);
 
   // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
@@ -145,7 +147,19 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
 
       {/* Headline defenses */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
+        {/* AC is clickable for an editor — armor is the one headline stat with no other way to
+            change it, and it was previously settable only at build time. */}
+        {canDoEdit ? (
+          <button
+            type="button" onClick={() => setArmorOpen(true)} disabled={saving}
+            title="Edit armor"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          >
+            <Stat label="AC ✎" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
+          </button>
+        ) : (
+          <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
+        )}
         <Stat label="HP" value={`${pf2.combat.currentHp || d.maxHp}/${d.maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
         <Stat label="Perception" value={fmt(pf2PerceptionTotal(pf2))} sub={pf2.perception.rank} />
         <Stat label="Initiative" value={fmt(pf2PerceptionTotal(pf2))} sub="Perception" />
@@ -308,6 +322,14 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           // The server re-checks through gatePf2Edit regardless of what this sends — the picker's
           // greying is for feedback timing, never the enforcement point.
           onAdd={(edit) => { setPicker(null); void postEdit(edit); }}
+        />
+      )}
+
+      {armorOpen && (
+        <PF2ArmorEditor
+          pf2={pf2}
+          onClose={() => setArmorOpen(false)}
+          onSave={(edit) => { setArmorOpen(false); void postEdit(edit); }}
         />
       )}
 
