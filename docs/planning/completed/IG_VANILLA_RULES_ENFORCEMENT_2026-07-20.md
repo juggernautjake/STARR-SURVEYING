@@ -1,6 +1,6 @@
 # Intuitive Games: vanilla characters obey the rules too
 
-**Status:** IN PROGRESS · started 2026-07-20
+**Status:** ✅ COMPLETE · 2026-07-20 (S1–S4 shipped; PF2 + builder-UI filtering deferred with reasons)
 **Goal:** extend the vanilla/custom enforcement just shipped for D&D 2024
 (`completed/VANILLA_RULES_ENFORCEMENT_2026-07-20.md`) to the Intuitive Games system — but only as
 far as IG's content model can HONESTLY support, and no further.
@@ -105,42 +105,58 @@ only the picker was on the 5e side. 19 tests.
 - **`knownPowers` is deliberately NOT seeded from `picks.powers`** — every power in a build is
   under review, so treating them as already-held would make every build vacuously legal.
 
-### S3 — Mark and surface on the IG sheet ⛔ BLOCKED — needs a model change
-The gate already COMPUTES the reason for custom/DM-granted content, and it reaches the audit log
-and the AI response summary. It is not yet stored on the sheet, because there is nowhere to put
-it: `IGCharacter.powers` is a bare `string[]`, so unlike 5e's `Spell`/`FeatureBlock` there is no
-per-element object to hang `offRules` on.
+### S3 — Mark and surface on the IG sheet ✅ SHIPPED 2026-07-20
+Initially recorded as blocked on "a model decision worth making deliberately". On re-reading, that
+was over-deferred: of the two options one is clearly lower-risk, which makes it an implementation
+call rather than a product one.
 
-Doing it properly means either widening `powers` to `{ name, offRules? }[]` — a stored-data shape
-change touching the builder, the bespoke sheet, the digest, provenance and every existing IG
-character in the database — or adding a parallel `offRules: Record<string, string>` map on
-`IGCharacter`. The map is cheaper and non-breaking; the array is cleaner. **That is a call worth
-making deliberately rather than mid-slice**, and the marker is not load-bearing for enforcement
-(a vanilla character is refused outright; only custom/DM content would carry it), so it is
-recorded here rather than rushed.
+`IGCharacter.offRules?: Record<string, string>` — a map beside the list, **not** a widening of
+`powers` to `{ name, offRules? }[]`. The map is purely ADDITIVE: every IG character already in the
+database stays valid and no migration is needed, where the array change would touch the builder,
+the sheet, the digest and provenance in one go. The cost is that the marker lives beside the
+element rather than on it; for an optional annotation that is the right trade.
+
+`markIgOffRules` is pure and immutable like every other IG edit, and is called by all three
+routes, so the marker is stored rather than living only in a chat reply that vanishes on reload.
+`OffRulesMark` (the same ⚑ as 5e) renders it on the IG sheet. 8 tests.
+- **An empty reason CLEARS the entry** rather than storing a blank. A level-up can make
+  previously-off-rules content legal, and a blank string would linger as a truthy-but-meaningless
+  flag rendering an unexplained ⚑.
+- **The field is dropped entirely when empty**, so an ordinary character's stored data is
+  unchanged by this feature existing.
+- Caught during the slice: the field first landed on `IGCompanion`, which also has a `powers:
+  string[]`. The typechecker found it immediately.
 
 ---
 
-## Done means — S1/S2/S4 verified 2026-07-20
+## Done means — all verified 2026-07-20
 
 - ✅ A vanilla level-1 Arcanist cannot be given a Druid power by the AI, by the manual edit route,
   or at build time; a custom one can, marked; a DM can, marked as granted.
 - ✅ A Freebooter with Dabbler CAN take other classes' powers — no legal choice blocked.
 - ✅ A character on a parent class with no power list is not blocked from everything.
 - ✅ Stances remain ungated, with tests saying why, so the exemption reads as a decision.
-- ✅ `npx tsc --noEmit`, whole-repo `npx vitest run` (14,645 passing), `npm run build` green.
-- ⛔ S3 (the on-sheet marker) is blocked on an IGCharacter model decision — see above.
+- ✅ Off-rules content is stored on the sheet and rendered with ⚑, same glyph as 5e.
+- ✅ `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run` (14,653 passing), `npm run build`.
 
-## Status
+## Status: COMPLETE — S1–S4 shipped
 
-**S1, S2, S4 shipped. S3 open, and PF2 deliberately out of scope.** Enforcement is complete for
-every route that can currently put content on an IG character; what remains is display.
+Enforcement now covers every route that can put content on an IG character, and off-rules content
+is marked where it renders.
 
-Two things for whoever picks this up:
+### Explicitly deferred, with reasons
 
-1. **The IG builder UI is not filtered.** The gate refuses an illegal build with a clear message
-   naming what to change, but the picker still offers the full power list, so a player can compose
-   an illegal build and only learn at save. The 5e side greys ineligible rows in place; IG should
-   do the same. Not a correctness hole — a UX one.
-2. **Untested in a browser.** Every layer is unit-tested and the build is clean, but nobody has
-   driven the IG builder or sheet on a live logged-in character. Same caveat as the 5e work.
+1. **PF2 gets no gate.** It has no feat or spell catalog and no content-adding op at all — a wall,
+   not an unguarded door. Building one means authoring a `PF2_FEATS` catalog with levels and
+   tracks first; that is content work, and inventing it would break Ground Rule 3. **Cost clearly
+   exceeds value while nothing can add PF2 content in the first place.**
+2. **The IG builder UI is not filtered.** The gate refuses an illegal build with a message naming
+   exactly what to change, so this is a UX gap and not a correctness one — a player can compose an
+   illegal build and only learn at save. The 5e side greys ineligible rows in place; IG should
+   eventually match. Deferred because the correctness property is already held by the server, and
+   the builder UI is one of the components the repo requires be driven in a browser to change
+   safely.
+3. **Not driven in a browser.** Every layer is unit-tested, linted and building, but nobody has
+   clicked through the IG builder or sheet on a live logged-in character. This needs an
+   authenticated session, so it belongs with the level-1-to-20 walkthrough already deferred to the
+   owner in `pending/DND_FINAL_QA_WALKTHROUGH.md` rather than being re-litigated here.

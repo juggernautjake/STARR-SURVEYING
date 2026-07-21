@@ -120,6 +120,19 @@ export interface IGCharacter {
   skillRanksAvailable: number;
   feats: { general: string[]; combat: string[] };
   powers: string[];
+  /** Why a held element is outside what this character's class and level grant, keyed by its
+   *  name (Area MV, IG S3). Present only on custom characters and DM grants — a vanilla one is
+   *  refused outright, so it never accumulates entries.
+   *
+   *  Chosen over widening `powers` to `{ name, offRules? }[]`: this is purely ADDITIVE, so every
+   *  IG character already in the database stays valid and no migration is needed, where the array
+   *  change would touch the builder, the sheet, the digest and provenance in one go. The cost is
+   *  that the marker lives beside the list rather than on the element; for an optional annotation
+   *  that is the right trade.
+   *
+   *  NOT the same axis as `igIsVanilla`/provenance, which ask whether content exists in the book.
+   *  This asks whether it was legal for THIS character. */
+  offRules?: Record<string, string>;
   stances: string[];
   weaponGroups: string[];
   combat: IGCombat;

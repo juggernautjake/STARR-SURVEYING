@@ -63,6 +63,26 @@ export function gateIgEdit(ig: IGCharacter, edit: IGEdit, ctx: IGGateContext): I
   };
 }
 
+/** Record on the character WHY a held element was outside its class and level (IG S3).
+ *
+ *  Pure and immutable, like every other IG edit. An empty reason CLEARS the entry rather than
+ *  storing a blank, so a marker can't linger as a truthy-but-meaningless flag after the content
+ *  that earned it becomes legal (a level-up can do exactly that). */
+export function markIgOffRules(ig: IGCharacter, name: string, reason?: string): IGCharacter {
+  const key = name.trim();
+  if (!key) return ig;
+  const next = { ...(ig.offRules ?? {}) };
+  if (reason && reason.trim()) next[key] = reason.trim();
+  else delete next[key];
+  if (Object.keys(next).length === 0) {
+    // Drop the field entirely when empty, so an ordinary character's stored data is unchanged by
+    // this feature existing.
+    const { offRules: _drop, ...rest } = ig;
+    return rest as IGCharacter;
+  }
+  return { ...ig, offRules: next };
+}
+
 /** Check the picks a build is about to assemble.
  *
  *  The build route already flags custom content and defers to the vanilla-only CAMPAIGN gate at

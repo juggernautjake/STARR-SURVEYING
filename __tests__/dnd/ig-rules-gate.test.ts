@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { gateIgEdit, gateIgPicks, gateIgSpecialization, igContextFor } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { gateIgEdit, gateIgPicks, gateIgSpecialization, igContextFor, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { blankIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
@@ -174,5 +174,59 @@ describe('the build path is gated too (IG S4)', () => {
     const src = read('lib/dnd/systems/intuitive-games/rules-gate.ts');
     expect(src).toContain('igIsVanilla');
     expect(src).toContain('is this from the book');
+  });
+});
+
+describe('the marker is stored on the sheet, not only in the reply (IG S3)', () => {
+  it('records the reason against the power name', () => {
+    const ig = markIgOffRules(arcanist(), 'Entangle', 'Entangle is not an Arcanist power.');
+    expect(ig.offRules?.['Entangle']).toContain('Arcanist');
+  });
+
+  it('an empty reason CLEARS the entry rather than storing a blank', () => {
+    // A level-up can make previously-off-rules content legal. A blank string would linger as a
+    // truthy-but-meaningless flag and render an unexplained ⚑.
+    const marked = markIgOffRules(arcanist(), 'Entangle', 'nope');
+    expect(markIgOffRules(marked, 'Entangle', '').offRules).toBeUndefined();
+    expect(markIgOffRules(marked, 'Entangle', undefined).offRules).toBeUndefined();
+  });
+
+  it('drops the field entirely when nothing is marked', () => {
+    // So an ordinary character's stored data is byte-identical to before this feature existed.
+    expect('offRules' in markIgOffRules(arcanist(), 'X', '')).toBe(false);
+  });
+
+  it('does not mutate the input', () => {
+    const before = arcanist();
+    markIgOffRules(before, 'Entangle', 'nope');
+    expect(before.offRules).toBeUndefined();
+  });
+
+  it('keeps other entries when one is cleared', () => {
+    let ig = markIgOffRules(arcanist(), 'Entangle', 'a');
+    ig = markIgOffRules(ig, 'Bane', 'b');
+    ig = markIgOffRules(ig, 'Entangle', '');
+    expect(ig.offRules).toEqual({ Bane: 'b' });
+  });
+
+  it('is additive on the model — no migration for existing characters', () => {
+    // blankIGCharacter does not set it, so every IG character already in the database stays valid.
+    expect(blankIGCharacter('x').offRules).toBeUndefined();
+  });
+
+  it('all three routes persist it', () => {
+    for (const p of [
+      'app/api/dnd/characters/[id]/ai-edit/route.ts',
+      'app/api/dnd/characters/[id]/ig-edit/route.ts',
+      'app/api/dnd/characters/[id]/ig-build/route.ts',
+    ]) {
+      expect(read(p), p).toContain('markIgOffRules');
+    }
+  });
+
+  it('the IG sheet renders it', () => {
+    const src = read('app/dnd/_ui/IGSheet.tsx');
+    expect(src).toContain('OffRulesMark');
+    expect(src).toContain('ig.offRules?.[p]');
   });
 });

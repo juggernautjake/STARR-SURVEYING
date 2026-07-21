@@ -9,7 +9,8 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { assembleIGVanillaCharacter, type IGPicks } from '@/lib/dnd/systems/intuitive-games/builder';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
-import { gateIgPicks } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { gateIgPicks, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 const strArr = (v: unknown): string[] => Array.isArray(v) ? v.map((x) => String(x ?? '').trim()).filter(Boolean) : [];
@@ -64,6 +65,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const assembled = assembleIGVanillaCharacter(picks);
+  // Carry the off-rules reasons onto the built sheet (IG S3). Only reachable for a custom
+  // character or a DM build — a vanilla one was refused above, so it never accumulates any.
+  if (Object.keys(buildGate.offRules).length && (assembled as { ig?: unknown }).ig) {
+    const built = assembled as unknown as { ig: IGCharacter };
+    for (const [name, reason] of Object.entries(buildGate.offRules)) {
+      built.ig = markIgOffRules(built.ig, name, reason);
+    }
+  }
   const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
   const summary = summarizeCharacterProvenance(assembled, 'intuitive-games', dmGranted);
 

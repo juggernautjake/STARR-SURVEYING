@@ -8,7 +8,7 @@ import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { applyIgEdit, parseIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { gateIgEdit } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { gateIgEdit, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -39,7 +39,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
   if (!gate.edit) return NextResponse.json({ error: gate.refusal ?? 'That edit was refused.' }, { status: 400 });
 
-  const nextIg = applyIgEdit(ig, gate.edit);
+  const nextIg = gate.offRules && gate.edit.op === 'add_power'
+    ? markIgOffRules(applyIgEdit(ig, gate.edit), gate.edit.name, gate.offRules)
+    : applyIgEdit(ig, gate.edit);
   const nextData = { ...data, ig: nextIg };
 
   const { error } = await supabaseAdmin

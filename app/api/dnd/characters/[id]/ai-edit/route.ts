@@ -22,7 +22,7 @@ import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
-import { gateIgEdit } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { gateIgEdit, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { igCharacterDigest } from '@/lib/dnd/systems/intuitive-games/digest';
 import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -203,7 +203,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       unboundReason: isDM ? 'dm-grant' : igVariant === 'custom' ? 'custom-character' : undefined,
     });
     if (!igGate.edit) return NextResponse.json({ error: igGate.refusal ?? 'That edit was refused.' }, { status: 400 });
-    const nextIg = applyIgEdit(igData as IGCharacter, igGate.edit);
+    // Off-rules content is recorded on the sheet, not just in the response — a marker that lives
+    // only in a chat reply is gone the moment the page reloads (IG S3).
+    const nextIg = igGate.offRules && igGate.edit.op === 'add_power'
+      ? markIgOffRules(applyIgEdit(igData as IGCharacter, igGate.edit), igGate.edit.name, igGate.offRules)
+      : applyIgEdit(igData as IGCharacter, igGate.edit);
     const { error: igErr } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, ig: nextIg } }).eq('id', params.id);
     if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
     await supabaseAdmin.from('dnd_sheet_edits').insert({

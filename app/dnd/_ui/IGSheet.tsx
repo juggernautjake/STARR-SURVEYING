@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
+import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
@@ -509,6 +510,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId }: { ig: IG
                 <div key={p} style={{ display: 'grid', gap: 1 }}>
                   <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {p} {badgeFor(p)}
+                    <OffRulesMark reason={ig.offRules?.[p]} />
                     {canDoEdit && (
                       <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                     )}
