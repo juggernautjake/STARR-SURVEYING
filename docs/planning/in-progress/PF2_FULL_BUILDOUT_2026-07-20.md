@@ -264,7 +264,52 @@ reach the maths:
 
 Each of these gets tests asserting the resolved NUMBER, not just that the field renders.
 
-### S14 — Browser verification (answers the owner's second question)
+### S15 — EDITORS + HOMEBREW, at parity with the 2024 sheet
+*Owner, verbatim: "We need to be able to fully customize spells and feats and armor and weapons and
+stuff in an editor for each thing. We need to be able to create whole new ones too. This needs to be
+accessible to the PF2 character spreadsheet. It needs to have the same functionality as the 2024
+edition character sheet does, but for PF2."*
+
+The PF2 sheet is currently **read-mostly**: it renders derived numbers, allows a few in-place edits
+(attributes, HP, conditions), and can now ADD catalogued content via the picker. It cannot edit what
+it holds, and it cannot author anything new. The 2024 sheet can do both.
+
+**Ground Rule 4 makes this cheap to state and non-negotiable to honour: custom content is the SAME
+SHAPE as official content.** A homebrew PF2 spell is a `PF2SpellFull`; a homebrew feat is a
+`PF2FeatFull`. They flow through the same gate, the same roller and the same renderer. Nothing gets
+a parallel "custom" pathway — that is how a system ends up with two half-working code paths.
+
+- **S15a — Editable content on the sheet.** Per-element editors for spells, feats, weapons, armor
+  and items already ON the character: change any field, with the sheet's own maths re-deriving. The
+  2024 sheet marks hand-tuned elements with ✎ (`customized`); PF2's shapes need the same flag and
+  the same marker so an edited element is distinguishable from a catalogued one.
+- **S15b — Author brand-new content.** Create a spell/feat/weapon/armor/item from scratch on the
+  sheet. Homebrew is CUSTOM by definition, so it carries no `offRules` (it was never claiming to be
+  official) but IS flagged custom for the DM's review queue, exactly as `provenance.ts` already does
+  for IG. Note the two axes stay separate: `offRules` = "official content this character may not
+  legally take", custom = "not official content at all".
+- **S15c — Edit ops + persistence.** `update_spell` / `update_feat` / `update_item` ops in
+  `PF2_EDIT_OPS`, parsed and gated like the add ops. Editing an element must NOT re-run the
+  eligibility gate against the catalog entry it was derived from — once a character legitimately
+  holds a spell, retuning its text is a customisation, not a fresh acquisition.
+- **S15d — Weapons and armor reach the maths.** An edited or homebrew weapon must flow through
+  `pf2ResolveStrike` (traits, striking, deadly/fatal) and armor through `pf2ArmorClass`, or the
+  editor produces things that display but do not compute — the exact failure S13b exists to prevent.
+
+**Open question for the owner, recorded rather than guessed:** should homebrew created on a PF2
+sheet be private to that character, or promoted into a shared per-campaign library other characters
+can draw from? The 2024 side keeps it per-sheet. Per-sheet is assumed here unless told otherwise.
+
+### S14 — Browser verification (answers the owner's second question) ✅ SHIPPED 2026-07-21
+Drove the app in a real browser against local dev (owner-approved). `/dnd`, `/dnd/library` and
+`/dnd/library/pathfinder2e` all render 200 with no console errors — only Fast Refresh and React
+DevTools notices. The PF2 library page surfaces Classes, Skills, Ancestries, Backgrounds, Armor,
+Weapons, Spells, Conditions, Feats and a 92-entry glossary.
+**Lesson worth keeping:** the "500 errors" I chased were a DIFFERENT app on port 3000. Next had
+bound this one to 3004 because 3000 was taken, and I deleted `.next` before checking which port the
+server actually announced. Read the port the server prints.
+
+### S14 — original plan
 See "On driving it in a browser" below. Playwright is available in this environment and `/dnd` is
 publicly reachable by direct link, so a real click-through IS possible without owner credentials —
 this is the slice that stops "unverified in a browser" from being a permanent caveat.

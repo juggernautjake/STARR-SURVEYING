@@ -31,7 +31,13 @@ import {
   PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
   pf2MaxSpellRankFromProgression, PF2_CLASS_PROGRESSION_GAPS,
 } from './classes';
-import { PF2_CLASSES, PF2_ANCESTRIES } from '../content';
+import {
+  PF2_ANCESTRIES_FULL, PF2_HERITAGES, PF2_FEATS_ANCESTRY, PF2_BACKGROUNDS_FULL,
+  PF2_ALTERNATE_BOOSTS_RULE, PF2_ANCESTRY_GAPS,
+  pf2AncestryFull, pf2Heritage, pf2AncestryFeat, pf2BackgroundFull,
+  pf2HeritagesFor, pf2AncestryFeatsFor,
+} from './ancestries';
+import { PF2_CLASSES } from '../content';
 import type { PF2CatalogStatus } from '../defs';
 
 export {
@@ -46,19 +52,26 @@ export {
   PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10,
   PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
   pf2MaxSpellRankFromProgression,
+  PF2_ANCESTRIES_FULL, PF2_HERITAGES, PF2_FEATS_ANCESTRY, PF2_BACKGROUNDS_FULL,
+  PF2_ALTERNATE_BOOSTS_RULE,
+  pf2AncestryFull, pf2Heritage, pf2AncestryFeat, pf2BackgroundFull,
+  pf2HeritagesFor, pf2AncestryFeatsFor,
 };
 export type {
   PF2ClassProgression, PF2ProficiencyTrack, PF2ProficiencyStep, PF2ClassFeature,
   PF2ClassSpellcasting, PF2Subclass,
 } from './classes';
+export type { PF2AncestryFull, PF2BackgroundFull } from './ancestries';
 
-/** Every catalogued feat, from whichever tranche holds it. Three of PF2's four tracks are now
- *  represented — general, skill, class — plus archetype. ANCESTRY feats remain entirely unauthored. */
-export const PF2_ALL_FEATS = [...PF2_FEATS_GENERAL_SKILL, ...PF2_FEATS_CLASS_ARCHETYPE];
+/** Every catalogued feat, from whichever tranche holds it. All four of PF2's feat tracks are now
+ *  represented — ancestry, class, general, skill — plus archetype. */
+export const PF2_ALL_FEATS = [
+  ...PF2_FEATS_GENERAL_SKILL, ...PF2_FEATS_CLASS_ARCHETYPE, ...PF2_FEATS_ANCESTRY,
+];
 
-/** Look a feat up across every tranche. General/skill is tried first, then class/archetype. */
+/** Look a feat up across every tranche. General/skill first, then class/archetype, then ancestry. */
 export function pf2AnyFeat(name: string) {
-  return pf2GeneralOrSkillFeat(name) ?? pf2ClassOrArchetypeFeat(name);
+  return pf2GeneralOrSkillFeat(name) ?? pf2ClassOrArchetypeFeat(name) ?? pf2AncestryFeat(name);
 }
 
 /** Every catalogued spell, slot-cast and focus alike. */
@@ -75,7 +88,7 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
   feats: {
     count: PF2_ALL_FEATS.length,
     complete: false,
-    note: `General and skill feats, plus class feats for ${PF2_CLASSES_WITH_FEATS.length} of the ${PF2_CLASSES.length} classes and ${PF2_ARCHETYPE_NAMES.length} archetypes. ANCESTRY feats are absent entirely. Class coverage is uneven — Oracle and Witch have no entries at all, Champion/Wizard/Alchemist are thin, and levels 14+ are sparse everywhere. Subclass and class-feature prerequisites are prose, not enforced. See PF2_FEATS_CLASS_GAPS.`,
+    note: `General and skill feats, class feats for ${PF2_CLASSES_WITH_FEATS.length} of the ${PF2_CLASSES.length} classes and ${PF2_ARCHETYPE_NAMES.length} archetypes, and ${PF2_FEATS_ANCESTRY.length} ancestry feats across ${PF2_ANCESTRIES_FULL.length} ancestries. Ancestry feats cover Player Core / Player Core 2 printings only. Class coverage is uneven — Oracle and Witch have no entries at all, Champion/Wizard/Alchemist are thin, and levels 14+ are sparse everywhere. Subclass, heritage and class-feature prerequisites are prose, not enforced. See PF2_FEATS_CLASS_GAPS and PF2_ANCESTRY_GAPS.`,
   },
   classes: {
     count: PF2_CLASSES.length,
@@ -83,9 +96,9 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
     note: `Level-1 definitions for ${PF2_CLASSES.length} classes in content.ts, plus full level 1–20 progressions for ${PF2_CLASS_PROGRESSIONS.length} of them in data/classes.ts (proficiency steps, class-feat schedule, features, subclass options). Still incomplete: class FEATS are not catalogued at all, spell-slot COUNTS are not modelled, and the Magus/Summoner reduced-caster slot tables are deliberately absent. See PF2_CLASS_PROGRESSION_GAPS.`,
   },
   ancestries: {
-    count: PF2_ANCESTRIES.length,
+    count: PF2_ANCESTRIES_FULL.length,
     complete: false,
-    note: 'Ancestries exist; heritages are not catalogued separately yet.',
+    note: `The ${PF2_ANCESTRIES_FULL.length} Player Core / Player Core 2 ancestries with full stat lines (HP, size, Speed, boosts, flaw, languages, traits, senses), ${PF2_HERITAGES.length} heritages including the four versatile ones, and ${PF2_BACKGROUNDS_FULL.length} backgrounds. Ancestries from the Lost Omens line and beyond are absent. See PF2_ANCESTRY_GAPS.`,
   },
   weapons: { count: PF2_WEAPONS_FULL.length, complete: false, note: 'Simple and martial weapons are covered; most advanced weapons are omitted (uncommon, and their stat lines were not confirmable).' },
   armors: { count: PF2_ARMORS_FULL.length + PF2_SHIELDS.length, complete: true, note: 'All armor categories and the four shields. Precious materials are a separate shape and are not modelled.' },
@@ -103,8 +116,8 @@ export const PF2_KNOWN_GAPS: string[] = [
   'Spells: partial at every rank — entries were omitted wherever the remaster rename or tradition list could not be confirmed, because a wrong tradition silently breaks the eligibility gate.',
   'Spells: Psychic, Summoner, Magus and Thaumaturge focus spells are absent; 46 focus spells carry source "Legacy" because their remastered form is unconfirmed. Wizard school focus spells are the LEGACY schools — the remaster reorganised them entirely.',
   'Spells: Monk qi spells and Witch hexes carry an empty `traditions` list ON PURPOSE — a hex follows its patron and qi spells have no tradition. The focus branch of the gate returns before reading traditions, so this is safe.',
-  'Feats: ANCESTRY feats are absent — that fourth track is entirely uncatalogued.',
   ...PF2_FEATS_CLASS_GAPS,
+  ...PF2_ANCESTRY_GAPS,
   'Feats: disjunctive prerequisites ("trained in Arcana OR Nature OR …") are held as prose, because the gate ANDs structured prereqs and would otherwise refuse legal picks.',
   'Actions: Repair and Coerce are the least certain entries; several degree outcomes are qualitative.',
   ...PF2_CLASS_PROGRESSION_GAPS.map((g) => `Classes: ${g}`),

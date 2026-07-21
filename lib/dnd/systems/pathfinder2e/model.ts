@@ -128,6 +128,12 @@ export interface PF2KnownSpell {
   prepared?: boolean;
   /** A focus spell, cast from Focus Points rather than a slot. */
   focus?: boolean;
+  /** Hand-tuned away from how it came (S15) → drives the ✎ marker, matching the 2024 sheet.
+   *  A DIFFERENT axis from `offRules`: this says "edited", that says "not legally available". An
+   *  element can carry both. */
+  customized?: boolean;
+  /** Overridden rules text, once the player has retuned it. Absent means "use the catalog entry". */
+  effect?: string;
   /** Why this is outside what the character's class, level and tradition grant (Area MV). Set only
    *  on custom characters and DM grants — a vanilla one is refused outright. See Spell.offRules on
    *  the 5e side for why this is not `provenance`. */
@@ -146,6 +152,8 @@ export interface PF2Feat {
   /** Why this feat is outside what the character's level, class and prerequisites allow (Area MV).
    *  Set only on custom characters and DM grants. */
   offRules?: string;
+  /** Hand-tuned away from how it came (S15) → drives the ✎ marker. Separate axis from offRules. */
+  customized?: boolean;
 }
 
 // ── The full character sidecar (character.data.pf2e) ────────────────────────────────────────────────

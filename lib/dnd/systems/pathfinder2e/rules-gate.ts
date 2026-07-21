@@ -55,6 +55,10 @@ export function gatePf2Edit(
   ctx: PF2GateContext,
   catalog?: { feats?: PF2FeatFull[]; spells?: PF2SpellFull[] },
 ): PF2GateResult {
+  // Only ACQUISITION is gated. `update_spell`/`update_feat` retune something the character already
+  // legitimately holds, which is a customisation rather than a fresh acquisition — re-gating it
+  // would mean a level-4 wizard who was legitimately granted a rank-5 spell could never edit its
+  // text afterwards, and would see the grant refused back at them (S15).
   if (edit.op !== 'add_feat' && edit.op !== 'add_spell') return { edit };
 
   const eligCtx = pf2ContextFor(pf2);

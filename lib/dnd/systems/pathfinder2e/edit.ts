@@ -31,7 +31,13 @@ export type PF2Edit =
   | { op: 'add_feat'; name: string; level?: number; track?: PF2Feat['track']; traits?: string[]; body?: string; offRules?: string }
   | { op: 'remove_feat'; name: string }
   | { op: 'add_spell'; name: string; rank: number; prepared?: boolean; focus?: boolean; offRules?: string }
-  | { op: 'remove_spell'; name: string };
+  | { op: 'remove_spell'; name: string }
+  // ── Editing what the character already holds (S15) ────────────────────────────────────────────
+  // Retuning an element the character legitimately holds is a CUSTOMISATION, not a fresh
+  // acquisition, so these are never re-gated against the catalog — see gatePf2Edit. `customized`
+  // is stamped by the apply step rather than the caller, so it cannot be faked off.
+  | { op: 'update_spell'; name: string; to?: string; rank?: number; prepared?: boolean; effect?: string }
+  | { op: 'update_feat'; name: string; to?: string; level?: number; track?: PF2Feat['track']; body?: string };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -42,7 +48,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -165,6 +171,43 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       if (kept.length) next.spells = kept; else delete next.spells;
       return { ...pf2, spellcasting: next };
     }
+    case 'update_spell': {
+      const name = edit.name.trim().toLowerCase();
+      const list = pf2.spellcasting.spells ?? [];
+      const idx = list.findIndex((s) => s.name.toLowerCase() === name);
+      if (idx === -1) return pf2; // nothing to update — never silently CREATE from an update
+      const cur = list[idx];
+      const next: PF2KnownSpell = {
+        ...cur,
+        ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
+        ...(Number.isFinite(edit.rank as number) ? { rank: Math.max(0, Math.min(10, Math.round(edit.rank as number))) } : {}),
+        ...(edit.prepared != null ? { prepared: edit.prepared } : {}),
+        ...(edit.effect != null ? { effect: edit.effect } : {}),
+        // Stamped here, not accepted from the caller — a hand-tuned element must not be able to
+        // present itself as pristine.
+        customized: true,
+      };
+      const spells = [...list];
+      spells[idx] = next;
+      return { ...pf2, spellcasting: { ...pf2.spellcasting, spells } };
+    }
+    case 'update_feat': {
+      const name = edit.name.trim().toLowerCase();
+      const idx = (pf2.feats ?? []).findIndex((f) => f.name.toLowerCase() === name);
+      if (idx === -1) return pf2;
+      const cur = pf2.feats[idx];
+      const next: PF2Feat = {
+        ...cur,
+        ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
+        ...(Number.isFinite(edit.level as number) ? { level: Math.max(1, Math.min(20, Math.round(edit.level as number))) } : {}),
+        ...(edit.track ? { track: edit.track } : {}),
+        ...(edit.body != null ? { body: edit.body } : {}),
+        customized: true,
+      };
+      const feats = [...pf2.feats];
+      feats[idx] = next;
+      return { ...pf2, feats };
+    }
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -232,6 +275,36 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
       },
     };
   }
+  if (op === 'update_spell' || op === 'update_feat') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: `The "${op}" edit needs the CURRENT "name" of the element to change.` };
+    const to = typeof o.to === 'string' ? o.to.trim() : undefined;
+    if (op === 'update_spell') {
+      const rank = Number(o.rank);
+      return {
+        edit: {
+          op, name,
+          ...(to ? { to } : {}),
+          ...(Number.isFinite(rank) ? { rank: Math.max(0, Math.min(10, Math.round(rank))) } : {}),
+          ...(typeof o.prepared === 'boolean' ? { prepared: o.prepared } : {}),
+          ...(typeof o.effect === 'string' ? { effect: o.effect } : {}),
+        },
+      };
+    }
+    const TRACKS = ['ancestry', 'class', 'skill', 'general', 'archetype', 'feature'] as const;
+    const rawTrack = String(o.track ?? '').trim().toLowerCase();
+    const track = (TRACKS as readonly string[]).includes(rawTrack) ? (rawTrack as PF2Feat['track']) : undefined;
+    const lvl = Number(o.level);
+    return {
+      edit: {
+        op, name,
+        ...(to ? { to } : {}),
+        ...(Number.isFinite(lvl) ? { level: Math.max(1, Math.min(20, Math.round(lvl))) } : {}),
+        ...(track ? { track } : {}),
+        ...(typeof o.body === 'string' ? { body: o.body } : {}),
+      },
+    };
+  }
   if (op === 'remove_feat' || op === 'remove_spell') {
     const name = typeof o.name === 'string' ? o.name.trim() : '';
     if (!name) return { error: `The "${op}" edit needs a "name".` };
@@ -257,6 +330,8 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'remove_feat': return `Lost the ${edit.name} feat.`;
     case 'add_spell': return `Learned ${edit.name}${edit.rank === 0 ? ' (cantrip)' : ` (rank ${edit.rank})`}${edit.offRules ? ` — off-rules: ${edit.offRules}` : ''}.`;
     case 'remove_spell': return `Lost ${edit.name}.`;
+    case 'update_spell': return `Customised ${edit.name}${edit.to ? ` → ${edit.to}` : ''}.`;
+    case 'update_feat': return `Customised the ${edit.name} feat${edit.to ? ` → ${edit.to}` : ''}.`;
     default: return 'No change.';
   }
 }
