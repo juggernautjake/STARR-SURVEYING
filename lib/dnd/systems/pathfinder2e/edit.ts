@@ -194,11 +194,19 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
         ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
         ...(Number.isFinite(edit.rank as number) ? { rank: Math.max(0, Math.min(10, Math.round(edit.rank as number))) } : {}),
         ...(edit.prepared != null ? { prepared: edit.prepared } : {}),
-        ...(edit.effect != null ? { effect: edit.effect } : {}),
         // Stamped here, not accepted from the caller — a hand-tuned element must not be able to
         // present itself as pristine.
         customized: true,
       };
+      // `effect` is an OVERRIDE — absent means "use the catalog entry". So an emptied box must
+      // DELETE the key rather than store "", or the spell renders as having no rules text at all
+      // instead of falling back to the catalogue. Storing the blank is the obvious implementation
+      // and it silently destroys the spell's rules; IG-S1 settled this exact question and the same
+      // answer applies here. Clearing it is also the ONLY way to undo a customisation.
+      if (edit.effect != null) {
+        if (edit.effect.trim()) next.effect = edit.effect;
+        else delete next.effect;
+      }
       const spells = [...list];
       spells[idx] = next;
       return { ...pf2, spellcasting: { ...pf2.spellcasting, spells } };
@@ -213,6 +221,12 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
         ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
         ...(Number.isFinite(edit.level as number) ? { level: Math.max(1, Math.min(20, Math.round(edit.level as number))) } : {}),
         ...(edit.track ? { track: edit.track } : {}),
+        // NOT symmetric with `update_spell`'s effect, deliberately. `PF2KnownSpell.effect` is an
+        // OVERRIDE — absent falls back to the catalog — so emptying it must clear it. `PF2Feat.body`
+        // is the feat's stored TEXT, copied from the catalog by `add_feat` and with nothing behind
+        // it, so there is no catalogue text to fall back TO. Emptying it therefore stores the empty
+        // text the player asked for. Making this "clear" would restore nothing and just make the
+        // field impossible to blank. The asymmetry is in the shapes, not in the handling.
         ...(edit.body != null ? { body: edit.body } : {}),
         customized: true,
       };

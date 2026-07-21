@@ -66,14 +66,32 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
 
   // An incremental in-place edit (R4) — POST one structured op to the write-gated pf2-edit route, then refresh
   // the server component so the new numbers render. Only wired when the viewer can edit + we have a character id.
+  /** The gate's refusal, surfaced to the player (S15).
+   *
+   *  Every failure here used to be swallowed: `postEdit` awaited the fetch and ignored its
+   *  response entirely, so a 400 and a 200 were indistinguishable. `gatePf2Edit` composes a
+   *  genuinely useful sentence — it names the reason AND both ways forward ("build a custom one,
+   *  or have the DM grant it") — and it was being thrown away. An unchanged sheet is
+   *  indistinguishable from a slow one, so a refused edit read as the app ignoring you. Exactly
+   *  the bug IG-S2 closed on its own sheet; same fix, deliberately. */
+  const [refusal, setRefusal] = useState<string | null>(null);
+
   const postEdit = async (edit: Record<string, unknown>) => {
     if (!characterId || saving) return;
     setSaving(true);
+    setRefusal(null);
     try {
-      await fetch(`/api/dnd/characters/${characterId}/pf2-edit`, {
+      const res = await fetch(`/api/dnd/characters/${characterId}/pf2-edit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit),
       });
-      router.refresh();
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        setRefusal(body?.error || 'That edit was refused.');
+      }
+    } catch {
+      setRefusal('Could not reach the server. Try again.');
     } finally {
       setSaving(false);
     }
@@ -143,6 +161,17 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 4, padding: '0 5px' }}>PATHFINDER 2e</span>
       </div>
       {idBits.length > 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-text)', marginTop: -8 }}>{idBits.join(' · ')}</div>}
+
+      {/* A refused edit says so, and says what to do about it. Dismissible rather than
+          auto-clearing: the sentence names two courses of action and the player needs time to read
+          it, not a toast that vanishes while they are still deciding. */}
+      {refusal && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, border: '1px solid var(--hx-danger, #b4453c)', background: 'rgba(180,69,60,0.12)', borderRadius: 8, padding: '8px 12px' }}>
+          <span style={{ fontSize: 13 }}>⚠</span>
+          <span style={{ flex: 1, fontSize: 12.5, color: 'var(--hx-text)' }}>{refusal}</span>
+          <button className="btn tiny" onClick={() => setRefusal(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       {/* Attributes */}
       <div>
