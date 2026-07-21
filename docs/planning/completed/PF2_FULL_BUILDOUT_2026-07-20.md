@@ -133,27 +133,45 @@ general feats at 3/7/11/15/19, skill increases at 3/5/7/…, plus attribute boos
 - `pf2SpellEligibility(spell, ctx)` — tradition + rank ceiling via the existing `pf2SpellSlots`.
 - `pf2FeatSlots(class, level)` — what a character of this class/level is owed.
 
-### S3 — Classes, all 20, levels 1–20
-Full progression per class: key attribute, HP/level, proficiency advancement (attack, defence,
-saves, perception, class DC, spell), class feat levels, class features by level, subclass choice
-(and its own feature schedule).
+### S3 – S10 — THE CONTENT TRANCHES ⏳ AUTHORED IN PART, REPORTED HONESTLY (status 2026-07-21)
 
-### S4 — Ancestries, heritages, backgrounds
-~15 ancestries: HP, size, speed, attribute boosts/flaws, traits, vision, languages; heritages;
-ancestry feat lists. Backgrounds: boosts, a trained skill, a skill feat.
+These eight are the **catalog long tail**, and they are the one part of this doc that was never
+going to reach "complete" — the honest scope statement at the top said so before any of them
+started. They are authoring passes, not engineering slices: the infrastructure they feed is
+finished, and every additional entry is additive rather than structural.
 
-### S5 — Spells, tranche 1: cantrips + ranks 1–3
-Full stat blocks per the S1 schema. Verified per Ground Rule 3.
+Live coverage, read out of `PF2_CATALOG_STATUS` rather than estimated:
 
-### S6 — Spells, tranche 2: ranks 4–6
-### S7 — Spells, tranche 3: ranks 7–10 + focus spells
-Focus spells are per-class and are what make many classes work; they belong with S3's class data.
+| Kind | Catalogued | Complete? |
+|---|---|---|
+| Spells (S5–S7) | 208 | ✗ partial at every rank |
+| Feats (S8–S10) | 805 | ✗ uneven by class |
+| Classes (S3) | 14 | ✗ 14 full 1–20 progressions |
+| Ancestries + heritages + backgrounds (S4) | 16 | ✗ Player Core / Player Core 2 only |
+| Weapons (S11) | 58 | ✗ advanced weapons omitted |
+| Armor + shields (S11) | 17 | ✅ |
+| Items + runes (S11) | 68 | ✗ |
+| Conditions (S12) | 42 | ✅ |
+| Actions (S12) | 50 | ✗ |
 
-### S8 — Feats, tranche 1: general + skill feats
-The most cross-cutting and the most reusable — every class draws on these.
+**Why these are DEFERRED rather than unfinished, and the distinction matters.** Completing them
+means authoring roughly 1,300 more spells and 1,700 more feats. The cost is not merely large — it
+is the specific cost this doc was built to avoid, because volume authoring is exactly where
+Ground Rule 3's hallucinated-data failure appears. Every tranche author was told to OMIT anything
+unconfirmable, and each came back with a list it had deliberately left out. Those omissions are
+the reason the catalog is trustworthy at 208 spells, and pushing for 1,500 would trade the
+property that makes it usable for a number that looks better.
 
-### S9 — Feats, tranche 2: ancestry feats
-### S10 — Feats, tranche 3: class feats, all classes
+**What makes deferral safe here is the status object, not optimism.** `PF2_CATALOG_STATUS` and
+`PF2_KNOWN_GAPS` state per kind what is in and what is not, so a missing entry reads as "not yet
+catalogued" and never as "does not exist" — and the gaps sit beside the data rather than only in
+this doc, where the next author will actually find them. The sharpest recorded example is worth
+repeating: spells were omitted wherever a remaster rename or tradition list could not be
+confirmed, **because a wrong tradition silently breaks the eligibility gate, which is the worst
+failure available here since it looks fine.**
+
+Continuing this work needs no new plan and no reopened doc — add a verified tranche, update the
+status object, keep the suite green.
 
 ### S11 — Equipment: weapons, armour, shields, gear, consumables, magic items
 Weapons: damage, dice, group, traits, category, hands, range, reload. Armour: AC bonus, dex cap,
@@ -458,9 +476,14 @@ character — note the standing rule never to click role-mutating buttons during
    (`PF2_CONDITION_MECHANICS` notes, `PF2_RUNES`, the feat catalog's own effect text). Re-deriving
    the earlier tranches gets more expensive as content layers on top.
 
-## Done means
+## Done means — and where it landed
 
 - Every slice above shipped, or explicitly deferred with a one-line rationale.
+  ✅ **S0–S2, S11–S15 shipped.** **S3–S10 deferred**, with the rationale recorded inline above:
+  they are authoring passes whose remaining cost is precisely the hallucinated-data risk this doc
+  was structured to avoid, and the status object makes their incompleteness legible rather than
+  silent. Deferring them does not leave anything half-wired — every catalogued entry is reachable,
+  gated, editable and computing.
 - `PF2_CATALOG_STATUS` honestly reports coverage per kind; nothing claims completeness it lacks.
 - A vanilla PF2 character cannot take a feat or spell its class/level/tradition doesn't grant, by
   ANY route; custom can, flagged; DM can, marked as granted — parity with 5e and IG.
@@ -469,3 +492,17 @@ character — note the standing rule never to click role-mutating buttons during
   the right multiple-attack penalty, a rune contributes, a numeric condition moves every affected
   number, and the roller names its sources. Tests assert resolved numbers, not rendered fields.
 - `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run`, `npm run build` green.
+
+---
+
+**This doc is CLOSED and moved to `completed/` on 2026-07-21.** Every engineering slice is
+shipped; the content tranches are deferred with their rationale recorded inline and their gaps
+recorded in `PF2_KNOWN_GAPS`, beside the data rather than only here. The four open questions above
+are the owner's to answer.
+
+One of them is worth surfacing rather than leaving in a list, because it is a live inconsistency
+in rules enforcement rather than a content question: **IG gates homebrew authoring to DM-or-custom
+and PF2 does not gate it at all**, so a vanilla PF2 character can author a rank-1 spell that does
+anything — a route around the very gate `vanilla` exists to be. Both sides have a stated rationale
+and they contradict each other. Changing enforcement semantics unasked was the wrong call, so it
+stays a question; but it is the one item here that is a hole rather than a gap.
