@@ -264,7 +264,66 @@ has glossary text a tooltip can show. That last one is CX-12 and is the owner's 
 
 ## Slices
 
-### CX-1 — Layout seam
+### CX-1 … CX-9 — THE CODEX LAYOUT ✅ SHIPPED 2026-07-21
+
+Built as one coherent layout rather than nine separate ships, because the slices below are not
+independently useful — a pane stack with no resizing is not a thing anyone would use. What
+follows is what was actually decided, including the parts that changed during the build.
+
+**Files:** `_sheet/codex/` (`descriptor.ts`, `paneMath.ts`, `usePaneStack.ts`, `PaneStack.tsx`,
+`IdentityColumn.tsx`, `CodexLayout.tsx`), `_sheet/components/LayoutSwitch.tsx`,
+`_sheet/styles/codex.css`, `char.sheetLayout` on the type, the branch in `App.tsx`, and
+`__tests__/dnd/codex-layout.test.ts` (31 tests).
+
+**The branch sits INSIDE the themed root, and that placement is the whole skin story.** The skin
+class (`skin-<id>`), the streamer's `variant-<id>` and the theme CSS variables all live on the
+`.dnd-sheet` wrapper. Rendering the Codex inside it means every skin and every colour theme
+applies with no Codex-specific rule — and `codex.css` contains none. A test fails if a
+`.skin-x .codex-…` selector ever appears, because that would mean a skin had started fighting
+the layout instead of theming it. This was verified in a browser: the QA character's skin
+restyles the Codex without a line of work.
+
+**The identity column renders from a per-system descriptor, and the interesting decision is what
+it does NOT model.** PF2 and IG get 5e's Inspiration, death saves, hit dice and Passive
+Perception *suppressed*, not translated. The tempting alternative — render Hero Points and
+stances here — is wrong: this engine's `Character` has nowhere to store them, so the control
+would write to nothing, or to a field their own bespoke sheets do not read. A player would
+toggle a Hero Point and find it absent on the PF2 sheet a scroll away. Instead the column
+carries a pointer line naming where those numbers live, so an absent block reads as "it is over
+there" rather than "this sheet forgot". Their absence is asserted by test *and* argued in the
+file header, because the obvious instinct on reading the descriptor is to "fix" the gap.
+
+**Reflow is by container query, never media query.** A pane's height is set by dragging, so a
+media query — which describes the window — would reflow every pane identically regardless of how
+tall each actually is. `container-type: size` asks the only question that matters. Four density
+tiers, mirrored in `densityFor()` for content CSS cannot reach, with the JS and CSS breakpoints
+pinned to each other by test since they are two encodings of one decision.
+
+**The opening arithmetic shrinks by equal FRACTION of slack, not equal pixels.** Equal pixels
+drive a small pane to its minimum while a large one barely moves, which reads as the layout
+picking a victim. When everything is already at minimum the stack SCROLLS rather than shrinking
+further — the owner's asked-for second scrollbar, and strictly better than a column of
+unreadable slivers.
+
+**Pane sizes persist to localStorage and explicitly NOT to the sheet.** Which panes are open is a
+per-viewer view preference: a DM peeking at a player's sheet must not rearrange it for them, must
+not fire their autosave, and must not land in their edit history. A test asserts `usePaneStack`
+never calls `setChar`.
+
+Smaller calls, each for a reason: the resize handle is a `role="separator"` with arrow/Home/End/
+Enter keys, because drag alone is mouse-only and this is a primary surface; collapsing preserves
+the stored height so expanding restores the player's size; closing a pane leaves its neighbours
+alone rather than growing them into the gap; and panes stack in canonical order, not click order,
+so Spells is always in the same place.
+
+**One bug the tests could not have caught, found by driving it in a browser.** With a single pane
+open — the DEFAULT state — no resize handle rendered, because of a rule excluding it from a lone
+last pane. The arithmetic was correct and fully tested; what was wrong was a rendering condition
+in the exact state every user starts from and no fixture sits in. Fixed in `01d2e653`. This is
+the second time this session that browser verification caught something unit tests structurally
+could not, and it is the argument for CX-14 not being optional.
+
+### CX-1 — Layout seam (original plan, superseded by the entry above)
 `char.sheetLayout` (`'classic' | 'codex'`, default `'classic'`), a `LayoutSwitch` beside `SkinSwitch`,
 and `App.tsx` branching to `<CodexLayout>`. Ships doing nothing visible except offering an empty
 Codex. Proves the seam without touching the classic path.
@@ -464,6 +523,32 @@ survive in prose again.
 
 **B3 still NOT fixed, deliberately.** It changes IG combat maths and touches existing tests, so it
 needs the owner's sign-off rather than my judgement — it is a rules change, not a bug fix.
+
+### CX-15b — the search clickthrough was still broken, and the CX-15 test did not catch it ⚠ FOUND 2026-07-21
+
+Driving the library in a browser — the same discipline that caught the Codex handle bug — showed
+CX-15's headline claim was **not true in practice**. Searching "grappl" on the 2014 library page
+returns 5 correct results, each a link, as CX-15 says. Clicking the Grappled result navigates to
+`#entry-grappled`, and **nothing on the page carries that id**. The reader clicks a result and
+lands nowhere. Same for `skill` (Athletics) and `feat` (Grappler).
+
+**Root cause:** `page.tsx` stamps `entryAnchorId` only on `s.entries` — the per-entry `<details>`
+collapsibles. Sections rendering their content as `s.chips` (Conditions are bare `<span>` chips),
+`s.body` or `s.table` stamp no per-entry id at all. Weapons and armor use `entries` and deep-link
+correctly, which is exactly why this looked fine when spot-checked. Separately, the glossary DOES
+carry per-term anchors, but under a `term-` prefix rather than `entry-`, so for many terms the
+text is on the page under a different id than the link points at.
+
+**The lesson is about the test, not the code.** CX-15's test asserted that every kind maps to a
+section a real page renders — and it passed throughout, because it checked the SECTION and never
+that an ENTRY id was actually stamped. It verified the half of the contract that was working.
+CX-15's own doc entry states the risk correctly ("if those two ever disagree the link fails
+*silently*") and then tested the wrong half of it. A `toContain` source check cannot see a
+rendering path that was never taken.
+
+Fix and a test that pins the real invariant are in progress; the fallback that matters most is
+`DeepLinkOpener` degrading to the kind's section when an entry id resolves to nothing, so that no
+future gap of this shape can ever be silent again.
 
 ### CX-13 — IG give-to-character
 Confirm and close the one library→sheet path not verified above.
