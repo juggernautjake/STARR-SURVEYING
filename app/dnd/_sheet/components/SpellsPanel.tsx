@@ -11,6 +11,7 @@ import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
+import OffRulesMark from './ui/OffRulesMark'
 import SpellEditor from './ui/SpellEditor'
 import SpellPicker from './ui/SpellPicker'
 import SpellDetail from './ui/SpellDetail'
@@ -140,6 +141,7 @@ export default function SpellsPanel() {
                         {s.name}
                       </button>
                       <EditMark on={s.customized} />
+                      <OffRulesMark reason={s.offRules} />
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}
                       {canWrite && (
                         <ElementMenu

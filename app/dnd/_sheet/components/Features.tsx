@@ -5,6 +5,7 @@ import { RichRules } from './RuleTip'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import EditMark from './ui/EditMark'
+import OffRulesMark from './ui/OffRulesMark'
 import FeatureEditor from './ui/FeatureEditor'
 import FeatPicker from './ui/FeatPicker'
 import type { FeatureBlock } from '../types'
@@ -85,6 +86,7 @@ export default function Features() {
               )}
               {f.name}
               <EditMark on={f.customized} />
+              <OffRulesMark reason={f.offRules} />
               {canWrite && (
                 <ElementMenu
                   label={f.name}

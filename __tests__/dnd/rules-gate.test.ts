@@ -57,7 +57,7 @@ describe('the AI cannot hand a vanilla character what its class and level do not
 
   it('leaves non-spell edits completely alone', () => {
     const others: SheetEdit[] = [
-      { op: 'set_name', name: 'Bob' } as SheetEdit,
+      { op: 'set_name', value: 'Bob' } as SheetEdit,
       { op: 'add_condition', name: 'Poisoned' } as SheetEdit,
     ];
     expect(gateEdits(others, wizard4).edits).toHaveLength(2);

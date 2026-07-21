@@ -138,11 +138,21 @@ no feat key, so the gate can't reliably resolve one back to a catalog feat. Name
 refuse legitimate homebrew features. The feat PICKER (S4) is gated; the AI/grant feature path is
 not. Closing it properly needs an `add_feat` op — **tracked as S7 below.**
 
-### S6 — Mark off-rules content on the sheet
-An off-rules spell/feat should be visibly flagged wherever it renders, so a DM reading a sheet
-can see what was taken outside the rules. Render the `offRules` reason carried on the element
-(S3) — **not** `provenance.ts`, which answers a different question (see S3's note: it classifies
-whether content exists in the system, not whether it was legal for this character).
+### S6 — Mark off-rules content on the sheet ✅ SHIPPED 2026-07-20
+`OffRulesMark` (⚑) renders beside `EditMark` on the spells panel and the features list, carrying
+the reason in its tooltip. 10 tests, including that `offRules` survives `applySheetEdits` — a
+marker set by the gate and then dropped on the way to storage would be worse than no marker,
+since every consumer would read the content as legal.
+
+- **Its own glyph, on purpose.** ✎ = hand-edited away from how it came; ★ = something is
+  modifying this right now; ⚑ = legitimately held, but not by the ordinary rules. Different
+  questions; an element can carry all three.
+- **DM gifts read differently from rules-breaks** — teal "legitimately yours" vs amber "outside
+  the rules". Collapsing them would tell a player they had cheated when the DM handed it over.
+- **Invisible on an ordinary sheet.** A flag that shows up everywhere becomes noise everyone
+  learns to ignore, which is the same as not having it.
+- Used `provenance.ts`? No — see S3's note. It asks whether content exists in the system (Wish
+  does); this asks whether it was legal for this character.
 
 ### S7 — Close the feat door properly (found during S5)
 `add_feature` carries no feat key, so the gate cannot tell "the Grappler feat" from a homebrew
