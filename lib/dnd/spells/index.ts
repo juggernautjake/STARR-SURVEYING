@@ -6,14 +6,21 @@
 // place from the beginning so adding PF2's or 2014's list later is a registration, not a
 // refactor of every call site.
 //
-// 2014 deliberately returns an EMPTY catalog rather than reusing the 2024 one. Many spells
-// changed materially between editions (True Strike, Sleep, Cure Wounds, Chill Touch…), so
-// serving 2024 data to a 2014 sheet would be quietly wrong — exactly the class of bug the
-// per-system scoping exists to prevent. Empty is honest; wrong is not.
+// 2014 has its OWN catalog and never reuses 2024's. Many spells changed materially between
+// editions (True Strike, Sleep, Cure Wounds, Chill Touch…), so serving 2024 data to a 2014 sheet
+// would be quietly wrong — exactly the class of bug this per-system scoping exists to prevent.
+//
+// Until 2026-07-21 this case returned EMPTY, and the comment here explained that empty was the
+// honest answer while no 2014 catalog existed. That was true when written and stopped being true
+// once `dnd5e-2014.ts` was authored — the file had 200 verified records and simply exported none
+// of them, so the fallthrough kept serving nothing. Registering it here is what turns a written
+// catalog into a reachable one.
 import { SPELLS_2024, SPELL_CATALOG_STATUS, type SpellDef, type SpellCatalogLevel, type SpellClass } from './dnd5e-2024';
+import { SPELLS_2014, SPELLS_2014_STATUS } from './dnd5e-2014';
 
 export type { SpellDef, SpellCatalogLevel, SpellClass, SpellSchool } from './dnd5e-2024';
 export { SPELL_SCHOOLS, SPELLS_2024, SPELL_CATALOG_STATUS } from './dnd5e-2024';
+export { SPELLS_2014, SPELLS_2014_STATUS } from './dnd5e-2014';
 
 export interface SpellCatalog {
   spells: SpellDef[];
@@ -34,6 +41,8 @@ export function spellCatalog(system: string | null | undefined): SpellCatalog {
   switch (system) {
     case 'dnd5e-2024':
       return { spells: SPELLS_2024, complete: SPELL_CATALOG_STATUS.complete, note: SPELL_CATALOG_STATUS.note };
+    case 'dnd5e-2014':
+      return { spells: SPELLS_2014, complete: SPELLS_2014_STATUS.complete, note: SPELLS_2014_STATUS.note };
     default:
       return EMPTY;
   }

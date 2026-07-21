@@ -28,11 +28,21 @@ describe('spells reach the AI prompt', () => {
     expect(g.block).toContain('2024 vs 2014');
   });
 
-  it('does NOT hand 2024 spell data to a 2014 sheet', async () => {
-    // Several of these changed materially between editions; leaking 2024 numbers into a 2014
-    // answer is quiet wrongness, which is worse than no answer.
+  it('grounds a 2014 sheet on 2014 spell data, never 2024', async () => {
+    // This assertion used to be that a 2014 query retrieved NOTHING, which was the honest
+    // answer while no 2014 catalog existed. It is now the wrong test: 2014 has its own catalog,
+    // so "nothing" would be a regression rather than a safeguard.
+    //
+    // The invariant that actually matters was never emptiness — it was that the AI is told
+    // TRUE STRIKE'S 2014 FORM. So that is what is asserted, positively.
     const g = await systemGroundingBlock('dnd5e-2014', 'how does true strike work');
-    expect(g.block).not.toContain('RELEVANT D&D 5e (2014) SPELLS');
+    expect(g.block).toContain('True Strike');
+    // 2014: a Divination cantrip at 30 feet granting advantage on one attack next turn.
+    expect(g.block).toContain('Divination');
+    expect(g.block).toContain('30 feet');
+    // 2024 rebuilt it as a Self-range weapon attack dealing radiant damage. If either of those
+    // reaches a 2014 sheet, an edition has leaked.
+    expect(g.block).not.toContain('range Self');
   });
 
   it('stays quiet when the query names no spell', async () => {

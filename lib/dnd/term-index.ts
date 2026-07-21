@@ -18,7 +18,7 @@
 
 import { CONDITION_MECHANICS_5E } from './conditions/dnd5e';
 import { spellsForSystem } from './spells';
-import { SPELL_MECHANICS } from './spells/mechanics';
+import { spellMechanicsFor } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
 import { glossaryFor } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
@@ -120,12 +120,16 @@ export function termIndexFor(system: string): LibraryTerm[] {
     });
   }
 
+  // Spellcasting-machinery explainers, per edition. These moved OUT of the 2024-only block below:
+  // both 5e editions now have their own set, and `spellMechanicsFor` picks the right one (and
+  // returns [] for anything that is not 5e, so non-5e systems are unaffected).
+  for (const m of spellMechanicsFor(system)) {
+    out.push({ term: m.title, kind: 'mechanic', short: abbreviate(m.rule), href: `${lib}#spells` });
+  }
+
   if (system === 'dnd5e-2024') {
     for (const f of FEATS_2024) {
       out.push({ term: f.name, kind: 'feat', short: abbreviate(f.benefit), href: `${lib}#feats` });
-    }
-    for (const m of SPELL_MECHANICS) {
-      out.push({ term: m.title, kind: 'mechanic', short: abbreviate(m.rule), href: `${lib}#spells` });
     }
     for (const c of COMPANION_RULE_SETS) {
       out.push({ term: c.name, kind: 'companion', short: abbreviate(c.rules[0] ?? c.grantedBy), href: `${lib}#classes` });

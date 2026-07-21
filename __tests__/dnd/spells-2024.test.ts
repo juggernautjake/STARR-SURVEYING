@@ -136,8 +136,24 @@ describe('the system dispatcher (Ground Rule 1)', () => {
   it('does NOT serve 2024 spells to a 2014 sheet', () => {
     // Several of these changed materially between editions; handing 2024 data to a 2014
     // character would be quietly wrong, which is worse than having nothing.
-    expect(spellsForSystem('dnd5e-2014')).toEqual([]);
-    expect(findSpellForSystem('dnd5e-2014', 'True Strike')).toBeUndefined();
+    //
+    // This used to assert the 2014 catalog was EMPTY, which was the honest answer while none
+    // existed. Now that 2014 has its own catalog, "empty" would be the wrong assertion — the
+    // claim worth pinning was never emptiness, it was SEPARATION. So it is stated directly:
+    // a 2014 lookup returns 2014's record, never 2024's.
+    const ts2014 = findSpellForSystem('dnd5e-2014', 'True Strike');
+    const ts2024 = findSpellForSystem('dnd5e-2024', 'True Strike');
+    expect(ts2014, 'the 2014 catalog should hold its own True Strike').toBeDefined();
+    expect(ts2014).not.toBe(ts2024);
+    // 2014's is a 30-foot Divination cantrip; 2024's is a Self-range weapon attack.
+    expect(ts2014?.range).toBe('30 feet');
+    expect(ts2024?.range).toBe('Self');
+
+    // No 2014 record is one of 2024's objects, by identity — the strongest form of the claim.
+    const twentyFour = new Set(spellsForSystem('dnd5e-2024'));
+    for (const s of spellsForSystem('dnd5e-2014')) {
+      expect(twentyFour.has(s), `${s.key} is the SAME object in both catalogs`).toBe(false);
+    }
   });
 
   it('gives other systems an empty catalog rather than another system’s content', () => {

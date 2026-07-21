@@ -29,11 +29,13 @@ const EXEMPT: Record<string, string> = {
   // correctly rejected the exemption. Left as a note because it is a good example of the list
   // working: an exemption that stops being true has to go.)
 
-  'lib/dnd/spells/dnd5e-2014.ts':
-    'IN FLIGHT (2026-07-21): the 2014 spell catalog is being authored and currently has no exports, ' +
-    'so there is nothing for spellCatalog() to dispatch to yet. This exemption is SELF-CLEANING — ' +
-    'the staleness check below fails the moment the file is imported, forcing it to be removed. ' +
-    'If this entry is still here and the file has exports, the dispatcher wiring was forgotten.',
+  // (lib/dnd/spells/dnd5e-2014.ts was listed here until 2026-07-21. The exemption said it was
+  // in flight with no exports, and warned that if the entry outlived the exports, the dispatcher
+  // wiring had been forgotten — which is exactly what had happened: 200 authored records that
+  // nothing could import. The catalog now exports SPELLS_2014 and spellCatalog() dispatches to it,
+  // so the staleness check below correctly rejected the exemption and it is gone. Left as a note
+  // because this guard did its job: a self-cleaning exemption caught a slice that stalled between
+  // "written" and "reachable".)
 
   // ── The three below are REAL GAPS, recorded rather than hidden. ────────────────────────────────
   'lib/dnd/homebrew/adopt.ts':

@@ -6,7 +6,7 @@ import type { SystemEntryInput } from './system-store';
 import { rulesForSystem } from './system-rules';
 import type { CharacterSystem } from './systems';
 import { spellCatalog } from './spells';
-import { SPELL_MECHANICS } from './spells/mechanics';
+import { spellMechanicsFor } from './spells/mechanics';
 import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
 import { tagsForSpell } from './library-tags';
 import { RULES_2024 } from './mechanics/dnd5e-2024';
@@ -90,15 +90,21 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
 
   // How spellcasting WORKS — each explainer with its worked example, so "what breaks
   // concentration" retrieves the rule AND a concrete illustration.
+  //
+  // Served for BOTH 5e editions now, each from its own explainer set: `spellMechanicsFor` returns
+  // 2014's rules for a 2014 system and 2024's for a 2024 one, and [] for anything else, so this
+  // loop no longer needs the 2024 guard it used to sit behind. `src` is already the system's own
+  // source string (r.source), so a 2014 entry is attributed to the 2014 book, not to the 2024 PHB.
+  for (const m of spellMechanicsFor(system)) {
+    entries.push({
+      kind: 'rule',
+      name: m.title,
+      body: `${m.rule} Example: ${m.example}${m.gotchas?.length ? ` Watch out: ${m.gotchas.join(' ')}` : ''}`,
+      source: src,
+    });
+  }
+
   if (system === 'dnd5e-2024') {
-    for (const m of SPELL_MECHANICS) {
-      entries.push({
-        kind: 'rule',
-        name: m.title,
-        body: `${m.rule} Example: ${m.example}${m.gotchas?.length ? ` Watch out: ${m.gotchas.join(' ')}` : ''}`,
-        source: src,
-      });
-    }
     for (const c of COMPANION_RULE_SETS) {
       entries.push({
         kind: 'rule',

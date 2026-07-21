@@ -16,7 +16,7 @@ import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
 import { spellsForSystem, type SpellDef } from './spells';
 import { tagsForSpell } from './library-tags';
-import { SPELL_MECHANICS, type SpellMechanic } from './spells/mechanics';
+import { spellMechanicsFor, type SpellMechanic } from './spells/mechanics';
 import { COMPANION_RULE_SETS, type CompanionRuleSet } from './companions/dnd5e-2024';
 import { CONDITION_MECHANICS_5E, type ConditionMechanics } from './conditions/dnd5e';
 
@@ -116,12 +116,16 @@ function nameMatchesWords(name: string, words: string[]): boolean {
 
 /** The spellcasting-machinery explainers relevant to the query. Unlike spells this matches on the
  *  TITLE AND the topic, because the question is phrased as a concept ("how does concentration work",
- *  "what's my save DC") rather than as a proper noun. 5e only — the explainers are 2024 PHB rules. */
+ *  "what's my save DC") rather than as a proper noun.
+ *
+ *  Both 5e editions are served, each from its OWN explainer set via `spellMechanicsFor` — a 2014
+ *  sheet gets 2014's five area shapes and its per-class ritual rules, never 2024's. Any other
+ *  system gets an empty list from the dispatcher, so the guard that used to live here as an
+ *  explicit `system !== 'dnd5e-2024'` check is now the dispatcher's default arm. */
 function matchSpellMechanics(system: string, keywords: string, limit: number): SpellMechanic[] {
-  if (system !== 'dnd5e-2024') return [];
   const words = keywords.split(/\s+/).filter((w) => w.length > 2);
   if (!words.length) return [];
-  return SPELL_MECHANICS
+  return spellMechanicsFor(system)
     .map((m) => {
       const hay = `${m.title} ${m.topic} ${m.key.replace(/-/g, ' ')}`.toLowerCase();
       return { m, score: words.filter((w) => hay.includes(w)).length };

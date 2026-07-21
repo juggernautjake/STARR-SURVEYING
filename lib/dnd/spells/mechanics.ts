@@ -197,3 +197,35 @@ export function spellMechanicsByTopic(topic: MechanicTopic): SpellMechanic[] {
 export const MECHANIC_TOPICS: MechanicTopic[] = [
   'slots', 'scaling', 'concentration', 'components', 'resolution', 'targeting', 'preparation', 'ritual',
 ];
+
+// ── The system dispatcher ───────────────────────────────────────────────────
+//
+// Lives here rather than in ./index.ts because that module is the SPELL CATALOG dispatcher and is
+// owned elsewhere; mechanics are a separate axis of content with a separate pair of modules, so
+// they get their own entry point. The idiom is deliberately identical to `spellCatalog()` next
+// door: switch on the system, and let the default arm return EMPTY.
+//
+// The import below is a value import and mechanics-2014.ts imports only a TYPE back from this
+// file, so the cycle is erased at compile time and there is no runtime import loop.
+import { SPELL_MECHANICS_2014 } from './mechanics-2014';
+
+export { SPELL_MECHANICS_2014 } from './mechanics-2014';
+
+const NO_MECHANICS: SpellMechanic[] = [];
+
+/** The spellcasting-machinery explainers for a game system.
+ *
+ *  Ground Rule 2: an unknown or unmodelled system gets [] — never another system's rules. Serving
+ *  the 2024 explainers to a 2014 sheet would tell a player Emanation is an area shape and that
+ *  their Sorcerer can re-choose spells on a long rest, both of which are false in 2014 and neither
+ *  of which the player would have any way to catch. Empty is honest; wrong is not. */
+export function spellMechanicsFor(system: string | null | undefined): SpellMechanic[] {
+  switch (system) {
+    case 'dnd5e-2024':
+      return SPELL_MECHANICS;
+    case 'dnd5e-2014':
+      return SPELL_MECHANICS_2014;
+    default:
+      return NO_MECHANICS;
+  }
+}

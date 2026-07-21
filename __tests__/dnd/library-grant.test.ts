@@ -53,7 +53,24 @@ describe('spell grants resolve against the real catalog', () => {
   });
 
   it('refuses a spell for a system with no catalog rather than using 2024 data', () => {
+    // `dnd5e-2014` used to stand in for "a system with no catalog". It has one now, so this
+    // uses a system that genuinely has none — otherwise the test would quietly stop covering
+    // the case it was written for while still passing.
+    const r = buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'intuitive-games' }, UNBOUND);
+    expect(isGrantError(r)).toBe(true);
+  });
+
+  it('grants a 2014 spell from the 2014 catalog', () => {
+    // The other half of the same rule: a system WITH a catalog resolves against its own.
     const r = buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2014' }, UNBOUND);
+    expect(isGrantError(r)).toBe(false);
+  });
+
+  it('refuses a 2024-only spell to a 2014 character', () => {
+    // Sorcerous Burst is a 2024 cantrip with no 2014 counterpart. Granting it to a 2014 sheet
+    // would mean the grant path had fallen back to 2024's catalog — the exact leak the
+    // per-system dispatcher exists to prevent.
+    const r = buildGrantEdits({ kind: 'spell', name: 'Sorcerous Burst', system: 'dnd5e-2014' }, UNBOUND);
     expect(isGrantError(r)).toBe(true);
   });
 });
