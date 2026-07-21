@@ -21,6 +21,11 @@ import { applySheetEdits, validateSheetEdits, editPath, editOldValue, type Sheet
 import { normalizeCampaignPreferences } from '@/lib/dnd/preferences';
 import { buildGrantEdits, isGrantError, type GrantKind } from '@/lib/dnd/library-grant';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { applyIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { gateIgEdit, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
+import { igGrantEdit, isIGGrantKind, igGrantNoun, describeIgGrant } from '@/lib/dnd/systems/intuitive-games/grant';
+import { normalizeSystem } from '@/lib/dnd/systems';
 import type { Character } from '@/app/dnd/_sheet/types';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -32,7 +37,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const row = access.access.character as unknown as { campaign_id: string | null; data: Character; name: string; system?: string; system_variants?: unknown };
 
   const body = await req.json().catch(() => ({}));
-  const kind = body.kind as GrantKind;
+  // Kept as a raw string until it is dispatched: the kind vocabulary now spans two systems (the
+  // shared `GrantKind` and IG's own `IGGrantKind`), and typing it as either one here would make the
+  // other's guard narrow to `never`. Both `buildGrantEdits` and `igGrantEdit` validate it themselves.
+  const kind = String(body.kind ?? '');
   const name = String(body.name ?? '');
   // The character's OWN system wins over whatever the client claims, so a grant can never
   // smuggle another edition's mechanics onto this sheet.
@@ -47,6 +55,60 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // influences whether the rules bind, or a caller could simply declare itself custom.
   const kindOfBuild = readActiveSlotMeta(row.system_variants).kind ?? 'vanilla';
   const isDMGrant = access.access.isDM;
+
+  // ── Intuitive Games (CX-13) ───────────────────────────────────────────────────────────────────
+  // An IG character's real model is the SIDECAR at `data.ig`. Everything below this block writes
+  // the shared 5e-shaped blob, which the IG sheet does not read and `gateIgEdit` never sees — so
+  // before CX-13 a granted IG power landed as a generic 5e feature: wrong model, no gate, no
+  // provenance mark. IG grants are therefore dispatched into IG's OWN edit path, the same one the
+  // sheet's picker and the AI use, so there is exactly one place that decides what an IG character
+  // may hold. See lib/dnd/systems/intuitive-games/grant.ts for the full reasoning.
+  const igSidecar = (row.data as unknown as { ig?: unknown } | null)?.ig;
+  const targetIsIG = normalizeSystem(row.system) === 'intuitive-games' && isIGCharacter(igSidecar);
+  const igEdit = igGrantEdit(kind, name);
+  if (isIGGrantKind(kind) && !targetIsIG) {
+    // Refused rather than quietly delivered as a 5e feature. An IG power on a 2024 wizard is an
+    // edition bleed (CX-17), and the shape it arrived in — a named feature with no mechanics — is
+    // the "drops a name on a sheet and calls it done" that Ground Rule 2 exists to forbid.
+    return NextResponse.json({
+      error: `${name} is Intuitive Games ${igGrantNoun(kind)} content, and ${row.name} is not an Intuitive Games character. Give it to an IG character instead.`,
+    }, { status: 400 });
+  }
+  if (igEdit && targetIsIG) {
+    const ig = igSidecar as Parameters<typeof applyIgEdit>[0];
+    // The SAME gate, with the same server-derived inputs, as the ig-edit route: vanilla is refused,
+    // custom and DM grants are allowed and marked. `gateIgEdit` deliberately gates `add_power` only
+    // — IG feat prerequisites are free prose and stances may legitimately be held off-list — so
+    // this adds no restriction the rules do not have (IG-S2).
+    const gate = gateIgEdit(ig, igEdit, {
+      enforce: !isDMGrant && kindOfBuild === 'vanilla',
+      unboundReason: isDMGrant ? 'dm-grant' : kindOfBuild === 'custom' ? 'custom-character' : undefined,
+    });
+    if (!gate.edit) return NextResponse.json({ error: gate.refusal ?? 'That grant was refused.' }, { status: 400 });
+
+    const applied = applyIgEdit(ig, gate.edit);
+    // A DM grant is legitimately unbound but must land MARKED — `offRules` is what renders the ⚑
+    // beside the power on the IG sheet, and without it the record of how the content arrived is
+    // simply lost.
+    const nextIg = gate.offRules && gate.edit.op === 'add_power'
+      ? markIgOffRules(applied, gate.edit.name, gate.offRules)
+      : applied;
+    const summary = describeIgGrant(gate.edit, ig, gate.offRules);
+
+    const { error: igErr } = await supabaseAdmin
+      .from('dnd_characters')
+      .update({ data: { ...(row.data as unknown as Record<string, unknown>), ig: nextIg }, updated_at: new Date().toISOString() })
+      .eq('id', params.id);
+    if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
+
+    // NO `dnd_sheet_edits` row, matching the ig-edit route which writes none either. Those rows are
+    // SheetEdit-shaped and the revert path replays them against the shared blob, so an IG edit
+    // recorded there would hand `revertBatch` a 5e op aimed at a sidecar it does not own — an audit
+    // trail that corrupts the sheet when used is worse than no audit trail. IG edit history is a
+    // real gap; it is one gap, not this slice's to invent a broken half of.
+    return NextResponse.json({ ok: true, summary, character: { id: params.id, name: row.name } });
+  }
+
   const sheet = row.data;
   const slots = sheet?.spellcasting?.slots ?? {};
   const maxSpellLevel = Object.entries(slots)
@@ -54,7 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .map(([k]) => Number(k))
     .reduce((a, b) => Math.max(a, b), 0);
 
-  const outcome = buildGrantEdits({ kind, name, system, options: body.options ?? {} }, {
+  const outcome = buildGrantEdits({ kind: kind as GrantKind, name, system, options: body.options ?? {} }, {
     // A DM grant and a custom character are both legitimately unbound; everything else obeys.
     enforce: !isDMGrant && kindOfBuild === 'vanilla',
     unboundReason: isDMGrant ? 'dm-grant' : kindOfBuild === 'custom' ? 'custom-character' : undefined,
@@ -86,6 +148,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Same `system` the grant itself was built against (the character's own, not the client's
   // claim), so catalog lookups inside the apply cannot fall back to 2024 — CX-17 B1/B2.
   const updated = applySheetEdits(current, edits, { equipLimits, system });
+  // Writing `updated` whole is safe ONLY because `applySheetEdits` starts from
+  // `structuredClone(input)` and never rebuilds the object, so sidecars it does not model —
+  // `data.ig`, `data.pf2e` — survive the round trip untouched. That is load-bearing rather than
+  // incidental: this route can be pointed at an IG or PF2 character (their glossary and equipment
+  // entries still grant down this 5e path), and a normalizing rewrite here would silently delete
+  // the whole bespoke character. `__tests__/dnd/ig-library-grant.test.ts` pins the invariant so a
+  // future normalization inside `applySheetEdits` fails a test instead of a player's sheet.
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')
     .update({ data: updated, updated_at: new Date().toISOString() })

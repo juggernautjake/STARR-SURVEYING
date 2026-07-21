@@ -23,13 +23,21 @@ export function grantKindForSection(sectionId: string, system: string): GiveKind
       // button (the reader could see the spell but hand it to nobody) and better than a
       // 'spell' grant the server would reject for want of a catalogue entry.
       return system === 'dnd5e-2024' ? 'spell' : 'feature';
-    // Intuitive Games powers have full effect text but no structured spell catalog, so they
-    // land as FEATURES carrying that text — honest, and immediately readable on the sheet.
+    // Intuitive Games content goes to IG's OWN model (CX-13). These four sections used to resolve
+    // to `feature`, which delivered them as `add_feature` ops against the shared 5e-shaped blob —
+    // a place the IG sheet does not read, IG's gate never inspects, and provenance never marks.
+    // They land in four DIFFERENT fields of the IG model (powers, the single defensive-power slot,
+    // the feat buckets, the known-stance set), which is why they need four kinds and not one.
     case 'powers':
+      return system === 'intuitive-games' ? 'ig-power' : 'feature';
     case 'defensive-powers':
-    case 'feats':
+      return system === 'intuitive-games' ? 'ig-defensive-power' : 'feature';
     case 'stances':
-      return 'feature';
+      return system === 'intuitive-games' ? 'ig-stance' : 'feature';
+    case 'feats':
+      // Feats are the one section shared with the 5e systems, which model them as sheet FEATURES.
+      // Only IG has a feat model of its own to deliver into.
+      return system === 'intuitive-games' ? 'ig-feat' : 'feature';
     case 'weapons':
       return 'weapon';
     case 'armor':
@@ -91,7 +99,10 @@ export default function GiveEntryButton({
           name={name}
           system={system}
           // Strip the markdown-lite bullets the library uses so the note reads cleanly on a sheet.
-          defaultNote={detail ? detail.replace(/^[·•]\s*/gm, '').slice(0, 900) : undefined}
+          // Not sent for the IG kinds: IG stores content by name and reads its rules from the
+          // catalogue, so there is no note to carry — see the dialog's own comment on why passing
+          // one anyway would falsely mark the grant as hand-customized.
+          defaultNote={detail && !kind.startsWith('ig-') ? detail.replace(/^[·•]\s*/gm, '').slice(0, 900) : undefined}
           onClose={() => setOpen(false)}
         />
       )}

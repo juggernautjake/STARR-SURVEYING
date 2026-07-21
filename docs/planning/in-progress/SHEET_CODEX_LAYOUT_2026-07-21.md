@@ -252,13 +252,14 @@ Current state, verified rather than assumed:
 | Spell catalog | ✅ 405 | ✅ 319 (SRD-complete, this session) | ⚠ partial, honestly reported | n/a (powers) |
 | Library page | ✅ | ✅ | ✅ | ✅ |
 | Faceted spell browser | ✅ | ✅ (this session) | ✅ | n/a |
-| Give-to-character | ✅ | ✅ (this session) | ✅ | ⚠ verify |
+| Give-to-character | ✅ | ✅ (this session) | ✅ | ✅ (CX-13 — was broken, see below) |
 | Glossary coverage | ✅ | ✅ | ✅ 92 entries | ✅ |
 | Conditions with full text | ✅ | ✅ | ✅ | ✅ |
 
-The gaps that remain are **PF2's catalog long tail** (tracked in its own doc) and **IG's
-give-to-character path**, plus a systematic check that every condition/stance/skill in every system
-has glossary text a tooltip can show. That last one is CX-12 and is the owner's explicit ask.
+The gaps that remain are **PF2's catalog long tail** (tracked in its own doc), plus a systematic
+check that every condition/stance/skill in every system has glossary text a tooltip can show. That
+last one is CX-12 and is the owner's explicit ask. **IG's give-to-character path is closed by CX-13**,
+which found it delivering IG content into the shared 5e blob with no gate and no provenance.
 
 ---
 
@@ -550,8 +551,90 @@ Fix and a test that pins the real invariant are in progress; the fallback that m
 `DeepLinkOpener` degrading to the kind's section when an entry id resolves to nothing, so that no
 future gap of this shape can ever be silent again.
 
-### CX-13 — IG give-to-character
-Confirm and close the one library→sheet path not verified above.
+### CX-13 — IG give-to-character ✅ SHIPPED 2026-07-21
+
+Confirmed broken, then fixed. The ⚠ in the table above was right to be there.
+
+**What was actually wrong.** `grantKindForSection` mapped all four IG sections — powers, defensive
+powers, feats, stances — to the shared kind `feature`, and `buildGrantEdits`' `feature` arm emits
+`add_feature` against the 5e-shaped `Character` blob. An IG character's real model is the SIDECAR at
+`data.ig`, edited through `applyIgEdit` and judged by `gateIgEdit`. So one button produced three
+failures at once, and the middle one is the serious one:
+
+- **Wrong model.** The power was not in `ig.powers`, so the IG sheet's power list, its digest, its
+  AI grounding and its provenance badges all went on saying the character did not have it.
+- **No gate.** The `feature` arm checks *nothing* — no eligibility, no marking, not even a name
+  lookup. Every rule IG-S1/S2 built lives in `gateIgEdit`, which this path never called. Verified
+  live before the fix: a **vanilla** level-1 Arcanist was granted **Entangle**, an off-class power,
+  `200 OK`, no complaint. The library was a way around the gate the sheet's own picker enforces —
+  the same shape of hole as Area MV, in a new costume.
+- **No provenance.** A DM grant is legitimately unbound but must land MARKED. Nothing marked it.
+
+One correction to the original trace: the content was not *invisible*. `SheetRoot` renders the
+shared sheet below the IG sheet, so the granted feature did appear — as a 5e feature, on a sheet
+that is not the character's. That is a different failure from vanishing and arguably a worse one,
+because it looks like it worked.
+
+**The fix.** IG grants get their own kinds (`ig-power`, `ig-defensive-power`, `ig-feat`,
+`ig-stance`) and route through IG's OWN gated edit path, so a granted power is applied, judged and
+marked by exactly the code the sheet picker and the AI already use — one place deciding what an IG
+character may hold, which is the only arrangement two paths cannot drift out of.
+
+- **Four kinds, not one, because they land in four different fields** — `powers`, the single
+  defensive-power slot, the feat buckets, the known-stance set. One shared kind cannot say which,
+  which is precisely how all four collapsed into `add_feature` to begin with.
+- **`gateIgEdit` is reused verbatim, gating `add_power` and nothing else.** Feats and stances stay
+  ungated, per IG-S2: IG feat prerequisites are free prose and a stance may legitimately be held off
+  a class list. Adding a check here would be the mirror image of a bleed.
+- **An `add_stance` op had to be added.** The known set (`ig.stances`) was writable only at build
+  time, so the sheet could *enter* a stance it had no way to record having learned. `add_stance`
+  adds to the known set and deliberately not to `combat.stances` — being taught a stance is not
+  standing in it, and conflating them would silently drop the stance the character was holding.
+- **IG content offered to a NON-IG character is refused**, not quietly delivered as a named feature.
+  An IG power on a 2024 wizard is an edition bleed (CX-17) arriving in exactly the "drop a name on a
+  sheet and call it done" shape Ground Rule 2 forbids.
+- **Conditions were the same bug through a second door, and mechanically load-bearing.**
+  `igResolveAttackInPlay` reads `ig.combat.conditions`, so a condition written to the shared blob was
+  a penalty the sheet displayed and the rolls never paid. Conditions now route to the IG model when
+  the target is an IG character.
+- **No note field on IG grants.** IG stores content by name and reads its rules from the catalogue;
+  its only per-element text is `customEffects`, and presence there IS the ✎ hand-customized signal
+  (IG-S1). Pre-filling it with the entry's own unmodified library text would stamp a pristine grant
+  as edited — a marker meaning the opposite of the truth.
+- **No `dnd_sheet_edits` row**, matching the `ig-edit` route. Those rows are SheetEdit-shaped and the
+  revert path replays them against the shared blob, so an IG edit recorded there would hand
+  `revertBatch` a 5e op aimed at a sidecar it does not own. IG edit history is a real gap; it is one
+  gap, not a reason to invent a broken half of it here.
+- **Items, glossary features and spells still take the 5e path on purpose.** IG has no free-form
+  feature list and no inventory, so there is no faithful landing spot, and the shared sheet that
+  renders below the IG sheet is a real place for them to live.
+
+**Browser evidence** (dev server, a QA IG Arcanist created directly in the DB and deleted after):
+granting **Elemental Blast** from the library's Powers section landed in `ig.powers`, rendered on the
+IG sheet with its catalogue effect text, and left the 5e `features` array empty. Granting **Detect
+Thoughts** to the same *vanilla* character was refused in the dialog with the gate's own sentence —
+*"Detect Thoughts is not a Arcanist power. This is a vanilla character — build a custom one, or have
+the DM grant it."* Flipped to *custom*, the same grant succeeded and stored
+`ig.offRules['Detect Thoughts']`, which renders on the sheet as ⚑ "outside the normal rules". Stance,
+feat and defensive-power grants each landed in their own field and rendered.
+
+**A false alarm worth recording, because it nearly shipped.** Mid-verification the whole `data.ig`
+sidecar vanished after a grant, and the obvious reading — `applySheetEdits` normalizes to a
+`Character` and drops what it does not model — was wrong. `applySheetEdits` starts from
+`structuredClone(input)`, so sidecars survive; what destroyed it was the *sheet client* rebuilding a
+blank character, which it only does for a blob with no 5e fields at all — the shape my hand-built
+fixture had and no real character has. The PATCH payload from a realistic character carries `ig`
+intact. A one-line "defensive" merge and a dramatic comment about data loss were written and then
+removed: the honest artefact is a test pinning the invariant (a 5e-shaped grant leaves `data.ig`
+untouched), so a future normalization inside `applySheetEdits` fails a test rather than a sheet.
+
+Two smaller things found and left alone, both outside this slice: `igPowerEligibility` composes
+"not **a** Arcanist power" (article agreement, cosmetic, lives in IG-S1's file), and
+`applySheetEdits` throws on a blob with no 5e fields — reachable only via a hand-written row.
+
+**Files:** `lib/dnd/systems/intuitive-games/grant.ts` (new), `…/edit.ts` (`add_stance`),
+`app/api/dnd/characters/[id]/grant-content/route.ts`, `app/dnd/_ui/GiveEntryButton.tsx`,
+`app/dnd/_ui/GiveToCharacter.tsx`, `__tests__/dnd/ig-library-grant.test.ts` (17 tests).
 
 ### CX-14 — Codex QA pass
 Drive it in a browser: build one character per system, open every pane, resize to extremes, verify

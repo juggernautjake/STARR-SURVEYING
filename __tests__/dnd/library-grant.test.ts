@@ -134,9 +134,13 @@ describe('section → grant kind mapping', () => {
     expect(grantKindForSection('spells', 'pathfinder2e')).toBe('feature');
   });
 
-  it('maps IG powers and feats to features', () => {
-    expect(grantKindForSection('powers', 'intuitive-games')).toBe('feature');
-    expect(grantKindForSection('feats', 'intuitive-games')).toBe('feature');
+  it('maps IG powers and feats to IG’s OWN kinds, not to a 5e feature (CX-13)', () => {
+    // This assertion used to read `.toBe('feature')`, and that was the bug rather than the spec: a
+    // `feature` grant is delivered by `buildGrantEdits` as an `add_feature` op against the shared
+    // 5e-shaped blob, which is not the model an IG character lives in. The kinds are covered in
+    // full — including what they then DELIVER — in ig-library-grant.test.ts.
+    expect(grantKindForSection('powers', 'intuitive-games')).toBe('ig-power');
+    expect(grantKindForSection('feats', 'intuitive-games')).toBe('ig-feat');
   });
 
   it('maps gear sections to item kinds', () => {

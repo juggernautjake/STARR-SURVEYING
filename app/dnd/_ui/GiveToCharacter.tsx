@@ -8,7 +8,20 @@
 // mechanics or reach ops it has no business touching.
 import { useCallback, useEffect, useState } from 'react';
 
-export type GiveKind = 'spell' | 'weapon' | 'armor' | 'item' | 'feature' | 'condition';
+// The shared 5e-shaped kinds, plus Intuitive Games' own (CX-13). IG content is delivered into the
+// `data.ig` sidecar by IG's gated edit path, not by `buildGrantEdits`, so it needs kinds of its own
+// — one per field of the IG model it can land in. The server re-derives everything that decides:
+// nothing here is trusted beyond "which entry, from which system".
+export type GiveKind =
+  | 'spell' | 'weapon' | 'armor' | 'item' | 'feature' | 'condition'
+  | 'ig-power' | 'ig-defensive-power' | 'ig-feat' | 'ig-stance';
+
+/** How each kind reads on the confirm button. `ig-defensive-power` would otherwise render as
+ *  "Give ig-defensive-power". */
+const KIND_LABEL: Record<GiveKind, string> = {
+  spell: 'spell', weapon: 'weapon', armor: 'armor', item: 'item', feature: 'feature', condition: 'condition',
+  'ig-power': 'power', 'ig-defensive-power': 'defensive power', 'ig-feat': 'feat', 'ig-stance': 'stance',
+};
 
 interface CharRow { id: string; name: string; campaign_id: string | null; is_npc?: boolean }
 
@@ -134,6 +147,11 @@ export default function GiveToCharacter({
               </div>
             )}
 
+            {/* No note for the IG kinds, on purpose. The IG model stores content BY NAME and reads
+                its rules text from the catalogue; the only per-element text it has is
+                `customEffects`, and presence there IS the ✎ "hand-customized" signal (IG-S1). So
+                pre-filling a note with the entry's own unmodified library text would stamp a
+                pristine grant as edited — a marker that means the opposite of the truth. */}
             {(kind === 'feature' || isItem) && (
               <>
                 <label style={{ display: 'block', fontSize: 11.5, opacity: 0.75, marginTop: 10 }}>
@@ -151,7 +169,7 @@ export default function GiveToCharacter({
               onClick={() => void give()}
               style={{ marginTop: 12, width: '100%', padding: '8px 0' }}
             >
-              {busy ? 'Giving…' : `Give ${kind}`}
+              {busy ? 'Giving…' : `Give ${KIND_LABEL[kind] ?? kind}`}
             </button>
           </>
         )}

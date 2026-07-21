@@ -18,6 +18,13 @@ export type IGEdit =
   | { op: 'remove_feat'; name: string }
   | { op: 'add_power'; name: string }
   | { op: 'remove_power'; name: string }
+  // LEARN a stance, i.e. add it to `ig.stances` (the known set) — distinct from `set_active_stance`,
+  // which sets `combat.stances` (the one currently held). Added for CX-13: the library can grant a
+  // stance, and until now the known set was writable ONLY at build time, so the sheet could enter a
+  // stance it had no way to record ever having learned. Deliberately ungated, exactly as
+  // `set_active_stance` is — a level-1 trait may be taken as "a new stance", so holding one off your
+  // class list is legal play (eligibility.ts states this).
+  | { op: 'add_stance'; name: string }
   | { op: 'set_defensive_power'; name: string }
   | { op: 'apply_damage'; amount: number; nonlethal?: boolean }
   | { op: 'heal'; amount: number }
@@ -35,7 +42,7 @@ export type IGEdit =
   | { op: 'remove_attack'; name: string };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack'] as const;
 
 /** The IG ability keys + the sane bounds a set_ability edit clamps to. */
 const IG_ABILITY_KEYS: readonly IGAbilityKey[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
@@ -61,6 +68,14 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       if (combat.stances.length === 0) return ig;
       combat.stances = [];
       return { ...ig, combat };
+    }
+    case 'add_stance': {
+      // Adds to the KNOWN set (`ig.stances`), never to `combat.stances` — being taught a stance is
+      // not the same as standing in it, and conflating the two would silently drop whatever stance
+      // the character was already holding.
+      const name = edit.name.trim();
+      if (!name || ig.stances.some((s) => eq(s, name))) return ig;
+      return { ...ig, stances: [...ig.stances, name] };
     }
     case 'add_condition': {
       const name = edit.name.trim();
@@ -312,6 +327,7 @@ export function describeIgEdit(edit: IGEdit): string {
   switch (edit.op) {
     case 'set_active_stance': return `Entered the ${edit.name} Stance.`;
     case 'clear_stance': return 'Left the active stance.';
+    case 'add_stance': return `Learned the ${edit.name} Stance.`;
     case 'add_condition': return `Applied the ${edit.name} condition.`;
     case 'remove_condition': return `Removed the ${edit.name} condition.`;
     case 'add_feat': return `Added the ${edit.name} feat.`;
