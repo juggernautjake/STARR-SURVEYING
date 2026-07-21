@@ -1,6 +1,6 @@
 # Vanilla characters obey the rules; custom characters are warned
 
-**Status:** IN PROGRESS · started 2026-07-20
+**Status:** ✅ COMPLETE · 2026-07-20 (S1–S7 shipped)
 **Goal:** a character built with the **vanilla** builder can only ever take what its class, level
 and system actually grant — enforced with a HARD BLOCK, not a warning. A **custom** character can
 take anything, but every off-rules choice is flagged so the player knows what they've done.
@@ -174,10 +174,29 @@ non-repeatable feats. 17 tests.
 
 ---
 
-## Done means
+## Done means — all verified 2026-07-20
 
-- A vanilla level-4 Wizard CANNOT add Wish, a Cleric spell, or a 5th-level spell, by any route.
-- A custom character can add all three, and each is visibly marked.
-- A DM can still grant anything to anyone, and it lands marked as granted.
-- Subclass expanded lists still work — no legal choice is blocked.
-- `npx tsc --noEmit`, `npx vitest run __tests__/dnd`, **and `npm run build`** green per slice.
+`__tests__/dnd/vanilla-enforcement-acceptance.test.ts` checks these directly rather than trusting
+that seven passing slices add up to the property the work was for. 25 assertions:
+
+- ✅ A vanilla level-4 Wizard CANNOT add Wish, a Cleric spell, or a 5th-level spell — checked
+  against **all four routes** (eligibility core, AI edit, library grant, picker) per spell.
+- ✅ A custom character can add all three, each marked, and the sheet renders the marker.
+- ✅ A DM can still grant anything, and it lands labelled as a grant.
+- ✅ No legal choice is blocked: already-granted spells stay legal, ordinary class spells are
+  untouched at every level, and a grant does not raise the slot ceiling. This is the failure mode
+  in the OTHER direction and the worse one — a player can work around permissiveness but not
+  around a builder that refuses what they are entitled to.
+- ✅ Enforcement can't be switched off from outside: no route lets the request body decide, and an
+  unlabelled character reads as vanilla at every link in the chain.
+- ✅ `npx tsc --noEmit`, `npm run build`, and the **whole-repo** suite (14,602 tests) green.
+
+## What remains open
+
+Nothing in this doc. Two things worth knowing for whoever picks up the area next:
+
+1. **`add_feature` is ungated by design** (S7) — free-form prose can't be name-matched against the
+   catalog without refusing real homebrew. Official feats go through `add_feat`.
+2. **Untested against a live sheet in a browser.** Every layer here is unit-tested and the build
+   is clean, but nobody has clicked through the picker on a real logged-in character. That belongs
+   with the level-1-to-20 walkthrough already deferred for needing an authenticated session.
