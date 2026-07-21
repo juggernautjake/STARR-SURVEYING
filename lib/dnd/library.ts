@@ -9,9 +9,11 @@ import { GAME_SYSTEMS, isSystemAvailable, systemLabel, type CharacterSystem } fr
 import { rulesForSystem, type SystemRules } from './system-rules';
 import { glossaryFor, searchGlossary } from './glossary';
 import { classesForSystem } from './classes/registry';
-import { FEATS_2024, type Feat } from './feats/dnd5e-2024';
+import { FEATS_2024 } from './feats/dnd5e-2024';
+import { FEATS_2014 } from './feats/dnd5e-2014';
 import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
 import { WEAPONS_2024, ARMOR_2024, masteryEffect } from './equipment/dnd5e-2024';
+import { WEAPONS_2014, ARMOR_2014 } from './equipment/dnd5e-2014';
 import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
 import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
@@ -29,8 +31,20 @@ import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
-function featsForSystem(system: string): Feat[] {
-  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+function featsForSystem(system: string): { name: string; category: string; benefit: string }[] {
+  if (system === 'dnd5e-2024') return FEATS_2024;
+  // 2014 feats carry no `category` — origin/general/fighting-style are 2024 TRACKS that do not
+  // exist in 2014, and Feat2014 deliberately omits the field rather than inventing a value. The
+  // adapter reports the one legal 2014 route instead, so the library says something true about
+  // how a 2014 character actually gains a feat (Ground Rule 2: editions are different systems).
+  if (system === 'dnd5e-2014') {
+    return FEATS_2014.map((f) => ({
+      name: f.name,
+      category: 'taken instead of an Ability Score Improvement',
+      benefit: f.benefit,
+    }));
+  }
+  return [];
 }
 
 /** Conditions a system exposes WITH full mechanical text (vs. the name-only chip list). System-keyed so
@@ -462,6 +476,41 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
           (a.strengthReq ? `**Requires:** Strength ${a.strengthReq} (or lose 10 feet of speed)\n` : '') +
           (a.stealthDisadvantage ? '**Stealth:** disadvantage\n' : '') +
           `**Weight:** ${a.weight} lb · **Cost:** ${a.cost} GP`,
+      })),
+    });
+  }
+
+  // 2014 gear. A SEPARATE block from 2024's on purpose — the tables genuinely differ (2014 has the
+  // Net, lacks the firearms, and its Trident and Lance carry different dice), and 2014 weapons have
+  // NO mastery property, so reusing the 2024 renderer would print a field that does not exist in
+  // this edition.
+  if (key === 'dnd5e-2014') {
+    sections.push({
+      id: 'weapons',
+      title: 'Weapons',
+      lead: `${WEAPONS_2014.length} weapons. 2014 has no weapon mastery — that is a 2024 addition.`,
+      entries: WEAPONS_2014.map((w) => ({
+        name: w.name,
+        brief: `${w.damage} ${w.damageType} · ${w.category} ${w.kind}`,
+        detail:
+          `**Damage:** ${w.damage} ${w.damageType}\n` +
+          `**Properties:** ${w.properties.length ? w.properties.join(', ') : '—'}\n` +
+          `**Weight:** ${w.weight} lb · **Cost:** ${w.costText ?? `${w.cost} GP`}`,
+      })),
+    });
+    sections.push({
+      id: 'armor',
+      title: 'Armour & Shields',
+      lead: `${ARMOR_2014.length} armours — base AC, Dexterity cap, strength requirement and stealth.`,
+      entries: ARMOR_2014.map((a) => ({
+        name: a.name,
+        brief: a.category === 'shield' ? `+${a.baseAC} AC` : `Base AC ${a.baseAC} · ${a.category}`,
+        detail:
+          `**${a.category === 'shield' ? 'AC bonus' : 'Base AC'}:** ${a.baseAC}\n` +
+          `**Dexterity:** ${a.dexCap === null ? 'add your full modifier' : a.dexCap > 0 ? `add up to +${a.dexCap}` : 'not added'}\n` +
+          (a.strengthReq ? `**Requires:** Strength ${a.strengthReq} (or lose 10 feet of speed)\n` : '') +
+          (a.stealthDisadvantage ? '**Stealth:** disadvantage\n' : '') +
+          `**Weight:** ${a.weight} lb · **Cost:** ${a.costText ?? `${a.cost} GP`}`,
       })),
     });
   }
@@ -929,10 +978,20 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       // IG feats: each with its real prerequisites + effect, so "toughness" or "quick caster" resolves the
       // actual rules text (IG's own IGFeat shape).
       for (const f of igFeatList) push('feat', f.name, `${f.name} — ${f.category} feat${f.prerequisites ? ` (prereq: ${f.prerequisites})` : ''}: ${f.effect}`);
-    } else if (fullFeats.length) {
-      for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
     } else {
-      for (const f of r.content.sampleFeats) push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+      // Full entries first, then any SAMPLE names not already covered.
+      //
+      // These used to be either/or, and that quietly regressed 2014 the moment it gained a feat
+      // catalog: one real feat (Grappler, the only one in the SRD) REPLACED the ~40-name sample
+      // list, so searching "lucky" stopped finding anything. Merging is strictly better than
+      // either alone — a player gets full rules text where we can legitimately publish it, and
+      // still learns the feat EXISTS where we cannot, without anything being fabricated.
+      const covered = new Set(fullFeats.map((f) => f.name.toLowerCase()));
+      for (const f of fullFeats) push('feat', f.name, `${f.name} (${f.category} feat) — ${f.benefit}`);
+      for (const f of r.content.sampleFeats) {
+        if (covered.has(f.toLowerCase())) continue;
+        push('feat', f, `${f} — ${featNoun(r.key).toLowerCase()} in ${r.label}.`);
+      }
     }
     // Backgrounds (PF2 only today): each grants attribute boosts, a trained skill, a Lore, and a skill
     // feat — real structured data from the PF2 content library, searchable by name or "background".

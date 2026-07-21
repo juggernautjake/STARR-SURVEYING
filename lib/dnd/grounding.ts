@@ -7,6 +7,7 @@ import { SYSTEM_AMBIGUOUS, systemLabel, normalizeSystem } from './systems';
 import { systemRulesBlock } from './system-rules';
 import { glossaryFor, type GlossaryEntry } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
+import { FEATS_2014 } from './feats/dnd5e-2014';
 import { igAllFeats } from './systems/intuitive-games/feats';
 import { IG_POWERS, IG_DEFENSIVE_POWERS, IG_CLASS_POWER_EFFECTS } from './systems/intuitive-games/content';
 import { igSpellTiers } from './systems/intuitive-games/spell-tiers';
@@ -58,6 +59,19 @@ interface GroundableFeat { name: string; category: string; benefit: string }
  *  query-scoped retrieval — without it, "how does the IG Toughness feat work?" grounds on nothing. */
 function groundingFeats(system: string): GroundableFeat[] {
   if (system === 'dnd5e-2024') return FEATS_2024;
+  // 2014 feats are a DIFFERENT shape (Feat2014) — they have no origin/general/fighting-style
+  // tracks, because those are a 2024 structure. Adapted here rather than widening either type,
+  // which is what would let a 2024 concept leak into a 2014 answer (Ground Rule 1/2).
+  //
+  // `category` is reported as the single legal 2014 slot, so the AI grounding says something TRUE
+  // about how a 2014 character actually gains a feat: instead of an Ability Score Improvement.
+  if (system === 'dnd5e-2014') {
+    return FEATS_2014.map((f) => ({
+      name: f.name,
+      category: 'taken instead of an Ability Score Improvement',
+      benefit: f.benefit,
+    }));
+  }
   if (system === 'intuitive-games') {
     return igAllFeats().map((f) => ({ name: f.name, category: f.category, benefit: f.effect }));
   }
