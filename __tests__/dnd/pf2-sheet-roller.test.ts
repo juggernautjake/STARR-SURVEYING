@@ -22,6 +22,9 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
     expect(sheet).toMatch(/rollLine\(`\$\{s\} save`/);           // saves
     expect(sheet).toMatch(/rollLine\(`\$\{sk\.name\} \(\$\{sk\.attribute\}\)`/); // skills
     expect(sheet).toMatch(/rollLine\(`\$\{a\.name\} Strike`/);   // Strikes (to-hit)
-    expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, a\.damage\)/); // damage
+    // Damage now rolls the RESOLVED expression, not the raw stored die (S15d). `a.damage` is the
+    // base die; traits, striking runes and the attribute modifier are applied by pf2ResolveStrike,
+    // so rolling `a.damage` directly would ignore every one of them.
+    expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, strike\.damage\)/);
   });
 });

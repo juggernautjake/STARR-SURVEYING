@@ -37,7 +37,14 @@ export type PF2Edit =
   // acquisition, so these are never re-gated against the catalog — see gatePf2Edit. `customized`
   // is stamped by the apply step rather than the caller, so it cannot be faked off.
   | { op: 'update_spell'; name: string; to?: string; rank?: number; prepared?: boolean; effect?: string }
-  | { op: 'update_feat'; name: string; to?: string; level?: number; track?: PF2Feat['track']; body?: string };
+  | { op: 'update_feat'; name: string; to?: string; level?: number; track?: PF2Feat['track']; body?: string }
+  // ── Weapons (S15d) ────────────────────────────────────────────────────────────────────────────
+  // A Strike on the sheet. `damage` is the BASE die ("1d8"); traits, striking runes and the crit
+  // rules are resolved at render by pf2ResolveStrike rather than baked into a string, so an edited
+  // weapon computes instead of merely displaying.
+  | { op: 'add_attack'; name: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
+  | { op: 'update_attack'; name: string; to?: string; attribute?: PF2AttributeKey; damage?: string; damageType?: string; traits?: string[]; weaponBonus?: number; striking?: string }
+  | { op: 'remove_attack'; name: string };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -48,7 +55,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -208,6 +215,49 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       feats[idx] = next;
       return { ...pf2, feats };
     }
+    case 'add_attack': {
+      const name = edit.name.trim();
+      if (!name) return pf2;
+      const attack = {
+        id: `pf2-atk-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+        name,
+        attribute: edit.attribute ?? 'STR',
+        // A new Strike inherits the character's own attack proficiency rather than assuming
+        // trained — a Fighter's weapons should not silently downgrade when one is added.
+        rank: pf2.combat.attackRank,
+        weaponBonus: Math.max(0, Math.min(3, Math.round(edit.weaponBonus ?? 0))),
+        damage: edit.damage ?? '1d4',
+        damageType: edit.damageType ?? '',
+        traits: edit.traits ?? [],
+        ...(edit.striking ? { striking: edit.striking } : {}),
+      } as PF2Character['attacks'][number];
+      return { ...pf2, attacks: [...(pf2.attacks ?? []).filter((a) => a.name.toLowerCase() !== name.toLowerCase()), attack] };
+    }
+    case 'update_attack': {
+      const name = edit.name.trim().toLowerCase();
+      const idx = (pf2.attacks ?? []).findIndex((a) => a.name.toLowerCase() === name);
+      if (idx === -1) return pf2; // never CREATE from an update
+      const cur = pf2.attacks[idx];
+      const next = {
+        ...cur,
+        ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
+        ...(edit.attribute ? { attribute: edit.attribute } : {}),
+        ...(edit.damage ? { damage: edit.damage } : {}),
+        ...(edit.damageType != null ? { damageType: edit.damageType } : {}),
+        ...(edit.traits ? { traits: edit.traits } : {}),
+        ...(Number.isFinite(edit.weaponBonus as number) ? { weaponBonus: Math.max(0, Math.min(3, Math.round(edit.weaponBonus as number))) } : {}),
+        ...(edit.striking ? { striking: edit.striking } : {}),
+        customized: true,
+      } as PF2Character['attacks'][number];
+      const attacks = [...pf2.attacks];
+      attacks[idx] = next;
+      return { ...pf2, attacks };
+    }
+    case 'remove_attack': {
+      const name = edit.name.trim().toLowerCase();
+      if (!name) return pf2;
+      return { ...pf2, attacks: (pf2.attacks ?? []).filter((a) => a.name.toLowerCase() !== name) };
+    }
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -305,6 +355,33 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
       },
     };
   }
+  if (op === 'add_attack' || op === 'update_attack') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: `The "${op}" edit needs a weapon "name".` };
+    const attr = String(o.attribute ?? '').trim().toUpperCase();
+    const bonus = Number(o.weaponBonus);
+    const STRIKING = ['none', 'striking', 'greater', 'major'];
+    const striking = String(o.striking ?? '').trim().toLowerCase();
+    return {
+      edit: {
+        op, name,
+        ...(typeof o.to === 'string' && o.to.trim() ? { to: o.to.trim() } : {}),
+        ...((PF2_ATTRIBUTES as readonly string[]).includes(attr) ? { attribute: attr as PF2AttributeKey } : {}),
+        ...(typeof o.damage === 'string' && o.damage.trim() ? { damage: o.damage.trim() } : {}),
+        ...(typeof o.damageType === 'string' ? { damageType: o.damageType.trim() } : {}),
+        ...(Array.isArray(o.traits) ? { traits: o.traits.map((t) => String(t ?? '').trim()).filter(Boolean) } : {}),
+        // Potency runes cap at +3; a larger value is a mistake, not a house rule, so clamp rather
+        // than store it.
+        ...(Number.isFinite(bonus) ? { weaponBonus: Math.max(0, Math.min(3, Math.round(bonus))) } : {}),
+        ...(STRIKING.includes(striking) ? { striking } : {}),
+      } as PF2Edit,
+    };
+  }
+  if (op === 'remove_attack') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: 'The "remove_attack" edit needs a weapon "name".' };
+    return { edit: { op, name } };
+  }
   if (op === 'remove_feat' || op === 'remove_spell') {
     const name = typeof o.name === 'string' ? o.name.trim() : '';
     if (!name) return { error: `The "${op}" edit needs a "name".` };
@@ -332,6 +409,9 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'remove_spell': return `Lost ${edit.name}.`;
     case 'update_spell': return `Customised ${edit.name}${edit.to ? ` → ${edit.to}` : ''}.`;
     case 'update_feat': return `Customised the ${edit.name} feat${edit.to ? ` → ${edit.to}` : ''}.`;
+    case 'add_attack': return `Added the weapon ${edit.name}.`;
+    case 'update_attack': return `Customised ${edit.name}${edit.to ? ` → ${edit.to}` : ''}.`;
+    case 'remove_attack': return `Removed the weapon ${edit.name}.`;
     default: return 'No change.';
   }
 }

@@ -99,8 +99,18 @@ export interface PF2Attack {
   attribute: PF2AttributeKey; // STR (melee) or DEX (finesse/ranged)
   rank: PF2Rank;
   weaponBonus: number;        // item bonus (potency rune, etc.)
-  damage: string;             // e.g. "1d8+4 slashing"
+  /** The BASE damage die, e.g. "1d8". Traits, the striking rune line, attribute modifiers and the
+   *  crit rules are resolved at render by `pf2ResolveStrike` — NOT baked in here. Baking them in
+   *  is why an edited weapon used to display correctly and roll wrong (S15d). */
+  damage: string;
+  /** Damage type, e.g. "slashing". Kept separate from `damage` so the resolver can rebuild the
+   *  expression after applying traits. */
+  damageType?: string;
   traits: string[];           // agile, finesse, reach, …
+  /** The striking rune line, which multiplies WEAPON dice only. */
+  striking?: string;
+  /** Hand-tuned away from how it came (S15) → drives the ✎ marker. */
+  customized?: boolean;
 }
 
 // ── Spellcasting (Remaster) — tradition + rank slots + the DC ───────────────────────────────────────

@@ -11,12 +11,14 @@ import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from './PF2ContentPicker';
 import PF2ElementEditor, { type PF2EditableElement } from './PF2ElementEditor';
+import PF2WeaponEditor, { type PF2EditableWeapon } from './PF2WeaponEditor';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
 import {
   pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
 } from '@/lib/dnd/systems/pathfinder2e/rules';
+import { pf2ResolveStrike } from '@/lib/dnd/systems/pathfinder2e/strike';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionRollEffect, pf2ConditionMechanics, type Pf2RollKind } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
@@ -73,6 +75,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // The element editor (S15). `initial` absent = authoring homebrew; present = editing what the
   // character holds.
   const [editor, setEditor] = useState<{ kind: 'feat' | 'spell'; initial?: PF2EditableElement } | null>(null);
+  // Weapons get their own editor: traits are the mechanically important field and need a picker,
+  // not a text box, so a typo cannot silently disable a weapon's defining property.
+  const [weaponEditor, setWeaponEditor] = useState<PF2EditableWeapon | null | 'new'>(null);
 
   // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
@@ -220,21 +225,58 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         </div>
       </div>
 
-      {/* Strikes */}
-      {pf2.attacks.length > 0 && (
+      {/* Strikes. Renders for an editor even with no weapons yet — otherwise a character who has
+          none can never add one, since the ＋ Weapon button lives inside this block. */}
+      {(pf2.attacks.length > 0 || canDoEdit) && (
         <div>
-          <div style={label}>Strikes</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={label}>Strikes</div>
+            {canDoEdit && (
+              <button className="btn tiny" disabled={saving} onClick={() => setWeaponEditor('new')} title="Add or author a weapon">＋ Weapon</button>
+            )}
+          </div>
           <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
             {pf2.attacks.map((a) => {
               const bonus = pf2AttackBonus(a, id.level, pf2.attributes);
+              // Resolve the weapon's TRAITS into real numbers (S13b/S15d). The sheet previously
+              // rendered a stored damage string, so `deadly`, `striking` and the crit rules never
+              // computed — a Rapier and a Shortsword rolled identically on a critical hit.
+              const strike = pf2ResolveStrike(
+                { name: a.name, damageDie: a.damage, damageType: a.damageType ?? '', traits: a.traits ?? [] },
+                {
+                  level: id.level, attributes: pf2.attributes,
+                  proficiency: pf2Proficiency(a.rank, id.level),
+                  itemBonus: a.weaponBonus,
+                  striking: (a.striking as 'none' | 'striking' | 'greater' | 'major') ?? 'none',
+                  ranged: (a.traits ?? []).some((t) => t.toLowerCase().startsWith('thrown') || t.toLowerCase() === 'ranged'),
+                },
+              );
               return (
                 <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
-                  <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{a.name}{a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 10 }}> · {a.traits.join(', ')}</span> : null}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>
+                    {a.name}
+                    {a.customized && <span title="Hand-customized — edited away from how it came." style={{ color: 'var(--hx-gold-2)' }}> ✎</span>}
+                    {a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 10 }}> · {a.traits.join(', ')}</span> : null}
+                  </span>
                   <span style={{ fontSize: 12, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
                     {/* Tap the Strike bonus to roll the attack; tap the damage to roll its dice (R1b). */}
                     <button type="button" onClick={() => rollLine(`${a.name} Strike`, bonus, 'attack')} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
                     ·
-                    <button type="button" onClick={() => rollDamage(`${a.name} damage`, a.damage)} title={`Roll ${a.name} damage (${a.damage})`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}>{a.damage} 🎲</button>
+                    <button
+                      type="button" onClick={() => rollDamage(`${a.name} damage`, strike.damage)}
+                      // The crit line is on the tooltip rather than always-visible: PF2 crits double
+                      // the whole total and THEN add deadly/fatal dice, which is exactly the number
+                      // a player is most likely to compute wrong by hand.
+                      title={`Roll ${a.name} damage (${strike.damage})\nOn a critical hit: ${strike.critDamage}${strike.notes.length ? `\n${strike.notes.join('\n')}` : ''}`}
+                      style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}
+                    >{strike.damage} 🎲</button>
+                    {canDoEdit && (
+                      <button
+                        className="btn tiny" disabled={saving}
+                        onClick={() => setWeaponEditor({ name: a.name, damage: a.damage, damageType: a.damageType, traits: a.traits, weaponBonus: a.weaponBonus, striking: a.striking, attribute: a.attribute })}
+                        title={`Edit ${a.name}`}
+                      >✎</button>
+                    )}
                   </span>
                 </div>
               );
@@ -266,6 +308,14 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           // The server re-checks through gatePf2Edit regardless of what this sends — the picker's
           // greying is for feedback timing, never the enforcement point.
           onAdd={(edit) => { setPicker(null); void postEdit(edit); }}
+        />
+      )}
+
+      {weaponEditor !== null && (
+        <PF2WeaponEditor
+          initial={weaponEditor === 'new' ? undefined : weaponEditor}
+          onClose={() => setWeaponEditor(null)}
+          onSave={(edit) => { setWeaponEditor(null); void postEdit(edit); }}
         />
       )}
 
