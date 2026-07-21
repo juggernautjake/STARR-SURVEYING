@@ -16,6 +16,8 @@ import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-validate';
 import { normalizeSystem } from '@/lib/dnd/systems';
+import { gateEdits, refusalSummary } from '@/lib/dnd/rules-gate';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
@@ -263,7 +265,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   // ── Mechanics path (Slice 8) ───────────────────────────────────────────────────────
-  const edits = editsRaw as SheetEdit[];
+  // Rules gate (Area MV). The AI writes the same edit vocabulary the pickers do, so enforcing
+  // eligibility only in the pickers meant "ask the AI for it" was a way around the rules. Every
+  // input is SERVER-derived — the variant from the character's stored metadata, the DM flag from
+  // the access check, class and level from the saved sheet — so nothing the model emits can
+  // decide whether the rules apply to it.
+  const gateVariant = readActiveSlotMeta((row as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const gateSlots = current?.spellcasting?.slots ?? {};
+  const gateMaxSpell = Object.entries(gateSlots)
+    .filter(([, v]) => ((v as { max?: number } | undefined)?.max ?? 0) > 0)
+    .map(([k]) => Number(k))
+    .reduce((a, b) => Math.max(a, b), 0);
+  const gated = gateEdits(editsRaw as SheetEdit[], {
+    system: normalizeSystem((row as { system?: string }).system),
+    enforce: !isDM && gateVariant === 'vanilla',
+    unboundReason: isDM ? 'dm-grant' : gateVariant === 'custom' ? 'custom-character' : undefined,
+    className: current?.meta?.className ?? '',
+    level: current?.meta?.level ?? 1,
+    knownSpells: (current?.spells ?? []).map((s) => s.name),
+    ...(gateMaxSpell > 0 ? { maxSpellLevel: gateMaxSpell } : {}),
+  });
+  const edits = gated.edits;
+  // Everything refused was refused — if that leaves nothing to do, say so rather than reporting
+  // a successful edit that changed nothing.
+  if (edits.length === 0) {
+    return NextResponse.json({ error: refusalSummary(gated.refused) ?? 'Nothing to apply.' }, { status: 400 });
+  }
   // An item's effects that the registry refused were DROPPED by applySheetEdits (never coerced);
   // surface them so a bonus that didn't take is visible, not silently missing (Slice 14).
   const rejectedEffects = validateSheetEdits(edits);
@@ -297,6 +324,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     result?.input?.summary ?? null,
     violations.length ? `⚠ Check: ${violationsSummary(violations)}` : null,
     rejectedEffects.length ? `⚠ Dropped ${rejectedEffects.length} invalid effect(s): ${rejectedEffects.map((r) => r.reason).join(' ')}` : null,
+    // A partly-refused batch must say so: applying 3 of 4 edits and reporting success reads as
+    // the AI quietly ignoring what was asked for.
+    refusalSummary(gated.refused),
   ].filter(Boolean).join('\n');
   // Return the batch id + a compact preview so the chat can offer an immediate "Undo this change"
   // button bound to exactly the edits this request made (history/undo A3).

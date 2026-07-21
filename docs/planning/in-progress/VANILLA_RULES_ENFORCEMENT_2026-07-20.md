@@ -110,15 +110,45 @@ the button, `add()` re-checks, and a custom character's off-rules feat lands car
 on the created feature. 9 tests. Same shape as S3 throughout, deliberately — two pickers that
 enforce differently is how one of them silently stops enforcing.
 
-### S5 — Close the other two doors
-`buildGrantEdits` and the AI `add_spell` op both currently bypass everything. A DM grant stays
-legal and lands marked; a player-initiated grant to their own vanilla character obeys the rules.
+### S5 — Close the other two doors ✅ SHIPPED 2026-07-20
+The pickers were never the whole story: both the AI's `add_spell` and the grant route write the
+same edit vocabulary without passing through a picker, so "ask the AI for Wish" would have stayed
+a working exploit. New `lib/dnd/rules-gate.ts` (`gateEdits` + `refusalSummary`) is called by
+`ai-edit`; `buildGrantEdits` takes the rules directly. 22 tests.
+
+Decisions worth keeping:
+- **The gate judges against the CATALOG, not the edit.** The AI supplies its own `level` field —
+  trusting it would let a model declare Wish a level-1 Wizard spell and walk through. Tested.
+- **Every input is server-derived**: variant from stored metadata, DM flag from the access check,
+  class/level from the saved sheet. Nothing in the request body decides whether rules apply, or a
+  caller simply declares itself custom. Tested with `expect(src).not.toMatch(/enforce:\s*body\./)`.
+- **`offRules` is NOT in the AI tool schema.** Server-set only — otherwise "this isn't off-rules"
+  becomes a claim the model makes rather than a fact the server checks.
+- **`buildGrantEdits`'s rules argument is REQUIRED**, with an explicit opt-out arm. An optional
+  one gets forgotten and fails open — the exact hole being closed.
+- **Refuse, never rewrite.** Downgrading "add Wish" to something castable would be worse than
+  either allowing or refusing it: the player would be told they got something they didn't.
+- **Per-edit, not all-or-nothing**, and every refusal is reported — a partly-applied batch that
+  claims success reads as the AI ignoring what was asked.
+- **Uncatalogued spells pass.** Homebrew makes no claim to be official content, and refusing it
+  would block a real use rather than the exploit.
+
+**Known gap, deliberately not papered over:** feats reach a sheet as `add_feature`, which carries
+no feat key, so the gate can't reliably resolve one back to a catalog feat. Name-matching would
+refuse legitimate homebrew features. The feat PICKER (S4) is gated; the AI/grant feature path is
+not. Closing it properly needs an `add_feat` op — **tracked as S7 below.**
 
 ### S6 — Mark off-rules content on the sheet
 An off-rules spell/feat should be visibly flagged wherever it renders, so a DM reading a sheet
 can see what was taken outside the rules. Render the `offRules` reason carried on the element
 (S3) — **not** `provenance.ts`, which answers a different question (see S3's note: it classifies
 whether content exists in the system, not whether it was legal for this character).
+
+### S7 — Close the feat door properly (found during S5)
+`add_feature` carries no feat key, so the gate cannot tell "the Grappler feat" from a homebrew
+feature named Grappler. Add an `add_feat` op keyed to the catalog and route feat grants through
+it; `add_feature` stays for genuine homebrew and stays ungated. Needs the AI tool schema and
+ai-scope's exhaustiveness guard updated in step.
 
 ---
 

@@ -20,6 +20,7 @@ import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { applySheetEdits, validateSheetEdits, editPath, editOldValue, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { normalizeCampaignPreferences } from '@/lib/dnd/preferences';
 import { buildGrantEdits, isGrantError, type GrantKind } from '@/lib/dnd/library-grant';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 import type { Character } from '@/app/dnd/_sheet/types';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const access = await requireCharacterWrite(params.id);
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
-  const row = access.access.character as unknown as { campaign_id: string | null; data: Character; name: string; system?: string };
+  const row = access.access.character as unknown as { campaign_id: string | null; data: Character; name: string; system?: string; system_variants?: unknown };
 
   const body = await req.json().catch(() => ({}));
   const kind = body.kind as GrantKind;
@@ -37,7 +38,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // smuggle another edition's mechanics onto this sheet.
   const system = String(row.system ?? body.system ?? '');
 
-  const outcome = buildGrantEdits({ kind, name, system, options: body.options ?? {} });
+  // Rules enforcement (Area MV). Before this, the grant route checked NOTHING — which made it the
+  // simplest way to put Wish on a level-4 vanilla Wizard, since the picker's rules lived in the
+  // picker and going around the picker went around the rules.
+  //
+  // Every input here is SERVER-DERIVED: the variant from the character's own stored metadata, the
+  // DM flag from the access check, the class and level from the saved sheet. Nothing in `body`
+  // influences whether the rules bind, or a caller could simply declare itself custom.
+  const kindOfBuild = readActiveSlotMeta(row.system_variants).kind ?? 'vanilla';
+  const isDMGrant = access.access.isDM;
+  const sheet = row.data;
+  const slots = sheet?.spellcasting?.slots ?? {};
+  const maxSpellLevel = Object.entries(slots)
+    .filter(([, v]) => ((v as { max?: number } | undefined)?.max ?? 0) > 0)
+    .map(([k]) => Number(k))
+    .reduce((a, b) => Math.max(a, b), 0);
+
+  const outcome = buildGrantEdits({ kind, name, system, options: body.options ?? {} }, {
+    // A DM grant and a custom character are both legitimately unbound; everything else obeys.
+    enforce: !isDMGrant && kindOfBuild === 'vanilla',
+    unboundReason: isDMGrant ? 'dm-grant' : kindOfBuild === 'custom' ? 'custom-character' : undefined,
+    character: {
+      className: sheet?.meta?.className ?? '',
+      level: sheet?.meta?.level ?? 1,
+      // Spells already on the sheet count as granted, so a subclass list or an earlier DM gift
+      // never reads as illegal on a second look.
+      knownSpells: (sheet?.spells ?? []).map((s) => s.name),
+      ...(maxSpellLevel > 0 ? { maxSpellLevel } : {}),
+    },
+  });
   if (isGrantError(outcome)) return NextResponse.json({ error: outcome.error }, { status: 400 });
   const edits: SheetEdit[] = outcome.edits;
 

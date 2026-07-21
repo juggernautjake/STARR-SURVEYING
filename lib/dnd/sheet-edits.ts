@@ -127,11 +127,15 @@ export type SheetEdit =
   // Merges only the fields given (keeping the rest), unlike add_attack which replaces the whole row.
   | { op: 'update_attack'; name: string; ability?: AbilityKey; damage?: string; damageType?: string; proficient?: boolean; range?: string; bonusToHit?: number; bonusDamage?: number; notes?: string }
   | { op: 'remove_attack'; name: string }
-  | { op: 'add_feature'; name: string; source?: string; body: string[] }
+  // `offRules` as on add_spell — server-set, never client-supplied.
+  | { op: 'add_feature'; name: string; source?: string; body: string[]; offRules?: string }
   | { op: 'remove_feature'; name: string }
   // Spells the AI can ADD/remove directly (not just grant via an item). Full spell shape — level,
   // school, timing, the resolution (attack roll or save vs DC), damage/heal, higher-level scaling.
-  | { op: 'add_spell'; name: string; level: number; school?: string; castTime?: string; range?: string; components?: string; duration?: string; concentration?: boolean; ritual?: boolean; description: string; prepared?: boolean; attack?: boolean; save?: { ability: AbilityKey; effect: string }; higher?: string }
+  // `offRules` records WHY a spell was outside what the character's class and level grant (Area
+  // MV). Server-set only — it is stamped by the grant path after its own eligibility check, never
+  // taken from the AI or the client, or "not off-rules" would be a claim the caller could make.
+  | { op: 'add_spell'; name: string; level: number; school?: string; castTime?: string; range?: string; components?: string; duration?: string; concentration?: boolean; ritual?: boolean; description: string; prepared?: boolean; attack?: boolean; save?: { ability: AbilityKey; effect: string }; higher?: string; offRules?: string }
   | { op: 'remove_spell'; name: string }
   // Money the AI can manage (Area C): add a named currency (a coin or a custom one like "Guild Marks"),
   // update an existing one's amount/rate/name, or remove it. `rate` = value of one unit in BASE units
@@ -449,7 +453,10 @@ export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { eq
         break;
       }
       case 'add_feature': {
-        const feat: FeatureBlock = { id: `ai-feat-${slug(e.name)}`, name: e.name, source: e.source ?? 'Feature', body: e.body };
+        const feat: FeatureBlock = {
+          id: `ai-feat-${slug(e.name)}`, name: e.name, source: e.source ?? 'Feature', body: e.body,
+          ...(e.offRules ? { offRules: e.offRules } : {}),
+        };
         c.features = [...c.features.filter((f) => !eqName(f.name, e.name)), feat];
         break;
       }
@@ -471,6 +478,7 @@ export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { eq
           ...(e.attack ? { attack: true } : {}),
           ...(e.save ? { save: e.save } : {}),
           ...(e.higher ? { higher: e.higher } : {}),
+          ...(e.offRules ? { offRules: e.offRules } : {}),
         };
         c.spells = [...(c.spells ?? []).filter((s) => !eqName(s.name, e.name)), spell];
         break;

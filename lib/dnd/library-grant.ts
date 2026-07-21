@@ -12,7 +12,26 @@
 
 import type { SheetEdit } from './sheet-edits';
 import { findSpellForSystem } from './spells';
+import { spellEligibility } from './spells/eligibility';
 import { findWeapon2024, findArmor2024, weaponPropertyLine } from './equipment/dnd5e-2024';
+
+/** Whether this grant is bound by the character's own class-and-level rules, and if so, by what.
+ *
+ *  Deliberately a REQUIRED argument to `buildGrantEdits` with an explicit opt-out arm rather than
+ *  an optional field: an optional one is omitted by accident and fails OPEN, which is exactly the
+ *  hole this exists to close. A caller that isn't enforcing has to say so, and say why. */
+export interface GrantRules {
+  /** Do this character's class-and-level rules BIND the grant? False for a DM grant (legitimate)
+   *  and for a custom character (the escape hatch the custom builder exists to provide). */
+  enforce: boolean;
+  /** Why not, when `enforce` is false. Recorded on the grant so an off-curve spell on a sheet is
+   *  never indistinguishable from a normal class pick. */
+  unboundReason?: 'dm-grant' | 'custom-character' | 'no-character-context';
+  /** The character's real class, level and slot ceiling. Carried even when `enforce` is false —
+   *  an unbound grant still needs it to DESCRIBE what it did ("not on the Wizard spell list"),
+   *  which is the whole difference between marking a grant and merely permitting it. */
+  character?: { className: string; level: number; knownSpells: string[]; maxSpellLevel?: number };
+}
 
 /** What kind of library content is being granted. */
 export type GrantKind = 'spell' | 'weapon' | 'armor' | 'item' | 'feature' | 'condition';
@@ -54,8 +73,13 @@ const KINDS: GrantKind[] = ['spell', 'weapon', 'armor', 'item', 'feature', 'cond
  *
  *  Returns an error rather than a best guess when the reference can't be resolved: granting
  *  a spell the catalog doesn't have would otherwise put an empty husk on someone's sheet
- *  that looks real and does nothing (Ground Rule 2 — never invented). */
-export function buildGrantEdits(req: GrantRequest): GrantOutcome {
+ *  that looks real and does nothing (Ground Rule 2 — never invented).
+ *
+ *  `rules` decides whether the character's own class and level constrain the grant. This route
+ *  used to check NOTHING, which made it the simplest way to put Wish on a level-4 vanilla
+ *  Wizard — the picker's rules were enforced in the picker, so going around the picker went
+ *  around the rules (Area MV). */
+export function buildGrantEdits(req: GrantRequest, rules: GrantRules): GrantOutcome {
   const name = (req.name ?? '').trim();
   if (!name) return { error: 'A name is required.' };
   if (!KINDS.includes(req.kind)) return { error: `Unknown grant kind: ${req.kind}` };
@@ -69,6 +93,31 @@ export function buildGrantEdits(req: GrantRequest): GrantOutcome {
       if (!def) {
         return { error: `“${name}” is not in the ${req.system} spell library, so it can't be granted with its real mechanics. Add it by hand on the sheet instead.` };
       }
+
+      // The rules verdict — computed whenever we have a character to judge against, whether or
+      // not it BINDS. Enforcing uses it to refuse; not enforcing uses it to mark.
+      const ch = rules.character;
+      const elig = ch
+        ? spellEligibility(def, {
+            system: req.system,
+            className: ch.className,
+            level: ch.level,
+            extraSpells: ch.knownSpells,
+            ...(ch.maxSpellLevel != null ? { maxSpellLevel: ch.maxSpellLevel } : {}),
+          })
+        : { ok: true, reason: undefined as string | undefined };
+
+      // Refused outright — the same answer the picker gives, so the two routes cannot disagree
+      // about what is legal.
+      if (rules.enforce && !elig.ok) {
+        return { error: `${def.name} is outside what this character can take: ${elig.reason}. This is a vanilla character — build a custom one, or have the DM grant it.` };
+      }
+
+      const offRules = elig.ok
+        ? undefined
+        : rules.unboundReason === 'dm-grant'
+          ? `granted by the DM — ${elig.reason}`
+          : elig.reason;
       // `add_spell` is a FLAT op and carries no damage/heal fields. Rather than drop the dice
       // silently — which would hand over a Fireball that rolls nothing — fold them into the
       // description so the numbers survive and the player can see them. The sheet's own editor
@@ -96,8 +145,9 @@ export function buildGrantEdits(req: GrantRequest): GrantOutcome {
           prepared: !!opts.prepared,
           attack: def.attack,
           save: def.save,
+          ...(offRules ? { offRules } : {}),
         } as SheetEdit],
-        summary: `Granted the spell ${def.name}${opts.prepared ? ' (prepared)' : ''}.`,
+        summary: `Granted the spell ${def.name}${opts.prepared ? ' (prepared)' : ''}${offRules ? ` — off-rules: ${offRules}` : ''}.`,
       };
     }
 

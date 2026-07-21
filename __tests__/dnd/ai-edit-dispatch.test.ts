@@ -21,8 +21,11 @@ describe('every AI edit tool offered by ai-edit is dispatched', () => {
   }
   it('edit_sheet is handled by the default mechanics path (its edits fall through)', () => {
     expect(SHEET_EDIT_TOOL.name).toBe('edit_sheet');
-    // No name-check for edit_sheet — its `edits` are applied by the mechanics path after the other branches.
-    expect(route).toContain('const edits = editsRaw as SheetEdit[]');
+    // No name-check for edit_sheet — its `edits` are applied by the mechanics path after the
+    // other branches. They now reach that path THROUGH the rules gate (Area MV), so a vanilla
+    // character can't be handed content its class and level don't grant by asking the AI for it.
+    expect(route).toContain('gateEdits(editsRaw as SheetEdit[]');
+    expect(route).toContain('const edits = gated.edits');
     expect(route).toContain('applySheetEdits(current, edits');
   });
   it('the offered toolset is exactly these tools (so a NEW tool forces a matching dispatch here)', () => {

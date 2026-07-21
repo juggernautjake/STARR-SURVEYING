@@ -6,7 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildGrantEdits, isGrantError } from '@/lib/dnd/library-grant';
+import { buildGrantEdits, isGrantError, type GrantRules } from '@/lib/dnd/library-grant';
+
+// These cases test the KIND→op MAPPING, not the rules gate — so they run explicitly unbound.
+// The gate has its own file (library-grant-rules.test.ts); mixing the two would mean every
+// mapping assertion silently depended on a level-appropriate class being set.
+const UNBOUND: GrantRules = { enforce: false, unboundReason: 'dm-grant' };
 import { grantKindForSection, grantKindForGlossary } from '@/app/dnd/_ui/GiveEntryButton';
 import { applySheetEdits, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -19,7 +24,7 @@ const ok = (o: ReturnType<typeof buildGrantEdits>) => {
 
 describe('spell grants resolve against the real catalog', () => {
   it('builds an add_spell carrying the published mechanics', () => {
-    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as Extract<SheetEdit, { op: 'add_spell' }>;
     expect(e.op).toBe('add_spell');
     expect(e.name).toBe('Fireball');
@@ -30,50 +35,50 @@ describe('spell grants resolve against the real catalog', () => {
 
   it('keeps the dice visible even though add_spell has no damage field', () => {
     // Dropping them silently would hand over a Fireball that rolls nothing.
-    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as Extract<SheetEdit, { op: 'add_spell' }>;
     expect(e.description).toContain('8d6');
   });
 
   it('honours the prepared option', () => {
-    const plain = ok(buildGrantEdits({ kind: 'spell', name: 'Bless', system: 'dnd5e-2024' }));
-    const prep = ok(buildGrantEdits({ kind: 'spell', name: 'Bless', system: 'dnd5e-2024', options: { prepared: true } }));
+    const plain = ok(buildGrantEdits({ kind: 'spell', name: 'Bless', system: 'dnd5e-2024' }, UNBOUND));
+    const prep = ok(buildGrantEdits({ kind: 'spell', name: 'Bless', system: 'dnd5e-2024', options: { prepared: true } }, UNBOUND));
     expect((plain.edits[0] as Extract<SheetEdit, { op: 'add_spell' }>).prepared).toBe(false);
     expect((prep.edits[0] as Extract<SheetEdit, { op: 'add_spell' }>).prepared).toBe(true);
   });
 
   it('refuses an unknown spell instead of granting an empty husk', () => {
-    const r = buildGrantEdits({ kind: 'spell', name: 'Fireballz', system: 'dnd5e-2024' });
+    const r = buildGrantEdits({ kind: 'spell', name: 'Fireballz', system: 'dnd5e-2024' }, UNBOUND);
     expect(isGrantError(r)).toBe(true);
   });
 
   it('refuses a spell for a system with no catalog rather than using 2024 data', () => {
-    const r = buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2014' });
+    const r = buildGrantEdits({ kind: 'spell', name: 'Fireball', system: 'dnd5e-2014' }, UNBOUND);
     expect(isGrantError(r)).toBe(true);
   });
 });
 
 describe('item and feature grants', () => {
   it('maps weapon/armor/item onto add_item with the right kind', () => {
-    expect((ok(buildGrantEdits({ kind: 'weapon', name: 'Longsword', system: 'x' })).edits[0] as { kind?: string }).kind).toBe('weapon');
-    expect((ok(buildGrantEdits({ kind: 'armor', name: 'Chain Mail', system: 'x' })).edits[0] as { kind?: string }).kind).toBe('armor');
-    expect((ok(buildGrantEdits({ kind: 'item', name: 'Rope', system: 'x' })).edits[0] as { kind?: string }).kind).toBe('gear');
+    expect((ok(buildGrantEdits({ kind: 'weapon', name: 'Longsword', system: 'x' }, UNBOUND)).edits[0] as { kind?: string }).kind).toBe('weapon');
+    expect((ok(buildGrantEdits({ kind: 'armor', name: 'Chain Mail', system: 'x' }, UNBOUND)).edits[0] as { kind?: string }).kind).toBe('armor');
+    expect((ok(buildGrantEdits({ kind: 'item', name: 'Rope', system: 'x' }, UNBOUND)).edits[0] as { kind?: string }).kind).toBe('gear');
   });
 
   it('carries quantity and equipped', () => {
-    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Dagger', system: 'x', options: { quantity: 3, equipped: true } }));
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Dagger', system: 'x', options: { quantity: 3, equipped: true } }, UNBOUND));
     const e = r.edits[0] as { qty?: number; equipped?: boolean };
     expect(e.qty).toBe(3);
     expect(e.equipped).toBe(true);
   });
 
   it('never grants a zero or negative quantity', () => {
-    const r = ok(buildGrantEdits({ kind: 'item', name: 'Torch', system: 'x', options: { quantity: -5 } }));
+    const r = ok(buildGrantEdits({ kind: 'item', name: 'Torch', system: 'x', options: { quantity: -5 } }, UNBOUND));
     expect((r.edits[0] as { qty?: number }).qty).toBe(1);
   });
 
   it('maps a feat onto add_feature, since there is no add_feat op', () => {
-    const r = ok(buildGrantEdits({ kind: 'feature', name: 'Alert', system: 'x', options: { note: 'You gain +5 initiative.' } }));
+    const r = ok(buildGrantEdits({ kind: 'feature', name: 'Alert', system: 'x', options: { note: 'You gain +5 initiative.' } }, UNBOUND));
     const e = r.edits[0] as Extract<SheetEdit, { op: 'add_feature' }>;
     expect(e.op).toBe('add_feature');
     expect(e.name).toBe('Alert');
@@ -81,22 +86,22 @@ describe('item and feature grants', () => {
   });
 
   it('rejects an empty name and an unknown kind', () => {
-    expect(isGrantError(buildGrantEdits({ kind: 'spell', name: '   ', system: 'dnd5e-2024' }))).toBe(true);
-    expect(isGrantError(buildGrantEdits({ kind: 'nonsense' as 'spell', name: 'X', system: 'x' }))).toBe(true);
+    expect(isGrantError(buildGrantEdits({ kind: 'spell', name: '   ', system: 'dnd5e-2024' }, UNBOUND))).toBe(true);
+    expect(isGrantError(buildGrantEdits({ kind: 'nonsense' as 'spell', name: 'X', system: 'x' }, UNBOUND))).toBe(true);
   });
 });
 
 describe('granted edits actually land on a sheet', () => {
   it('a granted spell appears in the character’s spell list', () => {
     const c = blankCharacter('Test');
-    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Magic Missile', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'spell', name: 'Magic Missile', system: 'dnd5e-2024' }, UNBOUND));
     const after = applySheetEdits(c, r.edits);
     expect(after.spells?.some((s) => s.name === 'Magic Missile')).toBe(true);
   });
 
   it('a granted item appears in the inventory with its quantity', () => {
     const c = blankCharacter('Test');
-    const r = ok(buildGrantEdits({ kind: 'item', name: 'Healing Potion', system: 'x', options: { quantity: 2 } }));
+    const r = ok(buildGrantEdits({ kind: 'item', name: 'Healing Potion', system: 'x', options: { quantity: 2 } }, UNBOUND));
     const after = applySheetEdits(c, r.edits);
     const item = after.inventory?.find((i) => i.name === 'Healing Potion');
     expect(item).toBeDefined();
@@ -200,7 +205,7 @@ describe('glossary entries can be granted where that makes sense', () => {
 describe('equipment grants resolve against the 2024 tables', () => {
   it('a granted weapon carries its damage and MASTERY property', () => {
     // Mastery is the 2024 headline and the part most easily lost in a hand-typed item.
-    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Greatsword', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Greatsword', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as { weapon?: { damage?: { dice: string; type: string }; properties?: string[] } };
     expect(e.weapon?.damage).toEqual({ dice: '2d6', type: 'slashing' });
     expect(e.weapon?.properties).toContain('Mastery: Graze');
@@ -208,7 +213,7 @@ describe('equipment grants resolve against the 2024 tables', () => {
   });
 
   it('a granted armour carries its base AC and dex cap', () => {
-    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Breastplate', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Breastplate', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as { armor?: { baseAC?: number; modCap?: number | null; category?: string } };
     expect(e.armor?.baseAC).toBe(14);
     expect(e.armor?.modCap).toBe(2);
@@ -216,21 +221,21 @@ describe('equipment grants resolve against the 2024 tables', () => {
   });
 
   it('maps a shield as a flat bonus', () => {
-    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Shield', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'armor', name: 'Shield', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as { armor?: { category?: string; baseAC?: number } };
     expect(e.armor?.category).toBe('shield');
     expect(e.armor?.baseAC).toBe(2);
   });
 
   it('grants an unknown item WITHOUT stats rather than inventing them', () => {
-    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Lightsaber', system: 'dnd5e-2024' }));
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Lightsaber', system: 'dnd5e-2024' }, UNBOUND));
     const e = r.edits[0] as { weapon?: unknown; name: string };
     expect(e.name).toBe('Lightsaber');
     expect(e.weapon).toBeUndefined();
   });
 
   it('still honours quantity and equipped for table-resolved items', () => {
-    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Dagger', system: 'dnd5e-2024', options: { quantity: 2, equipped: true } }));
+    const r = ok(buildGrantEdits({ kind: 'weapon', name: 'Dagger', system: 'dnd5e-2024', options: { quantity: 2, equipped: true } }, UNBOUND));
     const e = r.edits[0] as { qty?: number; equipped?: boolean };
     expect(e.qty).toBe(2);
     expect(e.equipped).toBe(true);
