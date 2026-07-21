@@ -1463,3 +1463,18 @@ select.input {
 .chipIcon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); color: var(--hx-gold-2); }
 .chipIconDanger:hover:not(:disabled) { background: rgba(198, 64, 59, 0.16); color: var(--hx-danger); }
 .chipIcon:disabled { cursor: default; opacity: 0.4; }
+
+/* A clickable search result. The row used to be a plain <div> — visible but dead — so it needs to
+   read as interactive at a glance, not only on hover. The left border is the resting-state cue;
+   hover and keyboard focus both light it up, since a keyboard user gets no hover. */
+.searchHit {
+  border-left: 2px solid transparent;
+  transition: background 0.14s, border-color 0.14s;
+}
+.searchHit:hover,
+.searchHit:focus-visible {
+  background: rgba(10, 200, 185, 0.07);
+  border-left-color: var(--hx-teal-1);
+  outline: none;
+}
+.searchHit:focus-visible { box-shadow: 0 0 0 1px var(--hx-teal-1); }

@@ -17,6 +17,9 @@ import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import GiveEntryButton from '@/app/dnd/_ui/GiveEntryButton';
 import SpellBrowser from '@/app/dnd/_ui/SpellBrowser';
+import BackToTop from '@/app/dnd/_ui/BackToTop';
+import DeepLinkOpener from './DeepLinkOpener';
+import { entryAnchorId } from '@/lib/dnd/library-anchors';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
 import JumpNav from '@/app/dnd/_ui/JumpNav';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
@@ -110,6 +113,13 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
             ]}
           />
 
+          {/* Expands the collapsed <details> a `#entry-…` link points at — without it a search
+              result lands on a closed one-line strip and reads as a broken link. */}
+          <DeepLinkOpener />
+          {/* The system pages are very long; searching again is the commonest next action, so the
+              button returns to the top AND focuses the search box. */}
+          <BackToTop label="Back to search" />
+
           <LibrarySearch system={page.key} systemName={page.name} />
 
           {/* Faceted spell browser — search + filter the whole catalog. Renders only for a
@@ -164,7 +174,10 @@ export default function LibrarySystemPage({ params }: { params: { key: string } 
               {s.entries && (
                 <div style={{ display: 'grid', gap: 6 }}>
                   {s.entries.map((e) => (
-                    <details key={e.name} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px' }}>
+                    // `id` from the SHARED anchor helper, so a search hit's href and this element
+                    // cannot drift apart. `scrollMarginTop` keeps the row clear of the sticky header
+                    // when DeepLinkOpener scrolls to it.
+                    <details key={e.name} id={entryAnchorId(e.name)} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px', scrollMarginTop: 72 }}>
                       <summary style={{ cursor: 'pointer', fontSize: 13.5 }}>
                         <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
                         {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}

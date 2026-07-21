@@ -310,6 +310,94 @@ Every condition, stance, skill, damage type and rules term in all four systems h
 every tooltip and `RuleTip` has something to show. A coverage test that FAILS on a term with no
 article, per system — the honest-coverage pattern used by the spell catalogs.
 
+### CX-15 — Library search results are reachable ✅ SHIPPED 2026-07-21
+*Owner: "make sure that in the library, the search works to pull up the names of things related to
+our search, and that it applies the filters that are given if any are given, and the results show
+beneath the search bar and we can click them to be taken to see the full information."*
+
+Checked each clause against the live code rather than assuming. Search itself worked — debounced,
+live, grouped by system, results beneath the bar. **The clickthrough did not exist**: every hit
+rendered as a plain `<div>`, so a reader could see that a rule existed and had no way to open it,
+which is the one thing a search result must do. Only the system heading was a link.
+
+Shipped:
+- **Every hit is now a link.** `lib/dnd/library-anchors.ts` resolves kind → section → entry anchor,
+  and is the SHARED source for both the search box's href and the id the page stamps on the element
+  — because if those two ever disagree the link fails *silently*, navigating to an anchor nothing
+  carries. A test asserts every kind `librarySearch` can emit maps to a section a real page renders,
+  reading the kind list out of the source rather than a hand-kept copy.
+- **`DeepLinkOpener`** — the non-obvious half. Every section and entry is a native `<details>`,
+  default-closed, so a bare anchor link scrolls to a collapsed one-line strip and reads as broken.
+  It walks up opening every ancestor, then scrolls, then flashes a highlight (skipped under
+  `prefers-reduced-motion`). Also bound to `hashchange`, or only the first link of a session works.
+- **A kind filter**, built from the kinds actually present in the current results rather than a
+  fixed list of ~26 internal names — so no filter is ever offered that would return nothing. It
+  clears whenever results change, because a filter held over from a previous query silently hides
+  matches for the new one. The count reports "6 of 42" when filtered, since "42 matches" above 6
+  rows reads as a rendering bug.
+- **`BackToTop`** on every system library page. It moves FOCUS to the search input, not just the
+  viewport — a keyboard user scrolled to the top with focus left at the bottom would have to tab
+  through the whole page, which is worse than no button.
+
+Deliberately NOT done: spells link to the system page rather than a `#spells` anchor, because spells
+have no section — `SpellBrowser` owns them, with facets a static section could not do. Returning
+`null` for that kind is a deliberate answer, and the test distinguishes it from an unmapped kind
+(which would also return null and be a real bug).
+
+### CX-16 — Edition bleed audit, fixed and guarded ✅ SHIPPED 2026-07-21
+*Owner: "make sure that the 2014 spells are all really from the 2014 edition and that the 2024
+spells are really all from the 2024 edition and that they didn't bleed into each other."*
+
+**The result was the opposite of what I expected, and that is the useful part: the 2014 catalog was
+clean.** Membership, source strings, object identity, levels and ritual flags all passed. Every
+confirmed fault was in **`dnd5e-2024.ts`**, carrying a 2014 value forward. All four fixed, each
+asserted in `__tests__/dnd/edition-bleed.test.ts` in the same commit as its fix:
+
+1. **`contagion`** — the worst. The 2024 record *was* the 2014 spell entire, `attack: true` and all,
+   so a 2024 Cleric's sheet rendered an attack button and rolled to hit for a spell that cannot
+   miss, and never surfaced the Constitution save the 2024 version is built around. Now a save for
+   11d8 necrotic plus Poisoned.
+2. **`mass-cure-wounds`** — healed 2014's `3d8`; 2024 heals `5d8`.
+3. **`cone-of-cold`** — missing Druid from the 2024 class list.
+4. **`greater-restoration`** — missing Paladin and Ranger.
+
+**The tell, worth keeping for the next audit:** in cases 2–4 each spell's own `editionNote` already
+stated the correct difference while the data contradicted it. The notes were right and the values
+stale — so these were detectable from inside the repo with no external source at all. A cheap
+future check is simply "does a record agree with its own editionNote?"
+
+Still open and recorded in the test rather than fixed: several 2024 records omit the very field
+carrying their 2024 change (`counterspell` and `power-word-stun` have no `save`, `spiritual-weapon`
+lost `attack`/`damage`, `flame-strike` lists half its damage). While those are blank the catalogs
+read as identical however far apart the rules are, which is *why* bleed survives undetected.
+
+### CX-17 — PF2/IG system isolation: 4 confirmed bleeds, NOT yet fixed
+The architecture holds — the import graph is clean, content dispatchers are correctly scoped, and
+PF2 and IG each define their own conditions, proficiency, skills and action economy. All four
+bleeds live in **shared modules above the subsystems**; nothing inside `lib/dnd/systems/*` reaches
+sideways. Recorded in `__tests__/dnd/system-bleed.test.ts` as a self-cleaning `KNOWN_BLEED` map:
+each entry asserts the *current wrong behaviour*, so fixing one fails the test and forces the record
+to be deleted — bug and documentation die together.
+
+- **B1 (HIGH)** `sheet-edits.ts` `resolveFeat()` is hardcoded to `FEATS_2024` and `gateEdits()`
+  calls it for every system. "Toughness" exists in 5e, PF2 and IG — on a PF2/IG sheet it resolves to
+  the **5e** feat and is judged by 5e slot eligibility, so a legal PF2/IG feat can be REFUSED using
+  another system's rules. The `add_spell` arm twenty lines below routes correctly through
+  `findSpellForSystem`. Sibling branches, one scoped, one not.
+- **B2 (HIGH)** `library-grant.ts` calls `findWeapon2024`/`findArmor2024` without consulting
+  `req.system`, so a PF2 or IG "Longsword" arrives with 5e stats including a 2024-exclusive Weapon
+  Mastery property that exists in neither PF2, IG, nor 5e-2014.
+- **B3 (MED-HIGH)** IG is given **PF2's** four-step ±10 degree ladder; IG's own rule is a five-step
+  ladder on ±20 with Partial Success on an exact tie — corroborated by its own system-rules text,
+  the Critical Focus feat, the Expanded Critical enchantment, and ~30 IG spells with a Partial
+  Success outcome the current type cannot represent.
+- **B4 (MED)** `currency.ts` gives PF2 an explicit case and everything else the 5e `default:` arm,
+  so IG sheets start with 5e coins including Electrum despite IG having its own authored currency.
+
+**Not fixed in this pass, deliberately.** B1 and B2 are contained corrections and should land next.
+B3 changes IG combat maths and touches existing tests, so it needs the owner's sign-off rather than
+my judgement — it is a rules change, not a bug fix.
+
 ### CX-13 — IG give-to-character
 Confirm and close the one library→sheet path not verified above.
 
