@@ -133,6 +133,15 @@ export interface IGCharacter {
    *  NOT the same axis as `igIsVanilla`/provenance, which ask whether content exists in the book.
    *  This asks whether it was legal for THIS character. */
   offRules?: Record<string, string>;
+  /** Rules text the player has overridden, keyed by element name (IG parity with PF2 S15).
+   *
+   *  Same map-beside-the-list shape as `offRules`, and for the same reason: `powers` and `feats`
+   *  are bare `string[]`, so there is no per-element object to hang text on. Purely additive, so
+   *  every IG character already stored stays valid with no migration.
+   *
+   *  Presence here IS the ✎ "customized" signal — a separate boolean would be a second source of
+   *  truth that could disagree with the text it describes. */
+  customEffects?: Record<string, string>;
   stances: string[];
   weaponGroups: string[];
   combat: IGCombat;
