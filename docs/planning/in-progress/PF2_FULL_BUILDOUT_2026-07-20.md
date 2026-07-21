@@ -60,6 +60,12 @@ exactly the hallucinated-data failure Ground Rule 3 exists to prevent. So this d
 **Done means every slice below is shipped and the status object honestly reports coverage** — not
 that every entry in every Paizo book exists in the repo.
 
+**Status 2026-07-21: every slice is shipped.** S13b and S15 — the two large remaining ones — closed
+on 2026-07-21. What stays open is the **catalog long tail** (authoring passes, not slices) and the
+four owner questions at the bottom of this doc. Against the six criteria in
+`IG_FULL_PARITY_2026-07-21.md`, PF2 now holds all six, with Catalogued honestly partial and reported
+as such by `PF2_CATALOG_STATUS`.
+
 ---
 
 ## Ground rules (inherited)
@@ -206,7 +212,65 @@ kinds that had no catalog presence at all (feats, conditions, runes, shields, it
 - `pf2-rules-gate.ts` on every write path (ai-edit, pf2-edit, pf2-build), matching 5e/IG exactly.
 - Builder pickers filtered + greyed with reasons (the S0 treatment).
 
-### S13b — HOOK EVERYTHING UP TO THE SHEET AND THE ROLLER ⏳ PART SHIPPED 2026-07-20
+### S13b — HOOK EVERYTHING UP TO THE SHEET AND THE ROLLER ✅ SHIPPED 2026-07-21
+Completed 2026-07-21. `resolve.ts` + 29 tests asserting resolved NUMBERS.
+
+**The bug that justified doing this structurally rather than as a set of edits:** the sheet
+DISPLAYED `pf2SaveTotal(save, char)` and ROLLED that number plus a condition penalty applied at the
+call site. A Frightened 2 character read **+7** off the card and rolled a **5**. That is the "card
+says +7, rolls +5" failure already recorded against the IG sheet (IG-S4), and it is worse than an
+unimplemented condition because the player trusts the card. Two call sites that each remember to
+apply conditions will drift again the moment a third statistic is added, so every statistic now
+resolves in one place and the card and the roll both read `.total`.
+
+**Two modules were written for S13b, tested in isolation, and consumed by NOTHING.**
+`pf2StackModifiers` implemented PF2's highest-of-each-type rule and never reached a number a player
+could see; `pf2ResolveRunes` resolved a resilient `saveBonus` no save ever read. Both are wired now:
+a +1 item bonus beside a +2 resilient rune resolves to **+2, not +3**, and the suppressed one is
+NAMED rather than silently dropped ("why isn't my +1 counting?" is PF2's most common maths question
+and the answer is a rule, not a bug).
+
+**MAP reached a Strike for the first time.** `pf2Map` existed and was tested, but nothing ever passed
+a `strikeIndex`, so a Fighter's third attack displayed and rolled **ten points too high**. The
+Strikes block carries a Strike-# selector; agile weapons take −4/−8 rather than −5/−10, and it caps
+after the third.
+
+Also newly computing: **AC moves** under Off-Guard/Clumsy/Frightened (it was the one headline number
+no condition could touch); **Stupefied reaches the spell DC and spell attack**, as its own text says;
+attribute-scoped conditions land where they belong — **Clumsy penalises Acrobatics and no longer
+penalises Athletics**, which the shared module's single `'skill'` bucket could not express. **Armor
+runes are modelled** (`PF2Combat.armorRunes` + `set_armor` + the armor editor), deriving AC and save
+bonuses the way weapon runes already derived attack and damage.
+
+What was deliberately NOT done, and why:
+
+- **No feat bonus is folded into a sheet number, and this is the finding, not a shortfall.** A survey
+  of the whole feat catalog found **not one unconditional bonus** — every single one is scoped
+  ("against poisons", "in that terrain", "against the triggering attack", "until the start of your
+  next turn"). Folding "+1 vs poison" into the Fortitude card would apply it against everything,
+  which is the silently-wrong number Ground Rule 3 exists to prevent. Typed feat bonuses are parsed
+  (PF2 always names the bonus TYPE, which is what makes this reading rather than guessing), carried
+  with their scope verbatim, and surfaced as **situational** in the roll breakdown. Same treatment
+  IG-S4 established for weapon properties. A feat stating no typed bonus yields nothing and stays
+  prose, which is the honest outcome for the large majority: they grant actions, reactions and
+  permissions, not numbers.
+- **`Off-Guard`'s `fixed: 0` in the shared conditions module was left alone.** It is the truthful
+  answer to the only question that module asks — "what does this do to a roll I make?" — and the
+  answer is nothing; Off-Guard lowers the AC that attacks are rolled against. AC was not a statistic
+  it modelled. The −2 its own note states is encoded on the AC path in `resolve.ts` instead, because
+  changing `fixed` would make every existing caller subtract 2 from checks Off-Guard does not touch.
+- **`pf2Derived` in rules.ts was kept** alongside `pf2ResolveAll`, rather than replaced. The builder
+  and the AI grounding want a character's numbers WITHOUT transient combat state; the sheet wants
+  them with it. Two callers asking genuinely different questions, rather than one function with a
+  boolean.
+- **Conditions do not chain.** Prone also makes you Off-Guard in PF2; the sheet does not auto-apply
+  the second from the first. Automating condition implication is a rules decision with a lot of edge
+  cases, and a wrong auto-applied condition is harder to notice than a missing one.
+- Five source-anchoring tests were re-pointed at `resolve.ts` rather than deleted. They named
+  symbols the sheet no longer calls directly; the properties they guard still hold, and the real
+  protection is now the resolved-number tests.
+
+### S13b — earlier progress (kept for the record) ⏳ PART SHIPPED 2026-07-20
 **Strike resolution is done** (`strike.ts`, 33 tests) — the piece most likely to be silently wrong.
 **PF2 crits are not 5e crits:** 5e rolls the dice twice and adds modifiers once; PF2 doubles the
 ENTIRE total, dice and modifiers, and THEN adds deadly/fatal dice undoubled. A 5e-shaped
@@ -264,7 +328,45 @@ reach the maths:
 
 Each of these gets tests asserting the resolved NUMBER, not just that the field renders.
 
-### S15 — EDITORS + HOMEBREW, at parity with the 2024 sheet
+### S15 — EDITORS + HOMEBREW, at parity with the 2024 sheet ✅ SHIPPED 2026-07-21
+S15a–d shipped 2026-07-20 (`PF2ElementEditor` for spells and feats, `PF2WeaponEditor`,
+`PF2ArmorEditor`, `update_spell`/`update_feat`/`add_attack`/`update_attack`/`set_armor` ops, all
+gated). Closed 2026-07-21 with two behaviours IG had already found and fixed and PF2 still had —
+because the IG fixes were made on the IG sheet, and **there is no shared code to make them in**. The
+two bespoke sheets are deliberately separate (Ground Rule 1), so the only thing that can hold them
+to the same behaviour is a test. Both now have one.
+
+- **The gate's refusal now reaches the player.** `postEdit` awaited the fetch and ignored its
+  response entirely, so a 400 and a 200 were indistinguishable. `gatePf2Edit` composes a genuinely
+  useful sentence — it names the reason AND both ways forward — and the sheet threw it away. An
+  unchanged sheet is indistinguishable from a slow one, so a refused edit read as the app ignoring
+  you. Exactly the bug IG-S2 closed; same fix, plus a network failure that now says so.
+- **An emptied spell override CLEARS rather than storing a blank.** `PF2KnownSpell.effect` is an
+  override, so writing `""` left the spell rendering as though it had no rules text at all —
+  silently destroying them — and made a customisation impossible to undo. IG-S1 settled this exact
+  question; same answer.
+
+What was deliberately NOT done, and why:
+
+- **`update_feat`'s body was NOT made symmetric with the spell override.** `PF2Feat.body` is the
+  feat's stored TEXT, copied from the catalogue by `add_feat` with nothing behind it, so there is no
+  catalogue text to fall back TO. "Clearing" it would restore nothing and merely make the field
+  impossible to blank. The asymmetry is in the shapes, not the handling, and is pinned by a test so
+  it reads as decided rather than forgotten.
+- **Editing is not re-gated, by design and now by test.** `gatePf2Edit` returns early for every op
+  except `add_feat`/`add_spell`. Re-judging an edit would mean a level-4 wizard legitimately granted
+  a rank-5 spell could never retune its text, and would see the grant refused back at them.
+
+**Recorded, not fixed — a cross-system inconsistency that is a rules decision, not a bug:** IG gates
+authoring (`canAuthorPowers = isDM || custom`, so a vanilla IG character cannot author a power), and
+**PF2 does not**. `gatePf2Edit` passes any name the catalog does not know, on the stated reasoning
+that homebrew "makes no claim to be official content, and refusing it would block authoring
+something new rather than the exploit being closed". That reasoning is sound, but it does mean a
+vanilla PF2 character can author a rank-1 spell that does anything at all, which is a route around
+the gate that vanilla exists to be. The two systems should probably agree. Which way they agree is
+an owner call, so it is question 6 below rather than a silent change to enforcement.
+
+### S15 — original plan
 *Owner, verbatim: "We need to be able to fully customize spells and feats and armor and weapons and
 stuff in an editor for each thing. We need to be able to create whole new ones too. This needs to be
 accessible to the PF2 character spreadsheet. It needs to have the same functionality as the 2024
@@ -339,6 +441,22 @@ recommendation) or against **production** (real data, and a stray click could mu
 character — note the standing rule never to click role-mutating buttons during a live audit).
 
 ---
+
+## Open questions for the owner, recorded rather than guessed
+
+1. **Should a VANILLA character be able to author homebrew?** IG says no (`add_power` is gated to
+   DM-or-custom); PF2 says yes (any name the catalog does not know passes). Both have a stated
+   rationale and they contradict each other. Whichever way this lands, the two systems should match,
+   and 5e 2024 should be checked against the answer too. See S15 above.
+2. **Homebrew scope** — per-character (assumed throughout, matching the 2024 sheet) or promoted into
+   a shared per-campaign library other characters can draw from? Unchanged from S15's original note.
+3. **Should conditions chain?** Prone makes you Off-Guard in PF2, and the sheet does not apply the
+   second from the first. Auto-applying implied conditions is a rules decision with real edge cases.
+4. **Archives of Nethys sourcing** — two earlier tranches (classes, ancestries) were authored using
+   AoN after the assistant said it would avoid it. Nothing in this pass used it: S13b and S15 are
+   both wiring and UI, and every mechanical fact they encode was read from data already in the repo
+   (`PF2_CONDITION_MECHANICS` notes, `PF2_RUNES`, the feat catalog's own effect text). Re-deriving
+   the earlier tranches gets more expensive as content layers on top.
 
 ## Done means
 
