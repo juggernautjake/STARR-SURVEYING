@@ -183,3 +183,34 @@ describe('trait parsing', () => {
     expect(traitDie([], 'fatal')).toBeNull();
   });
 });
+
+describe('flat-damage weapons (found while integrating the equipment catalog)', () => {
+  // The blowgun deals exactly 1 piercing — no die. Formatting it as "1d1" would be nonsense a dice
+  // roller would then try to roll.
+  const blowgun = { name: 'Blowgun', damageDie: '1', damageType: 'piercing', traits: ['agile', 'nonlethal', 'reload 1'] };
+
+  it('keeps the flat number instead of inventing a die', () => {
+    const r = pf2ResolveStrike(blowgun, { ...base, ranged: true });
+    expect(r.damage).toBe('1 piercing');
+    expect(r.damage).not.toContain('d');
+  });
+
+  it('doubles the flat number on a crit', () => {
+    expect(pf2ResolveStrike(blowgun, { ...base, ranged: true }).critDamage).toBe('2 piercing');
+  });
+
+  it('stays flat under a striking rune', () => {
+    // Striking multiplies weapon DICE; a weapon with none stays flat rather than growing a die.
+    expect(pf2ResolveStrike(blowgun, { ...base, ranged: true, striking: 'greater' }).damage).toBe('1 piercing');
+  });
+});
+
+describe('the two-hand trait is only for one-handed weapons', () => {
+  it('a Greatsword carries no two-hand trait, so wielding it two-handed changes nothing', () => {
+    // The seed listed Greataxe/Greatsword with `two-hand d12` despite both already being Hands 2.
+    // Left uncorrected, this resolver would have substituted the die for a weapon that never gets
+    // the benefit. Caught during the equipment integration and fixed in content.ts.
+    const greatsword = { name: 'Greatsword', damageDie: '1d12', damageType: 'slashing', traits: ['versatile P'] };
+    expect(pf2ResolveStrike(greatsword, { ...base, twoHanded: true }).damage).toBe('1d12+4 slashing');
+  });
+});

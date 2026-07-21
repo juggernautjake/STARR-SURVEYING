@@ -76,6 +76,10 @@ export function traitDie(traits: string[], prefix: string): string | null {
 
 const dieSize = (die: string): number => Number(die.replace(/^.*d/i, '')) || 0;
 const dieCount = (die: string): number => Number(die.match(/^(\d+)d/i)?.[1] ?? 1);
+/** A few weapons deal FLAT damage rather than a die — the blowgun deals exactly 1 piercing. Those
+ *  are stored as a bare number ("1"), and formatting them as "1d1" would be nonsense that a dice
+ *  roller would then try to roll. */
+const isFlat = (die: string): boolean => !/d/i.test(die);
 
 /** The multiple attack penalty for this Strike. Agile weapons take −4/−8 rather than −5/−10, and
  *  the penalty stops growing after the third Strike. */
@@ -150,7 +154,12 @@ export function pf2ResolveStrike(weapon: PF2StrikeWeapon, ctx: PF2StrikeContext)
   damageMod += ctx.extraDamage ?? 0;
 
   const modPart = damageMod > 0 ? `+${damageMod}` : damageMod < 0 ? `${damageMod}` : '';
-  const damage = `${count}d${size}${modPart} ${weapon.damageType}`;
+  // A flat-damage weapon keeps its flat number; striking still multiplies it, since striking adds
+  // weapon damage dice and a flat weapon simply has none to multiply — it stays flat.
+  const flat = isFlat(die);
+  const damage = flat
+    ? `${Number(die) || 0}${modPart} ${weapon.damageType}`
+    : `${count}d${size}${modPart} ${weapon.damageType}`;
 
   // ── Critical damage ────────────────────────────────────────────────────────────────────────
   // PF2 doubles the WHOLE total (dice and modifiers), then adds deadly/fatal dice on top —
@@ -185,7 +194,9 @@ export function pf2ResolveStrike(weapon: PF2StrikeWeapon, ctx: PF2StrikeContext)
   return {
     attack, map,
     damage,
-    critDamage: `${critCount}d${size}${critModPart}${critExtra} ${weapon.damageType}`,
+    critDamage: flat
+      ? `${(Number(die) || 0) * 2}${critModPart}${critExtra} ${weapon.damageType}`
+      : `${critCount}d${size}${critModPart}${critExtra} ${weapon.damageType}`,
     damageAttribute, notes,
   };
 }

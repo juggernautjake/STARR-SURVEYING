@@ -113,6 +113,25 @@ export interface PF2Spellcasting {
   rank: PF2Rank;             // spell DC / attack proficiency
   /** Slots per spell rank 1–10 (index 0 = cantrips known). */
   slots: number[];
+  /** The spells the character actually HAS. The sidecar tracked slot COUNTS but never which
+   *  spells filled them, so a PF2 sheet could say "3 rank-2 slots" and not name a single spell.
+   *  Optional so every PF2 character already stored stays valid without migration. */
+  spells?: PF2KnownSpell[];
+}
+
+/** A spell on a PF2 character: in a prepared caster's list for the day, or a spontaneous caster's
+ *  repertoire. Cantrips are rank 0 and are always available. */
+export interface PF2KnownSpell {
+  name: string;
+  rank: number;
+  /** Prepared today. Meaningless for spontaneous casters, whose repertoire is always castable. */
+  prepared?: boolean;
+  /** A focus spell, cast from Focus Points rather than a slot. */
+  focus?: boolean;
+  /** Why this is outside what the character's class, level and tradition grant (Area MV). Set only
+   *  on custom characters and DM grants — a vanilla one is refused outright. See Spell.offRules on
+   *  the 5e side for why this is not `provenance`. */
+  offRules?: string;
 }
 
 /** A feat on one of the four tracks, or a class feature. */
@@ -124,6 +143,9 @@ export interface PF2Feat {
   actionCost?: PF2ActionCost;
   traits: string[];
   body: string;
+  /** Why this feat is outside what the character's level, class and prerequisites allow (Area MV).
+   *  Set only on custom characters and DM grants. */
+  offRules?: string;
 }
 
 // ── The full character sidecar (character.data.pf2e) ────────────────────────────────────────────────
@@ -140,6 +162,37 @@ export interface PF2Character {
   languages: string[];
   /** Special senses from ancestry/heritage (e.g. "Darkvision", "Low-light vision"). Display only. */
   senses?: string[];
+}
+
+/** A valid, empty PF2 character — level 1, all modifiers 0, untrained in everything.
+ *
+ *  The subsystem had only `buildPF2Character(picks)`, which forces every caller (and every test)
+ *  to invent a full pick-set just to obtain a valid sidecar. This mirrors `blankIGCharacter` and
+ *  5e's `blankCharacter` so the three systems are constructed the same way. */
+export function blankPF2Character(name: string): PF2Character {
+  const untrained = { rank: 'untrained' as PF2Rank, itemBonus: 0 };
+  return {
+    identity: {
+      name, level: 1, ancestry: '', heritage: '', background: '', className: '', subclass: '',
+      deity: '', size: 'Medium', alignment: '', bio: '', photoUrl: '',
+    },
+    attributes: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 },
+    perception: { rank: 'untrained' },
+    saves: { Fortitude: { ...untrained }, Reflex: { ...untrained }, Will: { ...untrained } },
+    skills: [],
+    combat: {
+      ancestryHp: 0, classHpPerLevel: 0, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0,
+      speed: 25, armorRank: 'untrained', dexCap: null, acItemBonus: 0,
+      attackRank: 'untrained', classDcRank: 'untrained', classDcAttribute: 'STR',
+      conditions: [],
+    },
+    attacks: [],
+    // `tradition: 'none'` and `kind: 'none'` mean "does not cast" — a blank character is not a
+    // caster, and the eligibility gate reads that rather than assuming.
+    spellcasting: { tradition: 'none', kind: 'none', attribute: 'INT', rank: 'untrained', slots: [] },
+    feats: [],
+    languages: [],
+  };
 }
 
 /** Runtime guard: is this stored value a PF2Character sidecar (character.data.pf2e)? */

@@ -281,6 +281,13 @@ export interface PF2ArmorDef {
   checkPenalty: number;
   speedPenalty: number;
   group?: string;
+  /** Bulk as printed ('L', '1', '—'). OPTIONAL because the 12-row seed below never carried it and
+   *  backfilling it here would mean guessing; data/equipment.ts supplies it for the full table. */
+  bulk?: string;
+  /** Price as printed ('8 gp'). Optional for the same reason — omitted beats invented (Ground Rule 3). */
+  price?: string;
+  /** Armor traits (bulwark, comfort, flexible, noisy). Optional: mechanical, but the seed predates them. */
+  traits?: string[];
 }
 export const PF2_ARMORS: PF2ArmorDef[] = [
   { name: 'Unarmored', category: 'unarmored', acBonus: 0, dexCap: null, strength: 0, checkPenalty: 0, speedPenalty: 0 },
@@ -311,8 +318,14 @@ export interface PF2WeaponDef {
   traits: string[];    // agile, finesse, reach, thrown, two-hand d12, versatile P, deadly d10, …
   group: string;       // Sword, Axe, Bow, …
   hands: 1 | 2;
-  /** Ranged increment in feet, or 0 for melee. */
+  /** Ranged increment in feet, or 0 for melee. Thrown melee weapons stay 0 — their increment rides
+   *  on the `thrown X ft` trait, as the dagger below already does. */
   range: number;
+  /** Bulk as printed ('L', '1', '2', '—'). OPTIONAL: the seed below never carried it, and inventing
+   *  values to make it required would violate Ground Rule 3. data/equipment.ts fills it in. */
+  bulk?: string;
+  /** Price as printed ('2 sp', '20 gp'). Optional for the same reason. */
+  price?: string;
 }
 export const PF2_WEAPONS: PF2WeaponDef[] = [
   // Simple melee
@@ -328,8 +341,8 @@ export const PF2_WEAPONS: PF2WeaponDef[] = [
   // Martial melee
   { name: 'Battle Axe', category: 'martial', damageDie: '1d8', damageType: 'S', traits: ['sweep'], group: 'Axe', hands: 1, range: 0 },
   { name: 'Flail', category: 'martial', damageDie: '1d6', damageType: 'B', traits: ['disarm', 'sweep', 'trip'], group: 'Flail', hands: 1, range: 0 },
-  { name: 'Greataxe', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['sweep', 'two-hand d12'], group: 'Axe', hands: 2, range: 0 },
-  { name: 'Greatsword', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['versatile P', 'two-hand d12'], group: 'Sword', hands: 2, range: 0 },
+  { name: 'Greataxe', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['sweep'], group: 'Axe', hands: 2, range: 0 },
+  { name: 'Greatsword', category: 'martial', damageDie: '1d12', damageType: 'S', traits: ['versatile P'], group: 'Sword', hands: 2, range: 0 },
   { name: 'Longsword', category: 'martial', damageDie: '1d8', damageType: 'S', traits: ['versatile P'], group: 'Sword', hands: 1, range: 0 },
   { name: 'Rapier', category: 'martial', damageDie: '1d6', damageType: 'P', traits: ['deadly d8', 'disarm', 'finesse'], group: 'Sword', hands: 1, range: 0 },
   { name: 'Scimitar', category: 'martial', damageDie: '1d6', damageType: 'S', traits: ['forceful', 'sweep'], group: 'Sword', hands: 1, range: 0 },

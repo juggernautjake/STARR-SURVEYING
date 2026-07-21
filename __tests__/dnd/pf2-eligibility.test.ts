@@ -101,9 +101,14 @@ describe('prerequisites', () => {
   it('does not refuse when there is nothing to judge against', () => {
     // A sheet mid-build has no scores or skills set yet. Refusing there would block a legal pick,
     // which is the worse failure — a player can work around permissiveness, not a false refusal.
-    const f = feat({ name: 'Strong', level: 1, track: 'general', prereqs: [{ kind: 'attribute', attribute: 'STR', value: 18 }] });
+    //
+    // NOTE the value is a MODIFIER (+3), not a 5e-style score (16). PF2 tracks modifiers in play
+    // and has no scores at all, so the catalog authors prerequisites as modifiers. Writing 18 here
+    // would encode the 5e convention into the PF2 subsystem and pass trivially against real data.
+    const f = feat({ name: 'Strong', level: 1, track: 'general', prereqs: [{ kind: 'attribute', attribute: 'STR', value: 3 }] });
     expect(pf2FeatEligibility(f, wizard(5)).ok).toBe(true);
-    expect(pf2FeatEligibility(f, wizard(5, { attributes: { STR: 10 } })).ok).toBe(false);
+    expect(pf2FeatEligibility(f, wizard(5, { attributes: { STR: 1 } })).ok).toBe(false);
+    expect(pf2FeatEligibility(f, wizard(5, { attributes: { STR: 4 } })).ok).toBe(true);
   });
 
   it('never enforces unstructured prose', () => {
