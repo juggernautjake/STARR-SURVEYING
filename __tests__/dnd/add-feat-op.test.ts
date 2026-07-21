@@ -17,20 +17,26 @@ const general = FEATS_2024.find((f) => f.category === 'general')!;
 const feat = (ref: string, slot?: 'origin' | 'fighting-style' | 'asi'): SheetEdit =>
   ({ op: 'add_feat', feat: ref, ...(slot ? { slot } : {}) } as SheetEdit);
 
+// The catalog these feats come from. `resolveFeat` takes it explicitly since 2026-07-21 (CX-17
+// B1): it used to search FEATS_2024 for every system, so a Pathfinder or Intuitive Games character
+// asking for a feat that exists in both games got the 5e one. See system-bleed.test.ts §6 for the
+// cross-system half; this file is about the op itself, so it stays on 2024 throughout.
+const SYSTEM = 'dnd5e-2024';
+
 describe('the op resolves against the catalog', () => {
   it('accepts a feat key', () => {
-    expect(resolveFeat(origin.key)?.name).toBe(origin.name);
+    expect(resolveFeat(origin.key, SYSTEM)?.name).toBe(origin.name);
   });
 
   it('accepts a display name, case-insensitively', () => {
     // The AI reliably produces the NAME and only sometimes the key; accepting only keys would
     // silently drop half its calls.
-    expect(resolveFeat(origin.name.toUpperCase())?.key).toBe(origin.key);
+    expect(resolveFeat(origin.name.toUpperCase(), SYSTEM)?.key).toBe(origin.key);
   });
 
   it('resolves nothing for an unknown feat', () => {
-    expect(resolveFeat('Blorpwave Mastery')).toBeUndefined();
-    expect(resolveFeat('')).toBeUndefined();
+    expect(resolveFeat('Blorpwave Mastery', SYSTEM)).toBeUndefined();
+    expect(resolveFeat('', SYSTEM)).toBeUndefined();
   });
 });
 

@@ -36,10 +36,31 @@ export const DEFAULT_CURRENCIES_PF2: Currency[] = [
   { id: 'pp', name: 'Platinum', abbrev: 'pp', amount: 0, rate: 1000 },
 ];
 
-/** The starting currency set for a system's sheet (5e/2014/2024 → 5e coins, PF2 → PF2 coins, else 5e). */
+/**
+ * Intuitive Games coins. Transcribed from IG_CURRENCY in systems/intuitive-games/items.ts —
+ * "10 Pennies (silver) = 1 Coin; 2 Coins = 1 Solidas (gold)" — with the Penny as the base unit, so
+ * a Coin is 10 and a Solidas is 20. IG's own equipment prices are quoted in Solidas (an
+ * Adventurer's Pack is 8), which is the check that these rates are the right way up.
+ */
+export const DEFAULT_CURRENCIES_IG: Currency[] = [
+  { id: 'penny', name: 'Penny', abbrev: 'p', amount: 0, rate: 1 },
+  { id: 'coin', name: 'Coin', abbrev: 'c', amount: 0, rate: 10 },
+  { id: 'solidas', name: 'Solidas', abbrev: 's', amount: 0, rate: 20 },
+];
+
+/**
+ * The starting currency set for a system's sheet.
+ *
+ * Each system that has its OWN authored money gets an explicit case; the 5e arm is the fallback
+ * because 2014 and 2024 genuinely share those coins. Intuitive Games gained a case on 2026-07-21
+ * (CX-17 B4): it has always had its own three-coin currency, but fell through to the 5e default,
+ * so every IG sheet started with Gold, Platinum and — worst of the three — Electrum, a coin that
+ * exists in no edition of IG.
+ */
 export function defaultCurrencies(system?: string | null): Currency[] {
   const clone = (list: Currency[]) => list.map((c) => ({ ...c }));
   if (system === 'pathfinder2e') return clone(DEFAULT_CURRENCIES_PF2);
+  if (system === 'intuitive-games') return clone(DEFAULT_CURRENCIES_IG);
   return clone(DEFAULT_CURRENCIES_5E);
 }
 

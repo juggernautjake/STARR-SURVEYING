@@ -371,7 +371,7 @@ carrying their 2024 change (`counterspell` and `power-word-stun` have no `save`,
 lost `attack`/`damage`, `flame-strike` lists half its damage). While those are blank the catalogs
 read as identical however far apart the rules are, which is *why* bleed survives undetected.
 
-### CX-17 — PF2/IG system isolation: 4 confirmed bleeds, NOT yet fixed
+### CX-17 — PF2/IG system isolation: 4 confirmed bleeds — B1, B2, B4 ✅ FIXED 2026-07-21; B3 held for the owner
 The architecture holds — the import graph is clean, content dispatchers are correctly scoped, and
 PF2 and IG each define their own conditions, proficiency, skills and action economy. All four
 bleeds live in **shared modules above the subsystems**; nothing inside `lib/dnd/systems/*` reaches
@@ -394,9 +394,37 @@ to be deleted — bug and documentation die together.
 - **B4 (MED)** `currency.ts` gives PF2 an explicit case and everything else the 5e `default:` arm,
   so IG sheets start with 5e coins including Electrum despite IG having its own authored currency.
 
-**Not fixed in this pass, deliberately.** B1 and B2 are contained corrections and should land next.
-B3 changes IG combat maths and touches existing tests, so it needs the owner's sign-off rather than
-my judgement — it is a rules change, not a bug fix.
+**Resolution (2026-07-21).** B1, B2 and B4 are fixed; their `KNOWN_BLEED` entries are deleted as
+that map's contract requires, and replaced by §6 `the fixed bleeds stay fixed`, which asserts
+BEHAVIOUR rather than source text — the staleness checks were `toContain` source reads, which is
+the right shape for pinning a bug you are not fixing and the wrong shape for guarding a fix.
+
+- **B1** `resolveFeat(ref, system)` — system is now REQUIRED, not defaulted, so the compiler names
+  every call site that has to decide rather than letting a new one reintroduce the bug silently.
+  Only 2024 has a catalog in this shape; every other system gets `[]` and falls through ungated,
+  which is correct — PF2 and IG each have their own gate. Both routes that can carry a non-5e
+  character (`ai-edit`, `grant-content`) now pass the character's real system into
+  `applySheetEdits` too; the gate had been system-aware while the apply silently defaulted to 2024,
+  so a feat could pass a correctly-scoped gate and be written with 5e rules text one line later.
+- **B2** `equipmentFor(system)` dispatcher. 2024 keeps mastery, 2014 gets real damage and NO
+  mastery (the field is absent from `WeaponDef2014` by design, so the compiler stops a 2024 value
+  being pasted in), PF2 and IG get nothing — a named item with no invented statistics, which is
+  the honest outcome given both model weapons entirely differently.
+- **B4** `DEFAULT_CURRENCIES_IG` — Penny 1 / Coin 10 / Solidas 20, transcribed from `IG_CURRENCY`.
+  IG sheets no longer start holding Electrum, a coin in no edition of IG.
+
+**One correction to the record above.** B1's entry named *Toughness* as the canonical collision.
+That was wrong: Toughness is not in `FEATS_2024` at all (2024's is called "Tough"), and 2024 shares
+**no** feat name with Pathfinder 2e. The entire overlap is with Intuitive Games and it is exactly
+four names — Alert, Lucky, Great Weapon Fighting, Two-Weapon Fighting. The bug was real and the fix
+is unchanged, but the harm was IG-only, not PF2. Alert is the sharpest case: 2024 origin feat
+(Initiative proficiency) vs IG general feat (never flat-footed, prereq Training in Perception), and
+since `slot` defaults to `asi`, an IG character taking IG's own Alert was refused by 5e's category
+rules. The test now asserts the collision list instead of describing it, so a wrong example cannot
+survive in prose again.
+
+**B3 still NOT fixed, deliberately.** It changes IG combat maths and touches existing tests, so it
+needs the owner's sign-off rather than my judgement — it is a rules change, not a bug fix.
 
 ### CX-13 — IG give-to-character
 Confirm and close the one library→sheet path not verified above.

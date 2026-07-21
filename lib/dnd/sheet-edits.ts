@@ -180,13 +180,47 @@ export type SheetEdit =
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
 
-/** A catalog feat by key OR display name. The AI reliably produces the name and only sometimes
- *  the key, so accepting both is the difference between an op that works and one that silently
- *  drops half its calls. */
-export function resolveFeat(ref: string): Feat | undefined {
+/**
+ * The feat catalog a system actually has, as a dispatcher (Ground Rule 1).
+ *
+ * Only 2024 has one in this shape. 2014's feats are a DIFFERENT type (`Feat2014` — no
+ * origin/general/fighting-style tracks, because those are a 2024 structure), and PF2 and IG own
+ * their feats inside their own subsystems with their own gates. So every other system correctly
+ * gets `[]` here rather than 2024's list.
+ */
+function featCatalogFor(system: string): Feat[] {
+  return system === 'dnd5e-2024' ? FEATS_2024 : [];
+}
+
+/**
+ * A catalog feat by key OR display name, SCOPED TO A SYSTEM. The AI reliably produces the name and
+ * only sometimes the key, so accepting both is the difference between an op that works and one
+ * that silently drops half its calls.
+ *
+ * WHY `system` IS REQUIRED RATHER THAN OPTIONAL. This function used to take only a ref and search
+ * FEATS_2024 unconditionally, and `gateEdits` called it for every system. Four names collide
+ * between 2024 and Intuitive Games — Alert, Lucky, Great Weapon Fighting, Two-Weapon Fighting — so
+ * an IG character asking for Alert resolved the **5e** feat and was judged by 5e slot eligibility.
+ * 5e's Alert is an ORIGIN feat and `slot` defaults to `asi`, so a vanilla non-DM IG character was
+ * REFUSED A LEGAL FEAT using another game's category rules, and on the apply side would have had
+ * 5e's initiative text written onto an IG sheet.
+ *
+ * (The audit that found this named Toughness as the example. That was wrong — Toughness is not in
+ * FEATS_2024 at all, and 2024 shares no feat name with Pathfinder 2e. The bug was real and the
+ * fix is unchanged; only the illustration was. See system-bleed.test.ts §6, which now asserts the
+ * collision list rather than describing it.)
+ *
+ * Making the parameter required rather than defaulted is the point: a default would let a new call
+ * site reintroduce the bug silently, whereas this way the compiler names every place that has to
+ * decide. The `add_spell` arm twenty lines below `gateEdits`'s feat branch already routed through
+ * `findSpellForSystem` correctly — sibling branches, one scoped and one not, which is exactly how
+ * this survived unnoticed.
+ */
+export function resolveFeat(ref: string, system: string): Feat | undefined {
   const r = String(ref ?? '').trim().toLowerCase();
   if (!r) return undefined;
-  return FEATS_2024.find((f) => f.key.toLowerCase() === r) ?? FEATS_2024.find((f) => f.name.toLowerCase() === r);
+  const catalog = featCatalogFor(system);
+  return catalog.find((f) => f.key.toLowerCase() === r) ?? catalog.find((f) => f.name.toLowerCase() === r);
 }
 const clampAbility = (n: number) => Math.max(1, Math.min(30, Math.round(n)));
 const eqName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -210,7 +244,11 @@ export function editPath(e: SheetEdit): string {
     case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
-    case 'add_feat': return `features[${slug(resolveFeat(e.feat)?.name ?? e.feat)}]`;
+    // Uses the raw ref rather than the catalog's canonical name: `editPath` produces an audit
+    // LABEL and has no system in scope, and resolving here would have to guess one — which is the
+    // bug this scoping exists to stop. The ref is what the caller asked for, which is the honest
+    // thing for an audit row to record anyway.
+    case 'add_feat': return `features[${slug(e.feat)}]`;
     case 'add_spell': case 'remove_spell': case 'rename_spell': return `spells[${slug(e.name)}]`;
     case 'add_currency': return `currencies[${slug(e.name)}]`;
     case 'set_currency': case 'remove_currency': return `currencies[${slug(e.currency)}]`;
@@ -246,7 +284,11 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
       return findByName(current.inventory, e.name);
     // A feat lands as a feature, so its prior value is whatever feature it replaces — which is
     // what a revert must restore.
-    case 'add_feat': return findByName(current.features, resolveFeat(e.feat)?.name ?? e.feat);
+    // Matched on the raw ref for the same reason as `editPath`: no system in scope. `findByName`
+    // is already case-insensitive, so the only thing lost is matching a feat referenced by KEY
+    // against the feature stored under its display name — and the undo path re-reads the stored
+    // feature by name anyway.
+    case 'add_feat': return findByName(current.features, e.feat);
     case 'add_spell': case 'remove_spell': case 'rename_spell': return findByName(current.spells, e.name);
     case 'add_currency': return findCurrency(current.currencies, e.name);
     case 'set_currency': case 'remove_currency': return findCurrency(current.currencies, e.currency);
@@ -364,7 +406,23 @@ export function revertBatch(input: Character, batch: AuditedEdit[]): Character {
 }
 
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
-export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { equipLimits?: EquipLimits } = {}): Character {
+export function applySheetEdits(
+  input: Character,
+  edits: SheetEdit[],
+  /**
+   * `system` scopes the catalog lookups that write real mechanics onto the sheet — today just
+   * `add_feat`. It is OPTIONAL and falls back to `dnd5e-2024` purely for backwards compatibility:
+   * several callers predate the parameter and are all 5e paths. The two routes where a non-5e
+   * character can actually arrive — ai-edit and grant-content — pass the character's real system.
+   *
+   * The fallback is a compromise and worth naming as one: a silent default to 2024 is the same
+   * shape as the bugs this scoping pass is fixing. It is acceptable here only because every
+   * remaining un-passing caller seeds or transposes a 5e sheet. If a non-5e caller is ever added,
+   * pass the system rather than relying on this.
+   */
+  opts: { equipLimits?: EquipLimits; system?: string } = {},
+): Character {
+  const system = opts.system ?? 'dnd5e-2024';
   const c: Character = structuredClone(input);
   // Equip limits gate the AI equip exactly like the sheet's equip toggle (Area E1d). Enforced by default
   // (the vanilla setting), so an AI-driven equip never silently leaves an illegal state; `off` lets it stack.
@@ -484,7 +542,10 @@ export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { eq
         // Resolved against the catalog by key OR name — the AI reliably produces the display
         // name and only sometimes the key. An unresolvable feat is DROPPED rather than written
         // as an empty husk that looks real and does nothing (Ground Rule 2 — never invented).
-        const def = resolveFeat(e.feat);
+        // Scoped to the character's OWN system: resolving a PF2 "Toughness" against the 5e catalog
+        // would write 5e rules text onto a Pathfinder sheet, which is the same bleed the gate
+        // now prevents — caught in the same audit, one layer down.
+        const def = resolveFeat(e.feat, system);
         if (!def) break;
         const feat: FeatureBlock = {
           id: `feat-${slug(def.key)}`,

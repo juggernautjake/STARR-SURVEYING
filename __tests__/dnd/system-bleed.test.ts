@@ -38,6 +38,12 @@ import { termIndexFor } from '@/lib/dnd/term-index';
 import { speciesView } from '@/lib/dnd/species/view';
 import { classifyElement } from '@/lib/dnd/provenance';
 
+// Used by section 6 (the fixed bleeds), which asserts behaviour rather than reading source text.
+import { resolveFeat, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { gateEdits, type RulesGateContext } from '@/lib/dnd/rules-gate';
+import { buildGrantEdits, isGrantError } from '@/lib/dnd/library-grant';
+import { defaultCurrencies } from '@/lib/dnd/currency';
+
 import { CONDITION_MECHANICS_5E } from '@/lib/dnd/conditions/dnd5e';
 import { PF2_CONDITION_MECHANICS, pf2ConditionRollEffect } from '@/lib/dnd/conditions/pathfinder2e';
 import { IG_CONDITION_MECHANICS } from '@/lib/dnd/conditions/intuitive-games';
@@ -646,22 +652,10 @@ describe('skills: each system owns its list; the overlap is real and allowlisted
  * staleness check below forces the entry to be deleted once the bleed is actually gone.
  */
 const KNOWN_BLEED: Record<string, { file: string; direction: string; reason: string }> = {
-  'B1 add_feat gate is 5e-only': {
-    file: 'lib/dnd/sheet-edits.ts',
-    direction: 'dnd5e-2024 → pathfinder2e, intuitive-games, dnd5e-2014',
-    reason:
-      'HIGH. resolveFeat() is hardcoded to FEATS_2024 and gateEdits() calls it for every system, so a ' +
-      'PF2 or IG add_feat resolves to the 5e feat of that name and is judged by 5e slot eligibility. ' +
-      'The add_spell arm of the SAME function routes through findSpellForSystem correctly.',
-  },
-  'B2 library grants use the 2024 equipment tables for every system': {
-    file: 'lib/dnd/library-grant.ts',
-    direction: 'dnd5e-2024 → pathfinder2e, intuitive-games, dnd5e-2014',
-    reason:
-      'HIGH. findWeapon2024/findArmor2024 are called without consulting req.system, which IS present ' +
-      'and is used correctly by the spell arm 70 lines earlier. A PF2 or IG Longsword arrives with 5e ' +
-      'stats and a 2024-exclusive Weapon Mastery property.',
-  },
+  // B1, B2 and B4 were FIXED on 2026-07-21 and their entries deleted, exactly as this map's
+  // contract requires. What replaced them is the `the fixed bleeds stay fixed` block below: the
+  // records are gone, but the behaviour they described is now asserted from the other side, so
+  // nothing is merely trusted to have been dealt with.
   'B3 IG is given PF2 degrees of success': {
     file: 'lib/dnd/systems/intuitive-games/rules.ts',
     direction: 'pathfinder2e → intuitive-games',
@@ -692,19 +686,6 @@ describe('the confirmed bleeds are recorded honestly', () => {
     }
   });
 
-  it('B1: resolveFeat is still unscoped (delete this entry when it takes a system)', () => {
-    // The staleness half. Each check below reproduces the CURRENT wrong behaviour, so the day
-    // someone fixes it this test fails and forces the KNOWN_BLEED entry to be removed — the bug and
-    // its record die together.
-    const src = fs.readFileSync(path.join(ROOT, 'lib/dnd/sheet-edits.ts'), 'utf8');
-    expect(src).toContain('export function resolveFeat(ref: string)');
-  });
-
-  it('B2: the weapon/armor grant still ignores req.system (delete when it does not)', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'lib/dnd/library-grant.ts'), 'utf8');
-    expect(src).toContain("req.kind === 'weapon' ? findWeapon2024(name)");
-  });
-
   it('B3: IG\'s own rules text still disagrees with its degree implementation', () => {
     // Asserted on both sides so the discrepancy itself is the fixture: IG's authoritative text says
     // 20 and names a partial success; its implementation is PF2's 4-step/10 ladder.
@@ -716,9 +697,99 @@ describe('the confirmed bleeds are recorded honestly', () => {
     expect(impl, 'and still has no partial-success degree').not.toContain('partial-success');
   });
 
-  it('B4: IG still has no case in defaultCurrencies (delete when it does)', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'lib/dnd/currency.ts'), 'utf8');
-    expect(src).toContain("system === 'pathfinder2e'");
-    expect(src, 'IG has no currency case yet').not.toContain("system === 'intuitive-games'");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. The bleeds that were FIXED, asserted so they cannot come back.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * B1, B2 and B4 were fixed on 2026-07-21. Their KNOWN_BLEED entries are gone, which is the whole
+ * point of that map being self-cleaning — but a deleted record proves nothing on its own, so each
+ * fix is asserted here on BEHAVIOUR rather than on source text.
+ *
+ * Behaviour, specifically, because the staleness checks these replace were `toContain` reads of
+ * the source. That is the right shape for recording a bug you are not fixing (it pins the exact
+ * wrong line) and the wrong shape for guarding a fix — it would pass for any rename that kept the
+ * string and fail for any refactor that did not.
+ */
+describe('the fixed bleeds stay fixed', () => {
+  // CORRECTION to the original KNOWN_BLEED record, which named Toughness as the canonical case.
+  // Toughness is NOT in FEATS_2024 (2024's equivalent is called "Tough"), so an unscoped lookup
+  // returned undefined for it and no bleed ever occurred on that name. The 2024 feat list in fact
+  // shares NO name with PF2's at all — the whole overlap is with Intuitive Games, and it is these
+  // four: Alert, Lucky, Great Weapon Fighting, Two-Weapon Fighting. The bug was real; the example
+  // recorded against it was not, which is exactly why these are now asserted rather than asserted
+  // about.
+  const IG_OVERLAP = ['Alert', 'Lucky', 'Great Weapon Fighting', 'Two-Weapon Fighting'];
+
+  it('B1: resolveFeat answers only for the system that owns the feat', () => {
+    // Alert is the sharpest case. In 2024 it is an ORIGIN feat granting Initiative proficiency; in
+    // IG it is a GENERAL feat, prerequisite Training in Perception, about never being flat-footed.
+    // Same name, different category, different rules text, different eligibility.
+    expect(resolveFeat('Alert', D2024)?.category).toBe('origin');
+    for (const name of IG_OVERLAP) {
+      for (const sys of [PF2, IG, D2014]) {
+        expect(resolveFeat(name, sys), `${sys} must not resolve 5e's ${name}`).toBeUndefined();
+      }
+    }
+  });
+
+  it('B1: an add_feat on a non-5e sheet is not judged by 5e slot rules', () => {
+    // The harm was a REFUSAL: `slot` defaults to 'asi', and a 2024 ORIGIN feat is not legal in an
+    // asi slot — so an IG character taking IG's own Alert was refused by 5e's category rules. PF2
+    // and IG have their own gates (systems/*/rules-gate.ts), which is where their feats belong.
+    const edit = { op: 'add_feat', feat: 'Alert' } as SheetEdit;
+    const ctx = (system: string): RulesGateContext => ({
+      system, enforce: true, className: 'Fighter', level: 1,
+      knownSpells: [], abilities: {}, featureNames: [], hasSpellcasting: false,
+    });
+    for (const sys of [PF2, IG]) {
+      const out = gateEdits([edit], ctx(sys));
+      expect(out.edits.length, `${sys} feat must survive the 5e gate`).toBe(1);
+      expect(out.refused.length, `${sys} feat must not be refused by 5e rules`).toBe(0);
+    }
+  });
+
+  it('B2: a granted weapon carries its OWN edition\'s statistics, or none', () => {
+    const grant = (system: string) => buildGrantEdits(
+      { kind: 'weapon', name: 'Longsword', system, options: {} },
+      // Unenforced on purpose: this test is about which EDITION'S STATISTICS come back, and
+      // class-and-level binding is a separate axis that would only add noise here.
+      { enforce: false, unboundReason: 'no-character-context' },
+    );
+
+    // 2024 keeps mastery — it is a real 2024 rule and the fix must not have flattened it away.
+    const d2024 = grant(D2024);
+    expect(isGrantError(d2024)).toBe(false);
+    expect(JSON.stringify(d2024)).toContain('Mastery');
+
+    // 2014 has a Longsword but NO weapon mastery. Both halves matter: real stats, no invented rule.
+    const d2014 = grant(D2014);
+    expect(isGrantError(d2014)).toBe(false);
+    expect(JSON.stringify(d2014), '2014 has no weapon mastery').not.toContain('Mastery');
+    expect(JSON.stringify(d2014), '2014 should still get real damage').toContain('1d8');
+
+    // PF2 and IG model weapons entirely differently (traits/runes, damage reduction). The honest
+    // outcome is a named item with no statistics — NOT a 5e stat block.
+    for (const sys of [PF2, IG]) {
+      const out = grant(sys);
+      expect(isGrantError(out), `${sys} grant should still succeed`).toBe(false);
+      expect(JSON.stringify(out), `${sys} must not receive 5e mastery`).not.toContain('Mastery');
+      expect(JSON.stringify(out), `${sys} must not receive 5e damage dice`).not.toContain('1d8');
+    }
+  });
+
+  it('B4: IG sheets start with IG money, and nobody starts with another system\'s coins', () => {
+    const ids = (system: string) => defaultCurrencies(system).map((c) => c.id);
+    expect(ids(IG)).toEqual(['penny', 'coin', 'solidas']);
+    // Electrum was the tell: 5e-only, and it was landing on IG sheets.
+    expect(ids(IG), 'IG has no electrum').not.toContain('ep');
+    expect(ids(PF2), 'PF2 has no electrum either').not.toContain('ep');
+    expect(ids(D2024), '5e keeps its electrum').toContain('ep');
+    // The IG rates must match the authored rule: 10 Pennies = 1 Coin, 2 Coins = 1 Solidas.
+    const ig = defaultCurrencies(IG);
+    expect(ig.find((c) => c.id === 'coin')!.rate).toBe(10);
+    expect(ig.find((c) => c.id === 'solidas')!.rate).toBe(20);
   });
 });

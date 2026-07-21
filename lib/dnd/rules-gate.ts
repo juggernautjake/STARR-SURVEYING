@@ -67,8 +67,19 @@ export function gateEdits(edits: SheetEdit[], ctx: RulesGateContext): RulesGateR
       // Gateable precisely BECAUSE the op names a catalog feat (S7). `add_feature` deliberately
       // stays ungated: it is free-form prose, and name-matching it against the catalog would
       // refuse legitimate homebrew that happens to share a name.
-      const def = resolveFeat(e.feat);
-      if (!def) { out.push(e); continue; } // unresolvable — applySheetEdits drops it anyway
+      // SCOPED TO THE CHARACTER'S SYSTEM. This resolved against FEATS_2024 for every system until
+      // 2026-07-21, and the eligibility check below is 2024-shaped by construction — it asks about
+      // an `asi` slot, which is a 2024 structure that neither Pathfinder 2e nor Intuitive Games
+      // has, and which 2014 reaches by a different route entirely.
+      //
+      // The concrete harm: Alert, Lucky, Great Weapon Fighting and Two-Weapon Fighting all exist
+      // in BOTH 2024 and Intuitive Games. A vanilla IG character asking for Alert resolved the 5e
+      // feat — an ORIGIN feat, against a slot defaulting to `asi` — and was REFUSED a feat its own
+      // game grants freely. Non-2024 systems now fall through ungated here — which is correct, not a
+      // hole: PF2 and IG each have their own gate (`systems/*/rules-gate.ts`) that knows their
+      // rules, and this one judging them was the bug.
+      const def = resolveFeat(e.feat, ctx.system);
+      if (!def) { out.push(e); continue; } // unresolvable, or not this system's — pass through
 
       const elig = featEligibility(def, {
         slot: e.slot ?? 'asi',

@@ -83,7 +83,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const current = row.data;
-  const updated = applySheetEdits(current, edits, { equipLimits });
+  // Same `system` the grant itself was built against (the character's own, not the client's
+  // claim), so catalog lookups inside the apply cannot fall back to 2024 — CX-17 B1/B2.
+  const updated = applySheetEdits(current, edits, { equipLimits, system });
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')
     .update({ data: updated, updated_at: new Date().toISOString() })

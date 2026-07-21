@@ -306,8 +306,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .filter(([, v]) => ((v as { max?: number } | undefined)?.max ?? 0) > 0)
     .map(([k]) => Number(k))
     .reduce((a, b) => Math.max(a, b), 0);
+  // The character's own system, resolved ONCE and reused by both the gate and the apply below.
+  // These two had drifted apart: the gate was system-aware while `applySheetEdits` silently
+  // defaulted to 2024, so a PF2 feat could pass a correctly-scoped gate and then be written with
+  // 5e rules text one line later (CX-17 B1).
+  const charSystem = normalizeSystem((row as { system?: string }).system);
   const gated = gateEdits(editsRaw as SheetEdit[], {
-    system: normalizeSystem((row as { system?: string }).system),
+    system: charSystem,
     enforce: !isDM && gateVariant === 'vanilla',
     unboundReason: isDM ? 'dm-grant' : gateVariant === 'custom' ? 'custom-character' : undefined,
     className: current?.meta?.className ?? '',
@@ -336,7 +341,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const { data: campRow } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', campId).maybeSingle();
     equipLimits = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme).equipLimits.value;
   }
-  const updated = applySheetEdits(current, edits, { equipLimits });
+  const updated = applySheetEdits(current, edits, { equipLimits, system: charSystem });
   const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 

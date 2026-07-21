@@ -14,6 +14,7 @@ import type { SheetEdit } from './sheet-edits';
 import { findSpellForSystem } from './spells';
 import { spellEligibility } from './spells/eligibility';
 import { findWeapon2024, findArmor2024, weaponPropertyLine } from './equipment/dnd5e-2024';
+import { findWeapon2014, findArmor2014, weaponPropertyLine2014 } from './equipment/dnd5e-2014';
 
 /** Whether this grant is bound by the character's own class-and-level rules, and if so, by what.
  *
@@ -79,6 +80,70 @@ const KINDS: GrantKind[] = ['spell', 'weapon', 'armor', 'item', 'feature', 'cond
  *  used to check NOTHING, which made it the simplest way to put Wish on a level-4 vanilla
  *  Wizard — the picker's rules were enforced in the picker, so going around the picker went
  *  around the rules (Area MV). */
+/** A weapon reduced to what a GRANT needs, with each edition's own facts intact. */
+interface GrantWeapon {
+  name: string;
+  damage: string | null;
+  damageType: string | null;
+  properties: string[];
+  /** 2024 only. 2014 has no weapon mastery — the field is absent rather than empty, so a 2014
+   *  grant cannot accidentally print "Mastery: undefined". */
+  mastery?: string;
+  propertyLine: string;
+}
+
+/** Armor reduced to what a grant needs. The two editions' armour tables are structurally
+ *  identical — verified, not assumed — so this is a pass-through rather than a translation. */
+interface GrantArmor {
+  name: string;
+  category: string;
+  baseAC: number;
+  dexCap: number | null;
+  stealthDisadvantage: boolean;
+}
+
+/**
+ * The equipment tables for a system (Ground Rule 1: a per-system dispatcher, never a widened
+ * module). A system with no table returns finders that resolve nothing, which is the honest
+ * outcome — the grant still succeeds, as a named item with no invented statistics.
+ *
+ * Pathfinder 2e and Intuitive Games deliberately get nothing here. Both have their own weapon and
+ * armour models with different mechanics entirely (PF2 traits and runes, IG damage reduction), and
+ * their own grant paths; handing them a 5e stat block was the bug this dispatcher replaces.
+ */
+function equipmentFor(system: string | null | undefined): {
+  weapon: (name: string) => GrantWeapon | undefined;
+  armor: (name: string) => GrantArmor | undefined;
+} {
+  if (system === 'dnd5e-2024') {
+    return {
+      weapon: (n) => {
+        const w = findWeapon2024(n);
+        return w && { name: w.name, damage: w.damage, damageType: w.damageType, properties: w.properties, mastery: w.mastery, propertyLine: weaponPropertyLine(w) };
+      },
+      armor: (n) => {
+        const a = findArmor2024(n);
+        return a && { name: a.name, category: a.category, baseAC: a.baseAC, dexCap: a.dexCap, stealthDisadvantage: a.stealthDisadvantage };
+      },
+    };
+  }
+  if (system === 'dnd5e-2014') {
+    return {
+      weapon: (n) => {
+        const w = findWeapon2014(n);
+        // NOTE the absent `mastery`: 2014 has no mastery property, and `WeaponDef2014` has no such
+        // field by design, so the compiler stops a 2024 value being pasted in here.
+        return w && { name: w.name, damage: w.damage, damageType: w.damageType, properties: w.properties, propertyLine: weaponPropertyLine2014(w) };
+      },
+      armor: (n) => {
+        const a = findArmor2014(n);
+        return a && { name: a.name, category: a.category, baseAC: a.baseAC, dexCap: a.dexCap, stealthDisadvantage: a.stealthDisadvantage };
+      },
+    };
+  }
+  return { weapon: () => undefined, armor: () => undefined };
+}
+
 export function buildGrantEdits(req: GrantRequest, rules: GrantRules): GrantOutcome {
   const name = (req.name ?? '').trim();
   if (!name) return { error: 'A name is required.' };
@@ -160,8 +225,16 @@ export function buildGrantEdits(req: GrantRequest, rules: GrantRules): GrantOutc
       // Resolve against the real equipment tables where we can, so a granted Longsword arrives
       // with 1d8 slashing, Versatile and its MASTERY property — not a bare name the player has
       // to look up and type in. 2024 mastery is the part most easily lost (S6).
-      const weapon = req.kind === 'weapon' ? findWeapon2024(name) : undefined;
-      const armor = req.kind === 'armor' ? findArmor2024(name) : undefined;
+      //
+      // SCOPED BY SYSTEM since 2026-07-21. These two calls ignored `req.system` entirely — which
+      // is present and authoritative (the route deliberately takes the character's own system over
+      // the client's claim). So a Pathfinder or Intuitive Games "Longsword" arrived carrying 5e
+      // stats INCLUDING a Weapon Mastery property, a 2024 invention that exists in neither of
+      // those games nor in 5e 2014. The `add_spell` arm seventy lines above already dispatched on
+      // system correctly, with a comment explaining why; this arm simply never did.
+      const gear = equipmentFor(req.system);
+      const weapon = req.kind === 'weapon' ? gear.weapon(name) : undefined;
+      const armor = req.kind === 'armor' ? gear.armor(name) : undefined;
 
       const base = { op: 'add_item' as const, name, kind, qty, equipped: !!opts.equipped };
 
@@ -169,13 +242,16 @@ export function buildGrantEdits(req: GrantRequest, rules: GrantRules): GrantOutc
         return {
           edits: [{
             ...base,
-            desc: opts.note || `${weapon.damage} ${weapon.damageType}. ${weaponPropertyLine(weapon)}.`,
+            desc: opts.note || `${weapon.damage ?? '—'} ${weapon.damageType ?? ''}`.trim() + `. ${weapon.propertyLine}.`,
             weapon: {
-              damage: { dice: weapon.damage, type: weapon.damageType },
-              properties: [...weapon.properties, `Mastery: ${weapon.mastery}`],
+              damage: { dice: weapon.damage ?? '', type: weapon.damageType ?? '' },
+              // Mastery is appended ONLY where the edition has it. 2014 weapons carry no mastery,
+              // and a `Mastery: undefined` chip on a 2014 sheet would be an invented rule.
+              properties: weapon.mastery ? [...weapon.properties, `Mastery: ${weapon.mastery}`] : [...weapon.properties],
             },
           } as SheetEdit],
-          summary: `Granted ${qty}× ${weapon.name} (${weapon.damage} ${weapon.damageType}, mastery ${weapon.mastery})${opts.equipped ? ' — equipped' : ''}.`,
+          summary: `Granted ${qty}× ${weapon.name} (${weapon.damage ?? 'no damage'} ${weapon.damageType ?? ''}`.trimEnd()
+            + `${weapon.mastery ? `, mastery ${weapon.mastery}` : ''})${opts.equipped ? ' — equipped' : ''}.`,
         };
       }
 
