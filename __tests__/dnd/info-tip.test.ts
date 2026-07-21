@@ -5,7 +5,13 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const tip = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/InfoTip.tsx'), 'utf8');
+// The popover itself moved to `_ui/Tip` in CX-10, where it merged with the builder's duplicate;
+// `_sheet/components/InfoTip` is now an adapter over it. The interaction claims below belong to
+// whichever file actually implements them, so they follow it — asserting them against the adapter
+// would pass on an empty shell. What stays pinned here is the WIRING: which chips get a tip.
+// The primitive's own contract is re-asserted, alongside every marker's, in marker-tips.test.ts.
+const tip = readFileSync(join(process.cwd(), 'app/dnd/_ui/Tip.tsx'), 'utf8');
+const adapter = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/InfoTip.tsx'), 'utf8');
 const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
 const pf2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
 
@@ -22,12 +28,16 @@ describe('InfoTip is reachable by hover, focus, AND tap', () => {
     expect(tip).toContain('!wrapRef.current.contains');
   });
   it('is accessible — a labelled button with role="tooltip" bubble tied by aria-describedby', () => {
-    expect(tip).toContain('aria-label={label}');
+    expect(tip).toContain('aria-label={name}');
     expect(tip).toContain('role="tooltip"');
     expect(tip).toContain('aria-describedby');
   });
   it('renders nothing when there is no tip text', () => {
     expect(tip).toContain('if (!tip) return null');
+  });
+  it('and the sheet-side InfoTip still exists, forwarding tip + label unchanged', () => {
+    expect(adapter).toContain("import Tip from '@/app/dnd/_ui/Tip'");
+    expect(adapter).toContain('<Tip tip={tip} label={label} />');
   });
 });
 

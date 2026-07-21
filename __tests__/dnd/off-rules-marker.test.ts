@@ -61,8 +61,12 @@ describe('the sheet renders it where the content renders', () => {
     const src = read('app/dnd/_sheet/components/ui/OffRulesMark.tsx');
     expect(src).toContain("reason.startsWith('granted by the DM')");
     // The reason travels with the mark — an unexplained warning glyph on a sheet reads as a bug.
+    // Since CX-11 it travels in a Tip rather than a native `title` (which is mouse-only, so on a
+    // tablet the mark WAS unexplained); Tip supplies both the popover and the `title` fallback,
+    // hence `title=`/`label=` props here rather than raw attributes.
     expect(src).toContain('title=');
-    expect(src).toContain('aria-label=');
+    expect(src).toContain('label=');
+    expect(src).toContain('<Tip');
   });
 
   it('is its own glyph, not a reuse of ✎ or ★', () => {

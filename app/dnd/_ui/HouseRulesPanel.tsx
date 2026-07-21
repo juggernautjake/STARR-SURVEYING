@@ -3,6 +3,7 @@
 // fed to the sheet (P2c). This surfaces them read-only so a player can SEE the rules in force and which ones
 // the DM has locked (🔒). When per-player overrides land (P2b), the unlocked rows here become editable.
 import type { EffectivePreferences } from '@/lib/dnd/preferences';
+import Tip from './Tip';
 
 // Human labels for each stored value, shared in spirit with the DM panel's option lists.
 const VALUE_LABEL: Record<string, string> = {
@@ -76,17 +77,40 @@ export default function HouseRulesPanel({ preferences }: { preferences: Effectiv
       <dl style={{ display: 'grid', gap: 6, margin: 0 }}>
         {ROWS.map(({ key, name }) => {
           const pref = preferences[key];
+          const help = ROW_HELP[key];
           return (
             <div key={key} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, borderTop: '1px solid var(--hx-line)', paddingTop: 6 }}>
               <dt style={{ fontSize: 12, color: 'var(--hx-teal-1)' }}>
                 {name}
-                {ROW_HELP[key] && (
-                  <span title={ROW_HELP[key]} aria-label={ROW_HELP[key]} tabIndex={0} style={{ marginLeft: 5, fontSize: 10, color: 'var(--hx-muted)', cursor: 'help', border: '1px solid var(--hx-line)', borderRadius: '50%', padding: '0 4px' }}>?</span>
+                {help && (
+                  // A Tip rather than the native `title` this used to be (CX-11). `title` is
+                  // mouse-only and slow, so on a phone or tablet this ? explained nothing at all —
+                  // the exact complaint that opened the slice. The copy says what the row IS, not
+                  // just what the option does, because a player reading this panel is usually
+                  // asking "why is my sheet doing that?" and the answer is "your DM chose this".
+                  <Tip
+                    glyph="?"
+                    title={`${name} — a house rule`}
+                    label={`what ${name} means`}
+                    tip={`${help} This is the value in force for your campaign, not a rule you picked, and it changes how your own sheet behaves. Your DM sets it; a 🔒 means they have locked it, so it cannot be overridden on a single character.`}
+                    triggerStyle={{ marginLeft: 5, fontSize: 10, color: 'var(--hx-muted)', border: '1px solid var(--hx-line)', borderRadius: '50%', padding: '0 4px', width: 'auto', height: 'auto' }}
+                  />
                 )}
               </dt>
               <dd style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-text)', textAlign: 'right' }}>
                 {label(pref.value)}
-                {pref.lockedByDM && <span title="Locked by your DM" style={{ marginLeft: 6, color: 'var(--hx-gold-2)' }}>🔒</span>}
+                {pref.lockedByDM && (
+                  // The 🔒 is a marker like any other, so it explains itself the same way rather
+                  // than through a `title` a touch user can never reach.
+                  <Tip
+                    glyph="🔒"
+                    bare
+                    title="Locked by your DM"
+                    label="locked by your DM"
+                    tip="Your DM has fixed this one for the whole campaign, so it cannot be changed on an individual character. Ask them if it needs to be different for you — it is a table decision, not a limitation of the sheet."
+                    triggerStyle={{ marginLeft: 6, color: 'var(--hx-gold-2)' }}
+                  />
+                )}
               </dd>
             </div>
           );

@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import styles from './hextech.module.css';
+import Tip from './Tip';
 import {
   type CampaignPreferences,
   DEFAULT_CAMPAIGN_PREFERENCES,
@@ -78,17 +79,22 @@ const BOOL_HELP: Record<BoolField, string> = {
 };
 const BOOL_ORDER: BoolField[] = ['autoMechanics', 'autoAttune', 'featAutoApply'];
 
-/** A small hoverable info dot — the "little more-info icon" next to any setting that has options. */
+/** A small info dot — the "little more-info icon" next to any setting that has options.
+ *
+ *  It was a native `title` until CX-11, which is exactly the marker the owner reported as telling
+ *  them nothing on hover: `title` needs a second of steady mouse-hover and never fires on touch.
+ *  It is now a Tip (hover, focus, tap, Escape), and the copy says what the ? is FOR — every dot in
+ *  this panel sits on a setting the DM is about to impose on other people's sheets, so the reach of
+ *  the choice matters as much as the choice itself. */
 function InfoDot({ tip }: { tip: string }) {
   return (
-    <span
-      title={tip}
-      aria-label={tip}
-      tabIndex={0}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: '50%', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', fontSize: 10, fontWeight: 700, cursor: 'help', userSelect: 'none', marginLeft: 6 }}
-    >
-      ?
-    </span>
+    <Tip
+      glyph="?"
+      title="What this setting does"
+      label="what this setting does"
+      tip={`${tip} This is a campaign-wide choice: leave “players may choose” ticked and a player can still set it differently on their own sheet; untick it and your value is locked for everyone at the table.`}
+      triggerStyle={{ marginLeft: 6, color: 'var(--hx-muted)' }}
+    />
   );
 }
 

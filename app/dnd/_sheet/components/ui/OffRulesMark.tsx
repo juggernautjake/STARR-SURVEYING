@@ -10,20 +10,29 @@
 //
 // The reason travels with the mark rather than being a bare icon, because "why is this flagged?"
 // is the only question the flag raises, and an unexplained warning symbol on a character sheet
-// reads as a bug.
+// reads as a bug. Since CX-11 that explanation is a Tip rather than a native `title`: `title` is
+// mouse-only and never appears on touch, so on a tablet the flag WAS the bare icon it was written
+// not to be. The copy leads with what the flag MEANS and says outright that it is not an error,
+// because a ⚑ in an amber warning colour is otherwise read as one.
+import Tip from '@/app/dnd/_ui/Tip'
+
 export default function OffRulesMark({ reason }: { reason?: string }) {
   if (!reason) return null
   const dmGranted = reason.startsWith('granted by the DM')
+  const Reason = `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`
   return (
-    <span
+    <Tip
       className="off-rules-mark"
-      title={dmGranted
-        ? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}. Legitimately yours — it just isn't a normal pick for your class and level.`
-        : `Outside the rules: ${reason}. Allowed because this is a custom character.`}
-      aria-label={dmGranted ? 'granted by the DM' : 'outside the normal rules'}
-      style={{ color: dmGranted ? 'var(--tealbright)' : '#e0a020', cursor: 'help' }}
-    >
-      {' '}⚑
-    </span>
+      glyph="⚑"
+      bare
+      title={dmGranted ? 'Granted by your DM' : 'Outside the normal rules'}
+      label={dmGranted ? 'granted by the DM' : 'outside the normal rules'}
+      tip={dmGranted
+        ? `${Reason}. Your DM handed this to you directly, so it is legitimately yours — the flag is only here so that anyone reading the sheet can see it did not come from your class, species or background at this level. Nothing is wrong and nothing needs fixing.`
+        : `${Reason}. This is not an error. A custom character is allowed to hold anything, and ⚑ marks the picks your class, species and level would not normally grant, so you and your DM can tell at a glance which parts of the sheet step outside the rules.`}
+      // marginLeft replaces the literal leading space the mark used to carry: the trigger sits in
+      // an inline-flex wrapper, which would swallow it.
+      triggerStyle={{ marginLeft: 4, color: dmGranted ? 'var(--tealbright)' : '#e0a020' }}
+    />
   )
 }
