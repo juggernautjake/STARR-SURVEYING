@@ -50,12 +50,10 @@ function PaneView({
   def,
   pane,
   stack,
-  isLast,
 }: {
   def: PaneDef
   pane: Pane
   stack: Stack
-  isLast: boolean
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const dragFrom = useRef<{ y: number; h: number } | null>(null)
@@ -138,10 +136,14 @@ function PaneView({
         </div>
       )}
 
-      {/* The grab bar. Not rendered on the last pane when it is the only one — there is nothing
-          below to trade height with and a handle at the very bottom of the stack invites a drag
-          that appears to do nothing. */}
-      {!pane.collapsed && !(isLast && stack.panes.length === 1) && (
+      {/* The grab bar, on EVERY expanded pane including a lone one.
+          An earlier version hid it when only one pane was open, on the theory that there was
+          nothing below to trade height with. Driving the layout in a browser showed that to be
+          wrong twice over: `resizePane` never trades with neighbours anyway (it adjusts only the
+          pane you grabbed and lets the stack scroll), and the single-pane case — the DEFAULT
+          state, with just Skills open — is exactly when a player most wants to make the pane
+          taller. The rule as written removed the handle from the one view everybody sees first. */}
+      {!pane.collapsed && (
         <div
           className="codex-grab"
           role="separator"
@@ -212,10 +214,10 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
         {stack.panes.length === 0 ? (
           <p className="codex-empty">No sections open. Pick one from the rail — you can open as many as you like, and drag their edges to size them.</p>
         ) : (
-          stack.panes.map((p, i) => {
+          stack.panes.map((p) => {
             const def = byId.get(p.id)
             if (!def) return null
-            return <PaneView key={p.id} def={def} pane={p} stack={stack} isLast={i === stack.panes.length - 1} />
+            return <PaneView key={p.id} def={def} pane={p} stack={stack} />
           })
         )}
       </div>
