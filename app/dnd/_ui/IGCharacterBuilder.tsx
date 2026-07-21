@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail, igClassPowerEffect } from '@/lib/dnd/systems/intuitive-games/content';
+import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
@@ -20,7 +21,10 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
   return groups.filter((g) => g.kind === kind).flatMap((g) => g.entries.map((e) => e.name));
 }
 
-export default function IGCharacterBuilder({ characterId, initialName, aiConfigured }: { characterId: string; initialName: string; aiConfigured?: boolean }) {
+export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla' }: { characterId: string; initialName: string; aiConfigured?: boolean;
+  /** Vanilla builds are held to the class rules; custom ones may take anything (Area MV). Defaults
+   *  to vanilla — the safe direction for an unlabelled sheet, matching the server. */
+  variantKind?: 'vanilla' | 'custom' }) {
   const router = useRouter();
   const catalog = useMemo(() => igCatalog(), []);
   const ancestries = useMemo(() => names(catalog, 'ancestry'), [catalog]);
@@ -107,11 +111,39 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   }
 
   const input = { padding: '7px 9px', fontSize: 13, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6 } as const;
-  const Chips = ({ opts, sel, on }: { opts: string[]; sel: string[]; on: (v: string) => void }) => (
+  // `reasonFor` makes a chip list eligibility-aware (Area MV). Without it the builder offered every
+  // power in the game and the server refused the save — correct, but the player only found out at
+  // the end. Ineligible chips are shown greyed WITH their reason rather than hidden: "why can't I
+  // take this?" is a question the builder should answer, and hiding it makes the list look
+  // arbitrary. Same treatment as the 5e spell/feat pickers.
+  const Chips = ({ opts, sel, on, reasonFor }: {
+    opts: string[]; sel: string[]; on: (v: string) => void;
+    reasonFor?: (o: string) => string | undefined;
+  }) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
       {opts.map((o) => {
         const active = sel.includes(o);
-        return <button key={o} type="button" onClick={() => on(o)} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${active ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, background: active ? 'rgba(10,200,185,0.15)' : 'transparent', color: active ? 'var(--hx-teal-1)' : 'var(--hx-muted)' }}>{o}</button>;
+        // An already-selected chip is never blocked, so a pick made before the class was set (or
+        // one a DM granted) can always be removed again. Blocking deselection would strand it.
+        const reason = active ? undefined : reasonFor?.(o);
+        const blocked = !!reason;
+        return (
+          <button
+            key={o} type="button"
+            onClick={() => { if (!blocked) on(o); }}
+            disabled={blocked}
+            title={blocked ? `${reason} — pick a different class, or build a custom character to take it anyway.` : o}
+            style={{
+              fontSize: 11.5, padding: '3px 8px', borderRadius: 12,
+              cursor: blocked ? 'not-allowed' : 'pointer',
+              border: `1px solid ${active ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+              background: active ? 'rgba(10,200,185,0.15)' : 'transparent',
+              color: active ? 'var(--hx-teal-1)' : 'var(--hx-muted)',
+              opacity: blocked ? 0.4 : 1,
+              textDecoration: blocked ? 'line-through' : 'none',
+            }}
+          >{o}</button>
+        );
       })}
     </div>
   );
@@ -119,6 +151,18 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   // B2: what the chosen class/subclass grants, from the captured A10 data. Prefer the subclass (more
   // granular — its own stance/powers), else the parent class. Undefined for a name we have no detail for.
   const classDetail = findIGClassDetail(subclass) ?? findIGClassDetail(className);
+
+  // The same eligibility core the server gates with, so the builder and the save can never
+  // disagree about what is legal. Returns the reason a power is unavailable, or undefined.
+  // Note this deliberately does NOT gate stances or feats — a level-1 trait may be taken as "a new
+  // stance", and IG feat prerequisites are unstructured prose (see eligibility.ts).
+  const powerReason = (name: string): string | undefined => {
+    // A custom character may take anything, so nothing is greyed for them — matching the server,
+    // which only enforces when the build is vanilla.
+    if (variantKind !== 'vanilla') return undefined;
+    const v = igPowerEligibility(name, { className, subclass, level, specializations: specialization ? [specialization] : [], knownPowers: [] });
+    return v.ok ? undefined : v.reason;
+  };
   const detailRow = (label: string, value?: string) =>
     value ? <div><span style={{ color: 'var(--hx-muted)' }}>{label}: </span><span style={{ color: 'var(--hx-ink)' }}>{value}</span></div> : null;
 
@@ -205,7 +249,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>STANCES</div>
         <Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>POWERS</div>
-        <Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} />
+        <Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>FEATS</div>
         <Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>WEAPON GROUPS</div>
