@@ -77,6 +77,19 @@ export function pf2AnyFeat(name: string) {
 /** Every catalogued spell, slot-cast and focus alike. */
 export const PF2_ALL_SPELLS = [...PF2_SPELLS_R0_3, ...PF2_SPELLS_R4_10, ...PF2_FOCUS_SPELLS];
 
+/** Look a spell up across every tranche, the counterpart of `pf2AnyFeat`.
+ *
+ *  Spell names ARE globally unique in PF2 (unlike feat names, which are class-scoped — see the
+ *  catalog-status tests), so a single flat lookup is correct here rather than lossy. */
+export function pf2AnySpell(name: string) {
+  const n = name.trim().toLowerCase();
+  return PF2_ALL_SPELLS.find((s) => s.name.toLowerCase() === n)
+    // Fall back to the pre-remaster name, so a player who types "Magic Missile" still finds
+    // Force Barrage rather than silently authoring homebrew.
+    ?? PF2_ALL_SPELLS.find((s) => s.formerly?.toLowerCase() === n)
+    ?? null;
+}
+
 /** What the catalog actually holds. `complete` is false wherever it is — no exceptions, and no
  *  rounding up. The notes say what is missing in one line so a reader does not have to diff. */
 export const PF2_CATALOG_STATUS: PF2CatalogStatus = {

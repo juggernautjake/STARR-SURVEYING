@@ -16,6 +16,7 @@ import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
+import { pf2AnyFeat, pf2AnySpell } from './data';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -57,6 +58,12 @@ export interface PF2Picks {
   weapon?: string;
   languages?: string[];
   bio?: string;
+  /** Feats chosen at build time, by catalog name. Gated by `gatePf2Picks` before assembly — the
+   *  builder could not offer these at all until now, so a PF2 character could only gain feats
+   *  after the fact via the sheet or the AI. */
+  feats?: string[];
+  /** Spells chosen at build time, by catalog name. */
+  spells?: string[];
   photoUrl?: string;
 }
 
@@ -130,6 +137,15 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   const feats: PF2Feat[] = [];
   if (cls) feats.push({ id: 'cls-key', name: `${cls.name} (${cls.subclassLabel})`, level: 1, track: 'feature', traits: [cls.name], body: cls.summary });
   if (anc && picks.heritage) feats.push({ id: 'heritage', name: `${picks.heritage} ${anc.name}`, level: 1, track: 'ancestry', traits: [anc.name, 'Heritage'], body: `${anc.summary}` });
+  // Chosen feats, resolved against the catalog so they arrive with their real level, track and
+  // rules text rather than as bare names. An uncatalogued name is still honoured — it is homebrew,
+  // and dropping it would lose a deliberate choice — but it carries no invented mechanics.
+  for (const name of picks.feats ?? []) {
+    const def = pf2AnyFeat(name);
+    feats.push(def
+      ? { id: `feat-${def.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name: def.name, level: def.level, track: def.track, traits: def.traits, body: def.effect }
+      : { id: `feat-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name, level, track: 'class', traits: [], body: '' });
+  }
 
   return {
     identity: {
@@ -161,7 +177,25 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
     ],
     spellcasting: cls?.spellcasting
-      ? { tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind, attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level) }
+      ? {
+          tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind,
+          attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level),
+          // Chosen spells resolved against the catalog for their real rank. A prepared caster's
+          // build-time picks start prepared — they are what the character is carrying today.
+          ...(picks.spells?.length
+            ? {
+                spells: picks.spells.map((n) => {
+                  const def = pf2AnySpell(n);
+                  return {
+                    name: def?.name ?? n,
+                    rank: def?.rank ?? 0,
+                    ...(def?.focus ? { focus: true } : {}),
+                    ...(cls.spellcasting!.kind === 'prepared' ? { prepared: true } : {}),
+                  };
+                }),
+              }
+            : {}),
+        }
       : { tradition: 'none', kind: 'none', attribute: keyAttr, rank: 'untrained', slots: [] },
     feats,
     languages: [...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])],

@@ -10,6 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
+import PF2BuildPicks from './PF2BuildPicks';
 import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 
@@ -33,6 +34,10 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   const [keyAttribute, setKeyAttribute] = useState<PF2AttributeKey>('STR');
   const [attributes, setAttributes] = useState<Record<PF2AttributeKey, number>>({ STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 });
   const [trainedSkills, setTrainedSkills] = useState<string[]>([]);
+  // Feats and spells at BUILD time (S16). The builder could not offer these at all, so a PF2
+  // character could only gain them afterwards via the sheet or the AI.
+  const [feats, setFeats] = useState<string[]>([]);
+  const [spells, setSpells] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -63,7 +68,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   }
 
   const build = () => post(`/api/dnd/characters/${characterId}/pf2-build`, {
-    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, armor, weapon },
+    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, armor, weapon, feats, spells },
   }, setBusy);
 
   const aiBuild = () => {
@@ -169,6 +174,26 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             );
           })}
         </div>
+
+        {/* Feats and spells at build time (S16). Ineligible entries are greyed WITH their reason,
+            the same treatment as the sheet's picker and the IG builder — the server refuses an
+            illegal build either way, so this is about learning at pick-time rather than at save. */}
+        <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{feats.length ? `(${feats.length} chosen)` : ''}</span></div>
+        <PF2BuildPicks
+          kind="feat" className={className} ancestry={ancestry} level={level}
+          selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])}
+        />
+
+        {cls?.spellcasting && (
+          <>
+            <div style={label}>SPELLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{spells.length ? `(${spells.length} chosen)` : ''}</span></div>
+            <PF2BuildPicks
+              kind="spell" className={className} ancestry={ancestry} level={level}
+              tradition={cls.spellcasting.tradition}
+              selected={spells} onToggle={(n: string) => setSpells((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])}
+            />
+          </>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
           <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>

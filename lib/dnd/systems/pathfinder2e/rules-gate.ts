@@ -98,3 +98,54 @@ export function gatePf2Edit(
   }
   return { edit: { ...edit, offRules: mark(elig.reason) }, offRules: mark(elig.reason) };
 }
+
+/** Check the feats and spells a BUILD is about to assemble (S16).
+ *
+ *  The build path needs its own entry point because picks arrive as bare names before any character
+ *  exists to judge them against — the eligibility context is assembled from the picks themselves
+ *  rather than read off a saved sheet. */
+export function gatePf2Picks(
+  picks: { className?: string; ancestry?: string; level?: number; feats?: string[]; spells?: string[] },
+  ctx: PF2GateContext,
+  catalog: { feats?: PF2FeatFull[]; spells?: PF2SpellFull[] },
+  tradition?: string,
+): { refused: { name: string; reason: string }[]; offRules: Record<string, string> } {
+  const refused: { name: string; reason: string }[] = [];
+  const offRules: Record<string, string> = {};
+
+  const eligCtx: PF2EligibilityContext = {
+    className: picks.className ?? '',
+    ancestry: picks.ancestry ?? '',
+    level: picks.level ?? 1,
+    // Deliberately NOT seeded with picks.feats: every feat in this build is under review, so
+    // treating them as already-held would let them satisfy each other's prerequisites and make the
+    // whole set vacuously legal. Same reasoning as the IG build gate.
+    featNames: [],
+    ...(tradition ? { tradition } : {}),
+  };
+
+  const mark = (reason?: string) =>
+    ctx.unboundReason === 'dm-grant' ? `granted by the DM — ${reason}` : (reason ?? '');
+
+  for (const name of picks.feats ?? []) {
+    // Homebrew (not in the catalog) is skipped: it never claimed to be official content, so
+    // refusing it would block authoring rather than close a hole.
+    const def = (catalog.feats ?? []).find((f) => f.name.toLowerCase() === name.trim().toLowerCase());
+    if (!def) continue;
+    const elig = pf2FeatEligibility(def, eligCtx);
+    if (elig.ok) continue;
+    if (ctx.enforce) refused.push({ name: def.name, reason: elig.reason ?? 'not available to this character' });
+    else offRules[def.name] = mark(elig.reason);
+  }
+
+  for (const name of picks.spells ?? []) {
+    const def = (catalog.spells ?? []).find((s) => s.name.toLowerCase() === name.trim().toLowerCase());
+    if (!def) continue;
+    const elig = pf2SpellEligibility(def, eligCtx);
+    if (elig.ok) continue;
+    if (ctx.enforce) refused.push({ name: def.name, reason: elig.reason ?? 'not available to this character' });
+    else offRules[def.name] = mark(elig.reason);
+  }
+
+  return { refused, offRules };
+}

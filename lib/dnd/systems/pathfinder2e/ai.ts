@@ -45,6 +45,8 @@ export function parsePF2Picks(raw: unknown): PF2Picks {
     trainedSkills: strArr(p.trainedSkills),
     armor: str(p.armor) || undefined,
     weapon: str(p.weapon) || undefined,
+    feats: strArr(p.feats),
+    spells: strArr(p.spells),
     languages: strArr(p.languages),
     bio: str(p.bio) || undefined,
   };
