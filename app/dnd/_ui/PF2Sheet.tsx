@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from './PF2ContentPicker';
+import PF2ElementEditor, { type PF2EditableElement } from './PF2ElementEditor';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -69,6 +70,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // Which content picker is open, if any. PF2 had no picker at all — the catalog and the gated ops
   // both existed, but nothing in the UI could reach them, so content could only arrive via the AI.
   const [picker, setPicker] = useState<'feat' | 'spell' | null>(null);
+  // The element editor (S15). `initial` absent = authoring homebrew; present = editing what the
+  // character holds.
+  const [editor, setEditor] = useState<{ kind: 'feat' | 'spell'; initial?: PF2EditableElement } | null>(null);
 
   // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
@@ -265,13 +269,24 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         />
       )}
 
+      {editor && (
+        <PF2ElementEditor
+          kind={editor.kind} initial={editor.initial}
+          onClose={() => setEditor(null)}
+          onSave={(edit) => { setEditor(null); void postEdit(edit); }}
+        />
+      )}
+
       {/* Feats & features */}
       {(pf2.feats.length > 0 || canDoEdit) && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={label}>Feats &amp; Features</div>
             {canDoEdit && (
-              <button className="btn tiny" disabled={saving} onClick={() => setPicker('feat')}>＋ Feat</button>
+              <>
+                <button className="btn tiny" disabled={saving} onClick={() => setPicker('feat')}>＋ Feat</button>
+                <button className="btn tiny" disabled={saving} onClick={() => setEditor({ kind: 'feat' })} title="Author a homebrew feat">✎ New</button>
+              </>
             )}
           </div>
           <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
@@ -280,7 +295,18 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <strong style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{f.name}</strong>
                   <span style={{ fontSize: 9, color: 'var(--hx-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.track}{f.level ? ` · L${f.level}` : ''}</span>
+                  {/* ✎ = hand-tuned away from how it came. A different question from ⚑, and an
+                      element can carry both. */}
+                  {f.customized && <span title="Hand-customized — edited away from how it came." style={{ color: 'var(--hx-gold-2)' }}>✎</span>}
                   <OffRulesMark reason={f.offRules} />
+                  {canDoEdit && (
+                    <button
+                      className="btn tiny" disabled={saving}
+                      onClick={() => setEditor({ kind: 'feat', initial: { name: f.name, level: f.level, track: f.track, text: f.body } })}
+                      title={`Edit ${f.name}`}
+                      style={{ marginLeft: 'auto' }}
+                    >Edit</button>
+                  )}
                 </div>
                 {f.body && <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', marginTop: 2 }}>{f.body}</div>}
               </div>
@@ -299,7 +325,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             {/* Only offered to a caster — a Fighter has no use for a spell picker, and showing one
                 would suggest they could cast. */}
             {canDoEdit && pf2.spellcasting.kind !== 'none' && (
-              <button className="btn tiny" disabled={saving} onClick={() => setPicker('spell')}>＋ Spell</button>
+              <>
+                <button className="btn tiny" disabled={saving} onClick={() => setPicker('spell')}>＋ Spell</button>
+                <button className="btn tiny" disabled={saving} onClick={() => setEditor({ kind: 'spell' })} title="Author a homebrew spell">✎ New</button>
+              </>
             )}
           </div>
           <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
@@ -330,7 +359,16 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                     >
                       {s.name}
                       {s.focus ? ' ✦' : ''}
+                      {s.customized && <span title="Hand-customized — edited away from how it came."> ✎</span>}
                       <OffRulesMark reason={s.offRules} />
+                      {canDoEdit && (
+                        <button
+                          className="btn tiny" disabled={saving}
+                          onClick={() => setEditor({ kind: 'spell', initial: { name: s.name, rank: s.rank, prepared: s.prepared, text: s.effect } })}
+                          title={`Edit ${s.name}`}
+                          style={{ marginLeft: 6, fontSize: 10 }}
+                        >✎</button>
+                      )}
                     </span>
                   ))}
                 </div>
