@@ -176,7 +176,19 @@ export interface PF2AncestryDef {
   hp: number;
   size: 'Small' | 'Medium';
   speed: number;
-  /** Fixed attribute boosts; 'free' = a free boost the player assigns. (Remaster: no flaws.) */
+  /** Fixed attribute boosts; 'free' = a free boost the player assigns.
+   *
+   *  CORRECTION (2026-07-21): this previously read "(Remaster: no flaws.)" and that is WRONG. The
+   *  Remaster did NOT remove ancestry attribute flaws — Player Core still prints a flaw for 13 of
+   *  the 16 core ancestries (only Human, Orc and Tengu have none). What it added is the OPTION to
+   *  take two free boosts and no flaw instead. Verified against the Player Core rules text while
+   *  authoring data/ancestries.ts, which models the flaws properly and holds the alternative once
+   *  as `PF2_ALTERNATE_BOOSTS_RULE`.
+   *
+   *  This seed's `boosts` are therefore incomplete (no flaw field at all) and Orc's entry is also
+   *  off — Player Core gives Orc two free boosts, not Strength + free. The seed is left as-is
+   *  because existing consumers read it; `PF2_ANCESTRIES_FULL` in data/ancestries.ts is the
+   *  accurate source and should be preferred for anything new. */
   boosts: (PF2AttributeKey | 'free')[];
   languages: string[];
   traits: string[];
