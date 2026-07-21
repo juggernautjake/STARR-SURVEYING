@@ -3251,3 +3251,1159 @@ export const PF2_FEATS_CLASS: PF2FeatFull[] = [
     source: 'Player Core',
   },
 ];
+
+// ══ ARCHETYPE FEATS ═══════════════════════════════════════════════════════════════════════════════
+// Archetype feats are taken with CLASS feat slots, which is why eligibility.ts runs them off the class
+// schedule. Every archetype begins with a Dedication, and the gate enforces that by looking for a held
+// feat literally named "<archetype> Dedication" (eligibility.ts step 5) — so `archetype` on a follow-on
+// must equal the Dedication's name minus the word "Dedication", exactly.
+//
+// TWO RULES THAT APPLY TO EVERY DEDICATION, stated once here rather than repeated in each entry:
+//   • You cannot take a second Dedication feat until you have taken two other feats from the archetype
+//     you already committed to.
+//   • A MULTICLASS dedication additionally requires that you are NOT a member of that class. There is
+//     no negation in PF2Prereq, so that requirement is carried in `prereqText` on each one.
+//
+// ATTRIBUTE PREREQUISITES ARE MODIFIERS. Legacy books print multiclass dedications as "Strength 14";
+// the model stores modifiers, so that is `{ kind: 'attribute', attribute: 'STR', value: 2 }`. Fighter's
+// is a DISJUNCTION ("Strength 14 or Dexterity 14") and therefore lives in `prereqText` — structuring it
+// would AND the two and refuse a legal dexterous pick.
+
+export const PF2_FEATS_ARCHETYPE: PF2FeatFull[] = [
+  // ── MULTICLASS: ALCHEMIST ───────────────────────────────────────────────────────────────────────
+  {
+    name: 'Alchemist Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Alchemist',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'INT', value: 2 }],
+    prereqText: 'You are not a member of the alchemist class.',
+    effect:
+      'You become trained in Crafting and in alchemical bombs, gain the ability to make a small number of alchemical items on the spot each day, and learn a handful of 1st-level formulas.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Concoction',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Alchemist',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Alchemist Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level alchemist class feat of your choice.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Advanced Concoction',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Alchemist',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Concoction' }],
+    effect:
+      'You gain one alchemist class feat. For meeting its prerequisites, treat your alchemist level as half your character level.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+
+  // ── MULTICLASS: BARBARIAN ───────────────────────────────────────────────────────────────────────
+  {
+    name: 'Barbarian Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [
+      { kind: 'attribute', attribute: 'STR', value: 2 },
+      { kind: 'attribute', attribute: 'CON', value: 2 },
+    ],
+    prereqText: 'You are not a member of the barbarian class.',
+    effect:
+      'You gain the Rage action and choose an instinct, though not the instinct\'s special abilities. Your rage damage is smaller than a barbarian\'s and does not increase with level unless a later feat says so. You become trained in Athletics.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Barbarian Resiliency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Barbarian Dedication' }],
+    prereqText: 'Your class grants no more than 10 Hit Points per level.',
+    effect: 'You gain additional Hit Points, and gain more each time you level up.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Fury',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Barbarian Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level barbarian class feat of your choice.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Advanced Fury',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Fury' }],
+    effect:
+      'You gain one barbarian class feat. For meeting its prerequisites, treat your barbarian level as half your character level.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Instinct Ability',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Barbarian Dedication' }],
+    effect: 'You gain the instinct ability of the instinct you chose with Barbarian Dedication.',
+    source: 'Player Core 2',
+  },
+  {
+    name: "Juggernaut's Fortitude",
+    level: 12,
+    track: 'archetype',
+    archetype: 'Barbarian',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Barbarian Dedication' }],
+    effect: 'You become an expert in Fortitude saves, if you were not already.',
+    source: 'Player Core 2',
+  },
+
+  // ── MULTICLASS: BARD ────────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Bard Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'CHA', value: 2 }],
+    prereqText: 'You are not a member of the bard class.',
+    effect:
+      'You become trained in Occultism and Performance, choose a muse, and gain two occult cantrips plus a composition cantrip. Your spellcasting attribute is Charisma.',
+    source: 'Player Core',
+  },
+  {
+    name: "Basic Muse's Whispers",
+    level: 4,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Bard Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level bard class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Bard Spellcasting',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Bard Dedication' }],
+    effect:
+      'You gain a spell repertoire and slots for 1st-rank occult spells, gaining 2nd-rank slots at 6th level and 3rd-rank slots at 8th.',
+    source: 'Player Core',
+  },
+  {
+    name: "Advanced Muse's Whispers",
+    level: 6,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: "Basic Muse's Whispers" }],
+    effect: 'You gain one bard class feat. For meeting its prerequisites, treat your bard level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Occult Breadth',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Bard Spellcasting' }],
+    effect: 'You gain an additional spell slot of each rank you have from this archetype, below your highest.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Expert Bard Spellcasting',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Bard Spellcasting' }],
+    effect:
+      'You become an expert in occult spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Master Bard Spellcasting',
+    level: 18,
+    track: 'archetype',
+    archetype: 'Bard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Expert Bard Spellcasting' }],
+    effect:
+      'You become a master in occult spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: CHAMPION ────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Champion Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [
+      { kind: 'attribute', attribute: 'STR', value: 2 },
+      { kind: 'attribute', attribute: 'CHA', value: 2 },
+    ],
+    prereqText: 'You are not a member of the champion class.',
+    effect:
+      'You choose a cause and take on its edicts and restrictions, become trained in Religion and in heavy armor, and gain the champion\'s sanctification where the cause calls for it.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Devotion',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Champion Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level champion class feat of your choice.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Champion Resiliency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Champion Dedication' }],
+    prereqText: 'Your class grants no more than 10 Hit Points per level.',
+    effect: 'You gain additional Hit Points, and gain more each time you level up.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Healing Touch',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Champion Dedication' }],
+    effect: 'You gain the lay on hands focus spell, and a focus pool of 1 point if you did not already have one.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Advanced Devotion',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Devotion' }],
+    effect:
+      'You gain one champion class feat. For meeting its prerequisites, treat your champion level as half your character level.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+  {
+    name: "Champion's Reaction",
+    level: 8,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Champion Dedication' }],
+    effect: 'You gain the champion\'s reaction associated with the cause you chose.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Diverse Armor Expert',
+    level: 14,
+    track: 'archetype',
+    archetype: 'Champion',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Champion Dedication' }],
+    effect: 'You become an expert in light, medium, and heavy armor, and in unarmored defense.',
+    source: 'Player Core 2',
+  },
+
+  // ── MULTICLASS: CLERIC ──────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Cleric Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'WIS', value: 2 }],
+    prereqText: 'You are not a member of the cleric class.',
+    effect:
+      'You choose a deity and take on its edicts and anathema, become trained in Religion and its favored weapon, and gain two divine cantrips. Your spellcasting attribute is Wisdom.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Cleric Spellcasting',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Cleric Dedication' }],
+    effect:
+      'You gain slots for 1st-rank divine spells, gaining 2nd-rank slots at 6th level and 3rd-rank slots at 8th.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Dogma',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Cleric Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level cleric class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Advanced Dogma',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Dogma' }],
+    effect: 'You gain one cleric class feat. For meeting its prerequisites, treat your cleric level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Divine Breadth',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Cleric Spellcasting' }],
+    effect: 'You gain an additional spell slot of each rank you have from this archetype, below your highest.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Expert Cleric Spellcasting',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Cleric Spellcasting' }],
+    effect: 'You become an expert in divine spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Master Cleric Spellcasting',
+    level: 18,
+    track: 'archetype',
+    archetype: 'Cleric',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Expert Cleric Spellcasting' }],
+    effect: 'You become a master in divine spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: DRUID ───────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Druid Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'WIS', value: 2 }],
+    prereqText: 'You are not a member of the druid class.',
+    effect:
+      'You become trained in Nature, choose a druidic order and take on its anathema, and gain two primal cantrips. Your spellcasting attribute is Wisdom.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Druid Spellcasting',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Druid Dedication' }],
+    effect: 'You gain slots for 1st-rank primal spells, gaining 2nd-rank slots at 6th level and 3rd-rank slots at 8th.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Wilding',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Druid Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level druid class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Advanced Wilding',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Wilding' }],
+    effect: 'You gain one druid class feat. For meeting its prerequisites, treat your druid level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Primal Breadth',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Druid Spellcasting' }],
+    effect: 'You gain an additional spell slot of each rank you have from this archetype, below your highest.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Expert Druid Spellcasting',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Druid Spellcasting' }],
+    effect: 'You become an expert in primal spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Master Druid Spellcasting',
+    level: 18,
+    track: 'archetype',
+    archetype: 'Druid',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Expert Druid Spellcasting' }],
+    effect: 'You become a master in primal spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: FIGHTER ─────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Fighter Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    // DISJUNCTIVE attribute prereq — see the header. Structuring it would AND the two and refuse a
+    // legal dexterity-based pick, so it stays as prose.
+    prereqText: 'Strength +2 or Dexterity +2. You are not a member of the fighter class.',
+    effect:
+      'You become trained in simple and martial weapons and in your choice of Acrobatics or Athletics. Your proficiency with those weapons rises to expert at higher levels.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Maneuver',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Fighter Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level fighter class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Fighter Resiliency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Fighter Dedication' }],
+    prereqText: 'Your class grants no more than 10 Hit Points per level.',
+    effect: 'You gain additional Hit Points, and gain more each time you level up.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Opportunist',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Fighter Dedication' }],
+    effect: 'You gain the Attack of Opportunity reaction.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Advanced Maneuver',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Maneuver' }],
+    effect: 'You gain one fighter class feat. For meeting its prerequisites, treat your fighter level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Diverse Weapon Expert',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Fighter',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Fighter Dedication' }],
+    effect:
+      'You become an expert in all simple and martial weapons you were trained in, and trained in any advanced weapon you were untrained in.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: MONK ────────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Monk Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [
+      { kind: 'attribute', attribute: 'STR', value: 2 },
+      { kind: 'attribute', attribute: 'DEX', value: 2 },
+    ],
+    prereqText: 'You are not a member of the monk class.',
+    effect:
+      'You become trained in unarmed attacks and gain the powerful fist ability, so your fist deals a larger die and is not treated as nonlethal. You also become trained in one of the monk skills.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Kata',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Monk Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level monk class feat of your choice.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Monk Resiliency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Monk Dedication' }],
+    prereqText: 'Your class grants no more than 10 Hit Points per level.',
+    effect: 'You gain additional Hit Points, and gain more each time you level up.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Advanced Kata',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Kata' }],
+    effect: 'You gain one monk class feat. For meeting its prerequisites, treat your monk level as half your character level.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Monk Moves',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Monk Dedication' }],
+    effect: 'You gain a +10-foot status bonus to your Speed while you are unarmored.',
+    source: 'Player Core 2',
+  },
+  {
+    name: "Monk's Flurry",
+    level: 10,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Monk Dedication' }],
+    effect: 'You gain the Flurry of Blows action, letting you make two unarmed Strikes as a single action.',
+    source: 'Player Core 2',
+  },
+  {
+    name: "Perfection's Path",
+    level: 12,
+    track: 'archetype',
+    archetype: 'Monk',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Monk Dedication' }],
+    effect: 'Choose Fortitude, Reflex, or Will. You become a master in that saving throw, if you were not already.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+
+  // ── MULTICLASS: RANGER ──────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Ranger Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Ranger',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'DEX', value: 2 }],
+    prereqText: 'You are not a member of the ranger class.',
+    effect:
+      'You become trained in Survival and gain the Hunt Prey action, though not the ranger\'s hunter\'s edge.',
+    source: 'Player Core',
+  },
+  {
+    name: "Basic Hunter's Trick",
+    level: 4,
+    track: 'archetype',
+    archetype: 'Ranger',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Ranger Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level ranger class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Ranger Resiliency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Ranger',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Ranger Dedication' }],
+    prereqText: 'Your class grants no more than 10 Hit Points per level.',
+    effect: 'You gain additional Hit Points, and gain more each time you level up.',
+    source: 'Player Core',
+  },
+  {
+    name: "Advanced Hunter's Trick",
+    level: 6,
+    track: 'archetype',
+    archetype: 'Ranger',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: "Basic Hunter's Trick" }],
+    effect: 'You gain one ranger class feat. For meeting its prerequisites, treat your ranger level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Master Spotter',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Ranger',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Ranger Dedication' }],
+    effect: 'You become a master in Perception, if you were not already.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: ROGUE ───────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Rogue Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'DEX', value: 2 }],
+    prereqText: 'You are not a member of the rogue class.',
+    effect:
+      'You become trained in one skill of your choice and in another from the rogue\'s list, gain a racket without its sneak-attack benefit, and gain the rogue\'s surprise-attack initiative ability.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Trickery',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Rogue Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level rogue class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Sneak Attacker',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Rogue Dedication' }],
+    effect:
+      'You gain the sneak attack class feature, dealing an extra die of precision damage to off-guard creatures — though it does not scale as quickly as a rogue\'s.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Advanced Trickery',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Trickery' }],
+    effect: 'You gain one rogue class feat. For meeting its prerequisites, treat your rogue level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Skill Mastery',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Rogue Dedication' }],
+    effect:
+      'You become an expert in a skill you are trained in, or a master in one you are already an expert in, and gain a skill feat for it.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Uncanny Dodge',
+    level: 10,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Rogue Dedication' }],
+    effect: 'You gain the rogue\'s deny-advantage ability, so lower-level foes cannot make you off-guard by flanking or by their class features.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Evasiveness',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Rogue',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Rogue Dedication' }],
+    effect: 'You become an expert in Reflex saves, if you were not already.',
+    source: 'Player Core',
+  },
+
+  // ── MULTICLASS: SORCERER ────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Sorcerer Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'CHA', value: 2 }],
+    prereqText: 'You are not a member of the sorcerer class.',
+    effect:
+      'You choose a bloodline, gaining its two cantrips and becoming trained in the skills it grants and in spell attacks and DCs of its tradition. Your spellcasting attribute is Charisma.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Blood Potency',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Sorcerer Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level sorcerer class feat of your choice.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Bloodline Spell',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Sorcerer Dedication' }],
+    effect: 'You gain the initial bloodline spell of your chosen bloodline, and a focus pool of 1 point.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Basic Sorcerer Spellcasting',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Sorcerer Dedication' }],
+    effect:
+      'You gain a spell repertoire and slots for 1st-rank spells of your bloodline\'s tradition, gaining 2nd-rank slots at 6th level and 3rd-rank slots at 8th.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Advanced Blood Potency',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Blood Potency' }],
+    effect:
+      'You gain one sorcerer class feat. For meeting its prerequisites, treat your sorcerer level as half your character level.',
+    repeatable: true,
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Bloodline Breadth',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Sorcerer Spellcasting' }],
+    effect: 'You gain an additional spell slot of each rank you have from this archetype, below your highest.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Expert Sorcerer Spellcasting',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Sorcerer Spellcasting' }],
+    effect:
+      'You become an expert in spell attacks and DCs of your bloodline\'s tradition, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core 2',
+  },
+  {
+    name: 'Master Sorcerer Spellcasting',
+    level: 18,
+    track: 'archetype',
+    archetype: 'Sorcerer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Expert Sorcerer Spellcasting' }],
+    effect:
+      'You become a master in spell attacks and DCs of your bloodline\'s tradition, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core 2',
+  },
+
+  // ── MULTICLASS: WIZARD ──────────────────────────────────────────────────────────────────────────
+  {
+    name: 'Wizard Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype', 'dedication', 'multiclass'],
+    prereqs: [{ kind: 'attribute', attribute: 'INT', value: 2 }],
+    prereqText: 'You are not a member of the wizard class.',
+    effect:
+      'You become trained in Arcana and in arcane spell attacks and DCs, gain a spellbook with a handful of 1st-rank arcane spells, and gain two arcane cantrips. Your spellcasting attribute is Intelligence.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Arcana',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Wizard Dedication' }],
+    effect: 'You gain a 1st- or 2nd-level wizard class feat of your choice.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Basic Wizard Spellcasting',
+    level: 4,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Wizard Dedication' }],
+    effect: 'You gain slots for 1st-rank arcane spells, gaining 2nd-rank slots at 6th level and 3rd-rank slots at 8th.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Advanced Arcana',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Arcana' }],
+    effect: 'You gain one wizard class feat. For meeting its prerequisites, treat your wizard level as half your character level.',
+    repeatable: true,
+    source: 'Player Core',
+  },
+  {
+    name: 'Arcane Breadth',
+    level: 8,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Wizard Spellcasting' }],
+    effect: 'You gain an additional spell slot of each rank you have from this archetype, below your highest.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Expert Wizard Spellcasting',
+    level: 12,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Basic Wizard Spellcasting' }],
+    effect: 'You become an expert in arcane spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+  {
+    name: 'Master Wizard Spellcasting',
+    level: 18,
+    track: 'archetype',
+    archetype: 'Wizard',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Expert Wizard Spellcasting' }],
+    effect: 'You become a master in arcane spell attacks and DCs, and gain slots of higher ranks as you continue to level.',
+    source: 'Player Core',
+  },
+
+  // ── NON-MULTICLASS ARCHETYPES ───────────────────────────────────────────────────────────────────
+  // These originate in supplements the Remaster reorganised, and I could not confirm which book each
+  // now sits in — they are therefore marked 'Legacy' rather than asserting a Player Core placement.
+  // Coverage is DEDICATION-HEAVY on purpose: dedication levels and prerequisites are stable and
+  // well-known, whereas the follow-on feats' levels were far less certain, so most are omitted.
+  {
+    name: 'Acrobat Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Acrobat',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Acrobatics', rank: 'trained' }],
+    effect:
+      'You become an expert in Acrobatics, or a master if you were already an expert, and you gain the Cat Fall and Quick Squeeze skill feats.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Archer Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Archer',
+    traits: ['archetype', 'dedication'],
+    prereqText: 'Trained in a martial bow.',
+    effect:
+      'You become trained in every bow, and expert in them once your class proficiency in martial weapons reaches expert. You also gain the Assisting Shot fighter feat.',
+    source: 'Legacy',
+  },
+  {
+    name: "Archer's Aim",
+    level: 4,
+    track: 'archetype',
+    archetype: 'Archer',
+    traits: ['archetype', 'concentrate'],
+    cost: '2',
+    prereqs: [{ kind: 'feat', name: 'Archer Dedication' }],
+    effect: 'Take careful aim and make a Strike with a bow at a +2 circumstance bonus, ignoring the target\'s concealment.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Advanced Bow Training',
+    level: 6,
+    track: 'archetype',
+    archetype: 'Archer',
+    traits: ['archetype'],
+    prereqs: [{ kind: 'feat', name: 'Archer Dedication' }],
+    effect: 'You can use fighter feats that require a bow, and your bow proficiency keeps pace with your class\'s martial weapon proficiency.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Assassin Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Assassin',
+    traits: ['archetype', 'dedication'],
+    prereqs: [
+      { kind: 'skill', skill: 'Deception', rank: 'trained' },
+      { kind: 'skill', skill: 'Stealth', rank: 'trained' },
+    ],
+    effect:
+      'You can spend a day studying a target you have observed to mark it, gaining bonuses to checks made to track, deceive, and locate it until you mark another.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Bounty Hunter Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Bounty Hunter',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Survival', rank: 'trained' }],
+    effect:
+      'You gain the Hunt Prey action, and a bonus to Survival checks to Track your prey and to Seek it.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Familiar Master Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Familiar Master',
+    traits: ['archetype', 'dedication'],
+    effect:
+      'You gain a familiar with more abilities than usual. If you already had one, it gains extra familiar abilities each day instead.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Herbalist Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Herbalist',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Nature', rank: 'trained' }],
+    effect:
+      'You can prepare herbal remedies as alchemical items using Nature in place of Crafting, and you learn the formulas for several of them.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Loremaster Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Loremaster',
+    traits: ['archetype', 'dedication'],
+    prereqText: 'Trained in two of Arcana, Nature, Occultism, or Religion.',
+    effect:
+      'You gain the Dubious Knowledge skill feat, become trained in a Lore of your choice, and can Recall Knowledge more freely than your training alone would allow.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Marshal Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Marshal',
+    traits: ['archetype', 'dedication'],
+    prereqText: 'Trained in Diplomacy or Intimidation, and expert in one of them or in a related martial skill.',
+    effect:
+      'You project an aura that grants your allies a small status bonus to attack rolls and to saves against fear while they are near you.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Martial Artist Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Martial Artist',
+    traits: ['archetype', 'dedication'],
+    effect:
+      'You become trained in unarmed attacks and gain the powerful fist ability, so your fist deals a larger die and is not treated as nonlethal.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Medic Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Medic',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Medicine', rank: 'expert' }],
+    effect:
+      'You gain the Battle Medicine skill feat, and your Treat Wounds and Battle Medicine heal a patient more effectively as your Medicine proficiency rises.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Poisoner Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Poisoner',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Crafting', rank: 'trained' }],
+    effect:
+      'You gain the Alchemical Crafting skill feat if you lack it, learn the formulas for several poisons, and can apply a poison to a weapon more quickly than usual.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Scout Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Scout',
+    traits: ['archetype', 'dedication'],
+    prereqs: [
+      { kind: 'skill', skill: 'Stealth', rank: 'trained' },
+      { kind: 'skill', skill: 'Survival', rank: 'trained' },
+    ],
+    effect:
+      'While you are Scouting or Avoiding Notice, you and your allies gain a circumstance bonus to initiative rolls.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Sentinel Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Sentinel',
+    traits: ['archetype', 'dedication'],
+    prereqText: 'Trained in medium armor.',
+    effect:
+      'You become trained in all armor, and your armor proficiency keeps pace with your class\'s as you level.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Snarecrafter Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Snarecrafter',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Crafting', rank: 'trained' }],
+    effect:
+      'You gain the Snare Crafting skill feat if you lack it, learn additional snare formulas, and can prepare a few snares for free each day.',
+    source: 'Legacy',
+  },
+  {
+    name: 'Wrestler Dedication',
+    level: 2,
+    track: 'archetype',
+    archetype: 'Wrestler',
+    traits: ['archetype', 'dedication'],
+    prereqs: [{ kind: 'skill', skill: 'Athletics', rank: 'trained' }],
+    effect:
+      'You become trained in unarmed attacks, and gain access to grappling maneuvers that let you damage or reposition a creature you have grabbed.',
+    source: 'Legacy',
+  },
+];
+
+// ── Lookup ────────────────────────────────────────────────────────────────────────────────────────
+
+/** Both tracks in one list, for a single pass over everything a character can spend a CLASS feat slot
+ *  on — which is the real grouping, since archetype feats compete for the same slots. */
+export const PF2_FEATS_CLASS_ARCHETYPE: PF2FeatFull[] = [...PF2_FEATS_CLASS, ...PF2_FEATS_ARCHETYPE];
+
+/** Name → feat.
+ *
+ *  NOT UNIQUE BY NAME, and deliberately so: several feats are shared verbatim across classes (Reach
+ *  Spell belongs to the bard, druid, sorcerer, and wizard; Quick Draw to the ranger and rogue; Sudden
+ *  Charge to the barbarian and fighter). Each class needs its OWN entry because `className` is what
+ *  the gate scopes on. This map therefore keeps the FIRST entry for a name — enough for "what does
+ *  this feat do", never enough to decide eligibility. Use `pf2ClassFeatsFor` for that. */
+const BY_NAME = new Map<string, PF2FeatFull>();
+for (const f of PF2_FEATS_CLASS_ARCHETYPE) {
+  const key = f.name.trim().toLowerCase();
+  if (!BY_NAME.has(key)) BY_NAME.set(key, f);
+}
+
+/** Find a class or archetype feat by name, case- and whitespace-insensitively. Returns null rather
+ *  than undefined, matching `pf2GeneralOrSkillFeat` and `pf2Spell`. */
+export function pf2ClassOrArchetypeFeat(name: string): PF2FeatFull | null {
+  return BY_NAME.get(String(name ?? '').trim().toLowerCase()) ?? null;
+}
+
+/** Every catalogued class feat belonging to one class. The gate would filter these anyway; doing it
+ *  here keeps a builder from having to hand the whole list to `annotatePF2Feats` just to show a
+ *  class's own feats. */
+export function pf2ClassFeatsFor(className: string): PF2FeatFull[] {
+  const want = String(className ?? '').trim().toLowerCase();
+  if (!want) return [];
+  return PF2_FEATS_CLASS.filter((f) => (f.className ?? '').trim().toLowerCase() === want);
+}
+
+/** Every catalogued feat of one archetype, its Dedication first. */
+export function pf2ArchetypeFeatsFor(archetype: string): PF2FeatFull[] {
+  const want = String(archetype ?? '').trim().toLowerCase();
+  if (!want) return [];
+  return PF2_FEATS_ARCHETYPE
+    .filter((f) => (f.archetype ?? '').trim().toLowerCase() === want)
+    .sort((a, b) => Number(b.name.toLowerCase().endsWith('dedication')) - Number(a.name.toLowerCase().endsWith('dedication')) || a.level - b.level);
+}
+
+/** Every archetype that has at least one catalogued feat, sorted. Lets a builder list archetypes
+ *  without hard-coding names that may not be catalogued yet. */
+export const PF2_ARCHETYPE_NAMES: string[] = Array.from(
+  new Set(PF2_FEATS_ARCHETYPE.map((f) => f.archetype).filter((a): a is string => !!a)),
+).sort();
+
+/** Every class that has at least one catalogued class feat. A class absent from this list has NO
+ *  catalogued feats — which is a coverage gap, not a claim that the class has no feats. */
+export const PF2_CLASSES_WITH_FEATS: string[] = Array.from(
+  new Set(PF2_FEATS_CLASS.map((f) => f.className).filter((c): c is string => !!c)),
+).sort();
+
+// ── Known gaps ────────────────────────────────────────────────────────────────────────────────────
+
+/** What this tranche deliberately does NOT contain, and why.
+ *
+ *  Same contract as `PF2_EQUIPMENT_GAPS`: an absent feat must read as "not catalogued yet" and never
+ *  as "does not exist". Everything below was omitted because a level, class assignment, or
+ *  prerequisite could not be stated with confidence — Ground Rule 3 — not because it was tedious. */
+export const PF2_FEATS_CLASS_GAPS: string[] = [
+  'CLASSES WITH NO ENTRIES AT ALL: Oracle and Witch. Both are catalogued in content.ts as playable, but their feat lists key off subsystems (curses/mysteries, patrons/hexes) whose Remaster names and feat levels I could not confirm, so neither has a single feat here.',
+  'CHAMPION is very thin (7 feats). The Remaster rebuilt the class around causes rather than alignment-locked tenets, and the bulk of its feat list is gated on a specific cause; I could not state those gates in Remaster terms, so cause-gated feats were omitted wholesale rather than guessed.',
+  'WIZARD is thin (13 feats). The Remaster replaced arcane schools with curricula and reworked the thesis options, and most mid-level wizard feats key off one or the other. Only school-independent feats are catalogued.',
+  'ALCHEMIST is thin (14 feats). Player Core 2 reworked the class around versatile vials, and I could not confirm which bomb/mutagen feats survived that rework unchanged or at what levels, so most of the list is omitted.',
+  'MONK focus-spell feats (the ki/qi subsystem) are entirely absent: the Remaster renamed that subsystem and I could not state the new feat names confidently. Stances and maneuvers, which did not change, are covered.',
+  'HIGH-LEVEL COVERAGE IS UNEVEN. Levels 1–8 are the most complete tranche for every class; levels 14, 16, and 18 are sparse and several classes have no level-20 capstone feat catalogued, because capstone levels were the entries I was least sure of.',
+  'SUBCLASS GATES ARE NOT ENFORCED. Barbarian instincts, druid orders, bard muses, rogue rackets, cleric fonts, and champion causes appear only in `prereqText`. There is no `feature`/`subclass` prereq kind, so the gate will permit e.g. a non-giant-instinct barbarian to take Giant\'s Stature. Adding that prereq kind is the fix; guessing at it here was not.',
+  'CLASS FEATURE PREREQUISITES generally are prose, not structure — "you have the Debilitating Strike class feature", "you have a familiar", "you can cast spells", "your class grants no more than 10 HP per level". Same reason as above.',
+  'FIGHTER 16 and several other single levels have no entries; that is a confidence gap, not a claim that the level grants nothing.',
+  'ANCESTRY FEATS are not in this file and are not catalogued anywhere yet — the fourth track remains entirely empty.',
+  'NON-MULTICLASS ARCHETYPES are dedication-only apart from Archer. Dedication levels and prerequisites are stable and well-known; the follow-on feats\' levels were not, so they were omitted. Those archetypes are marked source "Legacy" because the Remaster reorganised the supplements they came from and I could not confirm their current placement.',
+  'ARCHETYPE FEAT PREREQUISITES beyond the Dedication are modelled only where a named feat is required. The standing rule that you cannot take a second Dedication until you have two other feats from the first is stated in the file header and in effect text, but is NOT enforced by the gate — nothing in PF2Prereq can express it.',
+  'MULTICLASS DEDICATIONS carry "you are not a member of that class" in `prereqText` only. PF2Prereq has no negation, so the gate will let a fighter take Fighter Dedication. A `{ kind: "notClass" }` variant would fix it.',
+  'Several archetypes with well-known dedications were omitted entirely (Bastion, Beastmaster, Blessed One, Cavalier, Dual-Weapon Warrior, Duelist, Eldritch Archer, Mauler, Pirate, Scroll Trickster, Shadowdancer, Talisman Dabbler, Viking, Weapon Improviser) because I was not confident of their exact prerequisites.',
+  'BOOK ATTRIBUTION follows the Remaster class split — Player Core: bard, cleric, druid, fighter, ranger, rogue, wizard; Player Core 2: alchemist, barbarian, champion, monk, sorcerer. Where a feat could have moved between printings the attribution is indicative rather than citable.',
+];

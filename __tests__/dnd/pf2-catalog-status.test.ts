@@ -77,12 +77,26 @@ describe('the authored content is actually reachable', () => {
 });
 
 describe('the data is internally consistent', () => {
-  it('no duplicate spell or feat names', () => {
+  it('no duplicate spell names', () => {
     // A duplicate means a lookup silently returns the wrong one.
     const spellNames = PF2_ALL_SPELLS.map((s) => s.name.toLowerCase());
-    const featNames = PF2_ALL_FEATS.map((f) => f.name.toLowerCase());
     expect(new Set(spellNames).size).toBe(spellNames.length);
-    expect(new Set(featNames).size).toBe(featNames.length);
+  });
+
+  it('no duplicate feats WITHIN a single scope', () => {
+    // Feat names are NOT globally unique in PF2, and asserting that they were rejected accurate
+    // data. Sudden Charge is genuinely both a Fighter and a Barbarian feat; Reach Spell is on
+    // every caster's list. Each is a separate entry scoped to its class, and the eligibility gate
+    // reads `className`, so same-name-different-class is correct rather than a collision.
+    //
+    // What WOULD be a real bug is the same feat twice within one scope, so that is what this
+    // checks. Note `pf2ClassOrArchetypeFeat(name)` is therefore inherently lossy for shared names
+    // — callers that care about class scoping must use `pf2ClassFeatsFor(className)`.
+    const key = (f: { name: string; track: string; className?: string; ancestry?: string; archetype?: string }) =>
+      `${f.name.toLowerCase()}|${f.track}|${(f.className ?? f.ancestry ?? f.archetype ?? '').toLowerCase()}`;
+    const keys = PF2_ALL_FEATS.map(key);
+    const dupes = keys.filter((k, i) => keys.indexOf(k) !== i);
+    expect(dupes, `duplicate feats within one scope: ${[...new Set(dupes)].join(', ')}`).toEqual([]);
   });
 
   it('every SLOT-CAST spell has at least one tradition', () => {

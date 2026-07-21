@@ -20,6 +20,11 @@ import {
   PF2_WEAPONS_FULL, PF2_ARMORS_FULL, PF2_SHIELDS, PF2_RUNES, PF2_ITEMS, PF2_EQUIPMENT_GAPS,
 } from './equipment';
 import { PF2_FEATS_GENERAL, PF2_FEATS_SKILL, PF2_FEATS_GENERAL_SKILL, pf2GeneralOrSkillFeat } from './feats-general-skill';
+import {
+  PF2_FEATS_CLASS, PF2_FEATS_ARCHETYPE, PF2_FEATS_CLASS_ARCHETYPE, PF2_FEATS_CLASS_GAPS,
+  PF2_ARCHETYPE_NAMES, PF2_CLASSES_WITH_FEATS,
+  pf2ClassOrArchetypeFeat, pf2ClassFeatsFor, pf2ArchetypeFeatsFor,
+} from './feats-class';
 import { PF2_SPELLS_R0_3, pf2SpellR0_3 } from './spells-0-3';
 import { PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10 } from './spells-4-10';
 import {
@@ -34,6 +39,9 @@ export {
   PF2_ACTIONS, pf2Action,
   PF2_WEAPONS_FULL, PF2_ARMORS_FULL, PF2_SHIELDS, PF2_RUNES, PF2_ITEMS,
   PF2_FEATS_GENERAL, PF2_FEATS_SKILL, PF2_FEATS_GENERAL_SKILL, pf2GeneralOrSkillFeat,
+  PF2_FEATS_CLASS, PF2_FEATS_ARCHETYPE, PF2_FEATS_CLASS_ARCHETYPE,
+  PF2_ARCHETYPE_NAMES, PF2_CLASSES_WITH_FEATS,
+  pf2ClassOrArchetypeFeat, pf2ClassFeatsFor, pf2ArchetypeFeatsFor,
   PF2_SPELLS_R0_3, pf2SpellR0_3,
   PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10,
   PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
@@ -44,10 +52,14 @@ export type {
   PF2ClassSpellcasting, PF2Subclass,
 } from './classes';
 
-/** Every catalogued feat, from whichever tranche holds it. Class and ancestry feats are not
- *  authored yet, so today this is the general/skill set — the shape is what matters, so adding a
- *  tranche later is one line here and nothing changes at the call sites. */
-export const PF2_ALL_FEATS = [...PF2_FEATS_GENERAL_SKILL];
+/** Every catalogued feat, from whichever tranche holds it. Three of PF2's four tracks are now
+ *  represented — general, skill, class — plus archetype. ANCESTRY feats remain entirely unauthored. */
+export const PF2_ALL_FEATS = [...PF2_FEATS_GENERAL_SKILL, ...PF2_FEATS_CLASS_ARCHETYPE];
+
+/** Look a feat up across every tranche. General/skill is tried first, then class/archetype. */
+export function pf2AnyFeat(name: string) {
+  return pf2GeneralOrSkillFeat(name) ?? pf2ClassOrArchetypeFeat(name);
+}
 
 /** Every catalogued spell, slot-cast and focus alike. */
 export const PF2_ALL_SPELLS = [...PF2_SPELLS_R0_3, ...PF2_SPELLS_R4_10, ...PF2_FOCUS_SPELLS];
@@ -63,7 +75,7 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
   feats: {
     count: PF2_ALL_FEATS.length,
     complete: false,
-    note: 'General and skill feats only. Class feats, ancestry feats and archetype feats are not catalogued yet.',
+    note: `General and skill feats, plus class feats for ${PF2_CLASSES_WITH_FEATS.length} of the ${PF2_CLASSES.length} classes and ${PF2_ARCHETYPE_NAMES.length} archetypes. ANCESTRY feats are absent entirely. Class coverage is uneven — Oracle and Witch have no entries at all, Champion/Wizard/Alchemist are thin, and levels 14+ are sparse everywhere. Subclass and class-feature prerequisites are prose, not enforced. See PF2_FEATS_CLASS_GAPS.`,
   },
   classes: {
     count: PF2_CLASSES.length,
@@ -91,7 +103,8 @@ export const PF2_KNOWN_GAPS: string[] = [
   'Spells: partial at every rank — entries were omitted wherever the remaster rename or tradition list could not be confirmed, because a wrong tradition silently breaks the eligibility gate.',
   'Spells: Psychic, Summoner, Magus and Thaumaturge focus spells are absent; 46 focus spells carry source "Legacy" because their remastered form is unconfirmed. Wizard school focus spells are the LEGACY schools — the remaster reorganised them entirely.',
   'Spells: Monk qi spells and Witch hexes carry an empty `traditions` list ON PURPOSE — a hex follows its patron and qi spells have no tradition. The focus branch of the gate returns before reading traditions, so this is safe.',
-  'Feats: ancestry and archetype feats are absent; nothing is tagged "Player Core 2" because Remaster book attribution could not be separated from legacy content reliably.',
+  'Feats: ANCESTRY feats are absent — that fourth track is entirely uncatalogued.',
+  ...PF2_FEATS_CLASS_GAPS,
   'Feats: disjunctive prerequisites ("trained in Arcana OR Nature OR …") are held as prose, because the gate ANDs structured prereqs and would otherwise refuse legal picks.',
   'Actions: Repair and Coerce are the least certain entries; several degree outcomes are qualitative.',
   ...PF2_CLASS_PROGRESSION_GAPS.map((g) => `Classes: ${g}`),

@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
+import PF2ContentPicker from './PF2ContentPicker';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -37,7 +38,13 @@ function RankPill({ rank }: { rank: string }) {
   return <span title={rank} style={{ fontSize: 9, fontWeight: 700, color: trained ? 'var(--hx-teal-1)' : 'var(--hx-muted)', border: `1px solid ${trained ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, borderRadius: 4, padding: '0 4px' }}>{RANK_ABBR[rank] ?? '?'}</span>;
 }
 
-export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Character; characterId?: string; canEdit?: boolean }) {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla' }: {
+  pf2: PF2Character; characterId?: string; canEdit?: boolean;
+  isDM?: boolean;
+  /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
+   *  to vanilla — the safe direction, matching the server. */
+  variantKind?: 'vanilla' | 'custom';
+}) {
   const router = useRouter();
   const d = useMemo(() => pf2Derived(pf2), [pf2]);
   const id = pf2.identity;
@@ -59,6 +66,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Charac
     }
   };
   const canDoEdit = !!(canEdit && characterId);
+  // Which content picker is open, if any. PF2 had no picker at all — the catalog and the gated ops
+  // both existed, but nothing in the UI could reach them, so content could only arrive via the AI.
+  const [picker, setPicker] = useState<'feat' | 'spell' | null>(null);
 
   // In-app roller (R1b) — tap a save/skill/strike to roll a d20 + modifier, or a strike's damage, through the
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
@@ -245,10 +255,25 @@ export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Charac
         </div>
       )}
 
+      {picker && (
+        <PF2ContentPicker
+          pf2={pf2} kind={picker} isDM={isDM} variantKind={variantKind}
+          onClose={() => setPicker(null)}
+          // The server re-checks through gatePf2Edit regardless of what this sends — the picker's
+          // greying is for feedback timing, never the enforcement point.
+          onAdd={(edit) => { setPicker(null); void postEdit(edit); }}
+        />
+      )}
+
       {/* Feats & features */}
-      {pf2.feats.length > 0 && (
+      {(pf2.feats.length > 0 || canDoEdit) && (
         <div>
-          <div style={label}>Feats &amp; Features</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={label}>Feats &amp; Features</div>
+            {canDoEdit && (
+              <button className="btn tiny" disabled={saving} onClick={() => setPicker('feat')}>＋ Feat</button>
+            )}
+          </div>
           <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
             {pf2.feats.map((f) => (
               <div key={f.id} style={{ padding: '6px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
@@ -267,9 +292,16 @@ export default function PF2Sheet({ pf2, characterId, canEdit }: { pf2: PF2Charac
       {/* Spells. Previously the sheet showed slot COUNTS with no way to see which spells filled
           them — a caster could read "3 rank-2 slots" and not know a single spell they had. Grouped
           by rank, because that is how a PF2 caster actually prepares and casts. */}
-      {(pf2.spellcasting.spells?.length ?? 0) > 0 && (
+      {((pf2.spellcasting.spells?.length ?? 0) > 0 || (canDoEdit && pf2.spellcasting.kind !== 'none')) && (
         <div>
-          <div style={label}>Spells</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={label}>Spells</div>
+            {/* Only offered to a caster — a Fighter has no use for a spell picker, and showing one
+                would suggest they could cast. */}
+            {canDoEdit && pf2.spellcasting.kind !== 'none' && (
+              <button className="btn tiny" disabled={saving} onClick={() => setPicker('spell')}>＋ Spell</button>
+            )}
+          </div>
           <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
             {[...new Set((pf2.spellcasting.spells ?? []).map((s) => s.rank))].sort((a, b) => a - b).map((rank) => (
               <div key={rank}>

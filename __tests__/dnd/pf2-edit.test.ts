@@ -153,6 +153,11 @@ describe('PF2 sheet exposes an inline attribute editor (R4 manual UI)', () => {
     expect(SHEET).toContain('const canDoEdit = !!(canEdit && characterId)');
   });
   it('the page passes characterId + canEdit so the controls appear only for editors', () => {
-    expect(PAGE).toContain('<PF2Sheet pf2={pf2Data} characterId={character.id} canEdit={canWrite} />');
+    // Asserted per-prop rather than as one exact line: the element gained isDM and variantKind
+    // when the content picker landed, and a whole-line match breaks on every future prop for no
+    // behavioural reason.
+    expect(PAGE).toMatch(/<PF2Sheet[\s\S]*?pf2=\{pf2Data\}/);
+    expect(PAGE).toMatch(/<PF2Sheet[\s\S]*?characterId=\{character\.id\}/);
+    expect(PAGE).toMatch(/<PF2Sheet[\s\S]*?canEdit=\{canWrite\}/);
   });
 });
