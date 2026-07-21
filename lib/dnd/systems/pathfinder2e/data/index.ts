@@ -88,12 +88,13 @@ export const PF2_CATALOG_STATUS: PF2CatalogStatus = {
  *  planning doc means the next person to touch this data finds them next to the data. */
 export const PF2_KNOWN_GAPS: string[] = [
   ...PF2_EQUIPMENT_GAPS,
-  'Spells: ranks 4–10 and focus spells are entirely absent.',
-  'Spells: several rank 2–3 entries omitted where the remaster rename or tradition list was unconfirmed.',
-  'Feats: class, ancestry and archetype feats are absent; nothing is tagged "Player Core 2".',
+  'Spells: partial at every rank — entries were omitted wherever the remaster rename or tradition list could not be confirmed, because a wrong tradition silently breaks the eligibility gate.',
+  'Spells: Psychic, Summoner, Magus and Thaumaturge focus spells are absent; 46 focus spells carry source "Legacy" because their remastered form is unconfirmed. Wizard school focus spells are the LEGACY schools — the remaster reorganised them entirely.',
+  'Spells: Monk qi spells and Witch hexes carry an empty `traditions` list ON PURPOSE — a hex follows its patron and qi spells have no tradition. The focus branch of the gate returns before reading traditions, so this is safe.',
+  'Feats: ancestry and archetype feats are absent; nothing is tagged "Player Core 2" because Remaster book attribution could not be separated from legacy content reliably.',
   'Feats: disjunctive prerequisites ("trained in Arcana OR Nature OR …") are held as prose, because the gate ANDs structured prereqs and would otherwise refuse legal picks.',
-  'Classes: no level 1–20 feature progression; reduced-caster tables (Magus, Summoner) are unmodelled, so those classes return a spell-rank ceiling of 0 rather than a wrong one.',
   'Actions: Repair and Coerce are the least certain entries; several degree outcomes are qualitative.',
+  ...PF2_CLASS_PROGRESSION_GAPS.map((g) => `Classes: ${g}`),
 ];
 
 /** Is any kind of the catalog complete? Used by UI that wants to say "partial" honestly. */

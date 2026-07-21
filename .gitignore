@@ -94,3 +94,8 @@ audit-*.png
 # is a one-shot blob (e.g. seeds_*_to_*.sql for the Supabase web SQL
 # editor) — the canonical source stays in seeds/.
 tmp/
+
+dev-server.log
+
+.playwright-mcp/
+*.png
