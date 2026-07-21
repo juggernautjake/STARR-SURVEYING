@@ -138,12 +138,46 @@ PF2 conditions are largely **numeric** (Frightened 2, Clumsy 1) — unlike 5e's 
 platform's Ground Rule 1 exists precisely because of differences like this. Basic actions,
 activities, exploration/downtime activities.
 
-### S13 — Wire it all into the sheet + gates + library
+### S13 — Content-adding ops + gates
 - `PF2_EDIT_OPS` gains `add_feat` / `add_spell` / `add_item` — it currently has **no**
   content-adding op at all, which is why the Area MV audit found "nothing to gate".
 - `pf2-rules-gate.ts` on every write path (ai-edit, pf2-edit, pf2-build), matching 5e/IG exactly.
 - Builder pickers filtered + greyed with reasons (the S0 treatment).
-- Library sections, search, tags, tooltips, and AI retrieval for all PF2 kinds.
+
+### S13b — HOOK EVERYTHING UP TO THE SHEET AND THE ROLLER
+*Owner, verbatim: "include adding in all of the spells and items and everything, weapons,
+conditions, feats, everything into the character sheets for PF2 so that everything is hooked up and
+all of the math works with the digital roller and the stats of the character and all of that."*
+
+Catalogued content that only *renders* is a reference book, not a character sheet. Every kind must
+reach the maths:
+
+- **Weapons → attack rolls.** Strike = d20 + attribute mod + proficiency (rank + **level**, PF2's
+  defining difference from 5e's flat bonus) + item bonus, and the **multiple attack penalty**
+  (−5/−10, reduced by the `agile` trait) which nothing currently models. Damage = dice + attribute
+  mod + striking runes; `deadly`/`fatal` change the CRIT die specifically.
+- **Armour → AC.** 10 + dex (capped) + proficiency + item bonus; check penalty and speed penalty
+  applied to the skills and speed they actually affect.
+- **Spells → castable rolls.** Spell attack rolls and spell DC (10 + attribute + proficiency),
+  damage rolled from `damage`, heightening applied at the rank actually cast, and `basic` saves
+  resolved through the four-degree template.
+- **Conditions → live modifiers.** PF2 conditions are **numeric**: Frightened 2 is −2 to *every*
+  check and DC and ticks down each turn; Clumsy/Enfeebled/Drained/Stupefied hit specific statistics;
+  Wounded escalates Dying. These must flow through the existing effect ledger like any other source,
+  and be visible on the roll breakdown.
+- **Feats → real effects.** A feat that grants a bonus, an action, a reaction, or a proficiency
+  increase must contribute it, not sit as prose. Those that are purely narrative stay prose, and
+  that distinction is recorded per feat rather than guessed at roll time.
+- **Items/runes → bonuses.** Fundamental runes (+1/+2/+3 potency, striking) and property runes are
+  how PF2 weapon maths scales; they must apply when equipped/invested, respecting PF2's
+  item/status/circumstance bonus-stacking rules (the highest of each TYPE applies — a genuinely
+  different rule from 5e, and a place where a naive sum is silently wrong).
+- **Proficiency everywhere.** Untrained/trained/expert/master/legendary = +0/+2/+4/+6/+8 **plus
+  level** when trained or better. This single rule touches every roll on the sheet.
+- **The roller shows its work** — every roll names its sources, matching the IG sheet's existing
+  behaviour so a player can see *why* a number is what it is.
+
+Each of these gets tests asserting the resolved NUMBER, not just that the field renders.
 
 ### S14 — Browser verification (answers the owner's second question)
 See "On driving it in a browser" below. Playwright is available in this environment and `/dnd` is
@@ -183,4 +217,7 @@ character — note the standing rule never to click role-mutating buttons during
 - A vanilla PF2 character cannot take a feat or spell its class/level/tradition doesn't grant, by
   ANY route; custom can, flagged; DM can, marked as granted — parity with 5e and IG.
 - Every entry carries a `source`; no Reserved Material anywhere in the catalog.
+- **Everything catalogued is hooked to the maths (S13b), not just displayed.** A weapon rolls with
+  the right multiple-attack penalty, a rune contributes, a numeric condition moves every affected
+  number, and the roller names its sources. Tests assert resolved numbers, not rendered fields.
 - `npx tsc --noEmit`, `npx eslint`, whole-repo `npx vitest run`, `npm run build` green.
