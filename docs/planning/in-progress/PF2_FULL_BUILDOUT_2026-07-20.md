@@ -87,7 +87,28 @@ so the builder and the server can never disagree.
   one a DM granted — can still be deselected rather than stranded.
 - Stances and feats stay ungated here too, for the reasons in `intuitive-games/eligibility.ts`.
 
-### S1 — PF2 content schemas
+### S1 — PF2 content schemas ✅ SHIPPED 2026-07-20
+`defs.ts`: spells (rank not level, traditions, mechanical traits, per-rank and per-`+N` heightening,
+focus spells), feats (level, track, structured prereqs with a prose fallback, archetype), actions,
+conditions, items, runes, plus `PF2CatalogStatus`.
+Kept **separate from content.ts** deliberately: widening in place would either break the 25-entry
+seed the sheet depends on or force every new field optional, and "optional" is how a rules catalog
+quietly fills with holes.
+
+### S2 — Feat-slot schedule + eligibility core ✅ SHIPPED 2026-07-20
+`eligibility.ts`, 29 tests. Ancestry 1/5/9/13/17, skill even, general 3/7/11/15/19, class per-class
+with a default; feat level floors, class/ancestry scoping, structured prereqs, retake blocking,
+archetype Dedication chains, tradition matching, spell-rank ceilings.
+Two bugs caught while writing it:
+- **`pf2SpellSlots` takes only a LEVEL** and returns the full-caster table, so calling it blind
+  hands a Fighter rank-5 slots. The class definition decides first now, and classes with reduced
+  casting (Magus, Summoner) return 0 until their tables are modelled — a refused legal spell is
+  visible and fixable; a silent over-grant is neither.
+- The attribute/tradition types live in `model.ts`, not `content.ts`.
+**Fails CLOSED** on a missing class (a PF2 class list is complete, so absence means bad input) —
+deliberately the opposite of the IG core. **Never enforces unstructured prose prerequisites.**
+
+### S1 — original plan
 Widen the model to hold real PF2 mechanics, which the current 8-file subsystem does not:
 - `PF2SpellDef`: rank (**not** "level"), traditions, traits, cast actions, components, range, area,
   targets, duration, save, `heightened` (per-rank and per-`+N`), sustained, description.
@@ -138,13 +159,77 @@ PF2 conditions are largely **numeric** (Frightened 2, Clumsy 1) — unlike 5e's 
 platform's Ground Rule 1 exists precisely because of differences like this. Basic actions,
 activities, exploration/downtime activities.
 
-### S13 — Content-adding ops + gates
+### S12 — Conditions and actions ✅ SHIPPED 2026-07-20
+42 conditions (all of them; 11 valued) and 50 actions with degree-of-success outcomes. Conditions
+are now **complete** in `PF2_CATALOG_STATUS` — the only kind that is.
+Author's reported gaps kept in `PF2_KNOWN_GAPS`: Repair and Coerce are the least certain entries;
+several degree outcomes are qualitative where exact values weren't confirmable. Grapple/Shove/Trip/
+Disarm were moved from `basic` to `skill` (Athletics) — they read as core combat actions but are
+printed as skill actions, and Disarm is proficiency-gated, which `basic` could not represent.
+
+### S11 — Equipment ✅ SHIPPED 2026-07-20
+58 weapons, 13 armors, 4 shields, 33 runes, 35 items. Armor is **complete**; the rest are not.
+`PF2ShieldDef` is its own interface rather than a `PF2ItemDef` row, because Shield Block needs
+Hardness/HP/BT as numbers, not prose.
+**Found a seed bug:** `content.ts` listed Greataxe and Greatsword with a `two-hand d12` trait
+despite both already being Hands 2. Two-hand is for ONE-handed weapons wielded in two, so the
+Strike resolver would have upgraded dice for weapons that never get the benefit. Fixed.
+**Found a shape oddity:** the blowgun deals a flat `1` piercing, not a die — any consumer parsing
+`NdM` must tolerate it. The resolver now does.
+
+### S13 — Content-adding ops + gates ✅ SHIPPED 2026-07-20
+`PF2_EDIT_OPS` gains `add_feat`/`remove_feat`/`add_spell`/`remove_spell`, and
+`pathfinder2e/rules-gate.ts` gates them. 31 tests. **This completes Area MV across all three
+systems.**
+- `PF2Spellcasting` tracked slot COUNTS but never which spells filled them — a sheet could say
+  "3 rank-2 slots" and name no spell. `PF2KnownSpell` fixes that, optional so stored characters
+  stay valid without migration.
+- Added `blankPF2Character`, which the subsystem lacked entirely (only `buildPF2Character(picks)`
+  existed, forcing every caller to invent a full pick-set for a valid sidecar).
+- **Judges against the CATALOG, not the edit's claimed level**, and `parsePf2Edit` refuses to read
+  `offRules` from the payload — server-set only.
+- **Only content-adding ops are gated.** Damage, healing, conditions and the death track are play,
+  not construction; refusing them would break the sheet mid-combat.
+
+### S13c — Catalog wiring + honest coverage ✅ SHIPPED 2026-07-20
+`data/index.ts` is one door to every tranche; `PF2_CATALOG_STATUS` reports real coverage and
+`PF2_KNOWN_GAPS` records every author-reported omission in the repo next to the data. 13 tests
+guard the HONESTY property rather than the counts: counts derive from the arrays (a hand-typed
+number drifts and starts lying), every incomplete kind must say what's missing, and count
+assertions are lower bounds so authoring more never breaks the suite.
+The browsable catalog now shows the full tranches instead of the 25-entry seed, and surfaces five
+kinds that had no catalog presence at all (feats, conditions, runes, shields, items).
+
+### S13 — original plan
 - `PF2_EDIT_OPS` gains `add_feat` / `add_spell` / `add_item` — it currently has **no**
   content-adding op at all, which is why the Area MV audit found "nothing to gate".
 - `pf2-rules-gate.ts` on every write path (ai-edit, pf2-edit, pf2-build), matching 5e/IG exactly.
 - Builder pickers filtered + greyed with reasons (the S0 treatment).
 
-### S13b — HOOK EVERYTHING UP TO THE SHEET AND THE ROLLER
+### S13b — HOOK EVERYTHING UP TO THE SHEET AND THE ROLLER ⏳ PART SHIPPED 2026-07-20
+**Strike resolution is done** (`strike.ts`, 33 tests) — the piece most likely to be silently wrong.
+**PF2 crits are not 5e crits:** 5e rolls the dice twice and adds modifiers once; PF2 doubles the
+ENTIRE total, dice and modifiers, and THEN adds deadly/fatal dice undoubled. A 5e-shaped
+implementation is wrong on every single critical hit, which is why this got its own module.
+Modelled and pinned by tests asserting the NUMBER: agile MAP (−4/−8, capped after the third
+Strike), deadly (added post-doubling, dice count scaling with the striking line), fatal
+(substitutes the die pre-doubling, plus one extra), two-hand (substitutes, and striking then
+multiplies the SUBSTITUTED die), striking runes multiplying weapon dice only, ranged adding no
+Strength, propulsive adding half and nothing when Strength is negative, finesse switching to
+Dexterity only when it actually helps, and flat-damage weapons staying flat.
+A test caught a real bug: `thrown 10 ft` is parameterised, so exact-match trait lookup never fired
+and thrown weapons silently lost their Strength damage.
+
+**Already existed and was better than the audit implied:** `pf2Proficiency` (rank + level),
+`pf2ArmorClass`, `pf2SpellDc`/`pf2SpellAttack`, `pf2SaveTotal`, `pf2SkillTotal` with the armor
+check penalty, `pf2Degree` (four degrees incl. nat 20/1 stepping), and
+`lib/dnd/conditions/pathfinder2e.ts` with PF2's non-stacking bonus-type rule already implemented.
+
+**Still to wire:** runes contributing their bonuses to the sheet's stored `weaponBonus`/
+`acItemBonus`, feats that grant real effects rather than prose, and the catalog kinds reaching the
+sheet's own attack/spell lists.
+
+### S13b — original plan
 *Owner, verbatim: "include adding in all of the spells and items and everything, weapons,
 conditions, feats, everything into the character sheets for PF2 so that everything is hooked up and
 all of the math works with the digital roller and the stats of the character and all of that."*
