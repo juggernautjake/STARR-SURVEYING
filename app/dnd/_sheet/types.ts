@@ -345,6 +345,9 @@ export interface ProgressionRow {
   here?: boolean
 }
 
+/** How the sheet is arranged. See `Character.sheetLayout` for why this is its own axis. */
+export type SheetLayout = 'classic' | 'codex'
+
 export interface Character {
   meta: {
     name: string
@@ -526,6 +529,12 @@ export interface Character {
    *  `resolveThemeVariant(skin, key)`; the streamer additionally applies a `.variant-<id>` class + art. Any
    *  variant key from `themeVariantsFor` is valid; an unknown key safely falls back to the skin's first. */
   skinVariant?: string
+  /** How the sheet is ARRANGED (CX-1) — a third axis, orthogonal to the skin (`sheet_type`) and
+   *  the colour theme (`skinVariant`). 'classic' is the horizontal tab bar with one pane open;
+   *  'codex' is the identity column plus a stack of simultaneously-open resizable panes. Any
+   *  layout works with any skin and any system, which is the reason it is its own field rather
+   *  than more `sheet_type` entries. Omitted → 'classic', so every existing sheet is unchanged. */
+  sheetLayout?: SheetLayout
   /** Per-variant art + token URLs, so switching the style swaps the character art
    *  too. Falls back to the DB art_url/token_url (media) when a variant is unset. */
   variantArt?: {

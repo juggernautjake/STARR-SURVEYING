@@ -51,6 +51,22 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   if (!res.access) redirect('/dnd'); // no access → back to the hub
   const { character, isDM, canWrite, isOwner } = res.access;
 
+  // The owner's display name, for the Codex identity column's "Owner" row. Resolved here rather
+  // than in the sheet because the sheet is a client component and this is a single indexed
+  // lookup on a column it has no business querying. Stays null for an unclaimed character (an
+  // NPC with no owner) — the row is then omitted rather than showing a placeholder, since
+  // inventing an owner is worse than not listing one.
+  let ownerName: string | null = null;
+  const ownerId = (character as { owner_user_id?: string | null }).owner_user_id;
+  if (ownerId) {
+    const { data: ownerRow } = await supabaseAdmin
+      .from('dnd_users')
+      .select('display_name')
+      .eq('id', ownerId)
+      .maybeSingle();
+    ownerName = (ownerRow as { display_name?: string } | null)?.display_name ?? null;
+  }
+
   // Effective preferences (Area P2c) — the campaign's DM settings, resolved for this player, fed to the sheet
   // store so configurable mechanics (long-rest model, …) actually follow the campaign's house rules. Player-
   // side overrides (P2b) aren't stored yet, so the player object is empty → the campaign values win (with any
@@ -224,6 +240,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         // builders hard-block off-rules content or merely flag it. `readActiveSlotMeta` already
         // defaults to 'vanilla' for an unlabelled slot, which is the safe direction.
         variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind}
+        ownerName={ownerName}
       />
       {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
           force and which the DM locked. Only shown for a character in a campaign. */}

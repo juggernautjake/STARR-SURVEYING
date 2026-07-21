@@ -28,6 +28,7 @@ export default function SheetRoot({
   customCss,
   preferences,
   variantKind,
+  ownerName,
 }: {
   characterId?: string;
   campaignId?: string;
@@ -51,6 +52,10 @@ export default function SheetRoot({
    *  class and level do not grant; custom characters may take it, flagged. Defaults to vanilla
    *  in the store — the safe direction for an unlabelled sheet. */
   variantKind?: SheetVariantKind;
+  /** The owner's display name (dnd_users.display_name), resolved server-side. Shown in the
+   *  Codex identity column, which lists the character's owner. It is DB metadata about the
+   *  row rather than character rules data, which is why it is a prop and not on `Character`. */
+  ownerName?: string | null;
 }) {
   // A custom (AI-composed) sheet takes over rendering when it has valid blocks. If it
   // contains interactive widgets (Slice 11), render it via React inside the provider so
@@ -70,7 +75,7 @@ export default function SheetRoot({
   }
   return (
     <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind}>
-      <App sheetType={sheetType} system={system} theme={theme} />
+      <App sheetType={sheetType} system={system} theme={theme} ownerName={ownerName} />
     </CharacterProvider>
   );
 }

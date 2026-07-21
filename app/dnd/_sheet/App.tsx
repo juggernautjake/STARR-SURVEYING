@@ -5,6 +5,11 @@
 // scrollbars) apply here without leaking onto the rest of the Starr site.
 import { useState } from 'react'
 import './styles/theme.css'
+// Codex layout styles (CX-1 …). Imported unconditionally beside theme.css rather than lazily:
+// both are scoped under `.dnd-sheet`, and the Codex rules match nothing at all unless a
+// CodexLayout is actually rendered, so a classic sheet pays only the (small) stylesheet size
+// and none of the complexity of a dynamic import that could flash unstyled panes on switch.
+import './styles/codex.css'
 import { themeToCssVars, themeVariantsFor, resolveThemeVariant, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
@@ -39,6 +44,8 @@ import MlmPanel from './components/MlmPanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
+import LayoutSwitch from './components/LayoutSwitch'
+import CodexLayout from './codex/CodexLayout'
 import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
@@ -62,7 +69,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 
-export default function App({ theme, sheetType, system }: { theme?: SheetTheme; sheetType?: string; system?: string }) {
+export default function App({ theme, sheetType, system, ownerName }: { theme?: SheetTheme; sheetType?: string; system?: string; ownerName?: string | null }) {
   const [tab, setTab] = useState<TabId>('overview')
   const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline } = useChar()
 
@@ -108,6 +115,14 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
   // Portrait layout when the character has art: name/info left, full-body art right.
   const artBeside = !!artUrl
 
+  // Which LAYOUT this sheet uses (CX-1). Defaults to 'classic', so every character that predates
+  // the Codex — which is all of them — is untouched. The branch is deliberately placed HERE,
+  // inside the themed `.dnd-sheet` root rather than above it, so the Codex inherits the skin
+  // class, the `variant-<id>` class and the theme CSS variables exactly as the classic layout
+  // does. That is what makes "any skin, any layout" true by construction instead of by a rule
+  // someone has to remember.
+  const isCodex = (char.sheetLayout ?? 'classic') === 'codex'
+
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
   // registered `skin` adds a `skin-<id>` class (+ `variant-<id>` for the streamer)
@@ -144,7 +159,9 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
       {/* Round profile token (D2). Falls back to the hero art cropped to the top
           (her face) when no dedicated token is uploaded — so a full-body art still
           gives a face icon. */}
-      {(tokenUrl || artUrl) && (
+      {/* Not in the Codex: its identity column carries the portrait, and a second copy of the
+          same face directly above it is noise, not navigation. */}
+      {!isCodex && (tokenUrl || artUrl) && (
         <div
           className="token-frame"
           style={{
@@ -179,7 +196,10 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
       {/* Header: name / race / info on the LEFT, full-body character art on the RIGHT
           (portrait layout, same for every sheet). Wraps to stacked on narrow screens.
           Falls back to just the hero when the character has no art yet. */}
-      {artBeside ? (
+      {/* Also not in the Codex: name, class, level and the art all move INTO the identity
+          column, which is the layout's entire premise. Rendering the hero above it would push
+          the two-column split below the fold on the screens the Codex exists for. */}
+      {isCodex ? null : artBeside ? (
         <div className="hero-portrait" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 4 }}>
           <div style={{ flex: '1 1 360px', minWidth: 0 }}>
             <Hero />
@@ -200,6 +220,10 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
 
       {/* Pink/blue style switch (streamer skin only) — swaps theme, class, and art. */}
       {hasThemePicker && <SkinSwitch variants={themeVariants} />}
+      {/* Layout switch (CX-1), beside the theme picker because the two are the same KIND of
+          choice from the player's side: how this sheet looks. They stay separate fields because
+          they are independent — every layout works with every skin. */}
+      <LayoutSwitch />
       {/* Owner-DM art/token uploader — per-variant when the skin has variants (D1/D2). */}
       <SheetArtUploader variant={supportsVariants ? streamerVariant : undefined} />
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
@@ -220,6 +244,9 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
           inside it show only for characters with the `stream` module. */}
       <DmOverridePanel hasStream={hasStream} />
 
+      {isCodex ? (
+        <CodexLayout artUrl={artUrl} ownerName={ownerName} />
+      ) : (
       <div className="appgrid">
         <div className="maincol">
           {/* Cross-cutting panels (conditions, active effects, reactions, edit review) sit ABOVE the tab bar
@@ -322,6 +349,7 @@ export default function App({ theme, sheetType, system }: { theme?: SheetTheme; 
           <DiceTray />
         </div>
       </div>
+      )}
 
       {/* Live-stream feature (chat + influence meter + alerts/polls) — only for
           characters whose sheet_type registers the `stream` module (§6.9). */}
