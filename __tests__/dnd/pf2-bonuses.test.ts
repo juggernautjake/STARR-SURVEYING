@@ -152,9 +152,17 @@ describe('runes DERIVE the weapon numbers, and are actually wired in', () => {
   it('the sheet uses it for BOTH the to-hit and the damage line', () => {
     // Reading a.weaponBonus for to-hit while damage used the rune value would show a weapon
     // hitting at +0 and damaging as though it were +2.
+    //
+    // The sheet no longer wires this itself: `pf2ResolveStrikeInPlay` resolves runes, traits,
+    // conditions and the multiple attack penalty in ONE place, and the sheet's card and roll both
+    // read its result. Anchoring on the resolver rather than the sheet's inlined call keeps the
+    // guard pointed at whoever actually does the work — and the real protection is now
+    // pf2-resolve.test.ts, which asserts the resolved numbers rather than the source text.
     const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
-    expect(sheet).toContain('pf2WeaponNumbers(a).weaponBonus');
-    expect(sheet).toContain('itemBonus: runeNums.weaponBonus');
-    expect(sheet).toContain('striking: runeNums.striking');
+    const resolve = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/pathfinder2e/resolve.ts'), 'utf8');
+    expect(sheet).toContain('pf2ResolveStrikeInPlay(a, pf2, strikeIndex)');
+    expect(resolve).toContain('pf2WeaponNumbers(attack)');
+    expect(resolve).toContain('itemBonus: runes.weaponBonus');
+    expect(resolve).toContain('striking: runes.striking');
   });
 });

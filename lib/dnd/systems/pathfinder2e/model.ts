@@ -82,6 +82,12 @@ export interface PF2Combat {
   /** The effective armor check penalty (≤ 0) applied to armor-affected skills; 0 when the Strength
    *  requirement is met or when unarmored. */
   armorCheckPenalty?: number;
+  /** Runes etched on the worn armor, by name ("+1 armor potency", "greater resilient"). When
+   *  present these DERIVE the AC item bonus and the resilient save bonus at render via
+   *  `pf2ResolveRunes`, exactly as `PF2Attack.runes` does for weapons — so armor and weapons cannot
+   *  disagree about what a rune means. Absent → `acItemBonus` stands alone, so every stored
+   *  character remains valid without migration. */
+  armorRunes?: string[];
   /** The attack proficiency that gates your Strikes (Fighter is highest). */
   attackRank: PF2Rank;
   /** The class DC proficiency (for class features that impose saves). */

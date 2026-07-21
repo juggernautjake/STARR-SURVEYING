@@ -16,21 +16,23 @@ import PF2ArmorEditor from './PF2ArmorEditor';
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2Proficiency, pf2MaxHp } from '@/lib/dnd/systems/pathfinder2e/rules';
 import {
-  pf2Derived, pf2SkillTotal, pf2SaveTotal, pf2PerceptionTotal, pf2AttackBonus, pf2Proficiency,
-} from '@/lib/dnd/systems/pathfinder2e/rules';
-import { pf2ResolveStrike } from '@/lib/dnd/systems/pathfinder2e/strike';
-import { pf2WeaponNumbers } from '@/lib/dnd/systems/pathfinder2e/bonuses';
+  pf2ResolveAll, pf2ResolveSkill, pf2ResolveStrikeInPlay,
+  type PF2ResolvedStat,
+} from '@/lib/dnd/systems/pathfinder2e/resolve';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
-import { pf2ConditionRollEffect, pf2ConditionMechanics, type Pf2RollKind } from '@/lib/dnd/conditions/pathfinder2e';
+import { pf2ConditionMechanics } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, sub, title }: { label: string; value: string; sub?: string; title?: string }) {
   return (
-    <div style={{ display: 'grid', gap: 2, textAlign: 'center', padding: '8px 6px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(1,10,19,0.4)', minWidth: 72 }}>
+    // `title` carries the resolved breakdown, so hovering a headline number answers "why is it
+    // this?" without a click — the same "show its work" contract the roller banner honours.
+    <div title={title} style={{ display: 'grid', gap: 2, textAlign: 'center', padding: '8px 6px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(1,10,19,0.4)', minWidth: 72 }}>
       <span style={{ fontSize: 9.5, color: 'var(--hx-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
       <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 20, color: 'var(--hx-gold-2)' }}>{value}</strong>
       {sub && <span style={{ fontSize: 9.5, color: 'var(--hx-muted)' }}>{sub}</span>}
@@ -51,7 +53,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   variantKind?: 'vanilla' | 'custom';
 }) {
   const router = useRouter();
-  const d = useMemo(() => pf2Derived(pf2), [pf2]);
+  // ONE resolution for every headline number (S13b). The card and the roll both read `.total` from
+  // this, which is the whole point: the sheet used to display `pf2SaveTotal` and roll that number
+  // PLUS a condition penalty applied at the call site, so a Frightened character's card and dice
+  // disagreed. Two places that each remember to apply conditions will eventually forget; one place
+  // cannot.
+  const d = useMemo(() => pf2ResolveAll(pf2), [pf2]);
+  const maxHp = useMemo(() => pf2MaxHp(pf2), [pf2]);
   const id = pf2.identity;
   const label = { fontSize: 11, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const };
   const [saving, setSaving] = useState(false);
@@ -88,14 +96,16 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
   // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
   const [targetDc, setTargetDc] = useState('');
-  const rollLine = (name: string, modifier: number, kind: Pf2RollKind = 'skill') => {
+  // Which Strike of the turn the Strikes block is showing: 0 = first, 1 = second, 2 = third or
+  // later. Drives the multiple attack penalty.
+  const [strikeIndex, setStrikeIndex] = useState(0);
+  // Roll a RESOLVED statistic. It takes the `PF2ResolvedStat` rather than a bare number so the
+  // roller cannot apply a condition the card did not, or vice versa — the modifier it rolls is by
+  // construction the modifier the card printed. Conditions are already folded into `.total`.
+  const rollLine = (name: string, stat: PF2ResolvedStat) => {
     const dcNum = targetDc.trim() === '' ? undefined : Number(targetDc);
     const dc = Number.isFinite(dcNum) ? dcNum : undefined;
-    // Auto-fold active PF2 conditions (Area R2 — PF2): the WORST status penalty + the WORST circumstance
-    // penalty apply (same-type penalties don't stack; the two types do). Frightened/Sickened hit everything;
-    // Prone hits attacks. The affecting conditions are named on the result so the player sees why.
-    const cond = pf2ConditionRollEffect((pf2.combat.conditions ?? []) as { name: string; value?: number }[], kind);
-    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier: modifier + cond.penalty, dc, system: 'pathfinder2e' });
+    const r = resolveD20Roll({ natural: rollNaturalD20(), modifier: stat.total, dc, system: 'pathfinder2e' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
     let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
@@ -105,7 +115,16 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
-    if (cond.sources.length) detail += ` · ⚠ ${cond.penalty} from ${cond.sources.join(', ')}`;
+    // The roller shows its work — every source that contributed, named. A suppressed same-type
+    // bonus is called out too, because "why isn't my +1 counting?" is PF2's most common maths
+    // question and the answer (a bigger bonus of the same type won) is a rule, not a bug.
+    detail += ` · ${stat.breakdown}`;
+    if (stat.suppressed.length) {
+      detail += ` · suppressed: ${stat.suppressed.map((m) => `+${m.value} ${m.source} (${m.type})`).join(', ')}`;
+    }
+    if (stat.conditional.length) {
+      detail += ` · situational: ${stat.conditional.map((m) => `+${m.value} ${m.source} vs ${m.when}`).join('; ')}`;
+    }
     setLastRoll({ label: name, total: r.total, detail, tone });
   };
   const rollDamage = (name: string, expr: string) => {
@@ -156,17 +175,17 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             title="Edit armor"
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
           >
-            <Stat label="AC ✎" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
+            <Stat label="AC ✎" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} />
           </button>
         ) : (
-          <Stat label="AC" value={`${d.ac}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} />
+          <Stat label="AC" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} />
         )}
-        <Stat label="HP" value={`${pf2.combat.currentHp || d.maxHp}/${d.maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
-        <Stat label="Perception" value={fmt(pf2PerceptionTotal(pf2))} sub={pf2.perception.rank} />
-        <Stat label="Initiative" value={fmt(pf2PerceptionTotal(pf2))} sub="Perception" />
+        <Stat label="HP" value={`${pf2.combat.currentHp || maxHp}/${maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
+        <Stat label="Perception" value={fmt(d.perception.total)} sub={pf2.perception.rank} title={d.perception.breakdown} />
+        <Stat label="Initiative" value={fmt(d.perception.total)} sub="Perception" title={d.perception.breakdown} />
         <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
-        <Stat label="Class DC" value={`${d.classDc}`} sub={pf2.combat.classDcAttribute} />
-        {d.spellDc != null && <Stat label="Spell DC" value={`${d.spellDc}`} sub={`atk ${fmt(d.spellAttack ?? 0)} · ${pf2.spellcasting.tradition}`} />}
+        <Stat label="Class DC" value={`${d.classDc.total}`} sub={pf2.combat.classDcAttribute} title={d.classDc.breakdown} />
+        {d.spellDc && <Stat label="Spell DC" value={`${d.spellDc.total}`} sub={`atk ${fmt(d.spellAttack?.total ?? 0)} · ${pf2.spellcasting.tradition}`} title={d.spellDc.breakdown} />}
       </div>
 
       {/* Roller controls + result banner (R1b) — tap a save/skill/Strike below; set a target DC for the degree. */}
@@ -189,14 +208,19 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       <div>
         <div style={label}>Saving Throws</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-          {PF2_SAVES.map((s) => (
-            <button key={s} type="button" onClick={() => rollLine(`${s} save`, pf2SaveTotal(s, pf2), s === 'Fortitude' ? 'fortitude' : s === 'Reflex' ? 'reflex' : 'will')} title={`Roll ${s} (d20 ${fmt(pf2SaveTotal(s, pf2))})`}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
-              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
-              <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(pf2SaveTotal(s, pf2))}</strong>
-              <RankPill rank={pf2.saves[s].rank} />
-            </button>
-          ))}
+          {PF2_SAVES.map((s) => {
+            // The displayed number IS the rolled number — both are `stat.total`. This was the
+            // "card says +7, rolls +5" bug: conditions were applied on the roll path only.
+            const stat = d.saves[s];
+            return (
+              <button key={s} type="button" onClick={() => rollLine(`${s} save`, stat)} title={`Roll ${s} (d20 ${fmt(stat.total)})\n${stat.breakdown}`}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
+                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
+                <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(stat.total)}</strong>
+                <RankPill rank={pf2.saves[s].rank} />
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -225,9 +249,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, marginTop: 6 }}>
           {pf2.skills.map((sk) => {
             const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
-            const total = pf2SkillTotal(sk, id.level, pf2.attributes, pf2.combat.armorCheckPenalty);
+            const stat = pf2ResolveSkill(sk, pf2);
+            const total = stat.total;
             return (
-              <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, total, 'skill')} title={`Roll ${sk.name} (d20 ${fmt(total)})`}
+              <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, stat)} title={`Roll ${sk.name} (d20 ${fmt(total)})\n${stat.breakdown}`}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1, background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 9.5 }}>{sk.attribute}</span></span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -246,34 +271,36 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={label}>Strikes</div>
+            {/* Which Strike of the turn this is. PF2's multiple attack penalty is −5/−10 (−4/−8 for
+                an agile weapon) and caps after the third, and it is the single largest modifier a
+                PF2 character deals with in a normal turn. Without this control the sheet could only
+                ever show a first Strike, so the player had to do the game's most common subtraction
+                in their head — and agile weapons make it a DIFFERENT subtraction per weapon. */}
+            <label style={{ fontSize: 10.5, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              Strike #
+              <select
+                value={strikeIndex} onChange={(e) => setStrikeIndex(Number(e.target.value))}
+                aria-label="Which Strike of this turn"
+                style={{ fontSize: 11, padding: '2px 4px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+              >
+                <option value={0}>1st (no MAP)</option>
+                <option value={1}>2nd (−5 / −4 agile)</option>
+                <option value={2}>3rd+ (−10 / −8 agile)</option>
+              </select>
+            </label>
             {canDoEdit && (
               <button className="btn tiny" disabled={saving} onClick={() => setWeaponEditor('new')} title="Add or author a weapon">＋ Weapon</button>
             )}
           </div>
           <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
             {pf2.attacks.map((a) => {
-              // Rune-derived item bonus feeds the TO-HIT roll too. Reading `a.weaponBonus` here
-              // while the damage line used the rune value would show a weapon hitting at +0 and
-              // damaging as though it were +2.
-              const runeBonus = pf2WeaponNumbers(a).weaponBonus;
-              const bonus = pf2AttackBonus({ ...a, weaponBonus: runeBonus }, id.level, pf2.attributes);
-              // Resolve the weapon's TRAITS into real numbers (S13b/S15d). The sheet previously
-              // rendered a stored damage string, so `deadly`, `striking` and the crit rules never
-              // computed — a Rapier and a Shortsword rolled identically on a critical hit.
-              // Runes DERIVE the item bonus and striking line when the weapon lists them, so the
-              // numbers follow the runes the character actually has rather than a hand-entered
-              // value that drifts out of sync.
-              const runeNums = pf2WeaponNumbers(a);
-              const strike = pf2ResolveStrike(
-                { name: a.name, damageDie: a.damage, damageType: a.damageType ?? '', traits: a.traits ?? [] },
-                {
-                  level: id.level, attributes: pf2.attributes,
-                  proficiency: pf2Proficiency(a.rank, id.level),
-                  itemBonus: runeNums.weaponBonus,
-                  striking: runeNums.striking,
-                  ranged: (a.traits ?? []).some((t) => t.toLowerCase().startsWith('thrown') || t.toLowerCase() === 'ranged'),
-                },
-              );
+              // One call resolves traits, runes, conditions AND the multiple attack penalty
+              // (S13b). The MAP is the piece that was missing outright: `pf2Map` existed and was
+              // tested, but nothing ever passed a strike index, so a Fighter's third attack of the
+              // turn displayed and rolled ten points too high.
+              const resolved = pf2ResolveStrikeInPlay(a, pf2, strikeIndex);
+              const strike = resolved.strike;
+              const bonus = resolved.total;
               return (
                 <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
                   <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>
@@ -283,7 +310,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
                     {/* Tap the Strike bonus to roll the attack; tap the damage to roll its dice (R1b). */}
-                    <button type="button" onClick={() => rollLine(`${a.name} Strike`, bonus, 'attack')} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
+                    <button type="button" onClick={() => rollLine(`${a.name} Strike${strikeIndex ? ` (${strikeIndex + 1}${strikeIndex === 1 ? 'nd' : 'rd+'})` : ''}`, resolved)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})\n${resolved.breakdown}`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
                     ·
                     <button
                       type="button" onClick={() => rollDamage(`${a.name} damage`, strike.damage)}

@@ -370,9 +370,15 @@ describe('the bespoke sheets render their own system\'s concepts', () => {
     // silently apply 5e's binary condition effects to a system whose conditions are numeric.
     const pf2 = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
     const ig = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
-    expect(pf2).toContain('pf2ConditionRollEffect');
+    // PF2 folds conditions in `resolve.ts` now rather than at the sheet's roll call site — the
+    // sheet used to display an unconditioned number and roll a conditioned one, so the fold moved
+    // to the single place both read. The anti-bleed property is unchanged and still asserted: the
+    // PF2 path must use PF2's own numeric, type-stacking model and never 5e's binary one.
+    const pf2Resolve = fs.readFileSync(path.join(ROOT, 'lib/dnd/systems/pathfinder2e/resolve.ts'), 'utf8');
+    expect(pf2Resolve).toContain('PF2_CONDITION_MECHANICS');
+    expect(pf2).toContain('pf2ResolveAll');
     expect(ig).toContain('igConditionRollEffect');
-    for (const src of [pf2, ig]) {
+    for (const src of [pf2, pf2Resolve, ig]) {
       expect(src).not.toContain('conditionMechanics5e');
       expect(src).not.toContain('CONDITION_MECHANICS_5E');
     }

@@ -80,7 +80,9 @@ describe('set_armor reaches the AC formula', () => {
 
 describe('the editor shows what the numbers will become', () => {
   it('previews the resulting AC with the same formula the sheet uses', () => {
-    expect(editor).toContain('const previewAc = 10 + cappedDex + pf2Proficiency(rank, pf2.identity.level) + acBonus');
+    // `effectiveAc`, not the raw `acBonus` box: armor runes DERIVE the item bonus and win over the
+    // hand-entered number, so the preview has to use the same value pf2ResolveAc will.
+    expect(editor).toContain('const previewAc = 10 + cappedDex + pf2Proficiency(rank, pf2.identity.level) + effectiveAc');
   });
 
   it('warns when Dexterity is being wasted against the cap', () => {

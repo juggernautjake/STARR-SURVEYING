@@ -49,7 +49,7 @@ export type PF2Edit =
   // Armor is a single worn set, not a list, so this SETS rather than adds. Every field feeds
   // `pf2ArmorClass` directly, which is why the editor exists at all: armor that displays but does
   // not move AC is worse than no armor field.
-  | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank };
+  | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank; runes?: string[] };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -283,6 +283,11 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
         combat.armorCheckPenalty = -Math.abs(Math.round(edit.checkPenalty));
       }
       if (edit.rank) combat.armorRank = edit.rank;
+      // An EMPTY rune list clears rather than being ignored, so unetching the last rune returns the
+      // armor to its hand-entered bonus instead of stranding a bonus the character no longer has.
+      // Same reasoning as IG-S1's "an emptied override CLEARS": absent means "don't touch", empty
+      // means "there are none", and collapsing the two makes a removal impossible to express.
+      if (edit.runes !== undefined) combat.armorRunes = edit.runes;
       return { ...pf2, combat };
     }
     default: {
@@ -422,6 +427,13 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
         ...(dexCapGiven ? { dexCap: o.dexCap === null || !Number.isFinite(dexNum) ? null : Math.max(0, Math.min(10, Math.round(dexNum))) } : {}),
         ...(Number.isFinite(cp) ? { checkPenalty: -Math.abs(Math.round(cp)) } : {}),
         ...(RANKS.includes(rank) ? { rank: rank as PF2Rank } : {}),
+        // Rune names are free text by design: the catalog resolves the ones it knows and reports
+        // the ones it does not (`pf2ResolveRunes`), so homebrew runes stay expressible under
+        // Ground Rule 4 rather than being rejected at the door. Blanks are dropped so a stray
+        // empty box cannot become a rune named "".
+        ...(Array.isArray(o.runes)
+          ? { runes: (o.runes as unknown[]).map((r) => String(r ?? '').trim()).filter(Boolean) }
+          : {}),
       } as PF2Edit,
     };
   }

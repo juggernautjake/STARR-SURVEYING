@@ -61,7 +61,11 @@ describe('weapon ops', () => {
 
 describe('the sheet resolves traits instead of rendering a stored string', () => {
   it('calls pf2ResolveStrike', () => {
-    expect(sheet).toContain('pf2ResolveStrike(');
+    // Via `pf2ResolveStrikeInPlay`, which wraps `pf2ResolveStrike` and adds the multiple attack
+    // penalty and condition modifiers the bare resolver does not know about.
+    const resolve = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/pathfinder2e/resolve.ts'), 'utf8');
+    expect(sheet).toContain('pf2ResolveStrikeInPlay');
+    expect(resolve).toContain('pf2ResolveStrike(');
     expect(sheet).toContain('strike.damage');
   });
 
