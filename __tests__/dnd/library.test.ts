@@ -191,8 +191,19 @@ describe('searchLibrary', () => {
     const longsword = searchLibrary('longsword', 'pathfinder2e').find((h) => h.kind === 'weapon');
     expect(longsword).toBeTruthy();
     expect(longsword!.body).toMatch(/1d8 slashing/);
-    // Gear is PF2-only in the library — a PF2 weapon name yields no weapon hit under a 5e system.
-    expect(searchLibrary('longsword', 'dnd5e-2024').some((h) => h.kind === 'weapon')).toBe(false);
+
+    // UPDATED 2026-07-21. This line used to assert that a 5e system returned NO weapon hit at all,
+    // which described a gap rather than a design: 5e's weapon and armour catalogs existed and were
+    // rendered on the page, and only the SEARCH never indexed them, so `searchLibrary('longsword',
+    // 'dnd5e-2014')` came back empty on a page that visibly lists Longsword.
+    //
+    // The invariant actually worth protecting is scoping, not absence — three systems publish a
+    // weapon called Longsword and each must return ITS OWN. So: a 5e search now returns a 5e
+    // longsword, and it is not PF2's.
+    const sword2024 = searchLibrary('longsword', 'dnd5e-2024').find((h) => h.kind === 'weapon');
+    expect(sword2024).toBeTruthy();
+    expect(sword2024!.body).not.toBe(longsword!.body);
+    expect(sword2024!.body).toMatch(/D&D 5e \(2024\)/);
   });
 
   it('finds the non-d20 systems’ own vocabulary', () => {

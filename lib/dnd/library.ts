@@ -13,7 +13,7 @@ import { FEATS_2024 } from './feats/dnd5e-2024';
 import { FEATS_2014 } from './feats/dnd5e-2014';
 import { BACKGROUNDS_2024, type Background as Dnd2024Background } from './backgrounds/dnd5e-2024';
 import { WEAPONS_2024, ARMOR_2024, masteryEffect } from './equipment/dnd5e-2024';
-import { WEAPONS_2014, ARMOR_2014 } from './equipment/dnd5e-2014';
+import { WEAPONS_2014, ARMOR_2014, GEAR_2014 } from './equipment/dnd5e-2014';
 import { LANGUAGES_2024, TOOLS_2024, type Language as Dnd2024Language, type Tool as Dnd2024Tool } from './languages/dnd5e-2024';
 import { SPECIES_2024 } from './species/dnd5e-2024';
 import { PF2_BACKGROUNDS, PF2_ARMORS, PF2_WEAPONS, PF2_CLASSES, PF2_SPELLS, type PF2BackgroundDef, type PF2ArmorDef, type PF2WeaponDef, type PF2SpellDef } from './systems/pathfinder2e/content';
@@ -511,6 +511,27 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
           (a.strengthReq ? `**Requires:** Strength ${a.strengthReq} (or lose 10 feet of speed)\n` : '') +
           (a.stealthDisadvantage ? '**Stealth:** disadvantage\n' : '') +
           `**Weight:** ${a.weight} lb · **Cost:** ${a.costText ?? `${a.cost} GP`}`,
+      })),
+    });
+    // Adventuring gear. Added 2026-07-21 alongside making 5e gear searchable, and it had to be
+    // added: `GEAR_2014` was catalogued, reached the AI, and was rendered NOWHERE, so pushing it
+    // into search without a section would have produced 86 links to an id no page carries — which
+    // the deep-link test caught immediately, exactly as designed.
+    //
+    // Entries rather than a table, matching Weapons and Armour above: a table row has no identity
+    // to hang a deep link or a give-to-character button on, which is the whole reason those two
+    // are entries.
+    sections.push({
+      id: 'equipment',
+      title: 'Adventuring Gear',
+      lead: `${GEAR_2014.length} items of general equipment — cost, weight, and what each is for.`,
+      entries: GEAR_2014.map((g) => ({
+        name: g.name,
+        brief: `${g.costText} · ${g.weight} lb · ${g.category}`,
+        detail:
+          `**Category:** ${g.category}\n` +
+          `**Cost:** ${g.costText} · **Weight:** ${g.weight} lb` +
+          (g.note ? `\n\n${g.note}` : ''),
       })),
     });
   }
@@ -1022,14 +1043,53 @@ export function libraryCatalogFor(key: CharacterSystem): LibraryCatalogEntry[] {
   // disambiguation the suffix was doing, and the name matches what the page renders.
   for (const l of dnd2024LanguagesFor(key)) push('language', l.name, `${l.name} — a ${l.rarity} language, spoken by ${l.origin}.`);
   for (const t of dnd2024ToolsFor(key)) push('tool', t.name, `${t.name} — a ${t.family} tool proficiency.`);
-  // Armor + weapons (PF2 only today): the stats a player scans for — AC bonus / Dex cap / Strength for
-  // armor; damage die + type + traits for weapons. System-scoped so 5e gear never surfaces here.
+  // Armor + weapons for PF2: the stats a player scans for — AC bonus / Dex cap / Strength for
+  // armor; damage die + type + traits for weapons. System-scoped so PF2 gear never surfaces on a
+  // 5e page; 5e's own gear is pushed just below, from its own catalogs.
   for (const a of armorsForSystem(key)) {
     if (a.category === 'unarmored') continue;
     push('armor', a.name, `${a.name} — ${a.category} armor; +${a.acBonus} AC, Dex cap +${a.dexCap ?? '∞'}, Str ${a.strength}, check ${a.checkPenalty}, speed ${a.speedPenalty} ft.`);
   }
   for (const w of weaponsForSystem(key)) {
     push('weapon', w.name, `${w.name} — ${w.category} ${w.group.toLowerCase()}; ${w.damageDie} ${DMG_TYPE[w.damageType] ?? w.damageType}${w.range ? `, ranged ${w.range} ft` : ''}${w.traits.length ? `; ${w.traits.join(', ')}` : ''}.`);
+  }
+
+  // 5e gear — ADDED 2026-07-21, and the gap it closes is worth recording.
+  //
+  // Both 5e editions have had full weapon and armour catalogs for some time, and the library PAGE
+  // renders them as expandable entries. But the SEARCH never pushed them: the two helpers above are
+  // PF2-typed and PF2-only, and the comment beside them said 5e gear "lives elsewhere" — which was
+  // true of the catalogs and false of the search. `librarySearch('longsword', 'dnd5e-2014')`
+  // returned nothing at all, on a page that visibly lists Longsword. Authored, rendered, and
+  // unsearchable: the same reachability failure as the 2014 feat picker and the IG background,
+  // reached from a third direction.
+  //
+  // Deliberately NOT routed through `armorsForSystem`/`weaponsForSystem`. Those return PF2 types,
+  // and widening them to a shared shape would put 5e and PF2 gear in one pipe — exactly the bleed
+  // `equipmentFor(system)` was created to close (CX-17 B2), where a PF2 "Longsword" arrived with
+  // 5e stats. Two editions of 5e already differ enough to matter: only 2024 has Weapon Mastery,
+  // and `WeaponDef2014` has no such field BY DESIGN, so the two loops below cannot be merged
+  // without reintroducing the thing the type was shaped to prevent.
+  const armorLine = (a: { name: string; category: string; baseAC: number; dexCap: number | null; strengthReq: number | null; stealthDisadvantage: boolean }, label: string) =>
+    `${a.name} — ${a.category} armor in ${label}; AC ${a.baseAC}${a.dexCap === null ? ' + Dex' : a.dexCap > 0 ? ` + Dex (max ${a.dexCap})` : ''}${a.strengthReq ? `, requires Str ${a.strengthReq}` : ''}${a.stealthDisadvantage ? ', disadvantage on Stealth' : ''}.`;
+
+  if (key === 'dnd5e-2014') {
+    for (const a of ARMOR_2014) push('armor', a.name, armorLine(a, r.label));
+    for (const wp of WEAPONS_2014) {
+      // The Net deals no damage and has a null damage type — say so rather than rendering "null".
+      const dmg = wp.damage ? `${wp.damage} ${wp.damageType ?? ''}`.trim() : 'no damage';
+      push('weapon', wp.name, `${wp.name} — ${wp.category} ${wp.kind} weapon in ${r.label}; ${dmg}${wp.properties.length ? `; ${wp.properties.join(', ')}` : ''}. ${wp.costText}, ${wp.weight} lb.`);
+    }
+    for (const g of GEAR_2014) push('equipment', g.name, `${g.name} — ${g.category} in ${r.label}: ${g.costText}, ${g.weight} lb.${g.note ? ` ${g.note}` : ''}`);
+  }
+  if (key === 'dnd5e-2024') {
+    for (const a of ARMOR_2024) push('armor', a.name, armorLine(a, r.label));
+    for (const wp of WEAPONS_2024) {
+      // Mastery is named here because it is the headline 2024 addition and the single most likely
+      // thing to be wrongly assumed present in 2014 — surfacing it in search is a cheap way for a
+      // reader to see which edition they are looking at.
+      push('weapon', wp.name, `${wp.name} — ${wp.category} ${wp.kind} weapon in ${r.label}; ${wp.damage} ${wp.damageType}${wp.properties.length ? `; ${wp.properties.join(', ')}` : ''}; mastery ${wp.mastery}. ${wp.cost} gp, ${wp.weight} lb.`);
+    }
   }
   for (const s of pf2SubclassOptions(key)) {
     push('subclass', s.name, `${s.name} — a ${s.className} ${s.mechanism} option in ${r.label}.`);
