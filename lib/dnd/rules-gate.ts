@@ -12,9 +12,12 @@
 // WHAT IT DOES NOT DO. It refuses; it never rewrites an edit into something legal. Silently
 // downgrading "add Wish" to "add Magic Missile" would be worse than either allowing or refusing
 // it, because the player would be told they got something they did not get.
-import type { SheetEdit } from './sheet-edits';
+import { resolveFeat, type SheetEdit } from './sheet-edits';
 import { spellEligibility } from './spells/eligibility';
 import { findSpellForSystem } from './spells';
+import { featEligibility } from './feats/eligibility';
+import { FEATS_2024 } from './feats/dnd5e-2024';
+import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 
 export interface RulesGateContext {
   /** The character's game system. */
@@ -32,6 +35,13 @@ export interface RulesGateContext {
   knownSpells: string[];
   /** The character's real highest slot, when it differs from what the class alone would give. */
   maxSpellLevel?: number;
+  /** Ability scores, for feat prerequisites (Grappler wants Strength 13). */
+  abilities?: Partial<Record<AbilityKey, number>>;
+  /** Feature names already on the sheet — resolved to feat keys so a non-repeatable feat can't be
+   *  taken twice. */
+  featureNames?: string[];
+  /** Whether the character casts spells, for feats that require it. */
+  hasSpellcasting?: boolean;
 }
 
 export interface RulesGateResult {
@@ -44,16 +54,42 @@ export interface RulesGateResult {
 
 /** Filter a batch of edits against the character's rules.
  *
- *  Only `add_spell` is gated today — it is the op the reported bug travelled through, and the one
- *  with a real eligibility core behind it. Feats arrive as `add_feature`, which carries no feat
- *  key and so cannot be reliably resolved back to a catalog feat here; that gap is real and is
- *  recorded in the planning doc rather than papered over with name-matching that would refuse
- *  legitimate homebrew features. */
+ *  Gates `add_spell` and `add_feat` — the two ops that name catalog content and therefore CAN be
+ *  checked. `add_feature` stays deliberately ungated: it is free-form prose, so "the Grappler
+ *  feat" and "a homebrew feature called Grappler" are indistinguishable once written, and
+ *  name-matching would refuse legitimate homebrew. That is why `add_feat` exists (S7). */
 export function gateEdits(edits: SheetEdit[], ctx: RulesGateContext): RulesGateResult {
   const refused: { name: string; reason: string }[] = [];
   const out: SheetEdit[] = [];
 
   for (const e of edits) {
+    if (e.op === 'add_feat') {
+      // Gateable precisely BECAUSE the op names a catalog feat (S7). `add_feature` deliberately
+      // stays ungated: it is free-form prose, and name-matching it against the catalog would
+      // refuse legitimate homebrew that happens to share a name.
+      const def = resolveFeat(e.feat);
+      if (!def) { out.push(e); continue; } // unresolvable — applySheetEdits drops it anyway
+
+      const elig = featEligibility(def, {
+        slot: e.slot ?? 'asi',
+        level: ctx.level,
+        ...(ctx.abilities ? { abilities: ctx.abilities } : {}),
+        takenFeatKeys: FEATS_2024.filter((f) => (ctx.featureNames ?? []).some((n) => n.toLowerCase() === f.name.toLowerCase())).map((f) => f.key),
+        has: ctx.hasSpellcasting ? ['spellcasting'] : [],
+      });
+
+      if (elig.ok) { out.push(e); continue; }
+      if (ctx.enforce) {
+        refused.push({ name: def.name, reason: elig.reason ?? 'not available to this character' });
+        continue;
+      }
+      out.push({
+        ...e,
+        offRules: ctx.unboundReason === 'dm-grant' ? `granted by the DM — ${elig.reason}` : elig.reason,
+      });
+      continue;
+    }
+
     if (e.op !== 'add_spell') { out.push(e); continue; }
 
     // Judged against the CATALOG entry, not the AI's own description of the spell — otherwise a

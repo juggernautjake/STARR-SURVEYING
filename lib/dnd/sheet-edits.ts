@@ -15,6 +15,7 @@ import { EFFECT_OPERATIONS } from '@/app/dnd/_sheet/engine/effects';
 import { cleanTriggers } from '@/lib/dnd/effects/triggers';
 import { equipConflicts, resolveEquipSwap } from '@/lib/dnd/equip-conflicts';
 import type { EquipLimits } from '@/lib/dnd/preferences';
+import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
 
 /** The full set of fields an item edit can carry (Slice 14). Shared by add_item + update_item so
  *  the AI authors and refines an item through the SAME shape — a generated item is indistinguishable
@@ -129,6 +130,12 @@ export type SheetEdit =
   | { op: 'remove_attack'; name: string }
   // `offRules` as on add_spell — server-set, never client-supplied.
   | { op: 'add_feature'; name: string; source?: string; body: string[]; offRules?: string }
+  // A CATALOG feat, by key or name (Area MV S7). Distinct from add_feature on purpose: a feature
+  // is free-form prose, so "the Grappler feat" and "a homebrew feature called Grappler" are
+  // indistinguishable once written, and the rules gate cannot tell which it is looking at.
+  // Naming the feat makes it resolvable, which makes it enforceable. Its body text comes from the
+  // catalog rather than the caller, so a feat cannot be granted with invented benefits.
+  | { op: 'add_feat'; feat: string; slot?: 'origin' | 'fighting-style' | 'asi'; offRules?: string }
   | { op: 'remove_feature'; name: string }
   // Spells the AI can ADD/remove directly (not just grant via an item). Full spell shape — level,
   // school, timing, the resolution (attack roll or save vs DC), damage/heal, higher-level scaling.
@@ -172,6 +179,15 @@ export type SheetEdit =
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
+
+/** A catalog feat by key OR display name. The AI reliably produces the name and only sometimes
+ *  the key, so accepting both is the difference between an op that works and one that silently
+ *  drops half its calls. */
+export function resolveFeat(ref: string): Feat | undefined {
+  const r = String(ref ?? '').trim().toLowerCase();
+  if (!r) return undefined;
+  return FEATS_2024.find((f) => f.key.toLowerCase() === r) ?? FEATS_2024.find((f) => f.name.toLowerCase() === r);
+}
 const clampAbility = (n: number) => Math.max(1, Math.min(30, Math.round(n)));
 const eqName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -194,6 +210,7 @@ export function editPath(e: SheetEdit): string {
     case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack': return `attacks[${slug(e.name)}]`;
     case 'add_feature': case 'remove_feature': case 'rename_feature': return `features[${slug(e.name)}]`;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item': return `inventory[${slug(e.name)}]`;
+    case 'add_feat': return `features[${slug(resolveFeat(e.feat)?.name ?? e.feat)}]`;
     case 'add_spell': case 'remove_spell': case 'rename_spell': return `spells[${slug(e.name)}]`;
     case 'add_currency': return `currencies[${slug(e.name)}]`;
     case 'set_currency': case 'remove_currency': return `currencies[${slug(e.currency)}]`;
@@ -227,6 +244,9 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
       return findByName(current.features, e.name);
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
       return findByName(current.inventory, e.name);
+    // A feat lands as a feature, so its prior value is whatever feature it replaces — which is
+    // what a revert must restore.
+    case 'add_feat': return findByName(current.features, resolveFeat(e.feat)?.name ?? e.feat);
     case 'add_spell': case 'remove_spell': case 'rename_spell': return findByName(current.spells, e.name);
     case 'add_currency': return findCurrency(current.currencies, e.name);
     case 'set_currency': case 'remove_currency': return findCurrency(current.currencies, e.currency);
@@ -284,7 +304,7 @@ export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknow
     case 'add_attack': case 'update_attack': case 'remove_attack': case 'rename_attack':
       c.attacks = restore(c.attacks, prior as Attack | null);
       break;
-    case 'add_feature': case 'remove_feature': case 'rename_feature':
+    case 'add_feature': case 'remove_feature': case 'rename_feature': case 'add_feat':
       c.features = restore(c.features, prior as FeatureBlock | null);
       break;
     case 'add_item': case 'update_item': case 'equip_item': case 'remove_item': case 'rename_item': case 'tag_item':
@@ -458,6 +478,24 @@ export function applySheetEdits(input: Character, edits: SheetEdit[], opts: { eq
           ...(e.offRules ? { offRules: e.offRules } : {}),
         };
         c.features = [...c.features.filter((f) => !eqName(f.name, e.name)), feat];
+        break;
+      }
+      case 'add_feat': {
+        // Resolved against the catalog by key OR name — the AI reliably produces the display
+        // name and only sometimes the key. An unresolvable feat is DROPPED rather than written
+        // as an empty husk that looks real and does nothing (Ground Rule 2 — never invented).
+        const def = resolveFeat(e.feat);
+        if (!def) break;
+        const feat: FeatureBlock = {
+          id: `feat-${slug(def.key)}`,
+          name: def.name,
+          source: `${def.category === 'epic-boon' ? 'Epic Boon' : def.category === 'fighting-style' ? 'Fighting Style' : def.category === 'origin' ? 'Origin' : 'General'} feat`,
+          // From the catalog, not the caller: a feat granted with invented benefits is worse
+          // than one not granted at all.
+          body: [def.benefit],
+          ...(e.offRules ? { offRules: e.offRules } : {}),
+        };
+        c.features = [...c.features.filter((f) => !eqName(f.name, def.name)), feat];
         break;
       }
       case 'remove_feature': c.features = c.features.filter((f) => !eqName(f.name, e.name)); break;
@@ -643,8 +681,10 @@ export const SHEET_EDIT_TOOL: Anthropic.Tool = {
           properties: {
             op: {
               type: 'string',
-              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
+              enum: ['set_name', 'set_meta', 'set_level', 'set_ability', 'set_save_proficient', 'set_skill', 'set_combat', 'add_attack', 'update_attack', 'remove_attack', 'rename_attack', 'add_feature', 'add_feat', 'remove_feature', 'rename_feature', 'add_spell', 'remove_spell', 'rename_spell', 'add_item', 'update_item', 'equip_item', 'remove_item', 'rename_item', 'rename_resource', 'add_resource', 'define_tag', 'tag_item', 'add_currency', 'set_currency', 'remove_currency', 'add_condition', 'remove_condition'],
             },
+            feat: { type: 'string', description: 'For add_feat: the name (or key) of a 2024 feat from the rules library, e.g. "Alert", "Great Weapon Master". PREFER add_feat over add_feature for any official feat — its benefit text comes from the library, and it is checked against what the character may legally take. Use add_feature only for genuine homebrew.' },
+            slot: { type: 'string', enum: ['origin', 'fighting-style', 'asi'], description: 'For add_feat: which slot grants it — origin (background, level 1), fighting-style (a class feature), or asi (an Ability Score Improvement level). Defaults to asi.' },
             field: { type: 'string', description: 'For set_meta: kicker|role|species|className|subclass|gender|pronouns|profession|alignment. For set_combat: ac|maxHp|currentHp|speed|tempHp|exhaustion (exhaustion is a 0–6 track).' },
             to: { type: 'string', description: 'For rename_* ops: the NEW name. Renames keep every other field — use these to rename an attack/feature/item, never remove + re-add (that drops its stats).' },
             tag: { type: 'string', description: 'For tag_item: the tag to add to the item named by `name`. Must already be a built-in tag or one you defined with define_tag; weapon/consumable/equipped are reserved.' },

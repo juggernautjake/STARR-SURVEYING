@@ -154,11 +154,23 @@ since every consumer would read the content as legal.
 - Used `provenance.ts`? No — see S3's note. It asks whether content exists in the system (Wish
   does); this asks whether it was legal for this character.
 
-### S7 — Close the feat door properly (found during S5)
-`add_feature` carries no feat key, so the gate cannot tell "the Grappler feat" from a homebrew
-feature named Grappler. Add an `add_feat` op keyed to the catalog and route feat grants through
-it; `add_feature` stays for genuine homebrew and stays ungated. Needs the AI tool schema and
-ai-scope's exhaustiveness guard updated in step.
+### S7 — Close the feat door properly (found during S5) ✅ SHIPPED 2026-07-20
+New `add_feat` op, keyed to the catalog by key OR display name (the AI reliably produces the name
+and only sometimes the key — accepting only keys would silently drop half its calls). `gateEdits`
+now checks it via `featEligibility`, so the AI path enforces slot, level, prerequisites and
+non-repeatable feats. 17 tests.
+
+- **Its benefit text comes from the catalog, not the caller.** A feat granted with invented
+  benefits is worse than one not granted at all. Tested by passing a bogus `body` and asserting
+  the catalog text wins.
+- **An unresolvable feat is dropped, not written as a husk** (Ground Rule 2).
+- **`add_feature` stays deliberately ungated** — free-form prose, where name-matching would
+  refuse legitimate homebrew. A test asserts this boundary is where the design says it is, so the
+  exemption reads as a decision rather than an oversight.
+- **The tool description steers the model** ("PREFER add_feat over add_feature for any official
+  feat") — without it the model keeps reaching for `add_feature` out of habit and the gate never
+  sees a feat.
+- The `editPath` exhaustiveness guard caught the missing cases at compile time, as designed.
 
 ---
 

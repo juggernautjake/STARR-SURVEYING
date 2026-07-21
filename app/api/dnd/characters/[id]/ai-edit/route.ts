@@ -284,6 +284,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     level: current?.meta?.level ?? 1,
     knownSpells: (current?.spells ?? []).map((s) => s.name),
     ...(gateMaxSpell > 0 ? { maxSpellLevel: gateMaxSpell } : {}),
+    abilities: current?.abilities ?? {},
+    featureNames: (current?.features ?? []).map((f) => f.name),
+    hasSpellcasting: !!current?.spellcasting?.ability || (current?.spells?.length ?? 0) > 0,
   });
   const edits = gated.edits;
   // Everything refused was refused — if that leaves nothing to do, say so rather than reporting
