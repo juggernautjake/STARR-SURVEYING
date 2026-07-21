@@ -52,21 +52,29 @@ describe('IGSheet shows in-play stances + conditions with tooltips', () => {
     expect(SRC).toMatch(/def \? `\$\{def\.name\}/); // tooltip built from the feat's real effect text
   });
 
-  it('offers write-gated feat add/remove controls that POST to ig-edit (B3)', () => {
+  // ADD moved out of this file's scope in IG-S3. Both kinds were <select>s of bare names; they are
+  // now IGContentPicker, which shows rules text and — the reason the change was needed — greys the
+  // powers the character may not take, with the reason. A dropdown could show neither, so a vanilla
+  // character picked from ~60 names and discovered the legal ones only from the refusal afterwards.
+  // The catalog-source and eligibility claims now live in ig-content-picker.test.ts; what stays
+  // here is the half this file is actually about: the REMOVE controls on the sheet itself.
+  it('offers write-gated feat remove controls that POST to ig-edit (B3)', () => {
     expect(SRC).toContain("op: 'remove_feat'");
-    expect(SRC).toContain("op: 'add_feat'");
-    expect(SRC).toContain('igAllFeats()'); // the add picker is populated from the full catalog
-    expect(SRC).toMatch(/optgroup label="General"/); // grouped by category
+    expect(SRC).toMatch(/canDoEdit[\s\S]{0,200}remove_feat/);
   });
 
-  it('offers write-gated power add/remove controls that POST to ig-edit (B3)', () => {
+  it('offers write-gated power remove controls that POST to ig-edit (B3)', () => {
     expect(SRC).toContain("op: 'remove_power'");
-    expect(SRC).toContain("op: 'add_power'");
-    expect(SRC).toMatch(/\+ add power…/); // the add picker is offered to writers
-    // The picker draws from the FULL IG spell-list roster (grouped by school), so the sheet has
-    // parity with the AI's add_power — not just IG_POWERS (which omits roster powers pending effects).
-    expect(SRC).toContain('IG_SPELL_ROSTER');
-    expect(SRC).toMatch(/Object\.entries\(IG_SPELL_ROSTER\)/);
+    expect(SRC).toMatch(/canDoEdit[\s\S]{0,200}remove_power/);
+  });
+
+  it('and the add path is the picker, for both kinds', () => {
+    expect(SRC).toContain('<IGContentPicker');
+    expect(SRC).toContain("setPicker('power')");
+    expect(SRC).toContain("setPicker('feat')");
+    // The dropdowns are gone rather than sitting alongside it as a second, weaker path.
+    expect(SRC).not.toMatch(/\+ add power…/);
+    expect(SRC).not.toMatch(/optgroup label="General"/);
   });
 
   it('offers a write-gated defensive-power selector that POSTs set_defensive_power (B3)', () => {

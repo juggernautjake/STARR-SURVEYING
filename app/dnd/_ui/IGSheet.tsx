@@ -12,19 +12,20 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import IGElementEditor, { type IGEditorKind, type IGEditableElement } from './IGElementEditor';
+import IGContentPicker, { type IGPickerKind } from './IGContentPicker';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 import { igInPlayState } from '@/lib/dnd/systems/intuitive-games/resolve';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
-import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_SPELL_ROSTER, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
+import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
 import { igConditionRollEffect, type IgRollKind } from '@/lib/dnd/conditions/intuitive-games';
 import { igStanceRollEffect, igStanceDamageBonus } from '@/lib/dnd/stances/intuitive-games';
 import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-games/companions';
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
-import { findIGFeat, igAllFeats } from '@/lib/dnd/systems/intuitive-games/feats';
+import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 
@@ -203,6 +204,12 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
    *  is a hint, and every op is still gated there. */
   const canAuthorPowers = !!isDM || variantKind === 'custom';
 
+  /** The catalog picker (IG-S3). Until this existed, a vanilla IG character could not add a
+   *  CATALOGUED power from the sheet at all — only the builder or the AI could — while ✎ New
+   *  authors homebrew and is refused for exactly the characters most likely to want a normal
+   *  power. Those two buttons answer different questions and both belong. */
+  const [picker, setPicker] = useState<IGPickerKind | null>(null);
+
   const srcByName = useMemo(() => {
     const m = new Map<string, Source>();
     for (const e of elements ?? []) m.set(e.name.trim().toLowerCase(), e.source);
@@ -234,6 +241,16 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           kind={igEditor.kind} initial={igEditor.initial}
           onClose={() => setIgEditor(null)}
           onSave={(edits) => { setIgEditor(null); void postEdits(edits); }}
+        />
+      )}
+
+      {picker && (
+        <IGContentPicker
+          ig={ig} kind={picker} isDM={isDM} variantKind={variantKind}
+          onClose={() => setPicker(null)}
+          // The greying inside the picker is feedback timing; ig-edit re-derives the variant and
+          // the DM flag server-side and remains the enforcement point.
+          onAdd={(edit) => { setPicker(null); void postEdits([edit]); }}
         />
       )}
 
@@ -611,6 +628,16 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               <span style={{ ...label, color: 'var(--hx-pink-1, #d98cc0)' }}>
                 Powers
                 {canDoEdit && (
+                  // The catalogued path, and the one a vanilla character actually needs. Listed
+                  // BEFORE ✎ New so the ordinary action reads first.
+                  <button
+                    type="button" disabled={editing}
+                    onClick={() => setPicker('power')}
+                    title="Add a power from the Intuitive Games spell list"
+                    style={{ marginLeft: 8, background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 10, padding: '1px 7px' }}
+                  >＋ Add</button>
+                )}
+                {canDoEdit && (
                   <button
                     type="button" disabled={editing || !canAuthorPowers}
                     onClick={() => setIgEditor({ kind: 'power' })}
@@ -660,22 +687,12 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                       : null}
                 </div>
               ))}
-              {canDoEdit && (() => {
-                // Add a power — offered from the FULL IG spell-list roster grouped by school, so the sheet
-                // has parity with the AI's add_power (which grounds on igAllSpellNames). Drawing only from
-                // IG_POWERS would hide roster powers whose effect text is still pending Brendan (e.g. Gate,
-                // Portal). Excludes powers already known; the route de-dupes, so a repeat pick is a no-op.
-                const have = new Set(ig.powers.map((p) => p.toLowerCase()));
-                const schools = Object.entries(IG_SPELL_ROSTER)
-                  .map(([school, names]) => [school, names.filter((n) => !have.has(n.toLowerCase()))] as const)
-                  .filter(([, names]) => names.length > 0);
-                return (
-                  <select aria-label="Add power" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_power', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
-                    <option value="">+ add power…</option>
-                    {schools.map(([school, names]) => <optgroup key={school} label={school}>{names.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>)}
-                  </select>
-                );
-              })()}
+              {/* The power add path is the ＋ Add picker in this section's header (IG-S3). It
+                  replaced a <select> of roster names grouped by school, which drew from the same
+                  full roster but could show nothing ELSE: not the rules text, and — the reason it
+                  had to go — not whether the character may actually take the power. A vanilla
+                  character could pick any of ~60 names and learn only from the refusal afterwards
+                  which ones its class allows. The picker greys the ineligible with the reason. */}
             </div>
           )}
           {(ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit) && (
@@ -694,19 +711,19 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                     </span>
                   );
                 })}
-                {canDoEdit && (() => {
-                  // Add a feat — grouped by General/Combat; excludes feats the character already has. The
-                  // route routes it to the right list + de-dupes, so a stray pick is harmless.
-                  const have = new Set([...ig.feats.general, ...ig.feats.combat].map((f) => f.toLowerCase()));
-                  const opts = igAllFeats().filter((f) => !have.has(f.name.toLowerCase()));
-                  return (
-                    <select aria-label="Add feat" value="" disabled={editing} onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_feat', name: ev.target.value }); }} style={{ fontSize: 12, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}>
-                      <option value="">+ add feat…</option>
-                      <optgroup label="General">{opts.filter((f) => f.category === 'General').map((f) => <option key={`g-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
-                      <optgroup label="Combat">{opts.filter((f) => f.category === 'Combat').map((f) => <option key={`c-${f.name}`} value={f.name}>{f.name}</option>)}</optgroup>
-                    </select>
-                  );
-                })()}
+                {canDoEdit && (
+                  // Was a bare <select> of names. IG feats have PREREQUISITES stated in prose and
+                  // real rules text, and a dropdown showed neither — so the pick was made blind and
+                  // the prerequisite could only be discovered by hovering the chip afterwards. The
+                  // picker shows both before you commit. De-duping is unchanged: applyIgEdit
+                  // already ignores a feat the character holds, so a stray pick stays harmless.
+                  <button
+                    type="button" disabled={editing}
+                    onClick={() => setPicker('feat')}
+                    title="Add a feat, with its prerequisites and rules text"
+                    style={{ fontSize: 12, background: 'none', color: 'var(--hx-muted)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: 'pointer' }}
+                  >＋ add feat…</button>
+                )}
               </div>
             </div>
           )}
