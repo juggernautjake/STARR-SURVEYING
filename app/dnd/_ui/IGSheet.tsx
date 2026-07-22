@@ -27,6 +27,7 @@ import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
 import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
+import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 // Shared FORMAT stylesheets — scoped under `.sheet-shell` (T-SHELL-SCOPE), so they only style a shell
 // this sheet actually renders and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -58,7 +59,7 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
@@ -70,6 +71,11 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   /** The chosen TEMPLATE (`data.sheetLayout`) — codex/dashboard/play render the shared shells fed by
    *  the IG panel set; anything else (incl. undefined) is the default Classic view. */
   layout?: string;
+  /** Uploaded character art (`character.art_url`) — rendered as a portrait in EVERY format so IG art is
+   *  visible like the 5e sheet's (CX-R4). Absent → no portrait. */
+  artUrl?: string | null;
+  /** Character name, for the portrait's alt text. */
+  name?: string | null;
 }) {
   const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind });
   const byId = new Map(panels.map((p) => [p.id, p]));
@@ -97,6 +103,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
     const identity = (
       <aside className="codex-identity">
+        <SheetPortrait artUrl={artUrl} name={name} />
         {header}
         {render('ig-vitals')}
         {render('ig-abilities')}
@@ -121,7 +128,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   if (layout === 'play') {
     const heroIds = new Set(['ig-vitals', 'ig-combat']);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
-    const identity = <div className="play-id">{header}</div>;
+    const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;
     const hero = (
       <>
         {render('ig-vitals')}
@@ -157,7 +164,13 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
       {overlays}
       {banner}
-      {header}
+      {/* Portrait beside the header so uploaded IG art is visible on the Classic view too (CX-R4). */}
+      {artUrl ? (
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          <div style={{ width: 132, flex: 'none' }}><SheetPortrait artUrl={artUrl} name={name} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>{header}</div>
+        </div>
+      ) : header}
       {nav}
       {panels.map((p) => <Fragment key={p.id}>{p.render()}</Fragment>)}
       {/* The roller floats (R-2) — pinned, movable, resizable, minimizable, remembered per character. */}

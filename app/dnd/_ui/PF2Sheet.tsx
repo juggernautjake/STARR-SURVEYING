@@ -21,12 +21,13 @@ import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
 import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
+import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 // The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -38,6 +39,11 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   /** The chosen TEMPLATE (`data.sheetLayout`). 'codex' renders the shared Codex shell fed by the PF2
    *  panel set; anything else (incl. undefined) is the default Classic view. */
   layout?: string;
+  /** Uploaded character art (`character.art_url`) — rendered as a portrait in EVERY format so PF2 art is
+   *  visible like the 5e sheet's (CX-R4). Absent → no portrait. */
+  artUrl?: string | null;
+  /** Character name, for the portrait's alt text. */
+  name?: string | null;
 }) {
   const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
@@ -75,6 +81,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
     const identity = (
       <aside className="codex-identity">
+        <SheetPortrait artUrl={artUrl} name={name} />
         {header}
         {section('pf2-attributes')}
         {section('pf2-defenses')}
@@ -100,7 +107,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   if (layout === 'play') {
     const heroIds = new Set(['pf2-defenses', 'pf2-strikes']);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
-    const identity = <div className="play-id">{header}</div>;
+    const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;
     const hero = (
       <>
         {section('pf2-defenses')}
@@ -127,7 +134,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
     // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
     <div className={styles.framedPanel} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
-      {header}
+      {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
+      {artUrl ? (
+        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          <div style={{ width: 132, flex: 'none' }}><SheetPortrait artUrl={artUrl} name={name} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>{header}</div>
+        </div>
+      ) : header}
       {nav}
       {banner}
       {section('pf2-attributes')}

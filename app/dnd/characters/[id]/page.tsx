@@ -167,6 +167,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
           sheetType={character.sheet_type}
           layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+          artUrl={(character as { art_url?: string | null }).art_url}
+          name={character.name}
         />
       );
     }
@@ -185,6 +187,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
         sheetType={character.sheet_type}
         layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+        artUrl={(character as { art_url?: string | null }).art_url}
+        name={character.name}
       />
     );
   }

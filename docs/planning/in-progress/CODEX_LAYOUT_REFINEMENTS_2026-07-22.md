@@ -48,13 +48,15 @@ roller (now global) can overlap the identity column / art.
   settled at `y=318` in a 911px viewport with content height 581 → bottom at 899 (flush, EDGE-gap only).
   Unit anchor added for the bottom-snap formula (9 dock tests green). The roller sits bottom-right, clear
   of the top-left identity column/art; it remains a movable window the player can reposition at will.
-- [ ] **CX-R4 — uploaded character art visible on EVERY template, EVERY system.** The 5e formats render
-  the portrait (IdentityColumn / play-portrait / hero); the BESPOKE PF2/IG sheets are not even PASSED the
-  uploaded art (`PF2Sheet`/`IGSheet` receive no `artUrl`), so it shows in NONE of their formats. Thread
-  the character's art (`media.artUrl` / `character.art_url`) into `PF2Sheet`/`IGSheet` and render it in
-  their identity node for codex/dashboard/play (a `codex-portrait`-style block) AND their classic header,
-  and confirm the 5e Codex portrait is visible + uncovered by the roller. Verify on a character WITH art
-  in each system × format.
+- [x] **CX-R4 — uploaded character art visible on EVERY template, EVERY system.** New shared
+  `SheetPortrait` (server-safe, prop-driven — mirrors the 5e `codex-portrait`: 3:4 cover, rounded, top-
+  focus). `page.tsx` now threads `character.art_url` + `name` into BOTH `PF2Sheet` and `IGSheet`, which
+  render it in the identity column (codex/dashboard), the play identity, and beside the classic header
+  (a 132px fixed column so it doesn't dominate). Renders nothing when there's no art, so existing
+  art-less characters are unchanged. The 5e formats already rendered the portrait (IdentityColumn / play
+  / hero) and CX-R3 moved the roller flush to the bottom-right so it no longer covers the top-left art.
+  Browser-verified on a PF2 character (Orin) with art in the Codex format: the portrait sits at the top
+  of the identity column above the name/ancestry and the attribute/defence blocks. tsc + eslint green.
 
 - [ ] **CX-R5 — MOBILE sweep: every template × every style × every system fully viewable + usable on a
   phone (owner 2026-07-22).** Drive each of the 4 templates on each of the 4 systems at phone widths
