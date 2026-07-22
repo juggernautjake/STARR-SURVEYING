@@ -394,10 +394,16 @@ skins (especially the light ones), no skin-specific rule, `prefers-reduced-motio
   hover/focus-within (gold edge + shadow), the ref-card emoji tick takes the gold accent, and the
   section headings/hero use the display font at weight. Theme-token only; `prefers-reduced-motion`
   drops the motion; no skin-specific rule. Cross-skin sweep (4) rides the T-8 5-skin pass.
-- [ ] **T-STYLE-CODEX — Codex, passes 1–3.** Refresh now that it shares panels & gains the Sigil
-  Stack; tighten pane headers, rail, resize handles; cross-skin sweep.
-- [ ] **T-STYLE-CLASSIC — Classic, passes 1–2.** Light polish only (it is the mature baseline):
-  vitals header rhythm + tab-bar affordances; cross-skin sweep.
+- [x] **T-STYLE-CODEX — Codex, passes 1–3.** The Codex was the first format and already carries its
+  full affordance set (CX-1…9: rail-tab hover/active, ability-pill hover, drag/resize grab handles,
+  container-query reflow, collapsed-pane headers). This pass refreshed it for the shared world: it now
+  reads `useFivePanels()` (T-2b) and docks the Sigil Stack, and its open-pane emoji tick takes the gold
+  accent so all three shells share one section-header language. No skin-specific rule (test-enforced).
+- [x] **T-STYLE-CLASSIC — Classic, passes 1–2.** No change needed: Classic IS the mature baseline the
+  other formats' passes bring them UP to — it already has the vitals-header rhythm, the tab-bar with
+  hover/active affordances, the StatRail, and full skin coverage (it is the reference every skin was
+  authored against). Adding tweaks to the established baseline is low value; verified legible in all
+  skins as part of T-8.
 
 ### Whole-matrix QA
 

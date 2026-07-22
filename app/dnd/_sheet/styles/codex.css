@@ -342,6 +342,11 @@
 .sheet-shell .codex-railemoji {
   font-size: 12px;
 }
+/* T-STYLE-CODEX — the open pane's emoji tick takes the gold accent, matching the Dashboard cards and
+   the Play drawer so the three shells share one visual language for a section header. */
+.sheet-shell .codex-pane-emoji {
+  color: var(--gold);
+}
 .sheet-shell .codex-railreset {
   min-height: 0;
   opacity: 0.65;
