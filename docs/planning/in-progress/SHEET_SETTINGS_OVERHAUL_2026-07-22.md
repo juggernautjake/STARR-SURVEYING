@@ -74,8 +74,19 @@ dice style, record mode, default roller template + animation, default theme/styl
   (`data-dice-style="rugged"`); was stuck on the campaign/vanilla default before. Strengthened the wiring
   anchor test to require EVERY `CharacterProvider` to forward preferences (the old anchor matched one branch
   and missed this). 33 preference tests + tsc + eslint green.
-- [ ] **S-3 — the settings UI** (location per S-1 answer), organised BY SYSTEM so each system shows its
-  own relevant options with the current value, editable, highlighted-active where toggle-like.
+- [x] **S-3 — the settings UI (gear-icon modal).** New `CharacterSettingsModal` — a ⚙ Settings button
+  (owner/DM only), mounted at the PAGE level beside the Style/Template pickers so it works for EVERY system,
+  opens a modal organised into "Display & roller" and "Rules" sections. Each control shows the EFFECTIVE
+  value with the DM lock honoured (a locked setting is disabled + marked 🔒 "set by your DM"); an unlocked
+  one offers "Follow campaign (<current>)" plus each option, and enums/bools both use a select. Saving
+  POSTs the full player-preferences object to `/preferences` (S-2) and reloads. The option/help/order
+  metadata was extracted into ONE shared catalog `lib/dnd/preference-options.ts` that BOTH this modal and
+  the DM's `CampaignPreferencesDm` now read (the DM panel refactored to import it), so the two lists can't
+  drift; the panel's source-anchor test was repointed at the catalog. Browser-VERIFIED on Perrin: the gear
+  opens a 10-control modal (2 display + 3 bool + 5 rules); choosing "Rugged" for the dice style saved and
+  drove the live roller (`data-dice-style="rugged"`). tsc + eslint + 5 panel tests green.
+  - NOTE: this surfaces the 10 existing cross-system/5e preferences. The PF2/IG-SPECIFIC rules variants
+    (proficiency-without-level, free archetype, IG house rules, …) are new model fields that land with S-4.
 - [ ] **S-4 — wire each setting to the mechanic it controls**, per system, and verify it takes effect.
 - [ ] **S-DM — DM campaign settings/preferences page (all options).** Extend `CampaignPreferencesDm`
   into a full per-campaign settings page carrying every option the per-character modal has, each with a

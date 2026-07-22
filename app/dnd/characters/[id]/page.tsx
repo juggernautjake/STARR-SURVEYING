@@ -13,6 +13,7 @@ import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
 import TemplateBrowser from '@/app/dnd/_ui/TemplateBrowser';
+import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
 import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
 import ExportSheetButton from '@/app/dnd/_ui/ExportSheetButton';
@@ -225,6 +226,17 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           characterId={character.id}
           system={normalizeSystem((character as { system?: string }).system)}
           current={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+        />
+      )}
+      {/* Per-character settings gear (S-3) — rules variants + display/roller prefs in one place, for every
+          system. Fed the SSR-resolved effective preferences (DM locks honoured) + the player's own choices;
+          always resolvable even outside a campaign (vanilla baseline ∩ the player's choices). */}
+      {canWrite && (
+        <CharacterSettingsModal
+          characterId={character.id}
+          effective={effectivePreferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences)}
+          player={playerPreferences}
+          canWrite={canWrite}
         />
       )}
       {approvalPanel}
