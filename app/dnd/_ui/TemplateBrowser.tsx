@@ -76,7 +76,7 @@ export default function TemplateBrowser({
             A template is the LAYOUT — where the sections of your sheet sit and how they are arranged.
             Every template works with every colour skin; pick the one you like best.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10 }}>
             {templates.map((t) => {
               const on = t.id === active;
               return (

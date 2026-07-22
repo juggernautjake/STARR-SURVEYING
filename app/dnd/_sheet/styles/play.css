@@ -163,7 +163,9 @@
 .sheet-shell .play-ref-body {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  /* `min(100%, 340px)` floor so the reference cards never force a track wider than the container on a
+     phone (CX-R5) — a bare `minmax(340px, 1fr)` would overflow the viewport below ~360px. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: 14px;
   align-items: start;
 }

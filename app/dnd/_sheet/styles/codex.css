@@ -661,8 +661,11 @@
 .sheet-shell .dash-grid {
   display: grid;
   /* auto-fit so the cards reflow to however many fit — three across on a wide monitor, one on a
-     phone — which is the Dashboard's whole promise: see everything, arranged to the screen. */
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+     phone — which is the Dashboard's whole promise: see everything, arranged to the screen. The
+     `min(100%, 320px)` floor is load-bearing on mobile (CX-R5): a bare `minmax(320px, 1fr)` forces a
+     320px track even when the container is only ~300px wide, which pushes the grid past the viewport
+     and horizontally-scrolls the whole page. `min(100%, …)` lets the track shrink to the container. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 14px;
   align-items: start;
 }
