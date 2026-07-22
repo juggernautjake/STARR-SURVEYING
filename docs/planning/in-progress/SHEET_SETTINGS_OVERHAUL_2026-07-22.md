@@ -1,6 +1,16 @@
 # Character-sheet settings overhaul — complete, per-system preference management
 
-**Status:** IN PROGRESS · started 2026-07-22 · NEEDS OWNER INPUT (see S-1)
+**Status:** IN PROGRESS · started 2026-07-22
+
+**Owner decisions (answered 2026-07-22):** scope = **per character** · location = **gear-icon modal** ·
+expose = **5e rules variants + PF2 rules variants + IG rules variants + display/roller prefs**. The new
+template/theme/style/roller choices stay in the top chip block (not the gear modal) — the gear modal is
+for RULES + prefs. IG specifics to be confirmed as they're wired (owner will note house rules).
+
+**Full target matrix (owner 2026-07-22):** 4 sheet templates × 4 dice-roller templates × 5 sheet styles
+× 5 colour themes, ALL working with each of the 4 systems. (Templates×systems ✓ done; 5 themes universal
+✓ U-1; rollers×systems = the roller-overhaul doc; styles×templates×systems = shell bridge + light-skin
+fix, to be swept in QA.)
 
 ## Owner ask (verbatim)
 
@@ -20,18 +30,15 @@
   (vanilla/custom rules, rest variants, record mode, dice style, module toggles, the new template/theme/
   style/roller choices, exhaustion variant, etc.). Those are scattered across the sheet + campaign prefs.
 
-## Open questions for the owner (S-1) — please answer before the build
+## Resolved: a per-character GEAR-ICON MODAL, organised by system
 
-1. **Scope**: should "settings" be a per-CHARACTER panel (this character's options) or per-CAMPAIGN
-   (DM rules for everyone), or both surfaced together?
-2. **System-specific settings**: what specific options do you want PER system? Some candidates we could
-   wire — 5e: rest variant (long-rest healing), encumbrance on/off, flanking, feats-on/off, multiclass,
-   inspiration style, death-save house rules; PF2: proficiency-without-level (variant), free-archetype,
-   automatic-bonus-progression, stamina, hero points count; IG: [its own house rules]. Which do you want?
-3. **Where** should the settings page/panel live — a modal from a gear icon, a tab, or a page-chrome
-   section like the pickers?
-4. Should the new **template / theme / style / roller** choices (from the other in-progress docs) live
-   inside this settings panel too, or stay as the top chip block?
+A gear icon (owner/DM only, `canWrite`) opens a settings modal for THIS character, with a section per
+relevant system exposing its rules variants + shared display/roller prefs, each showing the current
+value and editable. Candidate options to wire (confirm/trim per system as built): **5e** — rest/long-
+rest healing variant, encumbrance, flanking, feats on/off, multiclass, death-save house rules,
+inspiration style; **PF2** — proficiency-without-level, free archetype, automatic bonus progression,
+stamina, hero-point count; **IG** — its house-rule toggles (owner to specify); **display/roller** —
+dice style, record mode, default roller template + animation, default theme/style.
 
 ## Slices (shape; finalised after S-1)
 
