@@ -146,12 +146,19 @@ export function neededPaneHeight(content: number, chromeOutsideBody: number, bod
  *     it — so the user can only ever shrink a section below its content, never grow it past (no empty
  *     space under the content). A later measure (the content itself changed) keeps the size the player
  *     has since chosen, only re-capping it.
- *  The cap is floored at MIN_PANE_H so a tiny section stays grabbable. */
-export function capPaneToContent(panes: Pane[], id: string, contentH: number): Pane[] {
+ *  The cap is floored at MIN_PANE_H so a tiny section stays grabbable.
+ *
+ *  `maxOpenH` (Part A2) is a VIEWPORT ceiling for the OPEN height only: a 300-spell section whose content is
+ *  5000px shouldn't open at 5000px and scroll the whole accordion — worse than a pane that scrolls. When
+ *  given, the section opens at `min(content, maxOpenH)`; the drag `max` still records the TRUE content height,
+ *  so the player can drag it to full length if they want. A normal section (content < maxOpenH) still opens
+ *  fully — the common case — so nothing changes for the sections the owner actually cares about. */
+export function capPaneToContent(panes: Pane[], id: string, contentH: number, maxOpenH?: number): Pane[] {
   const cap = Math.max(MIN_PANE_H, Math.round(contentH))
+  const openH = maxOpenH != null ? Math.min(cap, Math.max(MIN_PANE_H, Math.round(maxOpenH))) : cap
   return panes.map((p) => {
     if (p.id !== id) return p
-    if (p.max == null) return { ...p, max: cap, height: cap } // first measure → open at content height
+    if (p.max == null) return { ...p, max: cap, height: openH } // first measure → open at content (viewport-capped)
     if (p.max === cap && p.height <= cap) return p // unchanged
     return { ...p, max: cap, height: Math.min(p.height, cap) } // re-cap, keep the player's size
   })

@@ -56,7 +56,12 @@ tier the pane will SETTLE in, and accept ≤1 re-measure.
   chrome (flex:none parts) regardless of overflow. Add `.codex-pane-measure { display: flow-root }`. Add a
   `sectionRef` on `.codex-pane`. Pure-math unchanged; the FIX is in what we feed it. Unit-test a new pure
   helper `neededPaneHeight(content, chrome, bodyPad)` and keep the DOM read thin.
-- [ ] **A2 — viewport ceiling for giant sections.** A 300-spell list can't fit on screen; opening it at
+- [x] **A2 — viewport ceiling for giant sections (SHIPPED 2026-07-22).** `capPaneToContent` gained an
+  optional `maxOpenH`; `usePaneStack.setContentHeight` passes ~85% of `window.innerHeight`. A section opens at
+  `min(content, 0.85·viewport)` so a 300-spell list opens at a sane height and scrolls within the pane rather
+  than making the whole accordion scroll; the drag `max` still records the TRUE content height, so the player
+  can drag it to full length. Normal sections (content < ceiling) still open fully. 2 unit tests; green.
+- [~] **A2 (orig) — viewport ceiling for giant sections.** A 300-spell list can't fit on screen; opening it at
   5000px and scrolling the whole accordion is worse than a scrolling pane. `capPaneToContent` gains an
   optional `viewportH`: the OPEN height is `min(content+chrome, ~0.9·viewport)`; the drag `max` stays the
   true content height (so the player can still drag it to full length if they want). Normal sections (content

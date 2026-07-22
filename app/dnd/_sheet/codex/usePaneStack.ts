@@ -143,7 +143,12 @@ export function usePaneStack(
   )
 
   const resize = useCallback((id: string, height: number) => setPanes((cur) => resizePane(cur, id, height)), [])
-  const setContentHeight = useCallback((id: string, contentH: number) => setPanes((cur) => capPaneToContent(cur, id, contentH)), [])
+  // A section opens at its content height, but capped to ~85% of the viewport so a huge list (300 spells)
+  // opens at a sane height and scrolls within the pane rather than making the whole accordion scroll (A2).
+  const setContentHeight = useCallback((id: string, contentH: number) => {
+    const ceiling = typeof window !== 'undefined' ? window.innerHeight * 0.85 : undefined
+    setPanes((cur) => capPaneToContent(cur, id, contentH, ceiling))
+  }, [])
   const collapse = useCallback((id: string) => setPanes((cur) => toggleCollapse(cur, id)), [])
   const solo = useCallback((id: string) => setPanes((cur) => soloPane(cur, id, availableRef.current)), [])
   const reset = useCallback(() => setPanes([{ id: defaultOpen, height: DEFAULT_PANE_H }]), [defaultOpen])

@@ -164,6 +164,19 @@ describe('content-height cap (D-11 — a section opens at content height, only s
     expect(p.height).toBe(MIN_PANE_H)
   })
 
+  it('A2 — a giant section opens capped to the viewport ceiling, but its drag max is the true content', () => {
+    // 5000px of content, viewport ceiling ~850px → opens at 850 (scrolls within the pane), NOT 5000.
+    const [p] = capPaneToContent([{ id: 'spells', height: DEFAULT_PANE_H }], 'spells', 5000, 850)
+    expect(p.height).toBe(850) // opened at the ceiling, not the full 5000
+    expect(p.max).toBe(5000) // …but can still be dragged to full length if the player wants
+  })
+
+  it('A2 — a normal section (content below the ceiling) still opens fully', () => {
+    const [p] = capPaneToContent([{ id: 'skills', height: DEFAULT_PANE_H }], 'skills', 300, 850)
+    expect(p.height).toBe(300) // unchanged by the ceiling — the common case
+    expect(p.max).toBe(300)
+  })
+
   it('a LATER measure keeps the player-chosen size, only re-capping it', () => {
     // Pane already measured once (max set) and shrunk by the player to 150; content grows to 500.
     const [p] = capPaneToContent([{ id: 's', height: 150, max: 380 }], 's', 500)
