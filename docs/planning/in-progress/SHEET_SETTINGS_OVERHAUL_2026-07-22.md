@@ -30,6 +30,16 @@ fix, to be swept in QA.)
   (vanilla/custom rules, rest variants, record mode, dice style, module toggles, the new template/theme/
   style/roller choices, exhaustion variant, etc.). Those are scattered across the sheet + campaign prefs.
 
+## DM campaign override (owner 2026-07-22)
+
+A DM can HARD-LOCK a character's settings **only for the version of that character inside his campaign**.
+The SAME character accessed OUTSIDE the campaign (the owner's lobby / character list) keeps full owner
+control. So: campaign settings OVERRIDE character settings when the character is viewed inside the
+campaign, and the DM needs a per-CAMPAIGN settings/preferences page carrying all the same options (this
+extends the existing `CampaignPreferencesDm` to cover everything). Effective settings = campaign-locked
+values (inside a campaign) ∨ the character's own values (outside) — the character's own are never
+mutated; the campaign lock is an overlay applied only in the campaign context.
+
 ## Resolved: a per-character GEAR-ICON MODAL, organised by system
 
 A gear icon (owner/DM only, `canWrite`) opens a settings modal for THIS character, with a section per
@@ -52,8 +62,14 @@ dice style, record mode, default roller template + animation, default theme/styl
 - [ ] **S-3 — the settings UI** (location per S-1 answer), organised BY SYSTEM so each system shows its
   own relevant options with the current value, editable, highlighted-active where toggle-like.
 - [ ] **S-4 — wire each setting to the mechanic it controls**, per system, and verify it takes effect.
-- [ ] **S-5 — QA**: every system's settings render, persist, and drive their mechanic; record + move to
-  `completed/`.
+- [ ] **S-DM — DM campaign settings/preferences page (all options).** Extend `CampaignPreferencesDm`
+  into a full per-campaign settings page carrying every option the per-character modal has, each with a
+  "lock" that overrides the character's own value FOR THE CAMPAIGN VERSION ONLY (the character's own
+  settings, seen outside the campaign, are untouched). Wire the effective-settings resolver: inside a
+  campaign, a locked value wins; outside, the character's own value applies. Verify a lock takes effect
+  in-campaign and NOT in the owner's lobby view of the same character.
+- [ ] **S-5 — QA**: every system's settings render, persist, drive their mechanic, and the DM lock/
+  override behaves correctly in vs. out of campaign; record + move to `completed/`.
 
 ## Done means
 - A clear per-system settings surface that exposes and manages every option we've built, correct

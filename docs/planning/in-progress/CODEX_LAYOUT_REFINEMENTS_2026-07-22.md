@@ -46,7 +46,17 @@ roller (now global) can overlap the identity column / art.
   and confirm the 5e Codex portrait is visible + uncovered by the roller. Verify on a character WITH art
   in each system × format.
 
+- [ ] **CX-R5 — MOBILE sweep: every template × every style × every system fully viewable + usable on a
+  phone (owner 2026-07-22).** Drive each of the 4 templates on each of the 4 systems at phone widths
+  (~360–430px) in a couple of styles: Classic (tabs), Codex (rail→horizontal strip, panes stack full-
+  width, page scrolls not the pane), Dashboard (card grid → one column), Play (hero + drawer stack).
+  Confirm nothing is cut off or horizontally-scrolling, tap targets are reachable, the identity column
+  and floating roller don't cover content, and the top chip pickers wrap cleanly. Fix the responsive
+  CSS (container queries / `@media`) per format until each is genuinely usable on mobile. Record the
+  matrix.
+
 ## Done means
 - The Codex tab rail is on the right, panes open leftward, labels are upright letter-stacks.
 - Nothing overlaps at any width; the identity column, art, panes and the (global) roller each have room.
-- Character art is clearly visible. Standing bar green per slice.
+- Character art is clearly visible. Every template × style × system is fully usable on mobile.
+- Standing bar green per slice.
