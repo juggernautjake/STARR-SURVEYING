@@ -78,7 +78,14 @@ tab up/down, other rows shifting to open a gap, drop to place. Persist per chara
 alongside the pane state).
 
 **Slices**
-- [ ] **B1 — persisted custom order (pure + storage).** Add `reorder(order, fromId, toIndex)` to `paneMath.ts`
+- [x] **B1 — persisted custom order (pure + storage) (SHIPPED 2026-07-22).** Added `reorder(order, fromId,
+  toIndex)` and `effectiveOrder(canonical, saved)` to `paneMath.ts` (pure, 6 unit tests): reorder clamps +
+  no-ops unknown/same moves + never mutates; effectiveOrder keeps the saved order, appends new/returned
+  sections in canonical order, and drops unavailable ids. `usePaneStack` persists `tabOrder` alongside the
+  panes (filtered to available ids on read), exposes the EFFECTIVE `order` + `setOrder`, and clears it on
+  `reset`. `PaneStack` renders its rows in `stack.order`. The DRAG that SETS the order is B2. tsc + eslint
+  clean; codex-layout suite green (48).
+- [~] **B1 (orig) — persisted custom order (pure + storage).** Add `reorder(order, fromId, toIndex)` to `paneMath.ts`
   (pure, clamped, unit-tested). Store an optional `tabOrder: string[]` in the pane-stack localStorage; when
   set, the accordion sorts `defs` by it (unknown/new ids fall back to canonical position, so a newly-added
   section still appears). `usePaneStack` exposes `order` (effective) + `setOrder(ids)` + it's included in

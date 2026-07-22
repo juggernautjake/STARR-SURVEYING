@@ -232,6 +232,14 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
 
   const paneById = useMemo(() => new Map(stack.panes.map((p) => [p.id, p])), [stack.panes])
 
+  // Render the rows in the player's EFFECTIVE order (Part B — drag-to-reorder). `stack.order` is the custom
+  // order with new sections appended, or the canonical order when they haven't reordered. Any def not named
+  // in the order (defensive) keeps its natural position at the end.
+  const orderedDefs = useMemo(() => {
+    const rank = new Map(stack.order.map((id, i) => [id, i]))
+    return defs.slice().sort((a, b) => (rank.get(a.id) ?? defs.length) - (rank.get(b.id) ?? defs.length))
+  }, [defs, stack.order])
+
   // The CONNECTED ACCORDION (D-11b): one vertical column of rows on the right, EACH a section. A row is
   // just its tab when closed; when open, the section body opens OUT to the LEFT of that tab, joined to it
   // as one unit. Because every section is a row in the same column, opening one PUSHES the tabs below it
@@ -239,7 +247,7 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
   // separate rail + pane column. Sections render in canonical order so a tab is always in the same place.
   return (
     <div className="codex-accordion" ref={stack.viewportRef} aria-label="Sheet sections">
-      {defs.map((d) => {
+      {orderedDefs.map((d) => {
         const open = stack.isOpen(d.id)
         const pane = open ? paneById.get(d.id) : undefined
         return (

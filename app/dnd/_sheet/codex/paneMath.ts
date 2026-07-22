@@ -104,6 +104,35 @@ export function openPane(panes: Pane[], id: string, order: readonly string[]): P
   )
 }
 
+/** Move `fromId` to `toIndex` within `order` (Part B — drag-to-reorder the vertical tab stack). Pure;
+ *  returns a NEW array. The index is clamped to the array, and an unknown id (or a no-op move) returns an
+ *  unchanged copy. This is the whole reorder rule — the drag interaction just computes `toIndex` from the
+ *  cursor and calls this, so the arithmetic is unit-tested rather than tangled in pointer handlers. */
+export function reorder(order: readonly string[], fromId: string, toIndex: number): string[] {
+  const from = order.indexOf(fromId)
+  if (from < 0) return order.slice()
+  const to = Math.max(0, Math.min(order.length - 1, Math.round(toIndex)))
+  if (from === to) return order.slice()
+  const next = order.slice()
+  next.splice(from, 1)
+  next.splice(to, 0, fromId)
+  return next
+}
+
+/** Resolve the order the accordion renders in (Part B) from the CANONICAL order + the player's SAVED custom
+ *  order. Saved ids that still exist keep the player's order; canonical ids missing from the saved order (a
+ *  newly-added section, or one that was gated away then returned) are appended at the end, in canonical
+ *  order — so a new section still appears rather than vanishing. Saved ids no longer available are dropped.
+ *  No saved order → the canonical order unchanged, so every existing sheet is untouched. */
+export function effectiveOrder(canonical: readonly string[], saved: readonly string[] | null | undefined): string[] {
+  if (!saved || saved.length === 0) return canonical.slice()
+  const canonSet = new Set(canonical)
+  const kept = saved.filter((id) => canonSet.has(id))
+  const keptSet = new Set(kept)
+  const appended = canonical.filter((id) => !keptSet.has(id))
+  return [...kept, ...appended]
+}
+
 /** Close `id`. The remaining panes keep their heights — they do NOT expand to fill the gap.
  *  Growing a pane the player sized by hand, because a different pane closed, would be the layout
  *  overriding an explicit choice. The empty space is honest; the fit control is one double-click
