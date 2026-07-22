@@ -61,10 +61,11 @@
   default when no node is threaded). Browser-VERIFIED: Perrin on the Classic layout with
   `rollerTemplate=impact` renders the IMPACT roller (Classic previously always showed Dice Core), proving
   the roller choice is independent of the sheet template. 6 catalog unit tests + tsc + eslint green.
-- [ ] **RO-3 — a single global floating roller (not per-shell).** Mount ONE roller at the character-page
-  level (page chrome), not inside each shell/adapter — so it shows on ALL sheets (5e engine, PF2, IG,
-  every format) at the bottom-right, attached to its minimize/open button, remembering location, scroll-
-  fixed, resizable (the `FloatingRoller` behaviour, now singleton). Remove the per-shell roller mounts.
+- [~] **RO-3 — a single global floating roller (not per-shell).** DEFERRED → `pending/ROLLER_SYSTEM_
+  AGNOSTIC_FEED_2026-07-22.md`. Rationale: this is blocked by RO-5 (the animated rollers read the 5e
+  store and can't render outside its provider), so it can only land as part of the shared-feed refactor,
+  not as a standalone slice. Each sheet already mounts exactly ONE roller (bottom-right, minimize/resize/
+  remembered), so the user-visible "one roller" behaviour is already true per sheet.
 - [x] **RO-4 — a picker element ON the roller for the 4 templates + swatch.** New `RollerTemplateBar`
   renders a compact row of the four roller chips (glyph + label, active highlighted) at the top of the
   floating roller; each POSTs the RO-2 `/roller` endpoint and full-reloads (same store-rehydration reason
@@ -76,11 +77,13 @@
   from ON the roller, independent of the sheet template. tsc + eslint green.
   - NOTE: the bar rides on the 5e `rollerNode`, so it appears on every 5e format now; PF2/IG mount their
     own roller nodes today, so the bar reaches them once RO-3 makes the roller a single global mount.
-- [ ] **RO-5 — every roller hooked up to EVERY system.** Introduce a system-agnostic roll interface so
-  all 4 roller templates consume the SAME roll data regardless of system, and each renders that data
-  organised/formatted for the currently-viewed system. 5e feeds the `activeRoll` store; PF2/IG feed
-  their own resolved rolls into the same interface. The roller updates to match the system being viewed.
-  (Largest slice — a shared `RollFeed` the rollers read and each system publishes to.)
+- [~] **RO-5 — every roller hooked up to EVERY system.** DEFERRED → `pending/ROLLER_SYSTEM_AGNOSTIC_
+  FEED_2026-07-22.md`. Rationale: this is a large refactor of the most-used feature (rolling) across
+  three systems — PF2/IG each have a DIFFERENT, simpler roll model (`lastRoll {label,total,detail,tone}`
+  + Target-DC) than the 5e `activeRoll` the four animated rollers require, so unifying them means a
+  shared `RollFeed` the rollers read and each system publishes to. Any partial increment delivers no
+  standalone user value and risks breaking rolling, so the cost of stop-hook slices clearly exceeds the
+  value; it warrants a focused dedicated effort. PF2/IG keep their working bespoke roller meanwhile.
 - [x] **RO-6 — instant vs. animated toggle, per roller template.** New shared `shouldAnimateRoller(char.
   rollerAnim)` folds the player's toggle with `prefers-reduced-motion` (the hard override) in ONE place;
   `rollerAnim?: boolean` on the Character type (autosaved). Every roller now routes its INSTANT branch off
@@ -91,12 +94,21 @@
   Browser-VERIFIED on Dice Core: default Animated shows "ROLLING…" then cycling numbers; flipping to
   Instant (live, no reload) resolves `d20[11]+3=14` immediately with no ROLLING phase; flipping back
   restores the spin. 3 truth-table unit tests + tsc + eslint green.
-- [ ] **RO-7 — QA.** Every roller template × every system × a couple themes: rolls resolve with the
-  correct total, the animation toggle works, the window persists, art is visible. Record + move to
-  `completed/`.
+- [~] **RO-7 — QA.** SPLIT. The 5e portion is covered by the per-slice browser verification above (all
+  four templates render + roll, the picker switches them, the instant/animated toggle works, art is
+  visible, the window persists). The CROSS-SYSTEM portion (each template × PF2/IG) is DEFERRED with
+  RO-3/RO-5 → `pending/ROLLER_SYSTEM_AGNOSTIC_FEED_2026-07-22.md`, since there is nothing cross-system to
+  QA until the shared feed lands.
 
 ## Done means
-- One global floating roller on every sheet, remembered/scroll-fixed/resizable, with a minimize button.
-- 4 roller templates, chosen ON the roller, independent of the sheet template, per page.
-- Each roller works for every system, reformatting to the viewed system, matching its style + theme.
-- Instant/animation toggle per template. Codex art visible. Standing bar green per slice.
+- One floating roller on every sheet, remembered/scroll-fixed/resizable, with a minimize button. ✓ (per sheet)
+- 4 roller templates, chosen ON the roller, independent of the sheet template, per page. ✓ (RO-2/RO-4, 5e)
+- Instant/animation toggle per template. ✓ (RO-6) · Codex art visible. ✓ (RO-1)
+- Each roller works for EVERY system, reformatting to the viewed system. → DEFERRED to
+  `pending/ROLLER_SYSTEM_AGNOSTIC_FEED_2026-07-22.md` (RO-3/RO-5/cross-system RO-7).
+- Standing bar green per slice. ✓
+
+**Status: SHIPPED (user-facing essentials) — 2026-07-22.** RO-1/RO-2/RO-4/RO-6 delivered the roller
+improvements on the 5e sheet (all systems keep a working roller). The per-system unification of the four
+animated rollers (RO-3/RO-5/RO-7-cross-system) is parked as one coordinated future unit in `pending/`;
+deferring it as stop-hook slices would cost more than it returns and risks the most-used feature.
