@@ -27,7 +27,7 @@ import { shouldAnimateRoller } from './rollerAnim'
 import { dieSides, ngonPoints } from './dieShape'
 import './impactRoller.css'
 
-type RowKind = 'die' | 'mod' | 'boost' | 'penalty'
+type RowKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
 interface BreakRow {
   key: string
   label: string
@@ -64,26 +64,30 @@ function buildDamageRows(breakdown: string): BreakRow[] {
   return rows
 }
 
-/** The ordered breakdown rows for one roll — the "tap away" explanation of the headline total. */
+/** The ordered breakdown rows for one roll — a clear, top-to-bottom calculation (D-10): the natural die,
+ *  each contribution with its signed value, the named conditions/feats that helped or hurt, then the
+ *  final Total. The headline still owns the authoritative total, so an imperfect parse never changes it. */
 function buildRows(roll: ActiveRoll): BreakRow[] {
   const { isD20, landing, entry } = roll
   const rows: BreakRow[] = []
   if (isD20) {
     const m = entry.breakdown.match(D20_RE)
     const pair = m?.[1] ?? String(landing)
-    rows.push({
-      key: 'die',
-      label: entry.mode === 'adv' ? `d20 · advantage${pair.includes(',') ? ` (${pair})` : ''}` : entry.mode === 'dis' ? `d20 · disadvantage${pair.includes(',') ? ` (${pair})` : ''}` : 'd20',
-      value: String(landing),
-      kind: 'die',
-    })
+    // The die row leads with the natural d20; adv/dis names itself and shows the pair it kept from.
+    const advTag = entry.mode === 'adv' ? ` · advantage${pair.includes(',') ? ` (kept ${pair})` : ''}`
+      : entry.mode === 'dis' ? ` · disadvantage${pair.includes(',') ? ` (kept ${pair})` : ''}` : ''
+    rows.push({ key: 'die', label: `d20${advTag}`, value: String(landing), kind: 'die' })
     const mod = entry.total - landing
-    if (mod !== 0) rows.push({ key: 'mod', label: 'modifiers', value: signed(mod), kind: 'mod' })
+    if (mod !== 0) rows.push({ key: 'mod', label: 'Ability + proficiency', value: signed(mod), kind: 'mod' })
   } else {
     buildDamageRows(entry.breakdown).forEach((r) => rows.push(r))
   }
-  entry.boosts?.forEach((b, i) => rows.push({ key: `bo${i}`, label: b, value: 'helped', kind: 'boost' }))
-  entry.penalties?.forEach((p, i) => rows.push({ key: `pe${i}`, label: p, value: 'hurt', kind: 'penalty' }))
+  // Conditions/feats that adjusted the roll — named, with a ▲ (helped) / ▼ (hurt) marker. Their numeric
+  // effect is already folded into the modifier above; this names the SOURCE so the total is explainable.
+  entry.boosts?.forEach((b, i) => rows.push({ key: `bo${i}`, label: b, value: '▲', kind: 'boost' }))
+  entry.penalties?.forEach((p, i) => rows.push({ key: `pe${i}`, label: p, value: '▼', kind: 'penalty' }))
+  // The final calculation, always last and emphasised.
+  rows.push({ key: 'total', label: 'Total', value: String(entry.total), kind: 'total' })
   return rows
 }
 

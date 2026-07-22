@@ -81,10 +81,13 @@
   reveal its final total with its OWN distinct animation (not a shared fade): e.g. Dice Core a digit-scramble
   settle, Sigil Stack a sigil-lock pulse, Roll Board a card-flip flourish, Impact a slam + count-up. Make
   each reveal feel bespoke to that roller's metaphor, honouring the instant/reduced-motion path.
-- [ ] **D-10 — clearer Impact breakdown (owner follow-up on D-7).** The Impact roller's calculation reveal
-  reads oddly (a lumped "modifiers" row, "helped/hurt" labels). Refactor it into a clear, readable calculation
-  — the natural die, each named contribution with its signed value, and the final total — laid out cleanly on
-  every style/theme.
+- [x] **D-10 — clearer Impact breakdown (owner follow-up on D-7).** Refactored `buildRows` + the row CSS into
+  a clean top-to-bottom calculation: the natural die row (`d20`, with `· advantage/disadvantage (kept x,y)`
+  when applicable), the folded modifier now labelled `Ability + proficiency` with its signed value, each
+  named condition/feat as a `▲` (helped, green) / `▼` (hurt, red) row, then an emphasised **Total** row set
+  off by a divider (uppercase label, big gold value). Replaced the vague "modifiers / helped / hurt" text.
+  Browser-VERIFIED on the Impact roller: an Initiative roll reads `d20 → 13`, `Ability + proficiency → +3`,
+  `Total → 16`. tsc/eslint green.
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact

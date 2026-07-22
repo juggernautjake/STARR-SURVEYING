@@ -280,6 +280,26 @@
   color: var(--danger, #ff6b6b);
   font-weight: 600;
 }
+/* The final Total row (D-10) — set off with a divider above it and emphasised, so the calculation reads
+   "die + modifiers (+ named conditions) = TOTAL" top-to-bottom at a glance. */
+.iroller .ir-row.ir-total {
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+  background: none;
+  font-size: 13px;
+}
+.iroller .ir-row.ir-total .ir-row-label {
+  font-family: var(--font-display, inherit);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted, #9a97ad);
+}
+.iroller .ir-row.ir-total .ir-row-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold, var(--tealbright, #c8aa6e));
+}
 .iroller .ir-detail-tag {
   text-align: center;
   font-size: 10.5px;
