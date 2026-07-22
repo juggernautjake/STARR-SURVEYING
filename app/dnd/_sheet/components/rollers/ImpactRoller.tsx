@@ -24,6 +24,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
+import { dieSides, ngonClip } from './dieShape'
 import './impactRoller.css'
 
 type RowKind = 'die' | 'mod' | 'boost' | 'penalty'
@@ -93,6 +94,8 @@ function ImpactStage() {
   const [rows, setRows] = useState<BreakRow[]>([])
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>('idle')
   const [face, setFace] = useState<number | null>(null)
+  // How many sides the die SHAPE has, from the die being rolled (D-4). null → the neutral rounded shape.
+  const [sides, setSides] = useState<number | null>(null)
   const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; landing: number; isD20: boolean; tag?: string } | null>(null)
   const [open, setOpen] = useState(false)
   const timers = useRef<number[]>([])
@@ -125,6 +128,7 @@ function ImpactStage() {
       setRows([])
       setFace(null)
       setMeta(null)
+      setSides(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll])
@@ -144,6 +148,7 @@ function ImpactStage() {
     }
     setRows(r)
     setMeta({ crit: activeRoll.crit, fumble: activeRoll.fumble, total: entry.total, label: entry.label, landing, isD20, tag: entry.tag })
+    setSides(dieSides(activeRoll))
     primeAudio()
 
     // Instant: no tumble — land the die and headline immediately, still commit + chime. Taken when the
@@ -211,7 +216,7 @@ function ImpactStage() {
   return (
     <div className={`ir-arena ${phase === 'landed' ? 'ir-landed' : 'ir-throwing'} ${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}`}>
       <div className="ir-stage">
-        <div className="ir-die" aria-hidden>
+        <div className="ir-die" aria-hidden style={sides ? { clipPath: ngonClip(sides), borderRadius: 0 } : undefined} data-sides={sides ?? undefined}>
           <span className="ir-die-face">{face ?? '·'}</span>
         </div>
         {phase === 'landed' && meta && (

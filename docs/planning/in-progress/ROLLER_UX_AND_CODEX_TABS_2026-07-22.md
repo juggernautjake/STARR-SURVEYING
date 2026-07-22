@@ -36,10 +36,14 @@
   scramble interval 70 → 85ms, so the die spins a touch longer and less frantically before it slams to its
   landing (the owner likes the sound). Commit still fires TUMBLE+320 after; the instant/reduced-motion path
   is unchanged. tsc/eslint clean.
-- [ ] **D-4 — shaped digital die (sides match the die).** The spinning shape gets N sides matching the die
-  rolled (d4 triangle, d6 square, d8, d10, d12, d20 icosagon…), via a CSS `clip-path` polygon derived from
-  the roll's die type. Falls back to the current rounded shape when the die is ambiguous (mixed pools).
-  Apply to the rollers that show a die face (Impact, Dice Core). Browser-verify a d20 vs d6.
+- [x] **D-4 — shaped digital die (sides match the die).** New `dieShape.ts`: `dieSides(roll)` derives the
+  die's face count (d20 roll → 20; else parses the `NdM` notation from the breakdown, e.g. `1d8` → 8, `d100`
+  → 10; else a single-die min/max fallback; null for a mixed pool) and `ngonClip(n)` builds a regular N-gon
+  CSS `clip-path`. The Impact roller's tumbling die now takes that clip-path (removing its rounded-square
+  border-radius) so a d20 spins as a 20-sided shape and a d8 as an octagon; an ambiguous pool keeps the
+  neutral rounded shape. Browser-VERIFIED: rolling a d20 (Initiative) gives the `.ir-die` a 20-vertex
+  polygon clip-path. 5 unit tests (die parsing + clamped polygon). NOTE: the Dice Core / Sigil / Board
+  render a number/tiles/cards, not a die shape — the shaped die is for the Impact roller's die. tsc/eslint green.
 - [ ] **D-5 — every roller robust + audible.** Audit the 4 rollers: each resolves correctly, and each has
   sound on spin/land/crit/fumble (whoosh/tick/blip/tada/errorBuzz), honouring mute + the instant toggle.
   Fix any gap. Browser-verify sound fires on a roll per template.
