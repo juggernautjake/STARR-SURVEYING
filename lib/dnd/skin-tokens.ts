@@ -179,3 +179,68 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   // React inline CSS custom properties. The values are all plain strings, so this is sound.
   return vars as CSSProperties;
 }
+
+/** The baseline `--hx-*` values declared on `.root` in hextech.module.css — used when the skin is
+ *  `default` (where `skinHxVars` emits nothing) so the shell bridge below still has real colours to
+ *  derive RGB triplets from. Keep in sync with that stylesheet's defaults. */
+const HX_DEFAULTS = {
+  navy0: '#010a13',
+  panel: '#0b1a2c',
+  line: '#1e2d3d',
+  gold3: '#f0e6d2',
+  teal1: '#0ac8b9',
+  text: '#f0e6d2',
+  muted: '#a09b8c',
+} as const;
+
+/**
+ * THE SHELL TOKEN BRIDGE (T-SHELL-TOKENS). The shared format shells (Codex/Dashboard/Play) style
+ * themselves with the 5e engine's theme variables — `--gold`, `--ink`, `--line`, `--muted`,
+ * `--tealbright`, and the `rgba(var(--panel-rgb), …)` / `var(--void-rgb)` TRIPLETS. Those live on the
+ * `.dnd-sheet` root and do NOT exist inside the bespoke PF2/IG sheets, which render off `--hx-*`
+ * instead. So dropping a shell into a PF2/IG sheet would strip its colours.
+ *
+ * This maps the character's chosen skin to that shell token set, reusing `skinHxVars` for the actual
+ * colours (so the shell inherits the skin's light/dark exactly, contrast-clamps and all) and falling
+ * back to the baseline `--hx-*` defaults for the `default` skin. The RGB triplets — which pure CSS
+ * cannot derive from a hex `--hx-*` var — are computed here in JS. A bespoke sheet renders a shell as
+ * `<div style={shellThemeVars(sheetType)}><CodexShell …/></div>` and every `var(--gold)` inside then
+ * resolves to the skin's gold. This is why "skin compatibility is free" holds across systems, not just
+ * within 5e.
+ */
+export function shellThemeVars(sheetType: string | undefined): CSSProperties {
+  const hx = skinHxVars(sheetType) as Record<string, string>;
+  // For a named skin, take the computed value; for `default` (empty map) take the baseline.
+  const gold3 = hx['--hx-gold-3'] ?? HX_DEFAULTS.gold3;
+  const text = hx['--hx-text'] ?? HX_DEFAULTS.text;
+  const muted = hx['--hx-muted'] ?? HX_DEFAULTS.muted;
+  const line = hx['--hx-line'] ?? HX_DEFAULTS.line;
+  const teal1 = hx['--hx-teal-1'] ?? HX_DEFAULTS.teal1;
+  const panel = hx['--hx-panel'] ?? HX_DEFAULTS.panel;
+  const navy0 = hx['--hx-navy-0'] ?? HX_DEFAULTS.navy0;
+  const trip = (hex: string) => toRgb(hex).join(', ');
+
+  const vars: Record<string, string> = {
+    '--gold': gold3,
+    '--ink': text,
+    '--muted': muted,
+    '--line': line,
+    // The shells use `--line-strong` only for a slightly heavier divider; the skin ships one line
+    // colour, so reuse it (a subtle rule is better than an invented, possibly-clashing one).
+    '--line-strong': line,
+    '--tealbright': teal1,
+    // Danger has no skin swatch to derive from; defer to the sheet's own `--hx-danger` (which itself
+    // inherits a red that reads on both dark and light panels).
+    '--danger': 'var(--hx-danger, #b4453c)',
+    '--font-display': 'var(--hx-font-display)',
+    // The triplets pure CSS can't produce from a hex var.
+    '--panel-rgb': trip(panel),
+    '--void-rgb': trip(navy0),
+    // Decorative accents a few shell rules reach for; harmonise them to the skin's teal rather than
+    // leaving the 5e hot-pink/violet, which would clash with a re-skinned sheet.
+    '--hotpink': teal1,
+    '--hotpink-rgb': trip(teal1),
+    '--violet-rgb': trip(teal1),
+  };
+  return vars as CSSProperties;
+}

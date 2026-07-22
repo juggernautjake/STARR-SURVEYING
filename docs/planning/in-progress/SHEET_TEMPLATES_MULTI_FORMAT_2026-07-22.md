@@ -181,6 +181,19 @@ compute their own). The clean decomposition:
   - **All three panes done** — T-5b–d and T-6b–d are now "write a system adapter" (its identity node +
     which panels are hero vs drawer), reusing `CodexShell`/`DashboardShell`/`PlayShell` unchanged.
 
+- [x] **T-SHELL-TOKENS — the shell token bridge (second prerequisite, found wiring T-5b).** A shell
+  styles itself with the 5e engine's theme vars (`--gold`/`--ink`/`--line`/`--tealbright` + the
+  `rgba(var(--panel-rgb), …)` / `var(--void-rgb)` TRIPLETS on the `.dnd-sheet` root); the bespoke PF2/IG
+  sheets have none of those — they render off `--hx-*`. So a shell dropped into a PF2/IG sheet would
+  lose every colour, and pure CSS can't derive the rgba triplets from a hex `--hx-*` var. Shipped
+  `shellThemeVars(sheetType)` in `lib/dnd/skin-tokens.ts`: reuses `skinHxVars` for the actual skin
+  colours (so the shell inherits the skin's light/dark, contrast-clamps and all), falls back to the
+  baseline `--hx-*` for `default`, and computes the RGB triplets in JS. A PF2/IG format adapter renders
+  `<div style={shellThemeVars(sheetType)}><CodexShell …/></div>` and every `var(--gold)` inside resolves
+  to the skin's gold. Unit-tested (`shell-theme-bridge.test.ts`): all shell tokens present, valid
+  triplets, each named skin differs from default, unknown id falls back. THIS is what makes "skin
+  compatibility free" hold across systems — every T-5b–d / T-6b–d adapter wraps its shell in it.
+
 ### PF2 — panel set, then shells
 
 - [x] **T-5a — PF2 panel set (`pf2PanelSet()`), default unchanged.** Extract the sections inside
