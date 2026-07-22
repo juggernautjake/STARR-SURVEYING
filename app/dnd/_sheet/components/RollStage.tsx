@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useChar } from '../state/store'
 import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
 import { shouldAnimateRoller } from './rollers/rollerAnim'
+import { useRollFeed } from './rollers/rollFeed'
 
 // The rolling number cycles through the CHARACTER'S accent tokens, not a fixed rainbow.
 // This used to be a hardcoded neon list (hot pink, magenta, cyan…), which meant every sheet's
@@ -46,8 +46,8 @@ const DISPLAY_MODES: Record<string, DisplayMode> = {
 
 export default function RollStage({ roller = 'futuristic' }: { roller?: string }) {
   const mode = DISPLAY_MODES[roller] ?? DISPLAY_MODES.futuristic
-  const { activeRoll, commitRoll, char } = useChar()
-  const animate = shouldAnimateRoller(char.rollerAnim)
+  const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  const animate = shouldAnimateRoller(rollerAnim)
   const [display, setDisplay] = useState<number | string>('—')
   const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>('idle')

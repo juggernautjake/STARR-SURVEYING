@@ -39,6 +39,7 @@ import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import { rollerFor } from './components/rollers/rollerFor'
 import RollerTemplateBar from './components/rollers/RollerTemplateBar'
+import { RollFeedProvider } from './components/rollers/rollFeed'
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates'
 import FloatingRoller from './components/rollers/FloatingRoller'
 import DmOverridePanel from './components/DmOverridePanel'
@@ -77,7 +78,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType, system, ownerName }: { theme?: SheetTheme; sheetType?: string; system?: string; ownerName?: string | null }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline, setChar } = useChar()
+  const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline, setChar, activeRoll, commitRoll } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -148,7 +149,10 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // RollerTemplateBar (RO-4) rides above it so the player switches roller presentation FROM the roller.
   const rollerId = resolveRollerTemplate(char.rollerTemplate, layout)
   const rollerNode = (
-    <>
+    // The roller STAGES read the system-agnostic RollFeed (RO-5), not the store directly — so the 5e
+    // sheet PROVIDES the feed here from its store. The bespoke PF2/IG sheets provide their own feed, and
+    // the same rollers work there.
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim: char.rollerAnim }}>
       <RollerTemplateBar
         characterId={characterId}
         current={rollerId}
@@ -157,7 +161,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
         onToggleAnim={canWrite ? () => setChar((c) => ({ ...c, rollerAnim: c.rollerAnim === false })) : undefined}
       />
       {rollerFor(rollerId)}
-    </>
+    </RollFeedProvider>
   )
 
   // A per-character theme overrides the stylesheet's default CSS variables here on

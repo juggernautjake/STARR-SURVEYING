@@ -22,6 +22,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { shouldAnimateRoller } from './rollerAnim'
+import { useRollFeed } from './rollFeed'
 import './sigilStack.css'
 
 type TileKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
@@ -108,8 +109,8 @@ function buildTiles(roll: ActiveRoll): StackTile[] {
 
 // ── The resolution stage: consumes `activeRoll` and cascades the tiles into place ────────────
 function SigilStage() {
-  const { activeRoll, commitRoll, char } = useChar()
-  const animate = shouldAnimateRoller(char.rollerAnim)
+  const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  const animate = shouldAnimateRoller(rollerAnim)
   const [tiles, setTiles] = useState<StackTile[]>([])
   const [visible, setVisible] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'assembling' | 'locked'>('idle')
