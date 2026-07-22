@@ -27,7 +27,7 @@ import DescriptionsPanel from '../components/DescriptionsPanel'
 import CharacterGallery from '../components/CharacterGallery'
 import MlmPanel from '../components/MlmPanel'
 import CustomSectionView from '../components/CustomSectionView'
-import { normalizeCustomSections } from '@/lib/dnd/custom-sections'
+import { normalizeCustomSections, addSection } from '@/lib/dnd/custom-sections'
 import { md } from '../lib/inline'
 
 /** One content block a format can place. `render` draws the section with the 5e components against
@@ -126,6 +126,35 @@ export function useFivePanels(): SheetPanel[] {
           </section>
         ),
       })),
+      // Owner-only "Add section" pane (D-13) — the Codex/Dashboard/Play shells arrange the panel set with no
+      // chrome of their own, so the create entry point lives here (the Classic tab bar has its own button).
+      // Appends a section via the same store path; the new section then shows as its own pane.
+      ...(canWrite
+        ? [
+            {
+              id: 'custom-add',
+              label: 'Add section',
+              emoji: '＋',
+              render: () => (
+                <section>
+                  <div className="card">
+                    <h3>Add a custom section</h3>
+                    <p style={{ opacity: 0.75, marginTop: 0 }}>
+                      Build your own section — a vehicle, a contact list, downtime notes, anything the sheet
+                      doesn’t already track. It appears on every template.
+                    </p>
+                    <button
+                      className="btn"
+                      onClick={() => setChar((ch) => ({ ...ch, customSections: addSection(normalizeCustomSections(ch.customSections)) }))}
+                    >
+                      ＋ Add section
+                    </button>
+                  </div>
+                </section>
+              ),
+            } as SheetPanel,
+          ]
+        : []),
     ]
     return all
       .filter((d) => (!d.module || config.modules.includes(d.module as never)) && d.when !== false)
