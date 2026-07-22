@@ -291,18 +291,27 @@
   gap: 12px;
 }
 .sheet-shell .codex-stackwrap {
+  /* CX-R1 — the RAIL sits on the RIGHT and the panes open to its LEFT (mirror of the original).
+     The stack takes the 1fr left column, the rail the auto-width right column; explicit grid-column
+     places each regardless of DOM order (the rail stays first in the DOM for tab order). */
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   gap: 10px;
   min-width: 0;
 }
 .sheet-shell .codex-rail {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 5px;
   position: sticky;
   top: 12px;
   align-self: start;
+}
+.sheet-shell .codex-stack {
+  grid-column: 1;
+  grid-row: 1;
 }
 .sheet-shell .codex-railtab,
 .sheet-shell .codex-railreset {
@@ -573,6 +582,13 @@
   }
   .sheet-shell .codex-stackwrap {
     grid-template-columns: 1fr;
+  }
+  .sheet-shell .codex-rail,
+  .sheet-shell .codex-stack {
+    /* CX-R1 is a desktop-only side flip; on a phone the single column stacks in DOM order
+       (rail strip on top, panes below), so drop the explicit grid placement. */
+    grid-column: auto;
+    grid-row: auto;
   }
   .sheet-shell .codex-rail {
     flex-direction: row;

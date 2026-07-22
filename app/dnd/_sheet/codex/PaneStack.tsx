@@ -196,9 +196,9 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
 
   return (
     <div className="codex-stackwrap">
-      {/* The vertical rail. Labels are written vertically (writing-mode: vertical-rl) per the
-          owner's ask, which is also what lets the rail stay narrow while the tab targets stay
-          tall enough to hit comfortably. */}
+      {/* The vertical rail — sits on the RIGHT (CX-R1) with panes opening to its left. Labels are
+          upright letter-stacks (CX-R2), which keeps the rail narrow while the tab targets stay tall
+          enough to hit comfortably. */}
       <nav className="codex-rail" aria-label="Sheet sections">
         {defs.map((d) => {
           const open = stack.isOpen(d.id)

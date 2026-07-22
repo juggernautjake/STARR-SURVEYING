@@ -24,10 +24,13 @@ roller (now global) can overlap the identity column / art.
 **Legend:** `[x]` shipped · `[~]` in progress · `[ ]` not started. Standing bar: `tsc`/`eslint`/`vitest`
 + browser-verified on a real character (with art) before checking a box. No `.skin-x` rule (test-enforced).
 
-- [ ] **CX-R1 — rail on the RIGHT, panes open to the LEFT.** Flip the Codex body so the tab RAIL sits on
-  the right edge and the open panes stack to its LEFT (mirror of today). `PaneStack` layout + `codex.css`
-  (`flex-direction`/order, the resize-grab side, the collapsed-pane chrome). Keyboard + drag-resize still
-  work. Browser-verify open/close/resize.
+- [x] **CX-R1 — rail on the RIGHT, panes open to the LEFT.** `.codex-stackwrap` now `grid-template-columns:
+  1fr auto` with the rail placed in `grid-column: 2` (right) and the stack in `grid-column: 1` (left) via
+  explicit grid placement — the rail stays first in the DOM so tab order is unchanged. The mobile `@media`
+  resets `grid-column/grid-row: auto` so the phone strip still stacks rail-on-top. Keyboard + drag-resize
+  untouched (pane internals unchanged). Browser-verified on Perrin (Codex): the rail sits on the far-right
+  edge as upright letter-stacks (SKILLS/ABILITIES/COMBAT/ATTACKS/SPELLS/FEATURES) with the identity column
+  left and panes opening to the rail's left.
 - [x] **CX-R2 — vertical-STACKED tab letters.** `StackedLabel` in `PaneStack` renders each label char on
   its own line (upright, `flex-direction: column`), so the word reads TOP-TO-BOTTOM (S/K/I/L/L/S), not a
   rotated sideways word; the whole word rides on `aria-label` for screen readers. Removed the old
