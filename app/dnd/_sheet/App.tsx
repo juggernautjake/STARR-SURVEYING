@@ -11,7 +11,7 @@ import './styles/theme.css'
 // and none of the complexity of a dynamic import that could flash unstyled panes on switch.
 import './styles/codex.css'
 import './styles/play.css'
-import { themeToCssVars, themeVariantsFor, resolveThemeVariant, type SheetTheme } from './theme'
+import { themeToCssVars, resolveThemeVariant, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
 import { SheetConfigProvider } from './state/sheetConfig'
@@ -47,7 +47,6 @@ import StreamControl from './components/StreamControl'
 import MlmPanel from './components/MlmPanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
-import SkinSwitch from './components/SkinSwitch'
 import VariantToggle from './components/VariantToggle'
 import CustomizationSummary from './components/CustomizationSummary'
 import CodexLayout from './codex/CodexLayout'
@@ -100,12 +99,10 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
     (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || hasSpellcasting || canWrite),
   )
 
-  // Colour theme / skin variant (Area TH). A skin can offer several palettes (the default Hextech skin's
-  // Gold/Shadow-Isles/Noxus/Freljord set; the streamer's pink/blue). The chosen key lives on `char.skinVariant`
-  // and resolves to a SheetTheme via `resolveThemeVariant`. An explicit `theme` prop wins; with NO chosen
-  // variant we keep the sheet_type's own theme EXACTLY (so existing sheets are unchanged).
-  const themeVariants = themeVariantsFor(config.skin)
-  const hasThemePicker = themeVariants.length > 1
+  // Colour theme / skin variant (Area TH). The chosen key lives on `char.skinVariant` and resolves to a
+  // SheetTheme via `resolveThemeVariant`. An explicit `theme` prop wins; with NO chosen variant we keep the
+  // sheet_type's own theme EXACTLY (so existing sheets are unchanged). The PICKER now lives in the unified
+  // page-chrome `SheetChrome` (U-4), not in-sheet, so all three axes are chosen from one block at the top.
   const effectiveTheme = theme ?? (char.skinVariant ? resolveThemeVariant(config.skin, char.skinVariant).theme : config.theme)
 
   // The streamer additionally swaps the `.variant-<id>` class + per-variant art (§6.9) — a pink/blue-keyed
@@ -255,11 +252,10 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
         <Hero />
       )}
 
-      {/* Pink/blue style switch (streamer skin only) — swaps theme, class, and art. */}
-      {hasThemePicker && <SkinSwitch variants={themeVariants} />}
-      {/* The template (layout) switch used to live HERE, buried inside the 5e engine — which is
-          exactly why the owner couldn't find it and why it never appeared for PF2/IG. It is now the
-          page-chrome `TemplateBrowser`, surfaced for every system beside the skin picker (T-1). */}
+      {/* The Style/Template/Theme pickers used to live HERE (and in two page-chrome dropdowns), buried
+          inside the 5e engine — which is exactly why the owner couldn't find them and why the theme picker
+          never appeared for PF2/IG. All three are now the unified page-chrome `SheetChrome` chip block,
+          surfaced once at the top for every system (U-4). */}
       {/* Vanilla ⇄ Custom, and the customization summary directly beneath it — the two belong
           together: the toggle is what LETS a character hold custom content, and the summary is
           what REPORTS it. Both render for every layout, above the split, so they are the first

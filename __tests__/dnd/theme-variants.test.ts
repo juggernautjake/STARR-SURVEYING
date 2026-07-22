@@ -83,21 +83,28 @@ describe('every theme variant is readable (TH4 — WCAG AA)', () => {
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-describe('theme picker wiring (TH3)', () => {
+describe('theme picker wiring (TH3 / U-4)', () => {
   const app = readFileSync(join(process.cwd(), 'app/dnd/_sheet/App.tsx'), 'utf8');
-  const picker = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/SkinSwitch.tsx'), 'utf8');
+  const chrome = readFileSync(join(process.cwd(), 'app/dnd/_ui/SheetChrome.tsx'), 'utf8');
 
-  it('App resolves the chosen variant to a theme, keeping the sheet_type theme when none is chosen', () => {
-    expect(app).toContain('const themeVariants = themeVariantsFor(config.skin)');
-    expect(app).toContain('const hasThemePicker = themeVariants.length > 1');
+  it('App still APPLIES the chosen variant as a theme, keeping the sheet_type theme when none is chosen', () => {
     // no chosen variant → the sheet_type theme EXACTLY (no regression); chosen → resolveThemeVariant
     expect(app).toContain('char.skinVariant ? resolveThemeVariant(config.skin, char.skinVariant).theme : config.theme');
-    expect(app).toContain('{hasThemePicker && <SkinSwitch variants={themeVariants} />}');
+    // The in-sheet picker moved out to SheetChrome; App no longer renders SkinSwitch.
+    expect(app).not.toContain('<SkinSwitch');
   });
 
-  it('the picker renders every variant with a swatch and persists the choice to char.skinVariant', () => {
-    expect(picker).toContain('variants }: { variants: ThemeVariant[] }');
-    expect(picker).toContain('skinVariant: v.key');
-    expect(picker).toContain('v.theme.colors'); // builds a colour swatch from the palette
+  it('the unified SheetChrome renders the THEME row from every variant with a swatch, posting /theme', () => {
+    expect(chrome).toContain('themeVariantsFor(skin)');
+    expect(chrome).toContain('THEME //');
+    expect(chrome).toContain('v.theme.colors'); // builds a colour swatch from the palette
+    expect(chrome).toMatch(/\/theme/); // posts the theme axis endpoint
+  });
+
+  it('SheetChrome also carries the Style and Template axes (all three chosen the same way)', () => {
+    expect(chrome).toContain('STYLE //');
+    expect(chrome).toContain('TEMPLATE //');
+    expect(chrome).toContain('SHEET_STYLES');
+    expect(chrome).toContain('templatesForSystem');
   });
 });

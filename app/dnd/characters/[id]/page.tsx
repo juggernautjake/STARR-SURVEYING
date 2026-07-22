@@ -11,8 +11,7 @@ import { VariantToggleView } from '@/app/dnd/_sheet/components/VariantToggle';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
-import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
-import TemplateBrowser from '@/app/dnd/_ui/TemplateBrowser';
+import SheetChrome from '@/app/dnd/_ui/SheetChrome';
 import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
 import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
@@ -217,17 +216,18 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
-      {/* Sheet STYLE (colour skin) + TEMPLATE (format) pickers, surfaced TOGETHER right below the Build
-          Kit so both choices sit in the SAME spot on every character — above every sheet (the shared 5e
-          engine, PF2, and IG all render further down). Previously these lived after the sheets, which put
-          them BELOW a bespoke PF2/IG sheet but ABOVE the 5e one — inconsistent. Both offer their full
-          option set (every skin / every format the system has); the two axes are chosen the same way. */}
-      {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
+      {/* The unified STYLE · TEMPLATE · THEME chip block (U-4), surfaced right below the Build Kit so all
+          three axes sit in the SAME spot on every character — above every sheet (5e engine, PF2, IG all
+          render further down), chosen the same way (highlighted chips), for every system. Replaces the old
+          Style/Template dropdowns and the in-sheet 5e THEME row; each chip POSTs its axis's endpoint. */}
       {canWrite && (
-        <TemplateBrowser
+        <SheetChrome
           characterId={character.id}
           system={normalizeSystem((character as { system?: string }).system)}
-          current={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+          currentSkin={character.sheet_type}
+          currentTemplate={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+          currentTheme={(character.data as { skinVariant?: string } | null)?.skinVariant}
+          canWrite={canWrite}
         />
       )}
       {/* Per-character settings gear (S-3) — rules variants + display/roller prefs in one place, for every

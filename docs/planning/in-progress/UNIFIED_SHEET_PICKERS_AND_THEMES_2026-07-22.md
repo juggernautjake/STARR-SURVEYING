@@ -73,14 +73,17 @@
   `freljord` → `{ok, theme:'freljord'}`, an invalid key → 400 "not available for this character's style",
   `null` → `{ok, theme:null}` (cleared). `isThemeVariant` unit-tested (5 universal accepted on a normal
   style, streamer honours its own 2). tsc + eslint + 31 theme tests green.
-- [ ] **U-4 — the unified chip-picker block (replaces the dropdowns).** One `SheetChrome` component,
-  page chrome just below the Build Kit, for EVERY system, rendering THREE chip rows in the `SkinSwitch`
-  idiom (a labelled row of `btn`-chips, the active one highlighted + swatch): **Style** (all skins),
-  **Template** (all formats for the system), **Theme** (all 5). Each chip POSTs its axis's endpoint
-  (`sheet_type` PATCH · `/layout` · `/theme`) and refreshes. Remove `SheetStyleBrowser`/`TemplateBrowser`
-  dropdowns from the chrome (keep the components only if still used elsewhere) and the in-sheet 5e
-  `SkinSwitch` (its job moves here). Every option always shown + highlighted-when-active. Browser-verify
-  the block reads identically on 5e, PF2, IG.
+- [x] **U-4 — the unified chip-picker block (replaces the dropdowns).** New `SheetChrome` — one page-chrome
+  component just below the Build Kit, for EVERY system, rendering THREE labelled chip rows (`STYLE //` all
+  skins · `TEMPLATE //` all formats the system builds · `THEME //` all 5, each row's active chip highlighted
+  + colour axes carrying a swatch). Each chip POSTs its own axis endpoint — Style → `sheet_type` PATCH,
+  Template → `/layout`, Theme → `/theme` — then full-reloads. Replaced the `SheetStyleBrowser` +
+  `TemplateBrowser` dropdowns in `page.tsx` with it, and REMOVED the in-sheet 5e `SkinSwitch` (its import +
+  render + `themeVariants`/`hasThemePicker`) so there's exactly one theme picker; App still APPLIES the
+  chosen theme via `themeToCssVars(effectiveTheme)`. Repointed the theme-wiring test at `SheetChrome`.
+  Browser-VERIFIED on Perrin (5e): the block shows STYLE (5, Hextech active) · TEMPLATE (4, Classic active) ·
+  THEME (5), and clicking "Noxus Crimson" persisted + reloaded + recoloured the sheet (`--gold=#d9a441`,
+  Noxus's amber) with the chip now active. tsc + eslint + 49 theme/template tests green.
 - [ ] **U-5 — full matrix availability + QA.** Confirm every Style × Template × Theme renders on every
   System with real data and readable colour (esp. the light-leaning themes on the light styles), rolls
   work, nothing empty. Record the matrix. Then move this doc to `completed/`.
