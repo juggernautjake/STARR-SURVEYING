@@ -19,14 +19,16 @@ import EditReviewPanel from '../components/EditReviewPanel'
 import Reactions from '../components/Reactions'
 import SigilStack from '../components/rollers/SigilStack'
 
-export default function CodexLayout({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
+export default function CodexLayout({ artUrl, ownerName, roller }: { artUrl?: string | null; ownerName?: string | null; roller?: React.ReactNode }) {
   const { characterId } = useChar()
   const panels = useFivePanels()
   return (
     <CodexShell
       identity={<IdentityColumn artUrl={artUrl} ownerName={ownerName} />}
       panels={panels}
-      roller={<SigilStack />}
+      // The roller NODE is the chosen roller template (RO-2), passed from App; the Sigil Stack is only
+      // the DEFAULT when no choice is threaded (kept so this layout still renders standalone).
+      roller={roller ?? <SigilStack />}
       above={
         <>
           {/* Both are prompts to act NOW; they sit above the stack so they are never buried in a pane. */}

@@ -27,7 +27,7 @@ import ImpactRoller from '../components/rollers/ImpactRoller'
 // it the ability scores would appear both in the hero and again in the drawer.
 const HERO_PANELS = new Set(['combat', 'attacks', 'abilities'])
 
-export default function PlayLayout({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
+export default function PlayLayout({ artUrl, ownerName, roller }: { artUrl?: string | null; ownerName?: string | null; roller?: React.ReactNode }) {
   const { char, characterId } = useChar()
   const panels = useFivePanels()
   const drawerPanels = panels.filter((p) => !HERO_PANELS.has(p.id))
@@ -101,7 +101,8 @@ export default function PlayLayout({ artUrl, ownerName }: { artUrl?: string | nu
       identity={identity}
       above={above}
       hero={hero}
-      roller={<ImpactRoller />}
+      // Chosen roller template (RO-2) from App; Impact is the DEFAULT when none is threaded.
+      roller={roller ?? <ImpactRoller />}
       storageKey={characterId}
       drawerPanels={drawerPanels}
       drawerHint="skills · abilities · features · spells · gear · story"

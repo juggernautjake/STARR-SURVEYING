@@ -46,15 +46,21 @@
 **Legend:** `[x]` shipped · `[~]` in progress · `[ ]` not started. Standing bar per slice: `tsc`,
 `eslint`, whole-repo `vitest`, and any rendered result browser-verified before its box is checked.
 
-- [ ] **RO-1 — Codex character art visible.** Diagnose: is `artUrl` reaching the Codex `IdentityColumn`
-  (it should), is the `codex-portrait` rendering, and is the floating roller's default position covering
-  it? Fixes likely: give the roller a default bottom-right position clear of the identity column, and/or
-  make the Codex portrait larger/always-present when the character has art (mirror how prominent Classic
-  art is). Browser-verify on a character WITH art in Codex.
-- [ ] **RO-2 — roller TEMPLATE choice, per page, independent of the sheet template.** Persist a
-  `data.rollerTemplate` (one of `core | sigil | board | impact`) via a small `/api/dnd/characters/[id]/
-  roller` endpoint (twin of `/layout`), defaulting to a sensible per-sheet-template default so nothing
-  regresses. The mounted roller renders the CHOSEN roller template, not the one baked into the shell.
+- [x] **RO-1 — Codex character art visible.** Resolved by the Codex-refinements work: CX-R3 snapped the
+  floating roller flush to the bottom-right (clear of the top-left identity column/art) and confirmed the
+  Codex `IdentityColumn` renders `codex-portrait`; CX-R4 additionally made art visible on the bespoke
+  PF2/IG formats. Browser-verified on a Codex character with art — the portrait sits at the top of the
+  identity column, uncovered.
+- [x] **RO-2 — roller TEMPLATE choice, per page, independent of the sheet template.** New engine-free
+  catalog `lib/dnd/roller-templates.ts` (four templates core/sigil/board/impact + `DEFAULT_ROLLER_FOR_
+  LAYOUT` + `isRollerTemplate` + `resolveRollerTemplate`), a `/api/dnd/characters/[id]/roller` endpoint
+  (twin of `/layout`, owner/DM-gated, validates the key), and `char.rollerTemplate` on the Character type
+  (hydrated automatically via `normalizeCharacter`'s `...src`). App resolves the effective roller
+  (explicit choice → layout default → core) and renders THAT node through a `rollerFor` registry in every
+  path — Classic, Codex, Dashboard, Play — instead of the one each shell hardcoded (which is now only the
+  default when no node is threaded). Browser-VERIFIED: Perrin on the Classic layout with
+  `rollerTemplate=impact` renders the IMPACT roller (Classic previously always showed Dice Core), proving
+  the roller choice is independent of the sheet template. 6 catalog unit tests + tsc + eslint green.
 - [ ] **RO-3 — a single global floating roller (not per-shell).** Mount ONE roller at the character-page
   level (page chrome), not inside each shell/adapter — so it shows on ALL sheets (5e engine, PF2, IG,
   every format) at the bottom-right, attached to its minimize/open button, remembering location, scroll-

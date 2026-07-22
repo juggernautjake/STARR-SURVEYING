@@ -12,14 +12,15 @@ import EditReviewPanel from '../components/EditReviewPanel'
 import Reactions from '../components/Reactions'
 import RollBoard from '../components/rollers/RollBoard'
 
-export default function DashboardLayout({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
+export default function DashboardLayout({ artUrl, ownerName, roller }: { artUrl?: string | null; ownerName?: string | null; roller?: React.ReactNode }) {
   const { characterId } = useChar()
   const panels = useFivePanels()
   return (
     <DashboardShell
       identity={<IdentityColumn artUrl={artUrl} ownerName={ownerName} />}
       panels={panels}
-      roller={<RollBoard />}
+      // Chosen roller template (RO-2) from App; Roll Board is the DEFAULT when none is threaded.
+      roller={roller ?? <RollBoard />}
       storageKey={characterId}
       above={
         <>

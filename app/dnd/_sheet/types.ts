@@ -535,6 +535,11 @@ export interface Character {
    *  layout works with any skin and any system, which is the reason it is its own field rather
    *  than more `sheet_type` entries. Omitted → 'classic', so every existing sheet is unchanged. */
   sheetLayout?: SheetLayout
+  /** Which ROLLER presentation this page uses (RO-2) — a FOURTH axis, chosen independently of the sheet
+   *  layout: a Codex sheet can roll with the Dice Core. One of core/sigil/board/impact (see
+   *  `lib/dnd/roller-templates.ts`). Omitted → the default roller for the current `sheetLayout`, so every
+   *  existing sheet keeps exactly the roller its template shipped with. */
+  rollerTemplate?: 'core' | 'sigil' | 'board' | 'impact'
   /** Per-variant art + token URLs, so switching the style swaps the character art
    *  too. Falls back to the DB art_url/token_url (media) when a variant is unset. */
   variantArt?: {

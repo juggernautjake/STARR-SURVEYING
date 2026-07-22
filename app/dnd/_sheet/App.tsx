@@ -37,7 +37,8 @@ import Balance from './components/Balance'
 import Progression from './components/Progression'
 import Inventory from './components/Inventory'
 import Bio from './components/Bio'
-import DiceTray from './components/DiceTray'
+import { rollerFor } from './components/rollers/rollerFor'
+import { resolveRollerTemplate } from '@/lib/dnd/roller-templates'
 import FloatingRoller from './components/rollers/FloatingRoller'
 import DmOverridePanel from './components/DmOverridePanel'
 import StreamOwnerControls from './components/StreamOwnerControls'
@@ -135,6 +136,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // fold. Suppress both for either. (Dashboard keeps them — its identity column sits beside a grid,
   // not above a hero band.)
   const ownsIdentity = isCodex || isPlay
+
+  // The ROLLER template (RO-2) is chosen INDEPENDENTLY of the sheet layout: a Codex sheet can roll with
+  // the Dice Core. Resolve the character's explicit choice, else the default roller for the current
+  // layout (so nothing regresses), and render THAT node in every path below instead of the one the shell
+  // used to hardcode. All four rollers read the same store, so any renders under any layout.
+  const rollerNode = rollerFor(resolveRollerTemplate(char.rollerTemplate, layout))
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
@@ -266,11 +273,11 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
       <DmOverridePanel hasStream={hasStream} />
 
       {isCodex ? (
-        <CodexLayout artUrl={artUrl} ownerName={ownerName} />
+        <CodexLayout artUrl={artUrl} ownerName={ownerName} roller={rollerNode} />
       ) : isDashboard ? (
-        <DashboardLayout artUrl={artUrl} ownerName={ownerName} />
+        <DashboardLayout artUrl={artUrl} ownerName={ownerName} roller={rollerNode} />
       ) : isPlay ? (
-        <PlayLayout artUrl={artUrl} ownerName={ownerName} />
+        <PlayLayout artUrl={artUrl} ownerName={ownerName} roller={rollerNode} />
       ) : (
       <div className="appgrid">
         <div className="maincol">
@@ -370,11 +377,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           </div>
         </div>
 
-        {/* The Dice Core is a floating tool window (R-2): pinned in the viewport, movable, resizable,
-            minimizable, and remembered per character. The dock owns the chrome; DiceTray the rolls. It
-            is `position: fixed`, so it needs no in-flow column — the main content now spans full width. */}
+        {/* The roller is a floating tool window (R-2): pinned in the viewport, movable, resizable,
+            minimizable, and remembered per character. The dock owns the chrome; the roller node the rolls.
+            The NODE is the chosen roller template (RO-2), not a hardcoded Dice Core — so the roller choice
+            is independent of the sheet layout even on Classic. `position: fixed`, so no in-flow column. */}
         <FloatingRoller characterId={characterId}>
-          <DiceTray />
+          {rollerNode}
         </FloatingRoller>
       </div>
       )}
