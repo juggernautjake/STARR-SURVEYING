@@ -126,9 +126,25 @@
   - NOTE: this covers the 5e panel set (the reported clutter). PF2/IG have their own bespoke panel sets
     (`usePf2Panels`/`useIgPanels`); auditing THEIR per-class section relevance is a follow-up if the owner
     finds similar clutter there.
-- [ ] **D-13 — build/add CUSTOM sections (owner 2026-07-22).** A way to create a NEW section on a character
-  sheet, format it, and populate it — added to the sheet (and its tabs), for any system. The section
-  builder + storage on the character, surfaced in every template.
+- [~] **D-13 — build/add CUSTOM sections (owner 2026-07-22). SLICE 1 SHIPPED; PF2/IG wiring is the follow-up.**
+  The model + storage + editor + 5e surfacing are built:
+  - **Model + pure lib** (`lib/dnd/custom-sections.ts`, 14 unit tests): a `CustomSection` = title + icon +
+    ordered `CustomBlock`s of three kinds — `text` (heading + prose), `stats` (label/value grid), `list`
+    (bullets). Stored on `character.customSections` (a new, purely-additive field OUTSIDE the typed mechanics,
+    so it can never collide with a real stat and renders identically on any system). `normalizeCustomSections`
+    defensively parses untyped DB/AI JSON (drops unknown kinds, prunes empty rows/items, de-dupes ids, never
+    throws); immutable add/remove/update/move helpers for sections and blocks; `blockIsEmpty`/`sectionIsEmpty`.
+  - **Renderer + inline editor** (`components/CustomSectionView.tsx`, 6 render tests): read-only draws the
+    three kinds and HIDES empty blocks; `editable` gives owners an inline editor (rename, icon, add/remove/
+    edit blocks, add/remove rows & items, delete section). Every colour is `var(--hx-*, <neutral fallback>)`
+    so it reads on the 5e sheet AND the hextech IG/PF2 sheets; muted text is `opacity` on the inherited colour.
+  - **5e surfacing:** the Classic tab bar (`App.tsx`) shows one tab per section + an owner "＋ Add section"
+    control that creates one and jumps to it; the shared `useFivePanels` adds one panel per section (id
+    `custom:<id>`, editable inline), so Codex/Dashboard/Play show + edit them too. A section added on any
+    template persists on the character and appears on all of them. tsc + eslint + full dnd suite green (4135).
+  - **Follow-up:** surface the same sections on the bespoke PF2 (`usePf2Panels`) and IG (`useIgPanels`) panel
+    sets so they appear there too (the renderer is already system-agnostic — just the panel wiring remains),
+    and add an in-place "Add section" entry point to the shared shells.
 
 - [x] **D-14 — Impact roller: fix the "weird square" + show both adv/dis dice (owner 2026-07-22).** Two bugs
   from the D-4/D-7/D-10 work: (1) the breakdown's die ROW had class `ir-die`, which collided with the

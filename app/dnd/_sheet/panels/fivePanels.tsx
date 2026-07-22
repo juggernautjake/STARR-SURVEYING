@@ -26,6 +26,8 @@ import Bio from '../components/Bio'
 import DescriptionsPanel from '../components/DescriptionsPanel'
 import CharacterGallery from '../components/CharacterGallery'
 import MlmPanel from '../components/MlmPanel'
+import CustomSectionView from '../components/CustomSectionView'
+import { normalizeCustomSections } from '@/lib/dnd/custom-sections'
 import { md } from '../lib/inline'
 
 /** One content block a format can place. `render` draws the section with the 5e components against
@@ -44,8 +46,11 @@ export interface SheetPanel {
  * a format that wants a different order sorts by it, but the SET is one source.
  */
 export function useFivePanels(): SheetPanel[] {
-  const { char } = useChar()
+  const { char, canWrite, setChar } = useChar()
   const config = useSheetConfig()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the raw blob is the stable input; the normalized
+  // array is derived, so keying the memo on it (not its new-every-render output) is correct.
+  const customSections = useMemo(() => normalizeCustomSections(char.customSections), [char.customSections])
 
   // Section RELEVANCE (D-12): a section only appears when it makes sense for THIS character's data — not
   // for every editor. A Spellcaster (an ability/slots) OR anyone who actually HAS spells gets Spells; a
@@ -90,9 +95,40 @@ export function useFivePanels(): SheetPanel[] {
         ),
       },
       { id: 'gallery', label: 'Gallery', emoji: '◲', render: () => <CharacterGallery /> },
+      // Player-authored custom sections (D-13) — one panel each, editable inline by owners. They persist on
+      // `data.customSections`, so a section added on any template appears (and edits) on every template.
+      ...customSections.map((s) => ({
+        id: `custom:${s.id}`,
+        label: s.title,
+        emoji: s.icon || '✚',
+        count: s.blocks.length || undefined,
+        render: () => (
+          <section>
+            <div className="card">
+              <h3>{s.title}</h3>
+              <CustomSectionView
+                section={s}
+                editable={canWrite}
+                onChange={(next) =>
+                  setChar((ch) => ({
+                    ...ch,
+                    customSections: normalizeCustomSections(ch.customSections).map((x) => (x.id === next.id ? next : x)),
+                  }))
+                }
+                onDelete={() =>
+                  setChar((ch) => ({
+                    ...ch,
+                    customSections: normalizeCustomSections(ch.customSections).filter((x) => x.id !== s.id),
+                  }))
+                }
+              />
+            </div>
+          </section>
+        ),
+      })),
     ]
     return all
       .filter((d) => (!d.module || config.modules.includes(d.module as never)) && d.when !== false)
       .map(({ module: _m, when: _w, ...def }) => def)
-  }, [char, config.modules, hasSpellcasting, hasForms])
+  }, [char, config.modules, hasSpellcasting, hasForms, customSections, canWrite, setChar])
 }

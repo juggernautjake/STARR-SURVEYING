@@ -555,4 +555,10 @@ export interface Character {
    *  here so their edits persist with the sheet `data` autosave. Kept separate from the
    *  typed model so an AI-invented field can never collide with a real mechanic. */
   customFields?: Record<string, string | number | boolean>
+  /** Player-authored EXTRA sections (D-13) — a way to build, format and populate a brand-new section on
+   *  ANY system's sheet, surfaced as its own tab/pane in every template alongside the built-in ones. Each
+   *  is a title + ordered content blocks (prose, a key/value stat grid, or a bullet list). Purely additive
+   *  and system-agnostic: they never touch the typed mechanics, so they render identically on 5e/PF2/IG.
+   *  Normalize with `lib/dnd/custom-sections.ts`. Omitted/empty → no extra sections (every sheet unchanged). */
+  customSections?: import('@/lib/dnd/custom-sections').CustomSection[]
 }

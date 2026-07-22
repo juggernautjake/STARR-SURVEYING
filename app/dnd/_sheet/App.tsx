@@ -3,7 +3,7 @@
 // root for the machine-scoped theme.css imported below — every rule in that file
 // is prefixed with `.dnd-sheet`, so the sheet's global styles (background, fonts,
 // scrollbars) apply here without leaking onto the rest of the Starr site.
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import './styles/theme.css'
 // Codex layout styles (CX-1 …). Imported unconditionally beside theme.css rather than lazily:
 // both are scoped under `.dnd-sheet`, and the Codex rules match nothing at all unless a
@@ -56,6 +56,8 @@ import PlayLayout from './codex/PlayLayout'
 import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
+import CustomSectionView from './components/CustomSectionView'
+import { normalizeCustomSections, addSection, type CustomSection } from '@/lib/dnd/custom-sections'
 import { md } from './lib/inline'
 
 // A tab with an optional `module`: module tabs render only when the character's
@@ -77,7 +79,8 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType, system, ownerName }: { theme?: SheetTheme; sheetType?: string; system?: string; ownerName?: string | null }) {
-  const [tab, setTab] = useState<TabId>('overview')
+  // `tab` also holds a custom-section id (D-13), so it is a plain string, not just TabId.
+  const [tab, setTab] = useState<TabId | string>('overview')
   const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline, setChar, activeRoll, commitRoll } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
@@ -105,6 +108,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
       (t.id !== 'spells' || hasSpellcasting) &&
       (t.id !== 'forms' || hasFormData),
   )
+
+  // Player-authored custom sections (D-13) — one extra tab each, after the built-in tabs. The model lives in
+  // `data.customSections`; every mutation runs through the pure helpers and writes back via setChar (which
+  // autosaves). Empty sections still show a tab (so the owner can find and populate one they just added).
+  const customSections = useMemo(() => normalizeCustomSections(char.customSections), [char.customSections])
+  const setSections = (next: CustomSection[]) => setChar((ch) => ({ ...ch, customSections: next }))
 
   // Colour theme / skin variant (Area TH). The chosen key lives on `char.skinVariant` and resolves to a
   // SheetTheme via `resolveThemeVariant`. An explicit `theme` prop wins; with NO chosen variant we keep the
@@ -318,6 +327,27 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
                   {t.label}
                 </button>
               ))}
+              {/* Custom sections (D-13): one tab each, then an add control for owners. */}
+              {customSections.map((s) => (
+                <button key={s.id} className={`tab ${tab === s.id ? 'on' : ''}`} onClick={() => setTab(s.id)}>
+                  <span className="tab-emoji">{s.icon || '✚'}</span>
+                  {s.title}
+                </button>
+              ))}
+              {canWrite && (
+                <button
+                  className="tab"
+                  title="Add a custom section"
+                  onClick={() => {
+                    const next = addSection(customSections)
+                    setSections(next)
+                    setTab(next[next.length - 1].id)
+                  }}
+                >
+                  <span className="tab-emoji">＋</span>
+                  Add section
+                </button>
+              )}
             </nav>
           </div>
 
@@ -380,6 +410,28 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
             )}
 
             {tab === 'gallery' && <CharacterGallery />}
+
+            {/* Custom sections (D-13): the active custom tab renders its authored blocks; owners get the
+                inline editor + delete. `section` render + all mutations go through the pure helpers. */}
+            {customSections.map(
+              (s) =>
+                tab === s.id && (
+                  <section key={s.id}>
+                    <div className="card">
+                      <h3>{s.title}</h3>
+                      <CustomSectionView
+                        section={s}
+                        editable={canWrite}
+                        onChange={(next) => setSections(customSections.map((x) => (x.id === next.id ? next : x)))}
+                        onDelete={() => {
+                          setSections(customSections.filter((x) => x.id !== s.id))
+                          setTab('overview')
+                        }}
+                      />
+                    </div>
+                  </section>
+                ),
+            )}
           </div>
 
           <div className="footer">
