@@ -7,13 +7,25 @@
 // keeps every custom element already on the sheet — it just re-arms the gate so NEW off-rules
 // content is blocked again. So there is no scary one-way door here; the copy says so.
 //
+// Split into a PROPS-BASED VIEW plus a thin `useChar` wrapper, because it is needed in two places
+// that do not share a data context: the shared 5e sheet (inside the store provider) AND the page
+// chrome above a bespoke PF2/IG sheet (a server component, no provider). The view takes exactly
+// what it needs — id, kind, write access — all of which the page already has server-side.
+//
 // Owner/DM only (a plain viewer sees the current state as a read-only chip). The server re-derives
 // write access and the character's own system, so the button can only ever change the KIND.
 import { useState } from 'react'
 import { useChar } from '../state/store'
 
-export default function VariantToggle() {
-  const { characterId, variantKind, canWrite } = useChar()
+export function VariantToggleView({
+  characterId,
+  variantKind,
+  canWrite,
+}: {
+  characterId?: string
+  variantKind?: string
+  canWrite?: boolean
+}) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const isCustom = variantKind === 'custom'
@@ -44,12 +56,11 @@ export default function VariantToggle() {
         return
       }
       // A FULL page reload, not the store's `reloadFromDb`. The variant kind is a SERVER-rendered
-      // prop — the page reads it from `system_variants` and threads it through `SheetRoot` into the
-      // store at mount — so it is not part of the sheet `data` that `reloadFromDb` refetches.
+      // prop — the page reads it from `system_variants` and threads it through into the store /
+      // bespoke sheet at mount — so it is not part of the sheet `data` a store refetch would touch.
       // Verified the hard way: the POST persisted `kind: vanilla` to the DB while the button stayed
-      // on Custom, because the store's copy of `variantKind` never changed. Re-running the server
-      // render is the only thing that updates it, and it also re-arms the pickers and gates with
-      // the new kind in one step.
+      // on Custom. Re-running the server render is the only thing that updates the prop, and it also
+      // re-arms the pickers and gates with the new kind in one step.
       if (typeof window !== 'undefined') window.location.reload()
     } catch {
       setErr('Could not reach the server.')
@@ -89,4 +100,10 @@ export default function VariantToggle() {
       {err && <span role="alert" style={{ fontSize: 12, color: 'var(--danger, #e0533a)', width: '100%' }}>{err}</span>}
     </div>
   )
+}
+
+/** The 5e-sheet wrapper: pulls id/kind/write from the store context. */
+export default function VariantToggle() {
+  const { characterId, variantKind, canWrite } = useChar()
+  return <VariantToggleView characterId={characterId ?? undefined} variantKind={variantKind} canWrite={canWrite} />
 }

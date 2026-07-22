@@ -7,6 +7,7 @@ import { getDndUser, isDndOpenAccess } from '@/lib/dnd/auth';
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { supabaseAdmin } from '@/lib/supabase';
 import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
+import { VariantToggleView } from '@/app/dnd/_sheet/components/VariantToggle';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
@@ -183,6 +184,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     );
   }
 
+  // A PF2 or IG character that has been BUILT renders its own bespoke sheet (real Remaster / IG
+  // numbers). When it does, the shared 5e engine below MUST NOT also render — its `Character` view
+  // of a PF2 character is a blank level-1 default (data lives in `data.pf2e` / `data.ig`, not the
+  // shared fields), which stacked a second, empty sheet under the real one. That double-render is
+  // the "two character sheets on top of each other" the owner reported, and it got far more visible
+  // once the build toggle and customization panel were added to the shared engine. So: the bespoke
+  // sheet, when present, is the ONLY sheet.
+  const bespokeSheet = pf2Sheet ?? igSheet;
+  const activeKind = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind;
+
   return (
     <>
       {topPanel}
@@ -193,6 +204,13 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {igLibrary}
       {pf2Sheet}
       {pf2Builder}
+      {/* Vanilla ⇄ Custom for a bespoke (PF2/IG) sheet. The shared 5e engine carries its own copy
+          of this control, but that engine no longer renders for a built PF2/IG character, so the
+          toggle is mounted here in the page chrome instead — same endpoint, same server-derived
+          kind. Only when a bespoke sheet is actually showing. */}
+      {bespokeSheet && canWrite && (
+        <VariantToggleView characterId={character.id} variantKind={activeKind} canWrite={canWrite} />
+      )}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
       )}
@@ -226,22 +244,28 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           can export it (the export route is read-gated the same as opening it). */}
       <ExportSheetButton characterId={character.id} />
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
-      <SheetRoot
-        characterId={character.id}
-        campaignId={character.campaign_id ?? undefined}
-        sheetType={character.sheet_type}
-        system={normalizeSystem((character as { system?: string }).system)}
-        isDM={isDM}
-        canWrite={canWrite}
-        customLayout={character.custom_layout}
-        customCss={character.custom_css}
-        preferences={effectivePreferences}
-        // Vanilla vs custom, read from the ACTIVE sheet slot's own metadata. Drives whether the
-        // builders hard-block off-rules content or merely flag it. `readActiveSlotMeta` already
-        // defaults to 'vanilla' for an unlabelled slot, which is the safe direction.
-        variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind}
-        ownerName={ownerName}
-      />
+      {/* The shared 5e engine — the tabbed sheet, ability rail, dice tray, build toggle and
+          customization panel. It renders for 5e and system-ambiguous characters, AND for a PF2/IG
+          character that has not been built yet (a "build me" placeholder). It does NOT render
+          underneath a built bespoke sheet — see `bespokeSheet` above for why. */}
+      {!bespokeSheet && (
+        <SheetRoot
+          characterId={character.id}
+          campaignId={character.campaign_id ?? undefined}
+          sheetType={character.sheet_type}
+          system={normalizeSystem((character as { system?: string }).system)}
+          isDM={isDM}
+          canWrite={canWrite}
+          customLayout={character.custom_layout}
+          customCss={character.custom_css}
+          preferences={effectivePreferences}
+          // Vanilla vs custom, read from the ACTIVE sheet slot's own metadata. Drives whether the
+          // builders hard-block off-rules content or merely flag it. `readActiveSlotMeta` already
+          // defaults to 'vanilla' for an unlabelled slot, which is the safe direction.
+          variantKind={activeKind}
+          ownerName={ownerName}
+        />
+      )}
       {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
           force and which the DM locked. Only shown for a character in a campaign. */}
       {effectivePreferences && <HouseRulesPanel preferences={effectivePreferences} />}
