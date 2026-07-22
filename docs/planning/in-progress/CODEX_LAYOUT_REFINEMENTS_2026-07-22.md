@@ -28,11 +28,11 @@ roller (now global) can overlap the identity column / art.
   the right edge and the open panes stack to its LEFT (mirror of today). `PaneStack` layout + `codex.css`
   (`flex-direction`/order, the resize-grab side, the collapsed-pane chrome). Keyboard + drag-resize still
   work. Browser-verify open/close/resize.
-- [ ] **CX-R2 — vertical-STACKED tab letters.** The rail labels currently rotate the whole word sideways.
-  Change to letters STACKED one under another (S / K / I / L / L / S reading top-to-bottom, upright), not
-  a rotated word. Implement by rendering each label char on its own line (e.g. split to `<span>`s with
-  `writing-mode: horizontal` in a narrow column, or `text-orientation: upright` + vertical writing-mode)
-  and size the rail so a stacked word fits. Verify every rail label reads cleanly.
+- [x] **CX-R2 — vertical-STACKED tab letters.** `StackedLabel` in `PaneStack` renders each label char on
+  its own line (upright, `flex-direction: column`), so the word reads TOP-TO-BOTTOM (S/K/I/L/L/S), not a
+  rotated sideways word; the whole word rides on `aria-label` for screen readers. Removed the old
+  `writing-mode: vertical-rl` + `rotate(180deg)`; the mobile strip flips the tab + label back to a row.
+  Browser-verified on Perrin (Codex): the rail shows ◇ then S·K·I·L·L·S stacked upright.
 - [ ] **CX-R3 — no overlapping elements / condense.** Audit the Codex for elements covering each other
   (identity column vs. panes vs. the floating roller vs. the art). Give the roller a default resting spot
   that never covers the identity column/art (ties to the roller overhaul RO-1), tighten the identity

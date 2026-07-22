@@ -164,6 +164,19 @@ function PaneView({
   )
 }
 
+/** A rail label spelled TOP-TO-BOTTOM, one upright letter under another (owner 2026-07-22) — not a
+ *  word rotated on its side. Each character is its own line; the whole word rides on `aria-label` so a
+ *  screen reader still reads "Skills", not "S k i l l s". A space renders as a blank line's worth of gap. */
+function StackedLabel({ text }: { text: string }) {
+  return (
+    <span className="codex-raillabel" aria-label={text}>
+      {[...text].map((ch, i) => (
+        <span key={i} className="rl-ch" aria-hidden>{ch === ' ' ? ' ' : ch}</span>
+      ))}
+    </span>
+  )
+}
+
 export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Stack }) {
   // Memoised because the dev-only warning effect below depends on it; a fresh Map every render
   // would re-run that effect on every keystroke anywhere in an open pane.
@@ -198,13 +211,13 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
               title={open ? `Close ${d.label}` : `Open ${d.label} — it opens alongside what is already showing`}
             >
               <span aria-hidden className="codex-railemoji">{d.emoji}</span>
-              <span className="codex-raillabel">{d.label}</span>
+              <StackedLabel text={d.label} />
             </button>
           )
         })}
         <button className="codex-railreset" onClick={stack.reset} title="Reset this sheet's panes to just Skills. Only affects your own view.">
           <span aria-hidden>⟲</span>
-          <span className="codex-raillabel">Reset</span>
+          <StackedLabel text="Reset" />
         </button>
       </nav>
 

@@ -306,16 +306,15 @@
 }
 .sheet-shell .codex-railtab,
 .sheet-shell .codex-railreset {
-  /* Vertical labels, per the ask. vertical-rl plus the 180deg rotation reads bottom-to-top,
-     which is the convention for a left-hand rail; the unrotated form reads top-to-bottom
-     and tilts the head the wrong way. */
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  /* Labels spelled TOP-TO-BOTTOM as a column of upright letters (CX-R2) — the emoji sits on top, then
+     one letter per line beneath it. Not a rotated sideways word: each glyph stays upright and reads
+     top→bottom, which is what the owner asked for. */
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 7px;
-  padding: 14px 7px;
+  gap: 6px;
+  padding: 12px 6px;
   min-height: 96px;
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -341,6 +340,16 @@
 }
 .sheet-shell .codex-railemoji {
   font-size: 12px;
+}
+/* CX-R2 — the label as an upright column of letters, one per line, reading top→bottom. */
+.sheet-shell .codex-raillabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.02;
+}
+.sheet-shell .codex-raillabel .rl-ch {
+  display: block;
 }
 /* T-STYLE-CODEX — the open pane's emoji tick takes the gold accent, matching the Dashboard cards and
    the Play drawer so the three shells share one visual language for a section header. */
@@ -574,12 +583,16 @@
   }
   .sheet-shell .codex-railtab,
   .sheet-shell .codex-railreset {
-    /* Back to horizontal text: a vertical label inside a horizontal strip is unreadable. */
-    writing-mode: horizontal-tb;
-    transform: none;
+    /* On a phone the rail is a horizontal strip, so the tab goes back to a row (emoji + label side by
+       side) and the label letters run left-to-right — a vertical letter-column inside a horizontal
+       strip would be unreadable. */
+    flex-direction: row;
     min-height: 0;
     flex: none;
     padding: 9px 12px;
+  }
+  .sheet-shell .codex-raillabel {
+    flex-direction: row;
   }
   .sheet-shell .codex-stack {
     /* The PAGE scrolls on mobile, not the stack. A nested scroll region inside a scrolling
