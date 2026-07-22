@@ -24,6 +24,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
+import { useRollFeed } from './rollFeed'
 import { dieSides, ngonPoints } from './dieShape'
 import './impactRoller.css'
 
@@ -95,9 +96,9 @@ function buildRows(roll: ActiveRoll): BreakRow[] {
 }
 
 // ── The resolution stage: consumes `activeRoll`, tumbles the die, lands it big ────────────
-function ImpactStage() {
-  const { activeRoll, commitRoll, char } = useChar()
-  const animate = shouldAnimateRoller(char.rollerAnim)
+export function ImpactStage() {
+  const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  const animate = shouldAnimateRoller(rollerAnim)
   const [rows, setRows] = useState<BreakRow[]>([])
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>('idle')
   const [face, setFace] = useState<number | null>(null)

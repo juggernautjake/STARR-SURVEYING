@@ -525,6 +525,13 @@
   container-type: size;
   container-name: codexpane;
 }
+/* The measured content wrapper (Part A). `display: flow-root` makes it a block-formatting context so a
+   descendant's collapsing margin (a section's last row's margin-bottom) is CONTAINED in its box and counted
+   by the height measurement — without it those margins protrude and the pane opens a few px short, clipping
+   the bottom of the content. No visual change; purely so the measured height is the true content height. */
+.sheet-shell .codex-pane-measure {
+  display: flow-root;
+}
 
 /* The grab bar. Visible on hover and focus, and ALWAYS visible on touch, where hover does
    not exist — a handle that only appears on hover is a handle a tablet user never finds. */

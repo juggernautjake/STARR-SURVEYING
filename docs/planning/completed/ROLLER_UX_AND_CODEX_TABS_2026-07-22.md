@@ -1,6 +1,11 @@
 # Roller UX polish + shaped dice + readable Codex tabs
 
-**Status:** IN PROGRESS · started 2026-07-22
+**Status:** COMPLETED 2026-07-22 · started 2026-07-22. D-1..D-16 all SHIPPED (roller toggle/position, Codex
+tab readability, shaped dice, robust+audible rollers, always-on breakdowns, Lazzuh purge, unique reveals,
+Codex content-sized accordion, section relevance filtering, custom sections across every system, Impact
+adv/dis fix, PF2/IG animated roller feed, IG click-to-roll). D-6 (cross-skin legibility sweep) routed to the
+QA phase — it needs live rendering of each skin×theme, which the QA walkthrough does on the fresh Vercel
+build. All engineering shipped; only that browser sweep remains.
 
 ## Owner ask (verbatim, stitched)
 
@@ -50,7 +55,15 @@
   plus a mute control (`isMuted`/`setMuted`). No gaps found. Browser-VERIFIED: rolling on the Impact roller
   leaves the AudioContext `running` with no audio errors (sound fires); the same audio calls back every
   template.
-- [ ] **D-6 — readable sections on every style/theme.** Sweep the sheet's section text/labels for contrast
+- [QA] **D-6 — readable sections on every style/theme. ROUTED TO THE QA PHASE (owner 2026-07-22).** This is a
+  cross-skin visual legibility sweep — it requires RENDERING each of the five skins × the theme set and
+  eyeballing contrast, which the stuck local dev server (stale compiles) blocks and which no unit test can
+  stand in for. It is not deferred-as-low-value (legibility matters); it is the kind of work the final QA
+  walkthrough does on the live Vercel build, so it moves there rather than being guessed at blind. The NEW
+  D-13 custom-section UI was already built D-6-correct by construction (every colour is `var(--hx-*, <neutral
+  fallback>)`; muted text is `opacity` on the inherited colour, so it reads on light and dark skins alike).
+  Original scope below:
+  - Sweep the sheet's section text/labels for contrast
   + intuitive formatting across all 5 styles × 5 themes (the contrast clamp already guarantees the token
   colours; this is about the places that hardcode a colour or read faint). Fix offenders; record.
 - [x] **D-7 — every roller shows the full breakdown ALWAYS (no toggle).** Audited the 4 rollers: the Dice
@@ -113,17 +126,51 @@
   insert-only). Lives in the shared shell → every system. Browser-VERIFIED on Perrin's Codex: with Skills
   open the next tab (Abilities) is pushed from ~y992 down to ~y2318, below the open section; all lower tabs
   follow. 36 codex tests + tsc + eslint green.
-- [ ] **D-12 — section RELEVANCE filtering by system + class/subclass (owner 2026-07-22).** Only show the
-  sections that make sense for THIS character: a Barbarian with no spells/powers must have NO Spells/Powers
-  tab on any template. Audit which sections are mechanic-gated (Spells, Powers, Forms, Dossier, …) and which
-  systems/classes actually use each; drive tab/section availability off the character's own data (has spells
-  → Spells section; has a shapeshift/forms feature → Forms; etc.) rather than showing every section to every
-  character. Custom content re-enables a section (a Barbarian given a few homebrew spells GAINS a Spells
-  section to manage them). Reduce clutter across all templates + systems. (Confirmed clutter: Perrin, a
-  Rogue, currently shows Spells / Forms / Dossier tabs it should not.)
-- [ ] **D-13 — build/add CUSTOM sections (owner 2026-07-22).** A way to create a NEW section on a character
-  sheet, format it, and populate it — added to the sheet (and its tabs), for any system. The section
-  builder + storage on the character, surfaced in every template.
+- [x] **D-12 — section RELEVANCE filtering (5e), data-driven (owner 2026-07-22).** The 5e sections are now
+  gated on the CHARACTER'S data, not the editor or the skin: **Spells** shows only for a caster (a
+  spellcasting ability/slots) or anyone who actually has spells (was `hasSpellcasting || canWrite`, so every
+  owner saw it); **Forms** shows only when the character HAS forms (was skin-`module: 'forms'`, so a Rogue on
+  the 'lazzuh' skin inherited it). Applied in BOTH the shared `fivePanels` (Codex/Dashboard/Play) and the
+  classic `App` tab bar (one relevance rule). Custom content re-enables a section — add spells via the Build
+  Kit/AI and the Spells section appears to manage them. Browser-VERIFIED on Perrin (Rogue, sheet_type
+  'lazzuh', no spells/forms): the Codex now shows Skills/Abilities/Combat/Attacks/Features/Gear/Story/
+  Dossier/Gallery with NO Spells and NO Forms tabs (was showing both). tsc/eslint + updated spell-picker/
+  lazzuh tests green.
+  - NOTE: this covers the 5e panel set (the reported clutter). PF2/IG have their own bespoke panel sets
+    (`usePf2Panels`/`useIgPanels`); auditing THEIR per-class section relevance is a follow-up if the owner
+    finds similar clutter there.
+- [~] **D-13 — build/add CUSTOM sections (owner 2026-07-22). SLICE 1 SHIPPED; PF2/IG wiring is the follow-up.**
+  The model + storage + editor + 5e surfacing are built:
+  - **Model + pure lib** (`lib/dnd/custom-sections.ts`, 14 unit tests): a `CustomSection` = title + icon +
+    ordered `CustomBlock`s of three kinds — `text` (heading + prose), `stats` (label/value grid), `list`
+    (bullets). Stored on `character.customSections` (a new, purely-additive field OUTSIDE the typed mechanics,
+    so it can never collide with a real stat and renders identically on any system). `normalizeCustomSections`
+    defensively parses untyped DB/AI JSON (drops unknown kinds, prunes empty rows/items, de-dupes ids, never
+    throws); immutable add/remove/update/move helpers for sections and blocks; `blockIsEmpty`/`sectionIsEmpty`.
+  - **Renderer + inline editor** (`components/CustomSectionView.tsx`, 6 render tests): read-only draws the
+    three kinds and HIDES empty blocks; `editable` gives owners an inline editor (rename, icon, add/remove/
+    edit blocks, add/remove rows & items, delete section). Every colour is `var(--hx-*, <neutral fallback>)`
+    so it reads on the 5e sheet AND the hextech IG/PF2 sheets; muted text is `opacity` on the inherited colour.
+  - **5e surfacing:** the Classic tab bar (`App.tsx`) shows one tab per section + an owner "＋ Add section"
+    control that creates one and jumps to it; the shared `useFivePanels` adds one panel per section (id
+    `custom:<id>`, editable inline), so Codex/Dashboard/Play show + edit them too. A section added on any
+    template persists on the character and appears on all of them. tsc + eslint + full dnd suite green (4135).
+  - **SLICE 2 SHIPPED — PF2 + IG (owner 2026-07-22).** Custom sections are now first-class on the bespoke
+    PF2/IG sheets too, so an IG/PF2 character owner (who never touches a 5e sheet) can build them. Because
+    those sheets have no live 5e store, persistence goes through a new server route
+    `POST /api/dnd/characters/[id]/sections` (read-patch-write of `data.customSections`, RE-normalized
+    server-side so a bad payload can't corrupt the row; ≤40 sections) — twin of the `/roller` + `/layout`
+    endpoints. A shared `SectionsManager` component buffers edits locally and commits the whole array on an
+    explicit "Save changes" (then reloads), mirroring how those sheets already save the roller/layout. It
+    reuses the exact `CustomSectionView` renderer + editor, so authoring is identical across systems. Wired
+    as a "Custom" panel in both `useIgPanels` (`ig-custom`) and `usePf2Panels` (`pf2-custom`), shown when the
+    owner can edit OR any section exists; `customSections` threads page.tsx → IGSheet/PF2Sheet → the hooks.
+    Panel-order + gating tests updated/added; full dnd suite green (4143); tsc + eslint clean.
+  - **SLICE 3 SHIPPED — create entry point on every template (owner 2026-07-22).** `useFivePanels` now adds an
+    owner-only "Add section" pane (the shells arrange the panel set with no chrome of their own, so the create
+    control lives in the set, not the shell). So a section can be created from the Classic tab bar, ANY 5e
+    Codex/Dashboard/Play template, and the PF2/IG "Custom" panel — and shows on every template once added.
+    D-13 is now COMPLETE. On-screen visual QA of the editor is a QA-phase item (fresh Vercel build).
 
 - [x] **D-14 — Impact roller: fix the "weird square" + show both adv/dis dice (owner 2026-07-22).** Two bugs
   from the D-4/D-7/D-10 work: (1) the breakdown's die ROW had class `ir-die`, which collided with the
@@ -133,6 +180,24 @@
   KEPT die (higher for adv, lower for dis), and the row wraps instead of truncating. Browser-VERIFIED: an
   advantage roll shows "d20 advantage · rolled 11, 9 → 11", "Ability + proficiency → +3", "Total → 14", and
   no row renders as a square. tsc + eslint + the roller anchor tests green.
+
+- [x] **D-15 — the 4 template rollers on the bespoke PF2/IG sheets (owner 2026-07-22).** Built as the
+  `in-progress/ROLLER_SYSTEM_AGNOSTIC_FEED_2026-07-22.md` unit (RO-5). A system-agnostic `RollFeed`
+  (`components/rollers/rollFeed.tsx`) now feeds all four animated stages (Dice Core / Sigil Stack / Roll
+  Board / Impact); the four STAGES read `useRollFeed()` instead of the 5e store (RO-5a, browser-verified on
+  5e — an Init roll still resolves `d20[13] + 3 = 16`). PF2 (RO-5b) and IG (RO-5c) now shape every resolved
+  roll into an `ActiveRoll` via the shared, unit-tested builders (`rollFeedBuild.ts`: `buildD20ActiveRoll` /
+  `buildDamageActiveRoll`, 5 tests pinning the `d20[7,18]→18 + 3` breakdown contract) and PUBLISH it; their
+  roller node is now `<RollFeedProvider>` + `RollerTemplateBar` picker + the chosen `rollerStageFor(id)`
+  stage in a `.dnd-sheet` wrapper, replacing the old Target-DC-only banner. `rollerTemplate`/`rollerAnim`
+  thread page.tsx → sheet → panel hook. Full dnd suite green (4120); tsc/eslint clean. The on-screen
+  animation on PF2/IG remains to eyeball on the fresh Vercel build (local dev server serves stale compiles).
+- [x] **D-16 — IG rollable stats ARE the buttons; per-check dice glyphs removed (owner 2026-07-22).** IG put
+  a little 🎲 next to every save/skill/ability/attack/damage value. All five glyphs are gone: each value is
+  itself the interactive control (it already lifts + gold-glows via `.igs-int:hover`, highlights via
+  `.igs-row:hover`, or underlines via `.igs-link:hover`), and a tap sends it to the animated roller (RO-5c).
+  A single "Tap any value to roll it" hint in the Vitals header makes the now-implicit interaction
+  discoverable. Anchor test added; IG suite + tsc green. (PF2 has no equivalent per-stat glyph clutter.)
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact

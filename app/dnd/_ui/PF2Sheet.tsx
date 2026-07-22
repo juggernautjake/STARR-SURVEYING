@@ -28,7 +28,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -48,8 +48,14 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   /** The chosen colour THEME (`data.skinVariant`, one of the 5 universal themes). When set, its palette
    *  recolours this sheet over the skin, in any format (U-2); unset → the skin's native colours. */
   skinVariant?: string;
+  /** The chosen dice-roller template + animation pref (`data.rollerTemplate` / `data.rollerAnim`), so PF2
+   *  mounts the same animated roller the 5e sheet does (RO-5). */
+  rollerTemplate?: string;
+  rollerAnim?: boolean;
+  /** Player-authored custom sections (`data.customSections`, D-13). */
+  customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
 }) {
-  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind });
+  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout, customSections });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
   // Defenses and Conditions, the modals between Strikes and Feats. Gated panels are simply absent
   // from `panels`, so their `section(...)` renders nothing, matching the old conditional sections.

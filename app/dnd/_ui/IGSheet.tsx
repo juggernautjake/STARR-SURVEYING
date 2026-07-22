@@ -60,7 +60,7 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
@@ -80,8 +80,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   /** The chosen colour THEME (`data.skinVariant`) — its palette recolours this sheet over the skin, in
    *  any format (U-2); unset → the skin's native colours. */
   skinVariant?: string;
+  /** The chosen dice-roller template + animation pref (`data.rollerTemplate` / `data.rollerAnim`), so IG
+   *  mounts the same animated roller the 5e sheet does (RO-5). */
+  rollerTemplate?: string;
+  rollerAnim?: boolean;
+  /** Player-authored custom sections (`data.customSections`, D-13). */
+  customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
 }) {
-  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind });
+  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout, customSections });
   const byId = new Map(panels.map((p) => [p.id, p]));
   const render = (id: string) => byId.get(id)?.render() ?? null;
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`

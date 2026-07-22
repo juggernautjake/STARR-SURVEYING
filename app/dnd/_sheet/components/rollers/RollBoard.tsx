@@ -25,6 +25,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
+import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
 
 type CardKind = 'die' | 'discard' | 'mod' | 'boost' | 'penalty' | 'crit' | 'fumble'
@@ -107,9 +108,9 @@ function buildCards(roll: ActiveRoll): DealtCard[] {
 }
 
 // ── The resolution stage: consumes `activeRoll` and deals the cards onto the felt ────────────
-function BoardStage() {
-  const { activeRoll, commitRoll, char } = useChar()
-  const animate = shouldAnimateRoller(char.rollerAnim)
+export function BoardStage() {
+  const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  const animate = shouldAnimateRoller(rollerAnim)
   const [cards, setCards] = useState<DealtCard[]>([])
   const [visible, setVisible] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'dealing' | 'settled'>('idle')

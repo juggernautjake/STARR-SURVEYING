@@ -26,6 +26,8 @@ import Bio from '../components/Bio'
 import DescriptionsPanel from '../components/DescriptionsPanel'
 import CharacterGallery from '../components/CharacterGallery'
 import MlmPanel from '../components/MlmPanel'
+import CustomSectionView from '../components/CustomSectionView'
+import { normalizeCustomSections, addSection } from '@/lib/dnd/custom-sections'
 import { md } from '../lib/inline'
 
 /** One content block a format can place. `render` draws the section with the 5e components against
@@ -44,15 +46,21 @@ export interface SheetPanel {
  * a format that wants a different order sorts by it, but the SET is one source.
  */
 export function useFivePanels(): SheetPanel[] {
-  const { char, canWrite } = useChar()
+  const { char, canWrite, setChar } = useChar()
   const config = useSheetConfig()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the raw blob is the stable input; the normalized
+  // array is derived, so keying the memo on it (not its new-every-render output) is correct.
+  const customSections = useMemo(() => normalizeCustomSections(char.customSections), [char.customSections])
 
-  // Same Spells gate as the classic tabs / Codex: a martial with no spells gets no empty pane, but
-  // a caster with none YET (or any editor) still reaches the place spells are added.
+  // Section RELEVANCE (D-12): a section only appears when it makes sense for THIS character's data — not
+  // for every editor. A Spellcaster (an ability/slots) OR anyone who actually HAS spells gets Spells; a
+  // Barbarian/Rogue with none does not (spells are added via the Build Kit / library / AI, which sets the
+  // data and makes the section appear). This is what keeps the sheet free of empty, class-irrelevant tabs.
   const hasSpellcasting =
     (char.spells?.length ?? 0) > 0 ||
     !!char.spellcasting?.ability ||
     Object.keys(char.spellcasting?.slots ?? {}).length > 0
+  const hasForms = (char.forms?.length ?? 0) > 0
 
   return useMemo(() => {
     const all: (SheetPanel & { module?: string; when?: boolean })[] = [
@@ -60,8 +68,10 @@ export function useFivePanels(): SheetPanel[] {
       { id: 'abilities', label: 'Abilities', emoji: '⬡', render: () => <Abilities /> },
       { id: 'combat', label: 'Combat', emoji: '❤', render: () => <><CombatPanel /><Resources /></> },
       { id: 'attacks', label: 'Attacks', emoji: '✦', render: () => <Attacks />, count: char.attacks?.length },
-      { id: 'spells', label: 'Spells', emoji: '✨', render: () => <SpellsPanel />, count: char.spells?.length, when: hasSpellcasting || canWrite },
-      { id: 'forms', label: 'Forms', emoji: '⇡', render: () => <><FormAbilities /><Forms /></>, module: 'forms' },
+      { id: 'spells', label: 'Spells', emoji: '✨', render: () => <SpellsPanel />, count: char.spells?.length, when: hasSpellcasting },
+      // Forms is now DATA-gated, not skin-module-gated: a character shows the shapeshift Forms section only
+      // if it actually HAS forms (so a Rogue on a forms-enabled skin like 'lazzuh' no longer inherits it).
+      { id: 'forms', label: 'Forms', emoji: '⇡', render: () => <><FormAbilities /><Forms /></>, when: hasForms },
       { id: 'features', label: 'Features', emoji: '✧', render: () => <><Features /><Balance /><Progression /></>, count: char.features?.length },
       { id: 'business', label: 'Business', emoji: '💎', render: () => <MlmPanel />, module: 'mlm' },
       { id: 'gear', label: 'Gear', emoji: '❖', render: () => <Inventory />, count: char.inventory?.length },
@@ -85,9 +95,69 @@ export function useFivePanels(): SheetPanel[] {
         ),
       },
       { id: 'gallery', label: 'Gallery', emoji: '◲', render: () => <CharacterGallery /> },
+      // Player-authored custom sections (D-13) — one panel each, editable inline by owners. They persist on
+      // `data.customSections`, so a section added on any template appears (and edits) on every template.
+      ...customSections.map((s) => ({
+        id: `custom:${s.id}`,
+        label: s.title,
+        emoji: s.icon || '✚',
+        count: s.blocks.length || undefined,
+        render: () => (
+          <section>
+            <div className="card">
+              <h3>{s.title}</h3>
+              <CustomSectionView
+                section={s}
+                editable={canWrite}
+                onChange={(next) =>
+                  setChar((ch) => ({
+                    ...ch,
+                    customSections: normalizeCustomSections(ch.customSections).map((x) => (x.id === next.id ? next : x)),
+                  }))
+                }
+                onDelete={() =>
+                  setChar((ch) => ({
+                    ...ch,
+                    customSections: normalizeCustomSections(ch.customSections).filter((x) => x.id !== s.id),
+                  }))
+                }
+              />
+            </div>
+          </section>
+        ),
+      })),
+      // Owner-only "Add section" pane (D-13) — the Codex/Dashboard/Play shells arrange the panel set with no
+      // chrome of their own, so the create entry point lives here (the Classic tab bar has its own button).
+      // Appends a section via the same store path; the new section then shows as its own pane.
+      ...(canWrite
+        ? [
+            {
+              id: 'custom-add',
+              label: 'Add section',
+              emoji: '＋',
+              render: () => (
+                <section>
+                  <div className="card">
+                    <h3>Add a custom section</h3>
+                    <p style={{ opacity: 0.75, marginTop: 0 }}>
+                      Build your own section — a vehicle, a contact list, downtime notes, anything the sheet
+                      doesn’t already track. It appears on every template.
+                    </p>
+                    <button
+                      className="btn"
+                      onClick={() => setChar((ch) => ({ ...ch, customSections: addSection(normalizeCustomSections(ch.customSections)) }))}
+                    >
+                      ＋ Add section
+                    </button>
+                  </div>
+                </section>
+              ),
+            } as SheetPanel,
+          ]
+        : []),
     ]
     return all
       .filter((d) => (!d.module || config.modules.includes(d.module as never)) && d.when !== false)
       .map(({ module: _m, when: _w, ...def }) => def)
-  }, [char, config.modules, hasSpellcasting, canWrite])
+  }, [char, config.modules, hasSpellcasting, hasForms, customSections, canWrite, setChar])
 }

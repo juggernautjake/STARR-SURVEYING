@@ -59,7 +59,9 @@ describe('IGSheet rollLine folds the stance in', () => {
   it('combines the condition + stance effects and cancels opposing adv/dis', () => {
     expect(SRC).toContain('igStanceRollEffect(ig.combat?.stances?.[0] ?? null, derived.level, kind)');
     expect(SRC).toContain('if (advantage && disadvantage) { advantage = false; disadvantage = false; }');
-    expect(SRC).toContain('Math.max(rollNaturalD20(), rollNaturalD20())'); // advantage keeps the higher
-    expect(SRC).toContain('Math.min(rollNaturalD20(), rollNaturalD20())'); // disadvantage keeps the lower
+    // Both d20 faces are kept for adv/dis so the roller can show the rolled pair and mark the chosen one
+    // (RO-5c): roll a second die only under adv/dis, then keep the higher (adv) or lower (dis).
+    expect(SRC).toContain('const n2 = advantage || disadvantage ? rollNaturalD20() : null;');
+    expect(SRC).toContain('advantage ? Math.max(n1, n2!) : disadvantage ? Math.min(n1, n2!) : n1');
   });
 });

@@ -18,7 +18,7 @@
 // rule is the whole point: there is no second computation for anything.
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from '../PF2ContentPicker';
@@ -36,6 +36,14 @@ import {
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionMechanics } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
+import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
+import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
+import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
+import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
+import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
+import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
+import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
+import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
 // The 5e panel set's shape, reused so all four systems speak one `SheetPanel` vocabulary. Type-only,
 // so nothing from the store-coupled 5e module is pulled into this prop-driven PF2 code at runtime.
 import type { SheetPanel } from '@/app/dnd/_sheet/panels/fivePanels';
@@ -106,6 +114,14 @@ export interface UsePf2PanelsArgs {
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
    *  to vanilla — the safe direction, matching the server. */
   variantKind?: 'vanilla' | 'custom';
+  /** The chosen roller template + animation pref + layout, so PF2 mounts the SAME animated dice roller
+   *  the 5e sheet does (RO-5). */
+  rollerTemplate?: string;
+  rollerAnim?: boolean;
+  layout?: string;
+  /** Player-authored custom sections (`data.customSections`, D-13), surfaced as a "Custom" panel and
+   *  persisted via the `/sections` route. */
+  customSections?: CustomSection[];
 }
 
 export interface Pf2PanelSet {
@@ -129,8 +145,9 @@ export interface Pf2PanelSet {
  * The PF2 panel set for THIS character. Owns all shared state and returns everything a format shell
  * needs to render the sheet. The Classic shell reproduces the previous `PF2Sheet` DOM exactly.
  */
-export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla' }: UsePf2PanelsArgs): Pf2PanelSet {
+export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections }: UsePf2PanelsArgs): Pf2PanelSet {
   const router = useRouter();
+  const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // ONE resolution for every headline number (S13b). The card and the roll both read `.total` from
   // this, which is the whole point: the sheet used to display `pf2SaveTotal` and roll that number
   // PLUS a condition penalty applied at the call site, so a Frightened character's card and dice
@@ -189,6 +206,11 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   // shared engine; result shows in the banner. RNG (auto mode); PF2 uses the four-step degree ladder once a DC
   // is supplied (a target-DC field is a later slice).
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  // The animated dice roller (RO-5): PF2 PUBLISHES each roll into the shared RollFeed as an `ActiveRoll`,
+  // so the same Dice Core / Sigil Stack / Roll Board / Impact stages (with animations + sounds) render it.
+  const [activeRoll, setActiveRoll] = useState<ActiveRoll | null>(null);
+  const rollTokenRef = useRef(0);
+  const noopCommit = useCallback(() => {}, []);
   // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
   const [targetDc, setTargetDc] = useState('');
   // Which Strike of the turn the Strikes block is showing: 0 = first, 1 = second, 2 = third or
@@ -221,10 +243,19 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       detail += ` · situational: ${stat.conditional.map((m) => `+${m.value} ${m.source} vs ${m.when}`).join('; ')}`;
     }
     setLastRoll({ label: name, total: r.total, detail, tone });
+    // Publish to the animated roller via the shared (unit-tested) builder — a straight d20 (PF2 folds
+    // adv/dis into the modifier), crit/fumble from a nat 20/1 OR the four-step degree.
+    setActiveRoll(buildD20ActiveRoll({
+      token: ++rollTokenRef.current, label: name, natural: r.natural, total: r.total, modifier: r.modifier,
+      crit: r.critical || r.degree === 'critical-success',
+      fumble: r.fumble || r.degree === 'critical-failure',
+      tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : stat.breakdown,
+    }));
   };
   const rollDamage = (name: string, expr: string) => {
     const r = rollDiceExpr(expr);
     setLastRoll({ label: name, total: r.total, detail: r.breakdown, tone: 'normal' });
+    setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label: name, total: r.total, breakdown: r.breakdown }));
   };
 
   const idBits = [id.ancestry && `${id.heritage ? id.heritage + ' ' : ''}${id.ancestry}`, id.background, id.className && `${id.className}${id.subclass ? ` (${id.subclass})` : ''}`, id.deity].filter(Boolean);
@@ -294,22 +325,23 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     </div>
   ) : null;
 
+  // ── The animated dice roller (RO-5) — the SAME Dice Core / Sigil Stack / Roll Board / Impact stages the
+  //    5e sheet uses, fed by PF2's own rolls through the shared RollFeed, with the on-roller template picker.
+  //    The Target-DC input (sets the four-step degree) stays on top; wrapped in `.dnd-sheet` so the stages'
+  //    scoped CSS resolves (the shell theme tokens are inherited from the PF2 sheet root). ──────────────────
+  const rollerId = resolveRollerTemplate(rollerTemplate, layout);
   const roller = (
-    // Roller controls + result banner (R1b) — tap a save/skill/Strike below; set a target DC for the degree.
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        🎲 Target DC
-        <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-          style={{ width: 56, fontSize: 14, fontWeight: 600, padding: '4px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
-      </label>
-      {lastRoll && (
-        <div className={styles.pf2RollBar}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 22, fontWeight: 700, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
-        </div>
-      )}
-    </div>
+    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim }}>
+      <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          🎲 Target DC
+          <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
+            style={{ width: 56, fontSize: 14, fontWeight: 600, padding: '4px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
+        </label>
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} />
+        {rollerStageFor(rollerId)}
+      </div>
+    </RollFeedProvider>
   );
 
   const overlays = (
@@ -667,6 +699,18 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
               </div>
             ))}
           </div>
+        </>
+      ),
+    },
+    {
+      // Player-authored custom sections (D-13) — the SAME renderer + editor as 5e/IG, persisted via the
+      // `/sections` route (PF2 has no live 5e store), buffered + saved by SectionsManager. Shown when the
+      // owner can add them OR any already exist.
+      id: 'pf2-custom', label: 'Custom', emoji: '✚', show: !!canEdit || customSecs.length > 0,
+      render: () => (
+        <>
+          <SectionHead title="Custom Sections" />
+          <SectionsManager characterId={characterId} initial={customSecs} canWrite={!!canEdit} />
         </>
       ),
     },

@@ -19,7 +19,7 @@
 //    The `data-density` attribute below is the JS-side mirror of those breakpoints, for content
 //    that cannot be reflowed by CSS alone.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { MIN_PANE_H, renderedHeight, type Pane } from './paneMath'
+import { MIN_PANE_H, renderedHeight, neededPaneHeight, type Pane } from './paneMath'
 import type { PaneStack as Stack } from './usePaneStack'
 
 export interface PaneDef {
@@ -55,6 +55,7 @@ function PaneView({
   pane: Pane
   stack: Stack
 }) {
+  const sectionRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   // An UNCONSTRAINED inner wrapper around the content: `bodyRef.scrollHeight` returns the CONTAINER
   // height when the pane is taller than its content, so it can't tell us the natural content height.
@@ -104,17 +105,27 @@ function PaneView({
     [def.id, pane.height, stack],
   )
 
-  // Measure the section's natural CONTENT height and report it as the pane's cap (D-11): the pane snaps
-  // to exactly the height that reveals its content (no empty space below) and can't be dragged taller.
-  // Measured on the UNCONSTRAINED inner wrapper (not the scroll body) + re-measured when the content
-  // resizes, since a section's content is per-character (a 2-spell list is far shorter than a 30-spell one).
+  // Measure the section's natural CONTENT height and report the pane height that reveals it with NO in-pane
+  // scroll (Part A). The pane's height covers the whole section — header + body(padding + content) + grab +
+  // borders — so the reported height must be the content PLUS that chrome, or the body scrolls and clips the
+  // last stretch of content (the old "not tall enough" bug, which measured only the inner content). The
+  // chrome outside the body (`section.offsetHeight − body.offsetHeight` = header + grab + borders, all
+  // flex:none) is stable even while the content overflows; the body's own padding is read from its computed
+  // style. Measured on the UNCONSTRAINED inner wrapper + re-measured when the content resizes (a section's
+  // content is per-character — a 2-spell list is far shorter than a 30-spell one).
   const setContentHeight = stack.setContentHeight
   useLayoutEffect(() => {
     const inner = contentRef.current
-    if (!inner || pane.collapsed) return
+    const body = bodyRef.current
+    const section = sectionRef.current
+    if (!inner || !body || !section || pane.collapsed) return
     const report = () => {
-      const h = inner.getBoundingClientRect().height
-      if (h > 0) setContentHeight(def.id, Math.ceil(h) + 8) // +8: a hair of breathing room past the content
+      const content = inner.getBoundingClientRect().height
+      if (content <= 0) return
+      const chromeOutsideBody = section.offsetHeight - body.offsetHeight // header + grab + pane borders
+      const cs = getComputedStyle(body)
+      const bodyPadV = parseFloat(cs.paddingTop || '0') + parseFloat(cs.paddingBottom || '0')
+      setContentHeight(def.id, neededPaneHeight(content, chromeOutsideBody, bodyPadV))
     }
     report()
     if (typeof ResizeObserver === 'undefined') return
@@ -135,7 +146,7 @@ function PaneView({
   }, [def.id, stack])
 
   return (
-    <section className={`codex-pane${pane.collapsed ? ' is-collapsed' : ''}`} style={{ height: h }} data-density={density} aria-label={def.label}>
+    <section ref={sectionRef} className={`codex-pane${pane.collapsed ? ' is-collapsed' : ''}`} style={{ height: h }} data-density={density} aria-label={def.label}>
       <header className="codex-pane-head">
         <button className="codex-pane-collapse" onClick={() => stack.collapse(def.id)} aria-expanded={!pane.collapsed} title={pane.collapsed ? `Expand ${def.label}` : `Collapse ${def.label} to its header`}>
           <span aria-hidden>{pane.collapsed ? '▸' : '▾'}</span>

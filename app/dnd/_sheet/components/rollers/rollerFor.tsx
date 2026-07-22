@@ -10,9 +10,14 @@ import DiceTray from '../DiceTray'
 import SigilStack from './SigilStack'
 import RollBoard from './RollBoard'
 import ImpactRoller from './ImpactRoller'
+import RollStage from '../RollStage'
+import { SigilStage } from './SigilStack'
+import { BoardStage } from './RollBoard'
+import { ImpactStage } from './ImpactRoller'
 import type { RollerTemplateId } from '@/lib/dnd/roller-templates'
 
-/** The 5e roller node for a template id. Exhaustive over the four ids; falls back to Dice Core. */
+/** The full 5e roller node (STAGE + the 5e controls that read the store) for a template id. Used inside
+ *  the 5e sheet. Exhaustive over the four ids; falls back to Dice Core. */
 export function rollerFor(id: RollerTemplateId): React.ReactNode {
   switch (id) {
     case 'sigil':
@@ -24,5 +29,23 @@ export function rollerFor(id: RollerTemplateId): React.ReactNode {
     case 'core':
     default:
       return <DiceTray />
+  }
+}
+
+/** Just the resolution STAGE for a template id — the animated visual (die tumble / sigil cascade / card
+ *  deal / number scramble) that reads only the `RollFeed`, with NONE of the 5e store-bound controls. This
+ *  is what the bespoke PF2/IG sheets mount (RO-5): they publish their rolls into the feed and pair the
+ *  stage with their OWN controls, so the same animations + sounds + template picker work on every system. */
+export function rollerStageFor(id: RollerTemplateId): React.ReactNode {
+  switch (id) {
+    case 'sigil':
+      return <SigilStage />
+    case 'board':
+      return <BoardStage />
+    case 'impact':
+      return <ImpactStage />
+    case 'core':
+    default:
+      return <RollStage />
   }
 }
