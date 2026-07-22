@@ -79,6 +79,14 @@ export interface TargetLedger {
    *  weak form lowers your scores, not just raises them (RAW). So this override bypasses the "highest wins,
    *  base is a candidate" rule that protects a strong character from a weak item. Ability-only in practice. */
   formOverride?: boolean;
+  /**
+   * True when the winning `set` came from the character's own SPECIES/RACE. A species defines an
+   * INTRINSIC base (its walk speed), not a buff competing to raise you — so like a form it REPLACES the
+   * base rather than only raising it. Without this, a 2014 Small race (Dwarf/Gnome/Halfling, all 25 ft)
+   * whose `speed_walk set 25` overlays the sheet's default 30 resolved to `max(30, 25) = 30`, silently
+   * dropping the reduced racial speed the catalog took care to record — a race contribution that should be
+   * wired but wasn't. (2024 species are 30/35, so the miss only ever showed on the SLOWER 2014 races.) */
+  speciesOverride?: boolean;
 }
 
 export interface LedgerSource {
@@ -392,10 +400,12 @@ const num = (v: Effect['value']): number => (typeof v === 'number' ? v : 0);
  * Giant Strength sets STR to 29, but a 30-STR character must not be dragged down to 29. Then every
  * `add` stacks on whatever won.
  */
-function resolveAgainst(entry: Pick<TargetLedger, 'override' | 'bonus' | 'formOverride'>, base: number): number {
-  // A form override REPLACES the base outright (a weak form lowers you); every other `set` is a candidate
-  // that can only RAISE the base (Storm Giant Strength never drags a stronger character down).
-  const winner = entry.override !== null ? (entry.formOverride ? entry.override : Math.max(base, entry.override)) : base;
+function resolveAgainst(entry: Pick<TargetLedger, 'override' | 'bonus' | 'formOverride' | 'speciesOverride'>, base: number): number {
+  // A form OR species override REPLACES the base outright (a weak form lowers you; a species defines your
+  // intrinsic base speed, which can be below the sheet's default 30); every other `set` is a candidate that
+  // can only RAISE the base (Storm Giant Strength never drags a stronger character down).
+  const replaces = entry.formOverride || entry.speciesOverride;
+  const winner = entry.override !== null ? (replaces ? entry.override : Math.max(base, entry.override)) : base;
   return winner + entry.bonus;
 }
 
@@ -458,14 +468,20 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
 
     let override: number | null = null;
     let formOverride = false;
+    // Which source kind produced the WINNING (highest) set — a species defining an intrinsic base (its walk
+    // speed) replaces the base like a form does, but ONLY when its set actually wins, so a faster buff item
+    // still beats it. Tracked separately from formOverride because a form replaces even when it isn't the
+    // highest set (a weak form lowers you), whereas a species only replaces when it's the surviving value.
+    let winningSetKind: SourceKind | null = null;
     for (const { src, effect } of mine) {
       if (effect.operation !== 'set' && effect.operation !== 'set_base') continue;
       const v = num(effect.value);
-      if (override === null || v > override) override = v;
+      if (override === null || v > override) { override = v; winningSetKind = src.kind; }
       // A form's set (a shape-shift) replaces the base outright, even downward. Tracked so resolveAgainst
       // skips the "base is a candidate" protection for this target.
       if (src.kind === 'form') formOverride = true;
     }
+    const speciesOverride = winningSetKind === 'species';
 
     let bonus = 0;
     for (const { effect } of mine) {
@@ -477,6 +493,7 @@ export function buildLedger(char: Character, ctx: LedgerContext = {}): EffectLed
     entry.override = override;
     entry.bonus = bonus;
     entry.formOverride = formOverride;
+    entry.speciesOverride = speciesOverride;
 
     const isNumeric = findTarget(target)?.valueType === 'number';
     entry.final =
