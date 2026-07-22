@@ -18,6 +18,7 @@ import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 import { usePf2Panels } from './pf2/usePf2Panels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
+import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 // The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -46,16 +47,17 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     return p ? <section id={p.id} className={styles.pf2Section}>{p.render()}</section> : null;
   };
 
-  // ── CODEX (T-5b) ──────────────────────────────────────────────────────────────────────────────
-  // The same PF2 panel set, arranged by the shared CodexShell. `.sheet-shell` (NOT `.dnd-sheet`) gives
-  // the shell its layout CSS without theme.css's element rules bleeding onto the PF2 panels; the two
-  // token sets ride on the root — `skinHxVars` for the PF2 panels' `--hx-*`, `shellThemeVars` for the
-  // shell's `--gold`/`--panel-rgb`/… — so the whole thing re-skins together.
-  if (layout === 'codex') {
+  // ── COLUMN FORMATS: Codex (T-5b) + Dashboard (T-5c) ───────────────────────────────────────────
+  // Both arrange the same PF2 panel set around an identity column, differing only in how the body is
+  // shown (Codex = a resizable pane rail; Dashboard = a card grid). `.sheet-shell` (NOT `.dnd-sheet`)
+  // gives the shell its layout CSS without theme.css's element rules bleeding onto the PF2 panels; the
+  // two token sets ride on the root — `skinHxVars` for the PF2 panels' `--hx-*`, `shellThemeVars` for
+  // the shell's `--gold`/`--panel-rgb`/… — so the whole thing re-skins together.
+  if (layout === 'codex' || layout === 'dashboard') {
     // The left identity column is PF2's own "at a glance": who they are (header) + attributes + the
-    // defences/vitals block (AC/HP/saves). The rail then holds everything else in stackable panes.
-    const railIds = new Set(['pf2-attributes', 'pf2-defenses']);
-    const railPanels = panels.filter((p) => !railIds.has(p.id));
+    // defences/vitals block (AC/HP/saves). The body then holds everything else.
+    const identityIds = new Set(['pf2-attributes', 'pf2-defenses']);
+    const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
     const identity = (
       <aside className="codex-identity">
         {header}
@@ -65,13 +67,11 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     );
     return (
       <div className="sheet-shell" style={{ ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' }}>
-        <CodexShell
-          identity={identity}
-          panels={railPanels}
-          roller={roller}
-          above={banner}
-          storageKey={characterId}
-        />
+        {layout === 'codex' ? (
+          <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
+        ) : (
+          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} />
+        )}
         {/* Modals are fixed-position; they live outside the shell grid, same as in the Classic view. */}
         {overlays}
       </div>

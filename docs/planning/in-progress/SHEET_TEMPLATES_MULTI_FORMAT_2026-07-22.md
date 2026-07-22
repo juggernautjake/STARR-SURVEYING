@@ -237,8 +237,11 @@ compute their own). The clean decomposition:
   (Society +15 trained, Stealth +3, …) styled in the skin. Registry tests updated. _(The default-pane
   auto-open confirmed by code + tests; the dev server was serving a stale bundle — will re-confirm in
   T-8's production build.)_
-- [ ] **T-5c — PF2 Dashboard.** Feed `usePf2Panels()` into the Dashboard shell; add `dashboard` to
-  PF2. Browser-verify Orin × 5 skins.
+- [x] **T-5c — PF2 Dashboard.** The Codex branch generalised to both column formats: same PF2 identity
+  column (header + attributes + defenses), body panels fed to `DashboardShell` (card grid) instead of
+  the pane rail. `dashboard` added to PF2 `BUILT_FOR`. Browser-verified on Orin: identity column (AC 24
+  / HP 78 / saves / Spell DC 27) + card grid with real PF2 skills (Occultism +15 trained, …) and feats
+  (Seer Elf ancestry, Reach Spell). Registry test updated.
 - [ ] **T-5d — PF2 Play.** Feed `usePf2Panels()` into the Play shell (vitals band = AC/HP/class DC +
   saves; body = Strikes); add `play` to PF2. Browser-verify Orin × 5 skins.
 
