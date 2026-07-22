@@ -10,7 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
-import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { applySheetEdits, coerceEditsArray, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel, isSystemAvailable, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
@@ -85,7 +85,8 @@ const LEVELUP_BASE =
   'the full set of edits for every gained level. ' +
   // A large jump (many levels at once) can overflow one response and truncate the tool call — which
   // fails the whole edit. Keep descriptions SHORT so the complete edit set fits in a single call.
-  'IMPORTANT: keep every feature/spell/attack DESCRIPTION brief — one or two sentences of the core ' +
+  'IMPORTANT: return `edits` as a NATIVE JSON ARRAY of edit objects — do NOT wrap it in a string. ' +
+  'And keep every feature/spell/attack DESCRIPTION brief — one or two sentences of the core ' +
   'rule, not full flavour text — so the entire set of edits fits in ONE response without being cut off. ' +
   'Prioritise adding ALL the new levels’ mechanics (features, ASIs, spell slots, HP, proficiency) over ' +
   'long prose. A complete terse sheet beats a detailed truncated one.';
@@ -316,27 +317,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         ].filter(Boolean).join('\n\n'),
         tools: [SHEET_EDIT_TOOL],
         toolChoice: { type: 'tool', name: 'edit_sheet' },
-        maxTokens: 8192,
+        // 16000, not 8192. The model returns `edits` as a JSON-ENCODED STRING (see the coercion
+        // below), and the escaping roughly DOUBLES the token cost, so a full level-up truncated
+        // mid-array at 8192 — the real cause of the 502s. The higher ceiling lets the whole set fit.
+        maxTokens: 16000,
         temperature: 0.4,
       });
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : 'Level-up failed.' }, { status: 502 });
     }
-    // The model sometimes returns `edits` as a JSON-ENCODED STRING ("[{...}]") rather than a real
-    // array — a known quirk of forced tool calls with an array field. Coerce it: a stringified
-    // array parses back to the array, and every other case falls through to the guard below. Found
-    // by logging the raw tool input — the AI's level-up was correct, only its wrapping was off.
-    let edits = result?.input?.edits as unknown;
-    if (typeof edits === 'string') {
-      try { edits = JSON.parse(edits); } catch { /* leave as string → fails the guard below */ }
-    }
+    // The model returns `edits` as a JSON-ENCODED STRING ("[{...}]") rather than a real array — a
+    // known quirk of a forced tool call with an array field, proven by logging the raw tool input
+    // (the level-up content was correct, only its wrapping was off). `coerceEditsArray` parses a
+    // complete string, and SALVAGES the leading complete objects from a truncated one so a slightly
+    // over-long response still applies as many levels as fit rather than failing wholesale.
+    const edits = coerceEditsArray(result?.input?.edits);
     if (!Array.isArray(edits) || edits.length === 0) return NextResponse.json({ error: 'The AI did not produce a levelled-up sheet.' }, { status: 502 });
     const customList = Array.isArray(result?.input?.custom) ? result.input.custom.filter((c) => c && c.name) : [];
 
     // Seed from the CURRENT sheet (a deep clone), so the existing build is preserved and the edits
     // add on top — the whole point of levelling up rather than transposing.
     const seed = JSON.parse(JSON.stringify(currentData)) as Character;
-    const levelled = applySheetEdits(seed, edits as SheetEdit[]);
+    const levelled = applySheetEdits(seed, edits);
     // The AI must set the level, but pin it regardless so an omission never leaves the sheet at its
     // old level after a level-up.
     levelled.meta = { ...levelled.meta, level: targetLevel };

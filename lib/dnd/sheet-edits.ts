@@ -406,6 +406,54 @@ export function revertBatch(input: Character, batch: AuditedEdit[]): Character {
   return c;
 }
 
+/**
+ * Coerce the `edits` field of a forced `edit_sheet` tool call into a real array.
+ *
+ * WHY THIS EXISTS. With a forced tool call carrying an array parameter, the model sometimes returns
+ * `edits` as a JSON-ENCODED STRING (`"[{...}]"`) rather than a native array. Worse, that stringified
+ * form roughly doubles the token cost through escaping, so a long response can TRUNCATE mid-array,
+ * leaving invalid JSON. This was the cause of the level-up 502s — the content was correct, the
+ * wrapping was not. Kept here beside `applySheetEdits` because every AI edit path (level-up,
+ * transpose, the AI editor) can hit the same quirk.
+ *
+ * Handles three cases:
+ *   · already an array → returned as-is.
+ *   · a COMPLETE stringified array → `JSON.parse`.
+ *   · a TRUNCATED stringified array → salvage the leading complete objects, so an over-long
+ *     response still applies as many edits as arrived rather than failing wholesale. Salvage is a
+ *     safety net, not the happy path — the caller raises the token ceiling so truncation is rare.
+ */
+export function coerceEditsArray(raw: unknown): SheetEdit[] {
+  if (Array.isArray(raw)) return raw as SheetEdit[];
+  if (typeof raw !== 'string') return [];
+  const s = raw.trim();
+  try {
+    const parsed = JSON.parse(s);
+    return Array.isArray(parsed) ? (parsed as SheetEdit[]) : [];
+  } catch {
+    // Truncated. Walk the string tracking brace/bracket depth and string state, and cut at the end
+    // of the last COMPLETE top-level object, then close the array. A best-effort recovery — a
+    // partially-applied level-up beats a fully-rejected one, and the level/HP are pinned afterward.
+    let depth = 0, inStr = false, esc = false, lastComplete = -1;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{' || ch === '[') depth++;
+      else if (ch === '}' || ch === ']') { depth--; if (depth === 1 && ch === '}') lastComplete = i; }
+    }
+    if (lastComplete === -1) return [];
+    try {
+      const salvaged = JSON.parse(s.slice(0, lastComplete + 1) + ']');
+      return Array.isArray(salvaged) ? (salvaged as SheetEdit[]) : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
 /** Apply a validated edit list to a Character, returning a new Character (pure). */
 export function applySheetEdits(
   input: Character,
