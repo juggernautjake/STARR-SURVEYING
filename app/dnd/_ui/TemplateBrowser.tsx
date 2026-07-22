@@ -10,7 +10,6 @@
 // offered and broken. Selecting one POSTs to the /layout endpoint (which sets `data.sheetLayout`)
 // and refreshes, and the sheet re-renders in the new format.
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { templatesForSystem } from '@/lib/dnd/sheet-templates';
 import styles from './hextech.module.css';
 import FormatPreview from './FormatPreview';
@@ -25,7 +24,6 @@ export default function TemplateBrowser({
   /** The character's current `sheetLayout`; defaults to 'classic'. */
   current?: string;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -44,7 +42,11 @@ export default function TemplateBrowser({
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout: id }),
       });
       if (!r.ok) { const j = await r.json().catch(() => ({})); setMsg(j.error ?? 'Could not switch template.'); setBusy(null); return; }
-      router.refresh();
+      // FULL reload, not router.refresh(): the 5e sheet reads its layout from the CLIENT STORE
+      // (`char.sheetLayout`), which a soft refresh does NOT re-hydrate — so the new layout wouldn't show
+      // and the store could even autosave the OLD layout back over this write. A reload re-hydrates the
+      // store from the just-saved DB row, so the chosen template actually takes effect and sticks.
+      window.location.reload();
     } catch {
       setMsg('Network error — please try again.');
     } finally {
