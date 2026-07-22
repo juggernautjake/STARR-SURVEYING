@@ -2,7 +2,22 @@
 // theme is READABLE: computed WCAG contrast of body ink vs the panel/void grounds must clear AA (4.5:1). This
 // is the browser-free guarantee behind the owner's "3–4 color variation templates per template, readable".
 import { describe, it, expect } from 'vitest';
-import { themeVariantsFor, resolveThemeVariant, type ThemeVariant } from '@/app/dnd/_sheet/theme';
+import { themeVariantsFor, resolveThemeVariant, isThemeVariant, type ThemeVariant } from '@/app/dnd/_sheet/theme';
+
+describe('isThemeVariant — the /theme PATCH validator (U-3)', () => {
+  it('accepts the 5 universal themes on a normal style, rejects junk', () => {
+    for (const key of ['hextech', 'shadow-isles', 'noxus', 'freljord', 'void-prophet']) {
+      expect(isThemeVariant('default', key)).toBe(true);
+    }
+    for (const junk of ['pink', 'nope', '', null, undefined, 3]) expect(isThemeVariant('default', junk)).toBe(false);
+  });
+
+  it('honours the style: the streamer accepts its own 2 palettes, not the 5 universal ones', () => {
+    expect(isThemeVariant('streamer', 'pink')).toBe(true);
+    expect(isThemeVariant('streamer', 'blue')).toBe(true);
+    expect(isThemeVariant('streamer', 'noxus')).toBe(false);
+  });
+});
 
 function lum(hex: string): number {
   const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());

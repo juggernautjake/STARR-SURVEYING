@@ -64,11 +64,15 @@
   PF2 sheet on `skinVariant=noxus` resolved `--hx-gold-2=#d9a441` / `--hx-teal-1=#d98a45` /
   `--hx-line=rgba(200,50,63,.28)` (Noxus's amber/orange/crimson), distinct from the hextech default
   (`#c8aa6e`/`#0ac8b9`/gold line). tsc + eslint green.
-- [ ] **U-3 — `/theme` endpoint + cross-system persistence.** The theme choice (`skinVariant`) is a 5e
-  store field today; bespoke sheets have no store. Add `/api/dnd/characters/[id]/theme` (owner/DM-gated,
-  patches `data.skinVariant`) so the chip picker sets the theme for EVERY system — the twin of the
-  `/layout` endpoint. 5e keeps using the store `setChar` (which writes the same field); the picker uses
-  the endpoint so it works for PF2/IG too. Guard test (gates + patches only the one field).
+- [x] **U-3 — `/theme` endpoint + cross-system persistence.** New `/api/dnd/characters/[id]/theme`
+  (owner/DM-gated, twin of `/layout`, `/roller`, `/preferences`): patches `data.skinVariant`, or clears it
+  on null/'' (back to the style's native colours). The key is validated by a new `isThemeVariant(skin,
+  key)` helper against `themeVariantsFor(sheet_type)`, so a request can never park a character on a theme
+  its style can't render (streamer's 2 vs the 5 universal). 5e still writes the same field via the store;
+  the picker will use this endpoint so it works for PF2/IG too. Browser-VERIFIED end to end: POST
+  `freljord` → `{ok, theme:'freljord'}`, an invalid key → 400 "not available for this character's style",
+  `null` → `{ok, theme:null}` (cleared). `isThemeVariant` unit-tested (5 universal accepted on a normal
+  style, streamer honours its own 2). tsc + eslint + 31 theme tests green.
 - [ ] **U-4 — the unified chip-picker block (replaces the dropdowns).** One `SheetChrome` component,
   page chrome just below the Build Kit, for EVERY system, rendering THREE chip rows in the `SkinSwitch`
   idiom (a labelled row of `btn`-chips, the active one highlighted + swatch): **Style** (all skins),

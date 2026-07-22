@@ -334,6 +334,13 @@ export function resolveThemeVariant(skin: string | undefined, key: string | unde
   return variants.find((v) => v.key === key) ?? variants[0];
 }
 
+/** Is `key` a theme a character on this `skin` can actually choose? Used to validate the `/theme` PATCH
+ *  (U-3) so a request can never park a character on a theme its style has no palette for (streamer has
+ *  its own 2; every other style has the 5 universal themes). */
+export function isThemeVariant(skin: string | undefined, key: unknown): key is string {
+  return typeof key === 'string' && themeVariantsFor(skin).some((v) => v.key === key);
+}
+
 // Map a SheetTheme to the CSS custom properties theme.css consumes. Returns a
 // style object suitable for the `.dnd-sheet` root; an empty/undefined theme yields
 // no overrides (the stylesheet's Lazzuh defaults apply).
