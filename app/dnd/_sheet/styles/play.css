@@ -67,17 +67,26 @@
   gap: 8px;
 }
 
-/* THE HERO — vitals big and forward. The scale bump enlarges the reused CombatPanel's own text
+/* THE HERO ZONES — vitals, quick-roll and attacks read as one consistent set of framed cards so the
+   eye groups "the things I touch this turn", with the vitals card marked as the primary one by a gold
+   top accent. Pass 1 = hierarchy & rhythm. The scale bump enlarges the reused CombatPanel's own text
    without touching its markup; the one-answer numbers stay the sheet's, just bigger. */
+.dnd-sheet .play-vitals,
+.dnd-sheet .play-quickroll {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.7), rgba(var(--void-rgb), 0.45));
+}
+/* The vitals are THE hero — a gold top edge lifts them above the rest of the set. */
 .dnd-sheet .play-vitals {
   font-size: 15px;
+  border-top: 2px solid var(--gold);
 }
 .dnd-sheet .play-vitals .btn {
   font-size: 14px;
   padding: 9px 14px;
-}
-.dnd-sheet .play-quickroll {
-  min-width: 0;
 }
 
 /* Section headings shared by the hero + drawer. */
