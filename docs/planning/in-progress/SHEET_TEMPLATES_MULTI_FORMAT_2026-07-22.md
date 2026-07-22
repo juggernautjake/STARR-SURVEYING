@@ -135,6 +135,30 @@ rollers, then the styling passes, then whole-matrix QA. A slice is done ONLY whe
   with real HP 31/31, ability tiles, Rapier/Shortbow/Dagger roll buttons, drawer opens to real
   panels. Registry test now expects 5e = all four formats.
 
+### Shell parameterization — the prerequisite the wiring slices depend on (found 2026-07-22)
+
+Reading the code for T-5a surfaced a real gap the plan glossed: **the Codex/Dashboard/Play shells are
+5e-coupled**. Each calls `useFivePanels()` and renders `IdentityColumn` (which reads the 5e `useChar`
+store) directly. Before PF2 or IG can render *in* those formats, the shells must stop hardcoding 5e.
+
+There is a scoping constraint that decides the shape of the fix: `useFivePanels()` internally calls
+`useSheetConfig()`/`useChar()`, which are only valid **inside** `SheetConfigProvider` — and `App`'s
+body runs ABOVE the provider it returns. So panels cannot be computed in `App` and passed down; they
+must be computed by a component rendered inside the provider (which is exactly why today's shells
+compute their own). The clean decomposition:
+
+- [ ] **T-SHELL — split each shell into a pure `FormatShell` + a per-system adapter.**
+  - A pure `FormatShell` variant (Codex/Dashboard/Play) that takes `{ identity: ReactNode, panels:
+    SheetPanel[], roller: ReactNode }` and arranges them — no `useChar`, no system knowledge.
+  - Thin 5e adapters rendered inside the provider that compute `useFivePanels()`, build
+    `<IdentityColumn/>` + `<DiceTray/>`, and pass them in. `App` swaps to these; 5e output unchanged.
+  - PF2/IG adapters (their own slices) compute `usePf2Panels()` / `useIgPanels()` and their own
+    identity + roller, then reuse the SAME `FormatShell`.
+  - Move the shared `SheetPanel` type to one module both `fivePanels` and the PF2/IG hooks import.
+  - Done: 5e Codex/Dashboard/Play render identically (browser-diff Perrin) through the new adapters;
+    no shell references `useChar`; the standing green bar. This unblocks T-5b–d and T-6b–d, which
+    then become "write a system adapter", not "rebuild a format".
+
 ### PF2 — panel set, then shells
 
 - [ ] **T-5a — PF2 panel set (`pf2PanelSet()`), default unchanged.** Extract the sections inside
