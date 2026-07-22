@@ -26,10 +26,12 @@
   `useFloatingDock` keeps `x/y` as the expanded position across a minimize (already persisted), and gains a
   separate fixed bottom-right style for the minimized button. Browser-verify: move roller → minimize →
   button sits bottom-right → open → roller returns to the moved spot.
-- [ ] **D-2 — Codex tabs: wider, bold, obviously clickable, readable on every style/theme.** Widen
-  `.codex-railtab`, bold + higher-contrast label, a clearer resting/hover/active affordance (border,
-  fill, a caret/chevron) so they read as buttons, using theme tokens only so all 5 styles × 5 themes stay
-  legible. Browser-verify on a couple styles/themes.
+- [x] **D-2 — Codex tabs: wider, bold, obviously clickable, readable on every style/theme.** `.codex-railtab`
+  is now wider (padding 14×11, min-width 40), BOLD (700) at 13.5px in full-contrast `--ink` (was the faint
+  `--muted` that read as disabled), with a real border (`--line-strong`), inset depth, a hover lift, and a
+  `◂` chevron at the foot pointing where the pane opens — gold + filled `◀` on the open tab. All token-only
+  so every style/theme stays legible. Browser-VERIFIED on Perrin's Codex (Shadow Isles): the rail reads as
+  bold, bordered, obviously-clickable tabs with the open ones gold-outlined + gold chevron. tsc/eslint clean.
 - [ ] **D-3 — Impact roller: slightly slower + longer tumble.** Lengthen the Impact `TUMBLE` and ease the
   scramble interval a touch (keep the sounds), so the die spins a bit longer before landing. Respect the
   instant/reduced-motion path unchanged.
@@ -50,6 +52,15 @@
   `entry.breakdown` (and the adv/dis kept-pair) inline, remove any collapse/expand gating on it. Keep it
   readable on every style/theme. Browser-verify a d20 with advantage + a conditional penalty shows the
   whole chain.
+
+- [ ] **D-8 — purge Lazzuh Gun defaults bleeding into other characters.** Lazzuh Gun (the original
+  vendored sample character) has flavour text / feats / gear / ability descriptions hardcoded as DEFAULTS
+  that show up on unrelated characters and templates. CONFIRMED example: the 5e ABILITY SCORES panel prints
+  "Built for a hands-on brawler: Strength carries the punches… Dexterity powers his Unarmored Defense and
+  laser aim" on Perrin, a Rogue — "brawler / Unarmored Defense / laser aim" is Lazzuh's monk-gunner flavour.
+  Search the sheet panels + blank-character defaults + system data for Lazzuh-specific strings and either
+  drive them from the character's OWN data or make them generic; ensure a fresh/other character never
+  inherits Lazzuh's feats/gear/descriptions. Browser-verify a non-Lazzuh character shows no Lazzuh flavour.
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact
