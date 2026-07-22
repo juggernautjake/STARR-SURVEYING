@@ -153,7 +153,14 @@ export function hasVariant(active: ActiveSheet, variants: SystemVariants, system
 /** A flat, UI-friendly list of ALL of a character's sheets (active + variants), each with its slot id,
  *  system, kind and display name (Area MV1b) — what the switcher/"+" UI renders. `systemLabelFn` supplies a
  *  human system name for the auto-default sheet name. */
-export interface SheetSlot { slotId: string; system: string; kind: SheetVariantKind; name: string; active: boolean }
+export interface SheetSlot { slotId: string; system: string; kind: SheetVariantKind; name: string; active: boolean; level: number }
+/** The character level a sheet's data records, read defensively (data is `unknown` here). Defaults
+ *  to 1 so a blank/legacy sheet never reads as level 0. Used by the switcher to show each version's
+ *  level and to offer "level up to match a higher version". */
+function levelOf(data: unknown): number {
+  const lvl = (data as { meta?: { level?: unknown } } | null)?.meta?.level;
+  return typeof lvl === 'number' && lvl >= 1 ? Math.floor(lvl) : 1;
+}
 export function listSheets(active: ActiveSheet, variants: SystemVariants, systemLabelFn: (s: string) => string): SheetSlot[] {
   const nameFor = (v: { name?: string; kind?: SheetVariantKind }, system: string): string =>
     (v.name && v.name.trim()) || defaultVariantName(systemLabelFn(system), variantKind(v));
@@ -164,10 +171,11 @@ export function listSheets(active: ActiveSheet, variants: SystemVariants, system
     kind: variantKind(active),
     name: nameFor(active, normalizeSystem(active.system)),
     active: true,
+    level: levelOf(active.data),
   }];
   for (const [k, v] of Object.entries(variants)) {
     const system = variantSystemOf(v, k);
-    out.push({ slotId: k, system, kind: variantKind(v), name: nameFor(v, system), active: false });
+    out.push({ slotId: k, system, kind: variantKind(v), name: nameFor(v, system), active: false, level: levelOf(v.data) });
   }
   return out;
 }

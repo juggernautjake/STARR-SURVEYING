@@ -115,6 +115,20 @@ describe('multi-slot listing (Area MV1b)', () => {
     expect(sheets[0].name).toBe('D&D 5e (2024) · Vanilla'); // auto-named from the label + default kind
   });
 
+  // The level per sheet (owner 2026-07-22) — the switcher shows 2024·Lv13 beside 2014·Lv5, and the
+  // level-up-to-match flow needs each version's level to know which is the higher target.
+  it('reports each sheet’s level from its data, defaulting to 1', () => {
+    // active = Lv 5 (from `active.data.meta.level`); a 2014 variant at Lv 13; a slot with no level → 1.
+    const v = readVariants({
+      'dnd5e-2014': { data: { meta: { name: 'Kael', level: 13 } }, sheet_type: 'default', system: 'dnd5e-2014' },
+      'pathfinder2e': { data: {}, sheet_type: 'default', system: 'pathfinder2e' }, // no meta.level
+    });
+    const sheets = listSheets(active, v, label);
+    expect(sheets.find((s) => s.active)!.level).toBe(5);
+    expect(sheets.find((s) => s.system === 'dnd5e-2014')!.level).toBe(13);
+    expect(sheets.find((s) => s.system === 'pathfinder2e')!.level).toBe(1); // defaulted, never 0
+  });
+
   it('readVariants + listSheets support TWO sheets for the same system (slot-keyed)', () => {
     // a slot-keyed map: two dnd5e-2024 sheets (vanilla + custom) under distinct slot ids
     const raw = {

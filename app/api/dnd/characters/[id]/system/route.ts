@@ -13,7 +13,7 @@ import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
-import { normalizeSystem, systemLabel, isSystemAvailable } from '@/lib/dnd/systems';
+import { normalizeSystem, systemLabel, isSystemAvailable, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
 import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, listSheets, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { pickSourceSheet } from '@/lib/dnd/transpose/source-sheet';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -61,6 +61,52 @@ const TRANSPOSE_ALLOW_CUSTOM =
 function transposeSystemPrompt(allowCustom: boolean): string {
   return TRANSPOSE_BASE + (allowCustom ? TRANSPOSE_ALLOW_CUSTOM : TRANSPOSE_VANILLA_ONLY);
 }
+
+// The LEVEL-UP prompt (Area MV, owner 2026-07-22): raise an EXISTING sheet to a higher level, in its
+// OWN system, matching a reference version of the same character built in another system at that
+// higher level. Distinct from transpose in three ways that matter: (a) it does NOT change system —
+// the sheet stays in its own edition/system; (b) it PRESERVES the existing build and adds levels on
+// top rather than rebuilding from scratch; (c) the reference is a TARGET TO MATCH for power and
+// capability, not a character to reproduce mechanic-for-mechanic. So the owner's example works: a
+// 2014 sheet at level 5 is raised to level 13 to sit beside the 2024 version, using 2014's rules.
+const LEVELUP_BASE =
+  'You are LEVELLING UP an existing tabletop RPG character to a higher level, WITHIN ITS OWN game ' +
+  'system — you are NOT changing systems. You are given the character’s CURRENT sheet (at its ' +
+  'current level) and a REFERENCE version of the SAME character built in a DIFFERENT system at the ' +
+  'higher TARGET level. Extend the current sheet from its current level UP TO the target level using ' +
+  'THIS system’s own rules: add the class features, subclass features, ability score increases, ' +
+  'feat/ASI slots, spell progression (new spell levels, more slots, more known/prepared spells), hit ' +
+  'points (recompute MAX HP for the new level from the hit die + CON across all levels), proficiency ' +
+  'bonus, and anything else this system grants across the gained levels. KEEP everything the character ' +
+  'already has — do NOT remove, reset, or re-roll existing choices; build ON TOP of them. Match ' +
+  'the reference version’s POWER and CAPABILITIES as closely as this system’s rules allow, ' +
+  'so the two versions feel like the same character at the same level. You MUST set the new level ' +
+  '(set_level to the target level) and the new MAX HP AND CURRENT HP (full). Call edit_sheet ONCE with ' +
+  'the full set of edits for every gained level.';
+
+const LEVELUP_VANILLA_ONLY =
+  ' Use ONLY this system’s official content for the new levels — official classes, subclasses, ' +
+  'feats, spells and features. Where the reference version has a capability this system has no vanilla ' +
+  'equivalent for, choose the closest legal option and note it in `summary`. Leave `custom` empty.';
+
+const LEVELUP_ALLOW_CUSTOM =
+  ' Prefer this system’s official content for the new levels, but wherever no vanilla option can ' +
+  'reproduce a signature capability the reference version has, you SHOULD create the BALANCED custom ' +
+  'feature, feat, spell, subclass option or ability needed to get as close to the reference as possible ' +
+  '— while keeping THIS system’s mechanics and format, and balancing it against comparable ' +
+  'vanilla content of the new level. Record EVERY invented element in `custom` (type, name, note) and ' +
+  'prefix each in `summary` with "CUSTOM:", so the user sees exactly what is homebrew.';
+
+function levelupSystemPrompt(allowCustom: boolean): string {
+  return LEVELUP_BASE + (allowCustom ? LEVELUP_ALLOW_CUSTOM : LEVELUP_VANILLA_ONLY);
+}
+
+/** The systems whose sheets are the SHARED 5e engine `Character` shape, which the level-up flow
+ *  edits through `edit_sheet`/`applySheetEdits`. PF2 and IG store their real sheet in `data.pf2e` /
+ *  `data.ig` with their own edit paths, so an `edit_sheet` level-up would silently touch only their
+ *  blank 5e projection — hence they are handled separately (a rebuild via Switch/Transpose), and the
+ *  action refuses rather than pretending to work. */
+const SHARED_ENGINE_SYSTEMS = new Set(['dnd5e-2014', 'dnd5e-2024', SYSTEM_AMBIGUOUS]);
 
 /** A COMPLETE, readable digest of the source character so the AI can faithfully recreate everything it can do
  *  (Area MV/transpose quality). Unlike a name-only summary, this carries the descriptions, numbers and rules
@@ -215,6 +261,106 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       .eq('id', params.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, kind: 'delete', slotId: body.slotId });
+  }
+
+  // ── Level UP the ACTIVE sheet to match another version (Area MV, owner 2026-07-22). ──
+  // The owner's example: a 2024 sheet built to level 13 and a 2014 sheet built only to level 5, both
+  // kept as independent versions. Switch to the 2014 sheet and AI-level it up to 13 to sit beside the
+  // 2024 version — using 2014's rules, vanilla or balanced-custom. This edits the CURRENT sheet IN
+  // PLACE (the owner chose in-place over a new slot), so it raises the version you are looking at.
+  if (body?.action === 'levelup' && typeof body?.referenceSlotId === 'string') {
+    if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured — cannot level up.' }, { status: 503 });
+    // Only the shared-engine systems can be levelled through `edit_sheet`. A PF2/IG sheet lives in
+    // `data.pf2e` / `data.ig` with its own model; an `edit_sheet` level-up would touch only its blank
+    // 5e projection and appear to do nothing. Refuse honestly and point at the working path.
+    if (!SHARED_ENGINE_SYSTEMS.has(active.system)) {
+      return NextResponse.json({
+        error: `Levelling up in place isn't available for ${systemLabel(active.system)} yet — its sheet uses a different engine. Use Switch / Transpose to rebuild the ${systemLabel(active.system)} sheet at the higher level instead.`,
+      }, { status: 400 });
+    }
+    // The active sheet is `unknown`-typed on ActiveSheet; here it is the shared 5e Character (guarded
+    // above), so take a typed view of it once.
+    const currentData = (active.data as Character | null) ?? blankCharacter(row.name);
+    // The version to MATCH — a stored slot, ideally at a higher level. It may be any system.
+    const ref = variants[body.referenceSlotId];
+    if (!ref) return NextResponse.json({ error: 'No such reference sheet.' }, { status: 400 });
+    const refChar = (ref.data as Character | null) ?? blankCharacter(row.name);
+    const targetLevel = Math.max(1, refChar.meta.level || 1);
+    const currentLevel = Math.max(1, currentData.meta.level || 1);
+    if (targetLevel <= currentLevel) {
+      return NextResponse.json({ error: `The reference version is level ${targetLevel}, which is not higher than this sheet's level ${currentLevel}. Pick a higher-level version to match.` }, { status: 400 });
+    }
+
+    const label = systemLabel(active.system);
+    const grounding = await systemGroundingBlock(active.system, `level ${currentData.meta.name} up to level ${targetLevel}`).catch(() => null);
+
+    type CustomEntry = { type: string; name: string; note?: string };
+    let result;
+    try {
+      result = await dndToolCall<{ summary?: string; edits: SheetEdit[]; custom?: CustomEntry[] }>({
+        system: [levelupSystemPrompt(allowCustom), grounding?.instruction].filter(Boolean).join('\n\n'),
+        user: [
+          `This character is a level-${currentLevel} ${label} character. Level them UP to level ${targetLevel} using ${label}'s own rules, keeping everything they already have and adding every level from ${currentLevel + 1} to ${targetLevel}.`,
+          allowCustom
+            ? 'Custom content IS permitted where no vanilla option can match the reference version — invent balanced homebrew for the new levels and record each in `custom`.'
+            : 'Custom content is NOT permitted — use only official content for the new levels.',
+          `THE CURRENT ${label} SHEET (level ${currentLevel}) — keep and extend this:\n${sheetDigest(currentData)}`,
+          `THE REFERENCE VERSION to match in power and capability (system: ${systemLabel(ref.system ?? SYSTEM_AMBIGUOUS)}, level ${targetLevel}):\n${sheetDigest(refChar)}`,
+          grounding?.block || null,
+        ].filter(Boolean).join('\n\n'),
+        tools: [SHEET_EDIT_TOOL],
+        toolChoice: { type: 'tool', name: 'edit_sheet' },
+        maxTokens: 8192,
+        temperature: 0.4,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Level-up failed.' }, { status: 502 });
+    }
+    const edits = result?.input?.edits;
+    if (!Array.isArray(edits) || edits.length === 0) return NextResponse.json({ error: 'The AI did not produce a levelled-up sheet.' }, { status: 502 });
+    const customList = Array.isArray(result?.input?.custom) ? result.input.custom.filter((c) => c && c.name) : [];
+
+    // Seed from the CURRENT sheet (a deep clone), so the existing build is preserved and the edits
+    // add on top — the whole point of levelling up rather than transposing.
+    const seed = JSON.parse(JSON.stringify(currentData)) as Character;
+    const levelled = applySheetEdits(seed, edits);
+    // The AI must set the level, but pin it regardless so an omission never leaves the sheet at its
+    // old level after a level-up.
+    levelled.meta = { ...levelled.meta, level: targetLevel };
+
+    // HP safety net — same as transpose: a level-up that forgot to raise HP would leave a level-13
+    // character on level-5 hit points. Recompute from the level + hit die when it looks unset/stale.
+    const conMod = Math.floor(((levelled.abilities?.con ?? 10) - 10) / 2);
+    const expectedMin = fallbackMaxHp(targetLevel, levelled.combat.hitDiceSize || 8, conMod);
+    if (!levelled.combat.maxHp || levelled.combat.maxHp < expectedMin * 0.6) {
+      levelled.combat.maxHp = expectedMin;
+    }
+    levelled.combat.currentHp = levelled.combat.maxHp;
+    levelled.combat.hitDiceTotal = targetLevel;
+    levelled.combat.hitDiceRemaining = targetLevel;
+
+    // Flag every AI-invented element as customized, exactly as transpose does, so the new homebrew
+    // is visible on the sheet and in the customization summary.
+    if (customList.length) {
+      const isCustom = (n: string) => customList.some((c) => c.name.trim().toLowerCase() === n.trim().toLowerCase());
+      levelled.features = levelled.features.map((f) => (isCustom(f.name) ? { ...f, customized: true } : f));
+      levelled.attacks = levelled.attacks.map((a) => (isCustom(a.name) ? { ...a, customized: true } : a));
+      levelled.spells = (levelled.spells ?? []).map((s) => (isCustom(s.name) ? { ...s, customized: true } : s));
+      levelled.inventory = levelled.inventory.map((i) => (isCustom(i.name) ? { ...i, customized: true } : i));
+    }
+
+    // In place: update the active sheet's `data` column only. The active slot metadata (kind/name)
+    // is unchanged, and no new slot is created — this raises the version the player switched to.
+    const { error } = await supabaseAdmin.from('dnd_characters').update({ data: levelled }).eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const violations = validateCharacterForSystem(levelled, active.system);
+    return NextResponse.json({
+      ok: true, kind: 'levelup', system: active.system,
+      fromLevel: currentLevel, toLevel: targetLevel, allowedCustom: allowCustom,
+      summary: result?.input?.summary ?? null, editCount: edits.length,
+      custom: customList, hp: levelled.combat.maxHp, violations,
+    });
   }
 
   // A forced transpose (Area MV): build ANOTHER sheet for `target` via the AI, as a NEW slot, keeping any

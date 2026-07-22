@@ -20,8 +20,8 @@ export default function SystemSwitcher({
   characterId: string;
   activeSystem: string;
   builtSystems: string[];
-  /** Every sheet the character holds (Area MV2c): active + each stored slot, with kind + name. */
-  sheets?: { slotId: string; system: string; kind: 'vanilla' | 'custom'; name: string; active: boolean }[];
+  /** Every sheet the character holds (Area MV2c): active + each stored slot, with kind + name + level. */
+  sheets?: { slotId: string; system: string; kind: 'vanilla' | 'custom'; name: string; active: boolean; level: number }[];
   aiConfigured: boolean;
   /** Whether custom content is allowed for this character/campaign — gates the transpose consent prompt (TR2). */
   allowCustom?: boolean;
@@ -151,6 +151,39 @@ export default function SystemSwitcher({
     }
   }
 
+  // ── Level-up-to-match (Area MV, owner 2026-07-22) ──────────────────────────────────────────────
+  // Raise the ACTIVE sheet to match a higher-level version of the same character in another system.
+  // The owner's example: switch to the 2014 sheet (Lv 5) and level it up to match the 2024 sheet
+  // (Lv 13), vanilla or balanced-custom, in place. Only offered when the active sheet uses the shared
+  // 5e engine (2014/2024/ambiguous) — PF2/IG sheets have their own model and are rebuilt via transpose
+  // instead, so offering an inert button there would just confuse.
+  const SHARED_ENGINE = new Set(['dnd5e-2014', 'dnd5e-2024', SYSTEM_AMBIGUOUS]);
+  const activeSheetFull = sheets.find((s) => s.active);
+  // Candidate references: any OTHER sheet at a HIGHER level than the active one.
+  const levelUpTargets = activeSheetFull && SHARED_ENGINE.has(activeSheetFull.system)
+    ? sheets.filter((s) => !s.active && s.level > activeSheetFull.level)
+    : [];
+  const [levelUp, setLevelUp] = useState<{ ref: string; refName: string; refLevel: number } | null>(null);
+  const [levelUpResult, setLevelUpResult] = useState<{ fromLevel: number; toLevel: number; summary?: string | null; custom?: { type: string; name: string; note?: string }[] } | null>(null);
+
+  async function runLevelUp(referenceSlotId: string, useCustom: boolean) {
+    if (busy) return;
+    setLevelUp(null);
+    setBusy('__levelup'); setMsg(null); setLevelUpResult(null);
+    setTranspose({ system: activeSheetFull?.system ?? active, phase: 'working' });
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'levelup', referenceSlotId, allowCustom: useCustom }),
+      });
+      const j = await r.json().catch(() => ({}));
+      setTranspose(null);
+      if (!r.ok) { setMsg(j.error ?? 'Could not level up the sheet.'); return; }
+      setLevelUpResult({ fromLevel: j.fromLevel, toLevel: j.toLevel, summary: j.summary, custom: j.custom ?? [] });
+      router.refresh();
+    } catch { setMsg('Network error — please try again.'); setTranspose(null); } finally { setBusy(null); }
+  }
+
   // The active sheet (MV3) — its name + kind label shown on the switcher header so you always know which of
   // the character's sheets is live.
   const activeSheet = sheets.find((s) => s.active);
@@ -213,6 +246,9 @@ export default function SystemSwitcher({
                     >
                       {sh.active && <span aria-hidden style={{ fontSize: 8, color: 'var(--hx-teal-1)' }}>●</span>}
                       <span style={{ fontWeight: sh.active ? 600 : 400 }}>{sh.name}</span>
+                      {/* The version's LEVEL, so the owner can see 2024·Lv13 beside 2014·Lv5 at a glance
+                          and know which to level up toward. */}
+                      <span title={`Level ${sh.level}`} style={{ fontSize: 9.5, color: 'var(--hx-teal-1)', border: '1px solid currentColor', borderRadius: 4, padding: '0 4px' }}>Lv {sh.level}</span>
                       <span className={`${styles.kindPill} ${sh.kind === 'custom' ? styles.kindCustom : styles.kindVanilla}`}>
                         {sh.kind === 'custom' ? 'CUSTOM' : 'VANILLA'}
                       </span>
@@ -310,6 +346,61 @@ export default function SystemSwitcher({
                   Cancel
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Level up this sheet to match a higher-level version (Area MV). Only when the active
+              sheet is shared-engine AND a higher-level version exists to match. */}
+          {levelUpTargets.length > 0 && activeSheetFull && (
+            <div style={{ margin: '0 0 12px', padding: '10px 12px', border: '1px solid var(--hx-teal-2)', borderRadius: 8, background: 'rgba(10,200,185,0.06)', display: 'grid', gap: 8 }}>
+              <div>
+                <strong style={{ color: 'var(--hx-teal-1)', fontFamily: 'var(--hx-font-display)' }}>⬆ Level up this sheet</strong>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
+                  Your <strong>{systemLabel(activeSheetFull.system)}</strong> sheet is <strong>Lv {activeSheetFull.level}</strong>. Build it up to match a
+                  higher-level version — the AI adds the levels using {systemLabel(activeSheetFull.system)}’s rules and keeps everything you already have.
+                  Or level it by hand from the sheet’s <em>Manage Levels</em>.
+                </p>
+              </div>
+              {!levelUp ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {levelUpTargets.map((t) => (
+                    <button key={t.slotId} type="button" className={styles.hexBtn} style={{ padding: '5px 12px', fontSize: 12 }}
+                      disabled={!!busy || !aiConfigured}
+                      title={aiConfigured ? `Match “${t.name}” (${systemLabel(t.system)} · Lv ${t.level})` : 'AI is not configured'}
+                      onClick={() => setLevelUp({ ref: t.slotId, refName: t.name, refLevel: t.level })}>
+                      Match {t.name} <span style={{ color: 'var(--hx-teal-1)' }}>Lv {t.level}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                // Vanilla vs custom for the gained levels — the owner's exact ask: build with vanilla
+                // content, OR invent balanced homebrew to get as close to the reference as possible.
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--hx-text)' }}>
+                    Level up to <strong>Lv {levelUp.refLevel}</strong> to match <strong>{levelUp.refName}</strong> — how should the new levels be built?
+                  </span>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className={styles.hexBtn} style={{ padding: '6px 14px', fontSize: 12 }} disabled={!!busy} onClick={() => runLevelUp(levelUp.ref, false)}>
+                      📖 Vanilla only
+                    </button>
+                    <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} style={{ padding: '6px 14px', fontSize: 12 }} disabled={!!busy} onClick={() => runLevelUp(levelUp.ref, true)}>
+                      ✦ Allow balanced custom
+                    </button>
+                    <button type="button" className={styles.hexBtn} style={{ padding: '6px 12px', fontSize: 12, opacity: 0.8 }} disabled={!!busy} onClick={() => setLevelUp(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {levelUpResult && (
+                <div role="status" style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 7, background: 'rgba(212,175,55,0.08)', padding: '8px 10px', display: 'grid', gap: 5 }}>
+                  <strong style={{ fontSize: 12, color: 'var(--hx-gold-2)' }}>✓ Levelled up from Lv {levelUpResult.fromLevel} to Lv {levelUpResult.toLevel}</strong>
+                  {levelUpResult.summary && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{levelUpResult.summary}</p>}
+                  {levelUpResult.custom && levelUpResult.custom.length > 0 && (
+                    <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>✦ {levelUpResult.custom.length} custom {levelUpResult.custom.length === 1 ? 'element' : 'elements'} created for the new levels — flagged on the sheet.</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
