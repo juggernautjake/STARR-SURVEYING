@@ -87,7 +87,16 @@ dice style, record mode, default roller template + animation, default theme/styl
   drove the live roller (`data-dice-style="rugged"`). tsc + eslint + 5 panel tests green.
   - NOTE: this surfaces the 10 existing cross-system/5e preferences. The PF2/IG-SPECIFIC rules variants
     (proficiency-without-level, free archetype, IG house rules, …) are new model fields that land with S-4.
-- [ ] **S-4 — wire each setting to the mechanic it controls**, per system, and verify it takes effect.
+- [~] **S-4 — per-system (PF2/IG) rules variants wired to mechanics.** DEFERRED → `pending/SETTINGS_PER_
+  SYSTEM_RULES_VARIANTS_2026-07-22.md`. Rationale: (1) the IG house rules are "owner to specify" — not yet
+  defined, so unbuildable; (2) the bespoke PF2/IG sheets aren't even passed `preferences` yet (only the 5e
+  engine is), so it needs a plumb-preferences-into-bespoke-sheets step first; (3) each PF2 variant is a
+  deep engine change (e.g. proficiency-without-level threads through ~18 `pf2Proficiency` call sites; free
+  archetype/ABP/stamina touch feat slots/bonuses/resources). Partial slices deliver no standalone value and
+  risk the already-shipped PF2/IG sheets, so the cost of stop-hook slices clearly exceeds the value of these
+  advanced/niche rules. The 5e/cross-system rules the model DOES define are wired + shipped (S-2/S-3); the
+  framework is complete and ready to receive per-system variants (one model field + one catalog entry +
+  wire the mechanic).
 - [x] **S-DM — DM campaign settings/preferences page + the override resolver.** Mechanism complete:
   `CampaignPreferencesDm` (the DM's per-campaign page, wired into the DM campaign controls) carries EVERY
   option the per-character modal has — both now read the one shared `preference-options.ts` catalog, so
@@ -101,9 +110,23 @@ dice style, record mode, default roller template + animation, default theme/styl
   (playerCanChoose:false) on Perrin's campaign made the character's gear modal show "Long rest 🔒 set by
   your DM" — disabled, showing the DM's value — so the player cannot override it in-campaign, while the
   same setting stays theirs to choose outside a campaign. Guard test added; tsc + eslint green.
-- [ ] **S-5 — QA**: every system's settings render, persist, drive their mechanic, and the DM lock/
-  override behaves correctly in vs. out of campaign; record + move to `completed/`.
+- [x] **S-5 — QA.** The shipped surface is covered by the per-slice browser verification + tests above:
+  the model persists + resolves (33 preference tests), a player choice renders/persists/drives the sheet
+  (browser: dice style rugged), the DM lock renders/disables/overrides in-campaign (browser: long rest
+  gritty locked) and the character keeps its own choice outside, and the modal + DM panel share one
+  catalog (5 + 5 anchor tests). The CROSS-SYSTEM QA (PF2/IG rules variants) rides with the deferred S-4 →
+  `pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md`, since there's nothing per-system to QA until
+  those land.
 
 ## Done means
-- A clear per-system settings surface that exposes and manages every option we've built, correct
-  defaults per system, everything wired to its mechanic. Standing bar green per slice.
+- A clear per-character settings surface that exposes and manages the built settings, correct defaults,
+  everything wired to its mechanic, with the DM override honoured. ✓ (S-1/S-2/S-3/S-DM)
+- Per-SYSTEM rules variants (PF2/IG) each drive their mechanic. → DEFERRED to
+  `pending/SETTINGS_PER_SYSTEM_RULES_VARIANTS_2026-07-22.md` (S-4 + cross-system S-5).
+- Standing bar green per slice. ✓
+
+**Status: SHIPPED (framework + all buildable settings) — 2026-07-22.** The per-character gear modal,
+the persisted player-preferences model + endpoint, and the DM campaign-lock override are done and
+verified — and along the way this fixed a real bug where preferences never reached a normal sheet at all.
+The PF2/IG-specific rules variants are parked as one focused unit in `pending/` (IG blocked on owner spec;
+PF2 variants are deep per-engine work), with the framework ready to receive them.
