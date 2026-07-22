@@ -124,6 +124,18 @@ export function resizePane(panes: Pane[], id: string, height: number): Pane[] {
   })
 }
 
+/** The pane HEIGHT needed to reveal `content` px of section content with NO in-pane scroll (Part A).
+ *
+ *  The pane's set height covers the whole `.codex-pane`: header + body(padding + content) + grab + borders.
+ *  Measuring the inner content alone and using THAT as the pane height (the old bug) left every auto-opened
+ *  pane ~60px short — the body scrolled and clipped the last stretch of content. So the needed height is the
+ *  content plus everything around it: `chromeOutsideBody` (header + grab + pane borders — the flex:none parts,
+ *  a stable figure regardless of overflow) and the body's own vertical padding. All clamped ≥0 so a
+ *  transient zero measurement can't produce a negative. +2 is a hair of breathing room. */
+export function neededPaneHeight(content: number, chromeOutsideBody: number, bodyPadV: number): number {
+  return Math.ceil(Math.max(0, content) + Math.max(0, chromeOutsideBody) + Math.max(0, bodyPadV)) + 2
+}
+
 /** Record a section's natural CONTENT height (D-11) and size the pane to it.
  *
  *  The owner's rule, in two parts:

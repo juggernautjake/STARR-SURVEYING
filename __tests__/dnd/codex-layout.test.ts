@@ -14,6 +14,7 @@ import {
   MIN_PANE_H,
   capPaneToContent,
   closePane,
+  neededPaneHeight,
   openPane,
   renderedHeight,
   resizePane,
@@ -175,6 +176,29 @@ describe('content-height cap (D-11 — a section opens at content height, only s
     expect(resizePane(capped, 's', 999)[0].height).toBe(260) // clamped up-drag to the cap
     expect(resizePane(capped, 's', 140)[0].height).toBe(140) // shrinking is allowed
     expect(resizePane(capped, 's', 10)[0].height).toBe(MIN_PANE_H) // still floored at the minimum
+  })
+})
+
+describe('neededPaneHeight (Part A — content + chrome, so the open pane never clips)', () => {
+  it('adds the chrome outside the body AND the body padding to the content', () => {
+    // 300px of content + (header+grab+borders = 46) + (10+10 body padding = 20) → 366 + 2 breathing = 368.
+    expect(neededPaneHeight(300, 46, 20)).toBe(368)
+  })
+
+  it('is why the old measurement clipped: content ALONE is ~66px short of the needed pane height', () => {
+    const content = 500
+    const needed = neededPaneHeight(content, 46, 20)
+    expect(needed).toBeGreaterThan(content) // the pane must be TALLER than the content it holds
+    expect(needed - content).toBe(68) // 46 chrome + 20 padding + 2 breathing — the clipped stretch
+  })
+
+  it('clamps negative/zero inputs so a transient 0 measurement never yields a negative height', () => {
+    expect(neededPaneHeight(0, 0, 0)).toBe(2)
+    expect(neededPaneHeight(-50, -10, -10)).toBe(2)
+  })
+
+  it('rounds up so a fractional content height never leaves a sub-pixel scroll', () => {
+    expect(neededPaneHeight(300.4, 45.6, 20)).toBe(368) // ceil(300.4+45.6+20)=366, +2
   })
 })
 
