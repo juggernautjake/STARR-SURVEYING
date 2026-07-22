@@ -23,6 +23,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
+import { shouldAnimateRoller } from './rollerAnim'
 import './impactRoller.css'
 
 type RowKind = 'die' | 'mod' | 'boost' | 'penalty'
@@ -35,10 +36,6 @@ interface BreakRow {
 
 const signed = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
 const D20_RE = /d20\[([^\]]*)\](?:→(\d+))?/
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 /** Split a damage/heal/expr breakdown into readable rows for the collapsible detail. The headline
  *  still owns the authoritative total, so an imperfect parse never changes the answer. */
@@ -91,7 +88,8 @@ function buildRows(roll: ActiveRoll): BreakRow[] {
 
 // ── The resolution stage: consumes `activeRoll`, tumbles the die, lands it big ────────────
 function ImpactStage() {
-  const { activeRoll, commitRoll } = useChar()
+  const { activeRoll, commitRoll, char } = useChar()
+  const animate = shouldAnimateRoller(char.rollerAnim)
   const [rows, setRows] = useState<BreakRow[]>([])
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>('idle')
   const [face, setFace] = useState<number | null>(null)
@@ -148,8 +146,9 @@ function ImpactStage() {
     setMeta({ crit: activeRoll.crit, fumble: activeRoll.fumble, total: entry.total, label: entry.label, landing, isD20, tag: entry.tag })
     primeAudio()
 
-    // Reduced motion: no tumble — land the die and headline immediately, still commit + chime.
-    if (prefersReducedMotion()) {
+    // Instant: no tumble — land the die and headline immediately, still commit + chime. Taken when the
+    // player turned animation off (RO-6) OR the OS asks for reduced motion (`shouldAnimateRoller`).
+    if (!animate) {
       setPhase('landed')
       setFace(landing)
       sound()

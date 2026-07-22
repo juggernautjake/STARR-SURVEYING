@@ -78,7 +78,7 @@ type TabId = (typeof TABS)[number]['id']
 
 export default function App({ theme, sheetType, system, ownerName }: { theme?: SheetTheme; sheetType?: string; system?: string; ownerName?: string | null }) {
   const [tab, setTab] = useState<TabId>('overview')
-  const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline } = useChar()
+  const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline, setChar } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
   // skin + which character-only modules to render.
@@ -146,7 +146,13 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   const rollerId = resolveRollerTemplate(char.rollerTemplate, layout)
   const rollerNode = (
     <>
-      <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={canWrite} />
+      <RollerTemplateBar
+        characterId={characterId}
+        current={rollerId}
+        canWrite={canWrite}
+        anim={char.rollerAnim !== false}
+        onToggleAnim={canWrite ? () => setChar((c) => ({ ...c, rollerAnim: c.rollerAnim === false })) : undefined}
+      />
       {rollerFor(rollerId)}
     </>
   )

@@ -540,6 +540,10 @@ export interface Character {
    *  `lib/dnd/roller-templates.ts`). Omitted → the default roller for the current `sheetLayout`, so every
    *  existing sheet keeps exactly the roller its template shipped with. */
   rollerTemplate?: 'core' | 'sigil' | 'board' | 'impact'
+  /** Whether the roller PLAYS its rolling animation (RO-6). Omitted/true → animated (the template's
+   *  tumble/deal/cascade/spin); false → the result appears INSTANTLY. `prefers-reduced-motion` is a hard
+   *  override that forces instant regardless. A per-character view preference, toggled from the roller. */
+  rollerAnim?: boolean
   /** Per-variant art + token URLs, so switching the style swaps the character art
    *  too. Falls back to the DB art_url/token_url (media) when a variant is unset. */
   variantArt?: {

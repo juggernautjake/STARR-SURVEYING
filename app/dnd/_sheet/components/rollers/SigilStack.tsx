@@ -21,6 +21,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
+import { shouldAnimateRoller } from './rollerAnim'
 import './sigilStack.css'
 
 type TileKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
@@ -39,10 +40,6 @@ interface StackTile {
 const signed = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
 // Extract the kept die + (for adv/dis) the pair from a d20 breakdown: `d20[7,18]→18` / `d20[14]`.
 const D20_RE = /d20\[([^\]]*)\](?:→(\d+))?/
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 /** Turn a damage/heal/expr breakdown into readable stacked tiles. Typed damage
  *  (`slashing d8[3,5]+3 (11) · poison d6[4] (4)`) splits on ` · ` into per-type tiles;
@@ -111,7 +108,8 @@ function buildTiles(roll: ActiveRoll): StackTile[] {
 
 // ── The resolution stage: consumes `activeRoll` and cascades the tiles into place ────────────
 function SigilStage() {
-  const { activeRoll, commitRoll } = useChar()
+  const { activeRoll, commitRoll, char } = useChar()
+  const animate = shouldAnimateRoller(char.rollerAnim)
   const [tiles, setTiles] = useState<StackTile[]>([])
   const [visible, setVisible] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'assembling' | 'locked'>('idle')
@@ -165,8 +163,9 @@ function SigilStage() {
     setVisible(0)
     primeAudio()
 
-    // Reduced motion: no cascade — compose the whole stack at once, still commit + chime.
-    if (prefersReducedMotion()) {
+    // Instant: no cascade — compose the whole stack at once, still commit + chime. Taken when the player
+    // turned animation off (RO-6) OR the OS asks for reduced motion (`shouldAnimateRoller`).
+    if (!animate) {
       setVisible(t.length)
       setPhase('locked')
       sound()

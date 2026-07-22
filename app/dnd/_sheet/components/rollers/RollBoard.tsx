@@ -24,6 +24,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
+import { shouldAnimateRoller } from './rollerAnim'
 import './rollBoard.css'
 
 type CardKind = 'die' | 'discard' | 'mod' | 'boost' | 'penalty' | 'crit' | 'fumble'
@@ -38,10 +39,6 @@ interface DealtCard {
 const signed = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
 // Extract the kept die + (for adv/dis) the pair from a d20 breakdown: `d20[7,18]→18` / `d20[14]`.
 const D20_RE = /d20\[([^\]]*)\](?:→(\d+))?/
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 /** Turn a damage/heal/expr breakdown into readable cards. Typed damage
  *  (`slashing d8[3,5]+3 (11) · poison d6[4] (4)`) splits on ` · ` into per-type cards;
@@ -111,7 +108,8 @@ function buildCards(roll: ActiveRoll): DealtCard[] {
 
 // ── The resolution stage: consumes `activeRoll` and deals the cards onto the felt ────────────
 function BoardStage() {
-  const { activeRoll, commitRoll } = useChar()
+  const { activeRoll, commitRoll, char } = useChar()
+  const animate = shouldAnimateRoller(char.rollerAnim)
   const [cards, setCards] = useState<DealtCard[]>([])
   const [visible, setVisible] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'dealing' | 'settled'>('idle')
@@ -165,8 +163,9 @@ function BoardStage() {
     setVisible(0)
     primeAudio()
 
-    // Reduced motion: no deal — lay the whole hand at once, still commit + chime.
-    if (prefersReducedMotion()) {
+    // Instant: no deal — lay the whole hand at once, still commit + chime. Taken when the player turned
+    // animation off (RO-6) OR the OS asks for reduced motion (`shouldAnimateRoller`).
+    if (!animate) {
       setVisible(c.length)
       setPhase('settled')
       sound()

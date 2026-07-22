@@ -19,12 +19,19 @@ export default function RollerTemplateBar({
   characterId,
   current,
   canWrite = true,
+  anim,
+  onToggleAnim,
 }: {
   characterId: string | null | undefined
   /** The effective roller id (already resolved), so the active chip is highlighted. */
   current: RollerTemplateId
   /** Only the owner/DM may change it; a read-only viewer sees the row disabled. */
   canWrite?: boolean
+  /** Whether the roller currently ANIMATES (RO-6). When provided together with `onToggleAnim`, the bar
+   *  renders an instant/animated toggle. Omitted → no toggle (e.g. a context with no live store). */
+  anim?: boolean
+  /** Flip the animation preference. Live (store-backed), so no reload — omit to hide the toggle. */
+  onToggleAnim?: () => void
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -76,6 +83,28 @@ export default function RollerTemplateBar({
           </button>
         )
       })}
+      {/* RO-6 — instant vs. animated. A live, store-backed toggle (no reload): OFF resolves rolls at
+          once, ON plays the template's animation. prefers-reduced-motion still forces instant regardless. */}
+      {onToggleAnim && (
+        <button
+          type="button"
+          disabled={!canWrite}
+          onClick={onToggleAnim}
+          aria-pressed={anim === false}
+          title={anim === false ? 'Rolls appear instantly — click for animation' : 'Rolls animate — click for instant'}
+          style={{
+            marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px',
+            borderRadius: 999, fontSize: 11, lineHeight: 1.2, cursor: canWrite ? 'pointer' : 'default',
+            fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
+            border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
+            background: 'rgba(255,255,255,0.03)', color: 'var(--hx-muted, #93a1b5)',
+            opacity: canWrite ? 1 : 0.5,
+          }}
+        >
+          <span aria-hidden>{anim === false ? '⚡' : '🎲'}</span>
+          <span>{anim === false ? 'Instant' : 'Animated'}</span>
+        </button>
+      )}
       {err && <span style={{ fontSize: 10.5, color: 'var(--hx-danger, #ff6b6b)', width: '100%' }}>{err}</span>}
     </div>
   )

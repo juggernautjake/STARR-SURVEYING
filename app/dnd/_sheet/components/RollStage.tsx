@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../state/store'
 import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
+import { shouldAnimateRoller } from './rollers/rollerAnim'
 
 // The rolling number cycles through the CHARACTER'S accent tokens, not a fixed rainbow.
 // This used to be a hardcoded neon list (hot pink, magenta, cyan…), which meant every sheet's
@@ -45,7 +46,8 @@ const DISPLAY_MODES: Record<string, DisplayMode> = {
 
 export default function RollStage({ roller = 'futuristic' }: { roller?: string }) {
   const mode = DISPLAY_MODES[roller] ?? DISPLAY_MODES.futuristic
-  const { activeRoll, commitRoll } = useChar()
+  const { activeRoll, commitRoll, char } = useChar()
+  const animate = shouldAnimateRoller(char.rollerAnim)
   const [display, setDisplay] = useState<number | string>('—')
   const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>('idle')
@@ -87,12 +89,36 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
     flush() // log the previous roll if it was still pending
     pending.current = { entry, done: false }
     setReveal(null)
+    primeAudio()
+
+    // Instant (RO-6 / reduced motion): skip the spin — show the landing, reveal, and commit at once.
+    // Same final state the animated path settles to, minus the number-cycling. `shouldAnimateRoller`
+    // folds the player's toggle AND prefers-reduced-motion, so this is also the Dice Core's reduced-
+    // motion path (which it previously lacked — it always spun).
+    if (!animate) {
+      setDisplay(landing)
+      setStyle({
+        color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
+        fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : mode.cycleFont ? randOf(FONTS) : (mode.font ?? "'Orbitron'"),
+        fontWeight: 900,
+        rotate: 0,
+      })
+      if (fumble) { setPhase('fumble'); errorBuzz(roller) }
+      else if (crit) { setPhase('crit'); tada(roller) }
+      else { setPhase('done'); blip(roller) }
+      setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20 })
+      timer.current = window.setTimeout(() => {
+        commitRoll(entry)
+        if (pending.current) pending.current.done = true
+      }, 60)
+      return () => { if (timer.current) window.clearTimeout(timer.current) }
+    }
+
     setPhase('spinning')
     // Wake the audio context immediately on the click. Browsers resume it
     // asynchronously, so on the first roll after idle it isn't running yet —
     // hence a short warm-up delay before the spin so the ticks land in sync
     // with the numbers instead of trailing behind them.
-    primeAudio()
     const WARMUP = 200
 
     const steps = 15 + Math.floor(Math.random() * 10) // 15..24, varied each roll

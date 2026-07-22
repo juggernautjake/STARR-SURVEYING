@@ -81,10 +81,16 @@
   organised/formatted for the currently-viewed system. 5e feeds the `activeRoll` store; PF2/IG feed
   their own resolved rolls into the same interface. The roller updates to match the system being viewed.
   (Largest slice — a shared `RollFeed` the rollers read and each system publishes to.)
-- [ ] **RO-6 — instant vs. animated toggle, per roller template.** A control on the roller to switch
-  between an INSTANT result and the template's rolling/flipping/tumbling animation; persisted per
-  character (`data.rollerAnim`), honoured by every template's resolution stage (and still respecting
-  `prefers-reduced-motion` as the hard override). Responsive.
+- [x] **RO-6 — instant vs. animated toggle, per roller template.** New shared `shouldAnimateRoller(char.
+  rollerAnim)` folds the player's toggle with `prefers-reduced-motion` (the hard override) in ONE place;
+  `rollerAnim?: boolean` on the Character type (autosaved). Every roller now routes its INSTANT branch off
+  it: Sigil Stack / Roll Board / Impact already had a reduced-motion instant path (their local
+  `prefersReducedMotion` gate is replaced by `!animate`); RollStage (Dice Core) previously ALWAYS spun, so
+  a new instant branch was added there (which also fixes Dice Core's missing reduced-motion path). The
+  toggle is a live, store-backed chip on `RollerTemplateBar` (⚡ Instant / 🎲 Animated, no reload).
+  Browser-VERIFIED on Dice Core: default Animated shows "ROLLING…" then cycling numbers; flipping to
+  Instant (live, no reload) resolves `d20[11]+3=14` immediately with no ROLLING phase; flipping back
+  restores the spin. 3 truth-table unit tests + tsc + eslint green.
 - [ ] **RO-7 — QA.** Every roller template × every system × a couple themes: rolls resolve with the
   correct total, the animation toggle works, the window persists, art is visible. Record + move to
   `completed/`.
