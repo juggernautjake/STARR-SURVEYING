@@ -80,10 +80,13 @@
   danger on fumble; the wrapper drops its square border/fill so the polygon IS the die. Browser-VERIFIED on
   a d20 roll: `.ir-die-shape polygon` has exactly 20 vertices, a 4px visible stroke, and a dark panel fill.
   ngonPoints unit-tested. tsc/eslint green.
-- [ ] **D-9 — a UNIQUE final-number reveal animation per roller.** Each of the four digital rollers should
-  reveal its final total with its OWN distinct animation (not a shared fade): e.g. Dice Core a digit-scramble
-  settle, Sigil Stack a sigil-lock pulse, Roll Board a card-flip flourish, Impact a slam + count-up. Make
-  each reveal feel bespoke to that roller's metaphor, honouring the instant/reduced-motion path.
+- [x] **D-9 — a UNIQUE final-number reveal animation per roller.** Each roller now reveals its total with a
+  bespoke motion tied to its metaphor: **Dice Core** — a digital LOCK-IN (`stageLock`: the number snaps out
+  of a stretched, dim scan and settles crisp); **Impact** — a SLAM (`ir-total-slam`: drops in oversized +
+  blurred, cracks to size with a hard overshoot); **Roll Board** — a card FLIP (`rb-chip`: the total chip
+  flips up on the X-axis like the winning card); **Sigil Stack** — already bespoke (`sigil-snap` drop +
+  `sigil-lock` glow-ring pulse). All gated on `prefers-reduced-motion`. Browser-VERIFIED: the Dice Core
+  lands in `stage-done` with `stageLock` on the number.
 - [x] **D-10 — clearer Impact breakdown (owner follow-up on D-7).** Refactored `buildRows` + the row CSS into
   a clean top-to-bottom calculation: the natural die row (`d20`, with `· advantage/disadvantage (kept x,y)`
   when applicable), the folded modifier now labelled `Ability + proficiency` with its signed value, each
@@ -91,6 +94,22 @@
   off by a divider (uppercase label, big gold value). Replaced the vague "modifiers / helped / hurt" text.
   Browser-VERIFIED on the Impact roller: an Initiative roll reads `d20 → 13`, `Ability + proficiency → +3`,
   `Total → 16`. tsc/eslint green.
+
+- [ ] **D-11 — Codex: connected tab⇄section accordion, content-sized, only-shrink, tabs push down (owner
+  2026-07-22).** Rework the Codex pane behaviour so it reads as ONE connected accordion on the right, for
+  EVERY system:
+  - **Connected look:** a section opens OUT of its tab and closes back INTO it — the tab and its open
+    section read as one joined unit (shared edge/frame), not a separate rail + pane stack.
+  - **Content-sized open:** opening a section sizes it to the MINIMUM height that reveals ALL of that
+    section's content for THIS character (measure the content, open at that height).
+  - **Only shrink:** the user may drag a section SMALLER than that natural height but NEVER larger than it
+    (the natural content height is the max; today the pane can be dragged arbitrarily tall). Cap the resize
+    at the measured content height.
+  - **Tabs push down:** when a section opens, the tabs BELOW it move DOWN (stay on the right, pushed beneath
+    the open section); collapsing it reflows the lower tabs/sections back UP into its place.
+  - Works for every character sheet in every system (5e/PF2/IG feed the same Codex shell, so this lives in
+    the shell/`PaneStack`, not per-system). Browser-verify open→content height, drag-smaller-only,
+    open-a-section-above pushes the lower tabs down, collapse reflows up.
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact

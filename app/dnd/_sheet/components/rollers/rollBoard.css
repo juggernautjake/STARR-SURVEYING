@@ -259,7 +259,10 @@
   border-radius: 999px;
   border: 2px dashed var(--gold, #c8aa6e);
   background: rgba(var(--void-rgb, 6, 5, 12), 0.5);
-  animation: rb-chip 0.45s ease-out both;
+  /* D-9 — the Roll Board reveals its total by FLIPPING it up like the winning card (its dealt-card
+     metaphor), distinct from the Impact slam / Dice Core lock / Sigil pulse. */
+  animation: rb-chip 0.5s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+  transform-origin: center;
 }
 .rboard .rb-hv-label {
   font-size: 10.5px;
@@ -309,15 +312,19 @@
 @keyframes rb-chip {
   0% {
     opacity: 0;
-    transform: scale(0.7);
+    transform: perspective(600px) rotateX(-88deg) scale(0.92);
   }
-  70% {
-    transform: scale(1.06);
+  60% {
+    opacity: 1;
+    transform: perspective(600px) rotateX(12deg) scale(1.05);
   }
   100% {
     opacity: 1;
-    transform: scale(1);
+    transform: perspective(600px) rotateX(0) scale(1);
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rboard .rb-hand-value { animation: none; }
 }
 
 /* ───────────────────────────────────────────────────────── controls */

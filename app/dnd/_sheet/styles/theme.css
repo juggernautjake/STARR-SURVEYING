@@ -2349,6 +2349,19 @@
 @media (prefers-reduced-motion: reduce) {
   .dnd-sheet .tray[data-dice-style] .stage-spinning .stage-number { animation-duration: 0.3s; }
 }
+/* D-9 — the Dice Core's final-number reveal is a digital LOCK-IN: the number snaps out of a stretched,
+   dim scan and settles crisp. Distinct from the Impact slam / Sigil pulse / Board flip. */
+.dnd-sheet .stage-done .stage-number {
+  animation: stageLock 0.4s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+@keyframes stageLock {
+  0% { transform: scaleX(1.6) scaleY(0.66); letter-spacing: 0.35em; opacity: 0.35; }
+  45% { transform: scaleX(0.9) scaleY(1.08); letter-spacing: 0.02em; opacity: 1; }
+  100% { transform: none; letter-spacing: 0.02em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet .stage-done .stage-number { animation: none; }
+}
 .dnd-sheet .stage-crit {
   border-color: var(--tealbright);
   box-shadow: inset 0 0 60px -8px rgba(var(--violet-rgb), 0.6), 0 0 40px -6px rgba(var(--tealbright-rgb), 0.7);
