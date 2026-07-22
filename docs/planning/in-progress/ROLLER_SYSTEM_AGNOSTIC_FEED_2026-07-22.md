@@ -30,9 +30,14 @@ Target-DC input). The animated rollers cannot render outside the 5e provider, an
   `useChar()` for their roll data + anim flag; the 5e `App` PROVIDES the feed from its store around the
   roller node. Pure refactor, ZERO 5e behaviour change — browser-verified an Init roll still resolves
   `d20[13] + 3 = 16` with no feed errors; 29 roller tests + tsc + eslint green. Unblocks PF2/IG.
-- **RO-5b — PF2 publishes to the feed.** When a PF2 save/skill/strike/damage rolls, produce a feed entry
-  (natural die face for the animation, PF2 breakdown, crit/fumble by the four-step degree ladder where a
-  DC is set) and mount the chosen animated roller reading that feed. Keep the Target-DC + degree result.
+- [~] **RO-5b — PF2 publishes to the feed (CODE DONE 2026-07-22; runtime verify pending a fresh build).**
+  Mirrors RO-5c exactly for PF2: `usePf2Panels` builds an `ActiveRoll` from every roll (`d20[nat] +mod`;
+  crit/fumble from a nat 20/1 OR the four-step degree; damage → the dice-expr breakdown) and publishes it;
+  the PF2 `roller` node is now `<RollFeedProvider>` wrapping the Target-DC input + the on-roller template
+  picker + the chosen `rollerStageFor(id)` stage, in a `.dnd-sheet` wrapper. `rollerTemplate`/`rollerAnim`
+  thread page.tsx → PF2Sheet → usePf2Panels. tsc + eslint clean. Same dev-server stale-compile blocker as
+  RO-5c (both the IG and PF2 routes now serve stale output; a `next dev` restart or the Vercel build clears
+  it). The 5e side of this exact feed is browser-verified (RO-5a), so the approach is proven.
 - [~] **RO-5c — IG publishes to the feed (CODE DONE 2026-07-22; runtime verify pending a fresh build).**
   `useIgPanels` now builds an `ActiveRoll` from every IG roll (d20 checks keep BOTH faces for adv/dis →
   `d20[7,18]→18 +mod`; damage → the dice-expr breakdown) and PUBLISHES it via `setActiveRoll`; the IG
