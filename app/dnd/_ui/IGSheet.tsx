@@ -77,7 +77,17 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`
   // for the shell's `--gold`/`--panel-rgb`/…. `.sheet-shell` gives the shell layout without theme.css
   // bleed; `.igs-root` keeps the IG panels' own scoped interactivity CSS working inside the shell.
-  const shellStyle = { ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' } as React.CSSProperties;
+  // `background: var(--hx-navy-0)` is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)`
+  // translucent, so without an opaque skin-base behind them they blend with the dark page — which made
+  // LIGHT skins render dark. The base is the skin's own page tone, so every skin reads correctly.
+  const shellStyle = {
+    ...skinHxVars(sheetType),
+    ...shellThemeVars(sheetType),
+    background: 'var(--hx-navy-0)',
+    borderRadius: 12,
+    padding: '10px 12px',
+    margin: '10px 0',
+  } as React.CSSProperties;
 
   // ── COLUMN FORMATS: Codex (T-6b) + Dashboard (T-6c) ───────────────────────────────────────────
   // IG's "at a glance" identity column is who they are (header) + Vitals (HP + Fort/Ref/Will + Prof —

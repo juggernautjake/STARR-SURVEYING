@@ -49,6 +49,18 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     // Keep the section id anchor + `pf2Section` wrapper so the jump nav still lands on each block.
     return p ? <section id={p.id} className={styles.pf2Section}>{p.render()}</section> : null;
   };
+  // The shell wrapper style for the codex/dashboard/play formats. The `background: var(--hx-navy-0)`
+  // is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)` translucent, so WITHOUT an
+  // opaque skin-base behind them they blend with the dark page — which made LIGHT skins (jack/donata)
+  // render dark. The base is the skin's own page tone, so every skin reads correctly.
+  const shellWrap: React.CSSProperties = {
+    ...skinHxVars(sheetType),
+    ...shellThemeVars(sheetType),
+    background: 'var(--hx-navy-0)',
+    borderRadius: 12,
+    padding: '10px 12px',
+    margin: '10px 0',
+  };
 
   // ── COLUMN FORMATS: Codex (T-5b) + Dashboard (T-5c) ───────────────────────────────────────────
   // Both arrange the same PF2 panel set around an identity column, differing only in how the body is
@@ -69,7 +81,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       </aside>
     );
     return (
-      <div className="sheet-shell" style={{ ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' }}>
+      <div className="sheet-shell" style={shellWrap}>
         {layout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
@@ -96,7 +108,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       </>
     );
     return (
-      <div className="sheet-shell" style={{ ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' }}>
+      <div className="sheet-shell" style={shellWrap}>
         <PlayShell
           identity={identity}
           above={banner}
