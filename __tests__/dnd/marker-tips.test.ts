@@ -57,8 +57,12 @@ describe('1 · there is ONE tooltip primitive, and it is reachable every way', (
     expect(TIP).toContain('if (!tip) return null');
   });
 
-  it('keeps the native title as a redundant fallback rather than the only path', () => {
-    expect(TIP).toContain('title={plain}');
+  it('sets NO native `title` on the trigger, so only the styled tooltip shows (no double tooltip)', () => {
+    // A `title` attribute makes the browser draw a SECOND, unstyled native tooltip on top of the styled
+    // role="tooltip" bubble — the owner's double-tooltip. Accessibility is covered by aria-label +
+    // aria-describedby, so the native title is pure duplication and must not be present.
+    expect(TIP).not.toContain('title={plain}');
+    expect(TIP).not.toMatch(/<button[^>]*\btitle=/s);
   });
 
   it('the two old InfoTips are now adapters over it, not second copies of the popover', () => {

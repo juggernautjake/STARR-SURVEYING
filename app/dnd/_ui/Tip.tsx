@@ -65,12 +65,14 @@ export default function Tip({ tip, title, label, glyph = 'ⓘ', bare = false, cl
 
   // The redundant `title`. Kept because it costs nothing and still serves the one case the popover
   // cannot — a mouse user who never clicks — but nothing depends on it alone any more.
-  const plain = title ? `${title} — ${tip}` : tip;
   const name = label ?? title ?? 'more info';
 
   // Inline-safe: every node here is a <span> or a <button>, never a <div>/<p>. A marker can sit
   // inside a feature's <p>, and HTML force-closes a paragraph at its first block-level child — the
   // same trap EffectStar and RuleTip document.
+  // NO `title` attribute on the trigger: the styled `role="tooltip"` span below IS the tooltip. A `title`
+  // would make the browser draw a SECOND, unstyled native tooltip on top of it (the owner's double-tooltip).
+  // The accessible name comes from `aria-label`; the content from `aria-describedby` while open.
   return (
     <span
       ref={wrapRef}
@@ -84,7 +86,6 @@ export default function Tip({ tip, title, label, glyph = 'ⓘ', bare = false, cl
         aria-label={name}
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
-        title={plain}
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
