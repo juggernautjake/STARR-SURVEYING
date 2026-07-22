@@ -178,6 +178,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           artUrl={(character as { art_url?: string | null }).art_url}
           name={character.name}
           skinVariant={(character.data as { skinVariant?: string } | null)?.skinVariant}
+          rollerTemplate={(character.data as { rollerTemplate?: string } | null)?.rollerTemplate}
+          rollerAnim={(character.data as { rollerAnim?: boolean } | null)?.rollerAnim}
         />
       );
     }

@@ -14,8 +14,13 @@
 // Every number is still computed by the pure rules engine (never guessed) and the sheet stays prop-driven
 // (never the 5e store). This is a pure EXTRACTION — the rendered DOM and every interaction are byte-for-byte
 // what the monolith produced; the Classic shell (IGSheet) just calls this and places the pieces in order.
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useRef, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
+import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
+import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
+import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
+import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
 import styles from '../hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import IGElementEditor, { type IGEditorKind, type IGEditableElement } from '../IGElementEditor';
@@ -110,6 +115,11 @@ export interface UseIgPanelsArgs {
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
   variantKind?: 'vanilla' | 'custom';
+  /** The chosen roller template (`data.rollerTemplate`) + animation pref (`data.rollerAnim`) + the sheet
+   *  layout, so IG mounts the SAME animated dice roller the 5e sheet does (RO-5). */
+  rollerTemplate?: string;
+  rollerAnim?: boolean;
+  layout?: string;
 }
 
 /** What the hook hands a format shell: the ordered panel list plus the surrounding furniture. A shell places
@@ -124,7 +134,7 @@ export interface IgPanelSet {
   overlays: ReactNode;
 }
 
-export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla' }: UseIgPanelsArgs): IgPanelSet {
+export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout }: UseIgPanelsArgs): IgPanelSet {
   const derived = useMemo(() => igDerived(ig), [ig]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
   // The roll path has always applied these; the cards showed base values, so a Shaken character
@@ -139,6 +149,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   // to roll its dice, through the shared engine; the result shows in the banner below. RNG here (auto mode);
   // manual-entry + record-IRL + a target DC (degrees) come in R2/R3/R5.
   const [lastRoll, setLastRoll] = useState<{ label: string; total: number; detail: string; tone: 'crit' | 'fumble' | 'normal' } | null>(null);
+  // The animated dice roller (RO-5): IG PUBLISHES each roll into the shared RollFeed as an `ActiveRoll`, so
+  // the same Dice Core / Sigil Stack / Roll Board / Impact stages (with animations + sounds) render it.
+  const [activeRoll, setActiveRoll] = useState<ActiveRoll | null>(null);
+  const rollTokenRef = useRef(0);
+  const noopCommit = useCallback(() => {}, []); // IG keeps its own toast; the stage's log-on-land is a no-op here
   // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
   const [targetDc, setTargetDc] = useState('');
   // Quick in-play HP adjust (Area SQ4) — the apply_damage/heal ig-edit ops exist for the AI; this wires a manual
@@ -158,11 +173,10 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     let advantage = stanceEff.advantage;
     let disadvantage = cond.disadvantage || stanceEff.disadvantage;
     if (advantage && disadvantage) { advantage = false; disadvantage = false; } // cancel to a straight roll
-    const natural = advantage
-      ? Math.max(rollNaturalD20(), rollNaturalD20())
-      : disadvantage
-        ? Math.min(rollNaturalD20(), rollNaturalD20())
-        : rollNaturalD20();
+    // Roll the die/dice, KEEPING both faces for adv/dis so the roller can show "rolled 7, 18 → 18".
+    const n1 = rollNaturalD20();
+    const n2 = advantage || disadvantage ? rollNaturalD20() : null;
+    const natural = advantage ? Math.max(n1, n2!) : disadvantage ? Math.min(n1, n2!) : n1;
     const r = resolveD20Roll({ natural, modifier: modifier + cond.penalty, dc, system: 'intuitive-games' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
@@ -176,14 +190,35 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const sources = [...cond.sources, ...stanceEff.sources];
     if (sources.length) detail += ` · ⚠ ${advantage ? 'ADV ' : ''}${disadvantage ? 'DIS ' : ''}${cond.penalty ? `${cond.penalty} ` : ''}from ${sources.join(', ')}`;
     setLastRoll({ label, total: r.total, detail, tone });
+    // Publish to the animated roller: breakdown in the `d20[..]→kept +mod` shape the stages parse, with
+    // crit/fumble from the nat 20/1 OR the four-step degree, and the named sources as boosts/penalties.
+    const bd = n2 != null ? `d20[${n1},${n2}]→${natural} ${sign}` : `d20[${natural}] ${sign}`;
+    setActiveRoll({
+      token: ++rollTokenRef.current,
+      landing: natural, min: 1, max: 20, isD20: true,
+      crit: r.critical || r.degree === 'critical-success',
+      fumble: r.fumble || r.degree === 'critical-failure',
+      entry: {
+        label, kind: 'check', total: r.total, breakdown: bd,
+        mode: advantage ? 'adv' : disadvantage ? 'dis' : undefined,
+        tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : undefined,
+        boosts: advantage && sources.length ? sources : undefined,
+        penalties: (disadvantage || cond.penalty) && sources.length ? sources : undefined,
+      },
+    });
   };
   const rollDamage = (label: string, expr: string) => {
     const r = rollDiceExpr(expr);
     // Fold the active stance's unconditional flat damage bonus (Offensive advanced: +half level to damage).
     const dmg = igStanceDamageBonus(ig.combat?.stances?.[0] ?? null, derived.level);
     const total = r.total + (dmg?.bonus ?? 0);
-    const detail = dmg ? `${r.breakdown} + ${dmg.bonus} (${dmg.source})` : r.breakdown;
-    setLastRoll({ label, total, detail, tone: 'normal' });
+    const breakdown = dmg ? `${r.breakdown} + ${dmg.bonus} (${dmg.source})` : r.breakdown;
+    setLastRoll({ label, total, detail: breakdown, tone: 'normal' });
+    setActiveRoll({
+      token: ++rollTokenRef.current,
+      landing: total, min: 0, max: total, isD20: false, crit: false, fumble: false,
+      entry: { label, kind: 'damage', total, breakdown },
+    });
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.
@@ -994,16 +1029,19 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     </div>
   ) : null;
 
-  // ── The roll result, pinned as a sticky toast at the bottom of the viewport — tap a save/skill/attack far
-  //    down the sheet and its result stays visible without scrolling back up. ───────────────────────────────
-  const roller = lastRoll ? (
-    <div role="status" aria-live="polite"
-      style={{ position: 'sticky', bottom: 10, zIndex: 6, justifySelf: 'center', maxWidth: '100%', border: '1px solid var(--hx-gold-1)', borderRadius: 10, padding: '9px 16px', display: 'flex', alignItems: 'baseline', gap: 11, flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(16,35,59,0.98), rgba(11,26,44,0.98))', boxShadow: '0 8px 26px rgba(0,0,0,0.5)' }}>
-      <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.02em', color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-      <strong style={{ fontSize: 25, fontWeight: 800, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
-    </div>
-  ) : null;
+  // ── The animated dice roller (RO-5) — the SAME Dice Core / Sigil Stack / Roll Board / Impact stages the
+  //    5e sheet uses, fed by IG's own rolls through the shared RollFeed, with the on-roller template picker.
+  //    Wrapped in `.dnd-sheet` so the stages' `.dnd-sheet`-scoped CSS (Dice Core, Sigil) resolves; the shell
+  //    theme tokens are inherited from the IG sheet root. Tapping a save/skill/attack lands here, animated. ──
+  const rollerId = resolveRollerTemplate(rollerTemplate, layout);
+  const roller = (
+    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim }}>
+      <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} />
+        {rollerStageFor(rollerId)}
+      </div>
+    </RollFeedProvider>
+  );
 
   // ── The editor + picker modals (IG-S2 / IG-S3). The shell mounts these wherever the format wants; the
   //    greying inside the picker is feedback timing — ig-edit re-derives the variant + DM flag server-side

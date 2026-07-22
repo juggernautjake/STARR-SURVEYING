@@ -33,7 +33,16 @@ Target-DC input). The animated rollers cannot render outside the 5e provider, an
 - **RO-5b — PF2 publishes to the feed.** When a PF2 save/skill/strike/damage rolls, produce a feed entry
   (natural die face for the animation, PF2 breakdown, crit/fumble by the four-step degree ladder where a
   DC is set) and mount the chosen animated roller reading that feed. Keep the Target-DC + degree result.
-- **RO-5c — IG publishes to the feed.** Same for IG's d20 + modifier / attack-damage rolls.
+- [~] **RO-5c — IG publishes to the feed (CODE DONE 2026-07-22; runtime verify pending a fresh build).**
+  `useIgPanels` now builds an `ActiveRoll` from every IG roll (d20 checks keep BOTH faces for adv/dis →
+  `d20[7,18]→18 +mod`; damage → the dice-expr breakdown) and PUBLISHES it via `setActiveRoll`; the IG
+  `roller` node is now `<RollFeedProvider>` wrapping the on-roller template picker (`RollerTemplateBar`) +
+  the chosen `rollerStageFor(id)` stage, wrapped in `.dnd-sheet` so the stages' scoped CSS resolves.
+  `rollerTemplate`/`rollerAnim` thread page.tsx → IGSheet → useIgPanels. tsc + eslint clean; no render
+  error. LOCAL runtime verification was BLOCKED — the dev server persistently served stale-compiled output
+  for the IG route (touch + fresh loads + long waits didn't clear it), a Next dev-HMR issue, not a code
+  one. To confirm: a fresh build (restart `next dev`, or the Vercel production build on the next main merge)
+  renders the IG animated roller. Then RO-5b (PF2) mirrors this.
 - **RO-3 — single global roller mount.** With the feed system-agnostic, mount ONE roller at the
   character-page level fed by whichever system is active, and remove the per-shell/per-sheet mounts. The
   `RollerTemplateBar` picker + the instant/animated toggle then reach PF2/IG for free.
