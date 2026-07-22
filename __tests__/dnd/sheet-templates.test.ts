@@ -59,3 +59,25 @@ describe('sheet-templates registry', () => {
     for (const t of SHEET_TEMPLATES) expect(types).toContain(`'${t.id}'`);
   });
 });
+
+describe('Dashboard format (T-3)', () => {
+  it('is offered for 5e and branches in the engine', () => {
+    expect(templatesForSystem('dnd5e-2024').map((t) => t.id)).toContain('dashboard');
+    const app = read('app/dnd/_sheet/App.tsx');
+    expect(app).toContain('isDashboard');
+    expect(app).toContain('DashboardLayout');
+  });
+
+  it('shares the 5e panel set rather than duplicating it', () => {
+    // Dashboard reads the same `useFivePanels()` source a format shell must consume — so it can
+    // never drift from the other formats about which sections exist.
+    const dash = read('app/dnd/_sheet/codex/DashboardLayout.tsx');
+    expect(dash).toContain('useFivePanels');
+  });
+
+  it('carries no skin-specific Dashboard rule — skins theme it for free', () => {
+    const css = read('app/dnd/_sheet/styles/codex.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.dash/);
+    expect(css).toContain('.dash-grid');
+  });
+});

@@ -244,10 +244,16 @@ describe('per-system descriptor — the anti-bleed contract', () => {
 describe('the layout seam (CX-1)', () => {
   it('defaults to classic, so no existing character is changed', () => {
     const types = read('app/dnd/_sheet/types.ts')
-    expect(types).toContain("export type SheetLayout = 'classic' | 'codex'")
+    // SheetLayout now carries the fuller template set (classic/codex/dashboard/play, T-1); the point
+    // this test protects is that 'classic' and 'codex' are still both in it and classic is the default.
+    expect(types).toMatch(/export type SheetLayout = 'classic' \| 'codex'/)
     expect(types).toContain('sheetLayout?: SheetLayout')
     const app = read('app/dnd/_sheet/App.tsx')
-    expect(app).toContain("(char.sheetLayout ?? 'classic') === 'codex'")
+    // The layout is derived once (`const layout = char.sheetLayout ?? 'classic'`) and each format is
+    // a boolean off it; the classic default is still the `?? 'classic'` fallback, so an existing
+    // character with no stored layout renders classic exactly as before.
+    expect(app).toMatch(/char\.sheetLayout \?\? 'classic'/)
+    expect(app).toMatch(/layout === 'codex'/)
   })
 
   it('branches INSIDE the themed root, so every skin applies to the Codex', () => {

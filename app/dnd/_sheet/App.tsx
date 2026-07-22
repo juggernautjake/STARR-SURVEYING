@@ -47,6 +47,7 @@ import SkinSwitch from './components/SkinSwitch'
 import VariantToggle from './components/VariantToggle'
 import CustomizationSummary from './components/CustomizationSummary'
 import CodexLayout from './codex/CodexLayout'
+import DashboardLayout from './codex/DashboardLayout'
 import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
@@ -122,7 +123,9 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // class, the `variant-<id>` class and the theme CSS variables exactly as the classic layout
   // does. That is what makes "any skin, any layout" true by construction instead of by a rule
   // someone has to remember.
-  const isCodex = (char.sheetLayout ?? 'classic') === 'codex'
+  const layout = char.sheetLayout ?? 'classic'
+  const isCodex = layout === 'codex'
+  const isDashboard = layout === 'dashboard'
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
@@ -252,6 +255,8 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
 
       {isCodex ? (
         <CodexLayout artUrl={artUrl} ownerName={ownerName} />
+      ) : isDashboard ? (
+        <DashboardLayout artUrl={artUrl} ownerName={ownerName} />
       ) : (
       <div className="appgrid">
         <div className="maincol">

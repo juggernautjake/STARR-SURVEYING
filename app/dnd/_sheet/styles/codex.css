@@ -598,3 +598,85 @@
     overflow-y: auto;
   }
 }
+
+/* ═══════════════════════════════════════════════════ DASHBOARD LAYOUT (T-3)
+   Identity column on the left, every panel as a card in a reflowing grid on the right.
+   Shares the Codex identity column + theme tokens, so every skin applies with no
+   Dashboard-specific colour rule (same discipline as the Codex above). */
+
+.dnd-sheet .dashboard {
+  display: grid;
+  grid-template-columns: minmax(280px, min(33%, 420px)) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.dnd-sheet .dash-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dnd-sheet .dash-grid {
+  display: grid;
+  /* auto-fit so the cards reflow to however many fit — three across on a wide monitor, one on a
+     phone — which is the Dashboard's whole promise: see everything, arranged to the screen. */
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.dnd-sheet .dash-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.75), rgba(var(--void-rgb), 0.5));
+  overflow: hidden;
+}
+.dnd-sheet .dash-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(var(--void-rgb), 0.4);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dnd-sheet .dash-card-emoji {
+  font-size: 13px;
+}
+.dnd-sheet .dash-card-count {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.dnd-sheet .dash-card-body {
+  /* Scroll lives on the card body past a max height, so one long section does not stretch the whole
+     grid row — the board stays scannable. */
+  padding: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.dnd-sheet .dash-tray {
+  max-width: 460px;
+}
+.dnd-sheet .dash-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 20px 4px;
+}
+
+/* Below ~900px the two-column split stops working, same as the Codex: identity first, then the
+   grid full width (which is already one card per row on a phone). */
+@media (max-width: 900px) {
+  .dnd-sheet .dashboard {
+    grid-template-columns: 1fr;
+  }
+}

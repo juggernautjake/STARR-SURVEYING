@@ -68,12 +68,12 @@ const BY_ID = new Map(SHEET_TEMPLATES.map((t) => [t.id, t]));
  * sets are extracted (slices T-5/T-6).
  */
 const BUILT_FOR: Record<string, TemplateId[]> = {
-  'dnd5e-2014': ['classic', 'codex'],
-  'dnd5e-2024': ['classic', 'codex'],
+  'dnd5e-2014': ['classic', 'codex', 'dashboard'],
+  'dnd5e-2024': ['classic', 'codex', 'dashboard'],
   pathfinder2e: ['classic'],
   'intuitive-games': ['classic'],
   // System-ambiguous and under-construction systems use the shared engine's classic form.
-  ambiguous: ['classic', 'codex'],
+  ambiguous: ['classic', 'codex', 'dashboard'],
 };
 
 /** The templates a system can render, in canonical order. Never empty — every system has Classic. */
