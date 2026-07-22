@@ -47,19 +47,19 @@ export default function FloatingRoller({
   if (dock.minimized) {
     return (
       <Ctx.Provider value={ctx}>
-        <div ref={dock.ref} className="fld fld-mini" style={dock.style} role="dialog" aria-label={`${title} (minimized)`}>
-          <button
-            type="button"
-            className="fld-bar"
-            onPointerDown={dock.onHeaderPointerDown}
-            onClick={dock.toggleMinimize}
-            title="Expand roller · drag to move"
-          >
-            <span className="fld-grip" aria-hidden>⠿</span>
-            <span className="fld-bar-title">🎲 {title}</span>
-            <span className="fld-bar-caret" aria-hidden>▸</span>
-          </button>
-        </div>
+        {/* The minimized roller is a single dice BUTTON pinned to the bottom-right of the viewport (D-1).
+            Clicking it re-opens the roller at its REMEMBERED position; it is not draggable — it always
+            lives in the same familiar corner, like the old roller button. */}
+        <button
+          type="button"
+          className="fld-fab"
+          style={dock.minimizedStyle}
+          onClick={dock.toggleMinimize}
+          title={`Open ${title}`}
+          aria-label={`Open ${title}`}
+        >
+          <span aria-hidden className="fld-fab-die">🎲</span>
+        </button>
       </Ctx.Provider>
     )
   }

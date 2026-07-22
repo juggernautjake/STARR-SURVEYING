@@ -79,8 +79,11 @@ export interface FloatingDock {
   /** Attach to the window element — the hook measures it to clamp and to seed a content-fit height. */
   ref: React.RefObject<HTMLDivElement>
   minimized: boolean
-  /** Positioning + size style for the window (or its minimized bar). */
+  /** Positioning + size style for the EXPANDED window. */
   style: React.CSSProperties
+  /** Fixed bottom-right style for the MINIMIZED toggle button (D-1) — independent of the window's
+   *  remembered position, which stays put so expanding returns the roller to where the player left it. */
+  minimizedStyle: React.CSSProperties
   onHeaderPointerDown: (e: React.PointerEvent) => void
   onResizePointerDown: (e: React.PointerEvent) => void
   toggleMinimize: () => void
@@ -266,10 +269,22 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
       }
     : { position: 'fixed', visibility: 'hidden' }
 
+  // The minimized roller is a compact button pinned to the bottom-right corner of the viewport (D-1),
+  // deliberately NOT at the window's remembered x/y — so it always sits in the same familiar spot while
+  // the expanded window still reopens wherever the player last dragged it.
+  const minimizedStyle: React.CSSProperties = {
+    position: 'fixed',
+    right: EDGE,
+    bottom: EDGE,
+    left: 'auto',
+    top: 'auto',
+  }
+
   return {
     ref,
     minimized: state?.minimized ?? false,
     style,
+    minimizedStyle,
     onHeaderPointerDown,
     onResizePointerDown,
     toggleMinimize,

@@ -134,38 +134,44 @@
   color: var(--gold, var(--tealbright, #c8aa6e));
 }
 
-/* ── minimized bar ───────────────────────────────────────────────────────────────────────────── */
-.fld-mini {
-  border-radius: 12px;
-}
-.fld-bar {
-  display: flex;
+/* ── minimized: the bottom-right dice FAB (D-1) ──────────────────────────────────────────────────
+   The minimized roller is a single round button pinned to the corner. Themed off the same tokens as the
+   window, so it re-skins for free and reads on light + dark. */
+.fld-fab {
+  z-index: 60;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  cursor: grab;
-  touch-action: none;
-  border: none;
-  background: none;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid var(--line-strong, var(--line, rgba(255, 255, 255, 0.18)));
+  background: linear-gradient(160deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.98));
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.9), 0 0 26px -14px var(--hotpink, var(--gold, #c8aa6e));
   color: var(--ink, #e8e6f0);
-  font-family: var(--font-display, inherit);
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
-.fld-bar:active {
-  cursor: grabbing;
+.fld-fab:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold, var(--tealbright, #c8aa6e));
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.95), 0 0 34px -12px var(--gold, #c8aa6e);
 }
-.fld-bar-title {
-  font-weight: 700;
-  margin-right: auto;
+.fld-fab:focus-visible {
+  outline: 2px solid var(--tealbright, var(--gold, #0ac8b9));
+  outline-offset: 3px;
 }
-.fld-bar-caret {
-  color: var(--muted, #9a97ad);
+.fld-fab-die {
+  font-size: 26px;
+  line-height: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fld-ready {
+  .fld-ready,
+  .fld-fab {
     transition: none;
+  }
+  .fld-fab:hover {
+    transform: none;
   }
 }
