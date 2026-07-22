@@ -389,10 +389,11 @@ skins (especially the light ones), no skin-specific rule, `prefers-reduced-motio
   hover/focus-within lift (translateY + gold-warmed edge + soft shadow) so the grid reads as touchable
   tiles rather than a flat wall (3) — theme-token only, `prefers-reduced-motion` drops the motion. The
   cross-skin legibility sweep (4) rides the T-8 5-skin pass. No skin-specific rule (test-enforced).
-- [~] **T-STYLE-PLAY — Play, passes 1–4.** Pass 1 (hierarchy & rhythm) shipped: vitals, quick-roll and
-  attacks now share one framed-card treatment with the vitals marked primary by a gold top edge;
-  theme-token only. Passes 2–4 (typography, affordances/motion, cross-skin sweep) pending; pass-1
-  cross-skin visual sign-off folded into T-8.
+- [x] **T-STYLE-PLAY — Play, passes 1–4.** Pass 1: vitals/quick-roll/attacks share one framed-card
+  treatment, vitals marked primary by a gold top edge. Pass 2/3: reference-drawer cards lift on
+  hover/focus-within (gold edge + shadow), the ref-card emoji tick takes the gold accent, and the
+  section headings/hero use the display font at weight. Theme-token only; `prefers-reduced-motion`
+  drops the motion; no skin-specific rule. Cross-skin sweep (4) rides the T-8 5-skin pass.
 - [ ] **T-STYLE-CODEX — Codex, passes 1–3.** Refresh now that it shares panels & gains the Sigil
   Stack; tighten pane headers, rail, resize handles; cross-skin sweep.
 - [ ] **T-STYLE-CLASSIC — Classic, passes 1–2.** Light polish only (it is the mature baseline):

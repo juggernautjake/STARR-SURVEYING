@@ -173,6 +173,17 @@
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.7), rgba(var(--void-rgb), 0.45));
   overflow: hidden;
+  /* T-STYLE-PLAY pass 3 — reference cards lift on hover, matching the Dashboard's touchable-tile feel. */
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.sheet-shell .play-ref-card:hover,
+.sheet-shell .play-ref-card:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: 0 10px 26px -14px rgba(var(--void-rgb), 0.9);
+}
+.sheet-shell .play-ref-emoji {
+  color: var(--gold);
 }
 .sheet-shell .play-ref-h {
   display: flex;
@@ -202,8 +213,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sheet-shell .play-ref-toggle {
+  .sheet-shell .play-ref-toggle,
+  .sheet-shell .play-ref-card {
     transition: none;
+  }
+  .sheet-shell .play-ref-card:hover,
+  .sheet-shell .play-ref-card:focus-within {
+    transform: none;
   }
 }
 
