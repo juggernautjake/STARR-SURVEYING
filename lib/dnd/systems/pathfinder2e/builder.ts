@@ -16,7 +16,7 @@ import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
-import { pf2AnyFeat, pf2AnySpell } from './data';
+import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -83,7 +83,15 @@ export function pf2WeaponStrike(w: PF2WeaponDef, attributes: Record<PF2Attribute
 }
 
 /** Compute the level-1 attribute modifiers from ancestry + background + class + free boosts (when the UI
- *  didn't hand us final numbers). Free boosts must go to four DIFFERENT attributes per the rules. */
+ *  didn't hand us final numbers). Free boosts must go to four DIFFERENT attributes per the rules.
+ *
+ *  HONEST GAP — level-based attribute boosts: PF2 grants four more boosts at levels 5/10/15/20, so a
+ *  level-9 character has had one such round. This computation applies the LEVEL-1 boosts only, because
+ *  WHICH four attributes each round raises is a player choice this function has no input for. It is not
+ *  a silent error: when the caller supplies a final `picks.attributes` map (the manual builder and the
+ *  stored sheet both do), THAT is authoritative and already reflects every level's boosts — this
+ *  fallback path is reached only when no attributes were provided. The partial-boost (>+4) rule IS
+ *  modelled here, in pf2ApplyBoosts. */
 export function pf2ComputeAttributes(cls: PF2ClassDef | null, anc: PF2AncestryDef | null, picks: PF2Picks): Record<PF2AttributeKey, number> {
   if (picks.attributes) {
     const a = ZERO();
@@ -124,6 +132,45 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   }));
 
   const init = cls?.initial;
+
+  // Proficiency ranks ADVANCE with level in PF2 (trained → expert → master → legendary at
+  // class-defined levels); content.ts's `initial` is ONLY the level-1 snapshot. Reading it alone
+  // froze every rank at level 1, so a level-9 Wizard saved and cast as though freshly made — its
+  // Reflex (expert at 5), Fortitude (expert at 9) and spell proficiency (expert at 7) each read two
+  // points low, exactly the "the data exists but was never wired into the stat" bug this pass hunts.
+  // The full level 1–20 schedule already lives in data/classes.ts; walk it to the character's level
+  // so every derived number downstream (saves, AC, class DC, spell DC/attack) is right for BOTH the
+  // manual builder and the AI, which share this one function. When a className has no modelled
+  // progression (a custom class), fall back to the level-1 initial — the honest best answer.
+  const prog = pf2ClassProgression(picks.className || '');
+  const rankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank =>
+    track ? pf2RankAtLevel(track, level) : fallback;
+  // The ATTACK track is the one exception: a step carrying a per-step `note` advances only a SUBSET
+  // of weapons (the Fighter's level-5 Weapon Mastery raises one chosen weapon group to master, not
+  // every Strike). Applying such a step to the whole attack proficiency would silently over-count a
+  // Fighter's Strikes with weapons outside that group. So attacks advance through UNSCOPED steps
+  // only; a noted step is left unapplied, which UNDER-counts (a Fighter stays expert past level 13)
+  // rather than over-counts. That is the safe direction here — a low number is visible on the sheet
+  // and fixable, a silently high one is neither. See PF2_CLASS_PROGRESSION_GAPS for the recorded
+  // Fighter general-attack gap this leaves open.
+  const attacksRankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank => {
+    if (!track) return fallback;
+    let rank = track.initial;
+    for (const step of track.increases) if (!step.note && step.level <= level) rank = step.rank;
+    return rank;
+  };
+  const perceptionRank = rankAt(prog?.perception, init?.perception ?? 'trained');
+  const fortRank = rankAt(prog?.saves.fortitude, init?.fortitude ?? 'trained');
+  const reflexRank = rankAt(prog?.saves.reflex, init?.reflex ?? 'trained');
+  const willRank = rankAt(prog?.saves.will, init?.will ?? 'trained');
+  const defenseRank = rankAt(prog?.defenses, init?.defense ?? 'trained');
+  const attacksRank = attacksRankAt(prog?.attacks, init?.attacks ?? 'trained');
+  const classDcRank = rankAt(prog?.classDc, init?.classDc ?? 'trained');
+  // The spellcasting DC/attack proficiency has its own track (Expert Spellcaster at 7, Master at 15,
+  // Legendary at 19 for full casters). Frozen at 'trained' before, so every caster's spell DC and
+  // spell attack read low from level 7 on.
+  const spellRank = rankAt(prog?.spellcasting?.proficiency, 'trained');
+
   const con = attributes.CON;
   const armor = pf2Armor(picks.armor || 'Unarmored');
   // Meeting the armor's Strength requirement reduces the speed penalty by 5 ft (to a min of 0); not
@@ -134,6 +181,14 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
   // The check penalty is waived entirely when the Strength requirement is met.
   const armorCheckPenalty = armor && !meetsStr ? armor.checkPenalty : 0;
 
+  // HONEST GAP — feat SLOTS by level: a level-9 character has earned many feat slots (ancestry at
+  // 1/5/9, class at 2/4/6/8 for Wizard, skill at every even level, general at 3/7). This assembles
+  // only the level-1 class feature, the heritage, and whatever feats were explicitly PICKED — it does
+  // not manufacture feats to fill the earned slots, because which feat fills each slot is a player
+  // choice and the class-feat catalog is itself incomplete (see PF2_CATALOG_STATUS.feats). Inventing
+  // feats to hit a count would violate Ground Rule 3. Picked feats already arrive with their real
+  // catalog level/track/text (below); the eligibility layer, not the builder, owns "you have N
+  // unspent feats". Recorded here so the count gap is not mistaken for a wiring bug.
   const feats: PF2Feat[] = [];
   if (cls) feats.push({ id: 'cls-key', name: `${cls.name} (${cls.subclassLabel})`, level: 1, track: 'feature', traits: [cls.name], body: cls.summary });
   if (anc && picks.heritage) feats.push({ id: 'heritage', name: `${picks.heritage} ${anc.name}`, level: 1, track: 'ancestry', traits: [anc.name, 'Heritage'], body: `${anc.summary}` });
@@ -156,10 +211,10 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       size: anc?.size || 'Medium', alignment: '', bio: picks.bio || '', photoUrl: picks.photoUrl || '',
     },
     attributes,
-    perception: { rank: init?.perception ?? 'trained' },
+    perception: { rank: perceptionRank },
     saves: Object.fromEntries(PF2_SAVES.map((s) => {
-      const rank = s === 'Fortitude' ? init?.fortitude : s === 'Reflex' ? init?.reflex : init?.will;
-      return [s, { rank: rank ?? 'trained', itemBonus: 0 }];
+      const rank = s === 'Fortitude' ? fortRank : s === 'Reflex' ? reflexRank : willRank;
+      return [s, { rank, itemBonus: 0 }];
     })) as PF2Character['saves'],
     skills,
     combat: {
@@ -168,18 +223,18 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
       tempHp: 0, dyingValue: 0, woundedValue: 0,
       speed: (anc?.speed ?? 25) + speedPenalty,
-      armorRank: init?.defense ?? 'trained', dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
-      attackRank: init?.attacks ?? 'trained',
-      classDcRank: init?.classDc ?? 'trained', classDcAttribute: keyAttr,
+      armorRank: defenseRank, dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
+      attackRank: attacksRank,
+      classDcRank, classDcAttribute: keyAttr,
     },
     attacks: [
-      ...(picks.weapon && pf2Weapon(picks.weapon) ? [pf2WeaponStrike(pf2Weapon(picks.weapon)!, attributes, init?.attacks ?? 'trained')] : []),
-      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: init?.attacks ?? 'trained', weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
+      ...(picks.weapon && pf2Weapon(picks.weapon) ? [pf2WeaponStrike(pf2Weapon(picks.weapon)!, attributes, attacksRank)] : []),
+      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: attacksRank, weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
     ],
     spellcasting: cls?.spellcasting
       ? {
           tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind,
-          attribute: cls.spellcasting.attribute, rank: 'trained', slots: pf2SpellSlots(level),
+          attribute: cls.spellcasting.attribute, rank: spellRank, slots: pf2SpellSlots(level),
           // Chosen spells resolved against the catalog for their real rank. A prepared caster's
           // build-time picks start prepared — they are what the character is carrying today.
           ...(picks.spells?.length

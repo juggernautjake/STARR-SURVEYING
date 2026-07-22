@@ -197,7 +197,11 @@ describe('PF2 armor drives AC, Dex cap, and speed', () => {
     expect(new Set(PF2_ARMORS.map((a) => a.category))).toEqual(new Set(['unarmored', 'light', 'medium', 'heavy']));
   });
   it('unarmored AC is uncapped: 10 + full Dex + trained', () => {
-    const c = buildPF2Character({ className: 'Monk', ancestry: 'Elf', level: 1, attributes: { DEX: 4 }, armor: 'Unarmored' });
+    // A Wizard is trained in unarmored defense at level 1, so this isolates the "uncapped Dex" point
+    // without depending on a class's defense rank. (The Monk is EXPERT in unarmored defense from
+    // level 1 — a defining Monk trait now that the builder advances ranks off the class progression —
+    // which would make this 10 + 4 + (4 + 1) = 19 and muddy the trained-only assertion.)
+    const c = buildPF2Character({ className: 'Wizard', ancestry: 'Elf', level: 1, attributes: { DEX: 4 }, armor: 'Unarmored' });
     expect(c.combat.dexCap).toBeNull();
     expect(pf2ArmorClass(c)).toBe(10 + 4 + (2 + 1)); // 17
   });

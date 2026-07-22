@@ -118,7 +118,11 @@ export const PF2_CLASSES: PF2ClassDef[] = [
   },
   {
     name: 'Monk', keyAttribute: ['STR', 'DEX'], hpPerLevel: 10, trainedSkills: 4,
-    initial: { perception: 'trained', fortitude: 'expert', reflex: 'expert', will: 'expert', defense: 'trained', ...MARTIAL },
+    // Unarmored defense is EXPERT at level 1 — a defining Monk trait (good AC without armor). This
+    // seed originally read 'trained', disagreeing with the cross-checked full progression in
+    // data/classes.ts; corrected so the level-1 seed and the progression cannot drift. See the Monk
+    // `defenses` note in data/classes.ts.
+    initial: { perception: 'trained', fortitude: 'expert', reflex: 'expert', will: 'expert', defense: 'expert', ...MARTIAL },
     subclassLabel: 'Stance / Ki', subclassMechanism: 'Monk', subclassOptions: [],
     summary: 'An unarmored martial artist with Flurry of Blows, powerful stances, and (optionally) ki spells; Expert in all three saves.',
   },
