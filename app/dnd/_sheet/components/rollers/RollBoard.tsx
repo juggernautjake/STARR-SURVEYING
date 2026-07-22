@@ -23,7 +23,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { useRollerDock } from './FloatingRoller'
+import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
@@ -110,6 +110,7 @@ function buildCards(roll: ActiveRoll): DealtCard[] {
 // ── The resolution stage: consumes `activeRoll` and deals the cards onto the felt ────────────
 export function BoardStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
   const [cards, setCards] = useState<DealtCard[]>([])
   const [visible, setVisible] = useState(0)
