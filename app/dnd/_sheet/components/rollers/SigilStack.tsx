@@ -108,7 +108,7 @@ function buildTiles(roll: ActiveRoll): StackTile[] {
 }
 
 // ── The resolution stage: consumes `activeRoll` and cascades the tiles into place ────────────
-function SigilStage() {
+export function SigilStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   const animate = shouldAnimateRoller(rollerAnim)
   const [tiles, setTiles] = useState<StackTile[]>([])

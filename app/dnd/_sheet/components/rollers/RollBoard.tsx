@@ -108,7 +108,7 @@ function buildCards(roll: ActiveRoll): DealtCard[] {
 }
 
 // ── The resolution stage: consumes `activeRoll` and deals the cards onto the felt ────────────
-function BoardStage() {
+export function BoardStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   const animate = shouldAnimateRoller(rollerAnim)
   const [cards, setCards] = useState<DealtCard[]>([])
