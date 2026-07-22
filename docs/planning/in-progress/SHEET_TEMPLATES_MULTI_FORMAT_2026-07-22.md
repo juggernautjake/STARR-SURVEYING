@@ -164,8 +164,13 @@ compute their own). The clean decomposition:
     `IdentityColumn` + `useFivePanels()` + `DiceTray` + review/reactions. Browser-verified 5e Dashboard
     renders identically on Perrin (identity column, Skills·18/Abilities/Combat cards, HP 31/31). `App`
     unchanged. Standing bar green.
-  - [ ] **T-SHELL-CODEX — Codex.** Same split for `CodexLayout` (now docks the Sigil Stack) → pure
-    `CodexShell` (identity + pane rail/stack + roller + above) + 5e adapter. Browser-diff Perrin.
+  - [x] **T-SHELL-CODEX — Codex.** `shells/CodexShell.tsx` is the pure shell (identity + pane
+    rail/stack + docked roller + above; the pane-stack machinery is format logic and stays here,
+    taking only a `storageKey`); `CodexLayout.tsx` is now the thin 5e adapter feeding it
+    `IdentityColumn` + `useFivePanels()` + `<SigilStack/>` + review/reactions. Test forbids store
+    hooks/5e components in the shell. Browser-verified 5e Codex renders identically on Perrin
+    (identity column HP 31/31, pane rail, Skills·18 pane — Dex +5 Danger Sense·ADV, Acrobatics +5),
+    with the Sigil Stack docked. `App` unchanged. Standing bar green.
   - [ ] **T-SHELL-PLAY — Play.** Split `PlayLayout`. Note Play's hero is system-specific components,
     so its shell takes a `hero: ReactNode` + `drawerPanels: SheetPanel[]` (not one flat panel list);
     the 5e adapter supplies the CombatPanel/Abilities/Attacks hero. Browser-diff Perrin.

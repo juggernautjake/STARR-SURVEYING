@@ -325,4 +325,19 @@ describe('the layout seam (CX-1)', () => {
     expect(existsSync(join(ROOT, 'app/dnd/_sheet/styles/codex.css'))).toBe(true)
     expect(read('app/dnd/_sheet/App.tsx')).toContain("import './styles/codex.css'")
   })
+
+  it('is a pure system-agnostic shell fed by a 5e adapter (T-SHELL)', () => {
+    // The format (identity column + pane rail/stack + docked roller) lives in CodexShell, which must
+    // know nothing about any system: no store hooks, no 5e components — only the {identity, panels,
+    // roller, above, storageKey} it is handed. The pane-stack machinery is format logic and stays in
+    // the shell; the adapter (CodexLayout) computes the 5e parts and passes them in.
+    const shell = read('app/dnd/_sheet/shells/CodexShell.tsx')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(shell).not.toMatch(/useChar|useFivePanels|IdentityColumn|SigilStack|DiceTray/)
+    expect(shell).toContain('usePaneStack') // the pane machinery is format logic, kept in the shell
+    const adapter = read('app/dnd/_sheet/codex/CodexLayout.tsx')
+    expect(adapter).toContain("from '../shells/CodexShell'")
+    expect(adapter).toContain('SigilStack')
+  })
 })
