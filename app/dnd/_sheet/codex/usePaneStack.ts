@@ -136,7 +136,7 @@ export function usePaneStack(
   const toggle = useCallback(
     (id: string) => {
       setPanes((cur) =>
-        cur.some((p) => p.id === id) ? closePane(cur, id) : openPane(cur, id, order, availableRef.current),
+        cur.some((p) => p.id === id) ? closePane(cur, id) : openPane(cur, id, order),
       )
     },
     [order],

@@ -86,29 +86,22 @@ export function shrinkToFit(panes: Pane[], target: number, gap = 0): Pane[] {
 }
 
 /**
- * Open `id`, inserting it in CANONICAL order and making room for it.
+ * Open `id`, inserting it in CANONICAL order. It arrives at `DEFAULT_PANE_H` and is then measured to
+ * its content height (`capPaneToContent`); the OTHER open sections are left exactly as they are.
  *
- * Canonical order — not click order — is deliberate and is called out in the plan doc: a player
- * reaching for Spells should find it in the same place every time. Recency ordering optimises
- * for the pane you just opened, which is the one you are already looking at.
+ * The accordion model (D-11): each open section stays at its own content height and the column simply
+ * grows — opening a section PUSHES the ones below it down rather than squeezing every pane to share a
+ * fixed viewport. (The old shrink-to-fit behaviour fought the content-sizing rule, which caps each pane
+ * to its content and only shrinks.)
  *
- * Returns the stack unchanged if `id` is already open, so callers can treat this as idempotent.
+ * Canonical order — not click order — is deliberate: a player reaching for Spells should find it in the
+ * same place every time. Returns the stack unchanged if `id` is already open (idempotent).
  */
-export function openPane(panes: Pane[], id: string, order: readonly string[], target: number, gap = 0): Pane[] {
+export function openPane(panes: Pane[], id: string, order: readonly string[]): Pane[] {
   if (panes.some((p) => p.id === id)) return panes
-  const next = [...panes, { id, height: DEFAULT_PANE_H }].sort(
+  return [...panes, { id, height: DEFAULT_PANE_H }].sort(
     (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
   )
-  // Shrink the OTHERS to free DEFAULT_PANE_H, then let the whole stack settle. Doing it in one
-  // pass over the full stack would shrink the newcomer too, so a freshly opened pane would arrive
-  // already squeezed — the opposite of what opening it was for.
-  const others = shrinkToFit(
-    next.filter((p) => p.id !== id),
-    Math.max(0, target - DEFAULT_PANE_H - gap),
-    gap,
-  )
-  const merged = next.map((p) => (p.id === id ? p : others.find((o) => o.id === p.id) ?? p))
-  return shrinkToFit(merged, target, gap)
 }
 
 /** Close `id`. The remaining panes keep their heights — they do NOT expand to fill the gap.

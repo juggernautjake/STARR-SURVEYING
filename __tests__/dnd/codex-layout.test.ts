@@ -32,45 +32,33 @@ const read = (p: string) => readFileSync(join(ROOT, p), 'utf8')
 
 const ORDER = ['skills', 'abilities', 'combat', 'attacks', 'spells', 'features', 'gear', 'story']
 
-describe('paneMath — opening', () => {
+describe('paneMath — opening (accordion model, D-11)', () => {
   it('opens Skills alone at the default height', () => {
-    const panes = openPane([], 'skills', ORDER, 1000)
+    const panes = openPane([], 'skills', ORDER)
     expect(panes).toEqual([{ id: 'skills', height: DEFAULT_PANE_H }])
   })
 
   it('is idempotent — opening an already-open pane changes nothing', () => {
-    const first = openPane([], 'skills', ORDER, 1000)
-    expect(openPane(first, 'skills', ORDER, 1000)).toBe(first)
+    const first = openPane([], 'skills', ORDER)
+    expect(openPane(first, 'skills', ORDER)).toBe(first)
   })
 
   it('inserts in CANONICAL order, not click order', () => {
     // Open gear, then combat. Combat comes earlier in ORDER, so it must land ABOVE gear even
     // though it was clicked second — a player reaching for a pane should find it in a fixed spot.
-    let panes = openPane([], 'gear', ORDER, 2000)
-    panes = openPane(panes, 'combat', ORDER, 2000)
+    let panes = openPane([], 'gear', ORDER)
+    panes = openPane(panes, 'combat', ORDER)
     expect(panes.map((p) => p.id)).toEqual(['combat', 'gear'])
   })
 
-  it('shrinks the existing panes to make room, and does NOT shrink the newcomer', () => {
-    // 800px of room: one pane at 380 fits easily; adding a second needs 760, still fine.
-    // Adding a THIRD needs 1140 > 800, so the first two must give up height — but the pane just
-    // opened must arrive at its full default, or opening it was pointless.
-    let panes = openPane([], 'skills', ORDER, 800)
-    panes = openPane(panes, 'combat', ORDER, 800)
-    panes = openPane(panes, 'gear', ORDER, 800)
-    const gear = panes.find((p) => p.id === 'gear')!
-    expect(gear.height).toBe(DEFAULT_PANE_H)
-    expect(stackHeight(panes)).toBeLessThanOrEqual(800)
-  })
-
-  it('falls back to scrolling rather than shrinking panes into uselessness', () => {
-    // Five panes cannot fit in 300px at any sane size. Every pane sits at its minimum and the
-    // stack overflows — the owner's asked-for second scrollbar — instead of producing slivers.
-    let panes: Pane[] = []
-    for (const id of ORDER.slice(0, 5)) panes = openPane(panes, id, ORDER, 300)
-    expect(panes).toHaveLength(5)
-    for (const p of panes) expect(p.height).toBe(MIN_PANE_H)
-    expect(stackHeight(panes)).toBeGreaterThan(300) // i.e. it scrolls
+  it('does NOT shrink the existing panes — each keeps its height, the column just grows (push-down)', () => {
+    // The accordion pushes lower sections DOWN rather than squeezing every pane into a fixed viewport;
+    // each section is later measured to its own content height (capPaneToContent).
+    let panes = openPane([], 'skills', ORDER)
+    panes = openPane(panes, 'combat', ORDER)
+    panes = openPane(panes, 'gear', ORDER)
+    for (const p of panes) expect(p.height).toBe(DEFAULT_PANE_H) // every pane at its default, none squeezed
+    expect(panes.map((p) => p.id)).toEqual(['skills', 'combat', 'gear'])
   })
 })
 

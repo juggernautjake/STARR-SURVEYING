@@ -219,45 +219,38 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
     if (missing.length) console.warn(`[codex] open pane(s) with no definition: ${missing.join(', ')}`)
   }, [stack.panes, byId])
 
+  const paneById = useMemo(() => new Map(stack.panes.map((p) => [p.id, p])), [stack.panes])
+
+  // The CONNECTED ACCORDION (D-11b): one vertical column of rows on the right, EACH a section. A row is
+  // just its tab when closed; when open, the section body opens OUT to the LEFT of that tab, joined to it
+  // as one unit. Because every section is a row in the same column, opening one PUSHES the tabs below it
+  // DOWN (they stay on the right, pushed beneath the open section) and closing reflows them back UP — no
+  // separate rail + pane column. Sections render in canonical order so a tab is always in the same place.
   return (
-    <div className="codex-stackwrap">
-      {/* The vertical rail — sits on the RIGHT (CX-R1) with panes opening to its left. Labels are
-          upright letter-stacks (CX-R2), which keeps the rail narrow while the tab targets stay tall
-          enough to hit comfortably. */}
-      <nav className="codex-rail" aria-label="Sheet sections">
-        {defs.map((d) => {
-          const open = stack.isOpen(d.id)
-          return (
+    <div className="codex-accordion" ref={stack.viewportRef} aria-label="Sheet sections">
+      {defs.map((d) => {
+        const open = stack.isOpen(d.id)
+        const pane = open ? paneById.get(d.id) : undefined
+        return (
+          <div key={d.id} className={`codex-acc-row${open ? ' is-open' : ''}`}>
+            {open && pane && <PaneView def={d} pane={pane} stack={stack} />}
             <button
-              key={d.id}
-              className={`codex-railtab${open ? ' on' : ''}`}
+              className={`codex-railtab codex-acc-tab${open ? ' on' : ''}`}
               aria-pressed={open}
               onClick={() => stack.toggle(d.id)}
-              title={open ? `Close ${d.label}` : `Open ${d.label} — it opens alongside what is already showing`}
+              title={open ? `Close ${d.label} — it closes back into this tab` : `Open ${d.label} — it opens out of this tab; the tabs below move down`}
             >
               <span aria-hidden className="codex-railemoji">{d.emoji}</span>
               <StackedLabel text={d.label} />
             </button>
-          )
-        })}
-        <button className="codex-railreset" onClick={stack.reset} title="Reset this sheet's panes to just Skills. Only affects your own view.">
+          </div>
+        )
+      })}
+      <div className="codex-acc-row codex-acc-resetrow">
+        <button className="codex-railtab codex-railreset codex-acc-tab" onClick={stack.reset} title="Reset this sheet's sections to just Skills. Only affects your own view.">
           <span aria-hidden>⟲</span>
           <StackedLabel text="Reset" />
         </button>
-      </nav>
-
-      {/* The scrolling stack viewport. Its measured height is the budget the opening arithmetic
-          works against, and its overflow is the owner's asked-for "second vertical scroll bar". */}
-      <div className="codex-stack" ref={stack.viewportRef}>
-        {stack.panes.length === 0 ? (
-          <p className="codex-empty">No sections open. Pick one from the rail — you can open as many as you like, and drag their edges to size them.</p>
-        ) : (
-          stack.panes.map((p) => {
-            const def = byId.get(p.id)
-            if (!def) return null
-            return <PaneView key={p.id} def={def} pane={p} stack={stack} />
-          })
-        )}
       </div>
     </div>
   )

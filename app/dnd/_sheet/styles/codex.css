@@ -372,6 +372,50 @@
 .sheet-shell .codex-railemoji {
   font-size: 14px;
 }
+
+/* ═══════════════════════════════════════ CONNECTED ACCORDION (D-11b)
+   One vertical column of rows on the right. A row is just its tab when closed; when open the section body
+   opens OUT to the LEFT of that tab, joined to it as one unit. Opening a section makes its row tall, which
+   pushes the tabs below it DOWN; closing reflows them back UP. Works for every system (shared shell). */
+.sheet-shell .codex-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sheet-shell .codex-acc-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-end; /* a closed row's lone tab sits on the right edge */
+  min-width: 0;
+}
+/* The section body takes the width to the LEFT of the tab; its own inline height is authoritative. */
+.sheet-shell .codex-acc-row .codex-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Joined to its tab on the right: square that edge + drop the shared border so body + tab read as one. */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.sheet-shell .codex-acc-tab {
+  flex: 0 0 auto;
+}
+/* An OPEN row's tab spans the full section height (align-items: stretch) and joins its left edge to the
+   body, so the tab reads as the right edge of the open section. Its letters centre in the taller tab. */
+.sheet-shell .codex-acc-row.is-open .codex-acc-tab {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  justify-content: center;
+  min-height: 0;
+}
+.sheet-shell .codex-acc-resetrow {
+  margin-top: 2px;
+  opacity: 0.8;
+}
+/* On a phone the accordion is already a single column; nothing extra needed — a section opening pushes
+   the tabs below it down exactly as on desktop. */
 /* CX-R2 — the label as an upright column of letters, one per line, reading top→bottom. */
 .sheet-shell .codex-raillabel {
   display: flex;

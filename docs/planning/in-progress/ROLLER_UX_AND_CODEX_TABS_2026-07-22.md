@@ -104,13 +104,26 @@
   the cap; `usePaneStack.setContentHeight` + a `ResizeObserver` in `PaneStack` measure and report it. Lives
   in the shared shell, so it works for EVERY system. 5 unit tests + browser-VERIFIED: a fresh Skills section
   opens at ~1284px (its content height), Abilities at ~206px (its content), each snug to its content.
-- [ ] **D-11b — Codex: connected tab⇄section accordion, tabs push down (owner 2026-07-22).** The remaining
-  LAYOUT rework so the Codex reads as ONE connected accordion on the right rather than a rail + separate
-  pane stack: a section opens OUT of its tab and closes back INTO it (tab + open section as one joined unit,
-  shared frame); when a section opens, the tabs BELOW it move DOWN (still on the right, pushed beneath the
-  open section) and collapsing reflows the lower tabs/sections back UP. In the shared shell/`PaneStack` so it
-  covers every system. Browser-verify open-a-section-above pushes the lower tabs down, collapse reflows up,
-  and the tab+section read as connected.
+- [x] **D-11b — Codex: connected tab⇄section accordion, tabs push down (owner 2026-07-22).** Rebuilt
+  `PaneStack` from a separate rail + pane column into ONE vertical accordion column of rows: each section is
+  a row whose tab sits on the right edge; when open, the section body opens OUT to the LEFT of that tab,
+  joined to it (squared shared edge, `align-items: stretch` so the tab spans the section height — one unit).
+  Because every section is a row in the same column, opening one PUSHES the tabs below it DOWN and closing
+  reflows them UP — no shrink-to-fit (each section keeps its content height; `openPane` simplified to
+  insert-only). Lives in the shared shell → every system. Browser-VERIFIED on Perrin's Codex: with Skills
+  open the next tab (Abilities) is pushed from ~y992 down to ~y2318, below the open section; all lower tabs
+  follow. 36 codex tests + tsc + eslint green.
+- [ ] **D-12 — section RELEVANCE filtering by system + class/subclass (owner 2026-07-22).** Only show the
+  sections that make sense for THIS character: a Barbarian with no spells/powers must have NO Spells/Powers
+  tab on any template. Audit which sections are mechanic-gated (Spells, Powers, Forms, Dossier, …) and which
+  systems/classes actually use each; drive tab/section availability off the character's own data (has spells
+  → Spells section; has a shapeshift/forms feature → Forms; etc.) rather than showing every section to every
+  character. Custom content re-enables a section (a Barbarian given a few homebrew spells GAINS a Spells
+  section to manage them). Reduce clutter across all templates + systems. (Confirmed clutter: Perrin, a
+  Rogue, currently shows Spells / Forms / Dossier tabs it should not.)
+- [ ] **D-13 — build/add CUSTOM sections (owner 2026-07-22).** A way to create a NEW section on a character
+  sheet, format it, and populate it — added to the sheet (and its tabs), for any system. The section
+  builder + storage on the character, surfaced in every template.
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact
