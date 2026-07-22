@@ -23,6 +23,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { shouldAnimateRoller } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
+import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
 
 type TileKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
@@ -110,6 +111,7 @@ function buildTiles(roll: ActiveRoll): StackTile[] {
 // ── The resolution stage: consumes `activeRoll` and cascades the tiles into place ────────────
 export function SigilStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
   const [tiles, setTiles] = useState<StackTile[]>([])
   const [visible, setVisible] = useState(0)

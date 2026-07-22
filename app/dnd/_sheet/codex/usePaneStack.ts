@@ -10,12 +10,13 @@
 // viewers — a DM peeking at a player's sheet must not rearrange it for them. localStorage, keyed
 // per character, satisfies all three by construction. Putting it on `char` would satisfy none of
 // them, and would additionally fire the sheet's autosave on every drag frame.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   type Pane,
   DEFAULT_PANE_H,
   capPaneToContent,
   closePane,
+  effectiveOrder,
   openPane,
   resizePane,
   soloPane,
@@ -29,6 +30,9 @@ const storeKey = (characterId: string | null | undefined) => `dnd:codex:v${STORE
 
 interface Stored {
   panes: Pane[]
+  /** The player's custom vertical tab order (Part B). Absent → canonical order. Ids no longer available
+   *  are filtered on read; new sections are appended by `effectiveOrder`, so a stale entry is harmless. */
+  tabOrder?: string[]
 }
 
 /**
@@ -38,7 +42,7 @@ interface Stored {
  * loses the `mlm` module; a system switch drops Forms). Restoring a pane id that no longer maps
  * to anything would render an empty box with a header and no way to explain itself.
  */
-function load(characterId: string | null | undefined, available: readonly string[]): Pane[] | null {
+function load(characterId: string | null | undefined, available: readonly string[]): Stored | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = window.localStorage.getItem(storeKey(characterId))
@@ -46,7 +50,12 @@ function load(characterId: string | null | undefined, available: readonly string
     const parsed = JSON.parse(raw) as Stored
     if (!Array.isArray(parsed?.panes)) return null
     const panes = parsed.panes.filter((p) => p && typeof p.id === 'string' && available.includes(p.id))
-    return panes.length ? panes : null
+    // The tab order is filtered to available ids too; `effectiveOrder` appends any new/returned ones.
+    const tabOrder = Array.isArray(parsed.tabOrder)
+      ? parsed.tabOrder.filter((id) => typeof id === 'string' && available.includes(id))
+      : undefined
+    if (!panes.length && !tabOrder?.length) return null
+    return { panes: panes.length ? panes : [{ id: available[0], height: DEFAULT_PANE_H }], ...(tabOrder?.length ? { tabOrder } : {}) }
   } catch {
     // A corrupt or unreadable entry falls back to the default stack. A layout preference is never
     // worth surfacing an error to a player over.
@@ -54,10 +63,13 @@ function load(characterId: string | null | undefined, available: readonly string
   }
 }
 
-function save(characterId: string | null | undefined, panes: Pane[]) {
+function save(characterId: string | null | undefined, panes: Pane[], tabOrder: string[] | null) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(storeKey(characterId), JSON.stringify({ panes } satisfies Stored))
+    window.localStorage.setItem(
+      storeKey(characterId),
+      JSON.stringify({ panes, ...(tabOrder && tabOrder.length ? { tabOrder } : {}) } satisfies Stored),
+    )
   } catch {
     // Private-browsing quota failures are not worth interrupting play for.
   }
@@ -77,6 +89,11 @@ export interface PaneStack {
   setContentHeight: (id: string, contentH: number) => void
   collapse: (id: string) => void
   solo: (id: string) => void
+  /** The EFFECTIVE vertical tab order (Part B) — the player's custom order with new sections appended, or
+   *  the canonical order when they haven't reordered. The accordion renders its rows in this order. */
+  order: string[]
+  /** Persist a new custom tab order (from a drag/keyboard reorder). */
+  setOrder: (ids: string[]) => void
   /** Any persisted-layout feature eventually strands someone in a state they cannot undo. */
   reset: () => void
 }
@@ -92,6 +109,8 @@ export function usePaneStack(
   // zero budget and slam everything to the minimum.
   const availableRef = useRef<number>(DEFAULT_PANE_H)
   const [panes, setPanes] = useState<Pane[]>(() => [{ id: defaultOpen, height: DEFAULT_PANE_H }])
+  // The player's custom tab order (Part B); null → canonical. Persisted with the panes.
+  const [tabOrder, setTabOrder] = useState<string[] | null>(null)
   const loaded = useRef(false)
 
   // Restore AFTER mount, never during render. Reading localStorage while rendering makes the
@@ -102,7 +121,10 @@ export function usePaneStack(
     if (loaded.current) return
     loaded.current = true
     const restored = load(characterId, order)
-    if (restored) setPanes(restored)
+    if (restored) {
+      setPanes(restored.panes)
+      if (restored.tabOrder?.length) setTabOrder(restored.tabOrder)
+    }
   }, [characterId, order])
 
   // Persist every settled change. Drag frames go through `resize`, so this writes often during a
@@ -110,8 +132,8 @@ export function usePaneStack(
   // losing the final size if the player releases and navigates immediately.
   useEffect(() => {
     if (!loaded.current) return
-    save(characterId, panes)
-  }, [characterId, panes])
+    save(characterId, panes, tabOrder)
+  }, [characterId, panes, tabOrder])
 
   // Track the viewport height as the budget. useLayoutEffect so the first measurement lands
   // before paint, and a ResizeObserver because the container's height changes with the window,
@@ -143,10 +165,21 @@ export function usePaneStack(
   )
 
   const resize = useCallback((id: string, height: number) => setPanes((cur) => resizePane(cur, id, height)), [])
-  const setContentHeight = useCallback((id: string, contentH: number) => setPanes((cur) => capPaneToContent(cur, id, contentH)), [])
+  // A section opens at its content height, but capped to ~85% of the viewport so a huge list (300 spells)
+  // opens at a sane height and scrolls within the pane rather than making the whole accordion scroll (A2).
+  const setContentHeight = useCallback((id: string, contentH: number) => {
+    const ceiling = typeof window !== 'undefined' ? window.innerHeight * 0.85 : undefined
+    setPanes((cur) => capPaneToContent(cur, id, contentH, ceiling))
+  }, [])
   const collapse = useCallback((id: string) => setPanes((cur) => toggleCollapse(cur, id)), [])
   const solo = useCallback((id: string) => setPanes((cur) => soloPane(cur, id, availableRef.current)), [])
-  const reset = useCallback(() => setPanes([{ id: defaultOpen, height: DEFAULT_PANE_H }]), [defaultOpen])
+  // The rendered tab order: the player's custom order (new sections appended) or the canonical order.
+  const effective = useMemo(() => effectiveOrder(order, tabOrder), [order, tabOrder])
+  const setOrder = useCallback((ids: string[]) => setTabOrder(effectiveOrder(order, ids)), [order])
+  const reset = useCallback(() => {
+    setPanes([{ id: defaultOpen, height: DEFAULT_PANE_H }])
+    setTabOrder(null) // a reset also restores the canonical tab order
+  }, [defaultOpen])
 
-  return { panes, viewportRef, isOpen, toggle, resize, setContentHeight, collapse, solo, reset }
+  return { panes, viewportRef, isOpen, toggle, resize, setContentHeight, collapse, solo, order: effective, setOrder, reset }
 }

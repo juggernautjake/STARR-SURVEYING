@@ -53,12 +53,27 @@ export type { SheetPanel };
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
 
-function Stat({ label, value, sub, title, accent }: { label: string; value: string; sub?: string; title?: string; accent?: boolean }) {
+function Stat({ label, value, sub, title, accent, onRoll }: { label: string; value: string; sub?: string; title?: string; accent?: boolean; onRoll?: () => void }) {
+  const cls = accent ? `${styles.pf2Stat} ${styles.pf2StatAccent}` : styles.pf2Stat;
+  // `title` carries the resolved breakdown, so hovering a headline number answers "why is it this?" without
+  // a click — the same "show its work" contract the roller honours. `accent` lifts AC + HP (the two
+  // most-checked numbers) out of the strip with a gold hairline. `onRoll` (AO-3) makes a d20 stat like
+  // Perception / Initiative click-to-roll like the saves/skills/Strikes; a DC (Class DC) has no onRoll.
+  if (onRoll) {
+    return (
+      <div
+        title={title} role="button" tabIndex={0} className={cls} style={{ cursor: 'pointer' }}
+        onClick={onRoll}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRoll(); } }}
+      >
+        <span className={styles.pf2StatKey}>{label}</span>
+        <strong className={styles.pf2StatVal}>{value}</strong>
+        {sub && <span className={styles.pf2StatSub}>{sub}</span>}
+      </div>
+    );
+  }
   return (
-    // `title` carries the resolved breakdown, so hovering a headline number answers "why is it
-    // this?" without a click — the same "show its work" contract the roller banner honours.
-    // `accent` lifts AC + HP (the two most-checked numbers) out of the strip with a gold hairline.
-    <div title={title} className={accent ? `${styles.pf2Stat} ${styles.pf2StatAccent}` : styles.pf2Stat}>
+    <div title={title} className={cls}>
       <span className={styles.pf2StatKey}>{label}</span>
       <strong className={styles.pf2StatVal}>{value}</strong>
       {sub && <span className={styles.pf2StatSub}>{sub}</span>}
@@ -245,11 +260,18 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     setLastRoll({ label: name, total: r.total, detail, tone });
     // Publish to the animated roller via the shared (unit-tested) builder — a straight d20 (PF2 folds
     // adv/dis into the modifier), crit/fumble from a nat 20/1 OR the four-step degree.
+    // The named contributing modifiers (AO-2): pass them as boosts/penalties so the animated stage ALWAYS
+    // shows the full breakdown — not just when there's no DC. Without this, setting a Target DC replaced the
+    // modifier breakdown in the tag with the degree, hiding "where did this +N come from".
+    const boosts = stat.applied.filter((m) => m.value > 0).map((m) => `+${m.value} ${m.source}`);
+    const penalties = stat.applied.filter((m) => m.value < 0).map((m) => `−${Math.abs(m.value)} ${m.source}`);
     setActiveRoll(buildD20ActiveRoll({
       token: ++rollTokenRef.current, label: name, natural: r.natural, total: r.total, modifier: r.modifier,
       crit: r.critical || r.degree === 'critical-success',
       fumble: r.fumble || r.degree === 'critical-failure',
       tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : stat.breakdown,
+      boosts: boosts.length ? boosts : undefined,
+      penalties: penalties.length ? penalties : undefined,
     }));
   };
   const rollDamage = (name: string, expr: string) => {
@@ -439,8 +461,10 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
               <Stat label="AC" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} accent />
             )}
             <Stat label="HP" value={`${pf2.combat.currentHp || maxHp}/${maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} accent />
-            <Stat label="Perception" value={fmt(d.perception.total)} sub={pf2.perception.rank} title={d.perception.breakdown} />
-            <Stat label="Initiative" value={fmt(d.perception.total)} sub="Perception" title={d.perception.breakdown} />
+            {/* Perception + Initiative are d20 rolls (initiative IS Perception by default), so both are
+                click-to-roll like the saves/skills/Strikes (AO-3). */}
+            <Stat label="Perception" value={fmt(d.perception.total)} sub={pf2.perception.rank} title={`Roll Perception (d20 ${fmt(d.perception.total)})\n${d.perception.breakdown}`} onRoll={() => rollLine('Perception', d.perception)} />
+            <Stat label="Initiative" value={fmt(d.perception.total)} sub="Perception" title={`Roll Initiative (Perception, d20 ${fmt(d.perception.total)})\n${d.perception.breakdown}`} onRoll={() => rollLine('Initiative', d.perception)} />
             <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
             <Stat label="Class DC" value={`${d.classDc.total}`} sub={pf2.combat.classDcAttribute} title={d.classDc.breakdown} />
             {d.spellDc && <Stat label="Spell DC" value={`${d.spellDc.total}`} sub={`atk ${fmt(d.spellAttack?.total ?? 0)} · ${pf2.spellcasting.tradition}`} title={d.spellDc.breakdown} />}

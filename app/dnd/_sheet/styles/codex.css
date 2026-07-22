@@ -401,6 +401,25 @@
 }
 .sheet-shell .codex-acc-tab {
   flex: 0 0 auto;
+  /* The tab is a drag handle (Part B2). `touch-action: none` lets a touch drag reorder rather than being
+     stolen by the column's scroll; the tab rail is narrow, so losing scroll-start-on-a-tab is negligible. */
+  touch-action: none;
+}
+/* Drag-to-reorder feedback (Part B2). The grabbed row lifts + dims; the row the cursor is over shows a
+   drop line at its top edge. Colours are theme tokens so it reads on every skin. */
+.sheet-shell .codex-acc-row.is-dragging {
+  opacity: 0.55;
+}
+.sheet-shell .codex-acc-row.is-dragging .codex-acc-tab {
+  cursor: grabbing;
+}
+.sheet-shell .codex-acc-row.drop-target {
+  box-shadow: 0 -3px 0 -1px var(--tealbright, currentColor);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-shell .codex-acc-row {
+    transition: opacity 0.12s ease;
+  }
 }
 /* An OPEN row's tab spans the full section height (align-items: stretch) and joins its left edge to the
    body, so the tab reads as the right edge of the open section. Its letters centre in the taller tab. */

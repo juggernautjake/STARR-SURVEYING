@@ -104,6 +104,35 @@ export function openPane(panes: Pane[], id: string, order: readonly string[]): P
   )
 }
 
+/** Move `fromId` to `toIndex` within `order` (Part B — drag-to-reorder the vertical tab stack). Pure;
+ *  returns a NEW array. The index is clamped to the array, and an unknown id (or a no-op move) returns an
+ *  unchanged copy. This is the whole reorder rule — the drag interaction just computes `toIndex` from the
+ *  cursor and calls this, so the arithmetic is unit-tested rather than tangled in pointer handlers. */
+export function reorder(order: readonly string[], fromId: string, toIndex: number): string[] {
+  const from = order.indexOf(fromId)
+  if (from < 0) return order.slice()
+  const to = Math.max(0, Math.min(order.length - 1, Math.round(toIndex)))
+  if (from === to) return order.slice()
+  const next = order.slice()
+  next.splice(from, 1)
+  next.splice(to, 0, fromId)
+  return next
+}
+
+/** Resolve the order the accordion renders in (Part B) from the CANONICAL order + the player's SAVED custom
+ *  order. Saved ids that still exist keep the player's order; canonical ids missing from the saved order (a
+ *  newly-added section, or one that was gated away then returned) are appended at the end, in canonical
+ *  order — so a new section still appears rather than vanishing. Saved ids no longer available are dropped.
+ *  No saved order → the canonical order unchanged, so every existing sheet is untouched. */
+export function effectiveOrder(canonical: readonly string[], saved: readonly string[] | null | undefined): string[] {
+  if (!saved || saved.length === 0) return canonical.slice()
+  const canonSet = new Set(canonical)
+  const kept = saved.filter((id) => canonSet.has(id))
+  const keptSet = new Set(kept)
+  const appended = canonical.filter((id) => !keptSet.has(id))
+  return [...kept, ...appended]
+}
+
 /** Close `id`. The remaining panes keep their heights — they do NOT expand to fill the gap.
  *  Growing a pane the player sized by hand, because a different pane closed, would be the layout
  *  overriding an explicit choice. The empty space is honest; the fit control is one double-click
@@ -146,12 +175,19 @@ export function neededPaneHeight(content: number, chromeOutsideBody: number, bod
  *     it — so the user can only ever shrink a section below its content, never grow it past (no empty
  *     space under the content). A later measure (the content itself changed) keeps the size the player
  *     has since chosen, only re-capping it.
- *  The cap is floored at MIN_PANE_H so a tiny section stays grabbable. */
-export function capPaneToContent(panes: Pane[], id: string, contentH: number): Pane[] {
+ *  The cap is floored at MIN_PANE_H so a tiny section stays grabbable.
+ *
+ *  `maxOpenH` (Part A2) is a VIEWPORT ceiling for the OPEN height only: a 300-spell section whose content is
+ *  5000px shouldn't open at 5000px and scroll the whole accordion — worse than a pane that scrolls. When
+ *  given, the section opens at `min(content, maxOpenH)`; the drag `max` still records the TRUE content height,
+ *  so the player can drag it to full length if they want. A normal section (content < maxOpenH) still opens
+ *  fully — the common case — so nothing changes for the sections the owner actually cares about. */
+export function capPaneToContent(panes: Pane[], id: string, contentH: number, maxOpenH?: number): Pane[] {
   const cap = Math.max(MIN_PANE_H, Math.round(contentH))
+  const openH = maxOpenH != null ? Math.min(cap, Math.max(MIN_PANE_H, Math.round(maxOpenH))) : cap
   return panes.map((p) => {
     if (p.id !== id) return p
-    if (p.max == null) return { ...p, max: cap, height: cap } // first measure → open at content height
+    if (p.max == null) return { ...p, max: cap, height: openH } // first measure → open at content (viewport-capped)
     if (p.max === cap && p.height <= cap) return p // unchanged
     return { ...p, max: cap, height: Math.min(p.height, cap) } // re-cap, keep the player's size
   })

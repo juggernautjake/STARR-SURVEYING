@@ -14,8 +14,10 @@ import {
   MIN_PANE_H,
   capPaneToContent,
   closePane,
+  effectiveOrder,
   neededPaneHeight,
   openPane,
+  reorder,
   renderedHeight,
   resizePane,
   shrinkToFit,
@@ -164,6 +166,19 @@ describe('content-height cap (D-11 — a section opens at content height, only s
     expect(p.height).toBe(MIN_PANE_H)
   })
 
+  it('A2 — a giant section opens capped to the viewport ceiling, but its drag max is the true content', () => {
+    // 5000px of content, viewport ceiling ~850px → opens at 850 (scrolls within the pane), NOT 5000.
+    const [p] = capPaneToContent([{ id: 'spells', height: DEFAULT_PANE_H }], 'spells', 5000, 850)
+    expect(p.height).toBe(850) // opened at the ceiling, not the full 5000
+    expect(p.max).toBe(5000) // …but can still be dragged to full length if the player wants
+  })
+
+  it('A2 — a normal section (content below the ceiling) still opens fully', () => {
+    const [p] = capPaneToContent([{ id: 'skills', height: DEFAULT_PANE_H }], 'skills', 300, 850)
+    expect(p.height).toBe(300) // unchanged by the ceiling — the common case
+    expect(p.max).toBe(300)
+  })
+
   it('a LATER measure keeps the player-chosen size, only re-capping it', () => {
     // Pane already measured once (max set) and shrunk by the player to 150; content grows to 500.
     const [p] = capPaneToContent([{ id: 's', height: 150, max: 380 }], 's', 500)
@@ -176,6 +191,42 @@ describe('content-height cap (D-11 — a section opens at content height, only s
     expect(resizePane(capped, 's', 999)[0].height).toBe(260) // clamped up-drag to the cap
     expect(resizePane(capped, 's', 140)[0].height).toBe(140) // shrinking is allowed
     expect(resizePane(capped, 's', 10)[0].height).toBe(MIN_PANE_H) // still floored at the minimum
+  })
+})
+
+describe('reorder + effectiveOrder (Part B — drag-to-reorder the tab stack)', () => {
+  const CANON = ['skills', 'abilities', 'combat', 'attacks', 'spells']
+
+  it('reorder moves an id to a new index, shifting the others', () => {
+    expect(reorder(CANON, 'spells', 0)).toEqual(['spells', 'skills', 'abilities', 'combat', 'attacks'])
+    expect(reorder(CANON, 'skills', 2)).toEqual(['abilities', 'combat', 'skills', 'attacks', 'spells'])
+  })
+
+  it('reorder clamps an out-of-range index and no-ops a same-place or unknown move', () => {
+    expect(reorder(CANON, 'skills', 99)).toEqual(['abilities', 'combat', 'attacks', 'spells', 'skills']) // clamped to end
+    expect(reorder(CANON, 'skills', -5)).toEqual(CANON) // already first → unchanged copy
+    expect(reorder(CANON, 'nope', 1)).toEqual(CANON) // unknown id → unchanged copy
+    expect(reorder(CANON, 'combat', 2)).toEqual(CANON) // same index → unchanged copy
+  })
+
+  it('reorder returns a NEW array (never mutates the input)', () => {
+    const out = reorder(CANON, 'spells', 0)
+    expect(out).not.toBe(CANON)
+    expect(CANON[0]).toBe('skills') // input untouched
+  })
+
+  it('effectiveOrder without a saved order is the canonical order', () => {
+    expect(effectiveOrder(CANON, null)).toEqual(CANON)
+    expect(effectiveOrder(CANON, [])).toEqual(CANON)
+  })
+
+  it('effectiveOrder keeps the saved order and APPENDS new/returned sections in canonical order', () => {
+    // Player saved [spells, skills]; combat/attacks/abilities are new-since (or gated back in) → appended.
+    expect(effectiveOrder(CANON, ['spells', 'skills'])).toEqual(['spells', 'skills', 'abilities', 'combat', 'attacks'])
+  })
+
+  it('effectiveOrder drops saved ids that are no longer available', () => {
+    expect(effectiveOrder(CANON, ['spells', 'gone', 'skills'])).toEqual(['spells', 'skills', 'abilities', 'combat', 'attacks'])
   })
 })
 

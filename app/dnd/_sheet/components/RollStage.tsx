@@ -3,6 +3,7 @@ import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
 import { shouldAnimateRoller } from './rollers/rollerAnim'
 import { useRollFeed } from './rollers/rollFeed'
+import { useExpandOnRoll } from './rollers/FloatingRoller'
 
 // The rolling number cycles through the CHARACTER'S accent tokens, not a fixed rainbow.
 // This used to be a hardcoded neon list (hot pink, magenta, cyan…), which meant every sheet's
@@ -47,6 +48,7 @@ const DISPLAY_MODES: Record<string, DisplayMode> = {
 export default function RollStage({ roller = 'futuristic' }: { roller?: string }) {
   const mode = DISPLAY_MODES[roller] ?? DISPLAY_MODES.futuristic
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
   const [display, setDisplay] = useState<number | string>('—')
   const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })

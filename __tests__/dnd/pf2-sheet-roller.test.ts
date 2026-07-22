@@ -35,6 +35,35 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
     expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, strike\.damage\)/);
   });
 
+  it('AO-2 — offers all four roller templates via the on-roller picker', () => {
+    // The template picker (RollerTemplateBar) is mounted in the PF2 roller node, and the chosen id resolves
+    // through rollerStageFor (Dice Core / Sigil / Board / Impact) — so every template is reachable + switchable
+    // on PF2, exactly as on 5e.
+    expect(sheet).toContain('RollerTemplateBar');
+    expect(sheet).toContain('resolveRollerTemplate(');
+    expect(sheet).toContain('rollerStageFor(rollerId)');
+  });
+
+  it('AO-2 — the roll carries its full information to the stage: degree, crit/fumble, and named modifiers', () => {
+    // Degree-of-success tag vs the Target DC, and crit/fumble from a nat 20/1 OR the four-step degree.
+    expect(sheet).toContain('degreeLabel(r.degree)');
+    expect(sheet).toContain('r.critical || r.degree === \'critical-success\'');
+    expect(sheet).toContain('r.fumble || r.degree === \'critical-failure\'');
+    // The named contributing modifiers reach the stage as boosts/penalties, so the breakdown shows even with
+    // a Target DC set (where the tag becomes the degree) — "where did this +N come from" is always answered.
+    expect(sheet).toContain('stat.applied.filter((m) => m.value > 0)');
+    expect(sheet).toMatch(/boosts: boosts\.length/);
+    expect(sheet).toMatch(/penalties: penalties\.length/);
+  });
+
+  it('AO-3 — Perception and Initiative are click-to-roll (a DC like Class DC is not)', () => {
+    expect(sheet).toContain("rollLine('Perception', d.perception)");
+    expect(sheet).toContain("rollLine('Initiative', d.perception)");
+    // Class DC is a DC others roll against, not a d20 you roll — it stays display-only (no onRoll).
+    expect(sheet).toMatch(/label="Class DC"[^>]*\/>/);
+    expect(sheet).not.toMatch(/label="Class DC"[^>]*onRoll/);
+  });
+
   it('rolls the RESOLVED statistic, so the card and the dice cannot disagree (S13b)', () => {
     // The bug this pins: the sheet displayed `pf2SaveTotal(...)` and rolled that number PLUS a
     // condition penalty added at the call site, so a Frightened character read +7 off the card and

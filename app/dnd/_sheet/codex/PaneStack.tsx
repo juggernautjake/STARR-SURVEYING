@@ -18,8 +18,8 @@
 //    pane identically no matter how tall each actually is, which is precisely the wrong answer.
 //    The `data-density` attribute below is the JS-side mirror of those breakpoints, for content
 //    that cannot be reflowed by CSS alone.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { MIN_PANE_H, renderedHeight, neededPaneHeight, type Pane } from './paneMath'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { MIN_PANE_H, renderedHeight, neededPaneHeight, reorder, type Pane } from './paneMath'
 import type { PaneStack as Stack } from './usePaneStack'
 
 export interface PaneDef {
@@ -232,6 +232,86 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
 
   const paneById = useMemo(() => new Map(stack.panes.map((p) => [p.id, p])), [stack.panes])
 
+  // Render the rows in the player's EFFECTIVE order (Part B — drag-to-reorder). `stack.order` is the custom
+  // order with new sections appended, or the canonical order when they haven't reordered. Any def not named
+  // in the order (defensive) keeps its natural position at the end.
+  const orderedDefs = useMemo(() => {
+    const rank = new Map(stack.order.map((id, i) => [id, i]))
+    return defs.slice().sort((a, b) => (rank.get(a.id) ?? defs.length) - (rank.get(b.id) ?? defs.length))
+  }, [defs, stack.order])
+
+  // ── Drag-to-reorder the vertical tab stack (Part B2) ──────────────────────────────────────────────────
+  // Pointer-based so mouse, touch and stylus all reorder, and it's fully stylable. A tab TOGGLES on a tap;
+  // a drag past a small threshold instead reorders, and we suppress the click that would fire on release.
+  // The drop index is read from the cursor against the row midpoints (`reorder` does the array move); the
+  // reset row is excluded. Keyboard users reorder the focused tab with Alt+↑/↓. All the arithmetic lives in
+  // the unit-tested `reorder`/`effectiveOrder`; this is just the input plumbing.
+  const DRAG_THRESHOLD = 6
+  const dragStart = useRef<{ id: string; y: number; moved: boolean } | null>(null)
+  const justDragged = useRef(false)
+  const [drag, setDrag] = useState<{ id: string; over: number } | null>(null)
+
+  const rowIndexAtY = useCallback(
+    (clientY: number): number => {
+      const container = stack.viewportRef.current
+      if (!container) return 0
+      const rows = Array.from(container.querySelectorAll<HTMLElement>('.codex-acc-row:not(.codex-acc-resetrow)'))
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i].getBoundingClientRect()
+        if (clientY < r.top + r.height / 2) return i
+      }
+      return Math.max(0, rows.length - 1)
+    },
+    [stack.viewportRef],
+  )
+
+  const onTabPointerDown = useCallback((e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return
+    dragStart.current = { id, y: e.clientY, moved: false }
+  }, [])
+  const onTabPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const s = dragStart.current
+      if (!s) return
+      if (!s.moved) {
+        if (Math.abs(e.clientY - s.y) < DRAG_THRESHOLD) return // still a tap, not yet a drag
+        s.moved = true
+        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* capture unsupported */ }
+      }
+      setDrag({ id: s.id, over: rowIndexAtY(e.clientY) })
+    },
+    [rowIndexAtY],
+  )
+  const onTabPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const s = dragStart.current
+      dragStart.current = null
+      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch { /* already released */ }
+      if (s?.moved && drag) {
+        justDragged.current = true // suppress the click-to-toggle that follows a real drag
+        stack.setOrder(reorder(stack.order, s.id, drag.over))
+      }
+      setDrag(null)
+    },
+    [drag, stack],
+  )
+  const onTabClick = useCallback(
+    (id: string) => {
+      if (justDragged.current) { justDragged.current = false; return } // it was a drag, not a tap
+      stack.toggle(id)
+    },
+    [stack],
+  )
+  const onTabKeyDown = useCallback(
+    (e: React.KeyboardEvent, id: string, index: number) => {
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault() // Alt+↑/↓ moves the focused tab one place — keyboard-accessible reordering
+        stack.setOrder(reorder(stack.order, id, index + (e.key === 'ArrowUp' ? -1 : 1)))
+      }
+    },
+    [stack],
+  )
+
   // The CONNECTED ACCORDION (D-11b): one vertical column of rows on the right, EACH a section. A row is
   // just its tab when closed; when open, the section body opens OUT to the LEFT of that tab, joined to it
   // as one unit. Because every section is a row in the same column, opening one PUSHES the tabs below it
@@ -239,17 +319,23 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
   // separate rail + pane column. Sections render in canonical order so a tab is always in the same place.
   return (
     <div className="codex-accordion" ref={stack.viewportRef} aria-label="Sheet sections">
-      {defs.map((d) => {
+      {orderedDefs.map((d, i) => {
         const open = stack.isOpen(d.id)
         const pane = open ? paneById.get(d.id) : undefined
+        const dragging = drag?.id === d.id
+        const dropHere = drag != null && !dragging && drag.over === i
         return (
-          <div key={d.id} className={`codex-acc-row${open ? ' is-open' : ''}`}>
+          <div key={d.id} className={`codex-acc-row${open ? ' is-open' : ''}${dragging ? ' is-dragging' : ''}${dropHere ? ' drop-target' : ''}`}>
             {open && pane && <PaneView def={d} pane={pane} stack={stack} />}
             <button
               className={`codex-railtab codex-acc-tab${open ? ' on' : ''}`}
               aria-pressed={open}
-              onClick={() => stack.toggle(d.id)}
-              title={open ? `Close ${d.label} — it closes back into this tab` : `Open ${d.label} — it opens out of this tab; the tabs below move down`}
+              onPointerDown={(e) => onTabPointerDown(e, d.id)}
+              onPointerMove={onTabPointerMove}
+              onPointerUp={onTabPointerUp}
+              onClick={() => onTabClick(d.id)}
+              onKeyDown={(e) => onTabKeyDown(e, d.id, i)}
+              title={`${open ? `Close ${d.label}` : `Open ${d.label}`} · drag to reorder · Alt+↑/↓ to move`}
             >
               <span aria-hidden className="codex-railemoji">{d.emoji}</span>
               <StackedLabel text={d.label} />

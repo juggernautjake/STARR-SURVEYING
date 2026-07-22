@@ -22,7 +22,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { useRollerDock } from './FloatingRoller'
+import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { dieSides, ngonPoints } from './dieShape'
@@ -98,6 +98,7 @@ function buildRows(roll: ActiveRoll): BreakRow[] {
 // ── The resolution stage: consumes `activeRoll`, tumbles the die, lands it big ────────────
 export function ImpactStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
   const [rows, setRows] = useState<BreakRow[]>([])
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>('idle')

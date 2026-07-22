@@ -14,7 +14,7 @@
 // Styling is TOKEN-ONLY with fallbacks (`floatingRoller.css`, class `.fld`) so the same window reads
 // correctly under `.dnd-sheet` (5e) AND under `.sheet-shell` / `.igs-root` (bespoke PF2/IG), and any
 // re-skin restyles it for free. Motion is gated on `prefers-reduced-motion`.
-import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useFloatingDock } from './useFloatingDock'
 import { RESET_TITLE } from '../../lib/floating'
 import './floatingRoller.css'
@@ -28,6 +28,20 @@ const Ctx = createContext<RollerDockCtx>({ expand: () => {} })
 /** A roller reads this to pop its window open on a fresh roll (see DiceTray / SigilStack). */
 export function useRollerDock(): RollerDockCtx {
   return useContext(Ctx)
+}
+
+/** Pop the floating roller open whenever a NEW roll arrives (a token the hook hasn't seen), so clicking a
+ *  rollable stat shows the throw even if the roller was minimized/closed — on EVERY system and template.
+ *  Every roller stage calls this with its feed token, so the auto-open behaviour lives in ONE place and
+ *  can't drift between the four templates. Idempotent, and a harmless no-op outside a FloatingRoller. */
+export function useExpandOnRoll(token: number | null | undefined): void {
+  const { expand } = useRollerDock()
+  const seen = useRef<number | null>(null)
+  useEffect(() => {
+    if (token == null || token === seen.current) return
+    seen.current = token
+    expand()
+  }, [token, expand])
 }
 
 export default function FloatingRoller({
