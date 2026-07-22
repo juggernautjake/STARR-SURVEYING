@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+// THE DICE CORE — the 5e roller. Its floating-window chrome (pin/drag/resize/minimize/persist) now
+// lives in the shared `FloatingRoller` dock (R-2), which wraps this at every mount; this component
+// keeps ALL of its roll UI + state and no longer owns any drag/position/minimize logic of its own.
+// The one seam back to the dock is `useRollerDock().expand()`, called when a fresh roll arrives so a
+// minimized window pops open to show the animation — a window concern, not a roll concern.
+import { useEffect, useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
-import { clampBox, RESET_TITLE } from '../lib/floating'
+import { useRollerDock } from './rollers/FloatingRoller'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
@@ -17,15 +22,15 @@ export default function DiceTray() {
   // dead '🔥 Surge' button or a Reckless toggle they have no feature for.
   const hasReckless = useSheetModule('reckless')
   const hasForms = useSheetModule('forms')
-  const [open, setOpen] = useState(true)
+  const dock = useRollerDock()
   const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
-  // Auto-open the tray when a roll is triggered from the sheet while it's minimized, so the roll animation
-  // pops up automatically instead of playing behind the FAB (owner 2026-07-18). `activeRoll.token` increments
-  // per roll, so a new roll re-opens the tray.
+  // Auto-open the dock when a roll is triggered from the sheet while it's minimized, so the roll
+  // animation pops up automatically instead of playing behind the minimized bar (owner 2026-07-18).
+  // `activeRoll.token` increments per roll, so a new roll re-opens the window.
   const rollToken = activeRoll?.token
   useEffect(() => {
-    if (rollToken != null) setOpen(true)
-  }, [rollToken])
+    if (rollToken != null) dock.expand()
+  }, [rollToken, dock])
   const [diceCount, setDiceCount] = useState(1)
   // Manual / IRL roll entry (Areas R3 + R5) — enter a physically-rolled d20 face (the sheet folds your
   // modifier) or just log a roll you made in person (result + what it was for).
@@ -54,12 +59,6 @@ export default function DiceTray() {
     setEntryLabel(''); setEntryFace(''); setEntryMod(''); setEntryTotal('')
   }
   const [muted, setMutedState] = useState(isMuted())
-  // `w` pins the tray's on-screen width captured the instant dragging begins, so going from the docked
-  // (width:100%) layout to floating never shrinks or reflows it — it just detaches and moves (owner request).
-  const [pos, setPos] = useState<{ x: number; y: number; w: number } | null>(null)
-  const trayRef = useRef<HTMLDivElement>(null)
-  const dragOff = useRef<{ dx: number; dy: number } | null>(null)
-  const dragWidth = useRef<number | null>(null)
 
   const combat = char.combat
   const topForm = char.forms.find((f) => f.id === topFormId)
@@ -72,56 +71,13 @@ export default function DiceTray() {
     setMutedState(next)
   }
 
-  const onDragStart = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return // don't drag when hitting a control
-    const el = trayRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    dragOff.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top }
-    // Capture the CURRENT rendered width and hold it through the drag so the tray keeps its exact size.
-    dragWidth.current = rect.width
-    setPos({ x: rect.left, y: rect.top, w: rect.width })
-    window.addEventListener('pointermove', onDragMove)
-    window.addEventListener('pointerup', onDragEnd)
-  }
-  const onDragMove = (e: PointerEvent) => {
-    if (!dragOff.current) return
-    const w = dragWidth.current ?? trayRef.current?.offsetWidth ?? 366
-    const h = trayRef.current?.offsetHeight ?? 300
-    // clampBox keeps the head below the sticky header — dragging it under there used to
-    // hide the handle behind the header and strand the tray permanently.
-    const { x, y } = clampBox(e.clientX - dragOff.current.dx, e.clientY - dragOff.current.dy, w, h)
-    setPos({ x, y, w })
-  }
-  // Snap back to the docked sidebar position. Also reachable by double-clicking the head,
-  // for when the tray has been dragged somewhere awkward.
-  const resetPos = () => { setPos(null); dragWidth.current = null }
-  const onDragEnd = () => {
-    dragOff.current = null
-    window.removeEventListener('pointermove', onDragMove)
-    window.removeEventListener('pointerup', onDragEnd)
-  }
-
-  if (!open) {
-    return (
-      <button className="tray-fab" data-dice-style={diceStyle} onClick={() => setOpen(true)} title="Open dice tray">
-        🎲
-      </button>
-    )
-  }
-
-  const posStyle = pos
-    ? { position: 'fixed' as const, left: pos.x, top: pos.y, right: 'auto' as const, bottom: 'auto' as const, width: pos.w, maxWidth: 'calc(100vw - 12px)' as const }
-    : undefined
-
   return (
-    <div className={`tray ${pos ? 'floating' : ''}`} data-dice-style={diceStyle} ref={trayRef} style={posStyle} onMouseDown={primeAudio}>
-      <div className="tray-head drag-handle" onPointerDown={onDragStart} onDoubleClick={resetPos} title="Drag to move · double-click to reset position">
+    // The floating window (pin/drag/resize/minimize/persist) is the FloatingRoller dock wrapping this;
+    // `.tray` keeps its own look (incl. the per-dice-style textures) but no longer positions itself.
+    <div className="tray" data-dice-style={diceStyle} onMouseDown={primeAudio}>
+      <div className="tray-head">
         <div className="tray-title">⠿ Dice Core</div>
         <div className="btn-row">
-          {pos && (
-            <button type="button" onClick={resetPos} title={RESET_TITLE} aria-label={RESET_TITLE}>↺</button>
-          )}
           {/* Dice-roller style selector (owner 2026-07-18) — switch the roller's look from the roller itself.
               Defaults to the campaign/player preference; the override is per-session. */}
           <select
@@ -151,9 +107,6 @@ export default function DiceTray() {
             disabled={!log.length && !activeRoll}
           >
             Clear
-          </button>
-          <button className="btn tiny ghost" onClick={() => setOpen(false)} title="Minimize">
-            ▾
           </button>
         </div>
       </div>

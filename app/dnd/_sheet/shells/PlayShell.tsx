@@ -12,6 +12,7 @@
 // Styling is theme-token only (`play.css`), so all five skins apply with no format-specific rule.
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import FloatingRoller from '../components/rollers/FloatingRoller'
 import type { SheetPanel } from '../panels/fivePanels'
 
 export default function PlayShell({
@@ -21,6 +22,7 @@ export default function PlayShell({
   roller,
   drawerPanels,
   drawerHint,
+  storageKey,
 }: {
   /** The compact identity strip (portrait + name + who-they-are) — each system supplies its own. */
   identity: ReactNode
@@ -34,6 +36,8 @@ export default function PlayShell({
   drawerPanels: SheetPanel[]
   /** A short hint of what the drawer holds, shown on the toggle (e.g. "skills · features · gear"). */
   drawerHint?: string
+  /** Per-character key for the floating roller's remembered position/size/minimized (view preference). */
+  storageKey?: string | null
 }) {
   const [openDrawer, setOpenDrawer] = useState(false)
 
@@ -45,8 +49,8 @@ export default function PlayShell({
 
       {hero}
 
-      {/* The roller is docked below the hero — the two columns have already spent the horizontal budget. */}
-      <div className="play-tray">{roller}</div>
+      {/* Floating tool window (R-2): pinned in the viewport, movable, resizable, minimizable, remembered. */}
+      <FloatingRoller characterId={storageKey}>{roller}</FloatingRoller>
 
       {/* THE DRAWER — everything reached for only occasionally, behind one toggle. Closed by default so
           the table view is identity + hero; opens to the full reference stacked. */}

@@ -8,6 +8,7 @@
 // Styling is theme-token only (the `.dash-*` rules in codex.css), so every skin applies with no
 // format-specific rule — a test forbids any `.skin-x .dash-y` selector.
 import type { ReactNode } from 'react'
+import FloatingRoller from '../components/rollers/FloatingRoller'
 import type { SheetPanel } from '../panels/fivePanels'
 
 export default function DashboardShell({
@@ -15,16 +16,20 @@ export default function DashboardShell({
   panels,
   roller,
   above,
+  storageKey,
 }: {
   /** The left identity/vitals column — each system supplies its own (5e: `IdentityColumn`). */
   identity: ReactNode
   /** The ordered section set this system exposes; each renders as a card. */
   panels: SheetPanel[]
-  /** The format's docked dice roller — the system decides which (5e Dashboard uses the Dice Core). */
+  /** The format's dice roller — floated by the shared dock (R-2); the system decides which roller. */
   roller: ReactNode
   /** Optional act-now furniture pinned above the grid (5e: the review queue + reactions), so a
    *  prompt to act is never buried inside a card the player may have scrolled past. */
   above?: ReactNode
+  /** Per-character key so the floating roller's position/size/minimized state does not follow the
+   *  player between characters (a view preference, never synced — see useFloatingDock). */
+  storageKey?: string | null
 }) {
   return (
     <div className="dashboard">
@@ -48,7 +53,8 @@ export default function DashboardShell({
           ))}
         </div>
 
-        <div className="dash-tray">{roller}</div>
+        {/* Floating tool window (R-2): pinned, movable, resizable, minimizable, remembered. */}
+        <FloatingRoller characterId={storageKey}>{roller}</FloatingRoller>
         <div className="footer">click a stat to roll · double-click to edit · every section is open at once</div>
       </div>
 

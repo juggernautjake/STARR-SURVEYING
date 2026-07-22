@@ -20,6 +20,7 @@ import { usePf2Panels } from './pf2/usePf2Panels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
+import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
 // The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -72,7 +73,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         {layout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
-          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} />
+          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         )}
         {/* Modals are fixed-position; they live outside the shell grid, same as in the Classic view. */}
         {overlays}
@@ -101,6 +102,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           above={banner}
           hero={hero}
           roller={roller}
+          storageKey={characterId}
           drawerPanels={drawerPanels}
           drawerHint="attributes · skills · feats · spells"
         />
@@ -118,7 +120,8 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       {banner}
       {section('pf2-attributes')}
       {section('pf2-defenses')}
-      {roller}
+      {/* The roller floats (R-2) — pinned, movable, resizable, minimizable, remembered per character. */}
+      <FloatingRoller characterId={characterId}>{roller}</FloatingRoller>
       {section('pf2-conditions')}
       {section('pf2-skills')}
       {section('pf2-strikes')}

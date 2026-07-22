@@ -28,7 +28,7 @@ import DiceTray from '../components/DiceTray'
 const HERO_PANELS = new Set(['combat', 'attacks', 'abilities'])
 
 export default function PlayLayout({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
-  const { char } = useChar()
+  const { char, characterId } = useChar()
   const panels = useFivePanels()
   const drawerPanels = panels.filter((p) => !HERO_PANELS.has(p.id))
 
@@ -102,6 +102,7 @@ export default function PlayLayout({ artUrl, ownerName }: { artUrl?: string | nu
       above={above}
       hero={hero}
       roller={<DiceTray />}
+      storageKey={characterId}
       drawerPanels={drawerPanels}
       drawerHint="skills · abilities · features · spells · gear · story"
     />

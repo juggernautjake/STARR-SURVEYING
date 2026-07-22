@@ -38,6 +38,7 @@ import Progression from './components/Progression'
 import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import DiceTray from './components/DiceTray'
+import FloatingRoller from './components/rollers/FloatingRoller'
 import DmOverridePanel from './components/DmOverridePanel'
 import StreamOwnerControls from './components/StreamOwnerControls'
 import StreamControl from './components/StreamControl'
@@ -369,9 +370,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           </div>
         </div>
 
-        <div className="sidecol">
+        {/* The Dice Core is a floating tool window (R-2): pinned in the viewport, movable, resizable,
+            minimizable, and remembered per character. The dock owns the chrome; DiceTray the rolls. It
+            is `position: fixed`, so it needs no in-flow column — the main content now spans full width. */}
+        <FloatingRoller characterId={characterId}>
           <DiceTray />
-        </div>
+        </FloatingRoller>
       </div>
       )}
 

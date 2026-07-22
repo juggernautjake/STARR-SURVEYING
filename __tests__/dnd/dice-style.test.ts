@@ -16,9 +16,11 @@ describe('dice roller style preference (D1)', () => {
     expect(store).toMatch(/preferences: prefs/);
   });
 
-  it('the dice tray applies the chosen style as a data attribute (on the tray and the FAB)', () => {
+  it('the dice tray applies the chosen style as a data attribute (on the tray)', () => {
     expect(tray).toContain('preferences.diceRollerStyle.value');
-    expect(tray.match(/data-dice-style=\{diceStyle\}/g)?.length).toBe(2); // open tray + minimized FAB
+    // The minimized FAB folded into the shared FloatingRoller dock (R-2), so the style attribute now
+    // rides only on the open tray; the per-dice-style textures still read through the dock frame.
+    expect(tray.match(/data-dice-style=\{diceStyle\}/g)?.length).toBe(1);
   });
 
   it('the stylesheet themes every non-default style; futuristic is the default base look', () => {

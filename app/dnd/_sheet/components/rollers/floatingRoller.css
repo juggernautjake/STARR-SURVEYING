@@ -1,0 +1,171 @@
+/* ══════════════════════════════════════════ FLOATING ROLLER — the shared tool-window chrome (R-1)
+   ONE window style for every roller in every format (5e Dice Core, Codex Sigil Stack, PF2/IG roller
+   nodes). Positioning/size are set inline by useFloatingDock; everything visual is here.
+
+   TOKEN-ONLY, WITH FALLBACKS, and DELIBERATELY UNSCOPED. Unlike the sheet's other stylesheets these
+   rules are NOT prefixed `.dnd-sheet`/`.sheet-shell`, because the very point is that the one window
+   works in BOTH the 5e engine (`.dnd-sheet`, which declares --panel-rgb/--void-rgb/--ink/…) and the
+   bespoke PF2/IG shells (`.sheet-shell`, whose `shellThemeVars` bridge declares the same names). Each
+   `var(--x, fallback)` degrades to a legible dark window if a token is ever missing, so a re-skin
+   restyles it for free and it never renders unstyled. Motion is gated on prefers-reduced-motion. */
+
+.fld {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 1px solid var(--line-strong, var(--line, rgba(255, 255, 255, 0.16)));
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.98));
+  box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 40px -22px var(--hotpink, var(--gold, #c8aa6e));
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+  color: var(--ink, #e8e6f0);
+}
+.fld-ready {
+  transition: box-shadow 0.15s ease;
+}
+
+/* ── drag header ─────────────────────────────────────────────────────────────────────────────── */
+.fld-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.55);
+}
+.fld-head:active {
+  cursor: grabbing;
+}
+.fld-grip {
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--muted, #9a97ad);
+  opacity: 0.8;
+}
+.fld-head-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fld-btn {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--ink, #e8e6f0);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  background: rgba(255, 255, 255, 0.06);
+}
+.fld-btn:hover {
+  border-color: var(--gold, var(--tealbright, #c8aa6e));
+  color: var(--gold, var(--tealbright, #e8e6f0));
+}
+.fld-btn:focus-visible {
+  outline: 2px solid var(--gold, var(--tealbright, #c8aa6e));
+  outline-offset: 1px;
+}
+
+/* ── body — the roller reflows to fill it ─────────────────────────────────────────────────────── */
+.fld-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+/* A generic roller node (PF2/IG: a Target-DC control + result banner) has no frame of its own, so
+   give it breathing room inside the window. The two self-framed rollers below are excluded. */
+.fld-body > div:not(.tray):not(.sigil) {
+  padding: 10px 12px;
+}
+
+/* Fold the self-framed rollers into THIS window: the dock is now the frame, so drop their own outer
+   border/radius/shadow/positioning and let them fill. The 5e tray KEEPS its background so the
+   per-dice-style textures (rugged hatch, medieval weave, …) still read; only its outer chrome goes. */
+.fld-body > .tray {
+  position: static;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.fld-body > .sigil {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ── resize corner ───────────────────────────────────────────────────────────────────────────── */
+.fld-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 2px 1px 0;
+  cursor: nwse-resize;
+  touch-action: none;
+  color: var(--muted, #9a97ad);
+  background: none;
+  border: none;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.fld-resize:hover {
+  opacity: 1;
+  color: var(--gold, var(--tealbright, #c8aa6e));
+}
+
+/* ── minimized bar ───────────────────────────────────────────────────────────────────────────── */
+.fld-mini {
+  border-radius: 12px;
+}
+.fld-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  cursor: grab;
+  touch-action: none;
+  border: none;
+  background: none;
+  color: var(--ink, #e8e6f0);
+  font-family: var(--font-display, inherit);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.fld-bar:active {
+  cursor: grabbing;
+}
+.fld-bar-title {
+  font-weight: 700;
+  margin-right: auto;
+}
+.fld-bar-caret {
+  color: var(--muted, #9a97ad);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fld-ready {
+    transition: none;
+  }
+}

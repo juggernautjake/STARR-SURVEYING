@@ -14,17 +14,22 @@ describe('dice tray UX', () => {
     expect(tray).toMatch(/data-dice-style=\{diceStyle\}/);
   });
 
-  it('auto-opens the minimized tray when a roll is triggered (watches activeRoll.token)', () => {
+  it('auto-expands the minimized dock when a roll is triggered (watches activeRoll.token)', () => {
+    // The window chrome (minimize/restore) now lives in the shared FloatingRoller dock; DiceTray only
+    // asks it to pop open on a fresh roll via the dock context, so the roll animation is never hidden.
     expect(tray).toContain('const rollToken = activeRoll?.token');
-    expect(tray).toMatch(/useEffect\(\(\) => \{\s*if \(rollToken != null\) setOpen\(true\)/);
+    expect(tray).toMatch(/useEffect\(\(\) => \{\s*if \(rollToken != null\) dock\.expand\(\)/);
+    expect(tray).toContain('const dock = useRollerDock()');
   });
 
-  it('dragging pins the tray’s width so it never shrinks/reflows when it detaches to float', () => {
-    // Owner: dragging made the roller "slightly smaller and messed up its interior formatting".
-    expect(tray).toContain('dragWidth');
-    expect(tray).toContain('dragWidth.current = rect.width'); // capture the docked width at drag start
-    expect(tray).toMatch(/setPos\(\{ x: rect\.left, y: rect\.top, w: rect\.width \}\)/);
-    expect(tray).toContain('width: pos.w'); // and apply it to the floating tray
+  it('no longer owns its own float/drag/minimize — that folded into the shared dock (R-2)', () => {
+    // The floating window is now ONE implementation (useFloatingDock/FloatingRoller); DiceTray must not
+    // carry a second, competing one, so its old pos/drag/FAB/minimize state is gone.
+    const code = tray.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(code).not.toContain('tray-fab');
+    expect(code).not.toContain('setPos');
+    expect(code).not.toContain('dragWidth');
+    expect(code).not.toContain('.floating');
   });
 });
 

@@ -26,6 +26,7 @@ import { useIgPanels, type Tagged } from './ig/useIgPanels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
+import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
 // Shared FORMAT stylesheets — scoped under `.sheet-shell` (T-SHELL-SCOPE), so they only style a shell
 // this sheet actually renders and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -97,7 +98,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
         {layout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
-          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} />
+          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         )}
         {overlays}
       </div>
@@ -125,6 +126,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           above={banner}
           hero={hero}
           roller={roller}
+          storageKey={characterId}
           drawerPanels={drawerPanels}
           drawerHint="abilities · skills · powers · feats"
         />
@@ -148,7 +150,8 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       {header}
       {nav}
       {panels.map((p) => <Fragment key={p.id}>{p.render()}</Fragment>)}
-      {roller}
+      {/* The roller floats (R-2) — pinned, movable, resizable, minimizable, remembered per character. */}
+      <FloatingRoller characterId={characterId}>{roller}</FloatingRoller>
     </div>
   );
 }

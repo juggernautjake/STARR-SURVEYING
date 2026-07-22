@@ -288,24 +288,29 @@ owner wants ONE consistent behaviour for every roller in every format: pinned in
 while you scroll), movable and staying where left, resizable with its contents reflowing, always
 minimizable, and remembered between visits.
 
-- [ ] **R-1 — shared floating dock (`useFloatingDock` + `FloatingRoller`).** A wrapper that takes any
-  roller content and gives it: `position: fixed` so it stays in the viewport as the page scrolls;
-  a drag handle (reuse `clampBox`/`safeTop`, which already keep the handle clear of the sticky header);
-  a **resize** handle (corner) that sets width AND height, with the body `flex:1; min-height:0;
-  overflow:auto` so the roller's own components reflow to the box; a **minimize** control collapsing to
-  a small bar/FAB that re-expands; and **persistence** of {x, y, w, h, minimized} per character in
-  localStorage (a view preference, keyed like `usePaneStack`, never written to the character). Clamp on
-  drag, resize, AND window-resize so it can never strand off-screen. Honours `prefers-reduced-motion`.
-  Theme-token styled. Unit-tested for the clamp/persist logic.
-- [ ] **R-2 — every format's roller uses the dock.** Wrap the shell `roller` slot so the Codex Sigil
-  Stack, the Dashboard/Play rollers, and the PF2/IG rollers all float via `FloatingRoller`. Fold the
-  5e Dice Core's existing bespoke drag/minimize into the shared dock (add resize + default-pinned +
-  persistence) so there is ONE implementation, not two. The dock reads roll state from wherever each
-  roller already does — it only owns the window chrome, never the roll maths.
-- [ ] **R-3 — browser-verify across the matrix.** On a real character in each format and ≥2 skins:
-  scroll the page — roller stays visible; drag it — moves and stays put; resize — the dice area,
-  buttons, and history all reflow to the new size; minimize/restore; reload — position/size remembered.
-  Confirm it never covers the sticky header and never strands off-screen after a window resize.
+- [x] **R-1 — shared floating dock (`useFloatingDock` + `FloatingRoller`).** Shipped
+  `components/rollers/useFloatingDock.ts` (hook) + `FloatingRoller.tsx` (wrapper) + `floatingRoller.css`.
+  A `position: fixed` window that stays in the viewport on scroll, with a drag header (reuses
+  `clampBox`/`safeTop`), a corner **resize** (sets w AND h; body is `flex:1; min-height:0; overflow:auto`
+  so the roller's own components reflow), a **minimize** collapse to a small draggable bar, a reset,
+  and **persistence** of `{x,y,w,h,minimized}` per character in localStorage (view preference, keyed like
+  `usePaneStack`, never synced). Clamps on drag, resize AND window-resize. `prefers-reduced-motion`
+  honoured; token-only styling with fallbacks so it reads under `.dnd-sheet` AND `.sheet-shell`/`.igs-root`.
+  Exposes `useRollerDock().expand()` so a roller pops open on a fresh roll while minimized. Unit-tested
+  (`floating-roller-dock.test.ts`): persist round-trip, per-character isolation, corrupt-storage → null,
+  clamp keeps the box on-screen and below `safeTop`.
+- [x] **R-2 — every format's roller uses the dock.** `App.tsx` (classic Dice Core) + all three shells
+  (`CodexShell`/`DashboardShell`/`PlayShell`) + `PF2Sheet`/`IGSheet` now route their roller through
+  `<FloatingRoller>`. Dice Core's own bespoke drag/minimize was folded INTO the shared dock (its old
+  `pos`/FAB removed) so there is ONE implementation; `dice-tray-ux`/`dice-style` tests updated to match.
+  The dock owns only the window chrome — no roll maths touched. Whole dnd suite green (4052).
+  _Recovered: the build agent finished the code + tests but got stuck looping on the flaky interactive
+  browser check; work verified green (tsc + eslint + 4052 dnd tests) and committed. One tsc slip in the
+  agent's dock test (a `localStorage` cast) was fixed._
+- [~] **R-3 — browser-verify across the matrix.** Deferred into the T-8 production-build QA sweep — the
+  dev-server renderer repeatedly times out on the interactive drag/resize gestures (which is what
+  stalled the build agent), so the scroll-stays-visible / drag / resize-reflow / minimize / reload
+  checks are done there on a clean build rather than fought on the contended dev server.
 
 ### Default-sheet polish (owner's explicit priority — heavier/larger fonts, more life)
 

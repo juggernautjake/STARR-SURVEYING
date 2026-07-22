@@ -14,6 +14,7 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import PaneStack, { type PaneDef } from '../codex/PaneStack'
 import { usePaneStack } from '../codex/usePaneStack'
+import FloatingRoller from '../components/rollers/FloatingRoller'
 import type { SheetPanel } from '../panels/fivePanels'
 
 /** Skills opens by default, per the owner's ask. */
@@ -52,9 +53,9 @@ export default function CodexShell({
       <div className="codex-main">
         {above}
         <PaneStack defs={defs} stack={stack} />
-        {/* The roller is docked BELOW the stack rather than in a sidebar: the Codex has already spent
-            the horizontal budget on two columns, and a third would leave every one too narrow. */}
-        <div className="codex-tray">{roller}</div>
+        {/* The roller is a floating tool window (R-2): pinned in the viewport, movable, resizable and
+            minimizable, remembered per character — so it stays reachable however the stack scrolls. */}
+        <FloatingRoller characterId={storageKey}>{roller}</FloatingRoller>
         <div className="footer">click a stat to roll · double-click to edit · drag a section edge to resize it</div>
       </div>
     </div>
