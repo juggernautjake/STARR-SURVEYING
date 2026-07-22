@@ -202,6 +202,19 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
+      {/* Sheet STYLE (colour skin) + TEMPLATE (format) pickers, surfaced TOGETHER right below the Build
+          Kit so both choices sit in the SAME spot on every character — above every sheet (the shared 5e
+          engine, PF2, and IG all render further down). Previously these lived after the sheets, which put
+          them BELOW a bespoke PF2/IG sheet but ABOVE the 5e one — inconsistent. Both offer their full
+          option set (every skin / every format the system has); the two axes are chosen the same way. */}
+      {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
+      {canWrite && (
+        <TemplateBrowser
+          characterId={character.id}
+          system={normalizeSystem((character as { system?: string }).system)}
+          current={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+        />
+      )}
       {approvalPanel}
       {grantPanel}
       {igSheet}
@@ -248,17 +261,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {/* Export the whole sheet — PDF (via print), self-contained HTML, or JSON. Anyone who can view the sheet
           can export it (the export route is read-gated the same as opening it). */}
       <ExportSheetButton characterId={character.id} />
-      {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
-      {/* Template (format) picker — the twin of the skin picker, for the LAYOUT axis. Surfaced for
-          EVERY system, beside the skin picker, so switching templates is as easy as switching skins
-          (the owner's #1 named gap). It self-hides when a system has fewer than two built formats. */}
-      {canWrite && (
-        <TemplateBrowser
-          characterId={character.id}
-          system={normalizeSystem((character as { system?: string }).system)}
-          current={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
-        />
-      )}
+      {/* (Sheet style + template pickers moved UP to just below the Build Kit — see above — so they sit
+          in the same spot on every template, for both 5e and the bespoke PF2/IG sheets.) */}
       {/* The shared 5e engine — the tabbed sheet, ability rail, dice tray, build toggle and
           customization panel. It renders for 5e and system-ambiguous characters, AND for a PF2/IG
           character that has not been built yet (a "build me" placeholder). It does NOT render
