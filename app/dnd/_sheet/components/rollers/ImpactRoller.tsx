@@ -166,11 +166,13 @@ function ImpactStage() {
     whoosh()
     const lo = Math.max(1, Math.min(min, max))
     const hi = Math.max(min, max)
+    // D-2/D-3: a slightly slower scramble (85ms vs 70) over a longer tumble, so the die spins a touch
+    // longer before it slams to its landing — the owner likes the sound this makes and wanted more of it.
     scrambler.current = window.setInterval(() => {
       setFace(lo + Math.floor(Math.random() * (hi - lo + 1)))
       tick(Math.random())
-    }, 70)
-    const TUMBLE = 760
+    }, 85)
+    const TUMBLE = 1080
     const land = window.setTimeout(() => {
       if (scrambler.current != null) {
         window.clearInterval(scrambler.current)

@@ -32,9 +32,10 @@
   `◂` chevron at the foot pointing where the pane opens — gold + filled `◀` on the open tab. All token-only
   so every style/theme stays legible. Browser-VERIFIED on Perrin's Codex (Shadow Isles): the rail reads as
   bold, bordered, obviously-clickable tabs with the open ones gold-outlined + gold chevron. tsc/eslint clean.
-- [ ] **D-3 — Impact roller: slightly slower + longer tumble.** Lengthen the Impact `TUMBLE` and ease the
-  scramble interval a touch (keep the sounds), so the die spins a bit longer before landing. Respect the
-  instant/reduced-motion path unchanged.
+- [x] **D-3 — Impact roller: slightly slower + longer tumble.** Impact `TUMBLE` 760 → 1080ms and the
+  scramble interval 70 → 85ms, so the die spins a touch longer and less frantically before it slams to its
+  landing (the owner likes the sound). Commit still fires TUMBLE+320 after; the instant/reduced-motion path
+  is unchanged. tsc/eslint clean.
 - [ ] **D-4 — shaped digital die (sides match the die).** The spinning shape gets N sides matching the die
   rolled (d4 triangle, d6 square, d8, d10, d12, d20 icosagon…), via a CSS `clip-path` polygon derived from
   the roll's die type. Falls back to the current rounded shape when the die is ambiguous (mixed pools).
