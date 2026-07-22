@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { assembleIGVanillaCharacter } from '@/lib/dnd/systems/intuitive-games/builder';
 import { igMaxHp } from '@/lib/dnd/systems/intuitive-games/rules';
+import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 
 describe('IG builder populates the HP base', () => {
   it('sets classBackgroundHp = class base + background HP', () => {
@@ -14,7 +15,7 @@ describe('IG builder populates the HP base', () => {
   });
 
   it('produces a real, non-zero max HP through igMaxHp', () => {
-    const c = assembleIGVanillaCharacter({ name: 'HP Test', className: 'Wizard', background: 'Academic', level: 5, abilities: { STR: 8, DEX: 12, CON: 14, INT: 18, WIS: 12, CHA: 10 } } as never) as { ig: never };
+    const c = assembleIGVanillaCharacter({ name: 'HP Test', className: 'Wizard', background: 'Academic', level: 5, abilities: { STR: 8, DEX: 12, CON: 14, INT: 18, WIS: 12, CHA: 10 } } as never) as { ig: IGCharacter };
     // Wizard base 8 + Academic 8 = 16, plus CON mod (+2) × 5 = 10 → 26. The point is it is NOT 0/near-0.
     expect(igMaxHp(c.ig)).toBeGreaterThanOrEqual(16);
   });
