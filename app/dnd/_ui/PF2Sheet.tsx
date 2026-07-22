@@ -43,8 +43,10 @@ function Stat({ label, value, sub, title, accent }: { label: string; value: stri
 }
 
 function RankPill({ rank }: { rank: string }) {
+  // The U/T/E/M/L proficiency badge. Moved off inline styles onto `.pf2Rank*` so it reads as a solid,
+  // filled chip (trained = teal, untrained = muted) instead of a stray 10.5px letter.
   const trained = rank !== 'untrained';
-  return <span title={rank} style={{ fontSize: 10.5, fontWeight: 700, color: trained ? 'var(--hx-teal-1)' : 'var(--hx-muted)', border: `1px solid ${trained ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, borderRadius: 4, padding: '0 4px' }}>{RANK_ABBR[rank] ?? '?'}</span>;
+  return <span title={rank} className={`${styles.pf2Rank} ${trained ? styles.pf2RankTrained : styles.pf2RankUntrained}`}>{RANK_ABBR[rank] ?? '?'}</span>;
 }
 
 /** The PF2 three-action-economy cost glyphs. An activity's cost is the single fact a player reads
@@ -223,11 +225,11 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       {/* Header. This is intentionally the FIRST child in flow (not absolutely pinned), so a panel can
           later be mounted as a sibling ABOVE the stat block without fighting a pin. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 19, color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</strong>
-        <span style={{ fontSize: 13, color: 'var(--hx-muted)' }}>Level {id.level} · {id.size}</span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 4, padding: '0 5px' }}>PATHFINDER 2e</span>
+        <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 22, fontWeight: 700, color: 'var(--hx-gold-3)' }}>{id.name || 'Unnamed'}</strong>
+        <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>Level {id.level} · {id.size}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 5, padding: '1px 6px', background: 'rgba(10,200,185,0.08)' }}>PATHFINDER 2e</span>
       </div>
-      {idBits.length > 0 && <div style={{ fontSize: 13, color: 'var(--hx-text)', marginTop: -8 }}>{idBits.join(' · ')}</div>}
+      {idBits.length > 0 && <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', marginTop: -8 }}>{idBits.join(' · ')}</div>}
 
       {/* Sticky section index — a PF2 sheet is long, so the jump bar keeps every section one tap away
           on a phone. Uses the platform's ◆-bulleted jump pills for a consistent idiom. */}
@@ -251,18 +253,18 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       {/* Attributes */}
       <section id="pf2-attributes" className={styles.pf2Section}>
         <SectionHead title="Attributes" />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
           {PF2_ATTRIBUTES.map((k) => (
-            <div key={k} style={{ textAlign: 'center', padding: '6px 2px', border: '1px solid var(--hx-line)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{k}</div>
-              <strong style={{ fontSize: 17, color: 'var(--hx-text)' }}>{fmt(pf2.attributes[k])}</strong>
+            <div key={k} className={styles.pf2AttrCell}>
+              <div className={styles.pf2AttrKey}>{k}</div>
+              <strong className={styles.pf2AttrVal}>{fmt(pf2.attributes[k])}</strong>
               {canDoEdit && (
                 // Edit the attribute MODIFIER in place (R4) — commits set_attribute on Enter/blur; re-keyed to
                 // reset after the sheet refreshes. PF2 tracks modifiers, so the input IS the modifier.
                 <input key={`${k}-${pf2.attributes[k]}`} type="number" min={-5} max={12} defaultValue={pf2.attributes[k]} disabled={saving} aria-label={`Set ${k}`}
                   onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
                   onBlur={(ev) => { const v = parseInt(ev.target.value, 10); if (Number.isFinite(v) && v !== pf2.attributes[k]) postEdit({ op: 'set_attribute', attribute: k, value: v }); }}
-                  style={{ width: '100%', marginTop: 3, textAlign: 'center', fontSize: 11, padding: '1px 0', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
+                  className={styles.pf2AttrInput} />
               )}
             </div>
           ))}
@@ -305,10 +307,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               // "card says +7, rolls +5" bug: conditions were applied on the roll path only.
               const stat = d.saves[s];
               return (
-                <button key={s} type="button" onClick={() => rollLine(`${s} save`, stat)} title={`Roll ${s} (d20 ${fmt(stat.total)})\n${stat.breakdown}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13, color: 'var(--hx-muted)' }}>{s} 🎲</span>
-                  <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(stat.total)}</strong>
+                <button key={s} type="button" onClick={() => rollLine(`${s} save`, stat)} title={`Roll ${s} (d20 ${fmt(stat.total)})\n${stat.breakdown}`} className={styles.pf2Chip}>
+                  <span className={styles.pf2ChipKey}>{s} 🎲</span>
+                  <strong className={styles.pf2ChipVal}>{fmt(stat.total)}</strong>
                   <RankPill rank={pf2.saves[s].rank} />
                 </button>
               );
@@ -323,16 +324,16 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
 
       {/* Roller controls + result banner (R1b) — tap a save/skill/Strike below; set a target DC for the degree. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           🎲 Target DC
           <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-            style={{ width: 56, fontSize: 13, padding: '3px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+            style={{ width: 56, fontSize: 14, fontWeight: 600, padding: '4px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
         </label>
         {lastRoll && (
           <div className={styles.pf2RollBar}>
-            <span style={{ fontSize: 13, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-            <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-            <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+            <strong style={{ fontSize: 22, fontWeight: 700, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
           </div>
         )}
       </div>
@@ -346,7 +347,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             {(pf2.combat.conditions ?? []).map((c) => {
               const note = pf2ConditionMechanics(c.name)?.note ?? '';
               return (
-                <span key={c.name} title={note} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: '3px 9px', border: '1px solid var(--hx-line)', borderRadius: 999, color: 'var(--hx-gold-2)', cursor: 'help' }}>
+                <span key={c.name} title={note} className={styles.pf2Cond}>
                   {c.name}{c.value && c.value > 1 ? ` ${c.value}` : ''}
                   {note && <InfoTip tip={note} label={`${c.name} rules`} />}
                 </span>
@@ -366,10 +367,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             const total = stat.total;
             return (
               <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, stat)} title={`Roll ${sk.name} (d20 ${fmt(total)})\n${stat.breakdown}`}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '3px 8px', border: '1px solid var(--hx-line)', borderRadius: 6, opacity: sk.rank === 'untrained' ? 0.55 : 1, background: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-                <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span style={{ color: 'var(--hx-muted)', fontSize: 10.5 }}>{sk.attribute}</span></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <strong style={{ fontSize: 13, color: 'var(--hx-teal-1)' }}>{fmt(total)} 🎲</strong>
+                className={`${styles.pf2SkillChip}${sk.rank === 'untrained' ? ` ${styles.pf2SkillUntrained}` : ''}`}>
+                <span className={styles.pf2SkillName}>{sk.name}{penalized ? <span title="armor check penalty applies" style={{ color: 'var(--hx-gold-2)' }}> ▲</span> : null} <span className={styles.pf2SkillAttr}>{sk.attribute}</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <strong className={styles.pf2SkillVal}>{fmt(total)} 🎲</strong>
                   <RankPill rank={sk.rank} />
                 </span>
               </button>
@@ -388,12 +389,12 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                 PF2 character deals with in a normal turn. Without this control the sheet could only
                 ever show a first Strike, so the player had to do the game's most common subtraction
                 in their head — and agile weapons make it a DIFFERENT subtraction per weapon. */}
-            <label style={{ fontSize: 11, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               Strike #
               <select
                 value={strikeIndex} onChange={(e) => setStrikeIndex(Number(e.target.value))}
                 aria-label="Which Strike of this turn"
-                style={{ fontSize: 12, padding: '2px 4px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                style={{ fontSize: 13, fontWeight: 500, padding: '3px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }}
               >
                 <option value={0}>1st (no MAP)</option>
                 <option value={1}>2nd (−5 / −4 agile)</option>
@@ -414,23 +415,23 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               const strike = resolved.strike;
               const bonus = resolved.total;
               return (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
-                  <span style={{ fontSize: 13, color: 'var(--hx-text)' }}>
+                <div key={a.id} className={styles.pf2StrikeRow}>
+                  <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)' }}>
                     {a.name}
                     {a.customized && <span title="Hand-customized — edited away from how it came." style={{ color: 'var(--hx-gold-2)' }}> ✎</span>}
-                    {a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}> · {a.traits.join(', ')}</span> : null}
+                    {a.traits.length ? <span style={{ color: 'var(--hx-muted)', fontSize: 11.5, fontWeight: 500 }}> · {a.traits.join(', ')}</span> : null}
                   </span>
-                  <span style={{ fontSize: 13, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
+                  <span style={{ display: 'inline-flex', gap: 8, alignItems: 'baseline' }}>
                     {/* Tap the Strike bonus to roll the attack; tap the damage to roll its dice (R1b). */}
-                    <button type="button" onClick={() => rollLine(`${a.name} Strike${strikeIndex ? ` (${strikeIndex + 1}${strikeIndex === 1 ? 'nd' : 'rd+'})` : ''}`, resolved)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})\n${resolved.breakdown}`} style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>{fmt(bonus)} 🎲</button>
-                    ·
+                    <button type="button" onClick={() => rollLine(`${a.name} Strike${strikeIndex ? ` (${strikeIndex + 1}${strikeIndex === 1 ? 'nd' : 'rd+'})` : ''}`, resolved)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})\n${resolved.breakdown}`} className={`${styles.pf2RollBtn} ${styles.pf2RollBtnAtk}`}>{fmt(bonus)} 🎲</button>
+                    <span style={{ color: 'var(--hx-muted)' }}>·</span>
                     <button
                       type="button" onClick={() => rollDamage(`${a.name} damage`, strike.damage)}
                       // The crit line is on the tooltip rather than always-visible: PF2 crits double
                       // the whole total and THEN add deadly/fatal dice, which is exactly the number
                       // a player is most likely to compute wrong by hand.
                       title={`Roll ${a.name} damage (${strike.damage})\nOn a critical hit: ${strike.critDamage}${strike.notes.length ? `\n${strike.notes.join('\n')}` : ''}`}
-                      style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}
+                      className={`${styles.pf2RollBtn} ${styles.pf2RollBtnDmg}`}
                     >{strike.damage} 🎲</button>
                     {canDoEdit && (
                       <button
@@ -494,13 +495,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           </SectionHead>
           <div style={{ display: 'grid', gap: 5 }}>
             {pf2.feats.map((f) => (
-              <div key={f.id} style={{ padding: '6px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
+              <div key={f.id} className={styles.pf2FeatCard}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   {/* The action-cost glyph leads the line: an activity's cost is the fact a player
                       reads most, so it reads at a glance instead of being buried in the body text. */}
                   <ActionCost cost={f.actionCost} />
-                  <strong style={{ fontSize: 13, color: 'var(--hx-text)' }}>{f.name}</strong>
-                  <span style={{ fontSize: 10.5, color: 'var(--hx-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.track}{f.level ? ` · L${f.level}` : ''}</span>
+                  <strong className={styles.pf2FeatName}>{f.name}</strong>
+                  <span className={styles.pf2FeatMeta}>{f.track}{f.level ? ` · L${f.level}` : ''}</span>
                   {/* ✎ = hand-tuned away from how it came. A different question from ⚑, and an
                       element can carry both. */}
                   {f.customized && <span title="Hand-customized — edited away from how it came." style={{ color: 'var(--hx-gold-2)' }}>✎</span>}
@@ -514,7 +515,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                     >Edit</button>
                   )}
                 </div>
-                {f.body && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', marginTop: 2 }}>{f.body}</div>}
+                {f.body && <div className={styles.pf2FeatBody}>{f.body}</div>}
               </div>
             ))}
           </div>
@@ -541,14 +542,14 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           </SectionHead>
           {/* Summary + slot pills — the caster's "how I cast" line, then the slots per rank. */}
           {pf2.spellcasting.kind !== 'none' && (
-            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-              <div style={{ fontSize: 13, color: 'var(--hx-muted)' }}>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>
                 {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
               </div>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
-                  <span key={r} style={{ fontSize: 12, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 7px' }}>
-                    {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)' }}>{n}</strong>
+                  <span key={r} className={styles.pf2SlotPill}>
+                    {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)', fontWeight: 700 }}>{n}</strong>
                   </span>
                 ) : null))}
               </div>
@@ -557,10 +558,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           <div style={{ display: 'grid', gap: 5 }}>
             {[...new Set((pf2.spellcasting.spells ?? []).map((s) => s.rank))].sort((a, b) => a - b).map((rank) => (
               <div key={rank}>
-                <div style={{ fontSize: 10.5, color: 'var(--hx-teal-1)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                <div className={styles.pf2SpellRankHead}>
                   {rank === 0 ? 'Cantrips' : `Rank ${rank}`}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {(pf2.spellcasting.spells ?? []).filter((s) => s.rank === rank).map((s) => (
                     <span
                       key={s.name}
@@ -571,14 +572,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                         // only meaningful for the former.
                         pf2.spellcasting.kind === 'prepared' ? (s.prepared ? 'Prepared today.' : 'Known, not prepared today.') : null,
                       ].filter(Boolean).join(' ') || undefined}
-                      style={{
-                        fontSize: 12.5, padding: '3px 8px', borderRadius: 12,
-                        border: '1px solid var(--hx-line)',
-                        color: 'var(--hx-text)',
-                        // Dim an unprepared spell for a prepared caster — it is on the sheet but
-                        // not castable right now, and showing it identically would misinform.
-                        opacity: pf2.spellcasting.kind === 'prepared' && !s.prepared && !s.focus ? 0.55 : 1,
-                      }}
+                      // Dim an unprepared spell for a prepared caster — it is on the sheet but not
+                      // castable right now, and showing it identically would misinform.
+                      className={`${styles.pf2SpellChip}${pf2.spellcasting.kind === 'prepared' && !s.prepared && !s.focus ? ` ${styles.pf2SpellDim}` : ''}`}
                     >
                       {s.name}
                       {s.focus ? ' ✦' : ''}
@@ -601,7 +597,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         </section>
       )}
 
-      <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
         {pf2.senses && pf2.senses.length > 0 && <>Senses: {pf2.senses.join(', ')}. </>}
         Languages: {pf2.languages.join(', ') || '—'}. All numbers derived by the PF2 rules engine (proficiency = rank bonus + level when trained).
       </div>

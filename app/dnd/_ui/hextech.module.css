@@ -1540,8 +1540,12 @@ select.input {
 }
 .pf2SectionTitle {
   font-family: var(--hx-font-display);
-  font-size: 13px;
-  letter-spacing: 0.12em;
+  /* Bumped 13 → 14.5 and weight to 700: the section titles are the sheet's scan-anchors, and at the
+     old size/weight the Cinzel serif read as a thin, faint band that the eye skated past. A solid
+     heading is what lets a player find "Skills" or "Spellcasting" without reading. */
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--hx-gold-2);
   white-space: nowrap;
@@ -1549,15 +1553,17 @@ select.input {
 .pf2SectionRule {
   flex: 1 1 16px;
   min-width: 16px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--hx-gold-0), transparent);
+  /* 1px → 2px so the divider actually reads as a rule, not a hairline that disappears on a light skin. */
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--hx-gold-1), var(--hx-gold-0) 40%, transparent);
 }
 /* An inline clarifier on a heading ("· folded into rolls …") — de-emphasised so it
-   reads as a footnote to the title, not part of it. */
+   reads as a footnote to the title, not part of it, but no longer micro-thin (10.5 → 11.5, 400 → 500). */
 .pf2SectionNote {
   font-family: var(--hx-font-body);
-  font-weight: 400;
-  font-size: 10.5px;
+  font-weight: 500;
+  font-size: 11.5px;
   letter-spacing: 0;
   text-transform: none;
   color: var(--hx-muted);
@@ -1573,31 +1579,43 @@ select.input {
 }
 .pf2Stat {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   text-align: center;
-  padding: 9px 6px;
+  /* Roomier cell (9→11 vertical) so the big value has air and the strip reads as a row of solid
+     tiles rather than cramped boxes. */
+  padding: 11px 8px;
   border: 1px solid var(--hx-line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--hx-inset); /* tokenised so a light skin recesses light, not grey (was rgba(1,10,19,0.4)) */
+  /* A soft inset top-highlight + drop shadow gives the tile a physical, "designed" edge on every skin
+     without hardcoding a colour. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.18);
 }
-/* AC and HP are the two numbers a player checks most, so they get a gold hairline to
-   lift them out of the strip — without changing their size or the value shown. */
+/* AC and HP are the two numbers a player checks most, so they get a gold border + wash + glow to
+   genuinely lift them out of the strip — the accent used to be a hairline that barely registered. */
 .pf2StatAccent {
-  border-color: var(--hx-gold-0);
-  background: rgba(212, 175, 55, 0.06);
+  border-color: var(--hx-gold-1);
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px var(--hx-gold-0), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 .pf2StatKey {
-  font-size: 10.5px;
+  /* 10.5 → 11.5, weight 600: the micro-label above each big number was the faintest text on the
+     strip; a touch more size and real weight make it legible without competing with the value. */
+  font-size: 11.5px;
+  font-weight: 600;
   color: var(--hx-muted);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .pf2StatVal {
   font-family: var(--hx-font-display);
-  font-size: 21px;
-  color: var(--hx-gold-2);
+  /* 21 → 23 and an explicit 700 weight: these are the headline numbers; they should feel solid. */
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--hx-gold-3);
 }
-.pf2StatSub { font-size: 10.5px; color: var(--hx-muted); }
+.pf2StatSub { font-size: 11.5px; font-weight: 500; color: var(--hx-muted); }
 
 /* A row of tap-to-roll chips (saves / skills). Auto-fill so it is a tidy grid on wide
    screens and a single readable column on a phone. */
@@ -1613,11 +1631,14 @@ select.input {
 .pf2RankLegend {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 10.5px;
+  gap: 12px;
+  /* 10.5 → 11.5, weight 500: this legend decodes the U/T/E/M/L pills, so it must be readable, not
+     the smallest thing on the sheet. */
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--hx-muted);
 }
-.pf2RankLegend b { color: var(--hx-teal-1); font-weight: 700; }
+.pf2RankLegend b { color: var(--hx-teal-1); font-weight: 800; }
 
 /* The roll-result bar — kept prominent and directly above the tap-to-roll lists so a
    result appears where the eye already is. */
@@ -1642,21 +1663,319 @@ select.input {
 .pf2Cost {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  /* 11 → 12.5, weight 700: the action-cost glyph leads every activity line and is the fact a player
+     reads most in a turn, so it should be crisp, not a faint diamond. */
+  font-size: 12.5px;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: 1px;
-  color: var(--hx-gold-1);
-  border: 1px solid var(--hx-gold-0);
-  border-radius: 4px;
-  padding: 2px 5px;
+  color: var(--hx-gold-2);
+  border: 1px solid var(--hx-gold-1);
+  border-radius: 5px;
+  padding: 2px 6px;
+  background: rgba(212, 175, 55, 0.08);
   white-space: nowrap;
 }
-.pf2CostSpecial { color: var(--hx-teal-1); border-color: var(--hx-teal-2); }
+.pf2CostSpecial { color: var(--hx-teal-1); border-color: var(--hx-teal-2); background: rgba(10, 200, 185, 0.08); }
 
 /* On a phone the sticky jump bar sits under a shorter header, and the section heading
    needs less clearance below it. */
 @media (max-width: 640px) {
   .pf2Nav { top: 48px; }
   .pf2Section { scroll-margin-top: 96px; }
-  .pf2StatVal { font-size: 18px; }
+  .pf2StatVal { font-size: 20px; }
+}
+
+/* ── Interactive chips, cells & cards ──────────────────────────────────────────
+   Everything a player can TAP (roll a save/skill/Strike, edit an attribute, open an
+   editor) shares one grammar here so it (a) reads at a comfortable weight/size and
+   (b) visibly answers "this is tappable" with a hover lift + focus ring. These
+   replace the ad-hoc inline `style={{…}}` chips the sheet used to carry, which could
+   not express :hover/:focus at all — so nothing looked interactive. Motion is small
+   and disabled under prefers-reduced-motion. Every colour is a --hx-* token, so all
+   five skins restyle these for free. */
+
+/* Base tappable chip: the saves row. A bordered pill on the inset well, lifting to a
+   gold edge + faint wash on hover/focus. */
+.pf2Chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--hx-line);
+  border-radius: 9px;
+  background: var(--hx-inset);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+}
+.pf2Chip:hover {
+  border-color: var(--hx-gold-1);
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.10), rgba(212, 175, 55, 0.03));
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.22);
+}
+.pf2Chip:focus-visible {
+  outline: none;
+  border-color: var(--hx-gold-1);
+  box-shadow: 0 0 0 2px var(--hx-gold-0);
+}
+.pf2ChipKey {
+  /* 13 → 14, weight 600: the save name ("Fortitude 🎲") was thin muted text next to a bold value. */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hx-muted);
+}
+.pf2ChipVal {
+  /* 15 → 18, weight 700: the save modifier is the number you roll — it should be the biggest thing
+     in the chip. */
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--hx-gold-2);
+}
+
+/* Skills — the sheet's densest, faintest region. Each is a full-width tappable row. */
+.pf2SkillChip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 11px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  background: var(--hx-inset);
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+}
+.pf2SkillChip:hover {
+  border-color: var(--hx-teal-2);
+  background: linear-gradient(180deg, rgba(10, 200, 185, 0.08), rgba(10, 200, 185, 0.02));
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+.pf2SkillChip:focus-visible {
+  outline: none;
+  border-color: var(--hx-teal-1);
+  box-shadow: 0 0 0 2px var(--hx-teal-2);
+}
+/* An untrained skill is dimmed — but the OLD 0.55 opacity buried its name to near-invisible on the
+   dark skins (the owner's "skinny/small" complaint at its worst). 0.72 keeps it clearly secondary
+   while staying legible; the value + rank pill carry the "untrained" signal anyway. */
+.pf2SkillUntrained { opacity: 0.72; }
+.pf2SkillName {
+  /* 12.5 → 13.5, weight 500. */
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--hx-text);
+}
+.pf2SkillAttr {
+  /* 10.5 → 11, weight 600: the DEX/INT/WIS tag was the faintest ink on the whole sheet. */
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--hx-muted);
+}
+.pf2SkillVal {
+  /* 13 → 15, weight 700: the skill modifier is the roll target. */
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--hx-teal-1);
+}
+
+/* Proficiency rank pill (U/T/E/M/L). Was inline 10.5px; now a solid, filled-tint badge so the rank
+   reads as a chip, not a stray letter. Trained = teal, untrained = muted. */
+.pf2Rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.5;
+  border-radius: 5px;
+  padding: 0 5px;
+}
+.pf2RankTrained {
+  color: var(--hx-teal-1);
+  border: 1px solid var(--hx-teal-2);
+  background: rgba(10, 200, 185, 0.12);
+}
+.pf2RankUntrained {
+  color: var(--hx-muted);
+  border: 1px solid var(--hx-line);
+  background: transparent;
+}
+
+/* Attribute cell (STR…CHA). The modifier is the headline; the raw score input sits below. */
+.pf2AttrCell {
+  text-align: center;
+  padding: 9px 4px 7px;
+  border: 1px solid var(--hx-line);
+  border-radius: 10px;
+  background: var(--hx-inset);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.pf2AttrCell:hover { border-color: var(--hx-gold-0); }
+.pf2AttrKey {
+  /* 11 → 11.5, weight 600, wider tracking so the three-letter labels read as labels. */
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--hx-muted);
+}
+.pf2AttrVal {
+  display: block;
+  font-family: var(--hx-font-display);
+  /* 17 → 20, weight 700. */
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--hx-text);
+}
+.pf2AttrInput {
+  width: 100%;
+  margin-top: 5px;
+  text-align: center;
+  /* 11 → 12.5, weight 600: the raw-score input under the modifier was tiny and easy to misread. */
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 2px 0;
+  background: var(--hx-inset-strong);
+  color: var(--hx-text);
+  border: 1px solid var(--hx-line);
+  border-radius: 6px;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.pf2AttrInput:focus-visible {
+  outline: none;
+  border-color: var(--hx-gold-1);
+  box-shadow: 0 0 0 2px var(--hx-gold-0);
+}
+
+/* Strike row — a weapon line: name + traits on the left, tap-to-roll to-hit / damage on the right. */
+.pf2StrikeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  background: var(--hx-inset);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.pf2StrikeRow:hover { border-color: var(--hx-gold-0); background: linear-gradient(180deg, rgba(212, 175, 55, 0.05), transparent); }
+
+/* The inline "roll this number" buttons inside a Strike row (to-hit / damage). They look like the
+   numbers they roll but brighten + underline on hover so it's clear they're tappable. */
+.pf2RollBtn {
+  background: none;
+  border: none;
+  padding: 2px 3px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+.pf2RollBtnAtk { color: var(--hx-gold-2); }
+.pf2RollBtnAtk:hover { color: var(--hx-gold-3); background: rgba(212, 175, 55, 0.12); }
+.pf2RollBtnDmg { color: var(--hx-text); font-weight: 600; }
+.pf2RollBtnDmg:hover { color: var(--hx-gold-2); background: rgba(212, 175, 55, 0.10); }
+.pf2RollBtn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--hx-gold-0); }
+
+/* Feat / feature card — a titled block with body text. */
+.pf2FeatCard {
+  padding: 9px 12px;
+  border: 1px solid var(--hx-line);
+  border-radius: 9px;
+  background: var(--hx-inset);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.pf2FeatCard:hover { border-color: var(--hx-gold-0); }
+.pf2FeatName {
+  /* 13 → 14.5, weight 600: a feat's name is what a player looks up. */
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--hx-text);
+}
+.pf2FeatMeta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hx-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pf2FeatBody {
+  /* 12.5 → 13.5, and it's the body copy a player actually reads, so lift it off pure-muted a touch. */
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--hx-muted);
+  margin-top: 4px;
+}
+
+/* Spell chip — a castable spell in its rank group. */
+.pf2SpellChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13.5px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--hx-line);
+  color: var(--hx-text);
+  background: var(--hx-inset);
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+.pf2SpellChip:hover { border-color: var(--hx-teal-2); background: rgba(10, 200, 185, 0.06); transform: translateY(-1px); }
+/* A prepared caster's unprepared spell: on the sheet but not castable now — dimmed, but not the old
+   near-invisible 0.55. */
+.pf2SpellDim { opacity: 0.62; }
+.pf2SpellRankHead {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--hx-teal-1);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 5px;
+}
+.pf2SlotPill {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hx-text);
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  padding: 3px 9px;
+  background: var(--hx-inset);
+}
+
+/* Condition pill — folded into rolls; hover for its rule. */
+.pf2Cond {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border: 1px solid var(--hx-gold-0);
+  border-radius: 999px;
+  color: var(--hx-gold-2);
+  background: rgba(212, 175, 55, 0.07);
+  cursor: help;
+}
+
+/* Motion is a nicety, never a requirement: honour the OS "reduce motion" setting. */
+@media (prefers-reduced-motion: reduce) {
+  .pf2Chip, .pf2SkillChip, .pf2SpellChip, .pf2StrikeRow, .pf2FeatCard,
+  .pf2AttrCell, .pf2AttrInput, .pf2RollBtn, .pf2Stat {
+    transition: none;
+  }
+  .pf2Chip:hover, .pf2SkillChip:hover, .pf2SpellChip:hover { transform: none; }
 }
