@@ -7,7 +7,7 @@
 // by the provenance classifier — no special-casing needed. Pure — no services.
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
-import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS, igClassPowerEffect } from './content';
+import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS, igClassPowerEffect, IG_BACKGROUND_DEFS, findIGClassDetail } from './content';
 import { blankIGCharacter, blankIGCompanion, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
 import { systemSkills } from '../../system-rules';
 
@@ -59,6 +59,18 @@ export function buildIGModel(picks: IGPicks): IGCharacter {
   ig.identity.subclass = picks.subclass || '';
   ig.identity.specialization = picks.specialization || '';
   ig.identity.background = picks.background || '';
+  // Wire the character's HP BASE — its class base plus its background's HP. `igMaxHp =
+  // classBackgroundHp + CON mod × level`, so without this every IG character read as though it had
+  // NO base HP (only the CON×level portion) — the exact "a stat that should be there defaults to
+  // nothing" bug. IG states class HP as a string like "12 + Background HP" (Fighter 12, Wizard 8),
+  // and each background carries its own flat `hp` (Soldier 12, Academic 8, …); the model's single
+  // `classBackgroundHp` field holds their SUM. The subclass detail wins over the parent class when
+  // both resolve (a subclass may state its own base). An off-catalog class or background contributes
+  // 0 — the honest outcome when we have no published figure, and one the player can set on the sheet.
+  const classDetail = findIGClassDetail(picks.subclass) ?? findIGClassDetail(picks.className);
+  const classBaseHp = classDetail ? (parseInt(String(classDetail.hp), 10) || 0) : 0;
+  const bgDef = IG_BACKGROUND_DEFS.find((b) => b.name.trim().toLowerCase() === String(picks.background ?? '').trim().toLowerCase());
+  ig.combat.hitPoints.classBackgroundHp = classBaseHp + (bgDef ? bgDef.hp : 0);
   ig.identity.ancestry = picks.ancestry || '';
   ig.identity.alignment = picks.alignment || '';
   ig.identity.culture = picks.culture || '';
