@@ -1478,3 +1478,171 @@ select.input {
   outline: none;
 }
 .searchHit:focus-visible { box-shadow: 0 0 0 1px var(--hx-teal-1); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Pathfinder 2e character sheet (PF2Sheet) — scannable, sectioned layout
+   ────────────────────────────────────────────────────────────────────────────
+   A PF2 sheet is the densest of the three systems: four defenses, the three-action
+   economy, spell slots by rank, and feats on four parallel tracks. These primitives
+   give it ONE visual grammar so a player can find "my Reflex save" or "my rank-2
+   spells" at a glance — a headline stat strip, clearly-headed sections joined by a
+   sticky jump bar, and the standard PF2 action-cost glyphs. The palette is inherited
+   from the /dnd .siteChrome tokens, so nothing here hardcodes a colour and the sheet
+   stays theme-consistent. Mobile-first: the grids are auto-fit, so they reflow from a
+   single phone column to a wide desktop row without a media query.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Sticky in-sheet section index. A PF2 sheet is long on a phone; this keeps the jump
+   links in reach without scrolling back to the top. `top` clears the sticky /dnd site
+   header; the low z-index keeps it UNDER that header and any editor modal. */
+.pf2Nav {
+  position: sticky;
+  top: 52px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  /* Near-opaque so rows scrolling underneath don't bleed through the pills. */
+  background: rgba(9, 20, 40, 0.94);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* A titled section band. `scroll-margin-top` keeps the sticky site header + jump bar
+   from covering the heading when a jump-link scrolls to it. */
+.pf2Section { scroll-margin-top: 108px; }
+
+/* Section heading: TITLE — gold hairline — right-aligned controls, read on one line so
+   the eye goes title → rule → actions (＋ Feat, the Strike # selector, …). */
+.pf2SectionHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  min-height: 28px;
+}
+.pf2SectionTitle {
+  font-family: var(--hx-font-display);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hx-gold-2);
+  white-space: nowrap;
+}
+.pf2SectionRule {
+  flex: 1 1 16px;
+  min-width: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--hx-gold-0), transparent);
+}
+/* An inline clarifier on a heading ("· folded into rolls …") — de-emphasised so it
+   reads as a footnote to the title, not part of it. */
+.pf2SectionNote {
+  font-family: var(--hx-font-body);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--hx-muted);
+}
+
+/* Headline stat strip — the numbers reached for every round (AC, HP, Perception,
+   Class/Spell DC, Speed). Auto-fit so it is one row on a monitor and wraps two-up on a
+   phone, each cell keeping a legible minimum width. */
+.pf2StatStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+.pf2Stat {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  padding: 9px 6px;
+  border: 1px solid var(--hx-line);
+  border-radius: 8px;
+  background: rgba(1, 10, 19, 0.4);
+}
+/* AC and HP are the two numbers a player checks most, so they get a gold hairline to
+   lift them out of the strip — without changing their size or the value shown. */
+.pf2StatAccent {
+  border-color: var(--hx-gold-0);
+  background: rgba(212, 175, 55, 0.06);
+}
+.pf2StatKey {
+  font-size: 9.5px;
+  color: var(--hx-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pf2StatVal {
+  font-family: var(--hx-font-display);
+  font-size: 20px;
+  color: var(--hx-gold-2);
+}
+.pf2StatSub { font-size: 9.5px; color: var(--hx-muted); }
+
+/* A row of tap-to-roll chips (saves / skills). Auto-fill so it is a tidy grid on wide
+   screens and a single readable column on a phone. */
+.pf2RollRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.pf2SkillGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+/* U/T/E/M/L is PF2's proficiency shorthand and rides on every save, skill and defence;
+   spell it out once so the rank pills read as language, not code. */
+.pf2RankLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--hx-muted);
+}
+.pf2RankLegend b { color: var(--hx-teal-1); font-weight: 700; }
+
+/* The roll-result bar — kept prominent and directly above the tap-to-roll lists so a
+   result appears where the eye already is. */
+.pf2RollBar {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid var(--hx-gold-1);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(212, 175, 55, 0.06);
+}
+
+/* The three-action economy — PF2's signature. Rendered as the standard cost glyphs
+   (◆ / ◆◆ / ◆◆◆ / ↺ reaction / ⬦ free) so a player reads an activity's cost instantly
+   rather than parsing prose. Gold for the 1–3-action costs; teal for reaction/free so
+   the two off-turn costs are distinct at a glance. Always paired with a title +
+   aria-label, since the glyph alone means nothing to a screen reader. */
+.pf2Cost {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--hx-gold-1);
+  border: 1px solid var(--hx-gold-0);
+  border-radius: 4px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.pf2CostSpecial { color: var(--hx-teal-1); border-color: var(--hx-teal-2); }
+
+/* On a phone the sticky jump bar sits under a shorter header, and the section heading
+   needs less clearance below it. */
+@media (max-width: 640px) {
+  .pf2Nav { top: 48px; }
+  .pf2Section { scroll-margin-top: 96px; }
+  .pf2StatVal { font-size: 18px; }
+}

@@ -14,7 +14,7 @@ import PF2ElementEditor, { type PF2EditableElement } from './PF2ElementEditor';
 import PF2WeaponEditor, { type PF2EditableWeapon } from './PF2WeaponEditor';
 import PF2ArmorEditor from './PF2ArmorEditor';
 import styles from './hextech.module.css';
-import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import type { PF2Character, PF2ActionCost } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2Proficiency, pf2MaxHp } from '@/lib/dnd/systems/pathfinder2e/rules';
 import {
@@ -28,14 +28,15 @@ import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
 
-function Stat({ label, value, sub, title }: { label: string; value: string; sub?: string; title?: string }) {
+function Stat({ label, value, sub, title, accent }: { label: string; value: string; sub?: string; title?: string; accent?: boolean }) {
   return (
     // `title` carries the resolved breakdown, so hovering a headline number answers "why is it
     // this?" without a click — the same "show its work" contract the roller banner honours.
-    <div title={title} style={{ display: 'grid', gap: 2, textAlign: 'center', padding: '8px 6px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(1,10,19,0.4)', minWidth: 72 }}>
-      <span style={{ fontSize: 9.5, color: 'var(--hx-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
-      <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 20, color: 'var(--hx-gold-2)' }}>{value}</strong>
-      {sub && <span style={{ fontSize: 9.5, color: 'var(--hx-muted)' }}>{sub}</span>}
+    // `accent` lifts AC + HP (the two most-checked numbers) out of the strip with a gold hairline.
+    <div title={title} className={accent ? `${styles.pf2Stat} ${styles.pf2StatAccent}` : styles.pf2Stat}>
+      <span className={styles.pf2StatKey}>{label}</span>
+      <strong className={styles.pf2StatVal}>{value}</strong>
+      {sub && <span className={styles.pf2StatSub}>{sub}</span>}
     </div>
   );
 }
@@ -43,6 +44,39 @@ function Stat({ label, value, sub, title }: { label: string; value: string; sub?
 function RankPill({ rank }: { rank: string }) {
   const trained = rank !== 'untrained';
   return <span title={rank} style={{ fontSize: 9, fontWeight: 700, color: trained ? 'var(--hx-teal-1)' : 'var(--hx-muted)', border: `1px solid ${trained ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, borderRadius: 4, padding: '0 4px' }}>{RANK_ABBR[rank] ?? '?'}</span>;
+}
+
+/** The PF2 three-action-economy cost glyphs. An activity's cost is the single fact a player reads
+ *  most in a turn, so it gets the game's own iconography (◆ / ◆◆ / ◆◆◆ / ↺ / ⬦) rather than being
+ *  buried in prose. Reaction and free are teal — distinct from the gold 1–3-action costs — and every
+ *  glyph carries a title + aria-label so the icon-only cell is not opaque to a screen reader. */
+const ACTION_GLYPH: Record<string, { glyph: string; label: string; special?: boolean }> = {
+  '1': { glyph: '◆', label: '1 action' },
+  '2': { glyph: '◆◆', label: '2 actions' },
+  '3': { glyph: '◆◆◆', label: '3 actions' },
+  reaction: { glyph: '↺', label: 'reaction', special: true },
+  free: { glyph: '⬦', label: 'free action', special: true },
+};
+function ActionCost({ cost }: { cost?: PF2ActionCost }) {
+  if (cost == null) return null;
+  const a = ACTION_GLYPH[String(cost)];
+  if (!a) return null;
+  return (
+    <span className={a.special ? `${styles.pf2Cost} ${styles.pf2CostSpecial}` : styles.pf2Cost} title={a.label} aria-label={a.label}>{a.glyph}</span>
+  );
+}
+
+/** A section heading: TITLE — gold hairline — right-aligned controls, on one line. Replaces the
+ *  ad-hoc `<div style={label}>` + button rows so every section is introduced the same way, which is
+ *  what lets a player scan the sheet by its headings. */
+function SectionHead({ title, note, children }: { title: React.ReactNode; note?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className={styles.pf2SectionHead}>
+      <span className={styles.pf2SectionTitle}>{title}{note ? <span className={styles.pf2SectionNote}> {note}</span> : null}</span>
+      <span className={styles.pf2SectionRule} />
+      {children}
+    </div>
+  );
 }
 
 export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla' }: {
@@ -61,7 +95,6 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   const d = useMemo(() => pf2ResolveAll(pf2), [pf2]);
   const maxHp = useMemo(() => pf2MaxHp(pf2), [pf2]);
   const id = pf2.identity;
-  const label = { fontSize: 11, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' as const };
   const [saving, setSaving] = useState(false);
 
   // An incremental in-place edit (R4) — POST one structured op to the write-gated pf2-edit route, then refresh
@@ -152,15 +185,51 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
 
   const idBits = [id.ancestry && `${id.heritage ? id.heritage + ' ' : ''}${id.ancestry}`, id.background, id.className && `${id.className}${id.subclass ? ` (${id.subclass})` : ''}`, id.deity].filter(Boolean);
 
+  // Whether the two long sections render at all decides whether their jump-link appears — a link to a
+  // Strikes block a Fighterless character doesn't have would scroll to nothing.
+  const showStrikes = pf2.attacks.length > 0 || canDoEdit;
+  const showSpells = pf2.spellcasting.kind !== 'none';
+  const showFeats = pf2.feats.length > 0 || canDoEdit;
+  const hasConditions = (pf2.combat.conditions ?? []).length > 0;
+  // The in-sheet section index. Scrolls the target into view and REPLACES the hash (never pushes),
+  // so Back leaves the page in one press instead of walking every jump — the same contract JumpNav
+  // established platform-wide (Slice 37).
+  const navItems: { id: string; label: string }[] = [
+    { id: 'pf2-attributes', label: 'Attributes' },
+    { id: 'pf2-defenses', label: 'Defenses' },
+    ...(hasConditions ? [{ id: 'pf2-conditions', label: 'Conditions' }] : []),
+    { id: 'pf2-skills', label: 'Skills' },
+    ...(showStrikes ? [{ id: 'pf2-strikes', label: 'Strikes' }] : []),
+    ...(showFeats ? [{ id: 'pf2-feats', label: 'Feats' }] : []),
+    ...(showSpells ? [{ id: 'pf2-spells', label: 'Spells' }] : []),
+  ];
+  const jump = (e: React.MouseEvent, anchor: string) => {
+    e.preventDefault();
+    const el = typeof document !== 'undefined' ? document.getElementById(anchor) : null;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (typeof history !== 'undefined') history.replaceState(null, '', `#${anchor}`);
+    }
+  };
+
   return (
     <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
-      {/* Header */}
+      {/* Header. This is intentionally the FIRST child in flow (not absolutely pinned), so a panel can
+          later be mounted as a sibling ABOVE the stat block without fighting a pin. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 19, color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</strong>
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Level {id.level} · {id.size}</span>
         <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 4, padding: '0 5px' }}>PATHFINDER 2e</span>
       </div>
       {idBits.length > 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-text)', marginTop: -8 }}>{idBits.join(' · ')}</div>}
+
+      {/* Sticky section index — a PF2 sheet is long, so the jump bar keeps every section one tap away
+          on a phone. Uses the platform's ◆-bulleted jump pills for a consistent idiom. */}
+      <nav className={styles.pf2Nav} aria-label="Jump to a section">
+        {navItems.map((i) => (
+          <a key={i.id} href={`#${i.id}`} onClick={(e) => jump(e, i.id)} className={styles.jumpNavItem}>{i.label}</a>
+        ))}
+      </nav>
 
       {/* A refused edit says so, and says what to do about it. Dismissible rather than
           auto-clearing: the sentence names two courses of action and the player needs time to read
@@ -174,9 +243,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       )}
 
       {/* Attributes */}
-      <div>
-        <div style={label}>Attributes</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginTop: 6 }}>
+      <section id="pf2-attributes" className={styles.pf2Section}>
+        <SectionHead title="Attributes" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
           {PF2_ATTRIBUTES.map((k) => (
             <div key={k} style={{ textAlign: 'center', padding: '6px 2px', border: '1px solid var(--hx-line)', borderRadius: 8 }}>
               <div style={{ fontSize: 10, color: 'var(--hx-muted)' }}>{k}</div>
@@ -192,30 +261,59 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Headline defenses */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {/* AC is clickable for an editor — armor is the one headline stat with no other way to
-            change it, and it was previously settable only at build time. */}
-        {canDoEdit ? (
-          <button
-            type="button" onClick={() => setArmorOpen(true)} disabled={saving}
-            title="Edit armor"
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-          >
-            <Stat label="AC ✎" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} />
-          </button>
-        ) : (
-          <Stat label="AC" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} />
-        )}
-        <Stat label="HP" value={`${pf2.combat.currentHp || maxHp}/${maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} />
-        <Stat label="Perception" value={fmt(d.perception.total)} sub={pf2.perception.rank} title={d.perception.breakdown} />
-        <Stat label="Initiative" value={fmt(d.perception.total)} sub="Perception" title={d.perception.breakdown} />
-        <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
-        <Stat label="Class DC" value={`${d.classDc.total}`} sub={pf2.combat.classDcAttribute} title={d.classDc.breakdown} />
-        {d.spellDc && <Stat label="Spell DC" value={`${d.spellDc.total}`} sub={`atk ${fmt(d.spellAttack?.total ?? 0)} · ${pf2.spellcasting.tradition}`} title={d.spellDc.breakdown} />}
-      </div>
+      {/* Defenses & vitals — the numbers a player reaches for every round, gathered into one scannable
+          strip (AC, HP, Perception/Initiative, Speed, the DCs) with the three saving throws directly
+          beneath. AC and HP are accented so the two most-checked numbers stand out; every headline
+          carries its resolved breakdown on hover, and each save is tap-to-roll (R1b). */}
+      <section id="pf2-defenses" className={styles.pf2Section}>
+        <SectionHead title="Defenses & Vitals" />
+        <div className={styles.pf2StatStrip}>
+          {/* AC is clickable for an editor — armor is the one headline stat with no other way to
+              change it, and it was previously settable only at build time. */}
+          {canDoEdit ? (
+            <button
+              type="button" onClick={() => setArmorOpen(true)} disabled={saving}
+              title="Edit armor"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            >
+              <Stat label="AC ✎" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} accent />
+            </button>
+          ) : (
+            <Stat label="AC" value={`${d.ac.total}`} sub={pf2.combat.armorName && pf2.combat.armorName !== 'Unarmored' ? pf2.combat.armorName : undefined} title={d.ac.breakdown} accent />
+          )}
+          <Stat label="HP" value={`${pf2.combat.currentHp || maxHp}/${maxHp}`} sub={pf2.combat.tempHp ? `+${pf2.combat.tempHp} temp` : undefined} accent />
+          <Stat label="Perception" value={fmt(d.perception.total)} sub={pf2.perception.rank} title={d.perception.breakdown} />
+          <Stat label="Initiative" value={fmt(d.perception.total)} sub="Perception" title={d.perception.breakdown} />
+          <Stat label="Speed" value={`${pf2.combat.speed} ft`} />
+          <Stat label="Class DC" value={`${d.classDc.total}`} sub={pf2.combat.classDcAttribute} title={d.classDc.breakdown} />
+          {d.spellDc && <Stat label="Spell DC" value={`${d.spellDc.total}`} sub={`atk ${fmt(d.spellAttack?.total ?? 0)} · ${pf2.spellcasting.tradition}`} title={d.spellDc.breakdown} />}
+        </div>
+
+        {/* Saving throws — tap to roll (R1b), directly under the defenses they belong with. */}
+        <div style={{ marginTop: 12 }}>
+          <div className={styles.pf2RollRow}>
+            {PF2_SAVES.map((s) => {
+              // The displayed number IS the rolled number — both are `stat.total`. This was the
+              // "card says +7, rolls +5" bug: conditions were applied on the roll path only.
+              const stat = d.saves[s];
+              return (
+                <button key={s} type="button" onClick={() => rollLine(`${s} save`, stat)} title={`Roll ${s} (d20 ${fmt(stat.total)})\n${stat.breakdown}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
+                  <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(stat.total)}</strong>
+                  <RankPill rank={pf2.saves[s].rank} />
+                </button>
+              );
+            })}
+          </div>
+          {/* Spell out the U/T/E/M/L shorthand once — it rides on every save, skill and defence. */}
+          <div className={styles.pf2RankLegend} style={{ marginTop: 8 }}>
+            <span><b>U</b> untrained</span><span><b>T</b> trained</span><span><b>E</b> expert</span><span><b>M</b> master</span><span><b>L</b> legendary</span>
+          </div>
+        </div>
+      </section>
 
       {/* Roller controls + result banner (R1b) — tap a save/skill/Strike below; set a target DC for the degree. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -225,7 +323,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
         </label>
         {lastRoll && (
-          <div style={{ flex: 1, minWidth: 200, border: '1px solid var(--hx-gold-1)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'rgba(212,175,55,0.06)' }}>
+          <div className={styles.pf2RollBar}>
             <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
             <strong style={{ fontSize: 20, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
             <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
@@ -233,32 +331,12 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         )}
       </div>
 
-      {/* Saves — tap to roll (R1b) */}
-      <div>
-        <div style={label}>Saving Throws</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-          {PF2_SAVES.map((s) => {
-            // The displayed number IS the rolled number — both are `stat.total`. This was the
-            // "card says +7, rolls +5" bug: conditions were applied on the roll path only.
-            const stat = d.saves[s];
-            return (
-              <button key={s} type="button" onClick={() => rollLine(`${s} save`, stat)} title={`Roll ${s} (d20 ${fmt(stat.total)})\n${stat.breakdown}`}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'none', cursor: 'pointer' }}>
-                <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{s} 🎲</span>
-                <strong style={{ fontSize: 15, color: 'var(--hx-gold-2)' }}>{fmt(stat.total)}</strong>
-                <RankPill rank={pf2.saves[s].rank} />
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Active conditions (Area R2 — PF2). Shown so the player sees what's folding into their rolls; the
           penalties apply automatically under PF2's non-stacking rule. Set/cleared via the AI edit tool. */}
-      {(pf2.combat.conditions ?? []).length > 0 && (
-        <div>
-          <div style={label}>Conditions <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}>· folded into rolls (worst status + worst circumstance) · hover or tap ⓘ</span></div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+      {hasConditions && (
+        <section id="pf2-conditions" className={styles.pf2Section}>
+          <SectionHead title="Conditions" note="· folded into rolls (worst status + worst circumstance) · hover or tap ⓘ" />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {(pf2.combat.conditions ?? []).map((c) => {
               const note = pf2ConditionMechanics(c.name)?.note ?? '';
               return (
@@ -269,13 +347,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               );
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Skills */}
-      <div>
-        <div style={label}>Skills{pf2.combat.armorCheckPenalty ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)', fontSize: 10 }}> · armor check penalty {pf2.combat.armorCheckPenalty} on ▲ skills</span> : null}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, marginTop: 6 }}>
+      <section id="pf2-skills" className={styles.pf2Section}>
+        <SectionHead title="Skills" note={pf2.combat.armorCheckPenalty ? `· armor check penalty ${pf2.combat.armorCheckPenalty} on ▲ skills` : undefined} />
+        <div className={styles.pf2SkillGrid}>
           {pf2.skills.map((sk) => {
             const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
             const stat = pf2ResolveSkill(sk, pf2);
@@ -292,14 +370,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             );
           })}
         </div>
-      </div>
+      </section>
 
       {/* Strikes. Renders for an editor even with no weapons yet — otherwise a character who has
           none can never add one, since the ＋ Weapon button lives inside this block. */}
       {(pf2.attacks.length > 0 || canDoEdit) && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={label}>Strikes</div>
+        <section id="pf2-strikes" className={styles.pf2Section}>
+          <SectionHead title="Strikes">
             {/* Which Strike of the turn this is. PF2's multiple attack penalty is −5/−10 (−4/−8 for
                 an agile weapon) and caps after the third, and it is the single largest modifier a
                 PF2 character deals with in a normal turn. Without this control the sheet could only
@@ -320,8 +397,8 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
             {canDoEdit && (
               <button className="btn tiny" disabled={saving} onClick={() => setWeaponEditor('new')} title="Add or author a weapon">＋ Weapon</button>
             )}
-          </div>
-          <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+          </SectionHead>
+          <div style={{ display: 'grid', gap: 4 }}>
             {pf2.attacks.map((a) => {
               // One call resolves traits, runes, conditions AND the multiple attack penalty
               // (S13b). The MAP is the piece that was missing outright: `pf2Map` existed and was
@@ -361,23 +438,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* Spellcasting summary + slots per rank */}
-      {pf2.spellcasting.kind !== 'none' && (
-        <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-            <span style={label}>Spellcasting</span> — {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
-          </div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
-              <span key={r} style={{ fontSize: 11, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 7px' }}>
-                {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)' }}>{n}</strong>
-              </span>
-            ) : null))}
-          </div>
-        </div>
+        </section>
       )}
 
       {picker && (
@@ -416,20 +477,22 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
 
       {/* Feats & features */}
       {(pf2.feats.length > 0 || canDoEdit) && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={label}>Feats &amp; Features</div>
+        <section id="pf2-feats" className={styles.pf2Section}>
+          <SectionHead title="Feats & Features">
             {canDoEdit && (
               <>
                 <button className="btn tiny" disabled={saving} onClick={() => setPicker('feat')}>＋ Feat</button>
                 <button className="btn tiny" disabled={saving} onClick={() => setEditor({ kind: 'feat' })} title="Author a homebrew feat">✎ New</button>
               </>
             )}
-          </div>
-          <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+          </SectionHead>
+          <div style={{ display: 'grid', gap: 5 }}>
             {pf2.feats.map((f) => (
               <div key={f.id} style={{ padding: '6px 10px', border: '1px solid var(--hx-line)', borderRadius: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {/* The action-cost glyph leads the line: an activity's cost is the fact a player
+                      reads most, so it reads at a glance instead of being buried in the body text. */}
+                  <ActionCost cost={f.actionCost} />
                   <strong style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>{f.name}</strong>
                   <span style={{ fontSize: 9, color: 'var(--hx-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{f.track}{f.level ? ` · L${f.level}` : ''}</span>
                   {/* ✎ = hand-tuned away from how it came. A different question from ⚑, and an
@@ -449,16 +512,18 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Spells. Previously the sheet showed slot COUNTS with no way to see which spells filled
-          them — a caster could read "3 rank-2 slots" and not know a single spell they had. Grouped
-          by rank, because that is how a PF2 caster actually prepares and casts. */}
-      {((pf2.spellcasting.spells?.length ?? 0) > 0 || (canDoEdit && pf2.spellcasting.kind !== 'none')) && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={label}>Spells</div>
+      {/* Spellcasting. The summary (tradition, kind, attribute, DC proficiency) + slots-per-rank sit
+          directly ABOVE the spells that fill them — the two were previously separated by the whole
+          Feats block, so a caster read "3 rank-2 slots" in one place and their rank-2 spells in
+          another. Grouped by rank, because that is how a PF2 caster actually prepares and casts. The
+          section renders for any caster (so the summary shows even before spells are added) OR
+          whenever there are spells: (pf2.spellcasting.spells?.length ?? 0) > 0. */}
+      {(showSpells || (pf2.spellcasting.spells?.length ?? 0) > 0) && (
+        <section id="pf2-spells" className={styles.pf2Section}>
+          <SectionHead title="Spellcasting">
             {/* Only offered to a caster — a Fighter has no use for a spell picker, and showing one
                 would suggest they could cast. */}
             {canDoEdit && pf2.spellcasting.kind !== 'none' && (
@@ -467,8 +532,23 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
                 <button className="btn tiny" disabled={saving} onClick={() => setEditor({ kind: 'spell' })} title="Author a homebrew spell">✎ New</button>
               </>
             )}
-          </div>
-          <div style={{ display: 'grid', gap: 5, marginTop: 6 }}>
+          </SectionHead>
+          {/* Summary + slot pills — the caster's "how I cast" line, then the slots per rank. */}
+          {pf2.spellcasting.kind !== 'none' && (
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+                {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+              </div>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
+                  <span key={r} style={{ fontSize: 11, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 7px' }}>
+                    {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)' }}>{n}</strong>
+                  </span>
+                ) : null))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: 5 }}>
             {[...new Set((pf2.spellcasting.spells ?? []).map((s) => s.rank))].sort((a, b) => a - b).map((rank) => (
               <div key={rank}>
                 <div style={{ fontSize: 9.5, color: 'var(--hx-teal-1)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
@@ -512,7 +592,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>
