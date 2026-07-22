@@ -53,9 +53,8 @@ export default function Features() {
     <section id="features">
       <SectionHead num="08" title="Features, Traits & Powers" optionsTip="Whether a feat's ability-score bonus applies itself is set by the feat auto-apply preference" />
       <p className="lead">
-        The signature powers that make him <em className="term">him</em>, plus the Barbarian chassis and Jenovan biology.
-        Anything above your current level (<strong>{level}</strong>) is <span className="hl-note">locked</span> until you
-        level up.
+        Your class, species, and background features. Anything above your current level
+        (<strong>{level}</strong>) is <span className="hl-note">locked</span> until you level up.
       </p>
       {sorted.map((f) => {
         const req = f.unlockLevel ?? 1

@@ -78,10 +78,9 @@ export default function SavesSkills() {
     <section id="core">
       <SectionHead num="03" title="Saves & Skills" optionsTip="Whether conditions, stances & exhaustion fold into these rolls is set by auto-mechanics (and the Dice Tray's vanilla toggle)" />
       <p className="lead">
-        Tap any row to roll. Advantage / Disadvantage from the Dice Tray applies; <em className="term">Danger Sense</em>{' '}
-        auto-grants advantage on Dexterity saves. Passive Perception{' '}
+        Tap any row to roll. Advantage / Disadvantage from the Dice Tray applies. Passive Perception{' '}
         <EffectStar target="ability_wis" label="Passive Perception"><strong>{passivePerception}</strong></EffectStar> · Save DC{' '}
-        <EffectStar target="ability_str" label="Save DC"><strong>{saveDC}</strong></EffectStar> (Surge / psi — 8 + prof + STR).
+        <EffectStar target="ability_str" label="Save DC"><strong>{saveDC}</strong></EffectStar>.
       </p>
 
       <div className="two">

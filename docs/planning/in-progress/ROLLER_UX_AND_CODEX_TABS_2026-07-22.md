@@ -53,14 +53,18 @@
   readable on every style/theme. Browser-verify a d20 with advantage + a conditional penalty shows the
   whole chain.
 
-- [ ] **D-8 — purge Lazzuh Gun defaults bleeding into other characters.** Lazzuh Gun (the original
-  vendored sample character) has flavour text / feats / gear / ability descriptions hardcoded as DEFAULTS
-  that show up on unrelated characters and templates. CONFIRMED example: the 5e ABILITY SCORES panel prints
-  "Built for a hands-on brawler: Strength carries the punches… Dexterity powers his Unarmored Defense and
-  laser aim" on Perrin, a Rogue — "brawler / Unarmored Defense / laser aim" is Lazzuh's monk-gunner flavour.
-  Search the sheet panels + blank-character defaults + system data for Lazzuh-specific strings and either
-  drive them from the character's OWN data or make them generic; ensure a fresh/other character never
-  inherits Lazzuh's feats/gear/descriptions. Browser-verify a non-Lazzuh character shows no Lazzuh flavour.
+- [x] **D-8 — purge Lazzuh Gun defaults bleeding into other characters.** Several 5e panels hardcoded
+  Lazzuh's story as flavour shown on EVERY character (all templates share these panels): `Abilities` ("hands-
+  on brawler… Unarmored Defense and laser aim" lead + a whole "How these were built" callout with Lazzuh's
+  exact rolled scores + Jenovan species), `Features` ("the powers that make him him… Barbarian chassis and
+  Jenovan biology"), `SavesSkills` ("Danger Sense… Surge / psi — 8 + prof + STR"), `Inventory` ("A smooth
+  boi's kit — engineered biology first, salvaged space-tech second"). All rewritten to GENERIC, instructional
+  copy (what the section is / how to use it), and the Lazzuh-only callout removed. `blankCharacter` was
+  audited and is already clean (empty features/inventory/forms — a new character inherits nothing). Browser-
+  VERIFIED on Perrin (Rogue): every Lazzuh term (hands-on brawler, laser aim, Jenovan, smooth boi, space-
+  tech, Surge/psi, "make him him") is now ABSENT. tsc + eslint green.
+  - NOTE: the `Forms`/`FormAbilities` panels still say "Rampager"; they are gated on the `forms` module (a
+    Lazzuh-style shapeshifter mechanic) so they never render on a normal character — left as-is (not a bleed).
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact

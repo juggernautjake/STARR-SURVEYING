@@ -11,8 +11,8 @@ export default function Abilities() {
     <section id="abilities">
       <SectionHead num="02" title="Ability Scores" optionsTip="Feat bonuses and shape-shift forms that change ability scores are governed by preferences" />
       <p className="lead">
-        Built for a hands-on brawler: Strength carries the punches, Constitution keeps him standing, Dexterity powers his
-        Unarmored Defense and laser aim. Tap any score to roll a straight ability check.
+        Your six ability scores. Tap any score to roll a straight ability check; the ★ marks a score
+        something is currently modifying.
       </p>
       <div className="abils">
         {ABILITIES.map((a) => {
@@ -68,14 +68,6 @@ export default function Abilities() {
             </div>
           )
         })}
-      </div>
-      <div className="callout">
-        <h4>How these were built</h4>
-        <p>
-          Rolled with 4d6-drop-lowest — results <strong>17, 14, 14, 13, 13, 11</strong> — then assigned to optimize an
-          unarmed brawler-tank. The Jenovan species adds <strong>+2 STR</strong> and <strong>+1 CON</strong> (2024
-          floating bonuses). Final: STR 19, DEX 14, CON 15, INT 11, WIS 13, CHA 13.
-        </p>
       </div>
     </section>
   )
