@@ -1,6 +1,6 @@
 // __tests__/dnd/die-shape.test.ts — the digital die's shape follows the die rolled (D-4).
 import { describe, it, expect } from 'vitest';
-import { dieSides, ngonClip } from '@/app/dnd/_sheet/components/rollers/dieShape';
+import { dieSides, ngonClip, ngonPoints } from '@/app/dnd/_sheet/components/rollers/dieShape';
 
 describe('dieSides — how many sides the shape should have', () => {
   it('a d20 roll (isD20) is always a 20-sided shape', () => {
@@ -37,5 +37,22 @@ describe('ngonClip — the clip-path polygon', () => {
   it('clamps to 3…20 sides so a stray value never breaks the path', () => {
     expect((ngonClip(2).match(/,/g) || []).length + 1).toBe(3);   // floored to a triangle
     expect((ngonClip(40).match(/,/g) || []).length + 1).toBe(20); // capped at 20
+  });
+});
+
+describe('ngonPoints — SVG polygon points (crisp stroked die edge)', () => {
+  it('emits N space-separated "x,y" vertices, inset inside the 0…100 viewBox', () => {
+    for (const n of [4, 6, 8, 20]) {
+      const pts = ngonPoints(n).split(' ');
+      expect(pts.length).toBe(n);
+      for (const p of pts) {
+        const [x, y] = p.split(',').map(Number);
+        // inset from the edge so the stroke isn't clipped
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(100);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y).toBeLessThanOrEqual(100);
+      }
+    }
   });
 });

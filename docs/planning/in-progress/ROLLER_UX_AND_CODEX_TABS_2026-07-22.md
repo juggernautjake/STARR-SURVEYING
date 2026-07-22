@@ -71,6 +71,21 @@
   - NOTE: the `Forms`/`FormAbilities` panels still say "Rampager"; they are gated on the `forms` module (a
     Lazzuh-style shapeshifter mechanic) so they never render on a normal character — left as-is (not a bleed).
 
+- [x] **D-4b — the shaped die needs a clean, correct edge (owner follow-up).** The clip-path die had a
+  broken edge (a CSS border on a clip-path box is sliced, not an outline). The Impact die is now a real SVG
+  `<polygon>` (`ngonPoints`) with a stroked edge — a crisp N-sided outline that recolours to gold on crit /
+  danger on fumble; the wrapper drops its square border/fill so the polygon IS the die. Browser-VERIFIED on
+  a d20 roll: `.ir-die-shape polygon` has exactly 20 vertices, a 4px visible stroke, and a dark panel fill.
+  ngonPoints unit-tested. tsc/eslint green.
+- [ ] **D-9 — a UNIQUE final-number reveal animation per roller.** Each of the four digital rollers should
+  reveal its final total with its OWN distinct animation (not a shared fade): e.g. Dice Core a digit-scramble
+  settle, Sigil Stack a sigil-lock pulse, Roll Board a card-flip flourish, Impact a slam + count-up. Make
+  each reveal feel bespoke to that roller's metaphor, honouring the instant/reduced-motion path.
+- [ ] **D-10 — clearer Impact breakdown (owner follow-up on D-7).** The Impact roller's calculation reveal
+  reads oddly (a lumped "modifiers" row, "helped/hurt" labels). Refactor it into a clear, readable calculation
+  — the natural die, each named contribution with its signed value, and the final total — laid out cleanly on
+  every style/theme.
+
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact
   spins a touch longer. The digital die has the right number of sides for the die rolled. Codex tabs read

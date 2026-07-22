@@ -34,12 +34,24 @@ export function dieSides(roll: {
  *  as an N-sided shape. Clamped to 3…20 sides. */
 export function ngonClip(sides: number): string {
   const n = Math.max(3, Math.min(20, Math.round(sides)));
-  const pts: string[] = [];
+  return `polygon(${ngonVerts(n, 50).map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(', ')})`;
+}
+
+/** SVG `<polygon points>` for a regular N-gon in a 0…100 viewBox (vertex at top), inset from the edge so
+ *  the STROKE (the die's visible edge) is never clipped by the viewBox. Used to draw the die as a real
+ *  SVG polygon — a CSS border on a clip-path'd box gets sliced up and doesn't outline the shape, which
+ *  is why the earlier clip-path die had no clean edge. */
+export function ngonPoints(sides: number, inset = 6): string {
+  const n = Math.max(3, Math.min(20, Math.round(sides)));
+  return ngonVerts(n, 50 - inset).map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+}
+
+/** The [x,y] vertices of a regular N-gon centred at 50,50 with the given radius, first vertex at top. */
+function ngonVerts(n: number, radius: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
   for (let i = 0; i < n; i++) {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-    const x = 50 + 50 * Math.cos(a);
-    const y = 50 + 50 * Math.sin(a);
-    pts.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+    out.push([50 + radius * Math.cos(a), 50 + radius * Math.sin(a)]);
   }
-  return `polygon(${pts.join(', ')})`;
+  return out;
 }

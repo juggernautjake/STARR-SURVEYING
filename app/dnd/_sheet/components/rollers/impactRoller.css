@@ -91,6 +91,7 @@
 
 /* The oversized die — a large rounded cube the roll is thrown onto. */
 .iroller .ir-die {
+  position: relative;
   width: 108px;
   height: 108px;
   display: flex;
@@ -101,6 +102,39 @@
   background: linear-gradient(150deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.9));
   box-shadow: 0 14px 30px -12px rgba(var(--void-rgb, 6, 5, 12), 0.95), inset 0 2px 10px rgba(255, 255, 255, 0.06);
   transform-origin: center;
+}
+/* When the die is an N-gon (D-4), the SHAPE is a real SVG polygon so its stroke outlines the shape
+   cleanly. The wrapper drops its own square border/fill/shadow and lets the polygon be the die. */
+.iroller .ir-die.has-shape {
+  border: none;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.iroller .ir-die-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.iroller .ir-die-shape polygon {
+  fill: rgba(var(--panel-rgb, 20, 18, 28), 0.98);
+  stroke: var(--tealbright, var(--gold, #6ee0cf));
+  stroke-width: 4;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 12px 26px rgba(var(--void-rgb, 6, 5, 12), 0.9));
+}
+.iroller .ir-arena.is-crit .ir-die-shape polygon {
+  stroke: var(--gold, #c8aa6e);
+}
+.iroller .ir-arena.is-fumble .ir-die-shape polygon {
+  stroke: var(--danger, #ff6b6b);
+}
+/* The face number rides above the polygon. */
+.iroller .ir-die-face {
+  position: relative;
+  z-index: 1;
 }
 .iroller .ir-die-face {
   font-family: var(--font-display, inherit);

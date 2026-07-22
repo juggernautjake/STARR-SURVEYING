@@ -24,7 +24,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock } from './FloatingRoller'
 import { shouldAnimateRoller } from './rollerAnim'
-import { dieSides, ngonClip } from './dieShape'
+import { dieSides, ngonPoints } from './dieShape'
 import './impactRoller.css'
 
 type RowKind = 'die' | 'mod' | 'boost' | 'penalty'
@@ -215,7 +215,15 @@ function ImpactStage() {
   return (
     <div className={`ir-arena ${phase === 'landed' ? 'ir-landed' : 'ir-throwing'} ${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}`}>
       <div className="ir-stage">
-        <div className="ir-die" aria-hidden style={sides ? { clipPath: ngonClip(sides), borderRadius: 0 } : undefined} data-sides={sides ?? undefined}>
+        {/* A d20 draws as a real 20-sided SVG polygon (crisp stroked edge), a d8 as an octagon, etc. — an
+            SVG stroke outlines the shape cleanly, unlike a CSS border on a clip-path box which gets sliced
+            up. No known die → the neutral rounded square (`.ir-die` default). */}
+        <div className={`ir-die${sides ? ' has-shape' : ''}`} aria-hidden data-sides={sides ?? undefined}>
+          {sides && (
+            <svg className="ir-die-shape" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
+              <polygon points={ngonPoints(sides)} />
+            </svg>
+          )}
           <span className="ir-die-face">{face ?? '·'}</span>
         </div>
         {phase === 'landed' && meta && (
