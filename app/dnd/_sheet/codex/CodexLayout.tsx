@@ -25,7 +25,7 @@ import { usePaneStack } from './usePaneStack'
 import { useFivePanels } from '../panels/fivePanels'
 import EditReviewPanel from '../components/EditReviewPanel'
 import Reactions from '../components/Reactions'
-import DiceTray from '../components/DiceTray'
+import SigilStack from '../components/rollers/SigilStack'
 
 /** Skills opens by default, per the owner's ask. */
 const DEFAULT_PANE = 'skills'
@@ -56,10 +56,12 @@ export default function CodexLayout({ artUrl, ownerName }: { artUrl?: string | n
         <EditReviewPanel />
         <Reactions />
         <PaneStack defs={defs} stack={stack} />
-        {/* The dice tray is docked BELOW the stack rather than in the sidebar the classic layout
+        {/* The roller is docked BELOW the stack rather than in the sidebar the classic layout
             gives it: the Codex has already spent the horizontal budget on two columns, and a
-            third would leave every one of them too narrow to read. */}
-        <div className="codex-tray"><DiceTray /></div>
+            third would leave every one of them too narrow to read. The Codex runs its OWN roller,
+            the Sigil Stack (T-DICE-CODEX) — same roll data as Dice Core, a stacked-tile render
+            that echoes the pane stack — instead of the shared DiceTray. */}
+        <div className="codex-tray"><SigilStack /></div>
         <div className="footer">click a stat to roll · double-click to edit · drag a section edge to resize it</div>
       </div>
     </div>

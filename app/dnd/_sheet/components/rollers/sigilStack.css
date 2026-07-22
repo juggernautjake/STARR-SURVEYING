@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════ SIGIL STACK — the Codex format's roller
+   A bespoke dice roller UNIQUE to the Codex (T-DICE-CODEX). It replaces the shared Dice
+   Core (`DiceTray`/`RollStage`) in the Codex shell only, and consumes the exact same roll
+   data from the store (`activeRoll` / `RollEntry`) — so the maths is identical and correct,
+   only the RENDER and the SETTLE ANIMATION differ.
+
+   Where Dice Core spins a single wheel of numbers on a wired "core", the Sigil Stack echoes
+   the Codex's premise — a vertical stack of panes — by resolving a roll as a VERTICAL STACK
+   OF GLYPH TILES: the die lands as the base tile, each modifier / source tile cascades in
+   beneath it with its own label, and the grand total locks in as the capstone.
+
+   EVERY RULE HERE IS TOKEN-ONLY AND SCOPED UNDER `.dnd-sheet`, exactly like codex.css — so
+   all five skins restyle it for free and there is deliberately NO `.skin-x .sigil` override.
+   A skin that needs to fight the roller is a skin bug, not a roller exception. */
+
+.dnd-sheet .sigil {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.82), rgba(var(--void-rgb), 0.6));
+  padding: 12px;
+}
+
+.dnd-sheet .sigil-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dnd-sheet .sigil-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  color: var(--ink);
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dnd-sheet .sigil-mark {
+  color: var(--tealbright);
+  font-size: 15px;
+  line-height: 1;
+}
+.dnd-sheet .sigil-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* ───────────────────────────────────────────────────────── the resolution stage */
+.dnd-sheet .sigil-stage {
+  position: relative;
+  min-height: 168px;
+  padding: 10px 4px 4px;
+  border-radius: 10px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(var(--tealbright-rgb, var(--void-rgb)), 0.06), transparent 60%),
+    rgba(var(--void-rgb), 0.55);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.dnd-sheet .sigil-stagelabel {
+  text-align: center;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.dnd-sheet .sigil-idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 118px;
+  color: var(--muted);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.5;
+}
+.dnd-sheet .sigil-idle .sigil-idleglyph {
+  display: block;
+  font-size: 26px;
+  color: var(--line-strong);
+  margin-bottom: 6px;
+  letter-spacing: 0.3em;
+}
+
+/* The stack itself, with a left "spine" the tiles thread onto — the vertical echo of the
+   Codex's stacked panes. */
+.dnd-sheet .sigil-tiles {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 16px;
+}
+.dnd-sheet .sigil-tiles::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--tealbright), rgba(var(--void-rgb), 0.1));
+  opacity: 0.55;
+}
+
+.dnd-sheet .sigil-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(var(--panel-rgb), 0.7);
+  transform-origin: center top;
+  /* Distinct cascade-and-lock entrance — each tile slides down and settles with a small
+     overshoot, unlike Dice Core's number wheel. Honored/dropped by the reduced-motion block. */
+  animation: sigil-snap 0.34s cubic-bezier(0.2, 1.35, 0.35, 1) both;
+}
+/* The connector node where each tile meets the spine. */
+.dnd-sheet .sigil-tile::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--void);
+  border: 2px solid var(--tealbright);
+}
+.dnd-sheet .sigil-glyph {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--tealbright);
+  text-align: center;
+}
+.dnd-sheet .sigil-label {
+  font-size: 12.5px;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dnd-sheet .sigil-rolls {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 11px;
+  margin-left: 4px;
+}
+.dnd-sheet .sigil-val {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* The base DIE tile — the natural face, read large; the roll's first fact. */
+.dnd-sheet .sigil-tile.st-die {
+  border-color: var(--line-strong);
+  background: rgba(var(--panel-rgb), 0.92);
+}
+.dnd-sheet .sigil-tile.st-die .sigil-glyph {
+  font-size: 15px;
+}
+.dnd-sheet .sigil-tile.st-die .sigil-val {
+  font-size: 24px;
+  color: var(--tealbright);
+}
+
+/* Modifier / source tiles fold in beneath. */
+.dnd-sheet .sigil-tile.st-mod .sigil-val {
+  color: var(--tealbright);
+}
+
+/* Boosts read non-red (what HELPED the roll); penalties read RED (what HURT it) — the same
+   contract Dice Core keeps in its history rows. */
+.dnd-sheet .sigil-tile.st-boost {
+  border-color: rgba(var(--tealbright-rgb, var(--void-rgb)), 0.5);
+}
+.dnd-sheet .sigil-tile.st-boost .sigil-glyph,
+.dnd-sheet .sigil-tile.st-boost .sigil-val {
+  color: var(--good, var(--tealbright));
+}
+.dnd-sheet .sigil-tile.st-penalty .sigil-glyph,
+.dnd-sheet .sigil-tile.st-penalty .sigil-label,
+.dnd-sheet .sigil-tile.st-penalty .sigil-val {
+  color: var(--danger);
+  font-weight: 600;
+}
+.dnd-sheet .sigil-tile.st-penalty::before {
+  border-color: var(--danger);
+}
+
+/* The TOTAL — the capstone that assembles at the foot of the stack. */
+.dnd-sheet .sigil-tile.st-total {
+  margin-top: 2px;
+  border-color: var(--gold);
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.95), rgba(var(--void-rgb), 0.5));
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb, var(--void-rgb)), 0.28);
+}
+.dnd-sheet .sigil-tile.st-total .sigil-glyph {
+  color: var(--gold);
+  font-size: 15px;
+}
+.dnd-sheet .sigil-tile.st-total .sigil-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dnd-sheet .sigil-tile.st-total .sigil-val {
+  font-size: 26px;
+  color: var(--gold);
+}
+.dnd-sheet .sigil-tile.st-total::before {
+  border-color: var(--gold);
+}
+
+/* Crit / fumble read semantically on every skin. */
+.dnd-sheet .sigil-tile.is-crit {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(var(--gold-rgb, var(--void-rgb)), 0.35);
+}
+.dnd-sheet .sigil-tile.is-crit .sigil-val,
+.dnd-sheet .sigil-tile.is-crit .sigil-glyph {
+  color: var(--gold);
+}
+.dnd-sheet .sigil-tile.is-fumble {
+  border-color: var(--danger);
+  box-shadow: 0 0 14px rgba(var(--danger-rgb, var(--void-rgb)), 0.3);
+}
+.dnd-sheet .sigil-tile.is-fumble .sigil-val,
+.dnd-sheet .sigil-tile.is-fumble .sigil-glyph {
+  color: var(--danger);
+}
+
+/* When the stack finishes assembling, the capstone gives one lock pulse. */
+.dnd-sheet .sigil-locked .sigil-tile.st-total {
+  animation: sigil-snap 0.34s cubic-bezier(0.2, 1.35, 0.35, 1) both, sigil-lock 0.5s ease-out 0.34s both;
+}
+
+.dnd-sheet .sigil-flag {
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  font-size: 12px;
+}
+.dnd-sheet .sigil-flag.crit {
+  color: var(--gold);
+}
+.dnd-sheet .sigil-flag.fumble {
+  color: var(--danger);
+}
+.dnd-sheet .sigil-tag {
+  text-align: center;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@keyframes sigil-snap {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px) scaleY(0.68);
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(3px) scaleY(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+@keyframes sigil-lock {
+  0% {
+    box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb, var(--void-rgb)), 0.28), 0 0 0 0 rgba(var(--gold-rgb, var(--void-rgb)), 0.55);
+  }
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb, var(--void-rgb)), 0.28), 0 0 22px 4px rgba(var(--gold-rgb, var(--void-rgb)), 0);
+  }
+}
+
+/* ───────────────────────────────────────────────────────── controls */
+.dnd-sheet .sigil-adv {
+  display: flex;
+  gap: 4px;
+}
+.dnd-sheet .sigil-adv button {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: rgba(var(--void-rgb), 0.5);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.dnd-sheet .sigil-adv button:hover {
+  color: var(--ink);
+}
+.dnd-sheet .sigil-adv button.on-adv {
+  color: var(--void);
+  background: var(--tealbright);
+  border-color: var(--tealbright);
+}
+.dnd-sheet .sigil-adv button.on-dis {
+  color: var(--void);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.dnd-sheet .sigil-adv button.on-flat {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: rgba(var(--panel-rgb), 0.9);
+}
+
+.dnd-sheet .sigil-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.dnd-sheet .sigil-dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.dnd-sheet .sigil-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(var(--void-rgb), 0.4);
+}
+.dnd-sheet .sigil-count button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+}
+.dnd-sheet .sigil-count button:hover:not(:disabled) {
+  color: var(--ink);
+}
+.dnd-sheet .sigil-count button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dnd-sheet .sigil-count .sigil-cn {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--ink);
+  min-width: 22px;
+  text-align: center;
+}
+
+.dnd-sheet .sigil-exh {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* Section heads for the collapsible entry + history. */
+.dnd-sheet .sigil-sechead {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+  padding: 8px 2px 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.dnd-sheet .sigil-sechead:hover {
+  color: var(--ink);
+}
+
+.dnd-sheet .sigil-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dnd-sheet .sigil-entry-modes {
+  display: flex;
+  gap: 4px;
+}
+.dnd-sheet .sigil-entry-modes button {
+  flex: 1;
+  padding: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(var(--void-rgb), 0.4);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dnd-sheet .sigil-entry-modes button.on {
+  color: var(--ink);
+  border-color: var(--line-strong);
+  background: rgba(var(--panel-rgb), 0.9);
+}
+.dnd-sheet .sigil-entry input {
+  background: rgba(var(--void-rgb), 0.5);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.dnd-sheet .sigil-entry .sigil-entry-row {
+  display: flex;
+  gap: 6px;
+}
+.dnd-sheet .sigil-entry .sigil-entry-row input {
+  width: 64px;
+  text-align: center;
+}
+.dnd-sheet .sigil-entry .sigil-entry-row .btn {
+  flex: 1;
+}
+
+.dnd-sheet .sigil-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.dnd-sheet .sigil-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 2px;
+}
+.dnd-sheet .sigil-re {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: rgba(var(--void-rgb), 0.35);
+}
+.dnd-sheet .sigil-re.crit {
+  border-color: var(--gold);
+}
+.dnd-sheet .sigil-re.fumble {
+  border-color: var(--danger);
+}
+.dnd-sheet .sigil-re-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dnd-sheet .sigil-re-label {
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.dnd-sheet .sigil-re-total {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink);
+}
+.dnd-sheet .sigil-re.crit .sigil-re-total {
+  color: var(--gold);
+}
+.dnd-sheet .sigil-re.fumble .sigil-re-total {
+  color: var(--danger);
+}
+.dnd-sheet .sigil-re-break {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.dnd-sheet .sigil-re-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+.dnd-sheet .sigil-eff-up {
+  color: var(--good, var(--tealbright));
+  font-weight: 600;
+}
+.dnd-sheet .sigil-eff-down {
+  color: var(--danger);
+  font-weight: 600;
+}
+.dnd-sheet .sigil-mode-adv {
+  color: var(--tealbright);
+  font-weight: 700;
+}
+.dnd-sheet .sigil-mode-dis {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* CX-9 discipline — respect reduced motion: keep the FINAL composed stack, drop the
+   cascade + the lock pulse entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet .sigil-tile,
+  .dnd-sheet .sigil-locked .sigil-tile.st-total {
+    animation: none;
+  }
+  .dnd-sheet .sigil-adv button,
+  .dnd-sheet .sigil-sechead {
+    transition: none;
+  }
+}
