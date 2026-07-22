@@ -82,7 +82,13 @@ const LEVELUP_BASE =
   'the reference version’s POWER and CAPABILITIES as closely as this system’s rules allow, ' +
   'so the two versions feel like the same character at the same level. You MUST set the new level ' +
   '(set_level to the target level) and the new MAX HP AND CURRENT HP (full). Call edit_sheet ONCE with ' +
-  'the full set of edits for every gained level.';
+  'the full set of edits for every gained level. ' +
+  // A large jump (many levels at once) can overflow one response and truncate the tool call — which
+  // fails the whole edit. Keep descriptions SHORT so the complete edit set fits in a single call.
+  'IMPORTANT: keep every feature/spell/attack DESCRIPTION brief — one or two sentences of the core ' +
+  'rule, not full flavour text — so the entire set of edits fits in ONE response without being cut off. ' +
+  'Prioritise adding ALL the new levels’ mechanics (features, ASIs, spell slots, HP, proficiency) over ' +
+  'long prose. A complete terse sheet beats a detailed truncated one.';
 
 const LEVELUP_VANILLA_ONLY =
   ' Use ONLY this system’s official content for the new levels — official classes, subclasses, ' +
