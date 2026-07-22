@@ -289,34 +289,42 @@ export const hextechFreljord: SheetTheme = {
   },
   fonts: hextechTheme.fonts,
 };
+// Void Prophet (owner 2026-07-22, the unique 5th) — arcane violet + electric magenta, the one colour
+// direction the other four don't cover (gold / green / red / cyan). Same dark HEXTECH_GROUNDS so the
+// TH4 contrast guard passes without re-tuning ink; only the accents change, as with the other palettes.
+export const hextechVoidProphet: SheetTheme = {
+  colors: {
+    ...HEXTECH_GROUNDS,
+    pink: '#c77dff', hotpink: '#9d4edd', violet: '#5a189a', 'violet-2': '#7b2cbf',
+    teal: '#a06bff', tealbright: '#e0aaff', gold: '#caa8ff', good: '#5cffcf',
+    line: 'rgba(157, 78, 221, 0.30)', 'line-strong': 'rgba(157, 78, 221, 0.58)',
+  },
+  fonts: hextechTheme.fonts,
+};
 
 /** One selectable colour theme: a stable key, a human label, and the SheetTheme it applies. */
 export interface ThemeVariant { key: string; label: string; theme: SheetTheme }
 
-const HEXTECH_VARIANTS: ThemeVariant[] = [
+/** THE 5 SHARED COLOUR THEMES (owner 2026-07-22) — available on EVERY style. The Style sets the
+ *  structure; a Theme recolours it. Same idea as before, but no longer bound to one skin. */
+export const THEMES: ThemeVariant[] = [
   { key: 'hextech', label: 'Hextech Gold', theme: hextechTheme },
   { key: 'shadow-isles', label: 'Shadow Isles', theme: hextechShadowIsles },
   { key: 'noxus', label: 'Noxus Crimson', theme: hextechNoxus },
   { key: 'freljord', label: 'Freljord Ice', theme: hextechFreljord },
+  { key: 'void-prophet', label: 'Void Prophet', theme: hextechVoidProphet },
 ];
 const STREAMER_VARIANTS: ThemeVariant[] = [
   { key: 'pink', label: 'Bubblegum', theme: streamerTheme },
   { key: 'blue', label: 'Aqua', theme: streamerThemeBlue },
 ];
 
-/** The colour themes available for a given skin (Area TH2). Every template gets at least its own theme; the
- *  default (Hextech) skin offers a 4-palette set, the streamer its pink/blue pair. Unknown skins fall back to
- *  the Hextech set so a character always has choices. */
+/** The colour themes available for a skin (Area TH2 / U-1). The 5 shared themes now apply to EVERY
+ *  style, so switching a character's colour is the same choice everywhere. The streamer keeps its own
+ *  pink/blue pair because those drive its `.variant-<id>` art-swap system, not just a palette. */
 export function themeVariantsFor(skin?: string): ThemeVariant[] {
-  switch (skin) {
-    case 'hextech': return HEXTECH_VARIANTS;
-    case 'streamer': return STREAMER_VARIANTS;
-    case 'donata': return [{ key: 'donata', label: 'Mojo Bazaar', theme: donataTheme }];
-    case 'rulebook': return [{ key: 'rangor', label: 'Rulebook', theme: rangorTheme }];
-    // The base sheet (skin undefined) keeps its single neon theme — no mismatched picker of another skin's
-    // palettes. Only skins with a real multi-palette set (hextech, streamer) surface a theme picker.
-    default: return [{ key: 'lazzuh', label: 'Neon', theme: lazzuhTheme }];
-  }
+  if (skin === 'streamer') return STREAMER_VARIANTS;
+  return THEMES;
 }
 
 /** Resolve a theme by (skin, key) — the persistence seam for the picker (TH3). Falls back to the skin's first

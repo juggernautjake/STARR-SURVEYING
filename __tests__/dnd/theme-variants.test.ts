@@ -28,17 +28,26 @@ describe('theme variants per template (TH2)', () => {
     expect(def.length).toBeGreaterThanOrEqual(3);
     expect(def.map((v) => v.key)).toContain('noxus');
   });
-  it('the base skin (no/unknown skin) keeps a single theme — no mismatched picker', () => {
-    expect(themeVariantsFor(undefined)).toHaveLength(1);
-    expect(themeVariantsFor('totally-unknown')).toHaveLength(1); // safe single fallback, not another skin's set
+  it('the 5 shared themes apply to EVERY style (U-1) — including base + unknown skins', () => {
+    const five = ['hextech', 'shadow-isles', 'noxus', 'freljord', 'void-prophet'];
+    expect(themeVariantsFor(undefined).map((v) => v.key)).toEqual(five);
+    expect(themeVariantsFor('totally-unknown').map((v) => v.key)).toEqual(five);
+    expect(themeVariantsFor('donata').map((v) => v.key)).toEqual(five);
+    expect(themeVariantsFor('hextech').map((v) => v.key)).toEqual(five);
   });
-  it('streamer keeps its pink/blue pair', () => {
+  it('the new unique 5th theme (Void Prophet) exists and is distinct', () => {
+    const v = themeVariantsFor('hextech').find((t) => t.key === 'void-prophet');
+    expect(v?.label).toBe('Void Prophet');
+    expect(v?.theme.colors?.hotpink).toBe('#9d4edd'); // arcane violet — none of the other four use it
+  });
+  it('streamer keeps its pink/blue pair (drives its .variant-<id> art-swap, not just a palette)', () => {
     expect(themeVariantsFor('streamer').map((v) => v.key).sort()).toEqual(['blue', 'pink']);
   });
-  it('resolveThemeVariant falls back to the first variant on a missing/bad key', () => {
+  it('resolveThemeVariant falls back to the first shared theme on a missing/bad key', () => {
     expect(resolveThemeVariant('hextech', 'nope').key).toBe('hextech');
     expect(resolveThemeVariant('hextech', 'noxus').key).toBe('noxus');
-    expect(resolveThemeVariant(undefined, undefined).key).toBe('lazzuh'); // base skin → its single theme
+    expect(resolveThemeVariant('donata', 'void-prophet').key).toBe('void-prophet'); // shared on every style
+    expect(resolveThemeVariant(undefined, undefined).key).toBe('hextech'); // first shared theme
   });
 });
 
