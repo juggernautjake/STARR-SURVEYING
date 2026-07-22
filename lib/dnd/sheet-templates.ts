@@ -71,7 +71,7 @@ const BUILT_FOR: Record<string, TemplateId[]> = {
   'dnd5e-2014': ['classic', 'codex', 'dashboard', 'play'],
   'dnd5e-2024': ['classic', 'codex', 'dashboard', 'play'],
   pathfinder2e: ['classic', 'codex', 'dashboard', 'play'],
-  'intuitive-games': ['classic'],
+  'intuitive-games': ['classic', 'codex', 'dashboard', 'play'],
   // System-ambiguous and under-construction systems use the shared engine's classic form.
   ambiguous: ['classic', 'codex', 'dashboard', 'play'],
 };

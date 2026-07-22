@@ -21,8 +21,15 @@
 import { Fragment } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { skinHxVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 import { useIgPanels, type Tagged } from './ig/useIgPanels';
+import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
+import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
+import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
+// Shared FORMAT stylesheets — scoped under `.sheet-shell` (T-SHELL-SCOPE), so they only style a shell
+// this sheet actually renders and never the Classic view.
+import '@/app/dnd/_sheet/styles/codex.css';
+import '@/app/dnd/_sheet/styles/play.css';
 
 // Interactivity + motion (req 3), kept in ONE injected <style> so the whole IG restyle stays local: the
 // shared hextech.module.css holds a sibling PF2 pass, and touching it would collide. Every hover cue is
@@ -50,7 +57,7 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
@@ -59,8 +66,72 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
    *  this sheet's root so the skin picker actually restyles the bespoke IG sheet (default → no change). */
   sheetType?: string;
+  /** The chosen TEMPLATE (`data.sheetLayout`) — codex/dashboard/play render the shared shells fed by
+   *  the IG panel set; anything else (incl. undefined) is the default Classic view. */
+  layout?: string;
 }) {
   const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind });
+  const byId = new Map(panels.map((p) => [p.id, p]));
+  const render = (id: string) => byId.get(id)?.render() ?? null;
+  // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`
+  // for the shell's `--gold`/`--panel-rgb`/…. `.sheet-shell` gives the shell layout without theme.css
+  // bleed; `.igs-root` keeps the IG panels' own scoped interactivity CSS working inside the shell.
+  const shellStyle = { ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' } as React.CSSProperties;
+
+  // ── COLUMN FORMATS: Codex (T-6b) + Dashboard (T-6c) ───────────────────────────────────────────
+  // IG's "at a glance" identity column is who they are (header) + Vitals (HP + Fort/Ref/Will + Prof —
+  // NO AC, IG has none by design) + Abilities. The body holds everything else.
+  if (layout === 'codex' || layout === 'dashboard') {
+    const identityIds = new Set(['ig-vitals', 'ig-abilities']);
+    const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
+    const identity = (
+      <aside className="codex-identity">
+        {header}
+        {render('ig-vitals')}
+        {render('ig-abilities')}
+      </aside>
+    );
+    return (
+      <div className="sheet-shell igs-root" style={shellStyle}>
+        <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
+        {layout === 'codex' ? (
+          <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
+        ) : (
+          <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} />
+        )}
+        {overlays}
+      </div>
+    );
+  }
+
+  // ── PLAY (T-6d) ───────────────────────────────────────────────────────────────────────────────
+  // The IG hero is the table-facing pair: Vitals (HP + saves) and Combat. The rest folds into the
+  // reference drawer.
+  if (layout === 'play') {
+    const heroIds = new Set(['ig-vitals', 'ig-combat']);
+    const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
+    const identity = <div className="play-id">{header}</div>;
+    const hero = (
+      <>
+        {render('ig-vitals')}
+        {render('ig-combat')}
+      </>
+    );
+    return (
+      <div className="sheet-shell igs-root" style={shellStyle}>
+        <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
+        <PlayShell
+          identity={identity}
+          above={banner}
+          hero={hero}
+          roller={roller}
+          drawerPanels={drawerPanels}
+          drawerHint="abilities · skills · powers · feats"
+        />
+        {overlays}
+      </div>
+    );
+  }
 
   return (
     // The main column deliberately leaves its top open (overlays/banner → header → jump-nav → Vitals). The

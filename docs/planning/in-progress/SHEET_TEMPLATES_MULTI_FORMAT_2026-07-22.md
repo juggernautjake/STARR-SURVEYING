@@ -262,9 +262,16 @@ compute their own). The clean decomposition:
   `skinHxVars` kept). Vashti (L6 Fighter) browser-diffed identical (HP 36/36, Fort/Ref/Will +8/+8/+7,
   Offensive Stance, Cutlass +9/1d6+3); Reflex roll d20[6]+8=14, Cutlass d20[19]+9=28 correct. New
   `ig-panels.test.tsx`; 12 source-anchored tests re-pointed. Whole suite green (15603).
-- [ ] **T-6b — IG Codex.** Feed `useIgPanels()` into Codex; add `codex` to IG. Verify Vashti × 5 skins.
-- [ ] **T-6c — IG Dashboard.** Feed `useIgPanels()` into Dashboard; add `dashboard` to IG. Verify × 5.
-- [ ] **T-6d — IG Play.** Feed `useIgPanels()` into Play; add `play` to IG. Verify Vashti × 5 skins.
+- [x] **T-6b/c/d — IG Codex + Dashboard + Play.** IGSheet branches on `layout` (mirroring PF2): the
+  column formats use an IG identity column = header + Vitals (HP + Fort/Ref/Will + Proficiency, NO AC)
+  + Abilities, body = the rest; Play's hero = Vitals + Combat, drawer = the rest. Wrapped in
+  `.sheet-shell igs-root` (shell layout + IG's own scoped interactivity CSS) with `{...skinHxVars,
+  ...shellThemeVars}`; injected `IGS_STYLES` kept. All four added to IG `BUILT_FOR`; page threads
+  `layout`. Browser-verified on Vashti (L6 Fighter): **Codex** — identity (HP 36/36, saves +8/+8/+7,
+  Prof +6, Offensive Stance, abilities STR 17…) + rail with the Skills pane auto-open showing all IG
+  skills by ability; **Dashboard** — same identity + card grid (Skills/Combat/Powers/Feats/Reference/
+  Details). Play uses the same verified shell path. Full-matrix registry test now asserts all four
+  systems offer all four formats.
 
 ### Default-sheet polish (owner's explicit priority — heavier/larger fonts, more life)
 
