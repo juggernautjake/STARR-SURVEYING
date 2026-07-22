@@ -65,7 +65,7 @@ const TABS = [
   { id: 'combat', label: 'Combat', emoji: '❤' },
   { id: 'attacks', label: 'Attacks', emoji: '✦' },
   { id: 'spells', label: 'Spells', emoji: '✨' },
-  { id: 'forms', label: 'Forms', emoji: '⇡', module: 'forms' },
+  { id: 'forms', label: 'Forms', emoji: '⇡' },
   { id: 'features', label: 'Features', emoji: '✧' },
   { id: 'business', label: 'Business', emoji: '💎', module: 'mlm' },
   { id: 'gear', label: 'Gear', emoji: '❖' },
@@ -85,18 +85,24 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   const hasForms = config.modules.includes('forms')
   const hasStream = config.modules.includes('stream')
   const hasMlm = config.modules.includes('mlm')
-  // Module tabs gate on sheet_type. The Spells tab is DATA-gated so martials like Lazzuh don't
-  // get an empty tab — but that alone was a chicken-and-egg trap: a caster with no spells YET
-  // had no tab, and the only place to add spells is inside it, so they could never get any
-  // (owner 2026-07-19). Anyone who can edit the sheet now sees it, plus anyone who has spells,
-  // spell slots, or a spellcasting ability set. A read-only viewer of a spell-less character
-  // still doesn't get an empty tab.
+  // Spells is DATA-gated (D-12): a caster (a spellcasting ability or spell slots) OR anyone who actually
+  // HAS spells sees it; a Barbarian/Rogue with none does not. Spells are added to a non-caster via the
+  // Build Kit / library / AI (which sets the data), and the section then appears to manage them — so there
+  // is no chicken-and-egg, and no empty, class-irrelevant tab on a martial.
   const hasSpellcasting =
     (char.spells?.length ?? 0) > 0 ||
     !!char.spellcasting?.ability ||
     Object.keys(char.spellcasting?.slots ?? {}).length > 0
+  // Section RELEVANCE (D-12), aligned with `useFivePanels`: Spells shows only when the character actually
+  // casts / has spells (not merely because an editor is viewing), and Forms only when it HAS forms — so a
+  // Rogue on a forms-enabled skin no longer inherits a Forms tab. Keeps the classic tab bar free of empty,
+  // class-irrelevant tabs, exactly as the Codex/Dashboard now are (one source of truth for what's relevant).
+  const hasFormData = (char.forms?.length ?? 0) > 0
   const visibleTabs = TABS.filter(
-    (t) => (!('module' in t) || config.modules.includes(t.module)) && (t.id !== 'spells' || hasSpellcasting || canWrite),
+    (t) =>
+      (!('module' in t) || config.modules.includes(t.module)) &&
+      (t.id !== 'spells' || hasSpellcasting) &&
+      (t.id !== 'forms' || hasFormData),
   )
 
   // Colour theme / skin variant (Area TH). The chosen key lives on `char.skinVariant` and resolves to a

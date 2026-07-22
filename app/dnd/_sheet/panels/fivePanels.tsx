@@ -44,15 +44,18 @@ export interface SheetPanel {
  * a format that wants a different order sorts by it, but the SET is one source.
  */
 export function useFivePanels(): SheetPanel[] {
-  const { char, canWrite } = useChar()
+  const { char } = useChar()
   const config = useSheetConfig()
 
-  // Same Spells gate as the classic tabs / Codex: a martial with no spells gets no empty pane, but
-  // a caster with none YET (or any editor) still reaches the place spells are added.
+  // Section RELEVANCE (D-12): a section only appears when it makes sense for THIS character's data — not
+  // for every editor. A Spellcaster (an ability/slots) OR anyone who actually HAS spells gets Spells; a
+  // Barbarian/Rogue with none does not (spells are added via the Build Kit / library / AI, which sets the
+  // data and makes the section appear). This is what keeps the sheet free of empty, class-irrelevant tabs.
   const hasSpellcasting =
     (char.spells?.length ?? 0) > 0 ||
     !!char.spellcasting?.ability ||
     Object.keys(char.spellcasting?.slots ?? {}).length > 0
+  const hasForms = (char.forms?.length ?? 0) > 0
 
   return useMemo(() => {
     const all: (SheetPanel & { module?: string; when?: boolean })[] = [
@@ -60,8 +63,10 @@ export function useFivePanels(): SheetPanel[] {
       { id: 'abilities', label: 'Abilities', emoji: '⬡', render: () => <Abilities /> },
       { id: 'combat', label: 'Combat', emoji: '❤', render: () => <><CombatPanel /><Resources /></> },
       { id: 'attacks', label: 'Attacks', emoji: '✦', render: () => <Attacks />, count: char.attacks?.length },
-      { id: 'spells', label: 'Spells', emoji: '✨', render: () => <SpellsPanel />, count: char.spells?.length, when: hasSpellcasting || canWrite },
-      { id: 'forms', label: 'Forms', emoji: '⇡', render: () => <><FormAbilities /><Forms /></>, module: 'forms' },
+      { id: 'spells', label: 'Spells', emoji: '✨', render: () => <SpellsPanel />, count: char.spells?.length, when: hasSpellcasting },
+      // Forms is now DATA-gated, not skin-module-gated: a character shows the shapeshift Forms section only
+      // if it actually HAS forms (so a Rogue on a forms-enabled skin like 'lazzuh' no longer inherits it).
+      { id: 'forms', label: 'Forms', emoji: '⇡', render: () => <><FormAbilities /><Forms /></>, when: hasForms },
       { id: 'features', label: 'Features', emoji: '✧', render: () => <><Features /><Balance /><Progression /></>, count: char.features?.length },
       { id: 'business', label: 'Business', emoji: '💎', render: () => <MlmPanel />, module: 'mlm' },
       { id: 'gear', label: 'Gear', emoji: '❖', render: () => <Inventory />, count: char.inventory?.length },
@@ -89,5 +94,5 @@ export function useFivePanels(): SheetPanel[] {
     return all
       .filter((d) => (!d.module || config.modules.includes(d.module as never)) && d.when !== false)
       .map(({ module: _m, when: _w, ...def }) => def)
-  }, [char, config.modules, hasSpellcasting, canWrite])
+  }, [char, config.modules, hasSpellcasting, hasForms])
 }

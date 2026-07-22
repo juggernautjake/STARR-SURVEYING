@@ -149,21 +149,28 @@ describe('the catalog’s roll data is internally consistent', () => {
   });
 });
 
-// Owner 2026-07-19: full spell management on the sheet — the tab must be reachable, spells
-// clickable, the right spells offered to the right class, and the DM able to grant.
-describe('the Spells tab is reachable before you have any spells', () => {
-  it('App shows the tab to anyone who can edit, not only to characters with spells', () => {
-    // The old gate was `char.spells.length > 0`, which was a trap: the only place to ADD a
-    // spell lives inside the tab, so a caster with none could never get one.
+// Section RELEVANCE (D-12, owner 2026-07-22): a martial with NO spells must not get a Spells tab on any
+// template (reduce class-irrelevant clutter). The Spells tab is therefore DATA-gated — it appears for a
+// caster (a spellcasting ability / slots) or anyone who actually has spells; a Barbarian/Rogue with none
+// does not. Spells are added to a non-caster via the Build Kit / library / AI edit (which sets the data),
+// and the section then appears to manage them.
+describe('the Spells tab is DATA-gated, not shown to every editor (D-12)', () => {
+  it('App gates Spells on hasSpellcasting (a caster or having spells), NOT on canWrite', () => {
     const app = read('app/dnd/_sheet/App.tsx');
-    expect(app).toContain('hasSpellcasting || canWrite');
-    expect(app).not.toContain("(t.id !== 'spells' || (char.spells?.length ?? 0) > 0)");
+    expect(app).toContain("(t.id !== 'spells' || hasSpellcasting)");
+    expect(app).not.toContain('hasSpellcasting || canWrite');
   });
 
-  it('the panel renders for an editor instead of bailing out early', () => {
-    // Second half of the same trap: the tab could be visible while the panel returned null.
-    const panel = read('app/dnd/_sheet/components/SpellsPanel.tsx');
-    expect(panel).toContain('grantedSpells.length === 0 && !canWrite) return null');
+  it('the shared panel set (Codex/Dashboard/Play) uses the same data gate', () => {
+    const five = read('app/dnd/_sheet/panels/fivePanels.tsx');
+    expect(five).toContain('when: hasSpellcasting');
+    expect(five).not.toContain('hasSpellcasting || canWrite');
+  });
+
+  it('hasSpellcasting still counts a spellcasting ability, slots, or existing spells', () => {
+    const app = read('app/dnd/_sheet/App.tsx');
+    expect(app).toContain('char.spellcasting?.ability');
+    expect(app).toContain('char.spells?.length');
   });
 });
 
