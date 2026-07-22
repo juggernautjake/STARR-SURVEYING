@@ -1,0 +1,208 @@
+/* play.css — the "Play mode" template (T-4). Theme-token only: every colour is a `var(--…)` the
+   root scope sets and each skin overrides, so all five skins apply with no format-specific rule
+   (the same discipline codex.css follows; a test forbids any `.skin-x .play-y` selector).
+   First functional pass — the deeper 3–4 styling passes are T-STYLE-PLAY. */
+
+.dnd-sheet .play {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Identity strip — a face + a name + one who-they-are line. Play spends its budget on vitals, so
+   identity is a band, not a column. */
+.dnd-sheet .play-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.7), rgba(var(--void-rgb), 0.45));
+}
+.dnd-sheet .play-portrait {
+  flex: 0 0 auto;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 14px rgba(var(--void-rgb), 0.5);
+}
+.dnd-sheet .play-portrait img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.dnd-sheet .play-id-text {
+  min-width: 0;
+}
+.dnd-sheet .play-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.dnd-sheet .play-sub {
+  margin: 3px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tealbright);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.dnd-sheet .play-owner {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dnd-sheet .play-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* THE HERO — vitals big and forward. The scale bump enlarges the reused CombatPanel's own text
+   without touching its markup; the one-answer numbers stay the sheet's, just bigger. */
+.dnd-sheet .play-vitals {
+  font-size: 15px;
+}
+.dnd-sheet .play-vitals .btn {
+  font-size: 14px;
+  padding: 9px 14px;
+}
+.dnd-sheet .play-quickroll {
+  min-width: 0;
+}
+
+/* Section headings shared by the hero + drawer. */
+.dnd-sheet .play-h {
+  margin: 2px 0 8px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: 5px;
+}
+
+/* Attacks are the second hero — make each one a big, obvious tap target. */
+.dnd-sheet .play-attacks {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.7), rgba(var(--void-rgb), 0.45));
+}
+.dnd-sheet .play-attacks .btn {
+  font-size: 14.5px;
+  padding: 10px 16px;
+}
+
+.dnd-sheet .play-tray {
+  max-width: 480px;
+}
+
+/* THE DRAWER — one toggle over the whole reference set; closed by default so the table view is
+   vitals + actions. */
+.dnd-sheet .play-ref {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.dnd-sheet .play-ref-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(var(--void-rgb), 0.4);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dnd-sheet .play-ref-toggle:hover,
+.dnd-sheet .play-ref-toggle:focus-visible {
+  border-color: var(--gold);
+  background: rgba(var(--panel-rgb), 0.75);
+  outline: none;
+}
+.dnd-sheet .play-ref-caret {
+  color: var(--gold);
+  font-size: 13px;
+}
+.dnd-sheet .play-ref-hint {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.dnd-sheet .play-ref-body {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.dnd-sheet .play-ref-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.7), rgba(var(--void-rgb), 0.45));
+  overflow: hidden;
+}
+.dnd-sheet .play-ref-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(var(--void-rgb), 0.4);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.dnd-sheet .play-ref-count {
+  color: var(--muted);
+  font-weight: 500;
+}
+.dnd-sheet .play-ref-panel {
+  padding: 10px;
+  max-height: 460px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet .play-ref-toggle {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .dnd-sheet .play-name {
+    font-size: 23px;
+  }
+  .dnd-sheet .play-ref-body {
+    grid-template-columns: 1fr;
+  }
+}

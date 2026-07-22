@@ -10,6 +10,7 @@ import './styles/theme.css'
 // CodexLayout is actually rendered, so a classic sheet pays only the (small) stylesheet size
 // and none of the complexity of a dynamic import that could flash unstyled panes on switch.
 import './styles/codex.css'
+import './styles/play.css'
 import { themeToCssVars, themeVariantsFor, resolveThemeVariant, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'
@@ -48,6 +49,7 @@ import VariantToggle from './components/VariantToggle'
 import CustomizationSummary from './components/CustomizationSummary'
 import CodexLayout from './codex/CodexLayout'
 import DashboardLayout from './codex/DashboardLayout'
+import PlayLayout from './codex/PlayLayout'
 import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
 import CharacterGallery from './components/CharacterGallery'
@@ -126,6 +128,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   const layout = char.sheetLayout ?? 'classic'
   const isCodex = layout === 'codex'
   const isDashboard = layout === 'dashboard'
+  const isPlay = layout === 'play'
+  // Codex AND Play both carry identity themselves and lead with their own hero, so the page's big
+  // round token and portrait header would be a redundant second copy pushing that hero below the
+  // fold. Suppress both for either. (Dashboard keeps them — its identity column sits beside a grid,
+  // not above a hero band.)
+  const ownsIdentity = isCodex || isPlay
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
@@ -165,7 +173,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           gives a face icon. */}
       {/* Not in the Codex: its identity column carries the portrait, and a second copy of the
           same face directly above it is noise, not navigation. */}
-      {!isCodex && (tokenUrl || artUrl) && (
+      {!ownsIdentity && (tokenUrl || artUrl) && (
         <div
           className="token-frame"
           style={{
@@ -203,7 +211,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
       {/* Also not in the Codex: name, class, level and the art all move INTO the identity
           column, which is the layout's entire premise. Rendering the hero above it would push
           the two-column split below the fold on the screens the Codex exists for. */}
-      {isCodex ? null : artBeside ? (
+      {ownsIdentity ? null : artBeside ? (
         <div className="hero-portrait" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 4 }}>
           <div style={{ flex: '1 1 360px', minWidth: 0 }}>
             <Hero />
@@ -257,6 +265,8 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
         <CodexLayout artUrl={artUrl} ownerName={ownerName} />
       ) : isDashboard ? (
         <DashboardLayout artUrl={artUrl} ownerName={ownerName} />
+      ) : isPlay ? (
+        <PlayLayout artUrl={artUrl} ownerName={ownerName} />
       ) : (
       <div className="appgrid">
         <div className="maincol">

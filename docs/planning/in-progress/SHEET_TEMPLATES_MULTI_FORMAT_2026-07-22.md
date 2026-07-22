@@ -123,14 +123,17 @@ rollers, then the styling passes, then whole-matrix QA. A slice is done ONLY whe
 
 ### 5e — remaining shell
 
-- [ ] **T-4 — Play shell (5e).** New `PlayLayout.tsx` + `play.css`, wired into `App.tsx`
-  (`isPlay`) and added to 5e in `BUILT_FOR`. A big **vitals band** (HP with a fast damage/heal
-  stepper, AC, initiative, key saves) as large tap targets across the top; an **Attacks/Actions**
-  block as the primary body (each attack a big button that rolls); a **conditions/resources** strip;
-  and EVERYTHING else (skills, features, gear, spells list, story, gallery) tucked into a single
-  collapsible **reference drawer** driven by `useFivePanels()` so nothing is lost. Reuses
-  `IdentityColumn` compactly. Registry test updated to expect 5e = all four. Done: renders on a 5e
-  character with real data, drawer opens/closes, attacks roll, all 5 skins legible; the standing bar.
+- [x] **T-4 — Play shell (5e).** `PlayLayout.tsx` + `play.css`, wired into `App.tsx` (`isPlay`, and
+  `ownsIdentity = isCodex || isPlay` suppresses the page's redundant token/hero for both), added to
+  5e + ambiguous in `BUILT_FOR`. Compact identity strip; a **vitals band** (reused `CombatPanel`:
+  HP + damage/heal/temp stepper, hit dice, death saves, speed, rest) + `Resources`; an ability
+  **quick-roll** row (`Abilities`); a big **Attacks/Actions** block (`Attacks`, each a roll button);
+  the Dice Core docked; and everything ELSE (skills, spells, features, gear, story, gallery) in a
+  single collapsible **Reference drawer** from `useFivePanels()` minus the hero panels
+  (`combat`/`attacks`/`abilities`, so nothing double-lists). Zero recompute — every number is the
+  reused component's one answer. Browser-verified end-to-end on Perrin (L4 Rogue): identity, vitals
+  with real HP 31/31, ability tiles, Rapier/Shortbow/Dagger roll buttons, drawer opens to real
+  panels. Registry test now expects 5e = all four formats.
 
 ### PF2 — panel set, then shells
 

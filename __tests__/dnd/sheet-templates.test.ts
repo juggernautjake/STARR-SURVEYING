@@ -22,9 +22,9 @@ describe('sheet-templates registry', () => {
     }
   });
 
-  it('5e offers Classic + Codex today; PF2 and IG offer Classic (honest coverage)', () => {
-    expect(templatesForSystem('dnd5e-2024').map((t) => t.id)).toContain('codex');
-    expect(templatesForSystem('dnd5e-2014').map((t) => t.id)).toContain('codex');
+  it('5e offers all four formats today; PF2 and IG offer Classic (honest coverage)', () => {
+    expect(templatesForSystem('dnd5e-2024').map((t) => t.id)).toEqual(['classic', 'codex', 'dashboard', 'play']);
+    expect(templatesForSystem('dnd5e-2014').map((t) => t.id)).toEqual(['classic', 'codex', 'dashboard', 'play']);
     expect(templatesForSystem('pathfinder2e').map((t) => t.id)).toEqual(['classic']);
     expect(templatesForSystem('intuitive-games').map((t) => t.id)).toEqual(['classic']);
   });
@@ -79,5 +79,31 @@ describe('Dashboard format (T-3)', () => {
     const css = read('app/dnd/_sheet/styles/codex.css').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.dash/);
     expect(css).toContain('.dash-grid');
+  });
+});
+
+describe('Play format (T-4)', () => {
+  it('is offered for 5e and branches in the engine', () => {
+    expect(templatesForSystem('dnd5e-2014').map((t) => t.id)).toContain('play');
+    const app = read('app/dnd/_sheet/App.tsx');
+    expect(app).toContain('isPlay');
+    expect(app).toContain('PlayLayout');
+    expect(app).toContain("import './styles/play.css'");
+  });
+
+  it('leads with the reused vitals + attacks and drawers the rest of the shared set', () => {
+    const play = read('app/dnd/_sheet/codex/PlayLayout.tsx');
+    // Correctness by reuse, not re-implementation: the same CombatPanel/Attacks own the numbers, and
+    // the drawer is the shared panel set with the hero panels removed.
+    expect(play).toContain('useFivePanels');
+    expect(play).toContain('CombatPanel');
+    expect(play).toContain('Attacks');
+    expect(play).toMatch(/HERO_PANELS[\s\S]*combat[\s\S]*attacks/);
+  });
+
+  it('carries no skin-specific Play rule — skins theme it for free', () => {
+    const css = read('app/dnd/_sheet/styles/play.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.play/);
+    expect(css).toContain('.play-ref-body');
   });
 });
