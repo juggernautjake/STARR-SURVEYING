@@ -9,6 +9,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { IG_STANCES, IG_POWERS, IG_FEATS, IG_DEFENSIVE_POWERS, IG_COMBAT_SKILLS, igClassPowerEffect, IG_BACKGROUND_DEFS, findIGClassDetail } from './content';
 import { blankIGCharacter, blankIGCompanion, type IGCharacter, type IGAttack, type IGAbilityKey } from './model';
+import { igAbilityMod } from './rules';
 import { systemSkills } from '../../system-rules';
 
 /** The kinded record of what an Intuitive Games character was built from (stored on the character data).
@@ -85,10 +86,62 @@ export function buildIGModel(picks: IGPicks): IGCharacter {
   for (const f of picks.feats ?? []) ig.feats[featCategory(f)].push(f);
 
   // Seed the full Intuitive Games skill list (Sheet 4) so the Skills tab shows every skill grouped by
-  // ability, with the 9 Combat Skills flagged. Ranks/proficiency are the player's to assign.
+  // ability, with the 9 Combat Skills flagged. Ranks (the player's rank budget) are the player's to
+  // assign; the PROFICIENT flag, however, is a concrete grant — a background trains specific skills — and
+  // is wired below rather than left uniformly false.
   ig.skills = systemSkills('intuitive-games').map((s) => ({
     name: s.name, ability: s.ability as IGAbilityKey, ranks: 0, proficient: false, misc: 0, combat: IG_COMBAT_SKILLS.has(s.name),
   }));
+
+  // ── Concrete automatic grants from the class, subclass and background ────────────────────────────────
+  // The same bug class the HP fix closed, applied to every OTHER published-and-concrete grant: a
+  // contributor states a value the builder must fold into the model, and leaving it unset makes the
+  // character read as though that contributor gave nothing (the "a stat that should be there defaults to
+  // nothing" bug). Only CONCRETE, published grants are wired here — a single named stance, a fixed
+  // defensive power, a named starting power, a list of proficiencies. The player CHOICES the same
+  // contributors also carry (a background's/class's ability boosts, which class power a subclass grants,
+  // which of an ancestry's two traits you take) are deliberately NOT wired: those are the player's to make
+  // on the sheet, and inventing them would be the mirror-image bug (a stat present that shouldn't be).
+  const g = (s: string) => s.trim().toLowerCase();
+
+  // (a) KNOWN stances. A background grants one stance (IG_BUILD_STEPS: "Background — grants one stance"),
+  //     and each subclass has a fixed granted stance (IG_CLASS_DETAILS.grantedStance). These are LEARNED
+  //     stances — they belong in `ig.stances` (the known set), NOT `ig.combat.stances` (the one-element
+  //     ACTIVE slot, [0] = currently held). A stance costs an action to adopt, so a granted one is known
+  //     but not auto-activated; this is exactly the split edit.ts `add_stance` vs `set_active_stance` draws.
+  for (const st of [bgDef?.stance, classDetail?.grantedStance]) {
+    if (st && !ig.stances.some((s) => g(s) === g(st))) ig.stances.push(st);
+  }
+
+  // (b) BACKGROUND PROFICIENCIES (IG_BACKGROUND_DEFS.proficiencies) → mark the matching skill trained.
+  //     Most backgrounds grant SKILL proficiencies (Academic → Arcane/Lore/Linguistics/Religion) that map
+  //     straight onto a seeded skill. A few name ITEM proficiencies instead (Soldier → Armor, Shields)
+  //     that are not skills AND have no home in the model — there is no armor-proficiency field (recorded
+  //     in IG_KNOWN_GAPS) — so an unmatched name is left unwired rather than forced onto a wrong skill.
+  if (bgDef) for (const p of bgDef.proficiencies) {
+    const skill = ig.skills.find((s) => g(s.name) === g(p));
+    if (skill) skill.proficient = true;
+  }
+
+  // (c) DEFENSIVE POWER. Each subclass grants a fixed one (IG_CLASS_DETAILS.defensivePower). Default to it
+  //     only when the player picked none — an explicit pick always wins.
+  if (!ig.combat.defensivePower && classDetail?.defensivePower) ig.combat.defensivePower = classDetail.defensivePower;
+
+  // (d) CLASS STARTING POWER (IG_CLASS_DETAILS.startingPower — e.g. the Wizard's Elemental Blast, the
+  //     Conduit's Redistribution). The field is a descriptive sentence ("Elemental Blast — a 2-action
+  //     ranged attack…" or "Elemental Blast (inherited from Wizard)"); the leading phrase before an
+  //     em-dash or parenthesis is the power NAME. Added to `ig.powers` (the character's known powers) so
+  //     the sheet lists it. NOT added to `igBuild.powers` (the record of what the PLAYER picked): a class
+  //     feature like Redistribution / Direct Companion is not on the spell-list roster, so recording it
+  //     as a pick would have provenance mis-flag it CUSTOM — an automatic grant is not a pick.
+  const startingPowerName = classDetail?.startingPower ? classDetail.startingPower.split(/[—(]/)[0].trim() : '';
+  if (startingPowerName && !ig.powers.some((p) => g(p) === g(startingPowerName))) ig.powers.push(startingPowerName);
+
+  // (e) SKILL-RANK BUDGET. IG grants "2 + Intelligence modifier ranks per level" (IG_SKILL_RULES), not the
+  //     flat 2 a blank character carries — which read as "a level-6 character has 2 ranks to spend". Guard
+  //     at 0 so a deeply-negative Intelligence cannot produce a negative budget (the site states no floor,
+  //     so 0 is the honest clamp rather than an invented minimum).
+  ig.skillRanksAvailable = Math.max(0, 2 + igAbilityMod(ig.abilities.INT)) * (ig.identity.level || 1);
 
   ig.combat.attacks = (picks.weapons ?? []).map((w, i): IGAttack => ({
     id: `atk-${i}`, name: w, weaponType: '', properties: '', proficient: true, weaponFocus: false,

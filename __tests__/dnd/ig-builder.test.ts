@@ -84,10 +84,14 @@ describe('assembleIGVanillaCharacter (Slice 7b)', () => {
     expect(igSaves(c.ig).Fortitude).toBe(0 /*rank*/ + 4 /*level*/ + 3 /*CON+3*/);
   });
 
-  it('buildIGModel is pure and standalone', () => {
+  it('buildIGModel is pure and standalone, and folds in the class starting power', () => {
     const ig = buildIGModel({ name: 'X', className: 'Wizard', powers: ['Detect Magic'] });
     expect(ig.identity.className).toBe('Wizard');
-    expect(ig.powers).toEqual(['Detect Magic']);
+    // The player's pick flows through, AND the Wizard's starting power (Elemental Blast) is now wired in
+    // — previously this asserted `toEqual(['Detect Magic'])`, which codified the bug: a Wizard built with
+    // no Elemental Blast, exactly the "a contributor's grant defaults to nothing" class the HP fix closed.
+    expect(ig.powers).toContain('Detect Magic');
+    expect(ig.powers).toContain('Elemental Blast');
   });
 
   it('seeds the full IG skill list grouped by ability with combat skills flagged (Slice 5)', () => {
