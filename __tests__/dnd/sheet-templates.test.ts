@@ -75,6 +75,20 @@ describe('Dashboard format (T-3)', () => {
     expect(dash).toContain('useFivePanels');
   });
 
+  it('is a pure system-agnostic shell fed by a 5e adapter (T-SHELL)', () => {
+    // The format lives in DashboardShell, which must know nothing about any system: no store hooks,
+    // no 5e components — only the {identity, panels, roller, above} it is handed. The 5e adapter
+    // (DashboardLayout) computes those and passes them in, so PF2/IG can feed the same shell.
+    const shell = read('app/dnd/_sheet/shells/DashboardShell.tsx')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(shell).not.toMatch(/useChar|useFivePanels|IdentityColumn|DiceTray/);
+    expect(shell).toContain('panels: SheetPanel[]');
+    const adapter = read('app/dnd/_sheet/codex/DashboardLayout.tsx');
+    expect(adapter).toContain("from '../shells/DashboardShell'");
+    expect(adapter).toContain('DashboardShell');
+  });
+
   it('carries no skin-specific Dashboard rule — skins theme it for free', () => {
     const css = read('app/dnd/_sheet/styles/codex.css').replace(/\/\*[\s\S]*?\*\//g, '');
     expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.dash/);

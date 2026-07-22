@@ -147,17 +147,30 @@ body runs ABOVE the provider it returns. So panels cannot be computed in `App` a
 must be computed by a component rendered inside the provider (which is exactly why today's shells
 compute their own). The clean decomposition:
 
-- [ ] **T-SHELL — split each shell into a pure `FormatShell` + a per-system adapter.**
-  - A pure `FormatShell` variant (Codex/Dashboard/Play) that takes `{ identity: ReactNode, panels:
-    SheetPanel[], roller: ReactNode }` and arranges them — no `useChar`, no system knowledge.
-  - Thin 5e adapters rendered inside the provider that compute `useFivePanels()`, build
-    `<IdentityColumn/>` + `<DiceTray/>`, and pass them in. `App` swaps to these; 5e output unchanged.
-  - PF2/IG adapters (their own slices) compute `usePf2Panels()` / `useIgPanels()` and their own
-    identity + roller, then reuse the SAME `FormatShell`.
-  - Move the shared `SheetPanel` type to one module both `fivePanels` and the PF2/IG hooks import.
-  - Done: 5e Codex/Dashboard/Play render identically (browser-diff Perrin) through the new adapters;
-    no shell references `useChar`; the standing green bar. This unblocks T-5b–d and T-6b–d, which
-    then become "write a system adapter", not "rebuild a format".
+- [~] **T-SHELL — split each shell into a pure shell + a per-system adapter.** One shell per format,
+  each taking `{ identity: ReactNode, panels: SheetPanel[], roller: ReactNode, above?: ReactNode }`
+  and arranging them — no `useChar`, no system knowledge. A thin per-system adapter rendered inside
+  the provider computes those parts and passes them in; `App`'s existing branch keeps importing the
+  5e adapter, so 5e output is unchanged and `App` needs no edit.
+  - **Refinement found in T-5a:** the PF2 (and IG) hooks return a top `header`/`nav`/`banner`, NOT a
+    left identity column — so a system's Codex/Dashboard adapter must supply its OWN format-appropriate
+    identity node (a condensed vitals column built from its defenses/attributes panels), and any
+    act-now furniture goes through the shell's `above` slot (5e: review queue + reactions; PF2/IG:
+    their `banner`/`overlays`). The `SheetPanel` type stays exported from `fivePanels` and is imported
+    type-only by the PF2/IG hooks (no move needed — a move would only churn imports).
+  - [x] **T-SHELL-DASH — Dashboard.** `app/dnd/_sheet/shells/DashboardShell.tsx` is the pure shell
+    (`{identity, panels, roller, above}`, no store hooks — a test forbids `useChar`/`useFivePanels`/
+    `IdentityColumn`/`DiceTray` in it); `DashboardLayout.tsx` is now the thin 5e adapter feeding it
+    `IdentityColumn` + `useFivePanels()` + `DiceTray` + review/reactions. Browser-verified 5e Dashboard
+    renders identically on Perrin (identity column, Skills·18/Abilities/Combat cards, HP 31/31). `App`
+    unchanged. Standing bar green.
+  - [ ] **T-SHELL-CODEX — Codex.** Same split for `CodexLayout` (now docks the Sigil Stack) → pure
+    `CodexShell` (identity + pane rail/stack + roller + above) + 5e adapter. Browser-diff Perrin.
+  - [ ] **T-SHELL-PLAY — Play.** Split `PlayLayout`. Note Play's hero is system-specific components,
+    so its shell takes a `hero: ReactNode` + `drawerPanels: SheetPanel[]` (not one flat panel list);
+    the 5e adapter supplies the CombatPanel/Abilities/Attacks hero. Browser-diff Perrin.
+  - After all three: T-5b–d and T-6b–d become "write a system adapter" (incl. its identity node),
+    not "rebuild a format".
 
 ### PF2 — panel set, then shells
 
@@ -215,10 +228,16 @@ is identical and correct everywhere and it works for every system), but genuinel
 SIMULATION — not a reskin. Each: honours `prefers-reduced-motion`, is theme-token styled (every skin),
 and is browser-verified rolling a real check/attack/save with a correct visible breakdown.
 
-- [ ] **T-DICE-CODEX — "Sigil Stack".** The roll resolves as a vertical stack of glyph tiles: the d20
-  lands at the base, then each modifier tile (proficiency, ability, item, effect) snaps in beneath
-  with its source label, and the total assembles top-down — echoing the Codex's stacked panes.
-  Distinct settle animation (tiles cascade & lock). Replaces `DiceTray` for the Codex shell only.
+- [x] **T-DICE-CODEX — "Sigil Stack".** Shipped: `components/rollers/SigilStack.tsx` (+ `sigilStack.css`,
+  imported by the component so `App` needed no edit). The roll resolves as a vertical stack of glyph
+  tiles threaded on a left spine — natural die at the base, each modifier/source tile folding in
+  beneath, total locking in as a gold **capstone**; distinct cascade-and-lock settle (staggered snap +
+  overshoot), NOT a reskin. Same `activeRoll`/`RollEntry` store data as Dice Core (total always
+  `entry.total`, never recomputed), full capability parity (adv/dis, vanilla/reckless/surge/exhaustion,
+  manual dice + count, physical-roll entry, history), reduced-motion honored. Docks in the Codex shell
+  only (`CodexLayout` mounts `<SigilStack/>` instead of `<DiceTray/>`); classic Dice Core untouched.
+  Browser-verified on Perrin (codex): DEX check at advantage kept the higher die (13)+3 → capstone 16;
+  manual 1d20 → 5, logged. Whole suite green (15591); focused `sigil-stack-roller.test.ts`.
 - [ ] **T-DICE-DASHBOARD — "Roll Board".** A dealt-card roller: each die and each modifier is a card
   that flips face-up onto a felt and is totted like a hand; crit deals a second highlighted card;
   adv/dis deals two d20 cards and discards one visibly. Fits the card-grid identity. Dashboard only.
@@ -237,7 +256,10 @@ skins (especially the light ones), no skin-specific rule, `prefers-reduced-motio
 
 - [ ] **T-STYLE-DASH — Dashboard, passes 1–4.** (1) hierarchy & card rhythm; (2) typography weight/
   size; (3) hover/focus/motion affordances; (4) cross-skin legibility sweep.
-- [ ] **T-STYLE-PLAY — Play, passes 1–4.** As above, tuned for big-tap-target at-the-table feel.
+- [~] **T-STYLE-PLAY — Play, passes 1–4.** Pass 1 (hierarchy & rhythm) shipped: vitals, quick-roll and
+  attacks now share one framed-card treatment with the vitals marked primary by a gold top edge;
+  theme-token only. Passes 2–4 (typography, affordances/motion, cross-skin sweep) pending; pass-1
+  cross-skin visual sign-off folded into T-8.
 - [ ] **T-STYLE-CODEX — Codex, passes 1–3.** Refresh now that it shares panels & gains the Sigil
   Stack; tighten pane headers, rail, resize handles; cross-skin sweep.
 - [ ] **T-STYLE-CLASSIC — Classic, passes 1–2.** Light polish only (it is the mature baseline):
