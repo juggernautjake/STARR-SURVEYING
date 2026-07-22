@@ -42,4 +42,17 @@ describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
   it('damage uses the dice-expression roller', () => {
     expect(sheet).toContain('rollDiceExpr');
   });
+
+  it('rollable stats ARE the buttons (hover-highlight) — no per-stat dice glyphs, one tap hint (D-16)', () => {
+    // D-16: the little 🎲 icons next to every save/skill/ability/attack are gone. Each value is itself the
+    // interactive control — it lifts+glows (igs-int) / highlights (igs-row) / underlines (igs-link) on hover —
+    // and a single "Tap any value to roll it" hint makes the interaction discoverable.
+    expect(sheet).toContain('Tap any value to roll it');
+    expect(sheet).not.toMatch(/\{fmt\(total\)\} 🎲/);       // skills value carries no die icon
+    expect(sheet).not.toMatch(/\{fmt\(r\.toHit\)\} 🎲/);    // attack to-hit either
+    expect(sheet).not.toMatch(/\{r\.damage\} 🎲/);          // nor damage
+    expect(sheet).toContain('className="igs-tile igs-int"'); // saves/abilities: lift + gold glow on hover
+    expect(sheet).toContain('className="igs-row"');          // skills row: background highlight on hover
+    expect(sheet).toContain('className="igs-link"');         // attack/damage: underline on hover
+  });
 });

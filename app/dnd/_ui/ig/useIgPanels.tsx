@@ -378,11 +378,17 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const renderVitals = () => (
     <Section id="ig-vitals" title="Vitals"
       aside={(
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'var(--hx-muted)' }}>
-          🎲 Target DC
-          <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-            style={{ width: 52, fontSize: 14, fontWeight: 600, padding: '4px 7px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
-        </label>
+        // D-16: the per-stat dice glyphs are gone — every save/skill/ability/attack is itself the button
+        // (it lifts + glows on hover), and a tap sends it to the animated roller. This hint makes the
+        // now-implicit interaction discoverable without cluttering each value.
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--hx-muted)' }}>Tap any value to roll it</span>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'var(--hx-muted)' }}>
+            Target DC
+            <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
+              style={{ width: 52, fontSize: 14, fontWeight: 600, padding: '4px 7px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
+          </label>
+        </div>
       )}
     >
       {/* Active stance banner (req 3) — a stance is a HELD state that modifies rolls, so when one is active it
@@ -431,7 +437,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
               // The tooltip explains WHY the number moved, so a changed value is never mysterious.
               title={`Roll ${s} (d20 ${fmt(shown)})${rs?.sources.length ? ` · ${rs.sources.join(', ')}` : ''}`}
               style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '9px 6px', cursor: 'pointer' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>{s} 🎲{swingMark(rs?.swing)}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>{s}{swingMark(rs?.swing)}</div>
               <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
               {/* Base shown alongside when something is modifying it, so the player can see both. */}
               {changed && <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--hx-muted)' }}>base {fmt(derived.saves[s])}</div>}
@@ -455,7 +461,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
             {/* Tap an ability to roll an ability check (R1b): d20 + its modifier. */}
             <button type="button" className="igs-tile igs-int" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
               style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '9px 4px', cursor: 'pointer', width: '100%' }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--hx-muted)', letterSpacing: '0.07em' }}>{k} 🎲</div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--hx-muted)', letterSpacing: '0.07em' }}>{k}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--hx-text)', lineHeight: 1.15 }}>{ig.abilities[k]}</div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
             </button>
@@ -490,7 +496,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
         <button type="button" className="igs-row" onClick={() => rollLine(`${s.name} (${s.ability})`, total)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
           style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13.5, fontWeight: 500, padding: '3px 6px', width: '100%', background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', textAlign: 'left' }}>
           <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 12 }}> ●</span> : null}</span>
-          <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)} 🎲</span>
+          <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)}</span>
         </button>
       );
     };
@@ -541,14 +547,14 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                       {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}
                       <button type="button" className="igs-link" onClick={() => rollLine(`${a.name} attack`, r.toHit, 'attack')} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
                         style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, fontSize: 14, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {fmt(r.toHit)} 🎲
+                        {fmt(r.toHit)}
                       </button>
                     </td>
                     <td style={{ padding: '4px 8px 4px 0', fontVariantNumeric: 'tabular-nums' }}>
                       {/* Tap the damage to roll the dice expression (R1b). */}
                       <button type="button" className="igs-link" onClick={() => rollDamage(`${a.name} damage`, r.damage)} title={`Roll ${a.name} damage (${r.damage})`}
                         style={{ background: 'none', border: 'none', color: 'var(--hx-text)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {r.damage} 🎲
+                        {r.damage}
                       </button>
                     </td>
                     <td style={{ padding: '4px 8px 4px 0', fontWeight: 500, color: 'var(--hx-muted)' }}>{a.properties}</td>
