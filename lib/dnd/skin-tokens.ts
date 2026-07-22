@@ -25,6 +25,7 @@
 // legible. That is the whole reason this file bothers with a luminance computation.
 import type { CSSProperties } from 'react';
 import { SHEET_STYLES } from './sheet-styles';
+import type { SheetTheme } from '@/app/dnd/_sheet/theme';
 
 // ── tiny hex-colour math ───────────────────────────────────────────────────────
 // Kept local + dependency-free (this module is imported by client sheets). All ops work on plain
@@ -180,6 +181,69 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   return vars as CSSProperties;
 }
 
+/**
+ * THE THEME → BESPOKE BRIDGE (U-2). The mirror of `skinHxVars`, but keyed by a chosen `SheetTheme`
+ * (one of the 5 universal colour themes) instead of a skin's 4-colour swatch — so the bespoke PF2/IG
+ * sheets recolour to any theme, on any style, in any format.
+ *
+ * The 5e engine already recolours to a theme via `themeToCssVars` (its `--*` vars); this produces the
+ * `--hx-*` set the bespoke sheets read. A theme already ships a FULL, contrast-tuned palette (ink, muted,
+ * gold, teal, line) designed for the 5e sheet, so those map almost directly — we only DERIVE the ramp
+ * steps (gold-0..3, teal-2), the background steps (navy-0..2) and the panel companion, and re-run the
+ * same contrast clamp against the panel (a near no-op for an already-legible palette, the safety net for
+ * the light-leaning themes). Returns {} for no theme, so a sheet with no `skinVariant` keeps its skin.
+ */
+export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperties {
+  const c = theme?.colors;
+  if (!c) return {};
+  const bg = c.void || '#010a13';
+  const panel = c.panel || '#0b1a2c';
+  const light = luminance(panel) > 0.4;
+
+  const navy0 = bg;
+  const navy1 = light ? darken(bg, 0.05) : lighten(bg, 0.06);
+  const navy2 = light ? darken(bg, 0.04) : lighten(bg, 0.05);
+  const panel2 = light ? darken(panel, 0.05) : lighten(panel, 0.08);
+  // A theme's `line` is often an rgba() (valid for --hx-line directly); fall back to a derived hairline.
+  const line = c.line || (light ? darken(panel, 0.32) : lighten(panel, 0.14));
+
+  const gold = c.gold || '#c8aa6e';
+  const gold2 = ensureContrast(gold, panel, light ? 4 : 3);
+  const gold1 = darken(gold2, 0.16);
+  const gold0 = darken(gold2, light ? 0.34 : 0.45);
+  const gold3 = light ? gold2 : lighten(gold2, 0.4);
+
+  const accent = c.teal || c.tealbright || '#0ac8b9';
+  const teal1 = ensureContrast(accent, panel, light ? 4 : 3);
+  const teal2 = darken(teal1, light ? 0.2 : 0.28);
+
+  const text = ensureContrast(c.ink || (light ? '#181018' : '#f0e6d2'), panel, 7);
+  const muted = ensureContrast(c.muted || mix(text, toRgb(panel), 0.42), panel, 4.5);
+
+  const vars: Record<string, string> = {
+    '--hx-navy-0': navy0,
+    '--hx-navy-1': navy1,
+    '--hx-navy-2': navy2,
+    '--hx-panel': panel,
+    '--hx-panel-2': panel2,
+    '--hx-line': line,
+    '--hx-gold-0': gold0,
+    '--hx-gold-1': gold1,
+    '--hx-gold-2': gold2,
+    '--hx-gold-3': gold3,
+    '--hx-teal-1': teal1,
+    '--hx-teal-2': teal2,
+    '--hx-text': text,
+    '--hx-muted': muted,
+  };
+  if (light) {
+    vars['--hx-inset-soft'] = 'rgba(0, 0, 0, 0.03)';
+    vars['--hx-inset'] = 'rgba(0, 0, 0, 0.05)';
+    vars['--hx-inset-strong'] = 'rgba(0, 0, 0, 0.08)';
+  }
+  return vars as CSSProperties;
+}
+
 /** The baseline `--hx-*` values declared on `.root` in hextech.module.css — used when the skin is
  *  `default` (where `skinHxVars` emits nothing) so the shell bridge below still has real colours to
  *  derive RGB triplets from. Keep in sync with that stylesheet's defaults. */
@@ -209,8 +273,22 @@ const HX_DEFAULTS = {
  * within 5e.
  */
 export function shellThemeVars(sheetType: string | undefined): CSSProperties {
-  const hx = skinHxVars(sheetType) as Record<string, string>;
-  // For a named skin, take the computed value; for `default` (empty map) take the baseline.
+  return shellVarsFromHx(skinHxVars(sheetType) as Record<string, string>);
+}
+
+/** The shell token set (`--gold`/`--panel-rgb`/…) for a chosen THEME (U-2), so the format shells
+ *  (Codex/Dashboard/Play) recolour to the theme the same way `shellThemeVars` recolours them to a skin.
+ *  Same derivation, sourced from `themeToHxVars` instead of `skinHxVars`. {} for no theme. */
+export function themeToShellVars(theme: SheetTheme | null | undefined): CSSProperties {
+  const hx = themeToHxVars(theme) as Record<string, string>;
+  if (!Object.keys(hx).length) return {};
+  return shellVarsFromHx(hx);
+}
+
+/** Build the shell token set from a resolved `--hx-*` map (from either a skin or a theme). Missing keys
+ *  fall back to the baseline `--hx-*` defaults, so the `default` skin's empty map still yields real colours. */
+function shellVarsFromHx(hx: Record<string, string>): CSSProperties {
+  // For a named skin/theme, take the computed value; for `default` (empty map) take the baseline.
   const gold3 = hx['--hx-gold-3'] ?? HX_DEFAULTS.gold3;
   const text = hx['--hx-text'] ?? HX_DEFAULTS.text;
   const muted = hx['--hx-muted'] ?? HX_DEFAULTS.muted;

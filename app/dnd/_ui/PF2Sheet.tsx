@@ -15,7 +15,8 @@
 
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars } from '@/lib/dnd/skin-tokens';
+import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { usePf2Panels } from './pf2/usePf2Panels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
@@ -27,7 +28,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -44,6 +45,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   artUrl?: string | null;
   /** Character name, for the portrait's alt text. */
   name?: string | null;
+  /** The chosen colour THEME (`data.skinVariant`, one of the 5 universal themes). When set, its palette
+   *  recolours this sheet over the skin, in any format (U-2); unset → the skin's native colours. */
+  skinVariant?: string;
 }) {
   const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
@@ -59,9 +63,14 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)` translucent, so WITHOUT an
   // opaque skin-base behind them they blend with the dark page — which made LIGHT skins (jack/donata)
   // render dark. The base is the skin's own page tone, so every skin reads correctly.
+  // The chosen colour theme (U-2), if any: its --hx-* palette layers OVER the skin's so the theme wins,
+  // and its shell tokens recolour the format shells the same way. Unset → the skin's native colours.
+  const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
+  const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
+  const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
   const shellWrap: React.CSSProperties = {
-    ...skinHxVars(sheetType),
-    ...shellThemeVars(sheetType),
+    ...hxVars,
+    ...shellTokens,
     background: 'var(--hx-navy-0)',
     borderRadius: 12,
     padding: '10px 12px',
@@ -133,7 +142,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   return (
     // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
     // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
-    <div className={styles.framedPanel} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+    <div className={styles.framedPanel} style={{ ...hxVars, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
       {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
       {artUrl ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>

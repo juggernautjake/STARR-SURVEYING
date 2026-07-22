@@ -178,6 +178,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
           artUrl={(character as { art_url?: string | null }).art_url}
           name={character.name}
+          skinVariant={(character.data as { skinVariant?: string } | null)?.skinVariant}
         />
       );
     }
@@ -198,6 +199,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
         artUrl={(character as { art_url?: string | null }).art_url}
         name={character.name}
+        skinVariant={(character.data as { skinVariant?: string } | null)?.skinVariant}
       />
     );
   }

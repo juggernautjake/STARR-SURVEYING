@@ -21,7 +21,8 @@
 import { Fragment } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars } from '@/lib/dnd/skin-tokens';
+import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { useIgPanels, type Tagged } from './ig/useIgPanels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
@@ -59,7 +60,7 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
@@ -76,6 +77,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   artUrl?: string | null;
   /** Character name, for the portrait's alt text. */
   name?: string | null;
+  /** The chosen colour THEME (`data.skinVariant`) — its palette recolours this sheet over the skin, in
+   *  any format (U-2); unset → the skin's native colours. */
+  skinVariant?: string;
 }) {
   const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind });
   const byId = new Map(panels.map((p) => [p.id, p]));
@@ -86,9 +90,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // `background: var(--hx-navy-0)` is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)`
   // translucent, so without an opaque skin-base behind them they blend with the dark page — which made
   // LIGHT skins render dark. The base is the skin's own page tone, so every skin reads correctly.
+  // The chosen colour theme (U-2), if any: its --hx-* palette layers OVER the skin's, and its shell tokens
+  // recolour the format shells the same way. Unset → the skin's native colours.
+  const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
+  const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
+  const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
   const shellStyle = {
-    ...skinHxVars(sheetType),
-    ...shellThemeVars(sheetType),
+    ...hxVars,
+    ...shellTokens,
     background: 'var(--hx-navy-0)',
     borderRadius: 12,
     padding: '10px 12px',
@@ -158,7 +167,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     // chosen skin (default → {} → unchanged). Spread first so the layout props below still win. Panels render
     // in order as direct grid children (each returns its own `<Section id=…>` wrapper, so the jump-nav anchors
     // still land), reproducing the monolith's DOM exactly.
-    <div className={`${styles.framedPanel} igs-root`} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+    <div className={`${styles.framedPanel} igs-root`} style={{ ...hxVars, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
       {/* Scoped interactivity CSS (req 3). Injected once at the top of this component's own subtree; every
           selector is prefixed `.igs-root` so it cannot leak into the PF2 sheet or the rest of the page. */}
       <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />

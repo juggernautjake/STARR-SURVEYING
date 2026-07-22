@@ -49,19 +49,21 @@
 **Legend:** `[x]` shipped · `[~]` in progress · `[ ]` not started. Standing bar (each slice): `tsc`,
 `eslint`, whole-repo `vitest`, and any rendered result browser-verified before its box is checked.
 
-- [ ] **U-1 — the 5th theme + make the 5 themes universal.** Add a new unique `SheetTheme` (a full
-  palette distinct from the four LoL-region looks — e.g. a warm "Sunfire Ember" or a violet "Void
-  Prophet"; pick one and make it genuinely its own). Introduce a shared `THEMES` list = the 4 Hextech
-  palettes + the new one (5), each `{key,label,theme}`. Change `themeVariantsFor` so EVERY skin returns
-  these 5 (the theme is now universal, not skin-bound); keep each skin's native palette reachable as the
-  default when no `skinVariant` is set. 5e already applies `themeToCssVars(effectiveTheme)`, so 5e
-  recolours to any of the 5 for free. Test: `themeVariantsFor(anySkin)` returns 5; each theme resolves.
-- [ ] **U-2 — theme → bespoke colour bridge.** New `themeToHxVars(SheetTheme)` mapping a theme's colours
-  to the `--hx-*` tokens the PF2/IG sheets (and `shellThemeVars`) read — the mirror of `skinHxVars` but
-  keyed by a theme, with the RGB triplets computed in JS. `PF2Sheet`/`IGSheet` apply the chosen theme's
-  `--hx-*` on their root (over the skin's, so the theme wins) and read `data.skinVariant`. So a bespoke
-  sheet recolours to any of the 5 themes, in any format, on any style. Unit-test the bridge (all tokens,
-  valid triplets, differs per theme). Browser-verify Orin/Vashti recolour.
+- [x] **U-1 — the 5th theme + make the 5 themes universal.** `hextechVoidProphet` (a violet palette) added;
+  `THEMES` = the 4 LoL palettes + Void Prophet (5), each `{key,label,theme}`; `themeVariantsFor` returns
+  these 5 for every skin (streamer keeps its 2-palette art-swap). 5e recolours for free via
+  `themeToCssVars`. Tested (`themeVariantsFor(anySkin)` → 5; void-prophet resolves).
+- [x] **U-2 — theme → bespoke colour bridge.** New `themeToHxVars(SheetTheme)` (mirror of `skinHxVars`,
+  sourced from a full theme palette) maps a theme onto the `--hx-*` token set, re-running the same
+  contrast clamp; `themeToShellVars` does the same for the shell tokens (refactored `shellThemeVars` to
+  share a `shellVarsFromHx` core). `PF2Sheet`/`IGSheet` take a `skinVariant` prop (from
+  `data.skinVariant`, threaded from page.tsx) and layer `themeToHxVars(theme)` OVER `skinHxVars(skin)` on
+  every root (classic + shell wrapper), with `themeToShellVars` recolouring the format shells — so the
+  theme wins, in any format, on any style; unset → the skin's native colours. Unit-tested (all 14 tokens
+  emitted per theme, concrete hex, palettes differ, {} for no theme — 5 tests). Browser-VERIFIED: Orin's
+  PF2 sheet on `skinVariant=noxus` resolved `--hx-gold-2=#d9a441` / `--hx-teal-1=#d98a45` /
+  `--hx-line=rgba(200,50,63,.28)` (Noxus's amber/orange/crimson), distinct from the hextech default
+  (`#c8aa6e`/`#0ac8b9`/gold line). tsc + eslint green.
 - [ ] **U-3 — `/theme` endpoint + cross-system persistence.** The theme choice (`skinVariant`) is a 5e
   store field today; bespoke sheets have no store. Add `/api/dnd/characters/[id]/theme` (owner/DM-gated,
   patches `data.skinVariant`) so the chip picker sets the theme for EVERY system — the twin of the
