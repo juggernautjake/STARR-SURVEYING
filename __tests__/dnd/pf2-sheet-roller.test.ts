@@ -15,10 +15,14 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
     expect(sheet).toContain("system: 'pathfinder2e'");
   });
 
-  it('shows the last roll in the generic banner (total + detail + tone)', () => {
-    expect(sheet).toMatch(/lastRoll\.total/);
-    expect(sheet).toMatch(/lastRoll\.detail/);
-    expect(sheet).toMatch(/lastRoll\.tone/);
+  it('publishes each roll to the shared animated roller — feed + stage, not a static banner (RO-5b)', () => {
+    // The old generic banner was replaced by the shared animated roller: PF2 shapes every roll into an
+    // ActiveRoll and pushes it onto the feed the animated stages read. The roll is still fully resolved
+    // (total/detail/tone computed for the shaping); it just renders through the roller now.
+    expect(sheet).toContain('setActiveRoll(buildD20ActiveRoll(');   // d20 saves/skills/strikes → the feed
+    expect(sheet).toContain('setActiveRoll(buildDamageActiveRoll('); // damage → the feed
+    expect(sheet).toContain('RollFeedProvider');                     // the roller node provides the feed
+    expect(sheet).toContain('rollerStageFor(rollerId)');             // …and mounts the chosen animated stage
   });
 
   it('saves, skills, Strikes AND Strike damage are all tap-to-roll', () => {

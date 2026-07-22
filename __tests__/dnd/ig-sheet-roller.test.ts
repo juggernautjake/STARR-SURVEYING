@@ -20,11 +20,15 @@ describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
     expect(sheet).toContain('rollNaturalD20()');
   });
 
-  it('shows the last roll in a generic result banner (label + total + detail, tone-coloured)', () => {
-    expect(sheet).toContain('lastRoll');
-    expect(sheet).toMatch(/lastRoll\.total/);
-    expect(sheet).toMatch(/lastRoll\.detail/);
-    expect(sheet).toMatch(/lastRoll\.tone/); // crit/fumble/normal colouring, shared by d20 + damage rolls
+  it('publishes each roll to the shared animated roller — feed + stage, not a static banner (RO-5c)', () => {
+    // The old generic result banner was replaced by the shared animated roller: every roll is shaped into an
+    // ActiveRoll and pushed onto the feed the four animated stages read. The roll is still fully resolved
+    // (label/total/detail/tone are still computed for the shaping); it just renders through the roller now.
+    expect(sheet).toContain('setActiveRoll(buildD20ActiveRoll(');   // d20 checks/saves/attacks → the feed
+    expect(sheet).toContain('setActiveRoll(buildDamageActiveRoll('); // damage → the feed
+    expect(sheet).toContain('RollFeedProvider');                     // the roller node provides the feed
+    expect(sheet).toContain('rollerStageFor(rollerId)');             // …and mounts the chosen animated stage
+    expect(sheet).toMatch(/tone:/); // crit/fumble/normal still computed per roll
   });
 
   it('saves, skills, attacks (to-hit), damage AND ability checks are all tap-to-roll', () => {

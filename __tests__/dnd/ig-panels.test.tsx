@@ -89,12 +89,13 @@ describe('useIgPanels — the ordered, gated IG panel set', () => {
 
   it('returns the surrounding furniture the Classic shell lays out', () => {
     const set = capture({ ig: blankIGCharacter('T') });
-    // header/nav/overlays are always present; the refusal banner and the roll toast are null until an edit
-    // is refused / a roll is made.
+    // header/nav/overlays are always present; the refusal banner is null until an edit is refused.
     for (const key of ['header', 'nav', 'overlays'] as const) {
       expect(set[key], key).toBeTruthy();
     }
     expect(set.banner).toBeNull();
-    expect(set.roller).toBeNull();
+    // The roller is now ALWAYS mounted (RO-5c): the persistent animated roller with its template picker,
+    // ready to roll — not a toast that only appears after the first roll.
+    expect(set.roller).toBeTruthy();
   });
 });
