@@ -20,6 +20,10 @@ const ROOT = process.cwd();
  * point of the list is that adding to it is a deliberate act, not a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
+  'lib/dnd/theme-contrast.ts':
+    'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
+    'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
+    'the test, not runtime code — its whole job is to keep new themes honest without a browser.',
   'lib/dnd/ai-scope.ts':
     'Documentation-as-code: the authoritative statement of the AI permission boundary, asserted by ' +
     'its own tests and cited by comment in grant-content/route.ts. It is meant to be read, not called.',

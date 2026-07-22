@@ -233,10 +233,11 @@ export const streamerThemeBlue: SheetTheme = {
     hotpink: '#2b7fff',
     violet: '#22c0ff',
     'violet-2': '#1d6fc0',
-    // "teal" → periwinkle accent; "tealbright" → gold (kept legible on light blue).
+    // "teal" → periwinkle accent; "tealbright" → gold (kept legible on light blue). Darkened so the
+    // gold accents clear 3:1 against the near-white panel (TR-2) — a bright gold was 2.1–2.8:1, hard to read.
     teal: '#5a7fd0',
-    tealbright: '#c98a0a',
-    gold: '#e0a400',
+    tealbright: '#a87400',
+    gold: '#9c6c00',
     danger: '#e5344f',
     good: '#1c9e63',
     line: 'rgba(43, 127, 255, 0.30)',
@@ -275,7 +276,8 @@ export const hextechNoxus: SheetTheme = {
     ...HEXTECH_GROUNDS,
     pink: '#e0576a', hotpink: '#c8323f', violet: '#7a1f28', 'violet-2': '#a83a44',
     teal: '#d98a45', tealbright: '#ffb066', gold: '#d9a441', good: '#0acb8f',
-    line: 'rgba(200, 50, 63, 0.28)', 'line-strong': 'rgba(200, 50, 63, 0.55)',
+    // Alpha raised so the crimson border is perceptible on the dark panel (TR-2) — 0.28 was 1.24:1, under 1.3.
+    line: 'rgba(206, 60, 74, 0.42)', 'line-strong': 'rgba(200, 50, 63, 0.60)',
   },
   fonts: hextechTheme.fonts,
 };
