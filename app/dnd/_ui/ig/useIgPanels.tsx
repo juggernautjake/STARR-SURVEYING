@@ -18,6 +18,7 @@ import { useMemo, useState, useRef, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
+import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
 import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
@@ -190,22 +191,18 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const sources = [...cond.sources, ...stanceEff.sources];
     if (sources.length) detail += ` · ⚠ ${advantage ? 'ADV ' : ''}${disadvantage ? 'DIS ' : ''}${cond.penalty ? `${cond.penalty} ` : ''}from ${sources.join(', ')}`;
     setLastRoll({ label, total: r.total, detail, tone });
-    // Publish to the animated roller: breakdown in the `d20[..]→kept +mod` shape the stages parse, with
-    // crit/fumble from the nat 20/1 OR the four-step degree, and the named sources as boosts/penalties.
-    const bd = n2 != null ? `d20[${n1},${n2}]→${natural} ${sign}` : `d20[${natural}] ${sign}`;
-    setActiveRoll({
-      token: ++rollTokenRef.current,
-      landing: natural, min: 1, max: 20, isD20: true,
+    // Publish to the animated roller via the shared (unit-tested) builder — crit/fumble from the nat 20/1
+    // OR the four-step degree, both dice kept for adv/dis, and the named sources as boosts/penalties.
+    setActiveRoll(buildD20ActiveRoll({
+      token: ++rollTokenRef.current, label, natural, total: r.total, modifier: r.modifier,
+      faces: n2 != null ? [n1, n2] : null,
+      mode: advantage ? 'adv' : disadvantage ? 'dis' : undefined,
       crit: r.critical || r.degree === 'critical-success',
       fumble: r.fumble || r.degree === 'critical-failure',
-      entry: {
-        label, kind: 'check', total: r.total, breakdown: bd,
-        mode: advantage ? 'adv' : disadvantage ? 'dis' : undefined,
-        tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : undefined,
-        boosts: advantage && sources.length ? sources : undefined,
-        penalties: (disadvantage || cond.penalty) && sources.length ? sources : undefined,
-      },
-    });
+      tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : undefined,
+      boosts: advantage && sources.length ? sources : undefined,
+      penalties: (disadvantage || cond.penalty) && sources.length ? sources : undefined,
+    }));
   };
   const rollDamage = (label: string, expr: string) => {
     const r = rollDiceExpr(expr);
@@ -214,11 +211,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const total = r.total + (dmg?.bonus ?? 0);
     const breakdown = dmg ? `${r.breakdown} + ${dmg.bonus} (${dmg.source})` : r.breakdown;
     setLastRoll({ label, total, detail: breakdown, tone: 'normal' });
-    setActiveRoll({
-      token: ++rollTokenRef.current,
-      landing: total, min: 0, max: total, isD20: false, crit: false, fumble: false,
-      entry: { label, kind: 'damage', total, breakdown },
-    });
+    setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label, total, breakdown }));
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.

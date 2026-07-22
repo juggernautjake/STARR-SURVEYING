@@ -38,6 +38,7 @@ import { pf2ConditionMechanics } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
+import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
 import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
@@ -236,27 +237,19 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       detail += ` · situational: ${stat.conditional.map((m) => `+${m.value} ${m.source} vs ${m.when}`).join('; ')}`;
     }
     setLastRoll({ label: name, total: r.total, detail, tone });
-    // Publish to the animated roller: `d20[nat] +mod` (the stages parse this), crit/fumble from a nat 20/1
-    // OR the four-step degree, and the resolved breakdown as the tag.
-    setActiveRoll({
-      token: ++rollTokenRef.current,
-      landing: r.natural, min: 1, max: 20, isD20: true,
+    // Publish to the animated roller via the shared (unit-tested) builder — a straight d20 (PF2 folds
+    // adv/dis into the modifier), crit/fumble from a nat 20/1 OR the four-step degree.
+    setActiveRoll(buildD20ActiveRoll({
+      token: ++rollTokenRef.current, label: name, natural: r.natural, total: r.total, modifier: r.modifier,
       crit: r.critical || r.degree === 'critical-success',
       fumble: r.fumble || r.degree === 'critical-failure',
-      entry: {
-        label: name, kind: 'check', total: r.total, breakdown: `d20[${r.natural}] ${sign}`,
-        tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : stat.breakdown,
-      },
-    });
+      tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : stat.breakdown,
+    }));
   };
   const rollDamage = (name: string, expr: string) => {
     const r = rollDiceExpr(expr);
     setLastRoll({ label: name, total: r.total, detail: r.breakdown, tone: 'normal' });
-    setActiveRoll({
-      token: ++rollTokenRef.current,
-      landing: r.total, min: 0, max: r.total, isD20: false, crit: false, fumble: false,
-      entry: { label: name, kind: 'damage', total: r.total, breakdown: r.breakdown },
-    });
+    setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label: name, total: r.total, breakdown: r.breakdown }));
   };
 
   const idBits = [id.ancestry && `${id.heritage ? id.heritage + ' ' : ''}${id.ancestry}`, id.background, id.className && `${id.className}${id.subclass ? ` (${id.subclass})` : ''}`, id.deity].filter(Boolean);

@@ -22,6 +22,16 @@ DIFFERENT, simpler roll model (`usePf2Panels`/`useIgPanels`: a `lastRoll {label,
 Target-DC input). The animated rollers cannot render outside the 5e provider, and PF2/IG never produce
 `activeRoll`-shaped data, so the fancy rollers are 5e-only today.
 
+## Verification note (2026-07-22)
+
+The roll-shaping logic — the `d20[7,18]→18 + 3` / `d20[13] + 3` / damage-breakdown format the animated
+STAGES parse to draw the die + the adv/dis kept pair — is now a shared, UNIT-TESTED pure helper
+(`rollFeedBuild.ts`: `buildD20ActiveRoll` / `buildDamageActiveRoll`, 5 tests). PF2 (RO-5b) and IG (RO-5c)
+both publish through it, so the contract can't drift and is verified WITHOUT a browser. Combined with the
+browser-verified 5e feed (RO-5a), this gives confidence the PF2/IG animated rollers are correct; only the
+on-screen animation itself remains to eyeball on a fresh build (the local dev server is stuck serving stale
+compiles — a `next dev` restart or the Vercel build clears it).
+
 ## The work when it's picked up
 
 - [x] **RO-5a — a shared `RollFeed` interface + provider (DONE 2026-07-22).** `components/rollers/rollFeed.tsx`:
