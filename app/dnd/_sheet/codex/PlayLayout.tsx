@@ -19,7 +19,7 @@ import ConditionTracker from '../components/ConditionTracker'
 import ActiveEffects from '../components/ActiveEffects'
 import EditReviewPanel from '../components/EditReviewPanel'
 import Reactions from '../components/Reactions'
-import DiceTray from '../components/DiceTray'
+import ImpactRoller from '../components/rollers/ImpactRoller'
 
 // The panels Play promotes to the hero band; the reference drawer shows everything ELSE from the
 // same shared set, so nothing is lost and the drawer never double-lists what is already up top.
@@ -101,7 +101,7 @@ export default function PlayLayout({ artUrl, ownerName }: { artUrl?: string | nu
       identity={identity}
       above={above}
       hero={hero}
-      roller={<DiceTray />}
+      roller={<ImpactRoller />}
       storageKey={characterId}
       drawerPanels={drawerPanels}
       drawerHint="skills · abilities · features · spells · gear · story"

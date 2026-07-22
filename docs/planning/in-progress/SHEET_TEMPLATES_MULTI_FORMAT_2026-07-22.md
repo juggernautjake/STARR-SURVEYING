@@ -344,12 +344,29 @@ and is browser-verified rolling a real check/attack/save with a correct visible 
   only (`CodexLayout` mounts `<SigilStack/>` instead of `<DiceTray/>`); classic Dice Core untouched.
   Browser-verified on Perrin (codex): DEX check at advantage kept the higher die (13)+3 → capstone 16;
   manual 1d20 → 5, logged. Whole suite green (15591); focused `sigil-stack-roller.test.ts`.
-- [ ] **T-DICE-DASHBOARD — "Roll Board".** A dealt-card roller: each die and each modifier is a card
-  that flips face-up onto a felt and is totted like a hand; crit deals a second highlighted card;
-  adv/dis deals two d20 cards and discards one visibly. Fits the card-grid identity. Dashboard only.
-- [ ] **T-DICE-PLAY — "Impact Roller".** Big, physical, tactile: an oversized die tumbles and lands
-  with a shake + flash, the result huge and immediate, the source breakdown a tap away. Built for
-  the table. Play shell only.
+- [x] **T-DICE-DASHBOARD — "Roll Board".** Shipped: `components/rollers/RollBoard.tsx` (+ `rollBoard.css`,
+  self-imported so no parent edit). The roll is DEALT as a hand of cards onto a felt — the natural die
+  flips face-up as the first card (`activeRoll.landing`), each modifier / boost / penalty card flips down
+  beside it, and the total reads as the final HAND-VALUE chip (always `entry.total`, never recomputed);
+  adv/dis deals BOTH d20 cards and visibly discards the unkept one (dimmed, tilted, struck through), and
+  crit/fumble deal a highlighted flourish card. Distinct deal-and-flip settle (3D `rb-deal` flip, staggered),
+  NOT the Sigil Stack's cascade. Same `activeRoll`/`RollEntry` store as Dice Core, full control parity
+  (adv/dis, vanilla/reckless/surge/exhaustion, dice + count, physical-roll entry, history), reduced-motion
+  honored, token-only with fallbacks so it reads under `.dnd-sheet` AND `.sheet-shell`/`.igs-root`, no
+  `.skin-x` rule, `useRollerDock().expand()` on a fresh roll. Docks in the Dashboard shell only
+  (`DashboardLayout` mounts `<RollBoard/>` instead of `<DiceTray/>`); classic Dice Core untouched.
+  Browser-verified on Perrin (dashboard): DEX check dealt a d20 card (7) + modifiers card (+3) → hand value 10.
+- [x] **T-DICE-PLAY — "Impact Roller".** Shipped: `components/rollers/ImpactRoller.tsx` (+ `impactRoller.css`,
+  self-imported). An OVERSIZED die is THROWN — it tumbles through faces (multi-axis `ir-tumble` spin) then
+  SLAMS to its landing with a shake + flash (`ir-land` + arena flash); the result reads HUGE and immediate
+  (headline = `entry.total`, never recomputed; the die shows the natural `activeRoll.landing`) and the source
+  breakdown is a tap away (collapsible rows). Distinct tumble-and-land settle, NOT the tile cascade or card
+  deal. Same store data + full control parity as Dice Core, reduced-motion honored (drops tumble/land/flash,
+  keeps composed die + total), token-only with fallbacks (reads under `.dnd-sheet`/`.sheet-shell`/`.igs-root`),
+  no `.skin-x` rule, `useRollerDock().expand()` on a fresh roll. Docks in the Play shell only (`PlayLayout`
+  mounts `<ImpactRoller/>` instead of `<DiceTray/>`). Browser-verified on Perrin (play): CON check tumbled and
+  landed the die on natural 10 → huge headline total 12 (+2 CON). Focused `format-dice-rollers.test.ts`; whole
+  suite green (15630).
 - [ ] **T-DICE-WIRE — roller-per-format seam.** A `rollerFor(layout)` selector so each shell mounts
   its own roller and every SYSTEM (5e/PF2/IG) using that format gets it automatically (rollers read
   roll data, not system data). Test: each layout maps to its intended roller; Classic → Dice Core.

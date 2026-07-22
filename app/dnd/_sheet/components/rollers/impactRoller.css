@@ -1,0 +1,559 @@
+/* ═══════════════════════════════════════════ IMPACT ROLLER — the Play format's roller
+   A bespoke dice roller UNIQUE to the Play format (T-DICE-PLAY). It replaces the shared Dice
+   Core (`DiceTray`/`RollStage`) in the Play shell only, and consumes the exact same roll data
+   from the store (`activeRoll` / `RollEntry`) — so the maths is identical and correct, only the
+   RENDER and the SETTLE ANIMATION differ.
+
+   Play is the at-the-table format — big vitals, big actions, read from across the room. The
+   Impact Roller matches that: a roll THROWS an OVERSIZED DIE that tumbles and LANDS with a shake +
+   flash, the result reads HUGE and immediate, and the source breakdown is a tap away (collapsible).
+
+   TOKEN-ONLY, WITH FALLBACKS, and scoped under the roller's own class (`.iroller`) — NOT
+   `.dnd-sheet` — so the same roller reads correctly under the 5e engine (`.dnd-sheet`) AND the
+   bespoke PF2/IG shells (`.sheet-shell` / `.igs-root`), exactly like the FloatingRoller window it
+   lives in. There is deliberately NO `.skin-x` override. Motion is gated on prefers-reduced-motion. */
+
+.iroller {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--ink, #e8e6f0);
+}
+
+.iroller-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.iroller-title {
+  font-family: var(--font-display, inherit);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  color: var(--ink, #e8e6f0);
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.iroller-mark {
+  color: var(--gold, var(--tealbright, #c8aa6e));
+  font-size: 15px;
+  line-height: 1;
+}
+.iroller-btns {
+  display: flex;
+  gap: 6px;
+}
+
+/* ───────────────────────────────────────────────────────── the arena (resolution stage) */
+.iroller .ir-arena {
+  position: relative;
+  min-height: 210px;
+  padding: 14px 10px 10px;
+  border-radius: 12px;
+  background:
+    radial-gradient(90% 80% at 50% 34%, rgba(var(--gold-rgb, 200, 170, 110), 0.06), transparent 66%),
+    linear-gradient(180deg, rgba(var(--panel-rgb, 20, 18, 28), 0.5), rgba(var(--void-rgb, 6, 5, 12), 0.78));
+  border: 1px solid var(--line-strong, var(--line, rgba(255, 255, 255, 0.16)));
+  box-shadow: inset 0 0 40px rgba(var(--void-rgb, 6, 5, 12), 0.6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.iroller .ir-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 178px;
+  color: var(--muted, #9a97ad);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.5;
+}
+.iroller .ir-idledie {
+  font-size: 44px;
+  color: var(--line-strong, rgba(255, 255, 255, 0.28));
+}
+
+.iroller .ir-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* The oversized die — a large rounded cube the roll is thrown onto. */
+.iroller .ir-die {
+  width: 108px;
+  height: 108px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  border: 2px solid var(--tealbright, var(--gold, #6ee0cf));
+  background: linear-gradient(150deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.9));
+  box-shadow: 0 14px 30px -12px rgba(var(--void-rgb, 6, 5, 12), 0.95), inset 0 2px 10px rgba(255, 255, 255, 0.06);
+  transform-origin: center;
+}
+.iroller .ir-die-face {
+  font-family: var(--font-display, inherit);
+  font-size: 52px;
+  line-height: 1;
+  color: var(--ink, #e8e6f0);
+}
+
+/* While thrown, the die TUMBLES — a fast multi-axis spin, distinct from a cascade or a card flip. */
+.iroller .ir-throwing .ir-die {
+  animation: ir-tumble 0.24s linear infinite;
+}
+.iroller .ir-throwing .ir-die-face {
+  color: var(--muted, #9a97ad);
+}
+
+/* On land, the die SLAMS: a sharp shake + a flash ring pulse. */
+.iroller .ir-landed .ir-die {
+  animation: ir-land 0.42s cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+.iroller .ir-landed .ir-die-face {
+  color: var(--tealbright, var(--gold, #6ee0cf));
+}
+
+/* The HUGE result — the headline total, read from across the table. Always `entry.total`. */
+.iroller .ir-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  animation: ir-pop 0.36s ease-out both;
+}
+.iroller .ir-result-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted, #9a97ad);
+}
+.iroller .ir-result-total {
+  font-family: var(--font-display, inherit);
+  font-size: 56px;
+  line-height: 0.95;
+  color: var(--gold, #c8aa6e);
+  text-shadow: 0 2px 18px rgba(var(--gold-rgb, 200, 170, 110), 0.4);
+}
+.iroller .ir-result-nat {
+  font-size: 11px;
+  color: var(--muted, #9a97ad);
+}
+
+/* Crit / fumble recolour the die + total and flash the whole arena. */
+.iroller .ir-arena.is-crit .ir-die {
+  border-color: var(--gold, #c8aa6e);
+}
+.iroller .ir-arena.is-crit.ir-landed .ir-die-face,
+.iroller .ir-arena.is-crit .ir-result-total {
+  color: var(--gold, #c8aa6e);
+}
+.iroller .ir-arena.is-crit.ir-landed {
+  animation: ir-flash-gold 0.6s ease-out both;
+}
+.iroller .ir-arena.is-fumble .ir-die {
+  border-color: var(--danger, #ff6b6b);
+}
+.iroller .ir-arena.is-fumble.ir-landed .ir-die-face,
+.iroller .ir-arena.is-fumble .ir-result-total {
+  color: var(--danger, #ff6b6b);
+}
+.iroller .ir-arena.is-fumble.ir-landed {
+  animation: ir-flash-red 0.6s ease-out both;
+}
+
+.iroller .ir-flag {
+  margin-top: 8px;
+  font-family: var(--font-display, inherit);
+  letter-spacing: 0.12em;
+  font-size: 13px;
+  text-align: center;
+}
+.iroller .ir-flag.crit {
+  color: var(--gold, #c8aa6e);
+}
+.iroller .ir-flag.fumble {
+  color: var(--danger, #ff6b6b);
+}
+
+/* The breakdown — a tap away, never in the way. */
+.iroller .ir-detail-toggle {
+  margin-top: 10px;
+  background: none;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 7px;
+  color: var(--muted, #9a97ad);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.iroller .ir-detail-toggle:hover {
+  color: var(--ink, #e8e6f0);
+  border-color: var(--line-strong, rgba(255, 255, 255, 0.28));
+}
+.iroller .ir-detail {
+  width: 100%;
+  max-width: 260px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.iroller .ir-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.4);
+  font-size: 12px;
+}
+.iroller .ir-row-label {
+  color: var(--ink, #e8e6f0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iroller .ir-row-val {
+  font-family: var(--font-display, inherit);
+  color: var(--ink, #e8e6f0);
+  white-space: nowrap;
+}
+.iroller .ir-row.ir-die .ir-row-val,
+.iroller .ir-row.ir-mod .ir-row-val {
+  color: var(--tealbright, var(--gold, #6ee0cf));
+}
+.iroller .ir-row.ir-boost .ir-row-label,
+.iroller .ir-row.ir-boost .ir-row-val {
+  color: var(--good, var(--tealbright, #4fd39c));
+  font-weight: 600;
+}
+.iroller .ir-row.ir-penalty .ir-row-label,
+.iroller .ir-row.ir-penalty .ir-row-val {
+  color: var(--danger, #ff6b6b);
+  font-weight: 600;
+}
+.iroller .ir-detail-tag {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--muted, #9a97ad);
+  margin-top: 2px;
+}
+
+@keyframes ir-tumble {
+  0% {
+    transform: rotate(0deg) scale(0.98);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.04);
+  }
+  100% {
+    transform: rotate(360deg) scale(0.98);
+  }
+}
+@keyframes ir-land {
+  0% {
+    transform: translateY(-14px) scale(1.14) rotate(-6deg);
+  }
+  30% {
+    transform: translateY(4px) scale(0.94) rotate(3deg);
+  }
+  55% {
+    transform: translateX(-4px) scale(1.03) rotate(-2deg);
+  }
+  75% {
+    transform: translateX(3px) scale(0.99) rotate(1deg);
+  }
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+  }
+}
+@keyframes ir-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ir-flash-gold {
+  0% {
+    box-shadow: inset 0 0 40px rgba(var(--void-rgb, 6, 5, 12), 0.6), inset 0 0 0 2px rgba(var(--gold-rgb, 200, 170, 110), 0.6);
+  }
+  100% {
+    box-shadow: inset 0 0 40px rgba(var(--void-rgb, 6, 5, 12), 0.6), inset 0 0 0 2px rgba(var(--gold-rgb, 200, 170, 110), 0);
+  }
+}
+@keyframes ir-flash-red {
+  0% {
+    box-shadow: inset 0 0 40px rgba(var(--void-rgb, 6, 5, 12), 0.6), inset 0 0 0 2px rgba(var(--danger-rgb, 255, 107, 107), 0.6);
+  }
+  100% {
+    box-shadow: inset 0 0 40px rgba(var(--void-rgb, 6, 5, 12), 0.6), inset 0 0 0 2px rgba(var(--danger-rgb, 255, 107, 107), 0);
+  }
+}
+
+/* ───────────────────────────────────────────────────────── controls */
+.iroller-adv {
+  display: flex;
+  gap: 4px;
+}
+.iroller-adv button {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--muted, #9a97ad);
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.5);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.iroller-adv button:hover {
+  color: var(--ink, #e8e6f0);
+}
+.iroller-adv button.on-adv {
+  color: var(--void, #06050c);
+  background: var(--tealbright, var(--gold, #6ee0cf));
+  border-color: var(--tealbright, var(--gold, #6ee0cf));
+}
+.iroller-adv button.on-dis {
+  color: var(--void, #06050c);
+  background: var(--danger, #ff6b6b);
+  border-color: var(--danger, #ff6b6b);
+}
+.iroller-adv button.on-flat {
+  color: var(--ink, #e8e6f0);
+  border-color: var(--line-strong, rgba(255, 255, 255, 0.28));
+  background: rgba(var(--panel-rgb, 20, 18, 28), 0.9);
+}
+
+.iroller-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.iroller-dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+.iroller-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 5px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 7px;
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.4);
+}
+.iroller-count button {
+  background: none;
+  border: none;
+  color: var(--muted, #9a97ad);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 3px;
+}
+.iroller-count button:hover:not(:disabled) {
+  color: var(--ink, #e8e6f0);
+}
+.iroller-count button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.iroller-count .iroller-cn {
+  font-family: var(--font-display, inherit);
+  font-size: 12px;
+  color: var(--ink, #e8e6f0);
+  min-width: 22px;
+  text-align: center;
+}
+
+.iroller-surge {
+  font-size: 11px;
+  color: var(--hotpink, var(--gold, #ff79c6));
+}
+.iroller-exh {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--danger, #ff6b6b);
+  border: 1px solid var(--danger, #ff6b6b);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+.iroller-sechead {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  padding: 8px 2px 4px;
+  color: var(--muted, #9a97ad);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.iroller-sechead:hover {
+  color: var(--ink, #e8e6f0);
+}
+
+.iroller-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.iroller-entry-modes {
+  display: flex;
+  gap: 4px;
+}
+.iroller-entry-modes button {
+  flex: 1;
+  padding: 5px;
+  font-size: 11px;
+  color: var(--muted, #9a97ad);
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.4);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 6px;
+  cursor: pointer;
+}
+.iroller-entry-modes button.on {
+  color: var(--ink, #e8e6f0);
+  border-color: var(--line-strong, rgba(255, 255, 255, 0.28));
+  background: rgba(var(--panel-rgb, 20, 18, 28), 0.9);
+}
+.iroller-entry input {
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.5);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 6px;
+  color: var(--ink, #e8e6f0);
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.iroller-entry .iroller-entry-row {
+  display: flex;
+  gap: 6px;
+}
+.iroller-entry .iroller-entry-row input {
+  width: 64px;
+  text-align: center;
+}
+.iroller-entry .iroller-entry-row .btn {
+  flex: 1;
+}
+
+.iroller-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.iroller-empty {
+  color: var(--muted, #9a97ad);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 2px;
+}
+.iroller-re {
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.35);
+}
+.iroller-re.crit {
+  border-color: var(--gold, #c8aa6e);
+}
+.iroller-re.fumble {
+  border-color: var(--danger, #ff6b6b);
+}
+.iroller-re-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.iroller-re-label {
+  font-size: 12.5px;
+  color: var(--ink, #e8e6f0);
+}
+.iroller-re-total {
+  font-family: var(--font-display, inherit);
+  font-size: 16px;
+  color: var(--ink, #e8e6f0);
+}
+.iroller-re.crit .iroller-re-total {
+  color: var(--gold, #c8aa6e);
+}
+.iroller-re.fumble .iroller-re-total {
+  color: var(--danger, #ff6b6b);
+}
+.iroller-re-break {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted, #9a97ad);
+}
+.iroller-re-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+.iroller-eff-up {
+  color: var(--good, var(--tealbright, #4fd39c));
+  font-weight: 600;
+}
+.iroller-eff-down {
+  color: var(--danger, #ff6b6b);
+  font-weight: 600;
+}
+.iroller-mode-adv {
+  color: var(--tealbright, var(--gold, #6ee0cf));
+  font-weight: 700;
+}
+.iroller-mode-dis {
+  color: var(--danger, #ff6b6b);
+  font-weight: 700;
+}
+
+/* Respect reduced motion: keep the composed die + huge total, drop the tumble, land, pop + flash. */
+@media (prefers-reduced-motion: reduce) {
+  .iroller .ir-throwing .ir-die,
+  .iroller .ir-landed .ir-die,
+  .iroller .ir-result,
+  .iroller .ir-arena.is-crit.ir-landed,
+  .iroller .ir-arena.is-fumble.ir-landed {
+    animation: none;
+  }
+  .iroller-adv button,
+  .iroller-sechead,
+  .iroller .ir-detail-toggle {
+    transition: none;
+  }
+}

@@ -10,7 +10,7 @@ import DashboardShell from '../shells/DashboardShell'
 import IdentityColumn from './IdentityColumn'
 import EditReviewPanel from '../components/EditReviewPanel'
 import Reactions from '../components/Reactions'
-import DiceTray from '../components/DiceTray'
+import RollBoard from '../components/rollers/RollBoard'
 
 export default function DashboardLayout({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
   const { characterId } = useChar()
@@ -19,7 +19,7 @@ export default function DashboardLayout({ artUrl, ownerName }: { artUrl?: string
     <DashboardShell
       identity={<IdentityColumn artUrl={artUrl} ownerName={ownerName} />}
       panels={panels}
-      roller={<DiceTray />}
+      roller={<RollBoard />}
       storageKey={characterId}
       above={
         <>
