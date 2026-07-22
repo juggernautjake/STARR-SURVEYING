@@ -45,6 +45,8 @@ import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
 import LayoutSwitch from './components/LayoutSwitch'
+import VariantToggle from './components/VariantToggle'
+import CustomizationSummary from './components/CustomizationSummary'
 import CodexLayout from './codex/CodexLayout'
 import InitiativePrompt from './components/InitiativePrompt'
 import DescriptionsPanel from './components/DescriptionsPanel'
@@ -224,6 +226,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           choice from the player's side: how this sheet looks. They stay separate fields because
           they are independent — every layout works with every skin. */}
       <LayoutSwitch />
+      {/* Vanilla ⇄ Custom, and the customization summary directly beneath it — the two belong
+          together: the toggle is what LETS a character hold custom content, and the summary is
+          what REPORTS it. Both render for every layout, above the split, so they are the first
+          thing a player sees about how their character deviates from the rules. */}
+      <VariantToggle />
+      <CustomizationSummary />
       {/* Owner-DM art/token uploader — per-variant when the skin has variants (D1/D2). */}
       <SheetArtUploader variant={supportsVariants ? streamerVariant : undefined} />
       {/* Adjust which part of the (variant-aware) image the round token crops from (D2). */}
