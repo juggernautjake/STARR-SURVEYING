@@ -38,6 +38,7 @@ import Progression from './components/Progression'
 import Inventory from './components/Inventory'
 import Bio from './components/Bio'
 import { rollerFor } from './components/rollers/rollerFor'
+import RollerTemplateBar from './components/rollers/RollerTemplateBar'
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates'
 import FloatingRoller from './components/rollers/FloatingRoller'
 import DmOverridePanel from './components/DmOverridePanel'
@@ -140,8 +141,15 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // The ROLLER template (RO-2) is chosen INDEPENDENTLY of the sheet layout: a Codex sheet can roll with
   // the Dice Core. Resolve the character's explicit choice, else the default roller for the current
   // layout (so nothing regresses), and render THAT node in every path below instead of the one the shell
-  // used to hardcode. All four rollers read the same store, so any renders under any layout.
-  const rollerNode = rollerFor(resolveRollerTemplate(char.rollerTemplate, layout))
+  // used to hardcode. All four rollers read the same store, so any renders under any layout. The
+  // RollerTemplateBar (RO-4) rides above it so the player switches roller presentation FROM the roller.
+  const rollerId = resolveRollerTemplate(char.rollerTemplate, layout)
+  const rollerNode = (
+    <>
+      <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={canWrite} />
+      {rollerFor(rollerId)}
+    </>
+  )
 
   // A per-character theme overrides the stylesheet's default CSS variables here on
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A

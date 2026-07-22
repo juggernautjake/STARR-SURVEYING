@@ -65,10 +65,17 @@
   level (page chrome), not inside each shell/adapter — so it shows on ALL sheets (5e engine, PF2, IG,
   every format) at the bottom-right, attached to its minimize/open button, remembering location, scroll-
   fixed, resizable (the `FloatingRoller` behaviour, now singleton). Remove the per-shell roller mounts.
-- [ ] **RO-4 — a picker element ON the roller for the 4 templates + swatch.** The roller header carries
-  a small template switcher (4 options, active highlighted, each with a mini glyph) that POSTs `/roller`.
-  Choosing re-renders the roller in that template. The roller inherits the sheet's style + colour theme
-  by construction (token-only styling).
+- [x] **RO-4 — a picker element ON the roller for the 4 templates + swatch.** New `RollerTemplateBar`
+  renders a compact row of the four roller chips (glyph + label, active highlighted) at the top of the
+  floating roller; each POSTs the RO-2 `/roller` endpoint and full-reloads (same store-rehydration reason
+  as `TemplateBrowser`). Wired once in `App`'s `rollerNode` so it rides above the roller in ALL four 5e
+  layouts. Token-only styling (`var(--hx-*)` with fallbacks) so it inherits the sheet's skin + theme;
+  read-only viewers see it disabled; hidden when there's no character id. Browser-VERIFIED on Perrin
+  (Classic sheet): the bar shows Dice Core active by default; clicking Sigil Stack persisted, reloaded,
+  and the Sigil Stack roller rendered ("the stack assembles") with its chip now active — roller switched
+  from ON the roller, independent of the sheet template. tsc + eslint green.
+  - NOTE: the bar rides on the 5e `rollerNode`, so it appears on every 5e format now; PF2/IG mount their
+    own roller nodes today, so the bar reaches them once RO-3 makes the roller a single global mount.
 - [ ] **RO-5 — every roller hooked up to EVERY system.** Introduce a system-agnostic roll interface so
   all 4 roller templates consume the SAME roll data regardless of system, and each renders that data
   organised/formatted for the currently-viewed system. 5e feeds the `activeRoll` store; PF2/IG feed
