@@ -147,7 +147,7 @@ body runs ABOVE the provider it returns. So panels cannot be computed in `App` a
 must be computed by a component rendered inside the provider (which is exactly why today's shells
 compute their own). The clean decomposition:
 
-- [~] **T-SHELL — split each shell into a pure shell + a per-system adapter.** One shell per format,
+- [x] **T-SHELL — split each shell into a pure shell + a per-system adapter.** One shell per format,
   each taking `{ identity: ReactNode, panels: SheetPanel[], roller: ReactNode, above?: ReactNode }`
   and arranging them — no `useChar`, no system knowledge. A thin per-system adapter rendered inside
   the provider computes those parts and passes them in; `App`'s existing branch keeps importing the
@@ -171,11 +171,15 @@ compute their own). The clean decomposition:
     hooks/5e components in the shell. Browser-verified 5e Codex renders identically on Perrin
     (identity column HP 31/31, pane rail, Skills·18 pane — Dex +5 Danger Sense·ADV, Acrobatics +5),
     with the Sigil Stack docked. `App` unchanged. Standing bar green.
-  - [ ] **T-SHELL-PLAY — Play.** Split `PlayLayout`. Note Play's hero is system-specific components,
-    so its shell takes a `hero: ReactNode` + `drawerPanels: SheetPanel[]` (not one flat panel list);
-    the 5e adapter supplies the CombatPanel/Abilities/Attacks hero. Browser-diff Perrin.
-  - After all three: T-5b–d and T-6b–d become "write a system adapter" (incl. its identity node),
-    not "rebuild a format".
+  - [x] **T-SHELL-PLAY — Play.** `shells/PlayShell.tsx` is the pure shell — because Play's hero is
+    system-specific it takes slots `{identity, above, hero, roller, drawerPanels, drawerHint}` (not a
+    flat panel list) and owns the drawer open/close state; `PlayLayout.tsx` is the thin 5e adapter
+    building the identity strip, the act-now/status furniture, and the CombatPanel/Abilities/Attacks
+    hero. Test forbids store hooks/5e components in the shell. Browser-verified 5e Play renders
+    identically on Perrin (status furniture + VITALS & DEFENSES hero: HP 31/31, AC 14, Init +3,
+    Speed 25). `App` unchanged. Standing bar green (dnd suite 4037).
+  - **All three panes done** — T-5b–d and T-6b–d are now "write a system adapter" (its identity node +
+    which panels are hero vs drawer), reusing `CodexShell`/`DashboardShell`/`PlayShell` unchanged.
 
 ### PF2 — panel set, then shells
 
@@ -205,11 +209,17 @@ compute their own). The clean decomposition:
 
 ### IG — panel set, then shells
 
-- [ ] **T-6a — IG panel set (`useIgPanels()`), default unchanged.** As T-5a but for `IGSheet.tsx`
-  (Vitals, Abilities, Skills, Combat, Stances, Powers, Feats & Features, Companion, Gear, Story)
-  against `data.ig`. Re-express the default IG sheet as "Classic shell fed by `useIgPanels()`".
-  Note: IG has no AC stat by design — the vitals panel must reflect IG's real defense model, not
-  invent one. Done: Vashti (L6 Fighter) renders identically (browser diff); panels unit-tested.
+- [x] **T-6a — IG panel set (`useIgPanels()`), default unchanged.** Shipped (`97318d23`):
+  `app/dnd/_ui/ig/useIgPanels.tsx` owns all shared state (`igDerived` + `igInPlayState`, the roller,
+  `postEdit`/`postEdits`, pickers/editors, refusal + roll-toast) and returns
+  `{ panels, header, nav, banner, roller, overlays }`; panel ids `ig-vitals · ig-abilities ·
+  ig-skills(hasSkills) · ig-combat(hasCombat) · ig-powers(powers‖canEdit) · ig-feats(feats‖canEdit) ·
+  ig-reference · ig-equipment(hasEquipment) · ig-companion(exists) · ig-details(hasDetails)`. IG's real
+  model preserved — NO AC; Vitals leads with HP + Fort/Ref/Will + Proficiency. `IGSheet.tsx` is now a
+  thin Classic shell placing them in the original DOM order under `.igs-root` (injected stylesheet +
+  `skinHxVars` kept). Vashti (L6 Fighter) browser-diffed identical (HP 36/36, Fort/Ref/Will +8/+8/+7,
+  Offensive Stance, Cutlass +9/1d6+3); Reflex roll d20[6]+8=14, Cutlass d20[19]+9=28 correct. New
+  `ig-panels.test.tsx`; 12 source-anchored tests re-pointed. Whole suite green (15603).
 - [ ] **T-6b — IG Codex.** Feed `useIgPanels()` into Codex; add `codex` to IG. Verify Vashti × 5 skins.
 - [ ] **T-6c — IG Dashboard.** Feed `useIgPanels()` into Dashboard; add `dashboard` to IG. Verify × 5.
 - [ ] **T-6d — IG Play.** Feed `useIgPanels()` into Play; add `play` to IG. Verify Vashti × 5 skins.
@@ -220,10 +230,13 @@ compute their own). The clean decomposition:
   save/skill values bolded & enlarged, rank pills →11.5/800 solid badges, dim states lifted
   0.55→0.72, real hover/focus affordances on every tap target; all on `--hx-*` tokens. Verified on
   Orin across default/lazzuh/jack. (commit `3f5106f8`)
-- [~] **T-7-IG — IG default legibility pass.** Same discipline for `IGSheet.tsx` + `ig*` classes:
-  larger/heavier section titles, stat values, skill/ability text; lift faint dim states; hover/focus
-  affordances; token-only so skins restyle for free. Verify on Vashti across dark + light skins.
-  _(background agent in flight.)_
+- [x] **T-7-IG — IG default legibility pass.** Shipped (`7d580e5d`): shared micro-label 11/400→11.5/600,
+  body value 13→14/500, section headings 13/400→14/700 with a 2px gold underline, stat tiles
+  (HP/Fort/Ref/Will/Prof) 20/700→23/800, ability scores 20→22/800, skill rows heavier, active-stance
+  banner 14.5→16/700 with a teal accent bar, roll toast 22→25/800; `.igs-root`-scoped hover-lift +
+  focus rings (no `!important`, reduced-motion aware). Real light-skin bug fixed: hardcoded dark navy
+  input/select backgrounds → `--hx-inset-strong`, legible on all 3 light skins. Verified on Vashti
+  across default/lazzuh/jack.
 
 ### Per-template dice rollers — each unique in render + simulation (owner 2026-07-22)
 

@@ -120,4 +120,18 @@ describe('Play format (T-4)', () => {
     expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.play/);
     expect(css).toContain('.play-ref-body');
   });
+
+  it('is a pure system-agnostic shell fed by a 5e adapter (T-SHELL)', () => {
+    // Play's hero is system-specific, so PlayShell takes a ready-made `hero` node + the `drawerPanels`
+    // rather than a flat panel list. The shell must know nothing about any system: no store hooks, no
+    // 5e components — only the slots it is handed. The 5e adapter (PlayLayout) builds those.
+    const shell = read('app/dnd/_sheet/shells/PlayShell.tsx')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(shell).not.toMatch(/useChar|useFivePanels|CombatPanel|Attacks|DiceTray/);
+    expect(shell).toContain('drawerPanels: SheetPanel[]');
+    const adapter = read('app/dnd/_sheet/codex/PlayLayout.tsx');
+    expect(adapter).toContain("from '../shells/PlayShell'");
+    expect(adapter).toContain('CombatPanel'); // the 5e hero still lives in the adapter
+  });
 });
