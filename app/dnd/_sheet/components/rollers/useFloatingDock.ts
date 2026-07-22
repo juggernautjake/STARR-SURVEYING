@@ -37,9 +37,11 @@ export interface DockState {
   minimized: boolean
 }
 
-// Sensible tool-window defaults. Width matches the old floating Dice Core (366px) so the classic
-// roller detaches at the size players already know; height defaults to content.
-export const DEFAULT_W = 370
+// Sensible tool-window defaults. 396px gives the roller headers (the Dice Core's title + style badge +
+// mute + clear) room to sit on ONE line inside the dock's own chrome + body padding — 370 was a touch
+// tight and wrapped "Dice Core". Players can still resize smaller (down to MIN_W); this is just the
+// comfortable detach size.
+export const DEFAULT_W = 396
 export const MIN_W = 248
 export const MIN_H = 168
 
