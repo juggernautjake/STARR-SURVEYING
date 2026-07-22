@@ -322,14 +322,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : 'Level-up failed.' }, { status: 502 });
     }
-    const edits = result?.input?.edits;
+    // The model sometimes returns `edits` as a JSON-ENCODED STRING ("[{...}]") rather than a real
+    // array — a known quirk of forced tool calls with an array field. Coerce it: a stringified
+    // array parses back to the array, and every other case falls through to the guard below. Found
+    // by logging the raw tool input — the AI's level-up was correct, only its wrapping was off.
+    let edits = result?.input?.edits as unknown;
+    if (typeof edits === 'string') {
+      try { edits = JSON.parse(edits); } catch { /* leave as string → fails the guard below */ }
+    }
     if (!Array.isArray(edits) || edits.length === 0) return NextResponse.json({ error: 'The AI did not produce a levelled-up sheet.' }, { status: 502 });
     const customList = Array.isArray(result?.input?.custom) ? result.input.custom.filter((c) => c && c.name) : [];
 
     // Seed from the CURRENT sheet (a deep clone), so the existing build is preserved and the edits
     // add on top — the whole point of levelling up rather than transposing.
     const seed = JSON.parse(JSON.stringify(currentData)) as Character;
-    const levelled = applySheetEdits(seed, edits);
+    const levelled = applySheetEdits(seed, edits as SheetEdit[]);
     // The AI must set the level, but pin it regardless so an omission never leaves the sheet at its
     // old level after a level-up.
     levelled.meta = { ...levelled.meta, level: targetLevel };
