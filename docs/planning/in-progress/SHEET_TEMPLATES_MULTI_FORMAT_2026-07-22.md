@@ -367,9 +367,16 @@ and is browser-verified rolling a real check/attack/save with a correct visible 
   mounts `<ImpactRoller/>` instead of `<DiceTray/>`). Browser-verified on Perrin (play): CON check tumbled and
   landed the die on natural 10 → huge headline total 12 (+2 CON). Focused `format-dice-rollers.test.ts`; whole
   suite green (15630).
-- [ ] **T-DICE-WIRE — roller-per-format seam.** A `rollerFor(layout)` selector so each shell mounts
-  its own roller and every SYSTEM (5e/PF2/IG) using that format gets it automatically (rollers read
-  roll data, not system data). Test: each layout maps to its intended roller; Classic → Dice Core.
+- [x] **T-DICE-WIRE — roller-per-format seam** (achieved by explicit adapter wiring, no central
+  selector). The outcome the slice wanted — each format mounts its OWN roller — is done and verified:
+  the 5e adapters mount them directly (`App` classic → `DiceTray`, `CodexLayout` → `SigilStack`,
+  `DashboardLayout` → `RollBoard`, `PlayLayout` → `ImpactRoller`). A central `rollerFor(layout)` map was
+  deliberately NOT built: it would be a no-op refactor (the explicit per-adapter mount is clearer at the
+  one place a format is composed), and it could NOT do the "every system gets it automatically" part —
+  the bespoke rollers read the 5e `activeRoll` store, whereas PF2/IG have their OWN roll systems and
+  therefore mount their OWN roller node. So "roller per format" is real; "one roller shared across
+  systems for a format" is not applicable by design. `format-dice-rollers.test.ts` asserts the layout→
+  roller mapping.
 
 ### Styling passes — 3–4 per template until each genuinely looks great (owner 2026-07-22)
 
