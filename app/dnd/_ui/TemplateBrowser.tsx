@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { templatesForSystem } from '@/lib/dnd/sheet-templates';
 import styles from './hextech.module.css';
+import FormatPreview from './FormatPreview';
 
 export default function TemplateBrowser({
   characterId,
@@ -95,9 +96,12 @@ export default function TemplateBrowser({
                     {on && <span style={{ fontSize: 10, color: 'var(--hx-teal-1)' }}>● ACTIVE</span>}
                     {busy === t.id && <span style={{ fontSize: 10 }}>…</span>}
                   </span>
-                  {/* The wireframe preview — the template axis's answer to the skin swatch, so the
-                      FORMAT reads at a glance the way a colour does. */}
-                  <pre aria-hidden style={{ margin: 0, fontSize: 11, lineHeight: 1.15, color: 'var(--hx-muted)', fontFamily: 'var(--hx-font-body), monospace', whiteSpace: 'pre' }}>{t.wireframe}</pre>
+                  {/* A visual mini-diagram of the layout — the template axis's answer to the skin
+                      swatch, so the FORMAT reads at a glance the way a colour does. The ASCII
+                      `wireframe` rides along as the screen-reader label. */}
+                  <span role="img" aria-label={`${t.label} layout: ${t.wireframe.replace(/\n/g, ', ')}`}>
+                    <FormatPreview id={t.id} />
+                  </span>
                   <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{t.blurb}</span>
                 </button>
               );
