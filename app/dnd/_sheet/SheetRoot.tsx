@@ -74,7 +74,12 @@ export default function SheetRoot({
     return <CustomSheet layout={customLayout} css={customCss} />;
   }
   return (
-    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind}>
+    // `preferences` MUST be forwarded here (S-2): the main sheet path previously omitted it, so the
+    // campaign-DM ∩ player preferences never reached the client store for a normal sheet and every
+    // configurable rule silently used its vanilla default. The custom-interactive branch above passed it;
+    // this one did not. Forwarding it is what makes both campaign house rules and a player's own choices
+    // actually drive the sheet.
+    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
       <App sheetType={sheetType} system={system} theme={theme} ownerName={ownerName} />
     </CharacterProvider>
   );

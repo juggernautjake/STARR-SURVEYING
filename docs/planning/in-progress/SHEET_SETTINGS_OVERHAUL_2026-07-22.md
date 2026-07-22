@@ -54,11 +54,26 @@ dice style, record mode, default roller template + animation, default theme/styl
 
 **Legend:** `[x]` shipped · `[~]` in progress · `[ ]` not started.
 
-- [ ] **S-1 — audit + owner decisions.** Inventory EVERY existing toggle/preference across the sheet +
-  campaign prefs for each system; list what's missing per system; get the owner's answers to the
-  questions above. Output: the concrete per-system settings spec that the following slices build.
-- [ ] **S-2 — settings model + endpoint.** A per-character (and/or per-campaign) settings blob + a
-  gated endpoint to read/write it, defaulting so existing characters are unchanged.
+- [x] **S-1 — audit + owner decisions.** Done: the owner's answers are captured at the top (per-character
+  gear modal; 5e + PF2 + IG rules variants + display/roller prefs; DM campaign override). Audit outcome:
+  there IS a mature `EffectivePreferences` model (`CampaignPreferences ∩ PlayerPreferences`, 10 settings:
+  autoMechanics, exhaustion/long-rest models, equip limits, dice style, record mode, autoAttune,
+  featAutoApply, shapeshiftStats, downedDamageModel) with `resolvePreferences` honouring DM `playerCanChoose`
+  locks — but the PLAYER side was never stored OR plumbed (page.tsx resolved campaign-only), and a
+  system-specific block (PF2/IG rules variants) is not yet in the model. So S-2 wires the player side first;
+  S-3/S-4 add the per-system rules blocks.
+- [x] **S-2 — settings (player-preferences) model + endpoint.** `PlayerPreferences` now persist on
+  `data.playerPreferences` via a new `/api/dnd/characters/[id]/preferences` endpoint (twin of `/layout`,
+  `/roller`; owner/DM-gated; `normalizePlayerPreferences` drops junk). `page.tsx` reads them and folds them
+  into `resolvePreferences` in BOTH paths — inside a campaign (DM lock still wins) and outside (player's
+  choices over the vanilla baseline) — defaulting so existing characters are unchanged. **En route this
+  uncovered + FIXED a real pre-existing wiring bug**: `SheetRoot`'s MAIN sheet branch never forwarded
+  `preferences` to `CharacterProvider` (only the custom-interactive branch did), so campaign AND player
+  preferences never reached a normal sheet's store — every configurable rule silently used its vanilla
+  default. Browser-VERIFIED: a player `diceRollerStyle: 'rugged'` now drives the live roller
+  (`data-dice-style="rugged"`); was stuck on the campaign/vanilla default before. Strengthened the wiring
+  anchor test to require EVERY `CharacterProvider` to forward preferences (the old anchor matched one branch
+  and missed this). 33 preference tests + tsc + eslint green.
 - [ ] **S-3 — the settings UI** (location per S-1 answer), organised BY SYSTEM so each system shows its
   own relevant options with the current value, editable, highlighted-active where toggle-like.
 - [ ] **S-4 — wire each setting to the mechanic it controls**, per system, and verify it takes effect.

@@ -47,7 +47,14 @@ describe('the sheet page + SheetRoot forward preferences into the store', () => 
     expect(page).toMatch(/preferences=\{effectivePreferences\}/);
   });
 
-  it('SheetRoot forwards preferences to CharacterProvider', () => {
-    expect(sheetRoot).toMatch(/preferences=\{preferences\}/);
+  it('EVERY CharacterProvider in SheetRoot forwards preferences (not just one branch)', () => {
+    // SheetRoot renders CharacterProvider in more than one branch (the main sheet AND the custom-
+    // interactive sheet). The original anchor only checked that `preferences={preferences}` appeared
+    // SOMEWHERE, which passed while the MAIN branch silently dropped it — so campaign/player preferences
+    // never reached a normal sheet's store. Assert each provider opening tag forwards it, so unwiring any
+    // single branch fails here. (Matches the opening tag up to the first '>'.)
+    const providers = sheetRoot.match(/<CharacterProvider\b[^>]*>/g) ?? [];
+    expect(providers.length).toBeGreaterThanOrEqual(2);
+    for (const tag of providers) expect(tag).toMatch(/preferences=\{preferences\}/);
   });
 });

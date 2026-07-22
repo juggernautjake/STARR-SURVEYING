@@ -39,7 +39,7 @@ import LibraryChat from '@/app/dnd/_ui/LibraryChat';
 import AddToDemoButton from '@/app/dnd/_ui/AddToDemoButton';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import { DEMO_CAMPAIGN_ID } from '@/lib/dnd/constants';
-import { resolvePreferences, type EffectivePreferences } from '@/lib/dnd/preferences';
+import { resolvePreferences, normalizePlayerPreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePreferences } from '@/lib/dnd/preferences';
 import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
 import HouseRulesPanel from '@/app/dnd/_ui/HouseRulesPanel';
 
@@ -69,18 +69,26 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     ownerName = (ownerRow as { display_name?: string } | null)?.display_name ?? null;
   }
 
-  // Effective preferences (Area P2c) — the campaign's DM settings, resolved for this player, fed to the sheet
-  // store so configurable mechanics (long-rest model, …) actually follow the campaign's house rules. Player-
-  // side overrides (P2b) aren't stored yet, so the player object is empty → the campaign values win (with any
-  // DM lock). No campaign → undefined → the store's vanilla default.
+  // Effective preferences (Area P2c) — the campaign's DM settings ∩ the PLAYER's own choices, resolved and
+  // fed to the sheet store so configurable mechanics (long-rest model, dice style, …) follow both. The
+  // player's overrides (P2b / settings overhaul S-2) live on `data.playerPreferences`; a DM lock
+  // (`playerCanChoose: false`) still wins at resolve time, so the campaign's rule is enforced even when the
+  // player has a stored choice for it. Outside a campaign the player's choices apply against the vanilla
+  // baseline; with no stored choices the result is exactly the previous behaviour.
+  const playerPreferences = normalizePlayerPreferences((character.data as { playerPreferences?: unknown } | null)?.playerPreferences);
   let effectivePreferences: EffectivePreferences | undefined;
   // Whether the AI may create custom content when transposing this character (Area TR2). Allowed unless the
   // campaign is vanilla-only; a character with no campaign has no such restriction.
   let transposeAllowsCustom = true;
   if (character.campaign_id) {
     const { data: campPrefRow } = await supabaseAdmin.from('dnd_campaigns').select('theme, allow_custom').eq('id', character.campaign_id).maybeSingle();
-    effectivePreferences = resolvePreferences(readCampaignPreferences((campPrefRow as { theme?: unknown } | null)?.theme));
+    effectivePreferences = resolvePreferences(readCampaignPreferences((campPrefRow as { theme?: unknown } | null)?.theme), playerPreferences);
     transposeAllowsCustom = (campPrefRow as { allow_custom?: boolean } | null)?.allow_custom !== false;
+  } else {
+    // No campaign: fold the player's own choices over the vanilla baseline (every setting playerCanChoose),
+    // so a character in the owner's lobby honours its own settings. Undefined only when the player has none.
+    const hasChoices = Object.keys(playerPreferences).length > 0;
+    if (hasChoices) effectivePreferences = resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences);
   }
 
   // Area VIS6a — the creator's "replace my original with the in-campaign version" offer. It appears ONLY when
