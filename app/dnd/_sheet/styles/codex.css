@@ -589,8 +589,13 @@
   .sheet-shell .codex-hp-bar > span,
   .sheet-shell .codex-railtab,
   .sheet-shell .codex-ab,
-  .sheet-shell .codex-grab::after {
+  .sheet-shell .codex-grab::after,
+  .sheet-shell .dash-card {
     transition: none;
+  }
+  .sheet-shell .dash-card:hover,
+  .sheet-shell .dash-card:focus-within {
+    transform: none;
   }
 }
 
@@ -635,6 +640,15 @@
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.75), rgba(var(--void-rgb), 0.5));
   overflow: hidden;
+  /* T-STYLE-DASH pass 2/3 — the grid reads as a board of interactive tiles: a card lifts on hover
+     with a gold-warmed edge, so "everything at once" still feels touchable rather than a flat wall. */
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.sheet-shell .dash-card:hover,
+.sheet-shell .dash-card:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: 0 10px 26px -14px rgba(var(--void-rgb), 0.9);
 }
 .sheet-shell .dash-card-head {
   display: flex;
@@ -649,6 +663,9 @@
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink);
+}
+.sheet-shell .dash-card-head .dash-card-emoji {
+  color: var(--gold);
 }
 .sheet-shell .dash-card-emoji {
   font-size: 13px;

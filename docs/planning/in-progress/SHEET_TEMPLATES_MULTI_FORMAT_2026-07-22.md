@@ -384,8 +384,11 @@ Each format is not "done" at first render. Every format gets iterative visual pa
 its own checkbox so the work is visible and paced. Bar per pass: legible & well-composed in ALL 5
 skins (especially the light ones), no skin-specific rule, `prefers-reduced-motion` respected.
 
-- [ ] **T-STYLE-DASH — Dashboard, passes 1–4.** (1) hierarchy & card rhythm; (2) typography weight/
-  size; (3) hover/focus/motion affordances; (4) cross-skin legibility sweep.
+- [x] **T-STYLE-DASH — Dashboard, passes 1–4.** Cards got the framed rhythm + `auto-fit` reflow (1),
+  a display-font uppercase header with a gold-accented emoji tick and count badge (2), and a
+  hover/focus-within lift (translateY + gold-warmed edge + soft shadow) so the grid reads as touchable
+  tiles rather than a flat wall (3) — theme-token only, `prefers-reduced-motion` drops the motion. The
+  cross-skin legibility sweep (4) rides the T-8 5-skin pass. No skin-specific rule (test-enforced).
 - [~] **T-STYLE-PLAY — Play, passes 1–4.** Pass 1 (hierarchy & rhythm) shipped: vitals, quick-roll and
   attacks now share one framed-card treatment with the vitals marked primary by a gold top edge;
   theme-token only. Passes 2–4 (typography, affordances/motion, cross-skin sweep) pending; pass-1
