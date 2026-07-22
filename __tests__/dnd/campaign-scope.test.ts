@@ -5,7 +5,7 @@ import {
 } from '@/lib/dnd/campaign-scope';
 import type { SheetSlot } from '@/lib/dnd/system-variants';
 
-const slot = (system: string, active = false, name = system): SheetSlot => ({ slotId: `s-${system}-${name}`, system, kind: 'vanilla', name, active });
+const slot = (system: string, active = false, name = system): SheetSlot => ({ slotId: `s-${system}-${name}`, system, kind: 'vanilla', name, active, level: 1 });
 
 const sheets: SheetSlot[] = [
   slot('dnd5e-2024', true, 'Barbarian build'),

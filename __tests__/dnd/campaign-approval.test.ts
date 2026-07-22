@@ -5,7 +5,7 @@ import {
 } from '@/lib/dnd/campaign-approval';
 import type { SheetSlot } from '@/lib/dnd/system-variants';
 
-const slot = (system: string): SheetSlot => ({ slotId: `s-${system}`, system, kind: 'vanilla', name: system, active: true });
+const slot = (system: string): SheetSlot => ({ slotId: `s-${system}`, system, kind: 'vanilla', name: system, active: true, level: 1 });
 const dnd = [slot('dnd5e-2024')];
 
 describe('approval model', () => {

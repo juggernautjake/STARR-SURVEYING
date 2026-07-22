@@ -5,7 +5,7 @@ import {
 } from '@/lib/dnd/transpose/source-sheet';
 import type { SheetSlot } from '@/lib/dnd/system-variants';
 
-const slot = (id: string, system: string, kind: 'vanilla' | 'custom' = 'vanilla', active = false): SheetSlot => ({ slotId: id, system, kind, name: `${system} sheet`, active });
+const slot = (id: string, system: string, kind: 'vanilla' | 'custom' = 'vanilla', active = false): SheetSlot => ({ slotId: id, system, kind, name: `${system} sheet`, active, level: 1 });
 
 const sheets: SheetSlot[] = [
   slot('s1', 'pathfinder2e', 'custom', true), // an active AI transpose
