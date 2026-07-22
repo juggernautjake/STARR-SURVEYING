@@ -73,9 +73,12 @@ function buildRows(roll: ActiveRoll): BreakRow[] {
   if (isD20) {
     const m = entry.breakdown.match(D20_RE)
     const pair = m?.[1] ?? String(landing)
-    // The die row leads with the natural d20; adv/dis names itself and shows the pair it kept from.
-    const advTag = entry.mode === 'adv' ? ` · advantage${pair.includes(',') ? ` (kept ${pair})` : ''}`
-      : entry.mode === 'dis' ? ` · disadvantage${pair.includes(',') ? ` (kept ${pair})` : ''}` : ''
+    // The die row leads with the natural d20. For adv/dis it NAMES the mode and shows BOTH dice that were
+    // rolled ("rolled 7, 18"), while the value column is the KEPT die (the higher for advantage, lower for
+    // disadvantage) — the one that actually factors into the total.
+    const rolledPair = pair.includes(',') ? ` · rolled ${pair.split(',').map((s) => s.trim()).join(', ')}` : ''
+    const advTag = entry.mode === 'adv' ? ` advantage${rolledPair}`
+      : entry.mode === 'dis' ? ` disadvantage${rolledPair}` : ''
     rows.push({ key: 'die', label: `d20${advTag}`, value: String(landing), kind: 'die' })
     const mod = entry.total - landing
     if (mod !== 0) rows.push({ key: 'mod', label: 'Ability + proficiency', value: signed(mod), kind: 'mod' })
@@ -247,8 +250,10 @@ function ImpactStage() {
           then the final total — never behind a "show breakdown" toggle. */}
       {phase === 'landed' && (
         <div className="ir-detail is-open">
+          {/* Row class is `ir-r-<kind>`, NOT `ir-<kind>` — a bare `ir-die` row would collide with the
+              `.ir-die` DICE element selector and get styled as a 108px square (the "weird square" bug). */}
           {rows.map((row) => (
-            <div key={row.key} className={`ir-row ir-${row.kind}`}>
+            <div key={row.key} className={`ir-row ir-r-${row.kind}`}>
               <span className="ir-row-label">{row.label}</span>
               <span className="ir-row-val">{row.value}</span>
             </div>

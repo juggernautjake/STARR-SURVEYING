@@ -42,9 +42,10 @@ describe('Sigil Stack — wired into the Codex shell ONLY', () => {
     expect(code).not.toContain('DiceTray')
   })
 
-  it('leaves the classic Dice Core untouched', () => {
-    // App.tsx (the classic sheet) still owns DiceTray; this slice must not have moved it.
-    expect(read('app/dnd/_sheet/App.tsx')).toContain('<DiceTray />')
+  it('leaves the classic Dice Core as the DEFAULT roller (via rollerFor, RO-2)', () => {
+    // App renders the chosen roller from `rollerFor`, whose default ('core') is the classic Dice Core —
+    // so the classic roller is unchanged, just routed through the registry rather than hardcoded.
+    expect(read('app/dnd/_sheet/components/rollers/rollerFor.tsx')).toContain('<DiceTray />')
   })
 })
 
@@ -61,6 +62,9 @@ describe('Sigil Stack — skinning + motion discipline', () => {
 
   it('honours prefers-reduced-motion in both the CSS and the JS timeline', () => {
     expect(read(CSS)).toContain('@media (prefers-reduced-motion: reduce)')
-    expect(read(TSX)).toContain('prefers-reduced-motion: reduce')
+    // The JS timeline gates on the SHARED `shouldAnimateRoller()` (RO-6), which folds prefers-reduced-
+    // motion in one place (`rollerAnim.ts`) instead of each roller inlining the matchMedia check.
+    expect(read(TSX)).toContain('shouldAnimateRoller')
+    expect(read('app/dnd/_sheet/components/rollers/rollerAnim.ts')).toContain('prefers-reduced-motion: reduce')
   })
 })

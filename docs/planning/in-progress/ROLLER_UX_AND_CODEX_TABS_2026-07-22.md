@@ -125,6 +125,15 @@
   sheet, format it, and populate it — added to the sheet (and its tabs), for any system. The section
   builder + storage on the character, surfaced in every template.
 
+- [x] **D-14 — Impact roller: fix the "weird square" + show both adv/dis dice (owner 2026-07-22).** Two bugs
+  from the D-4/D-7/D-10 work: (1) the breakdown's die ROW had class `ir-die`, which collided with the
+  `.ir-die` DICE-ELEMENT selector (`width:108px;height:108px;border`) and rendered as a weird empty square —
+  fixed by prefixing the row-kind classes `ir-r-<kind>`; (2) an advantage/disadvantage roll only showed the
+  kept die — now the die row reads `d20 advantage · rolled X, Y` (BOTH dice) with the value column being the
+  KEPT die (higher for adv, lower for dis), and the row wraps instead of truncating. Browser-VERIFIED: an
+  advantage roll shows "d20 advantage · rolled 11, 9 → 11", "Ability + proficiency → +3", "Total → 14", and
+  no row renders as a square. tsc + eslint + the roller anchor tests green.
+
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact
   spins a touch longer. The digital die has the right number of sides for the die rolled. Codex tabs read

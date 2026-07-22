@@ -42,7 +42,10 @@ describe.each([
 
   it('honours prefers-reduced-motion in both the CSS and the JS timeline', () => {
     expect(read(css)).toContain('@media (prefers-reduced-motion: reduce)')
-    expect(read(tsx)).toContain('prefers-reduced-motion: reduce')
+    // The JS timeline gates on the SHARED `shouldAnimateRoller()` (RO-6), which folds prefers-reduced-
+    // motion in one place (`rollerAnim.ts`) rather than each roller inlining the matchMedia check.
+    expect(read(tsx)).toContain('shouldAnimateRoller')
+    expect(read('app/dnd/_sheet/components/rollers/rollerAnim.ts')).toContain('prefers-reduced-motion: reduce')
   })
 
   it('carries NO skin-specific selector — skins theme it, they do not special-case it', () => {
@@ -70,7 +73,11 @@ describe('Impact Roller — wired into the Play adapter ONLY', () => {
 })
 
 describe('the classic Dice Core stays the classic sheet roller', () => {
-  it('App.tsx still owns DiceTray — these slices must not have moved it', () => {
-    expect(read('app/dnd/_sheet/App.tsx')).toContain('<DiceTray />')
+  it('is the DEFAULT roller via rollerFor, and App renders the chosen roller node (RO-2)', () => {
+    // RO-2 made the roller its own axis: App no longer hardcodes <DiceTray/>, it renders the chosen
+    // roller from `rollerFor`, whose default ('core') IS the classic Dice Core. So the classic roller is
+    // unchanged in behaviour, just routed through the registry.
+    expect(read('app/dnd/_sheet/App.tsx')).toContain('rollerFor')
+    expect(read('app/dnd/_sheet/components/rollers/rollerFor.tsx')).toContain('<DiceTray />')
   })
 })
