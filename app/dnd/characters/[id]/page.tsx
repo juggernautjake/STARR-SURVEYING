@@ -12,6 +12,7 @@ import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetStyleBrowser from '@/app/dnd/_ui/SheetStyleBrowser';
+import TemplateBrowser from '@/app/dnd/_ui/TemplateBrowser';
 import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
 import ExportSheetButton from '@/app/dnd/_ui/ExportSheetButton';
@@ -246,6 +247,16 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           can export it (the export route is read-gated the same as opening it). */}
       <ExportSheetButton characterId={character.id} />
       {canWrite && <SheetStyleBrowser characterId={character.id} current={character.sheet_type} />}
+      {/* Template (format) picker — the twin of the skin picker, for the LAYOUT axis. Surfaced for
+          EVERY system, beside the skin picker, so switching templates is as easy as switching skins
+          (the owner's #1 named gap). It self-hides when a system has fewer than two built formats. */}
+      {canWrite && (
+        <TemplateBrowser
+          characterId={character.id}
+          system={normalizeSystem((character as { system?: string }).system)}
+          current={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
+        />
+      )}
       {/* The shared 5e engine — the tabbed sheet, ability rail, dice tray, build toggle and
           customization panel. It renders for 5e and system-ambiguous characters, AND for a PF2/IG
           character that has not been built yet (a "build me" placeholder). It does NOT render

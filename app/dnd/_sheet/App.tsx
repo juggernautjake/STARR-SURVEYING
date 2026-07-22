@@ -44,7 +44,6 @@ import MlmPanel from './components/MlmPanel'
 import SheetArtUploader from './components/SheetArtUploader'
 import TokenFramer from './components/TokenFramer'
 import SkinSwitch from './components/SkinSwitch'
-import LayoutSwitch from './components/LayoutSwitch'
 import VariantToggle from './components/VariantToggle'
 import CustomizationSummary from './components/CustomizationSummary'
 import CodexLayout from './codex/CodexLayout'
@@ -222,10 +221,9 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
 
       {/* Pink/blue style switch (streamer skin only) — swaps theme, class, and art. */}
       {hasThemePicker && <SkinSwitch variants={themeVariants} />}
-      {/* Layout switch (CX-1), beside the theme picker because the two are the same KIND of
-          choice from the player's side: how this sheet looks. They stay separate fields because
-          they are independent — every layout works with every skin. */}
-      <LayoutSwitch />
+      {/* The template (layout) switch used to live HERE, buried inside the 5e engine — which is
+          exactly why the owner couldn't find it and why it never appeared for PF2/IG. It is now the
+          page-chrome `TemplateBrowser`, surfaced for every system beside the skin picker (T-1). */}
       {/* Vanilla ⇄ Custom, and the customization summary directly beneath it — the two belong
           together: the toggle is what LETS a character hold custom content, and the summary is
           what REPORTS it. Both render for every layout, above the split, so they are the first

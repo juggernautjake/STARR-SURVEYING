@@ -346,7 +346,7 @@ export interface ProgressionRow {
 }
 
 /** How the sheet is arranged. See `Character.sheetLayout` for why this is its own axis. */
-export type SheetLayout = 'classic' | 'codex'
+export type SheetLayout = 'classic' | 'codex' | 'dashboard' | 'play'
 
 export interface Character {
   meta: {
