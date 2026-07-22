@@ -96,4 +96,14 @@ describe('roller dock — clamp keeps the window on-screen and below the header'
       expect(clampBox(100, y, 300, 200).y).toBeGreaterThanOrEqual(top)
     }
   })
+
+  // CX-R3 — a FRESH default roller snaps flush to the bottom-right once its real (content-fit) height
+  // is measured, rather than hanging where the 440px guess placed it. The effect computes
+  // `y = innerHeight - measuredH - EDGE` then clamps; a short roller must sit against the bottom edge.
+  it('fresh-default bottom-snap sits a short content-fit roller flush to the bottom-right', () => {
+    const h = 300 // shorter than the 440px placement guess
+    const snapped = clampBox(VW - 396 - EDGE, VH - h - EDGE, 396, h)
+    expect(snapped.y).toBe(VH - h - EDGE)
+    expect(snapped.y + h).toBe(VH - EDGE) // flush to the bottom edge, no gap below
+  })
 })

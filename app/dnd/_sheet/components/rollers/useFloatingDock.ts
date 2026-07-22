@@ -103,6 +103,11 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
   const ref = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<DockState | null>(null)
   const loaded = useRef(false)
+  // True only for a FRESH default placement (no saved state) that hasn't been measured yet. The
+  // content-fit measure effect uses it to snap the window flush to the bottom-right corner once the
+  // real height is known — a RESTORED position (even a content-fit one the player dragged to the top)
+  // must be left exactly where they put it, so this stays false for restores. (CX-R3)
+  const freshDefault = useRef(false)
 
   // Measure the window's live height (used for clamping when h is "fit content", and to place the
   // default bottom-right corner once we can see how tall the roller renders).
@@ -122,17 +127,23 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
     } else {
       const w = DEFAULT_W
       const { x, y } = defaultPos(w)
+      freshDefault.current = true
       setState({ x, y, w, h: null, minimized: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId])
 
   // Once the element exists and we are content-fit, place the bottom-right corner against the REAL
-  // rendered height so a tall roller is not shoved off the bottom.
+  // rendered height. For a FRESH default we SNAP flush to the bottom edge (defaultPos guessed a 440px
+  // height, so a shorter roller would otherwise hang ~140px above the corner, covering more content
+  // than it needs to); for a restored position we only CLAMP, never reposition, so the player's own
+  // spot is preserved. Either way a tall roller is never shoved off the bottom.
   useLayoutEffect(() => {
     if (!state || state.h != null) return
     const h = measuredH()
-    const { x, y } = clampBox(state.x, state.y, state.w, h)
+    const targetY = freshDefault.current ? window.innerHeight - h - EDGE : state.y
+    freshDefault.current = false
+    const { x, y } = clampBox(state.x, targetY, state.w, h)
     if (x !== state.x || y !== state.y) setState((s) => (s ? { ...s, x, y } : s))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.h, state?.w])

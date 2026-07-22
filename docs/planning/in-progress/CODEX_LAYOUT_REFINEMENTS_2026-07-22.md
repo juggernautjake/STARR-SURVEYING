@@ -36,11 +36,18 @@ roller (now global) can overlap the identity column / art.
   rotated sideways word; the whole word rides on `aria-label` for screen readers. Removed the old
   `writing-mode: vertical-rl` + `rotate(180deg)`; the mobile strip flips the tab + label back to a row.
   Browser-verified on Perrin (Codex): the rail shows ◇ then S·K·I·L·L·S stacked upright.
-- [ ] **CX-R3 — no overlapping elements / condense.** Audit the Codex for elements covering each other
-  (identity column vs. panes vs. the floating roller vs. the art). Give the roller a default resting spot
-  that never covers the identity column/art (ties to the roller overhaul RO-1), tighten the identity
-  column so HP/AC/art/abilities all fit without collision, and ensure the pane area and identity column
-  don't overlap at any width (container-query breakpoints). Browser-verify at wide + narrow widths.
+- [x] **CX-R3 — no overlapping elements / condense.** Audit outcome: the Codex body has no self-overlap at
+  any width — `.codex` is `grid-template-columns: minmax(280px, min(33%,420px)) 1fr` with a clean single-
+  column breakpoint at `max-width: 900px` (identity → panes → rail strip), and the identity column is a
+  sticky, own-scroll flex column so HP/AC/art/abilities never collide (browser-verified on Perrin's Codex:
+  identity left, panes centre, rail right, nothing covering anything). The one real fix was the floating
+  roller's DEFAULT resting spot: `defaultPos` guesses a 440px height, so a shorter content-fit roller hung
+  ~140px above the corner and covered more content than needed. `useFloatingDock` now snaps a FRESH default
+  flush to the bottom-right once the real height is measured (`freshDefault` ref → `y = innerHeight − h −
+  EDGE`), while a RESTORED/saved position is only clamped, never moved. Verified live: a cleared roller
+  settled at `y=318` in a 911px viewport with content height 581 → bottom at 899 (flush, EDGE-gap only).
+  Unit anchor added for the bottom-snap formula (9 dock tests green). The roller sits bottom-right, clear
+  of the top-left identity column/art; it remains a movable window the player can reposition at will.
 - [ ] **CX-R4 — uploaded character art visible on EVERY template, EVERY system.** The 5e formats render
   the portrait (IdentityColumn / play-portrait / hero); the BESPOKE PF2/IG sheets are not even PASSED the
   uploaded art (`PF2Sheet`/`IGSheet` receive no `artUrl`), so it shows in NONE of their formats. Thread
