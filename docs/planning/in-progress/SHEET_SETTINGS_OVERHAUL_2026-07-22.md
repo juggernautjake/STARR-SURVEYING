@@ -88,12 +88,19 @@ dice style, record mode, default roller template + animation, default theme/styl
   - NOTE: this surfaces the 10 existing cross-system/5e preferences. The PF2/IG-SPECIFIC rules variants
     (proficiency-without-level, free archetype, IG house rules, …) are new model fields that land with S-4.
 - [ ] **S-4 — wire each setting to the mechanic it controls**, per system, and verify it takes effect.
-- [ ] **S-DM — DM campaign settings/preferences page (all options).** Extend `CampaignPreferencesDm`
-  into a full per-campaign settings page carrying every option the per-character modal has, each with a
-  "lock" that overrides the character's own value FOR THE CAMPAIGN VERSION ONLY (the character's own
-  settings, seen outside the campaign, are untouched). Wire the effective-settings resolver: inside a
-  campaign, a locked value wins; outside, the character's own value applies. Verify a lock takes effect
-  in-campaign and NOT in the owner's lobby view of the same character.
+- [x] **S-DM — DM campaign settings/preferences page + the override resolver.** Mechanism complete:
+  `CampaignPreferencesDm` (the DM's per-campaign page, wired into the DM campaign controls) carries EVERY
+  option the per-character modal has — both now read the one shared `preference-options.ts` catalog, so
+  they cannot drift — each with its "players may choose" lock. The override is a RESOLVE-TIME OVERLAY, not a
+  mutation: `page.tsx` folds the campaign's locked values over the character's own `playerPreferences` via
+  `resolvePreferences` when `character.campaign_id` is set (in-campaign context), and over the vanilla
+  baseline (owner's own choices win) when it isn't (the lobby original is a campaign_id-null row; the
+  campaign holds its edited copy on `dnd_campaign_characters.data_override`). The character's own settings
+  are never touched — the lock only clamps at resolve time. This became REAL once S-2 fixed SheetRoot to
+  actually forward preferences to the sheet. Browser-VERIFIED: locking `longRestModel=gritty`
+  (playerCanChoose:false) on Perrin's campaign made the character's gear modal show "Long rest 🔒 set by
+  your DM" — disabled, showing the DM's value — so the player cannot override it in-campaign, while the
+  same setting stays theirs to choose outside a campaign. Guard test added; tsc + eslint green.
 - [ ] **S-5 — QA**: every system's settings render, persist, drive their mechanic, and the DM lock/
   override behaves correctly in vs. out of campaign; record + move to `completed/`.
 
