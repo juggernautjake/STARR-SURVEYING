@@ -112,11 +112,11 @@ rollers, then the styling passes, then whole-matrix QA. A slice is done ONLY whe
   business, gear, story, dossier, gallery) with the same module/data gates as the classic tabs. Both
   shells read it, so they can't drift. _(Codex still builds its own identical `defs[]` inline —
   see T-2b cleanup.)_
-- [ ] **T-2b — Codex reads `useFivePanels()` (cleanup, LOW risk).** Replace `CodexLayout`'s inline
-  `defs[]` with `useFivePanels()` and drop the now-unused component imports there, so there is
-  literally one 5e panel source. Snapshot the Codex rail/pane list before & after to prove no panel
-  changed. Done: Codex renders identically; `codex-layout.test.ts` still green; no duplicated panel
-  list remains in the tree.
+- [x] **T-2b — Codex reads `useFivePanels()` (cleanup).** `CodexLayout` now consumes the shared
+  `useFivePanels()` (`SheetPanel` is structurally a `PaneDef`, so it drops straight in); the inline
+  `defs[]` and ~18 now-dead component imports removed — one 5e panel source in the tree. Browser-
+  verified on Perrin (L4 Rogue): Codex renders identically (identity column + rail + SKILLS·18 pane
+  with correct saves/skills), and the Dashboard renders the same panels as a card grid.
 - [x] **T-3 — Dashboard shell (5e).** `DashboardLayout.tsx` — identity column + every panel a themed
   card in an `auto-fit` grid, per-card internal scroll past a max height, reflows phone→wide;
   theme-token only. Wired into `App.tsx` (`isDashboard`), offered for 5e in the registry.

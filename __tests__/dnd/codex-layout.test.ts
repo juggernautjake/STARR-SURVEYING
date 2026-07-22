@@ -309,10 +309,15 @@ describe('the layout seam (CX-1)', () => {
 
   it('renders the real pane components rather than Codex-specific copies', () => {
     // A Codex-specific SpellsPanel would be a second implementation to keep in sync with the
-    // first, and the two would diverge on the first bug fixed in only one.
+    // first, and the two would diverge on the first bug fixed in only one. Since T-2b the Codex
+    // reads the shared `useFivePanels()` set instead of importing the components itself — so the
+    // real components must live in that ONE panel source, and the Codex must consume it.
     const src = read('app/dnd/_sheet/codex/CodexLayout.tsx')
+    expect(src).toContain("useFivePanels")
+    expect(src).not.toMatch(/from '\.\.\/components\/SpellsPanel'/) // no duplicated panel list here
+    const panels = read('app/dnd/_sheet/panels/fivePanels.tsx')
     for (const c of ['SpellsPanel', 'SavesSkills', 'CombatPanel', 'Inventory', 'Features']) {
-      expect(src).toContain(`from '../components/${c}'`)
+      expect(panels).toContain(`from '../components/${c}'`)
     }
   })
 
