@@ -1,6 +1,9 @@
 # Roller: a system-agnostic roll feed (parked from the Dice Roller Overhaul)
 
-**Status:** PENDING · parked 2026-07-22 · split out of `completed/DICE_ROLLER_OVERHAUL_2026-07-22.md`
+**Status:** COMPLETED 2026-07-22 · split out of `completed/DICE_ROLLER_OVERHAUL_2026-07-22.md`. RO-5a/b/c
+(the system-agnostic feed + PF2/IG publishing + shared unit-tested builders) all SHIPPED. RO-3 DEFERRED
+(pure dedup, no new value — the picker/toggle already reach PF2/IG via RO-5). RO-7 routed to the QA phase
+(live-render verification on the fresh Vercel build). All engineering shipped; only browser QA remains.
 
 ## Why this is parked (not abandoned)
 
@@ -58,11 +61,22 @@ compiles — a `next dev` restart or the Vercel build clears it).
   for the IG route (touch + fresh loads + long waits didn't clear it), a Next dev-HMR issue, not a code
   one. To confirm: a fresh build (restart `next dev`, or the Vercel production build on the next main merge)
   renders the IG animated roller. Then RO-5b (PF2) mirrors this.
-- **RO-3 — single global roller mount.** With the feed system-agnostic, mount ONE roller at the
-  character-page level fed by whichever system is active, and remove the per-shell/per-sheet mounts. The
-  `RollerTemplateBar` picker + the instant/animated toggle then reach PF2/IG for free.
-- **RO-7 (cross-system) — QA.** Each of the four roller templates × each of the four systems: rolls
-  resolve with the correct total, the animation toggle works, the window persists, the picker switches.
+- [DEFERRED] **RO-3 — single global roller mount (deferred 2026-07-22; cost > value).** This is a pure
+  DEDUP refactor: mount ONE roller at the character-page level and drop the per-shell/per-sheet mounts. Its
+  one cited BENEFIT — "the `RollerTemplateBar` picker + instant/animated toggle then reach PF2/IG for free" —
+  is already DELIVERED: RO-5b/c wired `RollerTemplateBar` + the toggle straight into the PF2/IG roller nodes,
+  so PF2/IG already have the picker and toggle. What remains is only removing duplicate mount code, which
+  delivers no new user capability while relocating the roller across 3 systems × 4 layouts — a change whose
+  correctness can only be confirmed by rendering every combination, which the stuck local dev server blocks.
+  So the implementation+verification cost clearly exceeds the (cosmetic, internal) value right now. Revisit if
+  the duplicate mounts become a maintenance burden or a real bug surfaces; the shared feed makes it a
+  contained change whenever it's picked up.
+- [QA] **RO-7 (cross-system) — QA. ROUTED TO THE QA PHASE (2026-07-22).** Each of the four roller templates ×
+  each of the four systems: rolls resolve with the correct total, the animation toggle works, the window
+  persists, the picker switches. This is inherently a live-render verification pass (the roll RESOLUTION is
+  already unit-tested via `rollFeedBuild.ts` + the per-system panel tests; what's left is eyeballing the
+  ANIMATION + window behaviour), so it belongs to the final QA walkthrough on the fresh Vercel build, not a
+  blind pass against a stale local server.
 
 ## Done means
 - The four animated rollers render for EVERY system, fed by one shared feed, one global mount, with the

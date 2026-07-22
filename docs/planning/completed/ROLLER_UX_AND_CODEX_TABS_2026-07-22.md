@@ -1,6 +1,11 @@
 # Roller UX polish + shaped dice + readable Codex tabs
 
-**Status:** IN PROGRESS · started 2026-07-22
+**Status:** COMPLETED 2026-07-22 · started 2026-07-22. D-1..D-16 all SHIPPED (roller toggle/position, Codex
+tab readability, shaped dice, robust+audible rollers, always-on breakdowns, Lazzuh purge, unique reveals,
+Codex content-sized accordion, section relevance filtering, custom sections across every system, Impact
+adv/dis fix, PF2/IG animated roller feed, IG click-to-roll). D-6 (cross-skin legibility sweep) routed to the
+QA phase — it needs live rendering of each skin×theme, which the QA walkthrough does on the fresh Vercel
+build. All engineering shipped; only that browser sweep remains.
 
 ## Owner ask (verbatim, stitched)
 
@@ -50,7 +55,15 @@
   plus a mute control (`isMuted`/`setMuted`). No gaps found. Browser-VERIFIED: rolling on the Impact roller
   leaves the AudioContext `running` with no audio errors (sound fires); the same audio calls back every
   template.
-- [ ] **D-6 — readable sections on every style/theme.** Sweep the sheet's section text/labels for contrast
+- [QA] **D-6 — readable sections on every style/theme. ROUTED TO THE QA PHASE (owner 2026-07-22).** This is a
+  cross-skin visual legibility sweep — it requires RENDERING each of the five skins × the theme set and
+  eyeballing contrast, which the stuck local dev server (stale compiles) blocks and which no unit test can
+  stand in for. It is not deferred-as-low-value (legibility matters); it is the kind of work the final QA
+  walkthrough does on the live Vercel build, so it moves there rather than being guessed at blind. The NEW
+  D-13 custom-section UI was already built D-6-correct by construction (every colour is `var(--hx-*, <neutral
+  fallback>)`; muted text is `opacity` on the inherited colour, so it reads on light and dark skins alike).
+  Original scope below:
+  - Sweep the sheet's section text/labels for contrast
   + intuitive formatting across all 5 styles × 5 themes (the contrast clamp already guarantees the token
   colours; this is about the places that hardcode a colour or read faint). Fix offenders; record.
 - [x] **D-7 — every roller shows the full breakdown ALWAYS (no toggle).** Audited the 4 rollers: the Dice
@@ -153,9 +166,11 @@
     as a "Custom" panel in both `useIgPanels` (`ig-custom`) and `usePf2Panels` (`pf2-custom`), shown when the
     owner can edit OR any section exists; `customSections` threads page.tsx → IGSheet/PF2Sheet → the hooks.
     Panel-order + gating tests updated/added; full dnd suite green (4143); tsc + eslint clean.
-  - **Remaining follow-up (minor):** an in-place "Add section" entry point on the shared 5e Codex/Dashboard/
-    Play shells (today a section is added from the Classic tab bar or the PF2/IG Custom panel, then shows in
-    every template). On-screen visual QA of the editor awaits the fresh Vercel build (local dev server stale).
+  - **SLICE 3 SHIPPED — create entry point on every template (owner 2026-07-22).** `useFivePanels` now adds an
+    owner-only "Add section" pane (the shells arrange the panel set with no chrome of their own, so the create
+    control lives in the set, not the shell). So a section can be created from the Classic tab bar, ANY 5e
+    Codex/Dashboard/Play template, and the PF2/IG "Custom" panel — and shows on every template once added.
+    D-13 is now COMPLETE. On-screen visual QA of the editor is a QA-phase item (fresh Vercel build).
 
 - [x] **D-14 — Impact roller: fix the "weird square" + show both adv/dis dice (owner 2026-07-22).** Two bugs
   from the D-4/D-7/D-10 work: (1) the breakdown's die ROW had class `ir-die`, which collided with the
