@@ -242,8 +242,12 @@ compute their own). The clean decomposition:
   the pane rail. `dashboard` added to PF2 `BUILT_FOR`. Browser-verified on Orin: identity column (AC 24
   / HP 78 / saves / Spell DC 27) + card grid with real PF2 skills (Occultism +15 trained, …) and feats
   (Seer Elf ancestry, Reach Spell). Registry test updated.
-- [ ] **T-5d — PF2 Play.** Feed `usePf2Panels()` into the Play shell (vitals band = AC/HP/class DC +
-  saves; body = Strikes); add `play` to PF2. Browser-verify Orin × 5 skins.
+- [x] **T-5d — PF2 Play.** PF2 `play` branch: identity strip = the PF2 header; HERO = defenses/vitals
+  (AC/HP/saves/class+spell DC as a wide tile row) + Strikes; drawer = attributes/skills/feats/spells;
+  PF2 roller docked; `play.css` imported. `play` added to PF2 `BUILT_FOR`. Browser-verified on Orin:
+  identity (Level 9 Seer Elf Wizard), vitals tiles (AC 24, HP 78/78, saves +15/+16/+14, Spell DC 27),
+  Fist strike +14/1d0 with roll buttons, Reference drawer. **PF2 now has all four formats.** Test
+  updated.
 
 ### IG — panel set, then shells
 

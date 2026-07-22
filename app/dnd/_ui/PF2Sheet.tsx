@@ -19,9 +19,11 @@ import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 import { usePf2Panels } from './pf2/usePf2Panels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
+import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
 // The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
+import '@/app/dnd/_sheet/styles/play.css';
 
 export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
@@ -73,6 +75,35 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
           <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} />
         )}
         {/* Modals are fixed-position; they live outside the shell grid, same as in the Classic view. */}
+        {overlays}
+      </div>
+    );
+  }
+
+  // ── PLAY (T-5d) ───────────────────────────────────────────────────────────────────────────────
+  // Built for the table: the PF2 HERO is what you touch in a fight — the defences/vitals block (AC,
+  // HP, saves, class/spell DC) and the Strikes. Everything you only look up (attributes, skills,
+  // feats, spells, conditions) folds into the reference drawer. Same `.sheet-shell` + dual token sets.
+  if (layout === 'play') {
+    const heroIds = new Set(['pf2-defenses', 'pf2-strikes']);
+    const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
+    const identity = <div className="play-id">{header}</div>;
+    const hero = (
+      <>
+        {section('pf2-defenses')}
+        {section('pf2-strikes')}
+      </>
+    );
+    return (
+      <div className="sheet-shell" style={{ ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' }}>
+        <PlayShell
+          identity={identity}
+          above={banner}
+          hero={hero}
+          roller={roller}
+          drawerPanels={drawerPanels}
+          drawerHint="attributes · skills · feats · spells"
+        />
         {overlays}
       </div>
     );
