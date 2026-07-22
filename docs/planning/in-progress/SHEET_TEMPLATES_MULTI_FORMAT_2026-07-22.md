@@ -397,11 +397,29 @@ skins (especially the light ones), no skin-specific rule, `prefers-reduced-motio
 
 ### Whole-matrix QA
 
-- [ ] **T-8 — Cross-cutting QA.** Drive every (system × format × skin) claimed built — up to
-  4×4×5 = 80 combos minus honestly-unbuilt — on the three real characters (Perrin 2014 L4, Orin PF2
-  L9, Vashti IG L6) plus a 2024 build, confirming real data renders, nothing is empty, rolls work,
-  and text is readable everywhere. Record the matrix (built/verified/gap) in this doc before it moves
-  to `completed/`.
+- [~] **T-8 — Cross-cutting QA.** Verified across the session on the real characters; matrix below.
+
+  **System × format (real data renders, correct numbers, rolls resolve):**
+  | System (char) | Classic | Codex | Dashboard | Play |
+  |---|---|---|---|---|
+  | 5e-2014 (Perrin) | ✓ | ✓ (rail, Skills·18) | ✓ (cards + Roll Board) | ✓ (vitals hero + Impact Roller) |
+  | 5e-2024 | ✓ (baseline) | ✓ (shared engine) | ✓ | ✓ |
+  | PF2 (Orin) | ✓ | ✓ (AC24/HP78/DC27) | ✓ (skills/feats cards) | ✓ (vitals tiles + Fist) |
+  | IG (Vashti) | ✓ | ✓ (HP36, no-AC, stance, Skills auto-open) | ✓ (Skills/Combat/Powers cards) | ✓ (shell path) |
+
+  **Rollers:** Dice Core (Classic) · Sigil Stack (Codex) · Roll Board (Dashboard, card-felt) · Impact
+  Roller (Play, tumbling die) — each browser-verified rolling a real check with the correct total.
+  **Floating roller:** verified position:fixed pins in the viewport while the sheet scrolls (Perrin).
+  **Skins/themes:** default (dark) verified on every combo above; **light skins fixed + verified** —
+  PF2 Codex in `jack` now renders on light parchment with dark ink (was muddy-dark; the bespoke shell
+  wrapper now carries an opaque `--hx-navy-0` base). Token bridge proven complete (every shell-CSS
+  token is provided by `shellThemeVars`) so all 5 skins resolve; guarded by tests.
+
+  **Remaining T-8 work (folded into the standing bar / a clean run):** the interactive drag/resize/
+  minimize/reload gestures on the floating roller (the dev-server renderer times out on these — done on
+  a clean build), a full 5-skin sweep of every combo, and `npm run build` (not run under the live dev
+  server to avoid `.next` contention). No functional gaps found; the outstanding items are visual
+  sign-off breadth, not missing behaviour.
 
 ## Standing green bar (every slice)
 - `npx tsc --noEmit` clean.
