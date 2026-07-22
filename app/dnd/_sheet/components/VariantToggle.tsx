@@ -13,7 +13,7 @@ import { useState } from 'react'
 import { useChar } from '../state/store'
 
 export default function VariantToggle() {
-  const { characterId, variantKind, canWrite, reloadFromDb } = useChar()
+  const { characterId, variantKind, canWrite } = useChar()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const isCustom = variantKind === 'custom'
@@ -43,9 +43,14 @@ export default function VariantToggle() {
         setErr(j.error ?? 'Could not change the build.')
         return
       }
-      // Reload so the pickers and gates pick up the new kind. The switch lives in the DB row's
-      // metadata, not the sheet data, so a plain setChar would not reflect it.
-      await reloadFromDb?.()
+      // A FULL page reload, not the store's `reloadFromDb`. The variant kind is a SERVER-rendered
+      // prop — the page reads it from `system_variants` and threads it through `SheetRoot` into the
+      // store at mount — so it is not part of the sheet `data` that `reloadFromDb` refetches.
+      // Verified the hard way: the POST persisted `kind: vanilla` to the DB while the button stayed
+      // on Custom, because the store's copy of `variantKind` never changed. Re-running the server
+      // render is the only thing that updates it, and it also re-arms the pickers and gates with
+      // the new kind in one step.
+      if (typeof window !== 'undefined') window.location.reload()
     } catch {
       setErr('Could not reach the server.')
     } finally {
