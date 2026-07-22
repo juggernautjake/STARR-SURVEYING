@@ -273,6 +273,40 @@ compute their own). The clean decomposition:
   Details). Play uses the same verified shell path. Full-matrix registry test now asserts all four
   systems offer all four formats.
 
+### Floating roller window — always in view, movable, resizable, minimizable (owner 2026-07-22)
+
+> "if the roller window is open, we can resize it and all of the components on it will resize and
+> reformat as well… make it so that the roller scrolls with us… wherever we leave it it should stay in
+> the screen view even when we scroll… we should be able to move it around… but also make it so that we
+> can always minimize it."
+
+Today the 5e **Dice Core** already drags (grab the head), minimizes (to a `.tray-fab`), and floats
+(`position: fixed`, kept on-screen by `lib/floating.ts` `clampBox`/`safeTop`) — but ONLY once dragged;
+by default it is docked in the page flow and scrolls away, it can't be RESIZED, and its position isn't
+remembered. The Codex/PF2/IG rollers are docked inline in their shells and don't float at all. The
+owner wants ONE consistent behaviour for every roller in every format: pinned in the viewport (visible
+while you scroll), movable and staying where left, resizable with its contents reflowing, always
+minimizable, and remembered between visits.
+
+- [ ] **R-1 — shared floating dock (`useFloatingDock` + `FloatingRoller`).** A wrapper that takes any
+  roller content and gives it: `position: fixed` so it stays in the viewport as the page scrolls;
+  a drag handle (reuse `clampBox`/`safeTop`, which already keep the handle clear of the sticky header);
+  a **resize** handle (corner) that sets width AND height, with the body `flex:1; min-height:0;
+  overflow:auto` so the roller's own components reflow to the box; a **minimize** control collapsing to
+  a small bar/FAB that re-expands; and **persistence** of {x, y, w, h, minimized} per character in
+  localStorage (a view preference, keyed like `usePaneStack`, never written to the character). Clamp on
+  drag, resize, AND window-resize so it can never strand off-screen. Honours `prefers-reduced-motion`.
+  Theme-token styled. Unit-tested for the clamp/persist logic.
+- [ ] **R-2 — every format's roller uses the dock.** Wrap the shell `roller` slot so the Codex Sigil
+  Stack, the Dashboard/Play rollers, and the PF2/IG rollers all float via `FloatingRoller`. Fold the
+  5e Dice Core's existing bespoke drag/minimize into the shared dock (add resize + default-pinned +
+  persistence) so there is ONE implementation, not two. The dock reads roll state from wherever each
+  roller already does — it only owns the window chrome, never the roll maths.
+- [ ] **R-3 — browser-verify across the matrix.** On a real character in each format and ≥2 skins:
+  scroll the page — roller stays visible; drag it — moves and stays put; resize — the dice area,
+  buttons, and history all reflow to the new size; minimize/restore; reload — position/size remembered.
+  Confirm it never covers the sticky header and never strands off-screen after a window resize.
+
 ### Default-sheet polish (owner's explicit priority — heavier/larger fonts, more life)
 
 - [x] **T-7-PF2 — PF2 default legibility pass.** Section titles 13→14.5/700, stat values →23/700,
