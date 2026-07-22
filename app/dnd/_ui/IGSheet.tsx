@@ -70,6 +70,32 @@ const ACTION_GLYPH: Record<string, string> = {
   Single: '◆', Double: '◆◆', Triple: '◆◆◆', Reaction: '⤾', Other: '○',
 };
 
+// Interactivity + motion (req 3), kept in ONE injected <style> so the whole IG restyle stays in this file:
+// the shared hextech.module.css currently holds a sibling PF2 pass, and touching it would collide. Every
+// hover cue is driven through `transform` / `box-shadow` / `outline` — properties this component never sets
+// inline — so the rules ALWAYS win over the inline base styles without needing `!important`. The one place a
+// class must repaint an inline value (the tile fill on hover) is handled by giving the tile its background
+// from `.igs-tile` (not inline) so the `:hover` rule can legitimately override it by specificity. Every
+// colour is a `var(--hx-*)` token so all five skins stay correct; the neutral drop-shadow is a shadow (not a
+// themed hue), so it reads on light and dark alike. `prefers-reduced-motion` removes the movement AND the
+// transition but keeps the shadow/outline affordance, so tappable things still look tappable without motion.
+const IGS_STYLES = `
+.igs-root .igs-int { transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease, border-color .12s ease; }
+.igs-root .igs-int:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px var(--hx-gold-1), 0 6px 16px rgba(0,0,0,.32); }
+.igs-root .igs-int:active { transform: translateY(0); }
+.igs-root .igs-int:focus-visible { outline: 2px solid var(--hx-gold-1); outline-offset: 2px; }
+.igs-root .igs-tile { background: var(--hx-inset); }
+.igs-root .igs-tile.igs-int:hover { background: var(--hx-inset-strong); }
+.igs-root .igs-row { transition: background-color .12s ease; }
+.igs-root .igs-row:hover { background: var(--hx-inset-soft); }
+.igs-root .igs-row:focus-visible { outline: 2px solid var(--hx-gold-1); outline-offset: -2px; }
+.igs-root .igs-link { transition: color .12s ease, text-decoration-color .12s ease; }
+.igs-root .igs-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .igs-root .igs-int, .igs-root .igs-int:hover, .igs-root .igs-int:active { transition: none; transform: none; }
+}
+`;
+
 /**
  * A titled, visually-distinct card — the unit of the sheet's new hierarchy.
  *
@@ -88,12 +114,15 @@ function Section({ id, title, accent, aside, children }: {
   id: string; title: string; accent?: string; aside?: ReactNode; children: ReactNode;
 }) {
   return (
-    <section id={id} style={{ scrollMarginTop: 108, border: '1px solid var(--hx-line)', borderRadius: 10, background: 'var(--hx-inset-soft)', padding: '11px 13px 13px', display: 'grid', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, borderBottom: '1px solid var(--hx-line)', paddingBottom: 6, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'var(--hx-font-display)', fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent ?? 'var(--hx-gold-2)' }}>
-          <span aria-hidden style={{ color: 'var(--hx-teal-1)', fontSize: 7 }}>◆</span>{title}
+    <section id={id} style={{ scrollMarginTop: 108, border: '1px solid var(--hx-line)', borderRadius: 10, background: 'var(--hx-inset-soft)', padding: '13px 15px 15px', display: 'grid', gap: 11 }}>
+      {/* The heading was a thin 13px/0.12em display cap; it is the section's anchor, so it now carries a
+          700 weight and a 14px size with a taller teal ◆ tick — a solid, unmistakable divider rather than a
+          faint one (req 1/2). A 2px gold underline replaces the hairline so each card reads as "designed". */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, borderBottom: '2px solid var(--hx-line)', paddingBottom: 7, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.13em', textTransform: 'uppercase', color: accent ?? 'var(--hx-gold-2)' }}>
+          <span aria-hidden style={{ color: 'var(--hx-teal-1)', fontSize: 9 }}>◆</span>{title}
         </h3>
-        {aside ? <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{aside}</div> : null}
+        {aside ? <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-muted)' }}>{aside}</div> : null}
       </div>
       {children}
     </section>
@@ -282,8 +311,12 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     ['Tools', id.tools], ['Vehicles', id.vehicles],
   ] as [string, string[]][]).filter(([, v]) => v && v.length);
 
-  const label = { fontSize: 11, color: 'var(--hx-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' as const };
-  const value = { fontSize: 13, color: 'var(--hx-text)' };
+  // The owner's headline complaint was "skinny fonts that are a little small to read". Micro-labels were
+  // 11px/400-weight muted; a 600 weight + 11.5px + a hair more tracking makes them a crisp caption while
+  // keeping the muted hue the skins depend on. Body values move from a thin 13px to 14px/500 — comfortably
+  // on the owner's "≥13.5–14px" target — so every `value`-styled line across the sheet reads solidly.
+  const label = { fontSize: 11.5, fontWeight: 600 as const, color: 'var(--hx-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' as const };
+  const value = { fontSize: 14, fontWeight: 500 as const, color: 'var(--hx-text)' };
 
   // ── What the sheet actually holds, computed once so the jump-nav and each section's own conditional
   //    cannot drift apart (the nav must never link to a section that renders nothing). The combat flag
@@ -318,7 +351,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   const chip = (name: string) => {
     const tip = effectOf(name); // the rules text, so the chip hover-explains itself
     return (
-      <span key={name} title={tip || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: tip ? 'help' : 'default' }}>
+      <span key={name} className="igs-int" title={tip || undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: tip ? 'help' : 'default' }}>
         {name} {badgeFor(name)}
         {tip && <InfoTip tip={tip} label={`${name} rules`} />}
       </span>
@@ -330,7 +363,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     // later mount above the stat block without a layout fight — the customizations summary is built elsewhere.
     // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
     // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
-    <div className={styles.framedPanel} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+    <div className={`${styles.framedPanel} igs-root`} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+      {/* Scoped interactivity CSS (req 3). Injected once at the top of this component's own subtree; every
+          selector is prefixed `.igs-root` so it cannot leak into the PF2 sheet or the rest of the page. */}
+      <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
       {igEditor && (
         <IGElementEditor
           kind={igEditor.kind} initial={igEditor.initial}
@@ -356,9 +392,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
         <div
           role="status"
           style={{
-            display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8,
+            display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 11px', borderRadius: 8,
             border: '1px solid var(--hx-line)', background: 'rgba(220,120,120,0.09)',
-            fontSize: 13, color: 'var(--hx-text)',
+            fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)',
           }}
         >
           <span aria-hidden style={{ color: 'var(--hx-gold-2)' }}>⚑</span>
@@ -373,10 +409,11 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       {/* Header + summary top-line */}
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-          <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 19, color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</strong>
-          <span style={{ fontSize: 13, color: 'var(--hx-muted)' }}>Intuitive Games · Level {derived.level}</span>
+          {/* The character's name is the sheet's masthead — 21px and letter-spaced so it reads as a title. */}
+          <strong style={{ fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 21, letterSpacing: '0.02em', color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</strong>
+          <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>Intuitive Games · Level {derived.level}</span>
         </div>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 4, fontSize: 13, color: 'var(--hx-text)', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 5, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', alignItems: 'center' }}>
           {id.className && <span>{id.className} {badgeFor(id.className)}</span>}
           {id.subclass && <span style={{ color: 'var(--hx-muted)' }}>· {id.subclass} {badgeFor(id.subclass)}</span>}
           {id.specialization && <span style={{ color: 'var(--hx-muted)' }}>· {id.specialization}</span>}
@@ -403,10 +440,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
              here, and taps any save to roll it. ─────────────────────────────────────────────────────────── */}
       <Section id="ig-vitals" title="Vitals"
         aside={(
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--hx-muted)' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'var(--hx-muted)' }}>
             🎲 Target DC
             <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-              style={{ width: 52, fontSize: 13, padding: '3px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+              style={{ width: 52, fontSize: 14, fontWeight: 600, padding: '4px 7px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
           </label>
         )}
       >
@@ -416,34 +453,34 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
         {activeStance && (() => {
           const e = igStanceInPlay(activeStance, derived.level);
           return (
-            <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', background: 'linear-gradient(180deg, rgba(10,200,185,0.10), rgba(10,200,185,0.04))', borderRadius: 9, padding: '8px 12px', cursor: 'help' }}>
-              <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>🜲</span>
-              <div style={{ display: 'grid', gap: 1 }}>
-                <span style={{ fontSize: 10.5, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
-                <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>
+            <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 13, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(10,200,185,0.12), rgba(10,200,185,0.04))', borderRadius: 9, padding: '10px 14px', cursor: 'help' }}>
+              <span aria-hidden style={{ fontSize: 23, lineHeight: 1 }}>🜲</span>
+              <div style={{ display: 'grid', gap: 2 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>
               </div>
-              {e?.summary && <span style={{ fontSize: 12.5, color: 'var(--hx-muted)', flex: '1 1 200px', lineHeight: 1.4 }}>{e.summary}</span>}
+              {e?.summary && <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-text)', flex: '1 1 200px', lineHeight: 1.45 }}>{e.summary}</span>}
             </div>
           );
         })()}
 
         {/* The stat strip: HP · the three saves · Proficiency. Uniform tiles in a responsive grid so they read
             as one coherent panel and reflow cleanly from phone to wide monitor. */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 8 }}>
-          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)' }}>
-            <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Hit Points</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)' }}>{derived.currentHp}<span style={{ fontSize: 13, color: 'var(--hx-muted)' }}> / {derived.maxHp}</span></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
+          <div className="igs-tile" style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '9px 6px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Hit Points</div>
+            <div style={{ fontSize: 23, fontWeight: 800, color: 'var(--hx-text)', lineHeight: 1.1 }}>{derived.currentHp}<span style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-muted)' }}> / {derived.maxHp}</span></div>
             {canDoEdit && (
               // Quick damage / heal — posts apply_damage / heal to the ig-edit route (SQ4).
-              <div style={{ display: 'flex', gap: 3, marginTop: 6, alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: 4, marginTop: 7, alignItems: 'center', justifyContent: 'center' }}>
                 <input type="number" min={1} value={hpAmt} onChange={(e) => setHpAmt(e.target.value)} placeholder="±" aria-label="HP amount"
-                  style={{ width: 42, fontSize: 13, padding: '2px 4px', textAlign: 'center', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
-                <button type="button" disabled={editing || !hpAmt.trim()} title="Take damage"
+                  style={{ width: 44, fontSize: 13.5, fontWeight: 600, padding: '3px 4px', textAlign: 'center', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
+                <button type="button" className="igs-int" disabled={editing || !hpAmt.trim()} title="Take damage"
                   onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'apply_damage', amount: n }); setHpAmt(''); } }}
-                  style={{ fontSize: 12, padding: '2px 6px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger)', borderRadius: 6, cursor: 'pointer' }}>−</button>
-                <button type="button" disabled={editing || !hpAmt.trim()} title="Heal"
+                  style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, padding: '3px 8px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger)', borderRadius: 6, cursor: 'pointer' }}>−</button>
+                <button type="button" className="igs-int" disabled={editing || !hpAmt.trim()} title="Heal"
                   onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'heal', amount: n }); setHpAmt(''); } }}
-                  style={{ fontSize: 12, padding: '2px 6px', background: 'none', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>＋</button>
+                  style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, padding: '3px 8px', background: 'none', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>＋</button>
               </div>
             )}
           </div>
@@ -452,43 +489,48 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
             const shown = rs?.total ?? derived.saves[s];
             const changed = shown !== derived.saves[s];
             return (
-              <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')}
+              <button key={s} type="button" className="igs-tile igs-int" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')}
                 // The tooltip explains WHY the number moved, so a changed value is never mysterious.
                 title={`Roll ${s} (d20 ${fmt(shown)})${rs?.sources.length ? ` · ${rs.sources.join(', ')}` : ''}`}
-                style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)', cursor: 'pointer' }}>
-                <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{s} 🎲{swingMark(rs?.swing)}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
+                style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '9px 6px', cursor: 'pointer' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>{s} 🎲{swingMark(rs?.swing)}</div>
+                <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
                 {/* Base shown alongside when something is modifying it, so the player can see both. */}
-                {changed && <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>base {fmt(derived.saves[s])}</div>}
+                {changed && <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--hx-muted)' }}>base {fmt(derived.saves[s])}</div>}
               </button>
             );
           })}
-          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)' }}>
-            <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Proficiency</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
+          <div className="igs-tile" style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '9px 6px' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Proficiency</div>
+            <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
           </div>
         </div>
       </Section>
 
       {/* ── ABILITY SCORES ─────────────────────────────────────────────────────────────────────────────── */}
       <Section id="ig-abilities" title="Ability Scores">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(62px, 1fr))', gap: 8 }}>
           {IG_ABILITIES.map((k) => (
             <div key={k} style={{ display: 'grid', gap: 3 }}>
               {/* Tap an ability to roll an ability check (R1b): d20 + its modifier. */}
-              <button type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
-                style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'var(--hx-inset)', cursor: 'pointer', width: '100%' }}>
-                <div style={{ fontSize: 11, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
-                <div style={{ fontSize: 13, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
+              <button type="button" className="igs-tile igs-int" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
+                style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '9px 4px', cursor: 'pointer', width: '100%' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--hx-muted)', letterSpacing: '0.07em' }}>{k} 🎲</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--hx-text)', lineHeight: 1.15 }}>{ig.abilities[k]}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>
               </button>
               {canDoEdit && (
                 // Editable score (IGS6): set the ability directly via the set_ability edit op. Commit on Enter or
                 // blur; keyed by the current value so it resets after the sheet refreshes.
+                // Background is `--hx-inset-strong` (a skin-aware recessed well), NOT the old hardcoded navy
+                // `#0b1622`: on the three LIGHT skins that fixed dark box turned into dark-ink-on-dark — an
+                // unreadable field — whereas the token resolves to a soft light well there and the dark navy
+                // on the dark skins, so the input is legible on all five. Same swap applied to every input/
+                // select on this sheet (HP amount, target DC, stance/defensive-power/condition selectors).
                 <input key={`${k}-${ig.abilities[k]}`} type="number" min={1} max={30} defaultValue={ig.abilities[k]} disabled={editing} aria-label={`Set ${k}`}
                   onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
                   onBlur={(ev) => { const v = parseInt(ev.target.value, 10); if (Number.isFinite(v) && v !== ig.abilities[k]) postEdit({ op: 'set_ability', ability: k, value: v }); }}
-                  style={{ width: '100%', textAlign: 'center', fontSize: 12, padding: '2px 0', background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
+                  style={{ width: '100%', textAlign: 'center', fontSize: 12.5, fontWeight: 600, padding: '3px 0', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
               )}
             </div>
           ))}
@@ -504,10 +546,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           const total = igSkillTotal(s, derived.level, igAbilityMod(ig.abilities[s.ability]));
           // Tap a skill to roll it (R1b): d20 + total through the shared engine, result in the banner.
           return (
-            <button type="button" onClick={() => rollLine(`${s.name} (${s.ability})`, total)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
-              style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, padding: '2px 4px', width: '100%', background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', textAlign: 'left' }}>
-              <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 10.5 }}> ●</span> : null}</span>
-              <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)} 🎲</span>
+            <button type="button" className="igs-row" onClick={() => rollLine(`${s.name} (${s.ability})`, total)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13.5, fontWeight: 500, padding: '3px 6px', width: '100%', background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 12 }}> ●</span> : null}</span>
+              <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)} 🎲</span>
             </button>
           );
         };
@@ -515,16 +557,18 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           <Section id="ig-skills" title="Skills"
             aside={<>Ranks: {igRanksSpent(ig)} spent / {ig.skillRanksAvailable} available · trained ●</>}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px 18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '12px 20px' }}>
               {byAbility.map(({ ab, list }) => (
                 <div key={ab}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--hx-teal-1)', letterSpacing: '0.05em', marginBottom: 2 }}>{ab}-BASED</div>
+                  {/* Group header: 12px/700 teal with a hairline underline, so each ability cluster reads as a
+                      titled sub-panel rather than a faint caption floating over the rows. */}
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hx-teal-1)', letterSpacing: '0.07em', marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid var(--hx-line)' }}>{ab}-BASED</div>
                   {list.map((s) => <Row key={s.name} s={s} />)}
                 </div>
               ))}
               {combat.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--hx-danger)', letterSpacing: '0.05em', marginBottom: 2 }}>COMBAT SKILLS</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hx-danger)', letterSpacing: '0.07em', marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid var(--hx-line)' }}>COMBAT SKILLS</div>
                   {combat.map((s) => <Row key={s.name} s={s} />)}
                 </div>
               )}
@@ -539,10 +583,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
         <Section id="ig-combat" title="Combat">
           {cb.attacks.length > 0 && (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
                 <thead>
                   <tr style={{ color: 'var(--hx-muted)', textAlign: 'left' }}>
-                    {['Weapon', 'Type', 'Attack', 'Damage', 'Properties'].map((h) => <th key={h} style={{ padding: '2px 8px 4px 0', fontWeight: 600, borderBottom: '1px solid var(--hx-line)' }}>{h}</th>)}
+                    {['Weapon', 'Type', 'Attack', 'Damage', 'Properties'].map((h) => <th key={h} style={{ padding: '2px 8px 5px 0', fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', borderBottom: '2px solid var(--hx-line)' }}>{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -550,23 +594,23 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                     const r = igResolveAttack(ig, a);
                     return (
                       <tr key={a.id} style={{ color: 'var(--hx-text)' }}>
-                        <td style={{ padding: '3px 8px 3px 0' }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}>✦</span> : null}</td>
-                        <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
-                        <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}>✦</span> : null}</td>
+                        <td style={{ padding: '4px 8px 4px 0', fontWeight: 500, color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
+                        <td style={{ padding: '4px 8px 4px 0', fontVariantNumeric: 'tabular-nums' }}>
                           {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}
-                          <button type="button" onClick={() => rollLine(`${a.name} attack`, r.toHit, 'attack')} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
-                            style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          <button type="button" className="igs-link" onClick={() => rollLine(`${a.name} attack`, r.toHit, 'attack')} title={`Roll ${a.name} attack (d20 ${fmt(r.toHit)})`}
+                            style={{ background: 'none', border: 'none', color: 'var(--hx-gold-2)', fontWeight: 700, fontSize: 14, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
                             {fmt(r.toHit)} 🎲
                           </button>
                         </td>
-                        <td style={{ padding: '3px 8px 3px 0', fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={{ padding: '4px 8px 4px 0', fontVariantNumeric: 'tabular-nums' }}>
                           {/* Tap the damage to roll the dice expression (R1b). */}
-                          <button type="button" onClick={() => rollDamage(`${a.name} damage`, r.damage)} title={`Roll ${a.name} damage (${r.damage})`}
-                            style={{ background: 'none', border: 'none', color: 'var(--hx-text)', cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          <button type="button" className="igs-link" onClick={() => rollDamage(`${a.name} damage`, r.damage)} title={`Roll ${a.name} damage (${r.damage})`}
+                            style={{ background: 'none', border: 'none', color: 'var(--hx-text)', fontWeight: 600, cursor: 'pointer', padding: 0, fontVariantNumeric: 'tabular-nums' }}>
                             {r.damage} 🎲
                           </button>
                         </td>
-                        <td style={{ padding: '3px 8px 3px 0', color: 'var(--hx-muted)' }}>{a.properties}</td>
+                        <td style={{ padding: '4px 8px 4px 0', fontWeight: 500, color: 'var(--hx-muted)' }}>{a.properties}</td>
                       </tr>
                     );
                   })}
@@ -575,20 +619,20 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
             </div>
           )}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '6px 10px', fontSize: 13 }}>
-              <span style={{ color: 'var(--hx-muted)' }}>HP </span>{cb.hitPoints.classBackgroundHp} class+bg
+            <div className="igs-tile" style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '7px 11px', fontSize: 13.5, fontWeight: 600 }}>
+              <span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>HP </span>{cb.hitPoints.classBackgroundHp} class+bg
               {cb.hitPoints.lethal ? <span style={{ color: 'var(--hx-danger)' }}> · {cb.hitPoints.lethal} lethal</span> : null}
               {cb.hitPoints.nonlethal ? <span style={{ color: 'var(--hx-muted)' }}> · {cb.hitPoints.nonlethal} nonlethal</span> : null}
             </div>
             {/* DR includes Advanced Defensive's "half your level", which previously appeared in
                 no number anywhere — the stance granted it and the sheet never showed it. */}
             {inPlay.damageReduction.dr > 0 && (
-              <div title={inPlay.damageReduction.sources.join(' · ')}
-                style={{ border: `1px solid ${inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '6px 10px', fontSize: 13 }}>
-                <span style={{ color: 'var(--hx-muted)' }}>DR </span>
+              <div className="igs-tile" title={inPlay.damageReduction.sources.join(' · ')}
+                style={{ border: `1px solid ${inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '7px 11px', fontSize: 13.5, fontWeight: 600 }}>
+                <span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>DR </span>
                 <span style={{ color: inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold-2)' : undefined }}>{inPlay.damageReduction.dr}</span>
                 {inPlay.damageReduction.dr !== cb.damageReduction && (
-                  <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}> (gear {cb.damageReduction})</span>
+                  <span style={{ color: 'var(--hx-muted)', fontSize: 11.5, fontWeight: 500 }}> (gear {cb.damageReduction})</span>
                 )}
               </div>
             )}
@@ -600,9 +644,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                 {cb.stances.map((name) => {
                   const e = igStanceInPlay(name, derived.level);
                   return (
-                    <span key={name} title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: 'help' }}>
+                    <span key={name} className="igs-int" title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: 'help' }}>
                       {e?.name ?? name} {badgeFor(name)}
-                      {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>· {e.summary}</span> : null}
+                      {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 12.5 }}>· {e.summary}</span> : null}
                     </span>
                   );
                 })}
@@ -613,7 +657,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                     value={cb.stances[0] ?? ''}
                     disabled={editing}
                     onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
-                    style={{ fontSize: 13, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
                   >
                     <option value="">— no stance —</option>
                     {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
@@ -624,7 +668,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                 // The active stance's precise mechanical effect at this level (adv/disadv/DR/bonus) — shown,
                 // per the same legibility pattern as the condition penalty (not folded into base numbers).
                 const note = cb.stances[0] ? igStanceMechanicNote(cb.stances[0], derived.level) : null;
-                return note ? <div style={{ fontSize: 12.5, color: 'var(--hx-teal-1)', lineHeight: 1.4 }}>{note}</div> : null;
+                return note ? <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-teal-1)', lineHeight: 1.45 }}>{note}</div> : null;
               })()}
             </div>
           )}
@@ -637,14 +681,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               {canDoEdit && (
                 // One defensive power (a reaction); set/replace/clear it — parity with the AI's
                 // set_defensive_power. Offers the full IG_DEFENSIVE_POWERS list.
-                <select aria-label="Defensive power" value={cb.defensivePower} disabled={editing} onChange={(ev) => postEdit({ op: 'set_defensive_power', name: ev.target.value })} style={{ fontSize: 13, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px', justifySelf: 'start' }}>
+                <select aria-label="Defensive power" value={cb.defensivePower} disabled={editing} onChange={(ev) => postEdit({ op: 'set_defensive_power', name: ev.target.value })} style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px', justifySelf: 'start' }}>
                   <option value="">— no defensive power —</option>
                   {IG_DEFENSIVE_POWERS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
                 </select>
               )}
             </div>
           )}
-          {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 13, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
+          {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
           {(cb.conditions.length > 0 || canDoEdit) && (
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover or tap ⓘ for the full rules)</span></span>
@@ -652,7 +696,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                 {cb.conditions.map((c) => {
                   const e = igConditionInPlay(c);
                   return (
-                    <span key={c} title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--hx-danger)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '1px 8px', cursor: 'help' }}>
+                    <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
                       {c}
                       {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                       {canDoEdit && (
@@ -668,7 +712,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                     value=""
                     disabled={editing}
                     onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
-                    style={{ fontSize: 13, background: 'var(--hx-bg-2, #0b1622)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '2px 6px' }}
+                    style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
                   >
                     <option value="">+ add condition…</option>
                     {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
@@ -681,9 +725,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                 const sum = igConditionSummary(cb.conditions);
                 if (sum.flatD20 === 0 && sum.disadvantages.length === 0) return null;
                 return (
-                  <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
                     {sum.flatD20 !== 0 && (
-                      <div><span style={{ color: 'var(--hx-danger)', fontWeight: 600 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
+                      <div><span style={{ color: 'var(--hx-danger)', fontWeight: 700 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
                     )}
                     {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
                   </div>
@@ -702,29 +746,29 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               {/* The catalogued path, and the one a vanilla character actually needs. Listed
                   BEFORE ✎ New so the ordinary action reads first. */}
               <button
-                type="button" disabled={editing}
+                type="button" className="igs-int" disabled={editing}
                 onClick={() => setPicker('power')}
                 title="Add a power from the Intuitive Games spell list"
-                style={{ background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 11, padding: '1px 7px' }}
+                style={{ background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', fontSize: 12, padding: '3px 10px' }}
               >＋ Add</button>
               <button
-                type="button" disabled={editing || !canAuthorPowers}
+                type="button" className="igs-int" disabled={editing || !canAuthorPowers}
                 onClick={() => setIgEditor({ kind: 'power' })}
                 title={canAuthorPowers
                   ? 'Author a homebrew power'
                   : 'This is a vanilla character, so its powers are held to its class and level. Build a custom character, or ask the DM to grant it.'}
                 style={{
                   background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10,
-                  color: 'var(--hx-muted)', cursor: canAuthorPowers ? 'pointer' : 'not-allowed',
-                  fontSize: 11, padding: '1px 7px', opacity: canAuthorPowers ? 1 : 0.5,
+                  color: 'var(--hx-muted)', fontWeight: 600, cursor: canAuthorPowers ? 'pointer' : 'not-allowed',
+                  fontSize: 12, padding: '3px 10px', opacity: canAuthorPowers ? 1 : 0.5,
                 }}
               >✎ New</button>
             </span>
           ) : undefined}
         >
           {ig.powers.map((p) => (
-            <div key={p} style={{ display: 'grid', gap: 1 }}>
-              <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key={p} style={{ display: 'grid', gap: 2 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {p} {badgeFor(p)}
                 {/* ✎ = hand-tuned away from how it came. Presence of an override IS the
                     signal — a separate flag could disagree with the text it describes. */}
@@ -746,14 +790,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                   editing it. Falling back to the catalogue when the override is cleared is
                   why clearing stores nothing rather than an empty string. */}
               {ig.customEffects?.[p]
-                ? <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{ig.customEffects[p]}</span>
+                ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{ig.customEffects[p]}</span>
                 : effectOf(p)
-                ? <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{effectOf(p)}</span>
+                ? <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{effectOf(p)}</span>
                 // A recognized (non-custom) power with no effect text is a roster power pending
                 // Brendan's rules — say so (Ground Rule 2) rather than leaving a bare name that reads
                 // as "no effect". A custom power gets no note (its effect simply isn't authored here).
                 : srcByName.get(p.trim().toLowerCase()) && srcByName.get(p.trim().toLowerCase()) !== 'custom'
-                  ? <span style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--hx-gold-2)' }}>Effect text not yet published — work in progress.</span>
+                  ? <span style={{ fontSize: 12.5, fontWeight: 500, fontStyle: 'italic', color: 'var(--hx-gold-2)' }}>Effect text not yet published — work in progress.</span>
                   : null}
             </div>
           ))}
@@ -763,7 +807,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               had to go — not whether the character may actually take the power. A vanilla
               character could pick any of ~60 names and learn only from the refusal afterwards
               which ones its class allows. The picker greys the ineligible with the reason. */}
-          {ig.powers.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>No powers yet.</div>}
+          {ig.powers.length === 0 && <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>No powers yet.</div>}
         </Section>
       )}
 
@@ -775,7 +819,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               const def = findIGFeat(f);
               const tip = def ? `${def.name} — ${def.category} feat${def.prerequisites ? ` (Prereq: ${def.prerequisites})` : ''}: ${def.effect}` : undefined;
               return (
-                <span key={f} title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: def ? 'help' : 'default' }}>
+                <span key={f} className="igs-int" title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: def ? 'help' : 'default' }}>
                   {f} {badgeFor(f)}
                   {canDoEdit && (
                     <button type="button" aria-label={`Remove ${f}`} disabled={editing} onClick={() => postEdit({ op: 'remove_feat', name: f })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
@@ -790,10 +834,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               // picker shows both before you commit. De-duping is unchanged: applyIgEdit
               // already ignores a feat the character holds, so a stray pick stays harmless.
               <button
-                type="button" disabled={editing}
+                type="button" className="igs-int" disabled={editing}
                 onClick={() => setPicker('feat')}
                 title="Add a feat, with its prerequisites and rules text"
-                style={{ fontSize: 13, background: 'none', color: 'var(--hx-muted)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '2px 9px', cursor: 'pointer' }}
+                style={{ fontSize: 13, fontWeight: 600, background: 'none', color: 'var(--hx-gold-2)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: 'pointer' }}
               >＋ add feat…</button>
             )}
           </div>
@@ -807,25 +851,25 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           <div style={{ display: 'grid', gap: 6 }}>
             <span style={{ ...label, color: 'var(--hx-teal-1)' }}>Stance descriptions</span>
             {ig.stances.map((s) => (
-              <div key={s} style={{ display: 'grid', gap: 1 }}>
-                <span style={{ fontSize: 13, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{s} {badgeFor(s)}</span>
-                {effectOf(s) && <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{effectOf(s)}</span>}
+              <div key={s} style={{ display: 'grid', gap: 2 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-text)', display: 'flex', alignItems: 'center', gap: 6 }}>{s} {badgeFor(s)}</span>
+                {effectOf(s) && <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{effectOf(s)}</span>}
               </div>
             ))}
           </div>
         )}
-        <details style={{ fontSize: 13 }}>
+        <details style={{ fontSize: 13.5 }}>
           <summary style={{ cursor: 'pointer', ...label }}>Action economy (reference)</summary>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px 14px', marginTop: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px 16px', marginTop: 8 }}>
             {IG_ACTION_ECONOMIES.map((e) => {
               const list = igActionsByEconomy()[e];
               return (
                 <div key={e}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--hx-gold-2)', letterSpacing: '0.05em', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hx-gold-2)', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     {/* Consistent action-cost glyph so the reader sees the cost, not just the word. */}
-                    <span aria-hidden style={{ color: 'var(--hx-teal-1)' }}>{ACTION_GLYPH[e]}</span>{e.toUpperCase()}
+                    <span aria-hidden style={{ color: 'var(--hx-teal-1)', fontSize: 13 }}>{ACTION_GLYPH[e]}</span>{e.toUpperCase()}
                   </div>
-                  {list.map((a) => <div key={a.name} style={{ fontSize: 13, color: 'var(--hx-muted)' }}>{a.name}{a.note ? ` (${a.note})` : ''}</div>)}
+                  {list.map((a) => <div key={a.name} style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{a.name}{a.note ? ` (${a.note})` : ''}</div>)}
                 </div>
               );
             })}
@@ -856,23 +900,23 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           <section id="ig-companion" style={{ scrollMarginTop: 108 }}>
             <div className={styles.framedPanel} style={{ padding: '10px 12px', display: 'grid', gap: 10, background: 'rgba(10,200,185,0.04)' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-teal-1)' }}>◆ Companion</strong>
-                <span style={{ fontSize: 13, color: 'var(--hx-text)' }}>{co.name}</span>
-                {co.creatureType && <span style={{ fontSize: 13, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>· {co.creatureType} {badgeFor(co.creatureType)}</span>}
+                <strong style={{ fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 15, color: 'var(--hx-teal-1)' }}>◆ Companion</strong>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-text)' }}>{co.name}</span>
+                {co.creatureType && <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>· {co.creatureType} {badgeFor(co.creatureType)}</span>}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(48px, 1fr))', gap: 6 }}>
                 {IG_ABILITIES.map((k) => (
-                  <div key={k} style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '4px 2px' }}>
-                    <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{k}</div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--hx-text)' }}>{co.abilities[k]}</div>
-                    <div style={{ fontSize: 11, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(co.abilities[k]))}</div>
+                  <div key={k} className="igs-tile" style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '5px 2px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-muted)' }}>{k}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--hx-text)', lineHeight: 1.15 }}>{co.abilities[k]}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(co.abilities[k]))}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 13 }}>
-                <span title={`Rules HP for CON ${co.abilities.CON} at level ${Math.max(1, derived.level)}: ${igCompanionHp(co.abilities.CON, Math.max(1, derived.level))} (CON score at level 1, then +2 + CON mod per level).`} style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px', cursor: 'help' }}><span style={{ color: 'var(--hx-muted)' }}>HP </span>{co.hitPoints}</span>
-                {IG_SAVES.map((s) => <span key={s} style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>{s.slice(0, 4)} </span>{fmt(saveTotal(s))}</span>)}
-                {co.damageReduction > 0 && <span style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}><span style={{ color: 'var(--hx-muted)' }}>DR </span>{co.damageReduction}</span>}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 13.5, fontWeight: 600 }}>
+                <span title={`Rules HP for CON ${co.abilities.CON} at level ${Math.max(1, derived.level)}: ${igCompanionHp(co.abilities.CON, Math.max(1, derived.level))} (CON score at level 1, then +2 + CON mod per level).`} className="igs-tile" style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '5px 10px', cursor: 'help' }}><span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>HP </span>{co.hitPoints}</span>
+                {IG_SAVES.map((s) => <span key={s} className="igs-tile" style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '5px 10px' }}><span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>{s.slice(0, 4)} </span>{fmt(saveTotal(s))}</span>)}
+                {co.damageReduction > 0 && <span className="igs-tile" style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '5px 10px' }}><span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>DR </span>{co.damageReduction}</span>}
               </div>
               {(co.movement || co.resistances || co.vulnerabilities) && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '2px 14px', fontSize: 13 }}>
@@ -883,7 +927,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               )}
               {co.attacks.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {co.attacks.map((a) => { const r = igResolveAttack({ ...ig, abilities: co.abilities }, a); return <span key={a.id} style={{ fontSize: 13, border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 9px' }}>{a.name} <span style={{ color: 'var(--hx-gold-2)' }}>{fmt(r.toHit)}</span> · {r.damage}</span>; })}
+                  {co.attacks.map((a) => { const r = igResolveAttack({ ...ig, abilities: co.abilities }, a); return <span key={a.id} className="igs-tile" style={{ fontSize: 13.5, fontWeight: 600, border: '1px solid var(--hx-line)', borderRadius: 8, padding: '5px 10px' }}>{a.name} <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700 }}>{fmt(r.toHit)}</span> · {r.damage}</span>; })}
                 </div>
               )}
               {co.powers.length > 0 && (
@@ -923,12 +967,12 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
                       <figcaption style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.02em' }}>Art · Brendan (Intuitive Games)</figcaption>
                     </figure>
                   )}
-                  <div style={{ flex: '1 1 260px', display: 'grid', gap: 6, minWidth: 220 }}>
-                    <div style={{ fontSize: 13, color: 'var(--hx-muted)', lineHeight: 1.4 }}>{anc.blurb}</div>
-                    <div style={{ display: 'grid', gap: 5 }}>
+                  <div style={{ flex: '1 1 260px', display: 'grid', gap: 7, minWidth: 220 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.5 }}>{anc.blurb}</div>
+                    <div style={{ display: 'grid', gap: 6 }}>
                       {anc.traits.map((t) => (
-                        <div key={t.name} title={t.text} style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.4, cursor: 'help' }}>
-                          <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>{t.name}.</span> {t.text}
+                        <div key={t.name} title={t.text} style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', lineHeight: 1.5, cursor: 'help' }}>
+                          <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700 }}>{t.name}.</span> {t.text}
                         </div>
                       ))}
                     </div>
@@ -972,10 +1016,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           scrolling back up. Rendered last so bottom-sticky pins it to the viewport while the sheet is in view. */}
       {lastRoll && (
         <div role="status" aria-live="polite"
-          style={{ position: 'sticky', bottom: 10, zIndex: 6, justifySelf: 'center', maxWidth: '100%', border: '1px solid var(--hx-gold-1)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(16,35,59,0.98), rgba(11,26,44,0.98))', boxShadow: '0 8px 26px rgba(0,0,0,0.5)' }}>
-          <span style={{ fontSize: 13, color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
-          <strong style={{ fontSize: 22, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
-          <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
+          style={{ position: 'sticky', bottom: 10, zIndex: 6, justifySelf: 'center', maxWidth: '100%', border: '1px solid var(--hx-gold-1)', borderRadius: 10, padding: '9px 16px', display: 'flex', alignItems: 'baseline', gap: 11, flexWrap: 'wrap', background: 'linear-gradient(180deg, rgba(16,35,59,0.98), rgba(11,26,44,0.98))', boxShadow: '0 8px 26px rgba(0,0,0,0.5)' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.02em', color: 'var(--hx-muted)' }}>{lastRoll.label}</span>
+          <strong style={{ fontSize: 25, fontWeight: 800, color: lastRoll.tone === 'crit' ? 'var(--hx-teal-1)' : lastRoll.tone === 'fumble' ? 'var(--hx-danger)' : 'var(--hx-gold-2)' }}>{lastRoll.total}</strong>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)' }}>{lastRoll.detail}</span>
         </div>
       )}
     </div>
