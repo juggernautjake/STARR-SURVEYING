@@ -139,7 +139,10 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // the scope root; omitted tokens keep the Lazzuh defaults from theme.css (C7). A
   // registered `skin` adds a `skin-<id>` class (+ `variant-<id>` for the streamer)
   // that unlocks its bespoke CSS treatment scoped under `.dnd-sheet.skin-<id>` (C8).
-  const rootClass = `dnd-sheet${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${streamerVariant}` : ''}`
+  // `sheet-shell` carries the shared FORMAT layout rules (codex/dashboard/play CSS), scoped apart from
+  // theme.css's broad `.dnd-sheet` element rules so the same shells can render inside a bespoke PF2/IG
+  // sheet without those rules bleeding onto its panels (T-SHELL-SCOPE). The 5e root carries both.
+  const rootClass = `dnd-sheet sheet-shell${config.skin ? ` skin-${config.skin}` : ''}${supportsVariants ? ` variant-${streamerVariant}` : ''}`
   return (
     <SheetConfigProvider sheetType={sheetType} system={system}>
     {/* data-system makes the character's ruleset visible in the DOM — it decides which glossary

@@ -194,6 +194,17 @@ compute their own). The clean decomposition:
   triplets, each named skin differs from default, unknown id falls back. THIS is what makes "skin
   compatibility free" hold across systems — every T-5b–d / T-6b–d adapter wraps its shell in it.
 
+- [x] **T-SHELL-SCOPE — isolate the format CSS from theme.css element bleed (third prerequisite).**
+  The shell CSS was scoped under `.dnd-sheet`, but theme.css also has broad `.dnd-sheet input/section/
+  table/h2/p` rules (specificity 0,1,1) that would OVERRIDE the bespoke PF2/IG panels' own module
+  styles when those panels render inside a shell wrapped in `.dnd-sheet`. Rescoped every rule in
+  `codex.css` + `play.css` from `.dnd-sheet .x` to `.sheet-shell .x`, and the 5e root now carries BOTH
+  classes (`dnd-sheet sheet-shell`) so its components still get the element rules AND the shell layout.
+  A PF2/IG sheet wraps its shell in `.sheet-shell` alone — it gets the shell layout with none of the
+  element bleed. Browser-verified 5e Codex still renders fully styled on Perrin (identity column, HP
+  bar, pane rail) after the rescope. Test updated to assert `.sheet-shell` scoping. Dashboard/Play
+  share the mechanism.
+
 ### PF2 — panel set, then shells
 
 - [x] **T-5a — PF2 panel set (`pf2PanelSet()`), default unchanged.** Extract the sections inside

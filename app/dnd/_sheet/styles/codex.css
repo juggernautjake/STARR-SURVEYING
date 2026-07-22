@@ -7,15 +7,18 @@
    one file, not a region at the bottom of a 4000-line stylesheet.
 
    EVERY RULE HERE USES THE THEME TOKENS AND NOTHING ELSE, and every selector is scoped
-   under `.dnd-sheet` exactly as theme.css is. That combination is what makes the owner's
-   ask — "apply the different character styling skins to it" — true by construction: the
-   Codex renders inside the same `.dnd-sheet.skin-<id>.variant-<x>` root the classic layout
-   does, so a skin that redefines --hotpink or --panel restyles the Codex without a single
-   Codex-specific rule. There are deliberately NO `.skin-x .codex-…` overrides here; if one
-   ever seems necessary, that is a signal the skin is fighting the layout rather than
-   theming it, and the fix belongs in the skin. */
+   under `.sheet-shell` (T-SHELL-SCOPE) — NOT `.dnd-sheet`. This is the seam that lets a
+   FORMAT be shared across systems: `.sheet-shell` carries only the shell's own layout rules,
+   with none of theme.css's broad `.dnd-sheet input/section/table/h2` element rules that would
+   otherwise bleed onto (and override) the bespoke PF2/IG panels rendered inside a shell. The 5e
+   sheet root carries BOTH classes (`.dnd-sheet.sheet-shell`), so its components still get the
+   element rules AND the shell layout; a PF2/IG sheet wraps its shell in `.sheet-shell` alone
+   (plus `shellThemeVars()` for the tokens) and stays free of the bleed. A skin that redefines
+   --panel restyles every shell without a single format-specific rule; there are deliberately NO
+   `.skin-x .codex-…` overrides here — if one ever seems necessary, the skin is fighting the
+   layout, and the fix belongs in the skin. */
 
-.dnd-sheet .codex {
+.sheet-shell .codex {
   display: grid;
   /* The owner's "about a third of the width" for the identity column. The min() cap stops
      it growing absurd on an ultrawide, where a literal third of 3440px would be a 1100px
@@ -26,7 +29,7 @@
 }
 
 /* ─────────────────────────────────────────────────────── identity column */
-.dnd-sheet .codex-identity {
+.sheet-shell .codex-identity {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -40,14 +43,14 @@
   overflow-y: auto;
   scrollbar-width: thin;
 }
-.dnd-sheet .codex-identity > .card {
+.sheet-shell .codex-identity > .card {
   margin: 0;
 }
-.dnd-sheet .codex-portrait {
+.sheet-shell .codex-portrait {
   padding: 6px;
   overflow: hidden;
 }
-.dnd-sheet .codex-portrait img {
+.sheet-shell .codex-portrait img {
   display: block;
   width: 100%;
   /* A fixed aspect box rather than natural height: portraits arrive at wildly different
@@ -57,36 +60,36 @@
   object-fit: cover;
   border-radius: 6px;
 }
-.dnd-sheet .codex-name {
+.sheet-shell .codex-name {
   margin: 0 0 8px;
   font-family: var(--font-display);
   font-size: 22px;
   line-height: 1.15;
   color: var(--ink);
 }
-.dnd-sheet .codex-idlist {
+.sheet-shell .codex-idlist {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 3px 10px;
   margin: 0;
   font-size: 13px;
 }
-.dnd-sheet .codex-idlist dt {
+.sheet-shell .codex-idlist dt {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 11px;
   align-self: center;
 }
-.dnd-sheet .codex-idlist dd {
+.sheet-shell .codex-idlist dd {
   margin: 0;
   color: var(--ink);
 }
-.dnd-sheet .codex-system {
+.sheet-shell .codex-system {
   font-variant: small-caps;
   color: var(--muted);
 }
-.dnd-sheet .codex-levels {
+.sheet-shell .codex-levels {
   margin-left: 8px;
   font-size: 11px;
   color: var(--tealbright);
@@ -94,7 +97,7 @@
 }
 
 /* health */
-.dnd-sheet .codex-hp-read {
+.sheet-shell .codex-hp-read {
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -102,16 +105,16 @@
   font-size: 30px;
   line-height: 1;
 }
-.dnd-sheet .codex-hp-sep {
+.sheet-shell .codex-hp-sep {
   color: var(--muted);
   font-size: 20px;
 }
-.dnd-sheet .codex-temp {
+.sheet-shell .codex-temp {
   margin-left: auto;
   font-size: 14px;
   color: var(--tealbright);
 }
-.dnd-sheet .codex-hp-bar {
+.sheet-shell .codex-hp-bar {
   height: 7px;
   margin: 9px 0;
   border-radius: 4px;
@@ -119,7 +122,7 @@
   border: 1px solid var(--line);
   overflow: hidden;
 }
-.dnd-sheet .codex-hp-bar > span {
+.sheet-shell .codex-hp-bar > span {
   display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--tealbright), var(--hotpink));
@@ -127,18 +130,18 @@
 }
 /* Tone thresholds are the StatRail's, so the two cannot disagree about whether a
    character is in trouble. */
-.dnd-sheet .codex-hp.warn .codex-hp-bar > span {
+.sheet-shell .codex-hp.warn .codex-hp-bar > span {
   background: var(--gold);
 }
-.dnd-sheet .codex-hp.crit .codex-hp-bar > span {
+.sheet-shell .codex-hp.crit .codex-hp-bar > span {
   background: var(--danger);
 }
-.dnd-sheet .codex-hp-ctl {
+.sheet-shell .codex-hp-ctl {
   display: flex;
   gap: 6px;
   align-items: center;
 }
-.dnd-sheet .codex-hp-ctl input {
+.sheet-shell .codex-hp-ctl input {
   width: 56px;
   text-align: center;
   background: rgba(var(--void-rgb), 0.6);
@@ -147,8 +150,8 @@
   color: var(--ink);
   padding: 5px;
 }
-.dnd-sheet .codex-hd,
-.dnd-sheet .codex-death {
+.sheet-shell .codex-hd,
+.sheet-shell .codex-death {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -157,26 +160,26 @@
   font-size: 12px;
   color: var(--muted);
 }
-.dnd-sheet .codex-pips {
+.sheet-shell .codex-pips {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.dnd-sheet .codex-pipk {
+.sheet-shell .codex-pipk {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 /* defence + the constantly-consulted derived numbers */
-.dnd-sheet .codex-def,
-.dnd-sheet .codex-quick {
+.sheet-shell .codex-def,
+.sheet-shell .codex-quick {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
   align-items: center;
 }
-.dnd-sheet .codex-stat {
+.sheet-shell .codex-stat {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -186,35 +189,35 @@
   padding: 0;
   color: inherit;
 }
-.dnd-sheet .codex-stat.click {
+.sheet-shell .codex-stat.click {
   cursor: pointer;
 }
-.dnd-sheet .codex-stat.click:hover .codex-v {
+.sheet-shell .codex-stat.click:hover .codex-v {
   color: var(--hotpink);
 }
-.dnd-sheet .codex-k {
+.sheet-shell .codex-k {
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--muted);
 }
-.dnd-sheet .codex-v {
+.sheet-shell .codex-v {
   font-family: var(--font-display);
   font-size: 21px;
   line-height: 1;
   color: var(--ink);
 }
-.dnd-sheet .codex-insp {
+.sheet-shell .codex-insp {
   margin-left: auto;
 }
 
 /* abilities */
-.dnd-sheet .codex-abils {
+.sheet-shell .codex-abils {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
-.dnd-sheet .codex-ab {
+.sheet-shell .codex-ab {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -226,50 +229,50 @@
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.dnd-sheet .codex-ab:hover {
+.sheet-shell .codex-ab:hover {
   border-color: var(--line-strong);
   background: rgba(var(--violet-rgb), 0.14);
 }
-.dnd-sheet .codex-ab.primary {
+.sheet-shell .codex-ab.primary {
   border-color: rgba(var(--hotpink-rgb), 0.45);
 }
-.dnd-sheet .codex-abk {
+.sheet-shell .codex-abk {
   font-size: 10.5px;
   letter-spacing: 0.08em;
   color: var(--muted);
 }
-.dnd-sheet .codex-abm {
+.sheet-shell .codex-abm {
   font-family: var(--font-display);
   font-size: 19px;
   line-height: 1;
   color: var(--ink);
 }
-.dnd-sheet .codex-abs {
+.sheet-shell .codex-abs {
   font-size: 12.5px;
   color: var(--muted);
 }
 
-.dnd-sheet .codex-rest {
+.sheet-shell .codex-rest {
   display: flex;
   gap: 8px;
 }
-.dnd-sheet .codex-rest .btn {
+.sheet-shell .codex-rest .btn {
   flex: 1;
 }
-.dnd-sheet .codex-coin {
+.sheet-shell .codex-coin {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
   font-size: 13px;
   color: var(--muted);
 }
-.dnd-sheet .codex-coin b {
+.sheet-shell .codex-coin b {
   color: var(--gold);
 }
 /* The "this system keeps its own numbers on its own sheet" pointer. Muted and small on
    purpose: it is wayfinding, not a warning, and styling it as an alert would read as
    something being broken. */
-.dnd-sheet .codex-bespoke {
+.sheet-shell .codex-bespoke {
   margin: 0;
   padding: 8px 10px;
   font-size: 12.5px;
@@ -281,19 +284,19 @@
 }
 
 /* ─────────────────────────────────────────────────────── pane stack */
-.dnd-sheet .codex-main {
+.sheet-shell .codex-main {
   min-width: 0; /* without this a wide pane child blows the grid column out */
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.dnd-sheet .codex-stackwrap {
+.sheet-shell .codex-stackwrap {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 10px;
   min-width: 0;
 }
-.dnd-sheet .codex-rail {
+.sheet-shell .codex-rail {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -301,8 +304,8 @@
   top: 12px;
   align-self: start;
 }
-.dnd-sheet .codex-railtab,
-.dnd-sheet .codex-railreset {
+.sheet-shell .codex-railtab,
+.sheet-shell .codex-railreset {
   /* Vertical labels, per the ask. vertical-rl plus the 180deg rotation reads bottom-to-top,
      which is the convention for a left-hand rail; the unrotated form reads top-to-bottom
      and tilts the head the wrong way. */
@@ -325,27 +328,27 @@
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
-.dnd-sheet .codex-railtab:hover,
-.dnd-sheet .codex-railreset:hover {
+.sheet-shell .codex-railtab:hover,
+.sheet-shell .codex-railreset:hover {
   color: var(--ink);
   background: rgba(var(--violet-rgb), 0.14);
 }
-.dnd-sheet .codex-railtab.on {
+.sheet-shell .codex-railtab.on {
   color: var(--ink);
   border-color: var(--line-strong);
   background: rgba(var(--hotpink-rgb), 0.14);
   box-shadow: inset 0 0 0 1px rgba(var(--hotpink-rgb), 0.25);
 }
-.dnd-sheet .codex-railemoji {
+.sheet-shell .codex-railemoji {
   font-size: 12px;
 }
-.dnd-sheet .codex-railreset {
+.sheet-shell .codex-railreset {
   min-height: 0;
   opacity: 0.65;
   font-size: 11px;
 }
 
-.dnd-sheet .codex-stack {
+.sheet-shell .codex-stack {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -358,13 +361,13 @@
   scrollbar-width: thin;
   padding-right: 2px;
 }
-.dnd-sheet .codex-empty {
+.sheet-shell .codex-empty {
   color: var(--muted);
   font-size: 13px;
   padding: 20px 4px;
 }
 
-.dnd-sheet .codex-pane {
+.sheet-shell .codex-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -374,7 +377,7 @@
   overflow: hidden;
   flex: none; /* the height the resize maths set is authoritative */
 }
-.dnd-sheet .codex-pane-head {
+.sheet-shell .codex-pane-head {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -383,10 +386,10 @@
   background: rgba(var(--void-rgb), 0.4);
   flex: none;
 }
-.dnd-sheet .codex-pane.is-collapsed .codex-pane-head {
+.sheet-shell .codex-pane.is-collapsed .codex-pane-head {
   border-bottom: none;
 }
-.dnd-sheet .codex-pane-title {
+.sheet-shell .codex-pane-title {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -394,13 +397,13 @@
   color: var(--ink);
   margin-right: auto;
 }
-.dnd-sheet .codex-pane-count {
+.sheet-shell .codex-pane-count {
   color: var(--muted);
   font-size: 12px;
 }
-.dnd-sheet .codex-pane-collapse,
-.dnd-sheet .codex-pane-solo,
-.dnd-sheet .codex-pane-close {
+.sheet-shell .codex-pane-collapse,
+.sheet-shell .codex-pane-solo,
+.sheet-shell .codex-pane-close {
   background: none;
   border: none;
   color: var(--muted);
@@ -410,14 +413,14 @@
   font-size: 13px;
   line-height: 1;
 }
-.dnd-sheet .codex-pane-collapse:hover,
-.dnd-sheet .codex-pane-solo:hover,
-.dnd-sheet .codex-pane-close:hover {
+.sheet-shell .codex-pane-collapse:hover,
+.sheet-shell .codex-pane-solo:hover,
+.sheet-shell .codex-pane-close:hover {
   color: var(--ink);
   background: rgba(var(--violet-rgb), 0.18);
 }
 
-.dnd-sheet .codex-pane-body {
+.sheet-shell .codex-pane-body {
   flex: 1 1 auto;
   min-height: 0;
   /* Scrolling lives HERE, never on the page, so the rail and the identity column stay put
@@ -436,7 +439,7 @@
 
 /* The grab bar. Visible on hover and focus, and ALWAYS visible on touch, where hover does
    not exist — a handle that only appears on hover is a handle a tablet user never finds. */
-.dnd-sheet .codex-grab {
+.sheet-shell .codex-grab {
   flex: none;
   height: 9px;
   cursor: ns-resize;
@@ -444,7 +447,7 @@
   background: transparent;
   touch-action: none; /* or the browser scrolls the stack instead of dragging the handle */
 }
-.dnd-sheet .codex-grab::after {
+.sheet-shell .codex-grab::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -457,27 +460,27 @@
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease;
 }
-.dnd-sheet .codex-pane:hover .codex-grab::after,
-.dnd-sheet .codex-grab:focus-visible::after {
+.sheet-shell .codex-pane:hover .codex-grab::after,
+.sheet-shell .codex-grab:focus-visible::after {
   opacity: 1;
 }
-.dnd-sheet .codex-grab:focus-visible::after {
+.sheet-shell .codex-grab:focus-visible::after {
   background: var(--hotpink);
 }
-.dnd-sheet .codex-grab:focus-visible {
+.sheet-shell .codex-grab:focus-visible {
   outline: 2px solid var(--hotpink);
   outline-offset: -2px;
 }
 @media (hover: none) {
-  .dnd-sheet .codex-grab::after {
+  .sheet-shell .codex-grab::after {
     opacity: 1;
   }
-  .dnd-sheet .codex-grab {
+  .sheet-shell .codex-grab {
     height: 14px; /* a comfortable touch target */
   }
 }
 
-.dnd-sheet .codex-tray {
+.sheet-shell .codex-tray {
   max-width: 460px;
 }
 
@@ -491,24 +494,24 @@
 /* SHORT — densest useful form: single-line rows, prose suppressed, numbers kept. At this
    height a player is glancing for a value, not reading rules text. */
 @container codexpane (max-height: 200px) {
-  .dnd-sheet .codex-pane-body .card {
+  .sheet-shell .codex-pane-body .card {
     padding: 7px 9px;
     margin-bottom: 6px;
   }
-  .dnd-sheet .codex-pane-body h3,
-  .dnd-sheet .codex-pane-body h4 {
+  .sheet-shell .codex-pane-body h3,
+  .sheet-shell .codex-pane-body h4 {
     font-size: 12px;
     margin: 0 0 4px;
   }
   /* Prose goes first: it is the least useful content per pixel when only a couple of rows
      are visible. Nothing is lost — the rules text returns the moment the pane is taller. */
-  .dnd-sheet .codex-pane-body p,
-  .dnd-sheet .codex-pane-body .desc,
-  .dnd-sheet .codex-pane-body .muted-note {
+  .sheet-shell .codex-pane-body p,
+  .sheet-shell .codex-pane-body .desc,
+  .sheet-shell .codex-pane-body .muted-note {
     display: none;
   }
-  .dnd-sheet .codex-pane-body .row,
-  .dnd-sheet .codex-pane-body li {
+  .sheet-shell .codex-pane-body .row,
+  .sheet-shell .codex-pane-body li {
     padding-top: 2px;
     padding-bottom: 2px;
     font-size: 12px;
@@ -517,10 +520,10 @@
 
 /* MEDIUM — tighter cards, shorter descriptions, everything still legible. */
 @container codexpane (min-height: 201px) and (max-height: 420px) {
-  .dnd-sheet .codex-pane-body .card {
+  .sheet-shell .codex-pane-body .card {
     padding: 9px 11px;
   }
-  .dnd-sheet .codex-pane-body p {
+  .sheet-shell .codex-pane-body p {
     font-size: 13px;
     line-height: 1.45;
   }
@@ -530,8 +533,8 @@
    question, and conflating the two axes is how a tall narrow pane ends up with columns
    four words wide. */
 @container codexpane (min-width: 720px) {
-  .dnd-sheet .codex-pane-body .skillgrid,
-  .dnd-sheet .codex-pane-body .savegrid {
+  .sheet-shell .codex-pane-body .skillgrid,
+  .sheet-shell .codex-pane-body .savegrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -546,26 +549,26 @@
    A design decision rather than a fallback — on a phone the Codex becomes a long scroll of
    open sections, which is close to how a paper character sheet actually reads. */
 @media (max-width: 900px) {
-  .dnd-sheet .codex {
+  .sheet-shell .codex {
     grid-template-columns: 1fr;
   }
-  .dnd-sheet .codex-identity {
+  .sheet-shell .codex-identity {
     position: static;
     max-height: none;
     overflow: visible;
   }
-  .dnd-sheet .codex-stackwrap {
+  .sheet-shell .codex-stackwrap {
     grid-template-columns: 1fr;
   }
-  .dnd-sheet .codex-rail {
+  .sheet-shell .codex-rail {
     flex-direction: row;
     position: static;
     overflow-x: auto;
     padding-bottom: 4px;
     scrollbar-width: thin;
   }
-  .dnd-sheet .codex-railtab,
-  .dnd-sheet .codex-railreset {
+  .sheet-shell .codex-railtab,
+  .sheet-shell .codex-railreset {
     /* Back to horizontal text: a vertical label inside a horizontal strip is unreadable. */
     writing-mode: horizontal-tb;
     transform: none;
@@ -573,7 +576,7 @@
     flex: none;
     padding: 9px 12px;
   }
-  .dnd-sheet .codex-stack {
+  .sheet-shell .codex-stack {
     /* The PAGE scrolls on mobile, not the stack. A nested scroll region inside a scrolling
        page is the most frustrating pattern on touch — you swipe and the wrong thing moves. */
     max-height: none;
@@ -583,10 +586,10 @@
 
 /* CX-9 — respect reduced motion. */
 @media (prefers-reduced-motion: reduce) {
-  .dnd-sheet .codex-hp-bar > span,
-  .dnd-sheet .codex-railtab,
-  .dnd-sheet .codex-ab,
-  .dnd-sheet .codex-grab::after {
+  .sheet-shell .codex-hp-bar > span,
+  .sheet-shell .codex-railtab,
+  .sheet-shell .codex-ab,
+  .sheet-shell .codex-grab::after {
     transition: none;
   }
 }
@@ -594,7 +597,7 @@
 /* CX-4 fallback — a browser with no container-query support keeps the roomiest presentation
    and scrolls, degrading to "legible, just taller" rather than to broken. */
 @supports not (container-type: size) {
-  .dnd-sheet .codex-pane-body {
+  .sheet-shell .codex-pane-body {
     overflow-y: auto;
   }
 }
@@ -604,19 +607,19 @@
    Shares the Codex identity column + theme tokens, so every skin applies with no
    Dashboard-specific colour rule (same discipline as the Codex above). */
 
-.dnd-sheet .dashboard {
+.sheet-shell .dashboard {
   display: grid;
   grid-template-columns: minmax(280px, min(33%, 420px)) 1fr;
   gap: 20px;
   align-items: start;
 }
-.dnd-sheet .dash-main {
+.sheet-shell .dash-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.dnd-sheet .dash-grid {
+.sheet-shell .dash-grid {
   display: grid;
   /* auto-fit so the cards reflow to however many fit — three across on a wide monitor, one on a
      phone — which is the Dashboard's whole promise: see everything, arranged to the screen. */
@@ -624,7 +627,7 @@
   gap: 14px;
   align-items: start;
 }
-.dnd-sheet .dash-card {
+.sheet-shell .dash-card {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -633,7 +636,7 @@
   background: linear-gradient(180deg, rgba(var(--panel-rgb), 0.75), rgba(var(--void-rgb), 0.5));
   overflow: hidden;
 }
-.dnd-sheet .dash-card-head {
+.sheet-shell .dash-card-head {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -647,15 +650,15 @@
   font-weight: 600;
   color: var(--ink);
 }
-.dnd-sheet .dash-card-emoji {
+.sheet-shell .dash-card-emoji {
   font-size: 13px;
 }
-.dnd-sheet .dash-card-count {
+.sheet-shell .dash-card-count {
   color: var(--muted);
   font-size: 12.5px;
   font-weight: 500;
 }
-.dnd-sheet .dash-card-body {
+.sheet-shell .dash-card-body {
   /* Scroll lives on the card body past a max height, so one long section does not stretch the whole
      grid row — the board stays scannable. */
   padding: 10px;
@@ -664,10 +667,10 @@
   overflow-x: hidden;
   scrollbar-width: thin;
 }
-.dnd-sheet .dash-tray {
+.sheet-shell .dash-tray {
   max-width: 460px;
 }
-.dnd-sheet .dash-empty {
+.sheet-shell .dash-empty {
   color: var(--muted);
   font-size: 13px;
   padding: 20px 4px;
@@ -676,7 +679,7 @@
 /* Below ~900px the two-column split stops working, same as the Codex: identity first, then the
    grid full width (which is already one card per row on a phone). */
 @media (max-width: 900px) {
-  .dnd-sheet .dashboard {
+  .sheet-shell .dashboard {
     grid-template-columns: 1fr;
   }
 }

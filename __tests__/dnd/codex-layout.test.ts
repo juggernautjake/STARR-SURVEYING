@@ -273,9 +273,10 @@ describe('the layout seam (CX-1)', () => {
     // the very rule being checked.
     const css = read('app/dnd/_sheet/styles/codex.css').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).not.toMatch(/\.skin-[a-z0-9-]+\s+\.codex/)
-    // And it is scoped like the rest of the sheet, so it cannot leak onto the wider Starr site.
+    // Scoped under `.sheet-shell` (T-SHELL-SCOPE) so it cannot leak onto the wider Starr site AND can
+    // be reused by the bespoke PF2/IG sheets without theme.css's element rules bleeding in.
     for (const line of css.split('\n')) {
-      if (/^\.[a-z]/.test(line.trim())) expect(line.trim().startsWith('.dnd-sheet')).toBe(true)
+      if (/^\.[a-z]/.test(line.trim())) expect(line.trim().startsWith('.sheet-shell')).toBe(true)
     }
   })
 
