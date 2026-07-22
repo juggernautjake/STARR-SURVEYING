@@ -37,6 +37,7 @@ import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
+import { skinHxVars } from '@/lib/dnd/skin-tokens';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -87,7 +88,7 @@ function Section({ id, title, accent, aside, children }: {
   id: string; title: string; accent?: string; aside?: ReactNode; children: ReactNode;
 }) {
   return (
-    <section id={id} style={{ scrollMarginTop: 108, border: '1px solid var(--hx-line)', borderRadius: 10, background: 'rgba(1,10,19,0.28)', padding: '11px 13px 13px', display: 'grid', gap: 10 }}>
+    <section id={id} style={{ scrollMarginTop: 108, border: '1px solid var(--hx-line)', borderRadius: 10, background: 'var(--hx-inset-soft)', padding: '11px 13px 13px', display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, borderBottom: '1px solid var(--hx-line)', paddingBottom: 6, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'var(--hx-font-display)', fontSize: 12.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent ?? 'var(--hx-gold-2)' }}>
           <span aria-hidden style={{ color: 'var(--hx-teal-1)', fontSize: 7 }}>◆</span>{title}
@@ -99,12 +100,15 @@ function Section({ id, title, accent, aside, children }: {
   );
 }
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla' }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
   variantKind?: 'vanilla' | 'custom';
+  /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
+   *  this sheet's root so the skin picker actually restyles the bespoke IG sheet (default → no change). */
+  sheetType?: string;
 }) {
   const derived = useMemo(() => igDerived(ig), [ig]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
@@ -324,7 +328,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   return (
     // The main column deliberately leaves its top open (header → jump-nav → Vitals) so a separate panel can
     // later mount above the stat block without a layout fight — the customizations summary is built elsewhere.
-    <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+    // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
+    // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
+    <div className={styles.framedPanel} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
       {igEditor && (
         <IGElementEditor
           kind={igEditor.kind} initial={igEditor.initial}
@@ -400,7 +406,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--hx-muted)' }}>
             🎲 Target DC
             <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-              style={{ width: 52, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+              style={{ width: 52, fontSize: 12, padding: '3px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
           </label>
         )}
       >
@@ -424,7 +430,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
         {/* The stat strip: HP · the three saves · Proficiency. Uniform tiles in a responsive grid so they read
             as one coherent panel and reflow cleanly from phone to wide monitor. */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 8 }}>
-          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'rgba(1,10,19,0.4)' }}>
+          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)' }}>
             <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Hit Points</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)' }}>{derived.currentHp}<span style={{ fontSize: 12, color: 'var(--hx-muted)' }}> / {derived.maxHp}</span></div>
             {canDoEdit && (
@@ -449,7 +455,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               <button key={s} type="button" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')}
                 // The tooltip explains WHY the number moved, so a changed value is never mysterious.
                 title={`Roll ${s} (d20 ${fmt(shown)})${rs?.sources.length ? ` · ${rs.sources.join(', ')}` : ''}`}
-                style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '8px 6px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer' }}>
+                style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)', cursor: 'pointer' }}>
                 <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>{s} 🎲{swingMark(rs?.swing)}</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
                 {/* Base shown alongside when something is modifying it, so the player can see both. */}
@@ -457,7 +463,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
               </button>
             );
           })}
-          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'rgba(1,10,19,0.4)' }}>
+          <div style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 6px', background: 'var(--hx-inset)' }}>
             <div style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>Proficiency</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
           </div>
@@ -471,7 +477,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
             <div key={k} style={{ display: 'grid', gap: 3 }}>
               {/* Tap an ability to roll an ability check (R1b): d20 + its modifier. */}
               <button type="button" onClick={() => rollLine(`${k} check`, igAbilityMod(ig.abilities[k]), (k === 'STR' || k === 'DEX') ? 'str_dex_check' : 'ability_check')} title={`Roll ${k} check (d20 ${fmt(igAbilityMod(ig.abilities[k]))})`}
-                style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'rgba(1,10,19,0.4)', cursor: 'pointer', width: '100%' }}>
+                style={{ textAlign: 'center', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '8px 4px', background: 'var(--hx-inset)', cursor: 'pointer', width: '100%' }}>
                 <div style={{ fontSize: 10.5, color: 'var(--hx-muted)', letterSpacing: '0.06em' }}>{k} 🎲</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--hx-text)', lineHeight: 1.1 }}>{ig.abilities[k]}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)' }}>{fmt(igAbilityMod(ig.abilities[k]))}</div>

@@ -164,6 +164,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           ig={igData} elements={summary.elements} canEdit={canWrite} characterId={character.id}
           isDM={isDM}
           variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
+          sheetType={character.sheet_type}
         />
       );
     }
@@ -180,6 +181,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       <PF2Sheet
         pf2={pf2Data} characterId={character.id} canEdit={canWrite} isDM={isDM}
         variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
+        sheetType={character.sheet_type}
       />
     );
   }

@@ -24,6 +24,7 @@ import {
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionMechanics } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
+import { skinHxVars } from '@/lib/dnd/skin-tokens';
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 const RANK_ABBR: Record<string, string> = { untrained: 'U', trained: 'T', expert: 'E', master: 'M', legendary: 'L' };
@@ -79,12 +80,15 @@ function SectionHead({ title, note, children }: { title: React.ReactNode; note?:
   );
 }
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla' }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
    *  to vanilla — the safe direction, matching the server. */
   variantKind?: 'vanilla' | 'custom';
+  /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
+   *  this sheet's root so the skin picker actually restyles the bespoke PF2 sheet (default → no change). */
+  sheetType?: string;
 }) {
   const router = useRouter();
   // ONE resolution for every headline number (S13b). The card and the roll both read `.total` from
@@ -213,7 +217,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   };
 
   return (
-    <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+    // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
+    // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
+    <div className={styles.framedPanel} style={{ ...skinHxVars(sheetType), margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
       {/* Header. This is intentionally the FIRST child in flow (not absolutely pinned), so a panel can
           later be mounted as a sibling ABOVE the stat block without fighting a pin. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
@@ -320,7 +326,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         <label style={{ fontSize: 11, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           🎲 Target DC
           <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
-            style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
+            style={{ width: 56, fontSize: 12, padding: '3px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }} />
         </label>
         {lastRoll && (
           <div className={styles.pf2RollBar}>
@@ -387,7 +393,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
               <select
                 value={strikeIndex} onChange={(e) => setStrikeIndex(Number(e.target.value))}
                 aria-label="Which Strike of this turn"
-                style={{ fontSize: 11, padding: '2px 4px', background: 'rgba(1,10,19,0.6)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                style={{ fontSize: 11, padding: '2px 4px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 4 }}
               >
                 <option value={0}>1st (no MAP)</option>
                 <option value={1}>2nd (−5 / −4 agile)</option>

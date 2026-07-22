@@ -10,6 +10,15 @@
   --hx-panel: #0b1a2c;
   --hx-panel-2: #10233b;
   --hx-line: #1e2d3d;
+  /* Recessed "well" fills for insets inside the bespoke sheets (stat cells, inputs, section cards).
+     Historically these were a hardcoded near-black navy `rgba(1,10,19,α)`, which looks right on the dark
+     default but becomes an ILLEGIBLE grey veil on the LIGHT skins (the muted labels on it dropped below
+     AA). Tokenising them lets skinHxVars swap in a light recess for light skins; the defaults below hold
+     the exact original navy values, so the default sheet is pixel-identical. soft/·/strong = the three
+     alphas the sheets actually used (0.28 / 0.4 / 0.6). */
+  --hx-inset-soft: rgba(1, 10, 19, 0.28);
+  --hx-inset: rgba(1, 10, 19, 0.4);
+  --hx-inset-strong: rgba(1, 10, 19, 0.6);
   --hx-gold-0: #785a28;
   --hx-gold-1: #c89b3c;
   --hx-gold-2: #c8aa6e;
@@ -790,6 +799,11 @@ select.input {
   --hx-panel: #0b1a2c;
   --hx-panel-2: #10233b;
   --hx-line: #1e2d3d;
+  /* Recessed inset fills — see the same block on `.root` above. Re-declared here because the /dnd page
+     applies `.siteChrome` (not `.root`) as the token root, and the bespoke sheets inherit from it. */
+  --hx-inset-soft: rgba(1, 10, 19, 0.28);
+  --hx-inset: rgba(1, 10, 19, 0.4);
+  --hx-inset-strong: rgba(1, 10, 19, 0.6);
   --hx-gold-0: #785a28;
   --hx-gold-1: #c89b3c;
   --hx-gold-2: #c8aa6e;
@@ -1564,7 +1578,7 @@ select.input {
   padding: 9px 6px;
   border: 1px solid var(--hx-line);
   border-radius: 8px;
-  background: rgba(1, 10, 19, 0.4);
+  background: var(--hx-inset); /* tokenised so a light skin recesses light, not grey (was rgba(1,10,19,0.4)) */
 }
 /* AC and HP are the two numbers a player checks most, so they get a gold hairline to
    lift them out of the strip — without changing their size or the value shown. */
