@@ -12,7 +12,10 @@ import { join } from 'node:path';
 // The primitive's own contract is re-asserted, alongside every marker's, in marker-tips.test.ts.
 const tip = readFileSync(join(process.cwd(), 'app/dnd/_ui/Tip.tsx'), 'utf8');
 const adapter = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/InfoTip.tsx'), 'utf8');
-const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+// The IG in-play effect chips moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet)
+// is now thin. Read both so the InfoTip wiring anchors hold wherever they live.
+const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
 // The PF2 condition chips moved into the panel set (usePf2Panels, T-5a); the Classic shell
 // (PF2Sheet) is now thin. Read both so the InfoTip wiring anchors hold wherever they live.
 const pf2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')

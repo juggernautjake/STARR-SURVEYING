@@ -25,7 +25,9 @@ import { allFeats } from '@/app/dnd/_ui/IGContentPicker';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const picker = read('app/dnd/_ui/IGContentPicker.tsx');
-const sheet = read('app/dnd/_ui/IGSheet.tsx');
+// The picker wiring moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is now
+// thin. Read both so the source anchor holds wherever the code lives.
+const sheet = read('app/dnd/_ui/IGSheet.tsx') + read('app/dnd/_ui/ig/useIgPanels.tsx');
 
 describe('the picker covers both kinds the sheet can add', () => {
   it('handles powers and feats', () => {

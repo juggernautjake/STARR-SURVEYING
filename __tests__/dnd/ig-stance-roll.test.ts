@@ -52,7 +52,10 @@ describe('igStanceDamageBonus (folds into damage rolls)', () => {
 });
 
 describe('IGSheet rollLine folds the stance in', () => {
-  const SRC = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+  // The stance roll-fold moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is
+  // now thin. Read both so the source anchor holds wherever the code lives.
+  const SRC = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+    + readFileSync(join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
   it('combines the condition + stance effects and cancels opposing adv/dis', () => {
     expect(SRC).toContain('igStanceRollEffect(ig.combat?.stances?.[0] ?? null, derived.level, kind)');
     expect(SRC).toContain('if (advantage && disadvantage) { advantage = false; disadvantage = false; }');

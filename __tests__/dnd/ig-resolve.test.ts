@@ -149,7 +149,10 @@ describe('no third implementation of the rules', () => {
 
 // S11.3 — the resolved numbers actually RENDER on the sheet, not just compute.
 describe('IGSheet displays the resolved numbers', () => {
-  const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+  // The resolution wiring moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is
+  // now thin. Read both so the source anchor holds wherever the code lives.
+  const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+    + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
 
   it('computes in-play state once, memoised', () => {
     expect(sheet).toContain('igInPlayState(ig)');

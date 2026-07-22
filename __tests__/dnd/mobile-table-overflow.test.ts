@@ -16,7 +16,9 @@ const TABLE_FILES = [
   'app/dnd/_sheet/components/Progression.tsx',
   'app/dnd/_sheet/components/InteractiveSheet.tsx',
   'app/dnd/library/[key]/page.tsx',
-  'app/dnd/_ui/IGSheet.tsx',
+  // The IG combat attacks <table> moved into the IG panel set (useIgPanels, T-6a); the Classic shell
+  // (IGSheet) is now thin and renders no table of its own.
+  'app/dnd/_ui/ig/useIgPanels.tsx',
 ];
 
 /** The overflow context that must appear just above a <table>: either the shared `.table-wrap` class (whose CSS

@@ -6,7 +6,10 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SRC = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+// The Combat/Powers/Feats/Reference sections moved into the IG panel set (useIgPanels, T-6a); the Classic
+// shell (IGSheet) is now thin. Read both so these anti-drift anchors hold wherever the code lives.
+const SRC = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+  + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
 
 describe('IGSheet shows in-play stances + conditions with tooltips', () => {
   it('sources the tooltip text from the tested in-play model, not ad-hoc strings', () => {

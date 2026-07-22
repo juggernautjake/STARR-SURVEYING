@@ -11,7 +11,9 @@ import { blankIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const editor = read('app/dnd/_ui/IGElementEditor.tsx');
-const sheet = read('app/dnd/_ui/IGSheet.tsx');
+// The editor wiring moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is now
+// thin. Read both so the source anchor holds wherever the code lives.
+const sheet = read('app/dnd/_ui/IGSheet.tsx') + read('app/dnd/_ui/ig/useIgPanels.tsx');
 
 describe('one component edits and authors, across all three kinds', () => {
   it('handles powers, feats and weapons', () => {
@@ -136,7 +138,9 @@ describe('a refused edit says so', () => {
   });
 
   it('renders the refusal, dismissibly', () => {
-    expect(sheet).toMatch(/refusal && \(/);
+    // The banner is a conditional on `refusal` — `&&` when it was inline JSX, `? (…) : null` now that the
+    // panel set returns it as a node. Either form is the same dismissible render.
+    expect(sheet).toMatch(/refusal (?:&&|\?) \(/);
     expect(sheet).toContain('setRefusal(null)');
   });
 

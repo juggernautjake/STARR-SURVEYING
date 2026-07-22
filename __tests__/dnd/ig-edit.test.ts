@@ -210,7 +210,10 @@ describe('applyIgEdit — HP damage + healing (SQ4)', () => {
 });
 
 describe('IG sheet exposes a manual HP damage/heal control (SQ4)', () => {
-  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+  // The edit-post wiring moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is
+  // now thin. Read both so the source anchor holds wherever the code lives.
+  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+    + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
   it('wires quick damage/heal buttons to the apply_damage/heal ig-edit ops', () => {
     expect(SHEET).toContain("postEdit({ op: 'apply_damage', amount: n })");
     expect(SHEET).toContain("postEdit({ op: 'heal', amount: n })");

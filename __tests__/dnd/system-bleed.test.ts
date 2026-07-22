@@ -373,7 +373,10 @@ describe('the bespoke sheets render their own system\'s concepts', () => {
     // lives — the property asserted (PF2's own numeric model, never 5e's) is unchanged.
     const pf2 = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
       + fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
-    const ig = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+    // IG's condition fold moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is
+    // now thin. Read both so the anti-bleed anchor holds wherever it lives.
+    const ig = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+      + fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
     // PF2 folds conditions in `resolve.ts` now rather than at the sheet's roll call site — the
     // sheet used to display an unconditioned number and roll a conditioned one, so the fold moved
     // to the single place both read. The anti-bleed property is unchanged and still asserted: the

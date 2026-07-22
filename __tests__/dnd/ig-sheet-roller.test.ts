@@ -5,7 +5,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
+// The roller wiring moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is now
+// thin. Read both so the tap-to-roll anchors hold wherever the code lives.
+const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'app/dnd/_ui/ig/useIgPanels.tsx'), 'utf8');
 
 describe('IG sheet is interactive — tap to roll (R1b / IGS6)', () => {
   it('uses the shared roll engine (resolveD20Roll + rollNaturalD20), not a bespoke roller', () => {

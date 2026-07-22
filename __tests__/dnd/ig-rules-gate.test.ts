@@ -225,7 +225,9 @@ describe('the marker is stored on the sheet, not only in the reply (IG S3)', () 
   });
 
   it('the IG sheet renders it', () => {
-    const src = read('app/dnd/_ui/IGSheet.tsx');
+    // The gated controls moved into the IG panel set (useIgPanels, T-6a); the Classic shell (IGSheet) is
+    // now thin. Read both so the source anchor holds wherever the code lives.
+    const src = read('app/dnd/_ui/IGSheet.tsx') + read('app/dnd/_ui/ig/useIgPanels.tsx');
     expect(src).toContain('OffRulesMark');
     expect(src).toContain('ig.offRules?.[p]');
   });
