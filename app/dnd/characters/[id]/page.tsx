@@ -180,6 +180,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           skinVariant={(character.data as { skinVariant?: string } | null)?.skinVariant}
           rollerTemplate={(character.data as { rollerTemplate?: string } | null)?.rollerTemplate}
           rollerAnim={(character.data as { rollerAnim?: boolean } | null)?.rollerAnim}
+          customSections={(character.data as { customSections?: import('@/lib/dnd/custom-sections').CustomSection[] } | null)?.customSections}
         />
       );
     }
@@ -203,6 +204,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         skinVariant={(character.data as { skinVariant?: string } | null)?.skinVariant}
         rollerTemplate={(character.data as { rollerTemplate?: string } | null)?.rollerTemplate}
         rollerAnim={(character.data as { rollerAnim?: boolean } | null)?.rollerAnim}
+        customSections={(character.data as { customSections?: import('@/lib/dnd/custom-sections').CustomSection[] } | null)?.customSections}
       />
     );
   }

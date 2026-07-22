@@ -48,7 +48,8 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
     expect(ids(capture({ pf2: c, canEdit: false }))).not.toContain('pf2-feats');
     // An editor reaches the ＋ Weapon / ＋ Feat affordances even with none yet — so both render.
     const editable = capture({ pf2: c, canEdit: true, characterId: 'x' });
-    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills', 'pf2-strikes', 'pf2-feats']);
+    // The custom-sections panel (D-13) is always offered to an owner, so it trails the editable set.
+    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills', 'pf2-strikes', 'pf2-feats', 'pf2-custom']);
   });
 
   it('the Spells panel is gated on being a caster, independent of edit rights', () => {
@@ -76,5 +77,11 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
       expect(set[key], key).toBeTruthy();
     }
     expect(set.banner).toBeNull();
+  });
+
+  it('the custom-sections panel (D-13) shows for owners, or when any section exists, and hides otherwise', () => {
+    expect(ids(capture({ pf2: blankPF2Character('T'), canEdit: false }))).not.toContain('pf2-custom');
+    expect(ids(capture({ pf2: blankPF2Character('T'), canEdit: true, characterId: 'x' }))).toContain('pf2-custom');
+    expect(ids(capture({ pf2: blankPF2Character('T'), canEdit: false, customSections: [{ id: 's1', title: 'Log', blocks: [] }] }))).toContain('pf2-custom');
   });
 });

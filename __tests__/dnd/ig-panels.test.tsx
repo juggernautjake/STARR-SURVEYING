@@ -57,7 +57,8 @@ describe('useIgPanels — the ordered, gated IG panel set', () => {
     expect(ids(capture({ ig: c, canEdit: false }))).not.toContain('ig-feats');
     // An editor reaches the ＋ Add / ＋ add feat… affordances even with none yet — so both render.
     const editable = capture({ ig: c, canEdit: true, characterId: 'x' });
-    expect(ids(editable)).toEqual(['ig-vitals', 'ig-abilities', 'ig-powers', 'ig-feats', 'ig-reference']);
+    // The custom-sections panel (D-13) is always offered to an owner, so it trails the editable set.
+    expect(ids(editable)).toEqual(['ig-vitals', 'ig-abilities', 'ig-powers', 'ig-feats', 'ig-reference', 'ig-custom']);
   });
 
   it('the Companion panel is gated on a companion existing, independent of edit rights', () => {
@@ -97,5 +98,14 @@ describe('useIgPanels — the ordered, gated IG panel set', () => {
     // The roller is now ALWAYS mounted (RO-5c): the persistent animated roller with its template picker,
     // ready to roll — not a toast that only appears after the first roll.
     expect(set.roller).toBeTruthy();
+  });
+
+  it('the custom-sections panel (D-13) shows for owners, or when any section exists, and hides otherwise', () => {
+    // A viewer with no custom sections gets no Custom panel (no clutter)…
+    expect(ids(capture({ ig: blankIGCharacter('T'), canEdit: false }))).not.toContain('ig-custom');
+    // …an owner always does (so they can add one)…
+    expect(ids(capture({ ig: blankIGCharacter('T'), canEdit: true, characterId: 'x' }))).toContain('ig-custom');
+    // …and once a section exists, even a non-editing viewer sees it.
+    expect(ids(capture({ ig: blankIGCharacter('T'), canEdit: false, customSections: [{ id: 's1', title: 'Log', blocks: [] }] }))).toContain('ig-custom');
   });
 });

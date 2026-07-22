@@ -142,9 +142,20 @@
     control that creates one and jumps to it; the shared `useFivePanels` adds one panel per section (id
     `custom:<id>`, editable inline), so Codex/Dashboard/Play show + edit them too. A section added on any
     template persists on the character and appears on all of them. tsc + eslint + full dnd suite green (4135).
-  - **Follow-up:** surface the same sections on the bespoke PF2 (`usePf2Panels`) and IG (`useIgPanels`) panel
-    sets so they appear there too (the renderer is already system-agnostic — just the panel wiring remains),
-    and add an in-place "Add section" entry point to the shared shells.
+  - **SLICE 2 SHIPPED — PF2 + IG (owner 2026-07-22).** Custom sections are now first-class on the bespoke
+    PF2/IG sheets too, so an IG/PF2 character owner (who never touches a 5e sheet) can build them. Because
+    those sheets have no live 5e store, persistence goes through a new server route
+    `POST /api/dnd/characters/[id]/sections` (read-patch-write of `data.customSections`, RE-normalized
+    server-side so a bad payload can't corrupt the row; ≤40 sections) — twin of the `/roller` + `/layout`
+    endpoints. A shared `SectionsManager` component buffers edits locally and commits the whole array on an
+    explicit "Save changes" (then reloads), mirroring how those sheets already save the roller/layout. It
+    reuses the exact `CustomSectionView` renderer + editor, so authoring is identical across systems. Wired
+    as a "Custom" panel in both `useIgPanels` (`ig-custom`) and `usePf2Panels` (`pf2-custom`), shown when the
+    owner can edit OR any section exists; `customSections` threads page.tsx → IGSheet/PF2Sheet → the hooks.
+    Panel-order + gating tests updated/added; full dnd suite green (4143); tsc + eslint clean.
+  - **Remaining follow-up (minor):** an in-place "Add section" entry point on the shared 5e Codex/Dashboard/
+    Play shells (today a section is added from the Classic tab bar or the PF2/IG Custom panel, then shows in
+    every template). On-screen visual QA of the editor awaits the fresh Vercel build (local dev server stale).
 
 - [x] **D-14 — Impact roller: fix the "weird square" + show both adv/dis dice (owner 2026-07-22).** Two bugs
   from the D-4/D-7/D-10 work: (1) the breakdown's die ROW had class `ir-die`, which collided with the

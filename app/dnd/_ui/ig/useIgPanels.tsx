@@ -21,6 +21,8 @@ import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
 import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
 import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
+import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
+import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
 import styles from '../hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
@@ -121,6 +123,9 @@ export interface UseIgPanelsArgs {
   rollerTemplate?: string;
   rollerAnim?: boolean;
   layout?: string;
+  /** Player-authored custom sections (`data.customSections`, D-13). Surfaced as a "Custom" panel that any
+   *  system can carry; the owner adds/edits them there, persisted via the `/sections` route. */
+  customSections?: CustomSection[];
 }
 
 /** What the hook hands a format shell: the ordered panel list plus the surrounding furniture. A shell places
@@ -135,8 +140,9 @@ export interface IgPanelSet {
   overlays: ReactNode;
 }
 
-export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout }: UseIgPanelsArgs): IgPanelSet {
+export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections }: UseIgPanelsArgs): IgPanelSet {
   const derived = useMemo(() => igDerived(ig), [ig]);
+  const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
   // The roll path has always applied these; the cards showed base values, so a Shaken character
   // read "+7 Reflex" and rolled +5 (S11, owner 2026-07-20). Now the card says what you'll roll.
@@ -960,6 +966,14 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     </Section>
   );
 
+  // Player-authored custom sections (D-13) — the SAME renderer + editor the 5e sheet uses, persisted via the
+  // `/sections` route (IG has no live 5e store), buffered + saved by SectionsManager.
+  const renderCustom = () => (
+    <Section id="ig-custom" title="Custom Sections" aside={<>your own</>}>
+      <SectionsManager characterId={characterId} initial={customSecs} canWrite={!!canEdit} />
+    </Section>
+  );
+
   // The ordered, gated panel set — the canonical order is this array's order, exactly the sections the
   // monolith rendered, gated by the same presence flags. `when === false` drops a panel (and its nav anchor).
   const panelDefs: (SheetPanel & { when?: boolean })[] = [
@@ -973,6 +987,8 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     { id: 'ig-equipment', label: 'Equipment', emoji: '❖', when: hasEquipment, render: renderEquipment },
     { id: 'ig-companion', label: 'Companion', emoji: '◈', when: !!ig.companion, render: renderCompanion },
     { id: 'ig-details', label: 'Details', emoji: '☰', when: hasDetails, render: renderDetails },
+    // Player-authored custom sections (D-13) — shown when the owner can add them OR any already exist.
+    { id: 'ig-custom', label: 'Custom', emoji: '✚', when: !!canEdit || customSecs.length > 0, render: renderCustom },
   ];
   const panels: SheetPanel[] = panelDefs
     .filter((p) => p.when !== false)

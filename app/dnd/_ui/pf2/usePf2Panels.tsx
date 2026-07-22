@@ -18,7 +18,7 @@
 // rule is the whole point: there is no second computation for anything.
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from '../PF2ContentPicker';
@@ -41,6 +41,8 @@ import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
 import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
 import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
+import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
+import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
 // The 5e panel set's shape, reused so all four systems speak one `SheetPanel` vocabulary. Type-only,
 // so nothing from the store-coupled 5e module is pulled into this prop-driven PF2 code at runtime.
@@ -117,6 +119,9 @@ export interface UsePf2PanelsArgs {
   rollerTemplate?: string;
   rollerAnim?: boolean;
   layout?: string;
+  /** Player-authored custom sections (`data.customSections`, D-13), surfaced as a "Custom" panel and
+   *  persisted via the `/sections` route. */
+  customSections?: CustomSection[];
 }
 
 export interface Pf2PanelSet {
@@ -140,8 +145,9 @@ export interface Pf2PanelSet {
  * The PF2 panel set for THIS character. Owns all shared state and returns everything a format shell
  * needs to render the sheet. The Classic shell reproduces the previous `PF2Sheet` DOM exactly.
  */
-export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout }: UsePf2PanelsArgs): Pf2PanelSet {
+export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections }: UsePf2PanelsArgs): Pf2PanelSet {
   const router = useRouter();
+  const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // ONE resolution for every headline number (S13b). The card and the roll both read `.total` from
   // this, which is the whole point: the sheet used to display `pf2SaveTotal` and roll that number
   // PLUS a condition penalty applied at the call site, so a Frightened character's card and dice
@@ -693,6 +699,18 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
               </div>
             ))}
           </div>
+        </>
+      ),
+    },
+    {
+      // Player-authored custom sections (D-13) — the SAME renderer + editor as 5e/IG, persisted via the
+      // `/sections` route (PF2 has no live 5e store), buffered + saved by SectionsManager. Shown when the
+      // owner can add them OR any already exist.
+      id: 'pf2-custom', label: 'Custom', emoji: '✚', show: !!canEdit || customSecs.length > 0,
+      render: () => (
+        <>
+          <SectionHead title="Custom Sections" />
+          <SectionsManager characterId={characterId} initial={customSecs} canWrite={!!canEdit} />
         </>
       ),
     },
