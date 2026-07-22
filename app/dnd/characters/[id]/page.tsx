@@ -183,6 +183,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         pf2={pf2Data} characterId={character.id} canEdit={canWrite} isDM={isDM}
         variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
         sheetType={character.sheet_type}
+        layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}
       />
     );
   }

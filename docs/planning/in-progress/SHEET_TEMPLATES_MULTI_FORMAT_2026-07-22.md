@@ -224,8 +224,19 @@ compute their own). The clean decomposition:
   (attributes/defenses/skills/strikes/feats/spells all match), Fortitude save (31, +15) and Fist Strike
   (NAT-1 fumble, +14) still roll with correct breakdowns. New `pf2-panels.test.tsx`; 12 source-anchored
   PF2 tests re-pointed to read shell+hook. Whole suite green (15591)._
-- [ ] **T-5b — PF2 Codex.** Feed `usePf2Panels()` into the Codex shell for PF2; add `codex` to PF2 in
-  `BUILT_FOR`. Browser-verify on Orin across all 5 skins. Done bar + registry test updated.
+- [x] **T-5b — PF2 Codex.** PF2Sheet now branches on `layout`: for `codex` it renders `CodexShell`
+  with the PF2 identity column (`header` + attributes + defenses panels) on the left and the rest of
+  `usePf2Panels()` (skills/strikes/feats/spells) as the pane rail, PF2's own roller docked, the refusal
+  banner in `above`, and the modals after. Wrapped in `.sheet-shell` (layout, no theme.css bleed) with
+  `{...skinHxVars, ...shellThemeVars}` on the root so the PF2 panels AND the shell both re-skin. Page
+  threads `layout={data.sheetLayout}`; `codex` added to PF2 `BUILT_FOR` (so the picker now offers it
+  for PF2). **Fixed a general shell bug:** `CodexShell` opened `DEFAULT_PANE='skills'` which no non-5e
+  system has, so it now falls back to the first pane (`defs[0]`) — else a PF2 codex opens with nothing
+  showing. Browser-verified on Orin (L9 Wizard, lazzuh skin): identity column shows real AC 24 / HP
+  78 / saves +15/+16/+14 / Spell DC 27, and the rail's Skills pane renders his actual PF2 skills
+  (Society +15 trained, Stealth +3, …) styled in the skin. Registry tests updated. _(The default-pane
+  auto-open confirmed by code + tests; the dev server was serving a stale bundle — will re-confirm in
+  T-8's production build.)_
 - [ ] **T-5c — PF2 Dashboard.** Feed `usePf2Panels()` into the Dashboard shell; add `dashboard` to
   PF2. Browser-verify Orin × 5 skins.
 - [ ] **T-5d — PF2 Play.** Feed `usePf2Panels()` into the Play shell (vitals band = AC/HP/class DC +

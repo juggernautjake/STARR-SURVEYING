@@ -41,7 +41,10 @@ export default function CodexShell({
   // The canonical order IS the panel order — one source, so the rail and the stack cannot disagree
   // about where a pane belongs.
   const order = useMemo(() => defs.map((d) => d.id), [defs])
-  const stack = usePaneStack(storageKey, order, DEFAULT_PANE)
+  // Open Skills by default for 5e, per the owner's ask — but a non-5e system's panel set has no pane
+  // with that id (PF2's is `pf2-skills`), so fall back to the FIRST pane rather than opening nothing.
+  const defaultPane = defs.some((d) => d.id === DEFAULT_PANE) ? DEFAULT_PANE : (defs[0]?.id ?? DEFAULT_PANE)
+  const stack = usePaneStack(storageKey, order, defaultPane)
 
   return (
     <div className="codex">

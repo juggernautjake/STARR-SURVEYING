@@ -15,10 +15,14 @@
 
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { skinHxVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 import { usePf2Panels } from './pf2/usePf2Panels';
+import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
+// The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
+// (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
+import '@/app/dnd/_sheet/styles/codex.css';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -27,6 +31,9 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
    *  this sheet's root so the skin picker actually restyles the bespoke PF2 sheet (default → no change). */
   sheetType?: string;
+  /** The chosen TEMPLATE (`data.sheetLayout`). 'codex' renders the shared Codex shell fed by the PF2
+   *  panel set; anything else (incl. undefined) is the default Classic view. */
+  layout?: string;
 }) {
   const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
@@ -38,6 +45,38 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     // Keep the section id anchor + `pf2Section` wrapper so the jump nav still lands on each block.
     return p ? <section id={p.id} className={styles.pf2Section}>{p.render()}</section> : null;
   };
+
+  // ── CODEX (T-5b) ──────────────────────────────────────────────────────────────────────────────
+  // The same PF2 panel set, arranged by the shared CodexShell. `.sheet-shell` (NOT `.dnd-sheet`) gives
+  // the shell its layout CSS without theme.css's element rules bleeding onto the PF2 panels; the two
+  // token sets ride on the root — `skinHxVars` for the PF2 panels' `--hx-*`, `shellThemeVars` for the
+  // shell's `--gold`/`--panel-rgb`/… — so the whole thing re-skins together.
+  if (layout === 'codex') {
+    // The left identity column is PF2's own "at a glance": who they are (header) + attributes + the
+    // defences/vitals block (AC/HP/saves). The rail then holds everything else in stackable panes.
+    const railIds = new Set(['pf2-attributes', 'pf2-defenses']);
+    const railPanels = panels.filter((p) => !railIds.has(p.id));
+    const identity = (
+      <aside className="codex-identity">
+        {header}
+        {section('pf2-attributes')}
+        {section('pf2-defenses')}
+      </aside>
+    );
+    return (
+      <div className="sheet-shell" style={{ ...skinHxVars(sheetType), ...shellThemeVars(sheetType), margin: '10px 0' }}>
+        <CodexShell
+          identity={identity}
+          panels={railPanels}
+          roller={roller}
+          above={banner}
+          storageKey={characterId}
+        />
+        {/* Modals are fixed-position; they live outside the shell grid, same as in the Classic view. */}
+        {overlays}
+      </div>
+    );
+  }
 
   return (
     // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves

@@ -22,17 +22,19 @@ describe('sheet-templates registry', () => {
     }
   });
 
-  it('5e offers all four formats today; PF2 and IG offer Classic (honest coverage)', () => {
+  it('5e offers all four formats; PF2 offers Classic + Codex; IG offers Classic (honest coverage)', () => {
     expect(templatesForSystem('dnd5e-2024').map((t) => t.id)).toEqual(['classic', 'codex', 'dashboard', 'play']);
     expect(templatesForSystem('dnd5e-2014').map((t) => t.id)).toEqual(['classic', 'codex', 'dashboard', 'play']);
-    expect(templatesForSystem('pathfinder2e').map((t) => t.id)).toEqual(['classic']);
+    expect(templatesForSystem('pathfinder2e').map((t) => t.id)).toEqual(['classic', 'codex']);
     expect(templatesForSystem('intuitive-games').map((t) => t.id)).toEqual(['classic']);
   });
 
   it('isTemplateBuiltFor validates against the system, not the global list', () => {
-    // Codex exists globally, but is NOT built for PF2 yet — the endpoint must refuse it there.
-    expect(isTemplateBuiltFor('dnd5e-2024', 'codex')).toBe(true);
-    expect(isTemplateBuiltFor('pathfinder2e', 'codex')).toBe(false);
+    // Dashboard exists globally, but is NOT built for PF2 yet — the endpoint must refuse it there.
+    expect(isTemplateBuiltFor('dnd5e-2024', 'dashboard')).toBe(true);
+    expect(isTemplateBuiltFor('pathfinder2e', 'codex')).toBe(true); // T-5b wired it
+    expect(isTemplateBuiltFor('pathfinder2e', 'dashboard')).toBe(false);
+    expect(isTemplateBuiltFor('intuitive-games', 'codex')).toBe(false);
     expect(isTemplateBuiltFor('pathfinder2e', 'classic')).toBe(true);
     expect(isTemplateBuiltFor('dnd5e-2024', 'nonsense')).toBe(false);
   });
