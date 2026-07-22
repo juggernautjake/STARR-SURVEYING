@@ -20,12 +20,12 @@
 **Legend:** `[x]` shipped · `[~]` in progress · `[ ]` not started. Standing bar per slice: `tsc`,
 `eslint`, `vitest`, browser-verified before its box is checked.
 
-- [ ] **D-1 — bottom-right toggle button + remembered position.** The MINIMIZED roller becomes a compact
-  dice button pinned at the bottom-right of the viewport (not a bar left at the roller's spot). Clicking
-  it opens the roller AT ITS REMEMBERED position/size; the header's minimize returns it to the button.
-  `useFloatingDock` keeps `x/y` as the expanded position across a minimize (already persisted), and gains a
-  separate fixed bottom-right style for the minimized button. Browser-verify: move roller → minimize →
-  button sits bottom-right → open → roller returns to the moved spot.
+- [x] **D-1 — bottom-right toggle button + remembered position.** The MINIMIZED roller is a compact dice FAB
+  pinned bottom-right; clicking it opens the roller at its REMEMBERED position/size, the header minimize
+  returns it. `useFloatingDock` keeps `x/y` across a minimize and exposes a fixed bottom-right button style.
+  Browser-verified move→minimize→reopen returns to the exact spot. **Fix (owner follow-up):** the FAB was
+  colliding with the fixed "Edit with AI" launcher (both right/bottom, z-index 60) — it now sits ABOVE it
+  (right:18, bottom:82, z-index 61); browser-verified no overlap.
 - [x] **D-2 — Codex tabs: wider, bold, obviously clickable, readable on every style/theme.** `.codex-railtab`
   is now wider (padding 14×11, min-width 40), BOLD (700) at 13.5px in full-contrast `--ink` (was the faint
   `--muted` that read as disabled), with a real border (`--line-strong`), inset depth, a hover lift, and a
@@ -50,13 +50,13 @@
 - [ ] **D-6 — readable sections on every style/theme.** Sweep the sheet's section text/labels for contrast
   + intuitive formatting across all 5 styles × 5 themes (the contrast clamp already guarantees the token
   colours; this is about the places that hardcode a colour or read faint). Fix offenders; record.
-- [ ] **D-7 — every roller shows the full breakdown ALWAYS (no toggle).** Each roller must clearly show
-  the roll — normal or advantage/disadvantage — and every bonus/penalty applied from the character's
-  abilities/skills/conditions/feats, as the full calculation AND the final total, shown BENEATH the dice
-  result with NO "show breakdown" button (it's always visible). Audit the 4 rollers: surface the
-  `entry.breakdown` (and the adv/dis kept-pair) inline, remove any collapse/expand gating on it. Keep it
-  readable on every style/theme. Browser-verify a d20 with advantage + a conditional penalty shows the
-  whole chain.
+- [x] **D-7 — every roller shows the full breakdown ALWAYS (no toggle).** Audited the 4 rollers: the Dice
+  Core (`RollStage` `.rv-break` + total), Sigil Stack (tile stack) and Roll Board (dealt cards) ALREADY show
+  the breakdown inline with no toggle. The Impact roller was the only one gating it behind a "▸ Show
+  breakdown" button — removed; its `.ir-detail` now renders always on landing, showing the die row (with
+  `d20 · advantage/disadvantage (kept pair)` when applicable), the modifier total, and each named boost/
+  penalty (conditions/feats), beneath the big final total. Browser-VERIFIED on the Impact roller: rolling
+  Initiative shows the die (d20 16) + modifiers (+3) rows immediately, no toggle present. tsc/eslint green.
 
 - [x] **D-8 — purge Lazzuh Gun defaults bleeding into other characters.** Several 5e panels hardcoded
   Lazzuh's story as flavour shown on EVERY character (all templates share these panels): `Abilities` ("hands-

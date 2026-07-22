@@ -271,13 +271,16 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
 
   // The minimized roller is a compact button pinned to the bottom-right corner of the viewport (D-1),
   // deliberately NOT at the window's remembered x/y — so it always sits in the same familiar spot while
-  // the expanded window still reopens wherever the player last dragged it.
+  // the expanded window still reopens wherever the player last dragged it. It sits ABOVE the fixed
+  // "Edit with AI" launcher (which is right:18 / bottom:18, ~52px tall, z-index 60) rather than on top of
+  // it, and takes a higher z-index so it is never stuck behind it.
   const minimizedStyle: React.CSSProperties = {
     position: 'fixed',
-    right: EDGE,
-    bottom: EDGE,
+    right: 18,
+    bottom: 82,
     left: 'auto',
     top: 'auto',
+    zIndex: 61,
   }
 
   return {

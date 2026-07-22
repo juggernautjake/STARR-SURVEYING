@@ -97,7 +97,6 @@ function ImpactStage() {
   // How many sides the die SHAPE has, from the die being rolled (D-4). null → the neutral rounded shape.
   const [sides, setSides] = useState<number | null>(null)
   const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; landing: number; isD20: boolean; tag?: string } | null>(null)
-  const [open, setOpen] = useState(false)
   const timers = useRef<number[]>([])
   const scrambler = useRef<number | null>(null)
   const lastToken = useRef(-1)
@@ -231,23 +230,19 @@ function ImpactStage() {
       </div>
       {phase === 'landed' && meta?.crit && <div className="ir-flag crit">★ NAT 20 · CRITICAL ★</div>}
       {phase === 'landed' && meta?.fumble && <div className="ir-flag fumble">✖ NAT 1 · FUMBLE ✖</div>}
+      {/* The full breakdown is ALWAYS shown beneath the result (D-7) — every source that fed the total
+          (the natural die, ability/proficiency, adv/dis kept pair, condition/feat bonuses & penalties),
+          then the final total — never behind a "show breakdown" toggle. */}
       {phase === 'landed' && (
-        <>
-          <button type="button" className="ir-detail-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {open ? '▾ Hide breakdown' : '▸ Show breakdown'}
-          </button>
-          {open && (
-            <div className="ir-detail">
-              {rows.map((row) => (
-                <div key={row.key} className={`ir-row ir-${row.kind}`}>
-                  <span className="ir-row-label">{row.label}</span>
-                  <span className="ir-row-val">{row.value}</span>
-                </div>
-              ))}
-              {meta?.tag && <div className="ir-detail-tag">{meta.tag}</div>}
+        <div className="ir-detail is-open">
+          {rows.map((row) => (
+            <div key={row.key} className={`ir-row ir-${row.kind}`}>
+              <span className="ir-row-label">{row.label}</span>
+              <span className="ir-row-val">{row.value}</span>
             </div>
-          )}
-        </>
+          ))}
+          {meta?.tag && <div className="ir-detail-tag">{meta.tag}</div>}
+        </div>
       )}
     </div>
   )
