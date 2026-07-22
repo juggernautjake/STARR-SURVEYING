@@ -368,7 +368,11 @@ describe('the bespoke sheets render their own system\'s concepts', () => {
   it('each sheet folds conditions through its OWN system\'s penalty model', () => {
     // The concrete leak this prevents: a bespoke sheet calling conditionMechanics5e, which would
     // silently apply 5e's binary condition effects to a system whose conditions are numeric.
-    const pf2 = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+    // PF2's condition fold (pf2ResolveAll) moved into the PF2 panel set (usePf2Panels, T-5a); the
+    // Classic shell (PF2Sheet) is now thin. Read both so the anti-bleed anchor holds wherever it
+    // lives — the property asserted (PF2's own numeric model, never 5e's) is unchanged.
+    const pf2 = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+      + fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
     const ig = fs.readFileSync(path.join(ROOT, 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
     // PF2 folds conditions in `resolve.ts` now rather than at the sheet's roll call site — the
     // sheet used to display an unconditioned number and roll a conditioned one, so the fold moved

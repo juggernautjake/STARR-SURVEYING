@@ -13,7 +13,10 @@ import { join } from 'node:path';
 const tip = readFileSync(join(process.cwd(), 'app/dnd/_ui/Tip.tsx'), 'utf8');
 const adapter = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/InfoTip.tsx'), 'utf8');
 const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/IGSheet.tsx'), 'utf8');
-const pf2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+// The PF2 condition chips moved into the panel set (usePf2Panels, T-5a); the Classic shell
+// (PF2Sheet) is now thin. Read both so the InfoTip wiring anchors hold wherever they live.
+const pf2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
 
 describe('InfoTip is reachable by hover, focus, AND tap', () => {
   it('opens on mouse hover, keyboard focus, and click/tap', () => {

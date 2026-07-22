@@ -10,7 +10,10 @@ import path from 'node:path';
 import { applyPf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { blankPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 
-const src = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+// The Spellcasting section moved into the PF2 panel set (usePf2Panels, T-5a); the Classic shell
+// (PF2Sheet) is now thin. Read both so these render anchors hold wherever the string lives.
+const src = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+  + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
 
 describe('spells render on the sheet', () => {
   it('reads the stored spell list', () => {

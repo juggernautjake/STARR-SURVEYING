@@ -12,7 +12,9 @@ import { blankPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const editor = read('app/dnd/_ui/PF2ElementEditor.tsx');
-const sheet = read('app/dnd/_ui/PF2Sheet.tsx');
+// PF2 sheet sections + shared state were extracted into usePf2Panels (T-5a); read both the thin
+// Classic shell and the panel set so these wiring anchors hold wherever the string lives.
+const sheet = read('app/dnd/_ui/PF2Sheet.tsx') + read('app/dnd/_ui/pf2/usePf2Panels.tsx');
 
 describe('one component both edits and authors', () => {
   it('distinguishes the two by whether `initial` was supplied', () => {

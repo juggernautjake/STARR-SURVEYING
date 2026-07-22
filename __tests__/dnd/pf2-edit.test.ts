@@ -145,7 +145,10 @@ describe('PF2 set_attribute (in-play stat edit, AI parity with IG set_ability)',
 });
 
 describe('PF2 sheet exposes an inline attribute editor (R4 manual UI)', () => {
-  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+  // The inline attribute editor + postEdit wiring moved into the PF2 panel set (usePf2Panels,
+  // T-5a); the Classic shell (PF2Sheet) is now thin. Read both so these anchors hold.
+  const SHEET = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+    + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
   const PAGE = fs.readFileSync(path.join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
   it('wires an edit-gated inline input per attribute to the pf2-edit set_attribute op', () => {
     expect(SHEET).toContain("postEdit({ op: 'set_attribute', attribute: k, value: v })");

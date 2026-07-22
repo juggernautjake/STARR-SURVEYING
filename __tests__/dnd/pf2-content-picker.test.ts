@@ -10,7 +10,9 @@ import path from 'node:path';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const picker = read('app/dnd/_ui/PF2ContentPicker.tsx');
-const sheet = read('app/dnd/_ui/PF2Sheet.tsx');
+// PF2 sheet sections + shared state were extracted into usePf2Panels (T-5a); read both the thin
+// Classic shell and the panel set so these wiring anchors hold wherever the string lives.
+const sheet = read('app/dnd/_ui/PF2Sheet.tsx') + read('app/dnd/_ui/pf2/usePf2Panels.tsx');
 
 describe('it consults the real eligibility core', () => {
   it('uses the same functions the server gate uses', () => {

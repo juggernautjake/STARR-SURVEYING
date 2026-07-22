@@ -158,7 +158,10 @@ describe('runes DERIVE the weapon numbers, and are actually wired in', () => {
     // read its result. Anchoring on the resolver rather than the sheet's inlined call keeps the
     // guard pointed at whoever actually does the work — and the real protection is now
     // pf2-resolve.test.ts, which asserts the resolved numbers rather than the source text.
-    const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+    // The Strikes section moved into the PF2 panel set (usePf2Panels, T-5a); read both it and the
+    // thin Classic shell so the resolver-call anchor holds wherever the string lives.
+    const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+      + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
     const resolve = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/pathfinder2e/resolve.ts'), 'utf8');
     expect(sheet).toContain('pf2ResolveStrikeInPlay(a, pf2, strikeIndex)');
     expect(resolve).toContain('pf2WeaponNumbers(attack)');

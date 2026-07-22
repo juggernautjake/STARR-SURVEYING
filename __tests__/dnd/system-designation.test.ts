@@ -61,7 +61,9 @@ describe('the sheet SHOWS its system', () => {
     expect(read('app/dnd/_ui/IGSheet.tsx')).toContain('Intuitive Games · Level');
   });
   it('the bespoke PF2 sheet shows a PATHFINDER 2e badge', () => {
-    expect(read('app/dnd/_ui/PF2Sheet.tsx')).toContain('PATHFINDER 2e');
+    // The header (badge included) was extracted into the PF2 panel set (usePf2Panels, T-5a); the
+    // Classic shell (PF2Sheet) renders it. Read both so the designation anchor holds.
+    expect(read('app/dnd/_ui/PF2Sheet.tsx') + read('app/dnd/_ui/pf2/usePf2Panels.tsx')).toContain('PATHFINDER 2e');
   });
 });
 

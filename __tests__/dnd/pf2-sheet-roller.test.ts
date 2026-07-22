@@ -4,7 +4,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+// The roller + all tap-to-roll wiring was extracted into the PF2 panel set (usePf2Panels, T-5a);
+// the Classic shell (PF2Sheet) is now thin. Read both so these anchors hold wherever they live.
+const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
 
 describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
   it('uses the shared roll engine with the pathfinder2e system (four-step degrees)', () => {

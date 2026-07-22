@@ -10,7 +10,11 @@ import { join } from 'node:path';
 import { applyPf2Edit, parsePf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { blankPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 
-const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8');
+// PF2 sheet sections + shared state (postEdit, the refusal banner) were extracted into usePf2Panels
+// (T-5a); read both the thin Classic shell and the panel set so these anchors hold wherever the
+// string lives.
+const sheet = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
 
 /** A caster holding one catalogued spell. */
 function caster() {
@@ -95,7 +99,9 @@ describe("the gate's refusal reaches the player (IG-S2 parity)", () => {
 
   it('renders the refusal where the player will see it', () => {
     expect(sheet).toContain('role="alert"');
-    expect(sheet).toMatch(/\{refusal &&/);
+    // Now the panel set's `banner` furniture: rendered iff a refusal is set (T-5a extracted it from
+    // the inline `{refusal && …}` into `refusal ? (…) : null`).
+    expect(sheet).toMatch(/refusal \? \(/);
   });
 
   it('a network failure is reported rather than swallowed', () => {

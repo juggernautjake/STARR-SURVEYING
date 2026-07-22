@@ -161,7 +161,7 @@ compute their own). The clean decomposition:
 
 ### PF2 — panel set, then shells
 
-- [ ] **T-5a — PF2 panel set (`pf2PanelSet()`), default unchanged.** Extract the sections inside
+- [x] **T-5a — PF2 panel set (`pf2PanelSet()`), default unchanged.** Extract the sections inside
   `PF2Sheet.tsx` into a `usePf2Panels()` hook returning the SAME `SheetPanel[]` shape 5e uses
   (Attributes, Defenses & Vitals, Conditions, Skills, Strikes, Feats & Features, Spellcasting, Gear,
   Story) — each panel a `() => ReactNode` rendering the existing PF2 components against `data.pf2e`,
@@ -169,6 +169,15 @@ compute their own). The clean decomposition:
   `usePf2Panels()`", so today's default is byte-for-byte the same sections. NO new format yet. Done:
   Orin (L9 Wizard) renders identically to before (browser diff), every strike/skill/save still rolls
   and edits, `usePf2Panels` unit-tested for the expected panel ids/gates.
+  _Shipped: `app/dnd/_ui/pf2/usePf2Panels.tsx` owns all shared state (the one `pf2ResolveAll`, the
+  roller, pickers/editors, the MAP strike index, the refusal banner) and returns
+  `{ panels[7 gated], header, nav, banner, roller, overlays, footer }`; panel ids
+  `pf2-attributes · pf2-defenses · pf2-conditions(hasConditions) · pf2-skills · pf2-strikes(showStrikes) ·
+  pf2-feats(showFeats) · pf2-spells(showSpells‖present)`. `PF2Sheet.tsx` is now a ~55-line Classic shell
+  that places them by id in the original DOM order. Orin browser-diffed byte-for-byte identical
+  (attributes/defenses/skills/strikes/feats/spells all match), Fortitude save (31, +15) and Fist Strike
+  (NAT-1 fumble, +14) still roll with correct breakdowns. New `pf2-panels.test.tsx`; 12 source-anchored
+  PF2 tests re-pointed to read shell+hook. Whole suite green (15591)._
 - [ ] **T-5b — PF2 Codex.** Feed `usePf2Panels()` into the Codex shell for PF2; add `codex` to PF2 in
   `BUILT_FOR`. Browser-verify on Orin across all 5 skins. Done bar + registry test updated.
 - [ ] **T-5c — PF2 Dashboard.** Feed `usePf2Panels()` into the Dashboard shell; add `dashboard` to

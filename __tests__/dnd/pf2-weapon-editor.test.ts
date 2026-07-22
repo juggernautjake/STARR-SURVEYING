@@ -10,7 +10,9 @@ import { applyPf2Edit, parsePf2Edit, PF2_EDIT_OPS } from '@/lib/dnd/systems/path
 import { blankPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
-const sheet = read('app/dnd/_ui/PF2Sheet.tsx');
+// PF2 sheet sections + shared state were extracted into usePf2Panels (T-5a); read both the thin
+// Classic shell and the panel set so these wiring anchors hold wherever the string lives.
+const sheet = read('app/dnd/_ui/PF2Sheet.tsx') + read('app/dnd/_ui/pf2/usePf2Panels.tsx');
 const editor = read('app/dnd/_ui/PF2WeaponEditor.tsx');
 
 describe('weapon ops', () => {
@@ -79,8 +81,9 @@ describe('the sheet resolves traits instead of rendering a stored string', () =>
   });
 
   it('shows the Strikes block to an editor even with no weapons yet', () => {
-    // Otherwise the ＋ Weapon button is unreachable for a character who has none.
-    expect(sheet).toContain('(pf2.attacks.length > 0 || canDoEdit)');
+    // Otherwise the ＋ Weapon button is unreachable for a character who has none. The gate was
+    // extracted into `showStrikes` when the Strikes section became a panel (T-5a); same rule.
+    expect(sheet).toContain('showStrikes = pf2.attacks.length > 0 || canDoEdit');
   });
 });
 
