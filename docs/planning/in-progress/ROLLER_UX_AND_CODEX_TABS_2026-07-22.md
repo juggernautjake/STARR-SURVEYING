@@ -139,15 +139,23 @@
   advantage roll shows "d20 advantage · rolled 11, 9 → 11", "Ability + proficiency → +3", "Total → 14", and
   no row renders as a square. tsc + eslint + the roller anchor tests green.
 
-- [ ] **D-15 — the 4 template rollers on the bespoke PF2/IG sheets (owner 2026-07-22).** The IG (and PF2)
-  sheets only mount their own simple Target-DC + result-banner roller — NOT the four template rollers (Dice
-  Core / Sigil Stack / Roll Board / Impact) with the on-roller template picker, animations, sounds, and the
-  instant/animated toggle. The owner wants EVERY system's roller modal set up like the 5e one. This is the
-  parked `pending/ROLLER_SYSTEM_AGNOSTIC_FEED_2026-07-22.md` unit (RO-3/RO-5): introduce a system-agnostic
-  roll feed the four animated rollers read, have PF2/IG PUBLISH their resolved rolls into it (natural die
-  face, breakdown, crit/fumble by their own rules), mount the shared roller (with `RollerTemplateBar` +
-  anim toggle) on those sheets, and let it reformat per system. Large, multi-step — activate the pending
-  doc and build it in slices.
+- [x] **D-15 — the 4 template rollers on the bespoke PF2/IG sheets (owner 2026-07-22).** Built as the
+  `in-progress/ROLLER_SYSTEM_AGNOSTIC_FEED_2026-07-22.md` unit (RO-5). A system-agnostic `RollFeed`
+  (`components/rollers/rollFeed.tsx`) now feeds all four animated stages (Dice Core / Sigil Stack / Roll
+  Board / Impact); the four STAGES read `useRollFeed()` instead of the 5e store (RO-5a, browser-verified on
+  5e — an Init roll still resolves `d20[13] + 3 = 16`). PF2 (RO-5b) and IG (RO-5c) now shape every resolved
+  roll into an `ActiveRoll` via the shared, unit-tested builders (`rollFeedBuild.ts`: `buildD20ActiveRoll` /
+  `buildDamageActiveRoll`, 5 tests pinning the `d20[7,18]→18 + 3` breakdown contract) and PUBLISH it; their
+  roller node is now `<RollFeedProvider>` + `RollerTemplateBar` picker + the chosen `rollerStageFor(id)`
+  stage in a `.dnd-sheet` wrapper, replacing the old Target-DC-only banner. `rollerTemplate`/`rollerAnim`
+  thread page.tsx → sheet → panel hook. Full dnd suite green (4120); tsc/eslint clean. The on-screen
+  animation on PF2/IG remains to eyeball on the fresh Vercel build (local dev server serves stale compiles).
+- [x] **D-16 — IG rollable stats ARE the buttons; per-check dice glyphs removed (owner 2026-07-22).** IG put
+  a little 🎲 next to every save/skill/ability/attack/damage value. All five glyphs are gone: each value is
+  itself the interactive control (it already lifts + gold-glows via `.igs-int:hover`, highlights via
+  `.igs-row:hover`, or underlines via `.igs-link:hover`), and a tap sends it to the animated roller (RO-5c).
+  A single "Tap any value to roll it" hint in the Vitals header makes the now-implicit interaction
+  discoverable. Anchor test added; IG suite + tsc green. (PF2 has no equivalent per-stat glyph clutter.)
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact
