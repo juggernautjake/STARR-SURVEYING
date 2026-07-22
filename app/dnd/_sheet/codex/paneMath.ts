@@ -22,6 +22,11 @@ export interface Pane {
   /** Collapsed panes render header-only and are excluded from proportional shrinking — there is
    *  nothing left to take from them. */
   collapsed?: boolean
+  /** The section's natural CONTENT height in px — the MAX a drag may grow this pane to (D-11). The
+   *  owner's rule: a section opens at the minimum height that reveals all of ITS content for THIS
+   *  character, and the user may only shrink it below that, never grow past it (no empty space under
+   *  the content). Measured from the rendered content; unset until first measured. */
+  max?: number
 }
 
 /** A pane's rendered height, which is COLLAPSED_H regardless of the stored height when
@@ -114,11 +119,37 @@ export function closePane(panes: Pane[], id: string): Pane[] {
   return panes.filter((p) => p.id !== id)
 }
 
-/** Resize one pane, clamped to the minimum. Other panes are untouched: a drag adjusts the pane
- *  you grabbed, and the stack scrolls if that overflows. Redistributing on every drag frame makes
- *  the whole stack squirm under the cursor, which is unusable. */
+/** Resize one pane, clamped to the minimum AND to its content-height max (D-11 — only shrink, never
+ *  grow past what reveals all the content). Other panes are untouched: a drag adjusts the pane you
+ *  grabbed, and the stack scrolls if that overflows. Redistributing on every drag frame makes the
+ *  whole stack squirm under the cursor, which is unusable. */
 export function resizePane(panes: Pane[], id: string, height: number): Pane[] {
-  return panes.map((p) => (p.id === id ? { ...p, height: Math.max(MIN_PANE_H, Math.round(height)), collapsed: false } : p))
+  return panes.map((p) => {
+    if (p.id !== id) return p
+    const cap = p.max ?? Infinity
+    return { ...p, height: Math.min(cap, Math.max(MIN_PANE_H, Math.round(height))), collapsed: false }
+  })
+}
+
+/** Record a section's natural CONTENT height (D-11) and size the pane to it.
+ *
+ *  The owner's rule, in two parts:
+ *   - On the FIRST measure (no `max` yet — the section just opened), the pane OPENS AT its content
+ *     height: the minimum height that reveals all of that section's content for this character, tall or
+ *     short. That is the height the section is meant to appear at.
+ *   - On every measure the content height becomes the resize CAP, and the current height is clamped to
+ *     it — so the user can only ever shrink a section below its content, never grow it past (no empty
+ *     space under the content). A later measure (the content itself changed) keeps the size the player
+ *     has since chosen, only re-capping it.
+ *  The cap is floored at MIN_PANE_H so a tiny section stays grabbable. */
+export function capPaneToContent(panes: Pane[], id: string, contentH: number): Pane[] {
+  const cap = Math.max(MIN_PANE_H, Math.round(contentH))
+  return panes.map((p) => {
+    if (p.id !== id) return p
+    if (p.max == null) return { ...p, max: cap, height: cap } // first measure → open at content height
+    if (p.max === cap && p.height <= cap) return p // unchanged
+    return { ...p, max: cap, height: Math.min(p.height, cap) } // re-cap, keep the player's size
+  })
 }
 
 /** Toggle header-only. Keeps the stored height so expanding restores the player's size. */

@@ -95,21 +95,22 @@
   Browser-VERIFIED on the Impact roller: an Initiative roll reads `d20 → 13`, `Ability + proficiency → +3`,
   `Total → 16`. tsc/eslint green.
 
-- [ ] **D-11 — Codex: connected tab⇄section accordion, content-sized, only-shrink, tabs push down (owner
-  2026-07-22).** Rework the Codex pane behaviour so it reads as ONE connected accordion on the right, for
-  EVERY system:
-  - **Connected look:** a section opens OUT of its tab and closes back INTO it — the tab and its open
-    section read as one joined unit (shared edge/frame), not a separate rail + pane stack.
-  - **Content-sized open:** opening a section sizes it to the MINIMUM height that reveals ALL of that
-    section's content for THIS character (measure the content, open at that height).
-  - **Only shrink:** the user may drag a section SMALLER than that natural height but NEVER larger than it
-    (the natural content height is the max; today the pane can be dragged arbitrarily tall). Cap the resize
-    at the measured content height.
-  - **Tabs push down:** when a section opens, the tabs BELOW it move DOWN (stay on the right, pushed beneath
-    the open section); collapsing it reflows the lower tabs/sections back UP into its place.
-  - Works for every character sheet in every system (5e/PF2/IG feed the same Codex shell, so this lives in
-    the shell/`PaneStack`, not per-system). Browser-verify open→content height, drag-smaller-only,
-    open-a-section-above pushes the lower tabs down, collapse reflows up.
+- [x] **D-11a — Codex: content-sized open + only-shrink cap (owner 2026-07-22).** A section now OPENS at
+  the minimum height that reveals ALL of its content for THIS character (measured from an unconstrained
+  inner wrapper — `scrollHeight` alone reports the container, not the content, when the pane is taller than
+  its content), and its content height becomes the resize CAP: the user may drag a section SMALLER but never
+  larger than its content (no empty space below). `paneMath` gains `Pane.max` + `capPaneToContent` (first
+  measure opens at content; later measures keep the player's size, only re-capping), `resizePane` clamps to
+  the cap; `usePaneStack.setContentHeight` + a `ResizeObserver` in `PaneStack` measure and report it. Lives
+  in the shared shell, so it works for EVERY system. 5 unit tests + browser-VERIFIED: a fresh Skills section
+  opens at ~1284px (its content height), Abilities at ~206px (its content), each snug to its content.
+- [ ] **D-11b — Codex: connected tab⇄section accordion, tabs push down (owner 2026-07-22).** The remaining
+  LAYOUT rework so the Codex reads as ONE connected accordion on the right rather than a rail + separate
+  pane stack: a section opens OUT of its tab and closes back INTO it (tab + open section as one joined unit,
+  shared frame); when a section opens, the tabs BELOW it move DOWN (still on the right, pushed beneath the
+  open section) and collapsing reflows the lower tabs/sections back UP. In the shared shell/`PaneStack` so it
+  covers every system. Browser-verify open-a-section-above pushes the lower tabs down, collapse reflows up,
+  and the tab+section read as connected.
 
 ## Done means
 - One bottom-right toggle button; the roller reopens where it was. Every roller is robust + audible; Impact

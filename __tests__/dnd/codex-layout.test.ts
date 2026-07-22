@@ -12,6 +12,7 @@ import {
   COLLAPSED_H,
   DEFAULT_PANE_H,
   MIN_PANE_H,
+  capPaneToContent,
   closePane,
   openPane,
   renderedHeight,
@@ -152,6 +153,40 @@ describe('paneMath — the other operations', () => {
     expect(out).toHaveLength(3) // nothing closed — the assembled set survives
     expect(out.filter((p) => p.collapsed).map((p) => p.id)).toEqual(['a', 'c'])
     expect(out.find((p) => p.id === 'b')!.height).toBe(900 - 2 * COLLAPSED_H)
+  })
+})
+
+describe('content-height cap (D-11 — a section opens at content height, only shrinks)', () => {
+  it('first measure OPENS the pane at its content height — short content shrinks the default', () => {
+    const [p] = capPaneToContent([{ id: 'skills', height: DEFAULT_PANE_H }], 'skills', 210)
+    expect(p.max).toBe(210)
+    expect(p.height).toBe(210) // opened at content (down from the 380 default)
+  })
+
+  it('first measure OPENS at content height even when content is TALLER than the default', () => {
+    const [p] = capPaneToContent([{ id: 'spells', height: DEFAULT_PANE_H }], 'spells', 900)
+    expect(p.max).toBe(900)
+    expect(p.height).toBe(900) // opens tall enough to reveal all content, not stuck at 380
+  })
+
+  it('never caps below the minimum (a tiny section stays grabbable)', () => {
+    const [p] = capPaneToContent([{ id: 's', height: 300 }], 's', 40)
+    expect(p.max).toBe(MIN_PANE_H)
+    expect(p.height).toBe(MIN_PANE_H)
+  })
+
+  it('a LATER measure keeps the player-chosen size, only re-capping it', () => {
+    // Pane already measured once (max set) and shrunk by the player to 150; content grows to 500.
+    const [p] = capPaneToContent([{ id: 's', height: 150, max: 380 }], 's', 500)
+    expect(p.max).toBe(500)
+    expect(p.height).toBe(150) // the player's size is preserved, not re-opened to content
+  })
+
+  it('resizePane never grows a pane past its content-height cap, only shrinks', () => {
+    const capped: Pane[] = [{ id: 's', height: 200, max: 260 }]
+    expect(resizePane(capped, 's', 999)[0].height).toBe(260) // clamped up-drag to the cap
+    expect(resizePane(capped, 's', 140)[0].height).toBe(140) // shrinking is allowed
+    expect(resizePane(capped, 's', 10)[0].height).toBe(MIN_PANE_H) // still floored at the minimum
   })
 })
 

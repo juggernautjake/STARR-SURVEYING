@@ -18,7 +18,7 @@
 //    pane identically no matter how tall each actually is, which is precisely the wrong answer.
 //    The `data-density` attribute below is the JS-side mirror of those breakpoints, for content
 //    that cannot be reflowed by CSS alone.
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { MIN_PANE_H, renderedHeight, type Pane } from './paneMath'
 import type { PaneStack as Stack } from './usePaneStack'
 
@@ -56,6 +56,10 @@ function PaneView({
   stack: Stack
 }) {
   const bodyRef = useRef<HTMLDivElement>(null)
+  // An UNCONSTRAINED inner wrapper around the content: `bodyRef.scrollHeight` returns the CONTAINER
+  // height when the pane is taller than its content, so it can't tell us the natural content height.
+  // This wrapper flows to the content's true height, which is what we cap the pane to (D-11).
+  const contentRef = useRef<HTMLDivElement>(null)
   const dragFrom = useRef<{ y: number; h: number } | null>(null)
   const h = renderedHeight(pane)
   const density = densityFor(pane.height, pane.collapsed)
@@ -100,6 +104,25 @@ function PaneView({
     [def.id, pane.height, stack],
   )
 
+  // Measure the section's natural CONTENT height and report it as the pane's cap (D-11): the pane snaps
+  // to exactly the height that reveals its content (no empty space below) and can't be dragged taller.
+  // Measured on the UNCONSTRAINED inner wrapper (not the scroll body) + re-measured when the content
+  // resizes, since a section's content is per-character (a 2-spell list is far shorter than a 30-spell one).
+  const setContentHeight = stack.setContentHeight
+  useLayoutEffect(() => {
+    const inner = contentRef.current
+    if (!inner || pane.collapsed) return
+    const report = () => {
+      const h = inner.getBoundingClientRect().height
+      if (h > 0) setContentHeight(def.id, Math.ceil(h) + 8) // +8: a hair of breathing room past the content
+    }
+    report()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(report)
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [def.id, pane.collapsed, setContentHeight])
+
   // Double-click the handle to fit content — the fastest way to say "just show me all of it".
   // Capped at 80% of the viewport so a 300-entry spell list cannot produce a pane taller than the
   // screen, which would make the handle itself unreachable.
@@ -132,7 +155,9 @@ function PaneView({
           the query container its contents reflow against. */}
       {!pane.collapsed && (
         <div className="codex-pane-body" ref={bodyRef}>
-          {def.render()}
+          <div ref={contentRef} className="codex-pane-measure">
+            {def.render()}
+          </div>
         </div>
       )}
 

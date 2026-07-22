@@ -14,6 +14,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import {
   type Pane,
   DEFAULT_PANE_H,
+  capPaneToContent,
   closePane,
   openPane,
   resizePane,
@@ -71,6 +72,9 @@ export interface PaneStack {
    *  back — see CX-9 improvement 1. */
   toggle: (id: string) => void
   resize: (id: string, height: number) => void
+  /** Report a section's measured natural content height (D-11) — becomes its resize cap, and snaps the
+   *  open pane down to it so it shows exactly its content with no empty space below. */
+  setContentHeight: (id: string, contentH: number) => void
   collapse: (id: string) => void
   solo: (id: string) => void
   /** Any persisted-layout feature eventually strands someone in a state they cannot undo. */
@@ -139,9 +143,10 @@ export function usePaneStack(
   )
 
   const resize = useCallback((id: string, height: number) => setPanes((cur) => resizePane(cur, id, height)), [])
+  const setContentHeight = useCallback((id: string, contentH: number) => setPanes((cur) => capPaneToContent(cur, id, contentH)), [])
   const collapse = useCallback((id: string) => setPanes((cur) => toggleCollapse(cur, id)), [])
   const solo = useCallback((id: string) => setPanes((cur) => soloPane(cur, id, availableRef.current)), [])
   const reset = useCallback(() => setPanes([{ id: defaultOpen, height: DEFAULT_PANE_H }]), [defaultOpen])
 
-  return { panes, viewportRef, isOpen, toggle, resize, collapse, solo, reset }
+  return { panes, viewportRef, isOpen, toggle, resize, setContentHeight, collapse, solo, reset }
 }
