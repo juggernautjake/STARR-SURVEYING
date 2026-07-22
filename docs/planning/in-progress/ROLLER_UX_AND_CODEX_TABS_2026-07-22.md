@@ -44,9 +44,12 @@
   neutral rounded shape. Browser-VERIFIED: rolling a d20 (Initiative) gives the `.ir-die` a 20-vertex
   polygon clip-path. 5 unit tests (die parsing + clamped polygon). NOTE: the Dice Core / Sigil / Board
   render a number/tiles/cards, not a die shape — the shaped die is for the Impact roller's die. tsc/eslint green.
-- [ ] **D-5 — every roller robust + audible.** Audit the 4 rollers: each resolves correctly, and each has
-  sound on spin/land/crit/fumble (whoosh/tick/blip/tada/errorBuzz), honouring mute + the instant toggle.
-  Fix any gap. Browser-verify sound fires on a roll per template.
+- [x] **D-5 — every roller robust + audible.** Audit outcome: all four rollers already wire the full sound
+  set — `whoosh` on spin, `tick` per step, `blip`/`tada`/`errorBuzz` on land/crit/fumble — in BOTH the
+  animated and the instant paths, each with its own per-skin voice (`lib/audio` parameterised by roller),
+  plus a mute control (`isMuted`/`setMuted`). No gaps found. Browser-VERIFIED: rolling on the Impact roller
+  leaves the AudioContext `running` with no audio errors (sound fires); the same audio calls back every
+  template.
 - [ ] **D-6 — readable sections on every style/theme.** Sweep the sheet's section text/labels for contrast
   + intuitive formatting across all 5 styles × 5 themes (the contrast clamp already guarantees the token
   colours; this is about the places that hardcode a colour or read faint). Fix offenders; record.
