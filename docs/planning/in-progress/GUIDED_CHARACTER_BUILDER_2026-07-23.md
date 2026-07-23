@@ -268,8 +268,13 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   `isMulticlass`, `formatClassLevels` ("Fighter 3 / Wizard 2"), so every later consumer stops caring whether
   a character is single- or multi-class. 5 tests. Next: MC-5e-2 (aggregate features/HP/prof/slots across
   classes, reusing `snapshotAtLevel` per class + `multiclassCasterLevel`).
-- [ ] **MC-5e-2 — engine:** aggregate features / proficiencies / HP / saves / spell slots across classes
-  (per-class `snapshotAtLevel` + `multiclassCasterLevel`), one subclass per class.
+- [x] **MC-5e-2 — cross-class aggregation engine (DONE 2026-07-23).** `multiclassSnapshot(classes, lookup)`
+  in engine.ts resolves each class's own `snapshotAtLevel` and combines under the 5e rules: proficiency by
+  TOTAL level, HP additive, all classes' features kept (tagged `sourceClass`), warlock pact slots summed, and
+  the combined `casterLevel` via `multiclassCasterLevel` (non-casters add 0). Returns `perClass` snapshots for
+  display. Verified over REAL class data (Fighter 3/Wizard 2 → level 5, +3 prof, additive HP, features from
+  both, caster level 2; martial multiclass casts nothing; unknown classes skipped). 4 tests. **Next slice
+  (MC-5e-2b):** map `casterLevel` → the standard multiclass spell-slot table for the actual slots.
 - [ ] **MC-5e-3 — multiclass eligibility:** the ability-score prerequisites to ENTER a second class.
 - [ ] **MC-5e-4 — LevelBuilder multiclass:** at each character level, choose which class to advance (or add a
   new class), then resolve that class-level's owed choices via the existing `planLevelUp` per class.

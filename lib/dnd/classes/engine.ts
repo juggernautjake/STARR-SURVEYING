@@ -207,3 +207,61 @@ export function multiclassCasterLevel(
   }
   return Math.min(20, total);
 }
+
+/** Everything a MULTICLASS character has, aggregated across its classes (MC-5e-2). Built by resolving each
+ *  class's own `snapshotAtLevel` and combining under the 5e rules: proficiency bonus by TOTAL level, HP
+ *  additive, every class's features kept (tagged with the class they came from), warlock pact slots summed,
+ *  and the combined spellcaster `casterLevel` from `multiclassCasterLevel`. The caller maps `casterLevel` to
+ *  the standard multiclass spell-slot table (the same table a full caster of that level uses) — kept out of
+ *  here so this stays pure and the table lives with the class data. A single-class list just returns that
+ *  one class's numbers, so this is safe to use for every character. */
+export interface MulticlassSnapshot {
+  totalLevel: number;
+  proficiencyBonus: number;
+  hitPointsBeforeCon: number;
+  features: (ClassFeature & { sourceClass: string })[];
+  resources: LevelSnapshot['resources'];
+  /** Warlock pact magic, summed across any pact classes. */
+  pact?: { slots: number; rank: number };
+  /** Combined 5e multiclass spellcaster level — 0 for a non-caster. Map to the standard slot table for slots. */
+  casterLevel: number;
+  /** Each class's own snapshot, for per-class display (subclass features, resources, class level). */
+  perClass: { classKey: string; level: number; name: string; snapshot: LevelSnapshot }[];
+}
+
+export function multiclassSnapshot(
+  classes: readonly ClassLevel[],
+  lookup: (key: string) => { def: ClassDefinition; sub?: SubclassDefinition | null } | null | undefined,
+): MulticlassSnapshot {
+  const perClass: MulticlassSnapshot['perClass'] = [];
+  const features: MulticlassSnapshot['features'] = [];
+  const resources: MulticlassSnapshot['resources'] = [];
+  const casterParts: { kind: NonNullable<ClassDefinition['spellcasting']>['kind']; level: number; roundUp?: boolean }[] = [];
+  let hp = 0;
+  let pactSlots = 0;
+  let pactRank = 0;
+  for (const cl of classes) {
+    const found = lookup(cl.classKey);
+    if (!found) continue;
+    const snap = snapshotAtLevel(found.def, cl.level, found.sub ?? null);
+    perClass.push({ classKey: cl.classKey, level: cl.level, name: found.def.name, snapshot: snap });
+    hp += snap.hitPointsBeforeCon;
+    for (const f of snap.features) features.push({ ...f, sourceClass: found.def.name });
+    for (const r of snap.resources) resources.push(r);
+    if (snap.pact) { pactSlots += snap.pact.slots; pactRank = Math.max(pactRank, snap.pact.rank); }
+    const sc = found.def.spellcasting;
+    // Every caster class contributes to the combined caster level; pact/non-casters add 0 in the math.
+    if (sc) casterParts.push({ kind: sc.kind, level: cl.level, roundUp: sc.roundHalfUp });
+  }
+  const totalLevel = totalClassLevel(classes);
+  return {
+    totalLevel,
+    proficiencyBonus: proficiencyBonusFor(totalLevel),
+    hitPointsBeforeCon: hp,
+    features,
+    resources,
+    ...(pactSlots > 0 ? { pact: { slots: pactSlots, rank: pactRank } } : {}),
+    casterLevel: multiclassCasterLevel(casterParts),
+    perClass,
+  };
+}
