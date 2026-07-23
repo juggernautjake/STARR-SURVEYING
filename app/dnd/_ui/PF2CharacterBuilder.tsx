@@ -14,6 +14,7 @@ import PF2BuildPicks from './PF2BuildPicks';
 import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2LevelBreakdown } from '@/lib/dnd/systems/pathfinder2e/levelup';
 
 export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
   /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
@@ -140,6 +141,26 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             {cls.summary} <span style={{ color: 'var(--hx-teal-1)' }}>Key: {cls.keyAttribute.join(' or ')} · HP {cls.hpPerLevel}/level{cls.spellcasting ? ` · ${cls.spellcasting.tradition} ${cls.spellcasting.kind} caster` : ''}.</span>
           </div>
         ) : null;
+        // Level-by-level PREVIEW (B8): what this class gains at each level 1..level, from the tested
+        // progression data + feat schedule. Read-only — shows the player their path before they build.
+        const progressionPreview = cls && className ? (
+          <details style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '7px 10px' }}>
+            <summary style={{ cursor: 'pointer', fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--hx-gold-2)' }}>
+              {className} · level 1–{level} progression <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>· what you gain each level</span>
+            </summary>
+            <div style={{ display: 'grid', gap: 3, marginTop: 7, maxHeight: 260, overflowY: 'auto', scrollbarWidth: 'thin' }}>
+              {pf2LevelBreakdown(className, level).map((r) => (
+                <div key={r.level} style={{ display: 'grid', gridTemplateColumns: '2.4em 1fr', gap: 8, fontSize: 12, lineHeight: 1.4 }}>
+                  <span style={{ fontWeight: 700, color: 'var(--hx-teal-1)' }}>L{r.level}</span>
+                  <span style={{ color: 'var(--hx-text)' }}>
+                    {r.features.length ? r.features.map((f) => f.name).join(', ') : <span style={{ color: 'var(--hx-muted)' }}>—</span>}
+                    {r.featTracks.length ? <span style={{ color: 'var(--hx-gold-2)' }}> · {r.featTracks.join(' / ')} feat</span> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null;
         const combatKitRow = (
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -211,7 +232,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
           const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.55)', color: 'var(--hx-text)' };
           const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
             { title: 'Identity', help: 'Name, level, and your ancestry / heritage / background — who your character is.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{idRow}</div> },
-            { title: 'Class & kit', help: 'Your class and subclass set your proficiencies and features; pick your key attribute, armor, and a weapon.', body: <div style={{ display: 'grid', gap: 10 }}>{classRow}{classSummary}{combatKitRow}</div> },
+            { title: 'Class & kit', help: 'Your class and subclass set your proficiencies and features; pick your key attribute, armor, and a weapon. Expand the progression to see what you gain each level.', body: <div style={{ display: 'grid', gap: 10 }}>{classRow}{classSummary}{progressionPreview}{combatKitRow}</div> },
             { title: 'Attribute boosts', help: 'PF2 tracks modifiers: everyone starts +0, then applies ancestry / background / class / free boosts (partial >+4).', body: <div style={{ display: 'grid', gap: 8 }}>{boostsBlock}</div> },
             { title: 'Skills', help: 'Train your class’s skill count plus INT free picks; class-fixed skills are always trained.', body: <div style={{ display: 'grid', gap: 8 }}>{skillsBlock}</div> },
             { title: 'Feats, spells & finish', help: 'Pick feats (and spells, for casters) legal for your class/ancestry/level — ineligible ones are greyed with the reason — then build.', body: <div style={{ display: 'grid', gap: 10 }}>{featsBlock}{spellsBlock}{buildRow}</div> },
@@ -249,6 +270,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             {idRow}
             {classRow}
             {classSummary}
+            {progressionPreview}
             {combatKitRow}
             {boostsBlock}
             {skillsBlock}

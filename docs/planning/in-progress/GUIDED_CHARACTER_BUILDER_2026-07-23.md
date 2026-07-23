@@ -199,7 +199,14 @@ Data is COMPLETE. Steps:
   Cleric doctrine-dependent tracks, Magus/Summoner reduced-caster slot tables, Fighter weapon-group scoping),
   not missing classes. Locked by `pf2-progressions-cover-builder.test.ts`. **So B8–B11 are SAFE code work
   (a planner engine + UI reading this complete, tested data) — no rules-data authoring / invention risk.**
-- [ ] **B8 — `pf2PlanLevelUp` engine** + per-level `outstanding` choices (feats/boosts/skills/prof/spells).
+- [~] **B8 — PF2 level breakdown engine + preview (FIRST SLICE DONE 2026-07-23).** `lib/dnd/systems/
+  pathfinder2e/levelup.ts` `pf2LevelBreakdown(className, toLevel)` returns, per level 1..N, the class
+  FEATURES gained (from the tested `PF2_CLASS_PROGRESSIONS`) + which feat tracks grant a slot (from the
+  tested `pf2FeatLevelsFor` schedule) — reading only verified data, no invention. Wired into the PF2 builder
+  as a read-only "level 1–N progression" preview (Class & kit step), so a player sees their whole path before
+  building. 4 tests. **Remaining B8:** the INTERACTIVE `pf2PlanLevelUp` (assemble the `outstanding` choices to
+  RESOLVE — feat picks/boosts/skill-increases — like 5e's), which needs the per-level persistence (B9) it
+  writes to; that's the next slice.
 - [ ] **B9 — PF2 per-level choice persistence** (`data.pf2e.build.choices` + route).
 - [ ] **B10 — PF2 wizard build plan** (Foundations + per-level) reusing the allocator/pickers/eligibility.
 - [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial).
