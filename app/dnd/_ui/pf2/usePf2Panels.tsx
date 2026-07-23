@@ -44,7 +44,7 @@ import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplat
 import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
-import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
+import { resolveRollerTemplate, type RollerTemplateId } from '@/lib/dnd/roller-templates';
 // The 5e panel set's shape, reused so all four systems speak one `SheetPanel` vocabulary. Type-only,
 // so nothing from the store-coupled 5e module is pulled into this prop-driven PF2 code at runtime.
 import type { SheetPanel } from '@/app/dnd/_sheet/panels/fivePanels';
@@ -352,7 +352,9 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   //    5e sheet uses, fed by PF2's own rolls through the shared RollFeed, with the on-roller template picker.
   //    The Target-DC input (sets the four-step degree) stays on top; wrapped in `.dnd-sheet` so the stages'
   //    scoped CSS resolves (the shell theme tokens are inherited from the PF2 sheet root). ──────────────────
-  const rollerId = resolveRollerTemplate(rollerTemplate, layout);
+  // Local state so switching templates on the roller is INSTANT (no page reload); the choice persists in the
+  // background via the picker's /roller POST.
+  const [rollerId, setRollerId] = useState<RollerTemplateId>(resolveRollerTemplate(rollerTemplate, layout));
   const roller = (
     <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -361,7 +363,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
             style={{ width: 56, fontSize: 14, fontWeight: 600, padding: '4px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
         </label>
-        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} />
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={setRollerId} />
         {rollerStageFor(rollerId)}
         {/* The manual dice pad (d4–d100 + count), on EVERY template (owner) — the chosen template animates it. */}
         <DicePad />
