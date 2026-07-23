@@ -25,6 +25,7 @@ import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import IGSheet from '@/app/dnd/_ui/IGSheet';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
+import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, builtSystems, listSheets, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
@@ -188,6 +189,12 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
 
   // Pathfinder 2e builder + bespoke sheet (mirrors the IG flow): the builder shows to anyone who can edit
   // a PF2 character; the sheet renders the pf2e sidecar (real Remaster numbers) for any viewer once built.
+  // The 5e MANUAL builder (MB-2) — a vanilla dropdown-and-roll builder for either 5e edition, alongside the
+  // AI Build Kit. Owner/DM only, like the PF2/IG builders.
+  const sys5e = normalizeSystem((character as { system?: string }).system);
+  const is5e = canWrite && (sys5e === 'dnd5e-2014' || sys5e === 'dnd5e-2024');
+  const dnd5eBuilder = is5e ? <Dnd5eManualBuilder system={sys5e} characterId={character.id} /> : null;
+
   const isPF2 = canWrite && normalizeSystem((character as { system?: string }).system) === 'pathfinder2e';
   const pf2Builder = isPF2 ? <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} /> : null;
   let pf2Sheet = null;
@@ -245,6 +252,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           effective={effectivePreferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences)}
           player={playerPreferences}
           canWrite={canWrite}
+          isOwner={isOwner}
+          characterName={character.name}
         />
       )}
       {approvalPanel}
@@ -254,6 +263,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {igLibrary}
       {pf2Sheet}
       {pf2Builder}
+      {dnd5eBuilder}
       {/* Vanilla ⇄ Custom for a bespoke (PF2/IG) sheet. The shared 5e engine carries its own copy
           of this control, but that engine no longer renders for a built PF2/IG character, so the
           toggle is mounted here in the page chrome instead — same endpoint, same server-derived

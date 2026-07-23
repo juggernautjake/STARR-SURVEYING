@@ -26,6 +26,8 @@ export default function CharacterSettingsModal({
   effective,
   player,
   canWrite = true,
+  isOwner = false,
+  characterName,
 }: {
   characterId: string;
   /** The resolved preferences (value + lockedByDM per field), so each control shows the live value. */
@@ -33,10 +35,29 @@ export default function CharacterSettingsModal({
   /** The player's OWN stored choices, so a control shows "Follow campaign" when unset. */
   player: PlayerPreferences;
   canWrite?: boolean;
+  /** Only the OWNER may delete the character (a DM can write but must not erase it). */
+  isOwner?: boolean;
+  /** Shown in the delete confirmation so the owner knows exactly what they're removing. */
+  characterName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(player);
   const [busy, setBusy] = useState(false);
+  // Delete flow: a typed-confirmation guard so a permanent, irreversible delete can't happen on one stray click.
+  const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const deleteCharacter = async () => {
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}`, { method: 'DELETE' });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Delete failed (${r.status}).`); }
+      window.location.href = '/dnd/characters'; // back to the lobby; the character is gone
+    } catch (e) {
+      setDeleting(false);
+      setErr(e instanceof Error ? e.message : 'Could not delete the character.');
+    }
+  };
   const [err, setErr] = useState<string | null>(null);
 
   async function save(next: Draft) {
@@ -147,6 +168,39 @@ export default function CharacterSettingsModal({
 
             {err && <p style={{ fontSize: 12.5, color: 'var(--hx-danger, #ff6b6b)', margin: '4px 0 0' }}>{err}</p>}
             {!canWrite && <p style={{ fontSize: 12, color: 'var(--hx-muted)', margin: '6px 0 0' }}>You’re viewing this character; only its owner or DM can change settings.</p>}
+
+            {/* Danger zone — permanent delete, OWNER only, behind a typed confirmation. */}
+            {isOwner && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--hx-danger, #ff6b6b)' }}>
+                <h3 style={{ fontSize: 13, color: 'var(--hx-danger, #ff6b6b)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Danger zone</h3>
+                {!confirming ? (
+                  <button type="button" onClick={() => { setConfirming(true); setConfirmText(''); setErr(null); }}
+                    style={{ fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', color: 'var(--hx-danger, #ff6b6b)', background: 'transparent', border: '1px solid var(--hx-danger, #ff6b6b)' }}>
+                    🗑 Delete this character
+                  </button>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <p style={{ fontSize: 12.5, color: 'var(--hx-muted)', margin: 0 }}>
+                      This <strong>permanently</strong> deletes {characterName ? <strong>{characterName}</strong> : 'this character'} and all of its data from the site — this cannot be undone.
+                      Type <strong>{characterName || 'DELETE'}</strong> to confirm.
+                    </p>
+                    <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={characterName || 'DELETE'} autoFocus
+                      style={{ fontSize: 13, padding: '6px 9px', borderRadius: 6, border: '1px solid var(--hx-line)', background: 'var(--hx-inset-strong, rgba(130,132,140,0.10))', color: 'inherit', maxWidth: 260 }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" disabled={deleting || confirmText.trim() !== (characterName || 'DELETE')} onClick={deleteCharacter}
+                        style={{ fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 7, color: '#fff', background: 'var(--hx-danger, #c0392b)', border: 'none',
+                          cursor: deleting || confirmText.trim() !== (characterName || 'DELETE') ? 'default' : 'pointer', opacity: confirmText.trim() === (characterName || 'DELETE') && !deleting ? 1 : 0.5 }}>
+                        {deleting ? 'Deleting…' : 'Permanently delete'}
+                      </button>
+                      <button type="button" disabled={deleting} onClick={() => setConfirming(false)}
+                        style={{ fontSize: 13, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', color: 'inherit', background: 'transparent', border: '1px solid var(--hx-line)' }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

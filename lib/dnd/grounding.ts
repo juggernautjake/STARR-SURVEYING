@@ -19,6 +19,7 @@ import { tagsForSpell } from './library-tags';
 import { spellMechanicsFor, type SpellMechanic } from './spells/mechanics';
 import { COMPANION_RULE_SETS, type CompanionRuleSet } from './companions/dnd5e-2024';
 import { CONDITION_MECHANICS_5E, type ConditionMechanics } from './conditions/dnd5e';
+import { statGenGuidanceFor } from './statgen/guidance';
 
 /** Lenient glossary retrieval for GROUNDING: score each article by how many of the query keywords
  *  appear (term > alias > body), require at least one, and take the top matches. Unlike the library
@@ -356,7 +357,7 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
       `This character is built for ${label}. Use ONLY ${label} rules, feats, spells, actions, weapons and ` +
       `numbers as stated in the AUTHORITATIVE RULES block. NEVER borrow mechanics from another game system, ` +
       `and NEVER invent rules or numbers. When the sources are ambiguous, missing, or conflict with ${label}, ` +
-      `put the issue in \`unmapped\` (so the user is asked) rather than guessing.`,
+      `put the issue in \`unmapped\` (so the user is asked) rather than guessing. ${statGenGuidanceFor(sys)}`,
     block:
       rulesBlock + glossaryBlock + featBlock + powerBlock +
       spellBlock + mechanicBlock + companionBlock + conditionBlock +

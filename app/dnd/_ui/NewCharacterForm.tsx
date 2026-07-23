@@ -66,8 +66,12 @@ export default function NewCharacterForm({
       const r = await fetch('/api/dnd/characters/import', { method: 'POST', body: fd })
       const j = await r.json().catch(() => ({}))
       if (r.ok && j.characterId) {
-        // Kick off AI ingestion (populates the sheet from the uploads), then open it.
-        await fetch(`/api/dnd/characters/${j.characterId}/ingest`, { method: 'POST' }).catch(() => {})
+        // MB-5: "Step-by-step" is the MANUAL builder — no AI. Skip ingestion and open the character page,
+        // where the per-system dropdown-and-roll builder is mounted. The ruthless/questioning modes still
+        // kick off AI ingestion (which populates the sheet from the uploads + notes) before opening.
+        if (mode !== 'stepbystep') {
+          await fetch(`/api/dnd/characters/${j.characterId}/ingest`, { method: 'POST' }).catch(() => {})
+        }
         router.push(`/dnd/characters/${j.characterId}`)
       } else {
         setErr(j.error ?? 'Could not create the character.')

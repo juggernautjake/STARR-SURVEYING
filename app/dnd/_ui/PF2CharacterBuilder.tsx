@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import PF2BuildPicks from './PF2BuildPicks';
 import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
+import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 
 export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured }: { characterId: string; initialName: string; aiConfigured?: boolean }) {
@@ -151,16 +152,10 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
           </span>
         </div>
 
-        <div style={label}>ATTRIBUTE MODIFIERS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>(PF2 uses modifiers, e.g. +4)</span></div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-          {PF2_ATTRIBUTES.map((k) => (
-            <label key={k} style={{ display: 'grid', gap: 2, textAlign: 'center' }}>
-              <span style={{ fontSize: 10, color: k === keyAttribute ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>{k}{k === keyAttribute ? ' ★' : ''}</span>
-              <input type="number" min={-5} max={12} value={attributes[k]} onChange={(e) => setAttributes((a) => ({ ...a, [k]: Math.max(-5, Math.min(12, +e.target.value || 0)) }))} style={{ ...input, textAlign: 'center', padding: '5px 2px' }} />
-              <span style={{ fontSize: 9.5, color: 'var(--hx-muted)' }}>{fmt(attributes[k])}</span>
-            </label>
-          ))}
-        </div>
+        <div style={label}>ATTRIBUTE BOOSTS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>(PF2: start +0, apply ancestry / background / class / free boosts)</span></div>
+        {/* MB-3: the real PF2 boost method — ancestry boosts + flaw, background one-of-two + free, class key,
+            four free — resolved to the final modifiers, replacing the old raw modifier inputs. */}
+        <Pf2BoostAllocator ancestry={ancestry} background={background} classKeyOptions={cls?.keyAttribute ?? [keyAttribute]} onChange={setAttributes} />
 
         <div style={label}>TRAINED SKILLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{cls ? `(${cls.trainedSkills} + INT free picks${cls.fixedSkills?.length ? `; ${cls.fixedSkills.join(', ')} always trained` : ''})` : ''}</span></div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
