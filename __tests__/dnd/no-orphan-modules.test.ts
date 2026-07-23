@@ -28,6 +28,10 @@ const EXEMPT: Record<string, string> = {
     'PENDING WIRING (SG-3): the pure IG ability-boost allocator (start 10, eight +2 boosts, creation cap 14, ' +
     'ancestry adjustments). Built ahead of its UI; wired by MB-4 (the IG manual builder upgrade), when this ' +
     'exemption is removed. Unit-tested in statgen-ig.test.ts.',
+  'lib/dnd/statgen/builder5e.ts':
+    'PENDING WIRING (MB-2): the pure 5e manual-builder logic layer (racial/background increases, subclass + ' +
+    'feat levels, picks validation) over the real catalogs. Built ahead of the 5e builder UI shell; wired ' +
+    'when that shell lands, at which point this exemption is removed. Unit-tested in statgen-builder5e.test.ts.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
