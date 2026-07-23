@@ -37,4 +37,9 @@ describe('PF2 levels route (B9)', () => {
   it('malformed choices are rejected before any write', () => {
     expect(SRC).toContain('That choice is malformed.');
   });
+
+  it('projects earned feat choices into the pf2e sidecar and keeps the sidecar level in step', () => {
+    expect(SRC).toContain('pf2ProjectLevelUpFeats(sidecar.feats ?? [], choices, newLevel, resolveFeat)');
+    expect(SRC).toContain('identity: { ...sidecar.identity, level: newLevel }');
+  });
 });

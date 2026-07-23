@@ -165,3 +165,61 @@ export function pf2RecordChoice(recorded: PF2RecordedChoice[], choice: PF2Record
   );
   return [...rest, choice];
 }
+
+// ── Projection into the pf2e sidecar (B10 follow-up) ─────────────────────────────────────────────────
+// Recording a choice is only half the job: a committed feat must actually appear on the sheet. This
+// projects the recorded FEAT choices (at or below the character's level) into the pf2e sidecar's feat
+// list. It is IDEMPOTENT — each projected feat carries a stable id (`lvl-<level>-<track>`), so
+// re-projecting replaces rather than duplicates, and feats from the base build (any id NOT starting
+// `lvl-`) are left untouched. ATTRIBUTE-BOOST projection is deliberately NOT here: PF2's partial-boost
+// rule (a boost to a +4-or-higher attribute needs two boosts to raise it) needs half-step state the flat
+// `PF2Attributes` modifier map doesn't carry, and a naive +1 would over-boost — so boosts stay recorded
+// (visible in the plan) until the model can track them correctly.
+
+/** The catalog data a feat name resolves to — the level route passes a lookup over `PF2_ALL_FEATS`. */
+export interface PF2FeatResolution {
+  level: number;
+  traits: string[];
+  body: string;
+}
+
+/** A minimal shape of the sidecar feats this projects, kept structural so callers pass `PF2Feat[]`. */
+export interface PF2ProjectableFeat {
+  id: string;
+  name: string;
+  level: number;
+  track: 'ancestry' | 'class' | 'skill' | 'general' | 'archetype' | 'feature';
+  traits: string[];
+  body: string;
+  customized?: boolean;
+}
+
+const LEVELUP_FEAT_PREFIX = 'lvl-';
+
+export function pf2ProjectLevelUpFeats<T extends PF2ProjectableFeat>(
+  existing: T[],
+  choices: PF2RecordedChoice[],
+  throughLevel: number,
+  resolve: (name: string, track: PF2FeatTrack) => PF2FeatResolution | null,
+): T[] {
+  // Keep every feat that ISN'T a level-up projection (base build, DM grants, custom picks).
+  const kept = existing.filter((f) => !f.id.startsWith(LEVELUP_FEAT_PREFIX));
+  const projected: T[] = [];
+  for (const c of choices) {
+    if (c.kind !== 'feat' || !c.track || !c.value || c.value.trim() === '') continue;
+    if (c.level > throughLevel) continue; // not earned yet
+    const hit = resolve(c.value, c.track);
+    projected.push({
+      id: `${LEVELUP_FEAT_PREFIX}${c.level}-${c.track}`,
+      name: c.value,
+      level: c.level,
+      track: c.track === 'archetype' ? 'archetype' : c.track,
+      traits: hit?.traits ?? [],
+      body: hit?.body ?? '',
+      // A pick not found in the catalog is custom content — flag it so the DM review + ✎ marker show it.
+      ...(hit ? {} : { customized: true }),
+    } as T);
+  }
+  projected.sort((a, b) => a.level - b.level);
+  return [...kept, ...projected];
+}

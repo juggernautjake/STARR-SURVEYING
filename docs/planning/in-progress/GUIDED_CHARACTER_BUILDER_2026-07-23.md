@@ -232,11 +232,18 @@ Data is COMPLETE. Steps:
   route, so the server stays the source of truth. The **levels page now dispatches by system** — PF2 →
   `PF2LevelBuilder`, everything else → the 5e `LevelBuilder` (PF2 characters previously got the 5e builder,
   which fetches the 5e-only `/levels` and can't work for them). 6 tests (`pf2-level-builder.test.ts`).
-  **Documented follow-up (not this slice):** projecting each recorded feat/boost into the pf2e sidecar's
-  mechanics — committing moves the level (which PF2's proficiency math already reads) and records the plan;
-  per-choice mechanic projection is the next PF2 slice, paired with B11.
-- [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial) — needs the running app; pairs with
-  the sidecar-projection follow-up above.
+  **Feat projection DONE (2026-07-23):** `pf2ProjectLevelUpFeats` — committing a level now projects the
+  EARNED feat choices (level ≤ current) into the pf2e sidecar's `feats` so they actually show on the sheet.
+  Idempotent (stable `lvl-<level>-<track>` ids → re-projecting replaces, never duplicates), leaves base-build
+  feats untouched, resolves catalog traits/body, flags a not-in-catalog pick `customized` (DM review + ✎),
+  and removes a feat that a level-down no longer earns. The route also keeps `pf2e.identity.level` in step
+  with `meta.level`. 7 projector tests + route test. **Boost projection DEFERRED (one-line rationale):** PF2's
+  partial-boost rule (a boost to a +4-or-higher attribute needs two boosts to raise it) needs half-step state
+  the flat `PF2Attributes` modifier map doesn't carry — a naive +1 would over-boost — so boosts stay
+  recorded-and-visible-in-the-plan until the model can track partial boosts. Cost of that model change
+  clearly exceeds the value of auto-applying 4 boosts a player can set on the sheet directly.
+- [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial) — needs the running app. The last
+  remaining PF2 item; everything it would exercise (planner, route, walk UI, feat projection) is unit-green.
 
 ### IG (author data first — biggest lift)
 - [x] **B15a — IG Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `IGCharacterBuilder` gained

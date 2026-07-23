@@ -17,9 +17,19 @@ import type { PF2Build } from '@/lib/dnd/systems/pathfinder2e/builder';
 import {
   pf2PlanLevelUp,
   pf2RecordChoice,
+  pf2ProjectLevelUpFeats,
   type PF2RecordedChoice,
   type PF2ChoiceKind,
+  type PF2FeatResolution,
 } from '@/lib/dnd/systems/pathfinder2e/levelup';
+import { PF2_ALL_FEATS } from '@/lib/dnd/systems/pathfinder2e/data';
+import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+
+/** Resolve a feat name (within a track) to its catalog data, so a projected feat shows real traits/body. */
+function resolveFeat(name: string, track: string): PF2FeatResolution | null {
+  const hit = PF2_ALL_FEATS.find((f) => f.track === track && f.name.toLowerCase() === name.toLowerCase());
+  return hit ? { level: hit.level, traits: hit.traits ?? [], body: hit.effect ?? '' } : null;
+}
 
 const MAX_LEVEL = 20;
 const clampLevel = (n: unknown) => Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(n) || 1)));
@@ -100,11 +110,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     newLevel = commitTo;
   }
 
-  const nextData: PF2Data = {
+  const nextData: PF2Data & { pf2e?: PF2Character } = {
     ...data,
     meta: { ...data.meta, level: newLevel },
     pf2Build: { ...(data.pf2Build ?? {}), choices },
-  };
+  } as PF2Data & { pf2e?: PF2Character };
+
+  // Project the EARNED feat choices into the pf2e sidecar so they actually show on the sheet, and keep the
+  // sidecar's own level in step. Idempotent — re-projecting replaces, never duplicates. (Boosts stay
+  // recorded-only; see pf2ProjectLevelUpFeats for why attribute projection waits on partial-boost state.)
+  const sidecar = nextData.pf2e;
+  if (sidecar) {
+    nextData.pf2e = {
+      ...sidecar,
+      identity: { ...sidecar.identity, level: newLevel },
+      feats: pf2ProjectLevelUpFeats(sidecar.feats ?? [], choices, newLevel, resolveFeat),
+    };
+  }
+
   const { error } = await supabaseAdmin.from('dnd_characters').update({ data: nextData }).eq('id', row.id);
   if (error) return NextResponse.json({ error: 'Could not save the level choices.' }, { status: 500 });
 
