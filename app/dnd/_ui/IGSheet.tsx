@@ -24,6 +24,7 @@ import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { useIgPanels, type Tagged } from './ig/useIgPanels';
+import { useLayoutChoice } from '@/lib/dnd/layoutChoice';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
@@ -87,7 +88,10 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   /** Player-authored custom sections (`data.customSections`, D-13). */
   customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
 }) {
-  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout, customSections });
+  // TEMPLATE read reactively (CM-1): the SheetChrome chip pings this cache, so a template pick re-renders
+  // into the new shell instantly — no reload. Falls back to the saved `layout` prop (then 'classic').
+  const effLayout = useLayoutChoice(characterId, layout);
+  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections });
   const byId = new Map(panels.map((p) => [p.id, p]));
   const render = (id: string) => byId.get(id)?.render() ?? null;
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`
@@ -114,7 +118,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // ── COLUMN FORMATS: Codex (T-6b) + Dashboard (T-6c) ───────────────────────────────────────────
   // IG's "at a glance" identity column is who they are (header) + Vitals (HP + Fort/Ref/Will + Prof —
   // NO AC, IG has none by design) + Abilities. The body holds everything else.
-  if (layout === 'codex' || layout === 'dashboard') {
+  if (effLayout === 'codex' || effLayout === 'dashboard') {
     const identityIds = new Set(['ig-vitals', 'ig-abilities']);
     const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
     const identity = (
@@ -128,7 +132,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     return (
       <div className={`sheet-shell igs-root ${skin}`} style={shellStyle}>
         <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
-        {layout === 'codex' ? (
+        {effLayout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
           <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
@@ -141,7 +145,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // ── PLAY (T-6d) ───────────────────────────────────────────────────────────────────────────────
   // The IG hero is the table-facing pair: Vitals (HP + saves) and Combat. The rest folds into the
   // reference drawer.
-  if (layout === 'play') {
+  if (effLayout === 'play') {
     const heroIds = new Set(['ig-vitals', 'ig-combat']);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
     const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;

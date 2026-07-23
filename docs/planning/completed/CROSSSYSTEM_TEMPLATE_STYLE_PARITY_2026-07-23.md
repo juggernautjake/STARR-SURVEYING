@@ -1,6 +1,6 @@
 # Cross-system templates + styles + themes: full parity for PF2/IG (match 5e)
 
-**Status:** IN PROGRESS · started 2026-07-23
+**Status:** COMPLETE · started 2026-07-23 · closed 2026-07-23 (all slices shipped; QA sweep done)
 
 ## Owner ask (stitched, verbatim intent)
 
@@ -48,20 +48,32 @@ looks like "nothing changed but colors."** This doc closes both, and hardens the
   GRID (equal-height cards, visible card chrome, tighter gutters); Codex = the single tall resizable pane
   RAIL it already is, emphasized (wider panes, rail affordance). A player switching between them must see an
   obviously different arrangement, not a recolor. Token-only CSS in `codex.css`; browser-verified per system.
-- [ ] **CT-3 — each template's SIGNATURE is legible.** Give each shell a small, unmistakable identity cue that
-  survives every skin (Classic's tab/jump-nav, Codex's pane grips, Dashboard's card grid, Play's hero + "open
-  reference" drawer), so the four are recognizable at a glance and recognizably the SAME template across
-  systems. Visual (QA phase), driven by CT-1's structure map.
+- [x] **CT-3 — each template's SIGNATURE is legible (VERIFIED in the QA sweep 2026-07-23).** With the codex
+  dead-space fixed (CM-2 below), the four templates are unmistakable at a glance on every system: Classic = the
+  jump-nav + stacked cards; Codex = the identity column + tall accordion panes with the upright-letter rail;
+  Dashboard = the boxed card GRID (all sections open); Play = the vitals/attack hero + collapsible Reference
+  drawer. Confirmed identical-signature across 2014/2024/PF2/IG via Playwright screenshots.
 
 ### Full matrix — every style × theme × template × system
-- [ ] **CM-1 — instant, reliable template switching (optional, matches the roller fix).** Consider moving the
-  template switch off the full reload onto the same per-character client-cache pattern the roller uses, so a
-  template change is instant and can't be lost to a reload race. Lower priority since the reload path is
-  correct for the prop-driven PF2/IG sheets; do it if the reload feels janky in QA.
-- [ ] **CM-2 — matrix parity audit.** Confirm every (style × theme × template) renders legibly on each system.
-  The token contrast guardrail (`theme-contrast.test.ts`) covers colours; CT-1 covers structure; the on-screen
-  sweep across each combination is the QA phase on the fresh Vercel build (local dev server serves stale
-  compiles).
+- [x] **CM-1 — instant, reliable template switching (SHIPPED + verified live 2026-07-23).** New
+  `lib/dnd/layoutChoice.ts` (per-character client cache + `useSyncExternalStore` signal, mirroring
+  `rollerChoice.ts`). `PF2Sheet`/`IGSheet` read `useLayoutChoice(characterId, layout)` and branch on that;
+  `SheetChrome`'s template chip, for the prop-driven PF2/IG systems, writes the cache + moves the chip
+  optimistically + persists in the background with NO reload (5e keeps the store-safe reload). Playwright:
+  clicking Codex swaps `.framedPanel → .codex` with `reloadHappened:false`, marker survived, `sheetLayout`
+  saved. Kills the "disappears and reappears" jank the owner reported.
+- [x] **CM-2 — matrix parity audit (DONE 2026-07-23; two cross-cutting defects found + fixed).** Drove the full
+  matrix in Playwright (all 4 systems × 4 templates, + style/theme variants) with a minted owner session
+  against a fresh local build. Templates/styles/themes all render and change correctly per system. Two defects
+  the sweep surfaced — both cross-cutting, both now fixed:
+  - **Roller open-by-default overlapped the sheet.** A fresh viewer (no saved localStorage) got the 396px
+    floating roller docked bottom-right, OPEN, clipping the right edge of the content on every template.
+    Fix: `useFloatingDock` fresh default is now `minimized: true` — the sheet loads unobstructed and the roller
+    pops open on the first roll (`useExpandOnRoll`) or a click of the corner dice FAB. Uniform across systems.
+  - **Codex read as empty.** Only one short pane opened by default, so the column was one pane beside a tall
+    staircase of closed 104px rail tabs — big dead space on 2014/2024/PF2/IG alike. Fix: `usePaneStack` now
+    accepts several default-open ids and `CodexShell` opens ~3 (a skills-like pane first, then canonical order),
+    so the column FILLS while staying distinct from Dashboard's all-open grid.
 
 ## Done means
 On a PF2 or IG sheet, switching the TEMPLATE visibly rearranges the sheet (Classic ≠ Codex ≠ Dashboard ≠ Play,

@@ -17,8 +17,13 @@ import { usePaneStack } from '../codex/usePaneStack'
 import FloatingRoller from '../components/rollers/FloatingRoller'
 import type { SheetPanel } from '../panels/fivePanels'
 
-/** Skills opens by default, per the owner's ask. */
+/** Skills opens first, per the owner's ask — and the codex now opens a few panes so the column reads
+ *  as a full sheet, not one short pane beside a tall staircase of closed rail tabs. */
 const DEFAULT_PANE = 'skills'
+/** How many panes open on a fresh codex load. ~3 × DEFAULT_PANE_H fills a laptop viewport while leaving
+ *  a couple of tabs closed on the rail, so Codex still reads as "open a pane" — distinct from Dashboard's
+ *  all-open grid. */
+const DEFAULT_OPEN_COUNT = 3
 
 export default function CodexShell({
   identity,
@@ -42,10 +47,17 @@ export default function CodexShell({
   // The canonical order IS the panel order — one source, so the rail and the stack cannot disagree
   // about where a pane belongs.
   const order = useMemo(() => defs.map((d) => d.id), [defs])
-  // Open Skills by default for 5e, per the owner's ask — but a non-5e system's panel set has no pane
-  // with that id (PF2's is `pf2-skills`), so fall back to the FIRST pane rather than opening nothing.
-  const defaultPane = defs.some((d) => d.id === DEFAULT_PANE) ? DEFAULT_PANE : (defs[0]?.id ?? DEFAULT_PANE)
-  const stack = usePaneStack(storageKey, order, defaultPane)
+  // Open a small set by default so the column FILLS: a skills-like pane first (5e `skills`, PF2
+  // `pf2-skills`, IG `ig-skills` — matched loosely so every system lands one), then the next panes in
+  // canonical order up to DEFAULT_OPEN_COUNT. Falls back to the first pane when nothing matches.
+  const defaultOpenIds = useMemo(() => {
+    const skillLike = order.find((id) => id === DEFAULT_PANE || /skills?$/i.test(id))
+    const lead = skillLike ?? order[0]
+    if (!lead) return [DEFAULT_PANE]
+    const rest = order.filter((id) => id !== lead)
+    return [lead, ...rest].slice(0, DEFAULT_OPEN_COUNT)
+  }, [order])
+  const stack = usePaneStack(storageKey, order, defaultOpenIds)
 
   return (
     <div className="codex">

@@ -344,7 +344,7 @@ export default function PaneStack({ defs, stack }: { defs: PaneDef[]; stack: Sta
         )
       })}
       <div className="codex-acc-row codex-acc-resetrow">
-        <button className="codex-railtab codex-railreset codex-acc-tab" onClick={stack.reset} title="Reset this sheet's sections to just Skills. Only affects your own view.">
+        <button className="codex-railtab codex-railreset codex-acc-tab" onClick={stack.reset} title="Reset this sheet's sections to the default open set. Only affects your own view.">
           <span aria-hidden>⟲</span>
           <StackedLabel text="Reset" />
         </button>
