@@ -45,22 +45,41 @@ interface Shown {
   penalties?: string[]
   natural?: number
   isD20?: boolean
+  /** Two RANDOM values the roll could equally have produced — the decoy cards (owner). Computed once per
+   *  roll so they're stable while "reveal all" is toggled. */
+  decoys?: [number, number]
 }
 
-interface Face { value: string; label: string; total?: boolean }
-const signedStr = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
+interface Face { value: string; total?: boolean }
 
-/** The three card faces for a roll. The TOTAL is the headline (revealed first); the other two show the
- *  supporting numbers — a d20's natural roll + its modifier, or (for a pool) the first breakdown numbers —
- *  so "reveal all" shows what the other two cards were. */
+/** The three card faces: the actual roll (revealed) plus two RANDOM decoys — so the other two cards read as
+ *  plausible alternate rolls, never a fixed natural/modifier pattern. */
 function boardFaces(s: Shown): Face[] {
-  const total: Face = { value: String(s.value), label: 'total', total: true }
+  const [a, b] = s.decoys ?? [s.value, s.value]
+  return [{ value: String(a) }, { value: String(b) }, { value: String(s.value), total: true }]
+}
+
+/** The inclusive [min, max] of results this roll could have produced, for the decoy range. A d20 roll spans
+ *  1+mod … 20+mod; a pool/other roll uses a plausible band around its total. */
+function rollBounds(s: Shown): [number, number] {
   if (s.isD20 && s.natural != null) {
-    return [{ value: String(s.natural), label: 'natural' }, { value: signedStr(s.value - s.natural), label: 'modifier' }, total]
+    const mod = s.value - s.natural
+    return [1 + mod, 20 + mod]
   }
-  const nums = (s.breakdown.match(/\d+/g) ?? []).slice(0, 2)
-  const other = (v: string | undefined, label: string): Face => (v ? { value: v, label } : { value: '·', label: '' })
-  return [other(nums[0], 'dice'), other(nums[1], nums[1] ? 'dice' : ''), total]
+  const spread = Math.max(4, Math.round(Math.abs(s.value) * 0.6))
+  return [Math.max(1, s.value - spread), s.value + spread]
+}
+
+/** Two DISTINCT random ints in [lo, hi], avoiding the real roll where the range allows. */
+function pickDecoys(lo: number, hi: number, exclude: number): [number, number] {
+  const pool: number[] = []
+  for (let v = lo; v <= hi; v++) if (v !== exclude) pool.push(v)
+  if (pool.length === 0) return [exclude, exclude]
+  if (pool.length === 1) return [pool[0], pool[0]]
+  const a = pool[Math.floor(Math.random() * pool.length)]
+  let b = a
+  for (let guard = 0; b === a && guard < 40; guard++) b = pool[Math.floor(Math.random() * pool.length)]
+  return [a, b]
 }
 
 export function BoardStage() {
@@ -119,6 +138,8 @@ export function BoardStage() {
       crit: activeRoll.crit, fumble: activeRoll.fumble, boosts: e.boosts, penalties: e.penalties,
       natural: activeRoll.landing, isD20: activeRoll.isD20,
     }
+    const [lo, hi] = rollBounds(data)
+    data.decoys = pickDecoys(lo, hi, data.value) // the two decoy cards — random, stable for this roll
     const idx = ((activeRoll.token % 3) + 3) % 3 // which of the three cards reveals (varies per roll)
     setRevealAll(false) // a new roll hides the other two again
     setShufN(Math.floor(Math.random() * SHUFFLE_PATTERNS)) // alternate shuffle patterns at random
@@ -195,7 +216,6 @@ export function BoardStage() {
                 <div className="rbn-front">
                   <span className="rbn-pip rbn-pip-tl" aria-hidden>{suit}</span>
                   <span className={`rbn-num ${digitClass(face?.value ?? '')}`}>{face ? face.value : ''}</span>
-                  {face?.label ? <span className="rbn-face-label">{face.label}</span> : null}
                   <span className="rbn-pip rbn-pip-br" aria-hidden>{suit}</span>
                 </div>
               </div>
