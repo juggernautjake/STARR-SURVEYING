@@ -236,6 +236,42 @@ Data is COMPLETE. Steps:
   Review step (B5a) states the guarantee ("vanilla and rules-legal; custom picks are flagged") and the PF2/IG
   builders show a live vanilla/custom provenance count. No separate final-summary work needed.
 
+## Part III — Full level-by-level for every class/subclass + MULTICLASS (all systems)
+
+Owner ask (2026-07-23): a full level-by-level builder for every class/subclass in every system that accounts
+for everything at any level, AND multiclassing — a character may hold levels in multiple classes.
+
+**The systemic reality (respect it — don't invent):** "multiple levels in multiple classes" is a *D&D 5e*
+concept. The faithful mapping differs per system, so "multiclass for all four" means:
+- **5e — TRUE multiclass** (Fighter 3 / Wizard 2): needs a real build. Engine already has
+  `multiclassCasterLevel` (slot aggregation), but the character model is SINGLE-class (`meta.className`), so
+  the model must be extended. THE BIG BUILD.
+- **PF2 — ARCHETYPES (the PF2 "multiclass").** PF2 has NO class levels; you multiclass by spending a
+  class-feat slot on an Archetype **Dedication** (then that archetype's feats). ALREADY FUNCTIONAL: all class
+  Dedications + 172 archetype feats are catalogued, `PF2BuildPicks` searches the full catalog, and
+  `pf2FeatEligibility` enforces the Dedication-before-archetype gate. So PF2 multiclass is DONE at the
+  mechanics level — it only needs SURFACING (tell the player how).
+- **IG — ⛔ BLOCKED.** No per-level data + no defined multiclass rules; owner must specify both.
+
+### Slices
+- [x] **MC-PF2 — PF2 archetype/multiclass path surfaced (DONE 2026-07-23).** Added a "Multiclass?" note to the
+  PF2 builder's Feats step explaining the PF2 way (spend a class-feat slot on an Archetype Dedication, then
+  that archetype's feats — no class levels). `pf2-multiclass-archetypes.test.ts` locks the mechanism: every
+  builder class **except the documented Oracle/Witch gap** (PF2_FEATS_CLASS_GAPS — their Remaster subsystems
+  couldn't be confirmed, so nothing was invented) has a `<Class> Dedication` archetype feat, and the
+  eligibility gate refuses an archetype's feats until its Dedication is held. **Small remaining data gap:**
+  Oracle/Witch Dedications — needs their confirmed Remaster feat details (not autonomously authorable).
+- [ ] **MC-5e-1 — model:** extend the 5e character to hold `classes: {classKey, subclassKey?, level}[]`
+  (migrating the single `className`/`subclass`), with a total-level derivation. Non-breaking read path.
+- [ ] **MC-5e-2 — engine:** aggregate features / proficiencies / HP / saves / spell slots across classes
+  (per-class `snapshotAtLevel` + `multiclassCasterLevel`), one subclass per class.
+- [ ] **MC-5e-3 — multiclass eligibility:** the ability-score prerequisites to ENTER a second class.
+- [ ] **MC-5e-4 — LevelBuilder multiclass:** at each character level, choose which class to advance (or add a
+  new class), then resolve that class-level's owed choices via the existing `planLevelUp` per class.
+- [ ] **MC-5e-5 — sheet display:** show "Fighter 3 / Wizard 2" + the aggregated features/slots.
+- [ ] **MC-5e-6 — QA:** Playwright build a 2-class and 3-class 5e character, both editions.
+- [ ] **MC-IG — ⛔ BLOCKED on owner:** define IG per-level progression AND whether/how IG multiclasses.
+
 ## Done means
 Choosing "step by step" on any system opens a dedicated guided wizard that walks class → race → background
 → abilities → each level's choices (subclass/feats/spells/features) in that system's own vanilla rules,

@@ -213,6 +213,11 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
         const featsBlock = (
           <>
             <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{featsOwed ? `(${feats.length} chosen · ${featsOwed} owed by level ${level})` : feats.length ? `(${feats.length} chosen)` : ''}</span></div>
+            {/* MC-PF2: PF2 multiclasses via ARCHETYPES, not class levels — surface the path so a player knows
+                how. All class Dedications are in the searchable catalog; the eligibility gate does the rest. */}
+            <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
+              <strong style={{ color: 'var(--hx-teal-1)' }}>Multiclass?</strong> In Pathfinder 2e you multiclass by spending a class-feat slot on an Archetype <strong style={{ color: 'var(--hx-gold-2)' }}>Dedication</strong> (search e.g. &ldquo;Fighter Dedication&rdquo;), then taking feats from that archetype — not by gaining levels in a second class.
+            </div>
             <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
           </>
         );
