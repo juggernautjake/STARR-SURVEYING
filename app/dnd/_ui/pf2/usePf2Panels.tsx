@@ -502,6 +502,36 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
             </div>
           )}
 
+          {/* Dying / Wounded death track (S7b) — PF2's core downed state, which the sheet never showed even
+              though `set_dying`/`set_wounded` exist and `apply_damage` drives them. Shown when a value is set
+              OR to an editor; Dying is 0–4 (4 = dead), Wounded raises the next Dying. Steppers post the ops. */}
+          {(canDoEdit || pf2.combat.dyingValue > 0 || pf2.combat.woundedValue > 0) && (
+            <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span title="Dying — at 4 the character dies. Reduced to 0 HP → Dying 1 + your Wounded value; regaining HP removes Dying (and raises Wounded)." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: pf2.combat.dyingValue > 0 ? 'var(--hx-danger)' : 'var(--hx-muted)' }}>Dying</span>
+                <span aria-label={`Dying ${pf2.combat.dyingValue} of 4`} style={{ display: 'inline-flex', gap: 3 }}>
+                  {[1, 2, 3, 4].map((n) => <span key={n} aria-hidden style={{ width: 11, height: 11, borderRadius: '50%', border: '1px solid var(--hx-danger)', background: n <= pf2.combat.dyingValue ? 'var(--hx-danger)' : 'transparent' }} />)}
+                </span>
+                {canDoEdit && (
+                  <span style={{ display: 'inline-flex', gap: 2 }}>
+                    <button type="button" aria-label="Increase dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.min(4, pf2.combat.dyingValue + 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▲</button>
+                    <button type="button" aria-label="Decrease dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.max(0, pf2.combat.dyingValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▼</button>
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span title="Wounded — added to your Dying value the next time you're reduced to 0 HP. Increases by 1 each time you lose the Dying condition." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: pf2.combat.woundedValue > 0 ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>Wounded</span>
+                <strong style={{ fontSize: 15, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: pf2.combat.woundedValue > 0 ? 'var(--hx-gold-2)' : 'var(--hx-text)' }}>{pf2.combat.woundedValue}</strong>
+                {canDoEdit && (
+                  <span style={{ display: 'inline-flex', gap: 2 }}>
+                    <button type="button" aria-label="Increase wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: pf2.combat.woundedValue + 1 })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▲</button>
+                    <button type="button" aria-label="Decrease wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: Math.max(0, pf2.combat.woundedValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▼</button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Saving throws — tap to roll (R1b), directly under the defenses they belong with. */}
           <div style={{ marginTop: 12 }}>
             <div className={styles.pf2RollRow}>

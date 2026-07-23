@@ -106,9 +106,11 @@ mechanics with server ops but missing/buried UI. Ordered most-severe first:
   (amount input) to the PF2 Defenses block, posting the existing `apply_damage`/`heal`/`set_temp_hp` ops via
   `postEdit`→`/pf2-edit`. Defenses is in the identity column + Play hero, so HP is now editable on every
   template. Verified in Playwright: control renders, POST round-trips (`200 "Took 3 damage" currentHp:72`).
-- [ ] **S7b — Dying / Wounded death track renders + settable.** `model.ts` has `dyingValue`/`woundedValue`,
-  `edit.ts` has `set_dying`/`set_wounded`, but no panel shows them — a downed PF2 PC shows nothing. Add
-  Dying (n/4) + Wounded pips + steppers to Defenses.
+- [x] **S7b — Dying / Wounded death track renders + settable (DONE 2026-07-23).** Added a Dying (0–4 pips)
+  + Wounded (value) row to the PF2 Defenses block with ▲▼ steppers posting `set_dying`/`set_wounded`, shown
+  when a value is set OR to an editor (with rules tooltips). Defenses is in the identity column + Play hero,
+  so the death track is now visible/settable on every template. Verified in Playwright: stepper round-trips
+  (`200 "Now Dying 1"`, persisted).
 - [x] **S7c — Conditions add/remove/adjust from the sheet + ungate (DONE 2026-07-23).** Panel was gated on
   `hasConditions` (hidden until one existed) and view-only. Now `show: hasConditions || canDoEdit` (+ nav
   anchor), with a "+ add condition…" select (from `PF2_CONDITION_MECHANICS`), a ✕ remove, and ▲▼ on valued
