@@ -24,6 +24,10 @@ const EXEMPT: Record<string, string> = {
     'PENDING WIRING (SG-1): the pure 5e ability-generation engine (point buy / standard array / 4d6) for the ' +
     'manual builder. Built ahead of its UI; wired by MB-2 (the 5e manual builder), at which point this ' +
     'exemption is removed. Fully unit-tested in statgen-dnd5e.test.ts. Plan: MANUAL_VANILLA_BUILDER_2026-07-22.',
+  'lib/dnd/statgen/pf2.ts':
+    'PENDING WIRING (SG-2): the pure PF2 attribute-boost allocator (staged sets, per-slot restrictions, +4 ' +
+    'partial rule, ancestry flaws) for the manual builder. Built ahead of its UI; wired by MB-3 (the PF2 ' +
+    'manual builder upgrade), when this exemption is removed. Unit-tested in statgen-pf2.test.ts.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
