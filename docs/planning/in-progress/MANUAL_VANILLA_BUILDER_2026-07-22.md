@@ -177,7 +177,12 @@
 - [~] **MB-4 (orig) — IG manual builder upgrade.** Replace the raw score inputs with the SG-3 allocator; wire the
   background/class boosts; keep the ancestry/class/subclass/stance/power/feat pickers; powers/specializations
   at their levels.
-- [ ] **MB-5 — wire the manual mode into entry.** From `NewCharacterForm`, the "manual/step-by-step" choice
+- [x] **MB-5 — wire the manual mode into entry SHIPPED 2026-07-22.** `NewCharacterForm` now SKIPS AI ingestion
+  for the step-by-step (manual) mode and lands on the character page, where the per-system dropdown-and-roll
+  builder is mounted (5e via MB-2b, PF2/IG already). Ruthless + questioning still ingest. Relabelled the mode
+  "Manual (step-by-step)" with a blurb describing the real behaviour (dropdowns, roll/point-buy, feats, no AI).
+  **Phase 2 (the whole manual builder) is COMPLETE for all four systems.**
+- [~] **MB-5 (orig) — wire the manual mode into entry.** From `NewCharacterForm`, the "manual/step-by-step" choice
   routes to the per-system manual builder (by selected system) instead of the AI ingest, so "manual" means the
   dropdown/roll builder, not an AI prompt variant.
 
