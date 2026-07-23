@@ -58,12 +58,14 @@ export default function FloatingRoller({
   const dock = useFloatingDock(characterId)
   const ctx = useMemo(() => ({ expand: dock.expand }), [dock.expand])
 
-  if (dock.minimized) {
-    return (
-      <Ctx.Provider value={ctx}>
-        {/* The minimized roller is a single dice BUTTON pinned to the bottom-right of the viewport (D-1).
-            Clicking it re-opens the roller at its REMEMBERED position; it is not draggable — it always
-            lives in the same familiar corner, like the old roller button. */}
+  // The children (the roller node with its animated stages) are ALWAYS mounted — when minimized the window is
+  // just hidden, NOT unmounted. That is what lets a roll made while minimized still fire the stage's
+  // expand-on-roll (which pops the window open) and land the throw: an unmounted stage can't react at all.
+  return (
+    <Ctx.Provider value={ctx}>
+      {dock.minimized && (
+        // The minimized roller is a single dice BUTTON pinned to the bottom-right (D-1). Click re-opens the
+        // window at its remembered position; a roll auto-opens it too (the stage calls expand()).
         <button
           type="button"
           className="fld-fab"
@@ -74,18 +76,14 @@ export default function FloatingRoller({
         >
           <span aria-hidden className="fld-fab-die">🎲</span>
         </button>
-      </Ctx.Provider>
-    )
-  }
-
-  return (
-    <Ctx.Provider value={ctx}>
+      )}
       <div
         ref={dock.ref}
         className={`fld ${dock.ready ? 'fld-ready' : ''}`}
-        style={dock.style}
+        style={dock.minimized ? { ...dock.style, display: 'none' } : dock.style}
         role="dialog"
         aria-label={title}
+        aria-hidden={dock.minimized}
       >
         <div className="fld-head" onPointerDown={dock.onHeaderPointerDown} onDoubleClick={dock.reset} title="Drag to move · double-click to reset">
           <span className="fld-grip" aria-hidden>⠿</span>
