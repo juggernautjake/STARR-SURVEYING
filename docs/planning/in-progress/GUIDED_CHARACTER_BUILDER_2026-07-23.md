@@ -159,6 +159,11 @@ Data is COMPLETE. Steps:
   bodies become true per-choice flows.
 
 ### 5e (has the engine — do this system first, end-to-end)
+- [x] **B3-AI — in-builder "Ask AI" for 5e (DONE 2026-07-23).** Owner: the manual builder is primary, but a
+  player should be able to ask AI to build/tweak mid-build (parity with PF2/IG). Added an "✨ Ask AI" box to
+  `Dnd5eManualBuilder` (both layouts) that posts a natural-language `{instruction}` to the shared `ai-edit`
+  route + refreshes; wired `aiConfigured` from the wizard page. Verified it renders in the 5e wizard. The
+  dropdowns stay the primary manual path; AI editing also remains available from the sheet afterward.
 - [x] **B3 — 5e Foundations walk step-by-step (DONE 2026-07-23).** `Dnd5eManualBuilder` gained a
   `layout='steps'` mode that walks its SAME sections one at a time — Class & level → Species/Race →
   Background → Ability scores → Feats & finish — with per-step help text, a progress bar (click a dot to

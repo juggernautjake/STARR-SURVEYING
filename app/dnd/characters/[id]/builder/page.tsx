@@ -59,7 +59,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Class, race, background & abilities',
       'Pick your class, subclass, species/race and background, then set your ability scores (standard array, point buy, or roll). Everything offered is vanilla and rules-legal for the level you choose.',
-      <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" />,
+      <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" aiConfigured={aiConfigured} />,
     );
     steps.push({
       id: 'levels', title: 'Level by level', phase: 'Levels',

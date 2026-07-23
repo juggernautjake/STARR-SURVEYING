@@ -2,9 +2,11 @@
 //
 // Rendered via react-dom/server. Confirms the dropdowns populate from the REAL catalogs and the stat panel +
 // build control are present, so the builder is wired end-to-end (not an empty shell).
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+// The builder now uses useRouter (for the "Ask AI" refresh); stub it so a server-render test has no app-router.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
 import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import { classesForSystem } from '@/lib/dnd/classes/registry';
 import { speciesCatalogFor } from '@/lib/dnd/species/view';

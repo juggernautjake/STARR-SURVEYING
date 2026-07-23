@@ -8,6 +8,7 @@
 // `statgen/builder5e`; this file is the binding. Colours are `var(--hx-*, <fallback>)` so it reads on every
 // skin. Assembling + persisting the character is MB-2b (via `onBuild`).
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { ABILITIES } from '@/app/dnd/_sheet/rules/dnd';
 import { speciesCatalogFor } from '@/lib/dnd/species/view';
@@ -49,6 +50,7 @@ export default function Dnd5eManualBuilder({
   characterId,
   onBuild,
   layout = 'panel',
+  aiConfigured = false,
 }: {
   system: string;
   /** When set (and no `onBuild`), the builder persists via POST /dnd5e-build then reloads, like the PF2/IG
@@ -59,9 +61,17 @@ export default function Dnd5eManualBuilder({
    *  one section at a time with Prev/Next, for the guided /builder wizard (B3). Same state, validation,
    *  and POST — only the presentation differs. */
   layout?: 'panel' | 'steps';
+  /** When true, show an "ask AI" box (parity with the PF2/IG builders) that sends a natural-language
+   *  instruction to the shared ai-edit route — so a player can build with AI or ask AI to tweak mid-build,
+   *  while the dropdowns stay the primary, manual path. */
+  aiConfigured?: boolean;
 }) {
+  const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [fstep, setFstep] = React.useState(0); // which foundation section is shown in 'steps' layout
+  const [aiPrompt, setAiPrompt] = React.useState('');
+  const [aiBusy, setAiBusy] = React.useState(false);
+  const [aiMsg, setAiMsg] = React.useState<string | null>(null);
   const is2024 = system === 'dnd5e-2024';
   const speciesList = React.useMemo(() => speciesCatalogFor(system), [system]);
   const classList = React.useMemo(() => classesForSystem(system), [system]);
@@ -111,6 +121,37 @@ export default function Dnd5eManualBuilder({
       setSaving(false);
     }
   };
+
+  // Ask AI (parity with PF2/IG) — send a natural-language instruction to the shared ai-edit route, so a
+  // player can have AI build or tweak the character mid-build. The manual dropdowns stay the primary path.
+  const askAi = async () => {
+    if (!characterId || !aiPrompt.trim() || aiBusy) return;
+    setAiBusy(true); setAiMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/ai-edit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction: aiPrompt }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setAiMsg(j.error ?? 'AI could not apply that.'); return; }
+      setAiMsg('Done — the character was updated.');
+      setAiPrompt('');
+      router.refresh();
+    } catch { setAiMsg('Network error — please try again.'); } finally { setAiBusy(false); }
+  };
+  const aiBlock = aiConfigured && characterId ? (
+    <div style={{ display: 'grid', gap: 6, padding: '8px 10px', border: '1px solid var(--hx-line, rgba(130,132,140,0.30))', borderRadius: 8, background: 'rgba(200,170,110,0.05)' }}>
+      <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-gold-2, #c8aa6e)' }}>✨ ASK AI (build or tweak this character)</span>
+      <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={2} placeholder="e.g. make this a level 8 Battle Master fighter with the Sentinel feat and a longsword" style={{ ...selectStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" disabled={aiBusy || !aiPrompt.trim()} onClick={askAi}
+          style={{ fontSize: 13, fontWeight: 700, padding: '6px 14px', borderRadius: 8, cursor: aiBusy || !aiPrompt.trim() ? 'default' : 'pointer', opacity: aiBusy || !aiPrompt.trim() ? 0.5 : 1, border: '1px solid var(--hx-gold-1, #8a6d3b)', background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' }}>
+          {aiBusy ? 'Working…' : '✨ Ask AI'}
+        </button>
+        {aiMsg && <span style={{ fontSize: 12, opacity: 0.75 }}>{aiMsg}</span>}
+      </div>
+      <span style={{ fontSize: 10.5, opacity: 0.65 }}>The dropdowns below are the manual path; AI is here for help or quick tweaks. You can also edit with AI later from the sheet.</span>
+    </div>
+  ) : null;
 
   // ── Section nodes — defined once, then arranged by `layout` (panel = all at once; steps = one at a time,
   //    same state/validation/POST). Extracting them keeps the two layouts from drifting. ─────────────────
@@ -231,6 +272,7 @@ export default function Dnd5eManualBuilder({
     const cur = stepDefs[idx];
     return (
       <div style={{ display: 'grid', gap: 12, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: INSET }}>
+        {aiBlock}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>{cur.title}</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Foundation {idx + 1} of {stepDefs.length}{is2024 ? ' · D&D 2024' : ' · D&D 2014'}</div>
@@ -256,6 +298,7 @@ export default function Dnd5eManualBuilder({
   // ── PANEL layout (default) — every field at once, as on the sheet page. ──────────────────────────────
   return (
     <div style={{ display: 'grid', gap: 16, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: INSET }}>
+      {aiBlock}
       <div style={{ fontSize: 16, fontWeight: 800 }}>Manual build{is2024 ? ' — D&D 2024' : ' — D&D 2014'}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
         {levelField}{speciesField}{classField}{subclassField}{backgroundField}
