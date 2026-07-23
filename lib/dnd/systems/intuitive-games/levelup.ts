@@ -143,3 +143,84 @@ export function igLevelBreakdown(subclass: string, toLevel: number): IGLevelRow[
     })),
   }));
 }
+
+// ── Interactive planner (IG-2) ──────────────────────────────────────────────────────────────────────
+// The IG mirror of `pf2PlanLevelUp`: given the subclass, a target level, and the choices already recorded,
+// return what is still OWED before the character can BE that level. Every PLAYER-CHOICE gain in the scraped
+// breakdown (trait / feat / ability-boosts / subclass-power / specialization / skill / capstone) becomes an
+// outstanding prompt until recorded; automatic grants (defensive power, improved stances, manifestation, the
+// DM-set unique power) never block. A level can owe more than one prompt, so choices are keyed by
+// (level, kind, index-within-level) — the index disambiguates a level that (hypothetically) repeats a kind.
+
+/** A choice the player has made, persisted on `data.ig.build.choices`. */
+export interface IGRecordedChoice {
+  level: number;
+  kind: IGGainKind;
+  /** feat/subclass-power/specialization/skill/trait/capstone → the chosen name. */
+  value?: string;
+  /** ability-boosts → the (up to `count`) attributes raised. */
+  attributes?: string[];
+}
+
+export interface IGOutstandingChoice {
+  level: number;
+  kind: IGGainKind;
+  label: string;
+  /** ability-boosts → how many distinct attributes to raise. */
+  count?: number;
+  /** the catalogued options where a short list exists (subclass powers/specializations, capstones). */
+  options?: string[];
+}
+
+export interface IGLevelUpPlan {
+  from: number;
+  to: number;
+  outstanding: IGOutstandingChoice[];
+  ready: boolean;
+}
+
+/** Is a recorded choice actually resolved? boosts need `count` attributes; the rest need a value. */
+function igSatisfied(rec: IGRecordedChoice | undefined, count?: number): boolean {
+  if (!rec) return false;
+  if (rec.kind === 'ability-boosts') return (rec.attributes?.length ?? 0) >= (count ?? 2);
+  return !!rec.value && rec.value.trim() !== '';
+}
+
+/**
+ * What an IG character still owes before it can be `to` (clamped 2–10), given `recorded` choices. Surfaces
+ * every player-choice gain across levels 2..to that has not been resolved. Reads only the scraped schedule +
+ * the subclass's catalogued options.
+ */
+export function igPlanLevelUp(args: {
+  subclass: string;
+  to: number;
+  recorded?: IGRecordedChoice[];
+  from?: number;
+}): IGLevelUpPlan {
+  const to = Math.max(1, Math.min(10, Math.floor(Number(args.to) || 1)));
+  const from = Math.max(1, Math.min(to, Math.floor(Number(args.from) || 1)));
+  const recorded = args.recorded ?? [];
+  const outstanding: IGOutstandingChoice[] = [];
+
+  for (const row of igLevelBreakdown(args.subclass, to)) {
+    for (const g of row.gains) {
+      if (!g.choose) continue;
+      const rec = recorded.find((r) => r.level === row.level && r.kind === g.kind);
+      if (igSatisfied(rec, g.count)) continue;
+      outstanding.push({
+        level: row.level,
+        kind: g.kind,
+        label: g.label,
+        ...(g.count ? { count: g.count } : {}),
+        ...(g.options ? { options: g.options } : {}),
+      });
+    }
+  }
+  return { from, to, outstanding, ready: outstanding.length === 0 };
+}
+
+/** Add or REPLACE a recorded choice (same level + kind), returning a new array. */
+export function igRecordChoice(recorded: IGRecordedChoice[], choice: IGRecordedChoice): IGRecordedChoice[] {
+  const rest = recorded.filter((r) => !(r.level === choice.level && r.kind === choice.kind));
+  return [...rest, choice];
+}
