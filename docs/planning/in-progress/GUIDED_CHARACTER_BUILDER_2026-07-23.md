@@ -280,7 +280,11 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   caster level. Verified: Wizard 3/Fighter 2 → wizard's own slots; Wizard 3/Cleric 2 → multiclass table L5
   `[_,4,3,2]`; non-caster → none. 7 tests total. Warlock pact slots stay separate + summed. Every multiclass
   spell-slot synergy now resolves correctly regardless of the class combination.
-- [ ] **MC-5e-3 — multiclass eligibility:** the ability-score prerequisites to ENTER a second class.
+- [x] **MC-5e-3 — multiclass entry prerequisites (DONE 2026-07-23).** The PHB ability-score gate:
+  `multiclassPrereqFor(classKey)` (13 in the listed ability; `'all'` needs every one, `'any'` is the Fighter's
+  STR-or-DEX) + `meetsMulticlassPrereq(classKey, abilities)`. Unknown/homebrew classes are unrestricted (the
+  custom escape hatch); system-prefixed keys tolerated. 5 tests. The level manager (MC-5e-4) gates entering a
+  new class on this.
 - [ ] **MC-5e-4 — LevelBuilder multiclass:** at each character level, choose which class to advance (or add a
   new class), then resolve that class-level's owed choices via the existing `planLevelUp` per class.
 - [ ] **MC-5e-5 — sheet display:** show "Fighter 3 / Wizard 2" + the aggregated features/slots.

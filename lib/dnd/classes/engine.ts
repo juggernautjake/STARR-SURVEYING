@@ -11,6 +11,7 @@ import type {
   SpellSlotRow,
   ClassLevel,
 } from './types';
+import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 
 // ── 5e MULTICLASS foundation (MC-5e-1) ────────────────────────────────────────────────────────────────
 // A UNIFIED read path so single-class and multiclass characters resolve the same way: everything else can
@@ -206,6 +207,46 @@ export function multiclassCasterLevel(
     else if (p.kind === 'third') total += Math.floor(p.level / 3);
   }
   return Math.min(20, total);
+}
+
+// ── 5e MULTICLASS entry prerequisites (MC-5e-3) ───────────────────────────────────────────────────────
+/** The ability-score prerequisite to take a level in a class when MULTICLASSING (PHB): you need a 13 in the
+ *  listed ability. `mode: 'all'` requires 13 in every listed ability; `'any'` requires 13 in at least one
+ *  (only the Fighter's STR-or-DEX). Keyed by class key. Unknown/homebrew classes have no prereq (the custom
+ *  escape hatch — [[feedback_rules_legal_builders]]). A character multiclassing must meet BOTH their current
+ *  class's and the new class's prerequisite (the caller checks both). */
+export interface MulticlassPrereq { abilities: AbilityKey[]; mode: 'all' | 'any'; minScore: number }
+const MULTICLASS_PREREQS: Record<string, { abilities: AbilityKey[]; mode: 'all' | 'any' }> = {
+  barbarian: { abilities: ['str'], mode: 'all' },
+  bard: { abilities: ['cha'], mode: 'all' },
+  cleric: { abilities: ['wis'], mode: 'all' },
+  druid: { abilities: ['wis'], mode: 'all' },
+  fighter: { abilities: ['str', 'dex'], mode: 'any' },
+  monk: { abilities: ['dex', 'wis'], mode: 'all' },
+  paladin: { abilities: ['str', 'cha'], mode: 'all' },
+  ranger: { abilities: ['dex', 'wis'], mode: 'all' },
+  rogue: { abilities: ['dex'], mode: 'all' },
+  sorcerer: { abilities: ['cha'], mode: 'all' },
+  warlock: { abilities: ['cha'], mode: 'all' },
+  wizard: { abilities: ['int'], mode: 'all' },
+  artificer: { abilities: ['int'], mode: 'all' },
+};
+
+const normKey = (key: string) => key.trim().toLowerCase().replace(/^.*[:/]/, ''); // strip any system prefix
+
+/** The multiclass ability prerequisite for a class (null when unknown/homebrew → unrestricted). */
+export function multiclassPrereqFor(classKey: string): MulticlassPrereq | null {
+  const p = MULTICLASS_PREREQS[normKey(classKey)];
+  return p ? { ...p, minScore: 13 } : null;
+}
+
+/** Does a character with these ability SCORES meet the multiclass prerequisite for the class? True when the
+ *  class has no prereq (homebrew/unknown). */
+export function meetsMulticlassPrereq(classKey: string, abilities: Partial<Record<AbilityKey, number>>): boolean {
+  const p = multiclassPrereqFor(classKey);
+  if (!p) return true;
+  const ok = (a: AbilityKey) => (abilities[a] ?? 0) >= p.minScore;
+  return p.mode === 'any' ? p.abilities.some(ok) : p.abilities.every(ok);
 }
 
 /** The 5e MULTICLASS spellcaster slot table (PHB), by COMBINED caster level 1..20. `[level] = [_, r1..r9]`
