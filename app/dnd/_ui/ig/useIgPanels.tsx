@@ -346,11 +346,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const anc = findIGAncestry(id.ancestry);
   const eq = ig.equipment;
   const eqSlots = ([['Arms', eq.arms], ['Head', eq.head], ['Torso', eq.torso], ['Legs', eq.legs], ['Hands', eq.hands]] as [string, string][]).filter(([, v]) => v && v.trim());
-  // Combat gates on genuine combat CONTENT only (attacks, defensive power, situational bonuses, HP, DR).
-  // Stance + conditions moved to Vitals (IN PLAY), so they no longer force a Combat panel — a stance/
-  // condition-only character now manages them in the always-present Vitals, not a near-empty Combat card.
-  // Still NOT widened by `canDoEdit` (Combat stays a real has-content check — see ig-panels.test).
-  const hasCombat = !!(cb.attacks.length || cb.defensivePower || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction);
+  // Combat appears when there's any combat content — including a stance or condition, since the owner wants
+  // stance controllable "from the combat tab too" (it's ALSO shown always in Vitals' In-Play block, which is
+  // what guarantees every template surfaces it). Still NOT widened by `canDoEdit` (Combat stays a real
+  // has-content check — see ig-panels.test).
+  const hasCombat = !!(cb.attacks.length || cb.stances.length || cb.defensivePower || cb.conditions.length || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction);
   const hasSkills = ig.skills.length > 0;
   const hasPowers = ig.powers.length > 0 || canDoEdit;
   const hasFeats = ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit;
@@ -673,7 +673,38 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
           </div>
         )}
       </div>
-      {/* Stance + Conditions moved to Vitals (IN PLAY) so they surface on every template — see renderVitals. */}
+      {/* Stance ALSO lives here in Combat (owner: "controlled from the combat tab too") — the same active
+          stance the Vitals In-Play block shows, editable from either place. Vitals guarantees it's on every
+          template (identity column / hero); Combat is its natural detailed home. */}
+      {(cb.stances.length > 0 || canDoEdit) && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={label}>Stances <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {cb.stances.map((name) => {
+              const e = igStanceInPlay(name, derived.level);
+              return (
+                <span key={name} className="igs-int" title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: 'help' }}>
+                  {e?.name ?? name} {badgeFor(name)}
+                  {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 12.5 }}>· {e.summary}</span> : null}
+                </span>
+              );
+            })}
+            {canDoEdit && (
+              // Enter a stance (one active at a time — the route replaces the current one) or clear it.
+              <select
+                aria-label="Active stance (Combat)"
+                value={cb.stances[0] ?? ''}
+                disabled={editing}
+                onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
+                style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
+              >
+                <option value="">— no stance —</option>
+                {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
       {(cb.defensivePower || canDoEdit) && (
         <div style={{ display: 'grid', gap: 4 }}>
           {/* Defensive powers are a REACTION — tag the heading with the reaction glyph so its action cost
@@ -691,6 +722,38 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
         </div>
       )}
       {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
+      {/* Conditions ALSO here in Combat, mirroring the Vitals In-Play block — editable from either place. */}
+      {(cb.conditions.length > 0 || canDoEdit) && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover or tap ⓘ for the full rules)</span></span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {cb.conditions.map((c) => {
+              const e = igConditionInPlay(c);
+              return (
+                <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
+                  {c}
+                  {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
+                  {canDoEdit && (
+                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                  )}
+                </span>
+              );
+            })}
+            {canDoEdit && (
+              <select
+                aria-label="Add condition (Combat)"
+                value=""
+                disabled={editing}
+                onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
+                style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
+              >
+                <option value="">+ add condition…</option>
+                {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
     </Section>
   );
 

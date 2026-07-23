@@ -61,11 +61,13 @@ Where a real gap CAN exist:
 ## Slices
 
 ### S0 — IG stance + conditions surface on every template (DONE 2026-07-23)
-- [x] Lifted the active-STANCE control (view banner + change selector + mechanic note) and the CONDITIONS
-  control (chips + add/remove + penalty summary) out of the `hasCombat`-gated Combat panel into the
-  always-present **Vitals** "In Play" block. Vitals leads every format and sits in the Codex/Dashboard
-  identity column and the Play hero, so stance is now visible AND changeable on Classic/Codex/Dashboard/
-  Play. `hasCombat` no longer gates on stance/conditions. Tests updated + green.
+- [x] Added an always-present **Vitals "In Play"** block carrying the active-STANCE control (view banner +
+  change selector + mechanic note) and the CONDITIONS control (chips + add/remove + penalty summary).
+  Vitals leads every format and sits in the Codex/Dashboard identity column and the Play hero, so stance is
+  visible AND changeable on Classic/Codex/Dashboard/Play. **Per owner ("controlled from the combat tab
+  too"), the stance + conditions controls ALSO remain in the Combat tab** — same active stance, editable
+  from either place; Vitals is what guarantees every template surfaces it. Verified in Playwright:
+  `currentlyIn:true` on all four templates. Tests updated + green.
 
 ### S1 — Browser audit: capture the truth for every system × template (DONE 2026-07-23)
 - [x] Playwright text+screenshot sweep of 2014 / PF2 / IG × classic/codex/dashboard/play (owner session).
