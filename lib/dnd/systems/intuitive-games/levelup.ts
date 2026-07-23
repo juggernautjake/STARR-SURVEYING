@@ -1,58 +1,145 @@
-// lib/dnd/systems/intuitive-games/levelup.ts — the DOCUMENTED IG level milestones (B13, first slice).
+// lib/dnd/systems/intuitive-games/levelup.ts — the IG per-level progression (B12/B13).
 //
-// Unlike 5e/PF2, Intuitive Games does not publish a per-level class-feature table: `IG_PROGRESSION_NOTE`
-// says "Levels 2–10 add traits, powers, feats, and ability boosts on a FIXED SCHEDULE" but the site never
-// enumerates that schedule — so authoring `IG_CLASS_PROGRESSIONS` (B12) stays blocked on the owner, and
-// the IG Ground Rules forbid inventing it. What IS documented are the milestone levels — specializations
-// at 4, unique powers at 6, greater specializations at 8, a capstone + manifestation at 10 — and each
-// subclass's own specialization OPTIONS are catalogued in `IG_CLASS_DETAILS`. This reads only that
-// documented data, so a player can at least see their real milestone path and pick a real specialization,
-// without the module pretending to know the parts of the schedule the site withholds.
+// SOURCE: scraped verbatim from intuitivegames.net/character-building (2026-07-23). IG uses ONE universal
+// level schedule for every class (levels 2–10) — what varies per SUBCLASS is only the option lists (which
+// powers, specializations, and manifestation), and those are already catalogued in `IG_CLASS_DETAILS`. So
+// this is real published data, not invention: `IG_LEVEL_SCHEDULE` is the fixed schedule the site's "Levels
+// 2–10" accordion lists, and `igLevelBreakdown` joins it to a subclass's own options.
+//
+// Feats alternate (even levels → General, odd → Combat); two ability boosts land at 3/6/9; specialization at
+// 4, greater specialization at 8, unique power at 6, capstone + manifestation at 10. Cumulative Solidas
+// (starting wealth by level) is the site's table.
 import { IG_CLASS_DETAILS } from './content';
 
-export type IGMilestoneKind = 'specialization' | 'unique-power' | 'greater-specialization' | 'capstone';
+export type IGGainKind =
+  | 'trait'
+  | 'ability-boosts'
+  | 'feat-general'
+  | 'feat-combat'
+  | 'skill-proficiency'
+  | 'subclass-power'
+  | 'subclass-defensive-power'
+  | 'specialization'
+  | 'greater-specialization'
+  | 'improved-stances'
+  | 'unique-power'
+  | 'capstone'
+  | 'manifestation';
 
-export interface IGMilestone {
-  level: number;
-  kind: IGMilestoneKind;
+export interface IGLevelGain {
+  kind: IGGainKind;
   label: string;
-  detail: string;
-  /** For the level-4 specialization: the subclass's catalogued options. Absent where the site does not
-   *  enumerate a choice (unique power, greater specialization, capstone) — the moment is named, not faked. */
+  /** True when the PLAYER picks (feat, trait, boost, subclass power, specialization, skill, capstone);
+   *  false for an automatic grant (defensive power, improved stances, manifestation, DM-set unique power). */
+  choose: boolean;
+  /** How many to pick, when >1 (the two ability boosts). */
+  count?: number;
+  /** The legal options, when a short catalogued list exists (subclass powers/specializations, capstones).
+   *  Absent where the pool is large (feats — the picker filters the full catalog) or DM/subclass-determined. */
   options?: string[];
 }
 
-/** Find a class or subclass entry by name (case-insensitive). Subclasses carry the `specializations`. */
+export interface IGLevelRow {
+  level: number;
+  gains: IGLevelGain[];
+  /** Cumulative starting Solidas (wealth) available by this level (site table). */
+  solidasCumulative: number;
+}
+
+/** The scraped schedule. Each row's `gains` are in the order the site lists them; option lists are filled in
+ *  per-subclass by `igLevelBreakdown` (kept out of the raw table because they depend on the chosen subclass). */
+const SCHEDULE: { level: number; gains: { kind: IGGainKind; count?: number }[]; solidas: number }[] = [
+  { level: 2, gains: [{ kind: 'trait' }, { kind: 'subclass-defensive-power' }, { kind: 'feat-general' }], solidas: 50 },
+  { level: 3, gains: [{ kind: 'ability-boosts', count: 2 }, { kind: 'subclass-power' }, { kind: 'feat-combat' }], solidas: 75 },
+  { level: 4, gains: [{ kind: 'skill-proficiency' }, { kind: 'specialization' }, { kind: 'feat-general' }], solidas: 115 },
+  { level: 5, gains: [{ kind: 'improved-stances' }, { kind: 'subclass-power' }, { kind: 'feat-combat' }], solidas: 175 },
+  { level: 6, gains: [{ kind: 'ability-boosts', count: 2 }, { kind: 'unique-power' }, { kind: 'feat-general' }], solidas: 265 },
+  { level: 7, gains: [{ kind: 'trait' }, { kind: 'subclass-power' }, { kind: 'feat-combat' }], solidas: 400 },
+  { level: 8, gains: [{ kind: 'skill-proficiency' }, { kind: 'greater-specialization' }, { kind: 'feat-general' }], solidas: 600 },
+  { level: 9, gains: [{ kind: 'ability-boosts', count: 2 }, { kind: 'subclass-power' }, { kind: 'feat-combat' }], solidas: 900 },
+  { level: 10, gains: [{ kind: 'capstone' }, { kind: 'manifestation' }, { kind: 'feat-general' }], solidas: 1350 },
+];
+
+const LABEL: Record<IGGainKind, string> = {
+  trait: 'New Trait',
+  'ability-boosts': 'Ability Score Boosts',
+  'feat-general': 'General Feat',
+  'feat-combat': 'Combat Feat',
+  'skill-proficiency': 'New Skill Proficiency',
+  'subclass-power': 'New Subclass Power',
+  'subclass-defensive-power': 'Subclass Defensive Power',
+  specialization: 'Specialization',
+  'greater-specialization': 'Greater Specialization',
+  'improved-stances': 'Improved version of all stances',
+  'unique-power': 'Unique Power',
+  capstone: 'Capstone',
+  manifestation: 'Manifestation',
+};
+
+/** Kinds the player actively CHOOSES (vs automatic grants). */
+const PLAYER_CHOICE: Set<IGGainKind> = new Set([
+  'trait', 'ability-boosts', 'feat-general', 'feat-combat', 'skill-proficiency', 'subclass-power',
+  'specialization', 'greater-specialization', 'capstone',
+]);
+
+/** The Level-10 Capstones (scraped from intuitivegames.net/character-building) — the player picks one. */
+export const IG_CAPSTONES: { name: string; effect: string }[] = [
+  { name: 'Ageless Wisdom', effect: 'Gain 2 Ability Score Boosts to Wisdom, and advantage on one chosen type of WIS check.' },
+  { name: 'Alluring Charisma', effect: 'Gain 2 Ability Score Boosts to Charisma, and advantage on one chosen type of CHA check.' },
+  { name: 'Genius Intelligence', effect: 'Gain 2 Ability Score Boosts to Intelligence, and advantage on one chosen type of INT check.' },
+  { name: 'Icon of War', effect: 'Gain two combat feats.' },
+  { name: 'Icon of Society', effect: 'Gain two general feats.' },
+  { name: 'Legendary Attributes', effect: 'Gain 4 Ability Score Boosts.' },
+  { name: 'Master of Skills', effect: 'Gain a +8 bonus on all checks with a chosen skill.' },
+  { name: 'Mighty Constitution', effect: 'Gain 2 Ability Score Boosts to Constitution, and 10 extra HP.' },
+  { name: 'Powerful Strength', effect: 'Gain 2 Ability Score Boosts to Strength, and advantage on one chosen type of STR check.' },
+  { name: 'Precise Dexterity', effect: 'Gain 2 Ability Score Boosts to Dexterity, and advantage on one chosen type of DEX check.' },
+  { name: 'Prosperity', effect: 'Acquire an additional 500 Solidas.' },
+  { name: 'Ruthless', effect: 'On a critical hit, the target makes a Fortitude save vs the damage: crit fail = death; fail = loses all actions next turn.' },
+];
+
+const CAPSTONE_NAMES = IG_CAPSTONES.map((c) => c.name);
+
+/** Find a class or subclass entry by name (case-insensitive). Subclasses carry powers/specializations. */
 function igEntry(name: string) {
   const key = (name ?? '').trim().toLowerCase();
   return IG_CLASS_DETAILS.find((c) => c.name.toLowerCase() === key) ?? null;
 }
 
+/** The option list for a choice-gain, when a short catalogued one exists for this subclass. */
+function optionsFor(kind: IGGainKind, entry: ReturnType<typeof igEntry>): string[] | undefined {
+  if (!entry) return kind === 'capstone' ? CAPSTONE_NAMES : undefined;
+  switch (kind) {
+    case 'subclass-power':
+      return entry.powers?.length ? entry.powers : undefined;
+    case 'specialization':
+    case 'greater-specialization':
+      return entry.specializations?.length ? entry.specializations : undefined;
+    case 'capstone':
+      return CAPSTONE_NAMES;
+    default:
+      return undefined; // feats/traits/skills/boosts: large or free pools — the picker handles them
+  }
+}
+
 /**
- * The documented IG milestones from level 1 through `toLevel` (clamped 1–20), for the character's subclass.
- * Only the levels the site actually calls out carry an entry (4/6/8/10); the "fixed schedule" of per-level
- * traits/feats/boosts the note references but never lists is deliberately NOT surfaced. The level-4
- * specialization prompt carries the subclass's real catalogued options; the others name the moment only.
+ * The IG level-by-level breakdown for a subclass from level 2 through `toLevel` (clamped 2–10). Every level's
+ * gains are the scraped universal schedule; choice-gains carry the subclass's catalogued options where a
+ * short list exists. Level 1 is the base build (class/subclass/background/ancestry/starting feats), handled
+ * by the character builder, so the breakdown starts at 2.
  */
-export function igLevelMilestones(subclass: string, toLevel: number): IGMilestone[] {
-  const specs = igEntry(subclass)?.specializations ?? [];
-  const n = Math.max(1, Math.min(20, Math.floor(Number(toLevel) || 1)));
-  const all: IGMilestone[] = [
-    {
-      level: 4,
-      kind: 'specialization',
-      label: 'Specialization',
-      detail: 'Your subclass specialization begins at level 4 — choose one.',
-      ...(specs.length ? { options: specs } : {}),
-    },
-    { level: 6, kind: 'unique-power', label: 'Unique Power', detail: 'A unique power arrives at level 6.' },
-    {
-      level: 8,
-      kind: 'greater-specialization',
-      label: 'Greater Specialization',
-      detail: 'Your specialization advances to its greater form at level 8.',
-    },
-    { level: 10, kind: 'capstone', label: 'Capstone & Manifestation', detail: 'A class capstone and a manifestation arrive at level 10.' },
-  ];
-  return all.filter((m) => m.level <= n);
+export function igLevelBreakdown(subclass: string, toLevel: number): IGLevelRow[] {
+  const entry = igEntry(subclass);
+  const n = Math.max(1, Math.min(10, Math.floor(Number(toLevel) || 1)));
+  return SCHEDULE.filter((r) => r.level <= n).map((r) => ({
+    level: r.level,
+    solidasCumulative: r.solidas,
+    gains: r.gains.map((g) => ({
+      kind: g.kind,
+      label: LABEL[g.kind],
+      choose: PLAYER_CHOICE.has(g.kind),
+      ...(g.count ? { count: g.count } : {}),
+      ...(optionsFor(g.kind, entry) ? { options: optionsFor(g.kind, entry) } : {}),
+    })),
+  }));
 }

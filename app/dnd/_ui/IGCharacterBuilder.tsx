@@ -13,7 +13,7 @@ import IgBoostAllocator from './IgBoostAllocator';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail, igClassPowerEffect } from '@/lib/dnd/systems/intuitive-games/content';
 import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
-import { igLevelMilestones } from '@/lib/dnd/systems/intuitive-games/levelup';
+import { igLevelBreakdown } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
@@ -259,18 +259,20 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {classDetail.note ? <div style={{ color: 'var(--hx-muted)', fontStyle: 'italic' }}>{classDetail.note}</div> : null}
           </div>
         ) : null;
-        // The DOCUMENTED IG level milestones for this subclass through the chosen level (specialization at 4,
-        // unique power at 6, greater specialization at 8, capstone at 10) — read-only, from real data. The
-        // per-level trait/feat/boost schedule the site never publishes is deliberately NOT shown.
-        const milestones = (className || subclass) ? igLevelMilestones(subclass || className, level) : [];
-        const milestoneNode = milestones.length ? (
-          <div data-testid="ig-milestones" style={{ fontSize: 11.5, lineHeight: 1.5, border: '1px solid var(--hx-line)', borderRadius: 6, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', display: 'grid', gap: 2 }}>
-            <div style={{ color: 'var(--hx-teal-1)', fontWeight: 600 }}>Milestones through level {level}</div>
-            {milestones.map((m) => (
-              <div key={`${m.level}-${m.kind}`}>
-                <span style={{ color: 'var(--hx-muted)' }}>L{m.level} · </span>
-                <span style={{ color: 'var(--hx-ink)' }}>{m.label}</span>
-                {m.options?.length ? <span style={{ color: 'var(--hx-muted)' }}> — {m.options.map((o) => o.split(' (')[0]).join(' / ')}</span> : null}
+        // The IG per-level progression for this subclass through the chosen level — the FULL scraped schedule
+        // (intuitivegames.net/character-building): each level's trait/feat/boost/power/specialization gains,
+        // with the subclass's real option lists where a short one exists. Read-only preview.
+        const breakdown = (className || subclass) && level > 1 ? igLevelBreakdown(subclass || className, level) : [];
+        const milestoneNode = breakdown.length ? (
+          <div data-testid="ig-milestones" style={{ fontSize: 11.5, lineHeight: 1.5, border: '1px solid var(--hx-line)', borderRadius: 6, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', display: 'grid', gap: 3 }}>
+            <div style={{ color: 'var(--hx-teal-1)', fontWeight: 600 }}>Level 2–{level} progression <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>· what you gain each level</span></div>
+            {breakdown.map((r) => (
+              <div key={r.level}>
+                <span style={{ color: 'var(--hx-muted)' }}>L{r.level} · </span>
+                <span style={{ color: 'var(--hx-ink)' }}>
+                  {r.gains.map((g) => `${g.label}${g.count && g.count > 1 ? ` ×${g.count}` : ''}`).join(' · ')}
+                </span>
+                <span style={{ color: 'var(--hx-muted)' }}> · {r.solidasCumulative} Solidas</span>
               </div>
             ))}
           </div>
