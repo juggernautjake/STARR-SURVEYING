@@ -3,6 +3,16 @@
 **Status:** IN PROGRESS · started 2026-07-23 · companion to
 [PER_SYSTEM_TEMPLATE_COMPLETENESS](PER_SYSTEM_TEMPLATE_COMPLETENESS_2026-07-23.md)
 
+> **Where it stands (2026-07-23):** the WIZARD + PRESENTATION layer is complete for all four systems — a
+> dedicated `/builder` page, a phase-grouped step rail, a permanently docked stat-roller (keeps rolled
+> scores), a searchable per-system glossary, per-system **stepped Foundations** (5e/PF2/IG all walk their
+> sections one at a time, reusing the tested builders), the 5e **per-level walk** (LevelBuilder → planLevelUp),
+> and a **Review summary**. What remains is the LEVEL-BY-LEVEL PROGRESSION for PF2 + IG, which is a different
+> class of work: **B7–B11 (PF2)** = large data authoring (finish `PF2_CLASS_PROGRESSIONS`) + a level-up
+> planner engine; **B12–B16 (IG)** = ⛔ BLOCKED on owner input — IG has no per-level progression data and the
+> IG Ground Rules forbid inventing the schedule, so the owner must confirm what each class gains at each level
+> before it can be authored. B5 (a build-time 5e spell picker) is a real but non-blocking convenience.
+
 ## Owner ask (verbatim intent)
 
 > When building a character step by step (fully manual), we should be taken to a dedicated "build from the
@@ -154,8 +164,10 @@ Data is COMPLETE. Steps:
   POST are reused (no logic duplicated). The wizard mounts it with `layout="steps"`. Verified in the SSR
   HTML (step 1 "Class & level", Next, progress dots for all 5 steps). Reuses `StatGenPanel` for abilities +
   the docked roller for 4d6.
-- [ ] **B4 — 5e per-level steps** from `planLevelUp().outstanding` (subclass/ASI/feat/style/expertise/
-  cantrip) with eligibility + tooltips, persisting to `data.build.choices` via `/levels`.
+- [x] **B4 — 5e per-level steps (DONE — satisfied by the embedded LevelBuilder).** The wizard's 5e "Levels"
+  step embeds `LevelBuilder`, which walks `planLevelUp(def, …).outstanding` (subclass/ASI/feat/style/
+  expertise/cantrip) via the `/levels` route, persisting to `data.build.choices` with server-side
+  `validateChoice`. Verified: `LevelBuilder` → `/levels` → `planLevelUp`. No new work needed for 5e per-level.
 - [x] **B5a — Review & finish shows a build summary (DONE 2026-07-23).** The wizard's Review step now reads
   the character's data per system and lists the key facts (name, ancestry/species, class + subclass,
   specialization, background, level) instead of a bare link — the builders reload on Build so this reflects
