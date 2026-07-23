@@ -49,7 +49,12 @@ house-rule** (provenance: custom, not vanilla), never presented as official IG.
   record+commit), the IG mirror of `/pf2-levels`: records validated choices into `data.igBuild.choices`
   (additive field on `IGBuild`) and commits a level only when the plan is `ready` (409 otherwise), keeping the
   `ig` sidecar's level in step. IG-only, behind `requireCharacterWrite`. 6 tests (`ig-levels-route.test.ts`).
-- [ ] **IG-4 — IG level-by-level walk UI** (`IGLevelBuilder`) + levels-page dispatch, like `PF2LevelBuilder`.
+- [x] **IG-4 — IG level-by-level walk UI (DONE 2026-07-23).** New `IGLevelBuilder` walks the tested
+  `/ig-levels` plan IN ORDER (trait / feat / boosts / subclass power / specialization / skill / capstone),
+  refusing to advance past an outstanding choice. Each prompt's options come from the plan (subclass power /
+  specialization / capstone) or the right IG catalog (feats by category from `IG_FEATS`, skills from
+  `systemSkills`, the five documented trait benefits); ability boosts are a distinct-N attribute pick. The
+  levels page now dispatches IG → `IGLevelBuilder` (PF2 → `PF2LevelBuilder`, 5e → `LevelBuilder`). 5 tests.
 - [ ] **MC-IG — multiclass house-rule** — the Multiclass Dedication above: eligibility + how it opens other
   subclasses' power lists at the subclass-power slots; flagged as custom provenance.
 - [ ] **IG-5 — QA** (browser, vanilla L1→10 for a martial + a caster subclass).
