@@ -3,6 +3,7 @@ import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
 import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
 import { SPECIES_2024 } from '@/lib/dnd/species/dnd5e-2024'
+import { classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve'
 import type { Character } from '../types'
 import EffectStar from './ui/EffectStar'
 import SpeciesTraits from './SpeciesTraits'
@@ -27,8 +28,11 @@ export default function Hero() {
   // gives you back exactly who you were. Base stands when nothing imposes an identity.
   const displayName = ledger.identity('name')?.value ?? char.meta.name
   const displaySpecies = ledger.identity('species')?.value ?? char.meta.species
-  const displayClass = ledger.identity('class')?.value ?? char.meta.className
-  const displaySubclass = ledger.identity('subclass')?.value ?? char.meta.subclass
+  // Multiclass shows the split ("Fighter 3 / Wizard 2") in place of the single class (MC-5e-5); the subclass
+  // line is then subsumed by the split. An identity effect that IMPOSES a class still wins over both.
+  const isMulti = (char.meta.classes?.length ?? 0) > 1
+  const displayClass = ledger.identity('class')?.value ?? (isMulti ? classDisplayFor(system, char.meta) : char.meta.className)
+  const displaySubclass = ledger.identity('subclass')?.value ?? (isMulti ? '' : char.meta.subclass)
 
   // Shrink the display name to fit its column on one line rather than overflow — so
   // a long single-word handle (e.g. the streamer's username) or a big name in the

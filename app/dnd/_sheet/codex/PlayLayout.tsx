@@ -9,6 +9,8 @@
 // answer — Play only rearranges where they sit and how big they are. PF2/IG reach the same Play format
 // by building THEIR own hero + identity and feeding the same PlayShell (later slices).
 import { useChar } from '../state/store'
+import { useSheetSystem } from '../state/sheetConfig'
+import { classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve'
 import { useFivePanels } from '../panels/fivePanels'
 import PlayShell from '../shells/PlayShell'
 import Abilities from '../components/Abilities'
@@ -29,12 +31,13 @@ const HERO_PANELS = new Set(['combat', 'attacks', 'abilities'])
 
 export default function PlayLayout({ artUrl, ownerName, roller }: { artUrl?: string | null; ownerName?: string | null; roller?: React.ReactNode }) {
   const { char, characterId } = useChar()
+  const system = useSheetSystem()
   const panels = useFivePanels()
   const drawerPanels = panels.filter((p) => !HERO_PANELS.has(p.id))
 
   const meta = char.meta
   const subtitle = [
-    [meta.className, meta.subclass].filter(Boolean).join(' · '),
+    classDisplayFor(system, meta), // multiclass split when 2+ classes, else class · subclass (MC-5e-5)
     meta.species,
     meta.level != null ? `Level ${meta.level}` : null,
   ]

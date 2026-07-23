@@ -80,8 +80,10 @@ describe('the Hero header renders the overlay, not the base, and stars it', () =
   it('reads identity() for name/species/class/subclass', () => {
     expect(HERO).toContain("ledger.identity('name')?.value ?? char.meta.name");
     expect(HERO).toContain("ledger.identity('species')?.value ?? char.meta.species");
-    expect(HERO).toContain("ledger.identity('class')?.value ?? char.meta.className");
-    expect(HERO).toContain("ledger.identity('subclass')?.value ?? char.meta.subclass");
+    // The identity effect still WINS over the base for class/subclass; the base fallback now also branches on
+    // multiclass (the split) vs single-class, but the ledger override is still read first (MC-5e-5).
+    expect(HERO).toMatch(/ledger\.identity\('class'\)\?\.value \?\?[\s\S]*char\.meta\.className/);
+    expect(HERO).toMatch(/ledger\.identity\('subclass'\)\?\.value \?\?[\s\S]*char\.meta\.subclass/);
   });
 
   it('the editable name input still binds to the BASE (edit writes base, display shows overlay)', () => {
