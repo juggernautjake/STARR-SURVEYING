@@ -630,7 +630,12 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   // ── COMBAT — attacks (to-hit + damage from the rules engine), HP/DR, stances, defensive power,
   //    conditions. The active-stance status lives in Vitals; the selector to CHANGE it lives here. ────────
   const renderCombat = () => (
-    <Section id="ig-combat" title="Combat">
+    <Section id="ig-combat" title="Combat" aside={canDoEdit ? (
+      // Add a weapon (Strike) — wires the same IGElementEditor + add_attack op the 2024/PF2 sheets use (S8b).
+      <button type="button" className="igs-int" disabled={editing} onClick={() => setIgEditor({ kind: 'weapon' })}
+        title="Add a weapon (Strike)"
+        style={{ background: 'none', border: '1px solid var(--hx-line)', borderRadius: 10, color: 'var(--hx-gold-2)', fontWeight: 600, cursor: 'pointer', fontSize: 12, padding: '3px 10px' }}>＋ Add weapon</button>
+    ) : undefined}>
       {cb.attacks.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
@@ -644,7 +649,15 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                 const r = igResolveAttack(ig, a);
                 return (
                   <tr key={a.id} style={{ color: 'var(--hx-text)' }}>
-                    <td style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}>✦</span> : null}</td>
+                    <td style={{ padding: '4px 8px 4px 0', fontWeight: 600 }}>{a.name}{a.weaponFocus ? <span title="Weapon Focus" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}> ✦</span> : null}{a.weaponSpecialization ? <span title="Weapon Specialization" style={{ color: 'var(--hx-gold-2)', fontSize: 11 }}>✦</span> : null}
+                      {canDoEdit && (
+                        <>
+                          {/* Edit / remove this weapon (S8b) — same ops the AI + other systems use. */}
+                          <button type="button" aria-label={`Edit ${a.name}`} disabled={editing} onClick={() => setIgEditor({ kind: 'weapon', initial: { name: a.name, damage: a.damage, ability: a.ability, properties: a.properties, weaponType: a.weaponType, bonusToHit: a.bonusToHit, bonusDamage: a.bonusDamage, proficient: a.proficient } })} title={`Edit ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 12, padding: '0 0 0 6px' }}>✎</button>
+                          <button type="button" aria-label={`Remove ${a.name}`} disabled={editing} onClick={() => postEdit({ op: 'remove_attack', name: a.name })} title={`Remove ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 0 0 3px' }}>×</button>
+                        </>
+                      )}
+                    </td>
                     <td style={{ padding: '4px 8px 4px 0', fontWeight: 500, color: 'var(--hx-muted)' }}>{a.weaponType} {badgeFor(a.weaponType)}</td>
                     <td style={{ padding: '4px 8px 4px 0', fontVariantNumeric: 'tabular-nums' }}>
                       {/* Tap the to-hit to roll the attack (R1b): d20 + to-hit through the shared engine. */}

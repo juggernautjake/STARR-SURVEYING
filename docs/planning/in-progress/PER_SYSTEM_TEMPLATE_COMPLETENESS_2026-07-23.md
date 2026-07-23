@@ -135,9 +135,10 @@ Stance + conditions are fixed (S0), but the audit found more of the same pattern
 - [x] **S8a — Defensive Power lifted out of the `hasCombat` gate.** Added the `set_defensive_power` control
   to the Vitals "In Play" block (beside stance/conditions), so it's available on every template; still shown
   in Combat too. (DONE 2026-07-23)
-- [ ] **S8b — Attacks have no add/edit/remove UI** on any template — the ops (`add_attack`/`update_attack`/
-  `remove_attack`) and `IGElementEditor` `kind:'weapon'` exist but are never invoked. Wire a `＋ add weapon`/
-  `✎`/`×` set into the Combat attacks table, mirroring the Powers panel.
+- [x] **S8b — Attacks add/edit/remove wired (DONE 2026-07-23).** The ops (`add_attack`/`update_attack`/
+  `remove_attack`) and `IGElementEditor kind:'weapon'` existed but were never invoked. Added a "＋ Add weapon"
+  button to the Combat section header and per-row ✎ edit / × remove, using the existing editor + ops.
+  Verified in Playwright: all three controls render and the "New weapon" editor opens.
 - [x] **S8c — Ability scores are drawer-only on Play.** Added `ig-abilities` to the Play `heroIds` so a
   player can roll/set an ability at the table without opening the drawer. (DONE 2026-07-23)
 - [ ] **S8d — three-action economy double-collapsed on Codex** (low): open the `<details>` by default or
