@@ -140,11 +140,16 @@
   remain.** `lib/dnd/statgen/builder5e.ts` (12 tests over the LIVE catalogs) answers everything the dropdowns
   need — `dnd5eSpeciesIncreases` (racial 2014 / none 2024), `dnd5eBackgroundAbilities` (the 2024 spread trio),
   `dnd5eSubclassLevelFor`, `dnd5eFeatLevelsFor` + `dnd5eFeatSlotsAtLevel`, `dnd5eSubclassOptions`, and
-  `dnd5eValidatePicks` (real class, 1–20, subclass required once unlocked). REMAINING: **(MB-2a)** the builder
-  UI shell — species/class/subclass/background/level dropdowns + `StatGenPanel` (increases fed per edition) +
-  feat picks at the ASI levels; **(MB-2b)** assemble-to-level via the shared engine (`classes/engine.ts` +
-  `levelup.ts`) + persist through a `dnd5e-build` route (mirrors pf2/ig-build). These two are the browser-
-  verified UI slices. Original scope:
+  `dnd5eValidatePicks` (real class, 1–20, subclass required once unlocked).
+  - **MB-2a SHIPPED 2026-07-22** — `app/dnd/_ui/Dnd5eManualBuilder.tsx` (3 render tests over the real
+    catalogs): level/species/class/subclass/background dropdowns from the live catalogs, the `StatGenPanel`
+    with the edition's increases folded in (racial 2014 / assignable +2/+1 background spread 2024), a feat
+    picker sized to the class's ASI/feat slots by that level, live validation + a build button. Emits a
+    `Dnd5eBuildResult` via `onBuild`.
+  - **REMAINING (MB-2b):** assemble-to-level via the shared engine (`classes/engine.ts` + `levelup.ts`) +
+    persist through a `dnd5e-build` route (mirrors pf2/ig-build), and mount the builder on the character page
+    for 5e characters. Browser-verified UI/route slice.
+  - Original scope:
   Dropdowns: species (+subrace/lineage) · class ·
   subclass (shown at the class's subclass level) · background · level (1–20). The StatGenPanel (array/
   point-buy/roll) + racial ASI (2014) or background spread (2024). Feat picks at the class's ASI/feat levels
