@@ -91,7 +91,7 @@ export const PF2_EDIT_TOOL = {
     properties: {
       op: { type: 'string', enum: [...PF2_EDIT_OPS], description: 'The edit operation.' },
       amount: { type: 'integer', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP.' },
-      value: { type: 'integer', description: 'For set_dying (0–4) / set_wounded / set_condition: the track/condition value (0 clears). For set_attribute: the modifier (−5..12).' },
+      value: { type: 'integer', description: 'For set_dying (0–4) / set_wounded / set_hero_points (0–3) / set_condition: the track/points/condition value (0 clears). For set_attribute: the modifier (−5..12).' },
       name: { type: 'string', description: 'For set_condition: the condition name, e.g. "Frightened", "Sickened", "Prone". For add_feat / remove_feat: the feat name. For add_spell / remove_spell: the spell name.' },
       attribute: { type: 'string', enum: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], description: 'For set_attribute: which attribute modifier to set.' },
       // Content-adding fields (S13). `offRules` is deliberately NOT offered — it is stamped by the

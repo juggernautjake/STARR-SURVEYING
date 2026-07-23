@@ -23,7 +23,7 @@ function fighter5(): PF2Character {
     },
     skills: [{ name: 'Athletics', attribute: 'STR', rank: 'trained', itemBonus: 0 }],
     combat: {
-      ancestryHp: 10, classHpPerLevel: 10, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0,
+      ancestryHp: 10, classHpPerLevel: 10, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: 1,
       speed: 20, armorRank: 'trained', dexCap: 0, acItemBonus: 6, attackRank: 'expert',
       classDcRank: 'expert', classDcAttribute: 'STR',
     },

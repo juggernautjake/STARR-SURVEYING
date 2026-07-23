@@ -532,6 +532,29 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
             </div>
           )}
 
+          {/* Hero Points (S7d) — a core always-on PF2 resource that was entirely missing from the sheet:
+              start each session with 1, GM awards more (max 3), spend 1 to reroll or all 3 to avoid death.
+              Shown always (◆ filled / ◇ empty); ± spend/gain for editors. In Defenses → on every template. */}
+          {(() => {
+            // Coerce: `heroPoints` is a new field, so existing characters store `undefined` — `undefined + 1`
+            // is NaN, which would post a 0. Default to 0 for display/math.
+            const hp = pf2.combat.heroPoints ?? 0;
+            return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <span title="Hero Points — you start each session with 1; the GM awards more (max 3). Spend 1 to reroll a check (keep the new result), or spend all 3 to avoid death." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: 'var(--hx-gold-2)' }}>Hero Points</span>
+              <span aria-label={`${hp} of 3 hero points`} style={{ display: 'inline-flex', gap: 4 }}>
+                {[1, 2, 3].map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= hp ? 'var(--hx-gold, #c8aa6e)' : 'var(--hx-line)' }}>{n <= hp ? '◆' : '◇'}</span>)}
+              </span>
+              {canDoEdit && (
+                <span style={{ display: 'inline-flex', gap: 4 }}>
+                  <button type="button" aria-label="Spend a hero point" disabled={saving || hp <= 0} onClick={() => void postEdit({ op: 'set_hero_points', value: hp - 1 })} style={{ fontSize: 12, fontWeight: 700, lineHeight: 1, padding: '4px 9px', background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', borderRadius: 6, cursor: 'pointer' }}>− Spend</button>
+                  <button type="button" aria-label="Gain a hero point" disabled={saving || hp >= 3} onClick={() => void postEdit({ op: 'set_hero_points', value: hp + 1 })} style={{ fontSize: 12, fontWeight: 700, lineHeight: 1, padding: '4px 9px', background: 'none', border: '1px solid var(--hx-gold, #c8aa6e)', color: 'var(--hx-gold-2)', borderRadius: 6, cursor: 'pointer' }}>＋ Gain</button>
+                </span>
+              )}
+            </div>
+            );
+          })()}
+
           {/* Saving throws — tap to roll (R1b), directly under the defenses they belong with. */}
           <div style={{ marginTop: 12 }}>
             <div className={styles.pf2RollRow}>

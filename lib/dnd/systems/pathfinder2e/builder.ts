@@ -221,7 +221,7 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       ancestryHp: anc?.hp ?? 8,
       classHpPerLevel: cls?.hpPerLevel ?? 8,
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
-      tempHp: 0, dyingValue: 0, woundedValue: 0,
+      tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: 1, // PF2: start play with 1 Hero Point
       speed: (anc?.speed ?? 25) + speedPenalty,
       armorRank: defenseRank, dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
       attackRank: attacksRank,

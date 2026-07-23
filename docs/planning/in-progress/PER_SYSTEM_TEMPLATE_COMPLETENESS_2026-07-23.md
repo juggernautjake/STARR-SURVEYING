@@ -116,8 +116,12 @@ mechanics with server ops but missing/buried UI. Ordered most-severe first:
   anchor), with a "+ add condition…" select (from `PF2_CONDITION_MECHANICS`), a ✕ remove, and ▲▼ on valued
   conditions — all posting the existing `set_condition` op (value 0 removes). Verified in Playwright: add
   round-trips (`200 "Now Frightened 1"`, persisted). pf2-panels test updated.
-- [ ] **S7d — Hero Points** (currently absent model→op→UI): add `heroPoints` to `PF2Character`, a
-  `set_hero_points` op, and a view + spend/gain control in Defenses (surfaced on every template).
+- [x] **S7d — Hero Points (DONE 2026-07-23).** A core always-on PF2 resource that was absent at every
+  layer. Added `heroPoints` to `PF2Combat` (blank 0, builder starts at 1), a `set_hero_points` edit op
+  (reducer clamps 0–3, parse via the value fall-through, describe, added to `PF2_EDIT_OPS` + the AI tool
+  enum/description), and a ◆◇ view + −Spend/＋Gain control in the Defenses block (on every template). Coerced
+  `heroPoints ?? 0` so pre-migration characters don't post NaN. Verified in Playwright (1→2, "2 Hero
+  Points"); pf2-edit test added; three PF2Combat literals updated. 409 PF2 tests green.
 - [ ] **S7e — Focus Points pool** (untracked): add `focusPoints`/`focusPointsMax` to `PF2Spellcasting`,
   a set/spend/Refocus control in the Spells panel; focus spells are flagged but uncastable without it.
 - [x] **S7f — conditions promoted into the Codex/Dashboard identity + Play hero when present (DONE

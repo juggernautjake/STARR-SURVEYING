@@ -72,6 +72,7 @@ export interface PF2Combat {
   tempHp: number;
   dyingValue: number;    // 0 = not dying; PF2's death track
   woundedValue: number;
+  heroPoints: number;    // 0–3; spend to reroll or (3) avoid death. Start each session with 1.
   speed: number;         // feet
   /** Armor: its AC proficiency rank + a Dex cap + item bonus. Unarmored has no cap. */
   armorRank: PF2Rank;
@@ -210,7 +211,7 @@ export function blankPF2Character(name: string): PF2Character {
     saves: { Fortitude: { ...untrained }, Reflex: { ...untrained }, Will: { ...untrained } },
     skills: [],
     combat: {
-      ancestryHp: 0, classHpPerLevel: 0, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0,
+      ancestryHp: 0, classHpPerLevel: 0, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: 0,
       speed: 25, armorRank: 'untrained', dexCap: null, acItemBonus: 0,
       attackRank: 'untrained', classDcRank: 'untrained', classDcAttribute: 'STR',
       conditions: [],

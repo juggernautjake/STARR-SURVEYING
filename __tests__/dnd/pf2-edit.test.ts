@@ -164,3 +164,15 @@ describe('PF2 sheet exposes an inline attribute editor (R4 manual UI)', () => {
     expect(PAGE).toMatch(/<PF2Sheet[\s\S]*?canEdit=\{canWrite\}/);
   });
 });
+
+describe('PF2 hero points (S7d — a core always-on resource that was missing)', () => {
+  it('sets hero points, clamps to 0–3, parses, and describes itself', () => {
+    const c = fighter();
+    expect(applyPf2Edit(c, { op: 'set_hero_points', value: 2 }).combat.heroPoints).toBe(2);
+    expect(applyPf2Edit(c, { op: 'set_hero_points', value: 9 }).combat.heroPoints).toBe(3); // clamps to the RAW max
+    expect(applyPf2Edit(c, { op: 'set_hero_points', value: -1 }).combat.heroPoints).toBe(0);
+    expect(parsePf2Edit({ op: 'set_hero_points', value: 2 })).toEqual({ edit: { op: 'set_hero_points', value: 2 } });
+    expect(describePf2Edit({ op: 'set_hero_points', value: 1 })).toMatch(/1 Hero Point\b/);
+    expect(describePf2Edit({ op: 'set_hero_points', value: 3 })).toMatch(/3 Hero Points/);
+  });
+});

@@ -44,7 +44,7 @@ function fighter(): PF2Character {
     attributes: { STR: 4, DEX: 1, CON: 3, INT: 0, WIS: 2, CHA: 0 },
     perception: { rank: 'expert' },
     saves: { Fortitude: { rank: 'expert', itemBonus: 0 }, Reflex: { rank: 'trained', itemBonus: 0 }, Will: { rank: 'expert', itemBonus: 0 } },
-    skills: [], combat: { ancestryHp: 10, classHpPerLevel: 10, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0, speed: 20, armorRank: 'trained', dexCap: 0, acItemBonus: 0, attackRank: 'expert', classDcRank: 'expert', classDcAttribute: 'STR', conditions: [] } as PF2Character['combat'],
+    skills: [], combat: { ancestryHp: 10, classHpPerLevel: 10, currentHp: 0, tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: 1, speed: 20, armorRank: 'trained', dexCap: 0, acItemBonus: 0, attackRank: 'expert', classDcRank: 'expert', classDcAttribute: 'STR', conditions: [] } as PF2Character['combat'],
     attacks: [], spellcasting: { tradition: 'none', kind: 'none', attribute: 'INT', rank: 'untrained', slots: [] }, feats: [], languages: [],
   };
 }
