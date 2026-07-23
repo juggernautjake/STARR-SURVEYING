@@ -14,6 +14,7 @@ import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import LevelBuilder from '@/app/dnd/_ui/LevelBuilder';
+import PF2LevelBuilder from '@/app/dnd/_ui/PF2LevelBuilder';
 import MulticlassManager from '@/app/dnd/_ui/MulticlassManager';
 import { resolveClassLevels } from '@/lib/dnd/classes/engine';
 import { findClass } from '@/lib/dnd/classes/registry';
@@ -69,15 +70,26 @@ export default async function CharacterLevelsPage({ params }: { params: { id: st
             />
           )}
 
-          <LevelBuilder
-            characterId={character.id}
-            characterName={character.name}
-            system={system}
-            currentLevel={data.meta?.level ?? 1}
-            className={data.meta?.className ?? ''}
-            subclassName={data.meta?.subclass ?? ''}
-            aiConfigured={dndAiConfigured()}
-          />
+          {/* PF2 walks its own per-level plan (subclass / feat slots / attribute boosts) through the tested
+              /pf2-levels route; 5e (and any other system) uses the class-table LevelBuilder. */}
+          {system === 'pathfinder2e' ? (
+            <PF2LevelBuilder
+              characterId={character.id}
+              characterName={character.name}
+              className={data.meta?.className ?? ''}
+              currentLevel={data.meta?.level ?? 1}
+            />
+          ) : (
+            <LevelBuilder
+              characterId={character.id}
+              characterName={character.name}
+              system={system}
+              currentLevel={data.meta?.level ?? 1}
+              className={data.meta?.className ?? ''}
+              subclassName={data.meta?.subclass ?? ''}
+              aiConfigured={dndAiConfigured()}
+            />
+          )}
         </div>
       </div>
     </div>

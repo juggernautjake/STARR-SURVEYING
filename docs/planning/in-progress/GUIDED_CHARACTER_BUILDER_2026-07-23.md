@@ -224,8 +224,19 @@ Data is COMPLETE. Steps:
   fully-resolved plan" invariant 5e enforces. PF2-only, behind `requireCharacterWrite`. 6 tests
   (`pf2-levels-route.test.ts`). **Remaining PF2 wizard: B10 (walk these prompts in the GuidedBuilder UI) +
   B11 (Playwright QA).**
-- [ ] **B10 — PF2 wizard build plan** (Foundations + per-level) reusing the allocator/pickers/eligibility.
-- [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial).
+- [x] **B10 — PF2 per-level walk UI (DONE 2026-07-23).** New `PF2LevelBuilder` client component walks the
+  tested `/pf2-levels` plan IN ORDER (subclass → feat slots → attribute boosts), refusing to advance the
+  level past an outstanding choice — the same invariant the 5e builder enforces. Each prompt reads only
+  verified data: the class's own `subclassOptions`, the feat catalog filtered to the slot's track + level
+  (class feats scoped to the class), and the four universal boosts. Records/commits both go through the
+  route, so the server stays the source of truth. The **levels page now dispatches by system** — PF2 →
+  `PF2LevelBuilder`, everything else → the 5e `LevelBuilder` (PF2 characters previously got the 5e builder,
+  which fetches the 5e-only `/levels` and can't work for them). 6 tests (`pf2-level-builder.test.ts`).
+  **Documented follow-up (not this slice):** projecting each recorded feat/boost into the pf2e sidecar's
+  mechanics — committing moves the level (which PF2's proficiency math already reads) and records the plan;
+  per-choice mechanic projection is the next PF2 slice, paired with B11.
+- [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial) — needs the running app; pairs with
+  the sidecar-projection follow-up above.
 
 ### IG (author data first — biggest lift)
 - [x] **B15a — IG Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `IGCharacterBuilder` gained
