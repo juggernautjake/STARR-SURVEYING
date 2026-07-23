@@ -80,7 +80,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Ancestry, class, background, attributes & picks',
       'Pick your ancestry/heritage, class and subclass, background and deity, allocate your attribute boosts, and choose your trained skills, feats and spells. Ineligible picks are shown greyed with the reason.',
-      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen />,
+      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" />,
     );
   } else if (system === 'intuitive-games') {
     foundations(

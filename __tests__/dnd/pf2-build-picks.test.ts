@@ -135,7 +135,9 @@ describe('the builder UI greys rather than hides', () => {
   });
 
   it('offers the spell picker only to casters, and sends both to the build', () => {
-    expect(builder).toContain('cls?.spellcasting && (');
+    // The spell block is gated on the class being a caster. (After the B7 stepped-layout refactor the block
+    // is a `cls?.spellcasting ? (…) : null` node instead of an inline `&&`, but the caster gate is identical.)
+    expect(builder).toMatch(/cls\?\.spellcasting\s*\?/);
     expect(builder).toContain('weapon, feats, spells }');
   });
 });

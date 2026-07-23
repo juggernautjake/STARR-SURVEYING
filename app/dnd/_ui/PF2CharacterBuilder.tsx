@@ -7,7 +7,7 @@
 // entries are allowed and flagged for DM review.
 'use client';
 
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import PF2BuildPicks from './PF2BuildPicks';
@@ -15,10 +15,13 @@ import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, P
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 
-export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false }: { characterId: string; initialName: string; aiConfigured?: boolean;
+export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
   /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
    *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
-  startOpen?: boolean }) {
+  startOpen?: boolean;
+  /** 'panel' (default) shows every field at once — the sheet-page builder. 'steps' walks the SAME fields one
+   *  section at a time with Prev/Next for the guided /builder wizard (B7). Same state, picks, and POST. */
+  layout?: 'panel' | 'steps' }) {
   const router = useRouter();
   const ancestries = useMemo(() => PF2_ANCESTRIES, []);
   const classes = useMemo(() => PF2_CLASSES, []);
@@ -46,6 +49,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   const [msg, setMsg] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
+  const [pstep, setPstep] = useState(0); // which foundation section is shown in 'steps' layout
 
   const cls = useMemo(() => classes.find((c) => c.name === className) || null, [classes, className]);
   const anc = useMemo(() => ancestries.find((a) => a.name === ancestry) || null, [ancestries, ancestry]);
@@ -90,115 +94,170 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
         ◆ Build from the Pathfinder 2e library
         <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)', marginLeft: 8 }}>· Remaster · pick vanilla content or add your own (flagged custom)</span>
       </summary>
-      <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-        {aiConfigured && (
+      {(() => {
+        // ── Section nodes — arranged by `layout` (panel = all at once; steps = one at a time), same state. ──
+        const aiBlock = aiConfigured ? (
           <div style={{ display: 'grid', gap: 6, padding: '8px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(200,170,110,0.05)' }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-gold-2)' }}>✨ AI BUILD (grounded to Pathfinder 2e Remaster)</span>
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={2} placeholder="Describe the character — e.g. “a stern dwarf cleric of Torag with heavy armor and a warhammer, Warpriest doctrine”" style={input} />
             <button type="button" className={styles.hexBtn} disabled={aiBusy} onClick={aiBuild} style={{ justifySelf: 'start' }}>{aiBusy ? 'Building…' : '✨ Build with AI'}</button>
             <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>The AI matches PF2 Remaster mechanics; anything it invents is auto-flagged custom for DM review.</span>
           </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Character name" style={{ ...input, flex: 2, minWidth: 160 }} />
-          <input type="number" min={1} max={20} value={level} onChange={(e) => setLevel(Math.max(1, Math.min(20, +e.target.value || 1)))} style={{ ...input, width: 70 }} title="Level (1–20)" />
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <select value={ancestry} onChange={(e) => { setAncestry(e.target.value); setHeritage(''); }} style={{ ...input, flex: 1, minWidth: 130 }}>
-            <option value="">Ancestry…</option>{ancestries.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
-          </select>
-          <select value={heritage} onChange={(e) => setHeritage(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }} disabled={!anc}>
-            <option value="">{anc ? 'Heritage…' : 'Pick an ancestry first'}</option>{(anc?.heritages ?? []).map((h) => <option key={h} value={h}>{h}</option>)}
-          </select>
-          <select value={background} onChange={(e) => setBackground(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}>
-            <option value="">Background…</option>{backgrounds.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <select value={className} onChange={(e) => chooseClass(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}>
-            <option value="">Class…</option>{classes.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-          </select>
-          <input value={subclass} onChange={(e) => setSubclass(e.target.value)} list={cls && cls.subclassOptions.length ? 'pf2-subclass-opts' : undefined} placeholder={cls ? cls.subclassLabel : 'Subclass'} style={{ ...input, flex: 1, minWidth: 130 }} />
-          {cls && cls.subclassOptions.length > 0 && (
-            <datalist id="pf2-subclass-opts">{cls.subclassOptions.map((o) => <option key={o} value={o} />)}</datalist>
-          )}
-          <input value={deity} onChange={(e) => setDeity(e.target.value)} placeholder="Deity (optional)" style={{ ...input, flex: 1, minWidth: 120 }} />
-        </div>
-        {cls && (
+        ) : null;
+        const nameLevelRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Character name" style={{ ...input, flex: 2, minWidth: 160 }} />
+            <input type="number" min={1} max={20} value={level} onChange={(e) => setLevel(Math.max(1, Math.min(20, +e.target.value || 1)))} style={{ ...input, width: 70 }} title="Level (1–20)" />
+          </div>
+        );
+        const idRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <select value={ancestry} onChange={(e) => { setAncestry(e.target.value); setHeritage(''); }} style={{ ...input, flex: 1, minWidth: 130 }}>
+              <option value="">Ancestry…</option>{ancestries.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+            </select>
+            <select value={heritage} onChange={(e) => setHeritage(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }} disabled={!anc}>
+              <option value="">{anc ? 'Heritage…' : 'Pick an ancestry first'}</option>{(anc?.heritages ?? []).map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+            <select value={background} onChange={(e) => setBackground(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}>
+              <option value="">Background…</option>{backgrounds.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+            </select>
+          </div>
+        );
+        const classRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <select value={className} onChange={(e) => chooseClass(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}>
+              <option value="">Class…</option>{classes.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+            <input value={subclass} onChange={(e) => setSubclass(e.target.value)} list={cls && cls.subclassOptions.length ? 'pf2-subclass-opts' : undefined} placeholder={cls ? cls.subclassLabel : 'Subclass'} style={{ ...input, flex: 1, minWidth: 130 }} />
+            {cls && cls.subclassOptions.length > 0 && (
+              <datalist id="pf2-subclass-opts">{cls.subclassOptions.map((o) => <option key={o} value={o} />)}</datalist>
+            )}
+            <input value={deity} onChange={(e) => setDeity(e.target.value)} placeholder="Deity (optional)" style={{ ...input, flex: 1, minWidth: 120 }} />
+          </div>
+        );
+        const classSummary = cls ? (
           <div style={{ fontSize: 11, color: 'var(--hx-muted)', lineHeight: 1.5 }}>
             {cls.summary} <span style={{ color: 'var(--hx-teal-1)' }}>Key: {cls.keyAttribute.join(' or ')} · HP {cls.hpPerLevel}/level{cls.spellcasting ? ` · ${cls.spellcasting.tradition} ${cls.spellcasting.kind} caster` : ''}.</span>
           </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={label}>KEY ATTRIBUTE</span>
-            <select value={keyAttribute} onChange={(e) => setKeyAttribute(e.target.value as PF2AttributeKey)} style={{ ...input, width: 90 }}>
-              {(cls?.keyAttribute ?? PF2_ATTRIBUTES).map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-          </span>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={label}>ARMOR</span>
-            <select value={armor} onChange={(e) => setArmor(e.target.value)} style={{ ...input, minWidth: 150 }} title="Sets AC item bonus + Dex cap">
-              {PF2_ARMORS.map((a) => <option key={a.name} value={a.name}>{a.name}{a.category !== 'unarmored' ? ` (+${a.acBonus} AC, ${a.category})` : ''}</option>)}
-            </select>
-          </span>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={label}>WEAPON</span>
-            <select value={weapon} onChange={(e) => setWeapon(e.target.value)} style={{ ...input, minWidth: 160 }} title="Adds a Strike (alongside your Fist)">
-              <option value="">No weapon (Fist only)</option>
-              {PF2_WEAPONS.map((w) => <option key={w.name} value={w.name}>{w.name} ({w.damageDie} {w.damageType}{w.range ? `, ${w.range}ft` : ''})</option>)}
-            </select>
-          </span>
-        </div>
-
-        <div style={label}>ATTRIBUTE BOOSTS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>(PF2: start +0, apply ancestry / background / class / free boosts)</span></div>
-        {/* MB-3: the real PF2 boost method — ancestry boosts + flaw, background one-of-two + free, class key,
-            four free — resolved to the final modifiers, replacing the old raw modifier inputs. */}
-        <Pf2BoostAllocator ancestry={ancestry} background={background} classKeyOptions={cls?.keyAttribute ?? [keyAttribute]} onChange={setAttributes} />
-
-        <div style={label}>TRAINED SKILLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{cls ? `(${cls.trainedSkills} + INT free picks${cls.fixedSkills?.length ? `; ${cls.fixedSkills.join(', ')} always trained` : ''})` : ''}</span></div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {PF2_SKILLS.map((s) => {
-            const active = trainedSkills.includes(s.name);
-            const fixed = cls?.fixedSkills?.includes(s.name);
-            return (
-              <button key={s.name} type="button" onClick={() => toggleSkill(s.name)} title={`${s.attribute}`} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${active || fixed ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, background: active || fixed ? 'rgba(10,200,185,0.15)' : 'transparent', color: active || fixed ? 'var(--hx-teal-1)' : 'var(--hx-muted)' }}>
-                {s.name}{fixed ? ' ●' : ''}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Feats and spells at build time (S16). Ineligible entries are greyed WITH their reason,
-            the same treatment as the sheet's picker and the IG builder — the server refuses an
-            illegal build either way, so this is about learning at pick-time rather than at save. */}
-        <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{feats.length ? `(${feats.length} chosen)` : ''}</span></div>
-        <PF2BuildPicks
-          kind="feat" className={className} ancestry={ancestry} level={level}
-          selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])}
-        />
-
-        {cls?.spellcasting && (
+        ) : null;
+        const combatKitRow = (
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={label}>KEY ATTRIBUTE</span>
+              <select value={keyAttribute} onChange={(e) => setKeyAttribute(e.target.value as PF2AttributeKey)} style={{ ...input, width: 90 }}>
+                {(cls?.keyAttribute ?? PF2_ATTRIBUTES).map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            </span>
+            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={label}>ARMOR</span>
+              <select value={armor} onChange={(e) => setArmor(e.target.value)} style={{ ...input, minWidth: 150 }} title="Sets AC item bonus + Dex cap">
+                {PF2_ARMORS.map((a) => <option key={a.name} value={a.name}>{a.name}{a.category !== 'unarmored' ? ` (+${a.acBonus} AC, ${a.category})` : ''}</option>)}
+              </select>
+            </span>
+            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={label}>WEAPON</span>
+              <select value={weapon} onChange={(e) => setWeapon(e.target.value)} style={{ ...input, minWidth: 160 }} title="Adds a Strike (alongside your Fist)">
+                <option value="">No weapon (Fist only)</option>
+                {PF2_WEAPONS.map((w) => <option key={w.name} value={w.name}>{w.name} ({w.damageDie} {w.damageType}{w.range ? `, ${w.range}ft` : ''})</option>)}
+              </select>
+            </span>
+          </div>
+        );
+        const boostsBlock = (
+          <>
+            <div style={label}>ATTRIBUTE BOOSTS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>(PF2: start +0, apply ancestry / background / class / free boosts)</span></div>
+            <Pf2BoostAllocator ancestry={ancestry} background={background} classKeyOptions={cls?.keyAttribute ?? [keyAttribute]} onChange={setAttributes} />
+          </>
+        );
+        const skillsBlock = (
+          <>
+            <div style={label}>TRAINED SKILLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{cls ? `(${cls.trainedSkills} + INT free picks${cls.fixedSkills?.length ? `; ${cls.fixedSkills.join(', ')} always trained` : ''})` : ''}</span></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {PF2_SKILLS.map((s) => {
+                const active = trainedSkills.includes(s.name);
+                const fixed = cls?.fixedSkills?.includes(s.name);
+                return (
+                  <button key={s.name} type="button" onClick={() => toggleSkill(s.name)} title={`${s.attribute}`} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${active || fixed ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, background: active || fixed ? 'rgba(10,200,185,0.15)' : 'transparent', color: active || fixed ? 'var(--hx-teal-1)' : 'var(--hx-muted)' }}>
+                    {s.name}{fixed ? ' ●' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
+        const featsBlock = (
+          <>
+            <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{feats.length ? `(${feats.length} chosen)` : ''}</span></div>
+            <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
+          </>
+        );
+        const spellsBlock = cls?.spellcasting ? (
           <>
             <div style={label}>SPELLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{spells.length ? `(${spells.length} chosen)` : ''}</span></div>
-            <PF2BuildPicks
-              kind="spell" className={className} ancestry={ancestry} level={level}
-              tradition={cls.spellcasting.tradition}
-              selected={spells} onToggle={(n: string) => setSpells((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])}
-            />
+            <PF2BuildPicks kind="spell" className={className} ancestry={ancestry} level={level} tradition={cls.spellcasting.tradition} selected={spells} onToggle={(n: string) => setSpells((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
           </>
-        )}
+        ) : null;
+        const buildRow = (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Building replaces the current sheet. Custom (non-library) picks are allowed and flagged — a vanilla-only campaign only blocks them at submission.</div>
+            {msg && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</div>}
+          </>
+        );
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Building replaces the current sheet. Custom (non-library) picks are allowed and flagged — a vanilla-only campaign only blocks them at submission.</div>
-        {msg && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</div>}
-      </div>
+        if (layout === 'steps') {
+          const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.55)', color: 'var(--hx-text)' };
+          const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
+            { title: 'Identity', help: 'Name, level, and your ancestry / heritage / background — who your character is.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{idRow}</div> },
+            { title: 'Class & kit', help: 'Your class and subclass set your proficiencies and features; pick your key attribute, armor, and a weapon.', body: <div style={{ display: 'grid', gap: 10 }}>{classRow}{classSummary}{combatKitRow}</div> },
+            { title: 'Attribute boosts', help: 'PF2 tracks modifiers: everyone starts +0, then applies ancestry / background / class / free boosts (partial >+4).', body: <div style={{ display: 'grid', gap: 8 }}>{boostsBlock}</div> },
+            { title: 'Skills', help: 'Train your class’s skill count plus INT free picks; class-fixed skills are always trained.', body: <div style={{ display: 'grid', gap: 8 }}>{skillsBlock}</div> },
+            { title: 'Feats, spells & finish', help: 'Pick feats (and spells, for casters) legal for your class/ancestry/level — ineligible ones are greyed with the reason — then build.', body: <div style={{ display: 'grid', gap: 10 }}>{featsBlock}{spellsBlock}{buildRow}</div> },
+          ];
+          const idx = Math.min(pstep, stepDefs.length - 1);
+          const cur = stepDefs[idx];
+          return (
+            <div style={{ marginTop: 10, display: 'grid', gap: 12 }}>
+              {aiBlock}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--hx-gold-2)' }}>{cur.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Foundation {idx + 1} of {stepDefs.length} · Pathfinder 2e</div>
+              </div>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {stepDefs.map((s, i) => (
+                  <button key={i} type="button" onClick={() => setPstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)' }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{cur.help}</div>
+              <div>{cur.body}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <button type="button" disabled={idx === 0} onClick={() => setPstep((i) => Math.max(0, i - 1))} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1, cursor: idx === 0 ? 'default' : 'pointer' }}>← Prev</button>
+                {idx < stepDefs.length - 1 && (
+                  <button type="button" onClick={() => setPstep((i) => Math.min(stepDefs.length - 1, i + 1))} style={navBtn}>Next →</button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+            {aiBlock}
+            {nameLevelRow}
+            {idRow}
+            {classRow}
+            {classSummary}
+            {combatKitRow}
+            {boostsBlock}
+            {skillsBlock}
+            {featsBlock}
+            {spellsBlock}
+            {buildRow}
+          </div>
+        );
+      })()}
     </details>
   );
 }

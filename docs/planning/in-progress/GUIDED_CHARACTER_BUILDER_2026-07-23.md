@@ -161,6 +161,12 @@ Data is COMPLETE. Steps:
   editions; confirm every choice is rules-legal and tooltip'd).
 
 ### PF2 (finish data + planner, then wizard)
+- [x] **B7a — PF2 Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `PF2CharacterBuilder`
+  gained the same `layout='steps'` mode as 5e (B3): Identity → Class & kit → Attribute boosts → Skills →
+  Feats/spells & finish, one at a time, with per-step help, a progress bar, and Prev/Next — reusing all its
+  state, `Pf2BoostAllocator`, `PF2BuildPicks`, eligibility, and the `/pf2-build` POST. Panel mode (sheet)
+  unchanged. Verified in the SSR HTML (Identity step + progress dots + Next). The AI-build block stays at the
+  top in both modes.
 - [ ] **B7 — complete `PF2_CLASS_PROGRESSIONS`** for the remaining classes (+ reduced-caster slot tables).
 - [ ] **B8 — `pf2PlanLevelUp` engine** + per-level `outstanding` choices (feats/boosts/skills/prof/spells).
 - [ ] **B9 — PF2 per-level choice persistence** (`data.pf2e.build.choices` + route).
