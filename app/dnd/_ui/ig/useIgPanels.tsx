@@ -24,7 +24,7 @@ import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplat
 import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
-import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
+import { resolveRollerTemplate, type RollerTemplateId } from '@/lib/dnd/roller-templates';
 import styles from '../hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import IGElementEditor, { type IGEditorKind, type IGEditableElement } from '../IGElementEditor';
@@ -1049,11 +1049,13 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   //    5e sheet uses, fed by IG's own rolls through the shared RollFeed, with the on-roller template picker.
   //    Wrapped in `.dnd-sheet` so the stages' `.dnd-sheet`-scoped CSS (Dice Core, Sigil) resolves; the shell
   //    theme tokens are inherited from the IG sheet root. Tapping a save/skill/attack lands here, animated. ──
-  const rollerId = resolveRollerTemplate(rollerTemplate, layout);
+  // Local state so switching templates on the roller is INSTANT (no page reload); persisted in the
+  // background via the picker's /roller POST.
+  const [rollerId, setRollerId] = useState<RollerTemplateId>(resolveRollerTemplate(rollerTemplate, layout));
   const roller = (
     <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} />
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={setRollerId} />
         {rollerStageFor(rollerId)}
         {/* The manual dice pad (d4–d100 + count), on EVERY template (owner) — the chosen template animates it. */}
         <DicePad />

@@ -21,6 +21,7 @@ export default function RollerTemplateBar({
   canWrite = true,
   anim,
   onToggleAnim,
+  onPick,
 }: {
   characterId: string | null | undefined
   /** The effective roller id (already resolved), so the active chip is highlighted. */
@@ -32,6 +33,11 @@ export default function RollerTemplateBar({
   anim?: boolean
   /** Flip the animation preference. Live (store-backed), so no reload — omit to hide the toggle. */
   onToggleAnim?: () => void
+  /** Switch the roller LIVE (no page reload): the mount holds the current template in local state and this
+   *  updates it instantly; the choice still persists to the row in the BACKGROUND. When provided, the picker
+   *  never reloads. Omit → the legacy POST-then-reload path (for a mount that reads the id from a store a
+   *  soft refresh wouldn't re-hydrate). */
+  onPick?: (id: RollerTemplateId) => void
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -39,6 +45,22 @@ export default function RollerTemplateBar({
 
   async function pick(id: RollerTemplateId) {
     if (id === current || busy || !canWrite) return
+    // Instant client-side switch: change the displayed roller NOW, persist in the background, no reload.
+    if (onPick) {
+      onPick(id)
+      setBusy(id); setErr(null)
+      try {
+        const r = await fetch(`/api/dnd/characters/${characterId}/roller`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roller: id }),
+        })
+        if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Switched, but could not save the choice.') }
+      } catch {
+        setErr('Switched, but could not save (network).')
+      }
+      setBusy(null)
+      return
+    }
+    // Legacy path: POST then full reload (a store that a soft refresh wouldn't re-hydrate).
     setBusy(id); setErr(null)
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}/roller`, {

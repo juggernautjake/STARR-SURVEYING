@@ -606,14 +606,27 @@
 .dnd-sheet .rbn-pip-tl { top: 5px; left: 6px; }
 .dnd-sheet .rbn-pip-br { bottom: 5px; right: 6px; transform: rotate(180deg); }
 .dnd-sheet .rbn-front {
-  transform: rotateY(180deg);
+  transform: rotateY(180deg); flex-direction: column; gap: 1px; padding: 0 6px;
   background: radial-gradient(120% 120% at 50% 0%, var(--panel-2, var(--panel)), var(--void));
   box-shadow: inset 0 0 0 2px rgba(var(--gold-rgb), 0.5), 0 8px 20px rgba(0, 0, 0, 0.42);
 }
 .dnd-sheet .rbn-num {
-  font-family: var(--font-display); font-size: 36px; font-weight: 800;
+  font-family: var(--font-display); font-weight: 800; line-height: 1; max-width: 100%;
   color: var(--gold); text-shadow: 0 0 15px rgba(var(--gold-rgb), 0.5);
 }
+/* Font scales down by digit count so up to 999 (3 digits) fits the card (owner). */
+.dnd-sheet .rbn-num.rbn-d1 { font-size: 38px; }
+.dnd-sheet .rbn-num.rbn-d2 { font-size: 31px; }
+.dnd-sheet .rbn-num.rbn-d3 { font-size: 23px; }
+.dnd-sheet .rbn-num.rbn-d4 { font-size: 18px; }
+.dnd-sheet .rbn-face-label {
+  font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); opacity: 0.85;
+}
+.dnd-sheet .rbn-revealall {
+  display: block; margin: 5px auto 0; font-size: 11px; padding: 3px 11px; border-radius: 6px; cursor: pointer;
+  background: none; border: 1px solid var(--line); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.dnd-sheet .rbn-revealall:hover { color: var(--ink); border-color: var(--line-strong); }
 .dnd-sheet .rbn-card.is-reveal.is-up { transition: transform 0.3s ease; transform: translateY(-9px) scale(1.07); }
 .dnd-sheet .rb-felt.is-crit .rbn-num { color: var(--tealbright); text-shadow: 0 0 18px rgba(var(--tealbright-rgb), 0.6); }
 .dnd-sheet .rb-felt.is-fumble .rbn-num { color: var(--danger); text-shadow: 0 0 18px rgba(var(--danger-rgb), 0.6); }
@@ -630,31 +643,33 @@
 .dnd-sheet .rbn-phase-in .rbn-c2 { animation-delay: 0.14s; }
 @keyframes rbnIn { from { transform: translateX(180%) rotate(11deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* mix around — longer (~1s) and more randomly, each card weaving a different multi-step path (owner) */
-.dnd-sheet .rbn-phase-shuffle .rbn-c0 { animation: rbnMixA 1s ease-in-out; }
-.dnd-sheet .rbn-phase-shuffle .rbn-c1 { animation: rbnMixB 1s ease-in-out; }
-.dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: rbnMixC 1s ease-in-out; }
-@keyframes rbnMixA {
-  0%, 100% { transform: none; z-index: 1; }
-  18% { transform: translate(92px, -18px) rotate(11deg); z-index: 3; }
-  40% { transform: translate(176px, 10px) rotate(-6deg); }
-  62% { transform: translate(70px, 22px) rotate(9deg); z-index: 2; }
-  82% { transform: translate(-24px, -8px) rotate(-4deg); }
-}
-@keyframes rbnMixB {
-  0%, 100% { transform: none; z-index: 2; }
-  18% { transform: translate(-18px, 20px) scale(0.93) rotate(-7deg); z-index: 1; }
-  40% { transform: translate(-96px, -6px) rotate(8deg); }
-  62% { transform: translate(20px, -20px) rotate(-10deg); z-index: 3; }
-  82% { transform: translate(60px, 12px) rotate(5deg); }
-}
-@keyframes rbnMixC {
-  0%, 100% { transform: none; z-index: 3; }
-  18% { transform: translate(-92px, 12px) rotate(-11deg); z-index: 2; }
-  40% { transform: translate(-176px, -12px) rotate(7deg); }
-  62% { transform: translate(-70px, -22px) rotate(-8deg); z-index: 1; }
-  82% { transform: translate(28px, 6px) rotate(6deg); }
-}
+/* mix around — ~1.5s, and THREE patterns the roller picks between at random each roll (rbn-shuf-0..2), each
+   card weaving its own multi-step, z-index-crossing path so it reads as a real shuffle (owner). */
+.dnd-sheet .rbn-phase-shuffle .rbn-card { animation-duration: 1.5s; animation-timing-function: ease-in-out; }
+
+/* Pattern 0 — a wide weave: cards cross far to the sides and back through the middle. */
+.dnd-sheet .rbn-shuf-0.rbn-phase-shuffle .rbn-c0 { animation-name: rbnP0a; }
+.dnd-sheet .rbn-shuf-0.rbn-phase-shuffle .rbn-c1 { animation-name: rbnP0b; }
+.dnd-sheet .rbn-shuf-0.rbn-phase-shuffle .rbn-c2 { animation-name: rbnP0c; }
+@keyframes rbnP0a { 0%,100%{transform:none;z-index:1} 14%{transform:translate(96px,-20px) rotate(12deg);z-index:3} 34%{transform:translate(182px,12px) rotate(-7deg)} 52%{transform:translate(60px,26px) rotate(10deg);z-index:2} 70%{transform:translate(-40px,-10px) rotate(-6deg)} 86%{transform:translate(18px,8px) rotate(4deg)} }
+@keyframes rbnP0b { 0%,100%{transform:none;z-index:2} 14%{transform:translate(-20px,22px) scale(.92) rotate(-8deg);z-index:1} 34%{transform:translate(-102px,-8px) rotate(9deg)} 52%{transform:translate(24px,-22px) rotate(-11deg);z-index:3} 70%{transform:translate(72px,14px) rotate(6deg)} 86%{transform:translate(-14px,-6px) rotate(-3deg)} }
+@keyframes rbnP0c { 0%,100%{transform:none;z-index:3} 14%{transform:translate(-96px,14px) rotate(-12deg);z-index:2} 34%{transform:translate(-182px,-14px) rotate(8deg)} 52%{transform:translate(-60px,-26px) rotate(-9deg);z-index:1} 70%{transform:translate(34px,8px) rotate(7deg)} 86%{transform:translate(-6px,4px) rotate(-4deg)} }
+
+/* Pattern 1 — a cyclic rotation: each card walks around the ring to the next seat, twice. */
+.dnd-sheet .rbn-shuf-1.rbn-phase-shuffle .rbn-c0 { animation-name: rbnP1a; }
+.dnd-sheet .rbn-shuf-1.rbn-phase-shuffle .rbn-c1 { animation-name: rbnP1b; }
+.dnd-sheet .rbn-shuf-1.rbn-phase-shuffle .rbn-c2 { animation-name: rbnP1c; }
+@keyframes rbnP1a { 0%,100%{transform:none;z-index:2} 25%{transform:translate(42px,-30px) rotate(180deg);z-index:3} 50%{transform:translate(84px,0) rotate(360deg)} 75%{transform:translate(42px,30px) rotate(200deg);z-index:1} }
+@keyframes rbnP1b { 0%,100%{transform:none;z-index:1} 25%{transform:translate(42px,30px) rotate(-180deg)} 50%{transform:translate(-84px,0) rotate(-360deg);z-index:3} 75%{transform:translate(-42px,-30px) rotate(-160deg)} }
+@keyframes rbnP1c { 0%,100%{transform:none;z-index:3} 25%{transform:translate(-84px,0) rotate(160deg);z-index:1} 50%{transform:translate(0,0) rotate(360deg)} 75%{transform:translate(0,0) rotate(200deg);z-index:2} }
+
+/* Pattern 2 — a riffle: cards fan out, interleave with a bob, then snap home. */
+.dnd-sheet .rbn-shuf-2.rbn-phase-shuffle .rbn-c0 { animation-name: rbnP2a; }
+.dnd-sheet .rbn-shuf-2.rbn-phase-shuffle .rbn-c1 { animation-name: rbnP2b; }
+.dnd-sheet .rbn-shuf-2.rbn-phase-shuffle .rbn-c2 { animation-name: rbnP2c; }
+@keyframes rbnP2a { 0%,100%{transform:none;z-index:1} 20%{transform:translate(120px,-6px) rotate(16deg);z-index:3} 45%{transform:translate(30px,-24px) rotate(-6deg)} 68%{transform:translate(90px,10px) rotate(8deg);z-index:2} 86%{transform:translate(20px,-4px) rotate(-3deg)} }
+@keyframes rbnP2b { 0%,100%{transform:none;z-index:3} 20%{transform:translateY(-30px) scale(1.05) rotate(2deg)} 45%{transform:translateY(20px) scale(.9)} 68%{transform:translateY(-14px) rotate(-4deg)} 86%{transform:translateY(6px)} }
+@keyframes rbnP2c { 0%,100%{transform:none;z-index:2} 20%{transform:translate(-120px,-6px) rotate(-16deg);z-index:1} 45%{transform:translate(-30px,24px) rotate(6deg)} 68%{transform:translate(-90px,-10px) rotate(-8deg);z-index:3} 86%{transform:translate(-20px,4px) rotate(3deg)} }
 
 /* the always-shown readout beneath */
 .dnd-sheet .rbn-readout { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 6px; text-align: center; }
@@ -669,8 +684,6 @@
 @media (prefers-reduced-motion: reduce) {
   .dnd-sheet .rbn-phase-out .rbn-card,
   .dnd-sheet .rbn-phase-in .rbn-card,
-  .dnd-sheet .rbn-phase-shuffle .rbn-c0,
-  .dnd-sheet .rbn-phase-shuffle .rbn-c1,
-  .dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: none; }
+  .dnd-sheet .rbn-phase-shuffle .rbn-card { animation: none !important; }
   .dnd-sheet .rbn-inner { transition: none; }
 }
