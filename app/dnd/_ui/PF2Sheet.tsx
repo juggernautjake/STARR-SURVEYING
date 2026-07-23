@@ -98,7 +98,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   if (effLayout === 'codex' || effLayout === 'dashboard') {
     // The left identity column is PF2's own "at a glance": who they are (header) + attributes + the
     // defences/vitals block (AC/HP/saves). The body then holds everything else.
-    const identityIds = new Set(['pf2-attributes', 'pf2-defenses']);
+    // Active conditions ride in the identity column so their penalties are visible at a glance while you
+    // play (S7f) — otherwise they'd be one rail tab away. Only when present, so a clean sheet stays clean.
+    const hasActiveConditions = (pf2.combat.conditions?.length ?? 0) > 0;
+    const identityIds = new Set(['pf2-attributes', 'pf2-defenses', ...(hasActiveConditions ? ['pf2-conditions'] : [])]);
     const bodyPanels = panels.filter((p) => !identityIds.has(p.id));
     const identity = (
       <aside className="codex-identity">
@@ -106,6 +109,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
         {header}
         {section('pf2-attributes')}
         {section('pf2-defenses')}
+        {hasActiveConditions && section('pf2-conditions')}
       </aside>
     );
     return (
@@ -126,13 +130,17 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // HP, saves, class/spell DC) and the Strikes. Everything you only look up (attributes, skills,
   // feats, spells, conditions) folds into the reference drawer. Same `.sheet-shell` + dual token sets.
   if (effLayout === 'play') {
-    const heroIds = new Set(['pf2-defenses', 'pf2-strikes']);
+    // Active conditions join the hero (S7f) so combat-critical penalties are visible while fighting, not
+    // buried in the closed reference drawer. Only when present.
+    const hasActiveConditions = (pf2.combat.conditions?.length ?? 0) > 0;
+    const heroIds = new Set(['pf2-defenses', 'pf2-strikes', ...(hasActiveConditions ? ['pf2-conditions'] : [])]);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
     const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;
     const hero = (
       <>
         {section('pf2-defenses')}
         {section('pf2-strikes')}
+        {hasActiveConditions && section('pf2-conditions')}
       </>
     );
     return (

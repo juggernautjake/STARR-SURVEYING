@@ -120,8 +120,10 @@ mechanics with server ops but missing/buried UI. Ordered most-severe first:
   `set_hero_points` op, and a view + spend/gain control in Defenses (surfaced on every template).
 - [ ] **S7e — Focus Points pool** (untracked): add `focusPoints`/`focusPointsMax` to `PF2Spellcasting`,
   a set/spend/Refocus control in the Spells panel; focus spells are flagged but uncastable without it.
-- [ ] **S7f — promote conditions into the Codex/Dashboard identity + Play hero when present**, so active
-  penalties are visible while fighting (not one collapsed drawer away).
+- [x] **S7f — conditions promoted into the Codex/Dashboard identity + Play hero when present (DONE
+  2026-07-23).** `PF2Sheet.tsx` adds `pf2-conditions` to `identityIds`/`heroIds` when there are active
+  conditions, so combat penalties are visible while fighting instead of one collapsed drawer away. A clean
+  sheet stays clean (only promotes when present); the add-first-condition control still lives in the body.
 - [ ] **S7g — skill actions** (Trip/Grapple/Demoralize/Feint/Recall Knowledge…) — lower priority reference.
 
 ### S8 — IG sheet completeness gaps (from the 2026-07-23 audit)
