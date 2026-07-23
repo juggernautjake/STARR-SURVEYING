@@ -298,7 +298,14 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   panel renders on `/levels`, and the route round-trips live (POST Rogue 3 / Wizard 1 → persisted
   `meta.classes`, total 4). 3 wiring tests + the engine tests underneath. **Next: MC-5e-5** — make the SHEET
   read `meta.classes` (via `multiclassSnapshot`) so a multiclass character's slots/features/HP actually render.
-- [ ] **MC-5e-5 — sheet renders the multiclass (FOCUSED REFACTOR — needs care).** Make the 5e sheet resolve
+- [~] **MC-5e-5 — sheet renders the multiclass (IN PROGRESS — resolver foundation done 2026-07-23).** Built
+  the ONE multiclass-aware resolver every sheet path will route through: `lib/dnd/classes/multiclass-resolve.ts`
+  — `characterMulticlass(system, single, multi)` → `{ classes, snapshot }` (+ `classLookupFor`), living above
+  engine + registry so it owns the lookup without a cycle. Already wired into the level manager (its preview
+  now uses the exact resolver the sheet will), so the two can never disagree. 3 tests. **Remaining:** route the
+  actual sheet consumers (App.tsx, IdentityColumn, PlayLayout, Hero, FeatPicker, SpellPicker) through it — the
+  spread-out, high-risk part, still a deliberate one-consumer-at-a-time refactor with a render-test pass.
+  Original assessment: Make the 5e sheet resolve
   `meta.classes` through `multiclassSnapshot` so a multiclass character's features / HP / proficiency / spell
   slots actually render. **Assessed 2026-07-23:** the class is resolved in MANY sheet components (App.tsx,
   codex/IdentityColumn, codex/PlayLayout, Hero, FeatPicker, SpellPicker) — there is NO single integration

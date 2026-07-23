@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { classesForSystem, findClass } from '@/lib/dnd/classes/registry';
 import { multiclassSnapshot, meetsMulticlassPrereq, multiclassPrereqFor, formatClassLevels, isMulticlass } from '@/lib/dnd/classes/engine';
+import { classLookupFor } from '@/lib/dnd/classes/multiclass-resolve';
 import type { ClassLevel } from '@/lib/dnd/classes/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 
@@ -31,8 +32,8 @@ export default function MulticlassManager({ characterId, system, initialClasses,
 
   const all = classesForSystem(system);
   const nameFor = (key: string) => findClass(system, key)?.name ?? key;
-  const lookup = (key: string) => { const def = findClass(system, key); return def ? { def, sub: null } : null; };
-  const snap = multiclassSnapshot(classes, lookup);
+  // The SAME resolver the sheet will use (MC-5e-5), so the manager's preview and the sheet can never disagree.
+  const snap = multiclassSnapshot(classes, classLookupFor(system));
   const total = snap.totalLevel;
   const atCap = total >= CAP;
 
