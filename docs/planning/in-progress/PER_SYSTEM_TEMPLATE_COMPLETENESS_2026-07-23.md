@@ -102,9 +102,10 @@ Where a real gap CAN exist:
 ### S7 — PF2 sheet completeness gaps (from the 2026-07-23 audit — REAL, several severe)
 Two subagent audits found the stance-class bug is NOT unique to IG. PF2 has several always-relevant
 mechanics with server ops but missing/buried UI. Ordered most-severe first:
-- [ ] **S7a — HP editable (damage/heal/temp).** `usePf2Panels.tsx` HP is a read-only `<Stat>`; port IG's
-  −/＋ control posting `apply_damage`/`heal`/`set_temp_hp` (ops already in PF2 `edit.ts`). Defenses block is
-  in the identity column + Play hero → shows on every template.
+- [x] **S7a — HP editable (damage/heal/temp) (DONE 2026-07-23).** Added a −Damage / ＋Heal / Temp control
+  (amount input) to the PF2 Defenses block, posting the existing `apply_damage`/`heal`/`set_temp_hp` ops via
+  `postEdit`→`/pf2-edit`. Defenses is in the identity column + Play hero, so HP is now editable on every
+  template. Verified in Playwright: control renders, POST round-trips (`200 "Took 3 damage" currentHp:72`).
 - [ ] **S7b — Dying / Wounded death track renders + settable.** `model.ts` has `dyingValue`/`woundedValue`,
   `edit.ts` has `set_dying`/`set_wounded`, but no panel shows them — a downed PF2 PC shows nothing. Add
   Dying (n/4) + Wounded pips + steppers to Defenses.
