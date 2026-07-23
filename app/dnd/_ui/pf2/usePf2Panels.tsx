@@ -18,7 +18,7 @@
 // rule is the whole point: there is no second computation for anything.
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useReducer } from 'react';
 import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from '../PF2ContentPicker';
@@ -44,7 +44,8 @@ import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplat
 import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
-import { resolveRollerTemplate, type RollerTemplateId } from '@/lib/dnd/roller-templates';
+import { type RollerTemplateId } from '@/lib/dnd/roller-templates';
+import { effectiveRollerChoice, rememberRollerChoice } from '@/lib/dnd/rollerChoice';
 // The 5e panel set's shape, reused so all four systems speak one `SheetPanel` vocabulary. Type-only,
 // so nothing from the store-coupled 5e module is pulled into this prop-driven PF2 code at runtime.
 import type { SheetPanel } from '@/app/dnd/_sheet/panels/fivePanels';
@@ -352,9 +353,11 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   //    5e sheet uses, fed by PF2's own rolls through the shared RollFeed, with the on-roller template picker.
   //    The Target-DC input (sets the four-step degree) stays on top; wrapped in `.dnd-sheet` so the stages'
   //    scoped CSS resolves (the shell theme tokens are inherited from the PF2 sheet root). ──────────────────
-  // Local state so switching templates on the roller is INSTANT (no page reload); the choice persists in the
-  // background via the picker's /roller POST.
-  const [rollerId, setRollerId] = useState<RollerTemplateId>(resolveRollerTemplate(rollerTemplate, layout));
+  // The chosen template comes from the client cache (instant + survives re-render/remount) with the saved
+  // value as fallback; the picker writes the cache and forces a re-render. No page reload.
+  const [, forceRoller] = useReducer((x: number) => x + 1, 0);
+  const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
+  const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
     <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -363,7 +366,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           <input type="number" value={targetDc} onChange={(e) => setTargetDc(e.target.value)} placeholder="—"
             style={{ width: 56, fontSize: 14, fontWeight: 600, padding: '4px 6px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 5 }} />
         </label>
-        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={setRollerId} />
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={pickRoller} />
         {rollerStageFor(rollerId)}
         {/* The manual dice pad (d4–d100 + count), on EVERY template (owner) — the chosen template animates it. */}
         <DicePad />

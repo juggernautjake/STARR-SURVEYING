@@ -14,7 +14,7 @@
 // Every number is still computed by the pure rules engine (never guessed) and the sheet stays prop-driven
 // (never the 5e store). This is a pure EXTRACTION — the rendered DOM and every interaction are byte-for-byte
 // what the monolith produced; the Classic shell (IGSheet) just calls this and places the pieces in order.
-import { useMemo, useState, useRef, useCallback, type ReactNode } from 'react';
+import { useMemo, useState, useRef, useCallback, useReducer, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
@@ -24,7 +24,8 @@ import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplat
 import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
-import { resolveRollerTemplate, type RollerTemplateId } from '@/lib/dnd/roller-templates';
+import { type RollerTemplateId } from '@/lib/dnd/roller-templates';
+import { effectiveRollerChoice, rememberRollerChoice } from '@/lib/dnd/rollerChoice';
 import styles from '../hextech.module.css';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import IGElementEditor, { type IGEditorKind, type IGEditableElement } from '../IGElementEditor';
@@ -1049,13 +1050,15 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   //    5e sheet uses, fed by IG's own rolls through the shared RollFeed, with the on-roller template picker.
   //    Wrapped in `.dnd-sheet` so the stages' `.dnd-sheet`-scoped CSS (Dice Core, Sigil) resolves; the shell
   //    theme tokens are inherited from the IG sheet root. Tapping a save/skill/attack lands here, animated. ──
-  // Local state so switching templates on the roller is INSTANT (no page reload); persisted in the
-  // background via the picker's /roller POST.
-  const [rollerId, setRollerId] = useState<RollerTemplateId>(resolveRollerTemplate(rollerTemplate, layout));
+  // The chosen template comes from the client cache (instant + survives re-render/remount) with the saved
+  // value as fallback; the picker writes the cache and forces a re-render. No page reload.
+  const [, forceRoller] = useReducer((x: number) => x + 1, 0);
+  const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
+  const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
     <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={setRollerId} />
+        <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={pickRoller} />
         {rollerStageFor(rollerId)}
         {/* The manual dice pad (d4–d100 + count), on EVERY template (owner) — the chosen template animates it. */}
         <DicePad />
