@@ -109,9 +109,11 @@ mechanics with server ops but missing/buried UI. Ordered most-severe first:
 - [ ] **S7b — Dying / Wounded death track renders + settable.** `model.ts` has `dyingValue`/`woundedValue`,
   `edit.ts` has `set_dying`/`set_wounded`, but no panel shows them — a downed PF2 PC shows nothing. Add
   Dying (n/4) + Wounded pips + steppers to Defenses.
-- [ ] **S7c — Conditions add/remove from the sheet + ungate.** Panel gated on `hasConditions` (hidden until
-  one exists) and view-only, so a player can't add their first condition. Ungate for editors
-  (`hasConditions || canDoEdit`) + add/remove controls posting `set_condition`.
+- [x] **S7c — Conditions add/remove/adjust from the sheet + ungate (DONE 2026-07-23).** Panel was gated on
+  `hasConditions` (hidden until one existed) and view-only. Now `show: hasConditions || canDoEdit` (+ nav
+  anchor), with a "+ add condition…" select (from `PF2_CONDITION_MECHANICS`), a ✕ remove, and ▲▼ on valued
+  conditions — all posting the existing `set_condition` op (value 0 removes). Verified in Playwright: add
+  round-trips (`200 "Now Frightened 1"`, persisted). pf2-panels test updated.
 - [ ] **S7d — Hero Points** (currently absent model→op→UI): add `heroPoints` to `PF2Character`, a
   `set_hero_points` op, and a view + spend/gain control in Defenses (surfaced on every template).
 - [ ] **S7e — Focus Points pool** (untracked): add `focusPoints`/`focusPointsMax` to `PF2Spellcasting`,

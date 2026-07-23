@@ -34,9 +34,11 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
     expect(ids(set)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills']);
   });
 
-  it('no Conditions panel when there are no conditions; it appears (after Defenses) when there is one', () => {
+  it('Conditions: hidden for a non-editor with none, but an EDITOR always sees it — add the first one (S7c)', () => {
     const c = blankPF2Character('T');
-    expect(ids(capture({ pf2: c }))).not.toContain('pf2-conditions');
+    expect(ids(capture({ pf2: c }))).not.toContain('pf2-conditions'); // non-editor + none → hidden
+    // S7c: an editor sees the panel even with no conditions, so they can add the FIRST one from the sheet.
+    expect(ids(capture({ pf2: c, canEdit: true, characterId: 'x' }))).toContain('pf2-conditions');
     const withCond = { ...c, combat: { ...c.combat, conditions: [{ name: 'Frightened', value: 2 }] } };
     expect(ids(capture({ pf2: withCond }))).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills']);
   });
@@ -48,8 +50,9 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
     expect(ids(capture({ pf2: c, canEdit: false }))).not.toContain('pf2-feats');
     // An editor reaches the ＋ Weapon / ＋ Feat affordances even with none yet — so both render.
     const editable = capture({ pf2: c, canEdit: true, characterId: 'x' });
-    // The custom-sections panel (D-13) is always offered to an owner, so it trails the editable set.
-    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills', 'pf2-strikes', 'pf2-feats', 'pf2-custom']);
+    // The custom-sections panel (D-13) is always offered to an owner, so it trails the editable set. The
+    // conditions panel is also always offered to an editor now (S7c), sitting after Defenses.
+    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills', 'pf2-strikes', 'pf2-feats', 'pf2-custom']);
   });
 
   it('the Spells panel is gated on being a caster, independent of edit rights', () => {

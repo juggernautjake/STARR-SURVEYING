@@ -34,7 +34,7 @@ import {
   type PF2ResolvedStat,
 } from '@/lib/dnd/systems/pathfinder2e/resolve';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
-import { pf2ConditionMechanics } from '@/lib/dnd/conditions/pathfinder2e';
+import { pf2ConditionMechanics, PF2_CONDITION_MECHANICS } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
@@ -304,7 +304,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   const navItems: { id: string; label: string }[] = [
     { id: 'pf2-attributes', label: 'Attributes' },
     { id: 'pf2-defenses', label: 'Defenses' },
-    ...(hasConditions ? [{ id: 'pf2-conditions', label: 'Conditions' }] : []),
+    ...(hasConditions || canDoEdit ? [{ id: 'pf2-conditions', label: 'Conditions' }] : []),
     { id: 'pf2-skills', label: 'Skills' },
     ...(showStrikes ? [{ id: 'pf2-strikes', label: 'Strikes' }] : []),
     ...(showFeats ? [{ id: 'pf2-feats', label: 'Feats' }] : []),
@@ -528,24 +528,49 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     },
     {
       // Active conditions (Area R2 — PF2). Shown so the player sees what's folding into their rolls; the
-      // penalties apply automatically under PF2's non-stacking rule. Set/cleared via the AI edit tool.
-      id: 'pf2-conditions', label: 'Conditions', emoji: '⚠', show: hasConditions,
-      render: () => (
+      // penalties apply automatically under PF2's non-stacking rule. Add / remove / adjust from the sheet
+      // (S7c) via the existing `set_condition` op (value 0 removes). UNGATED for editors so you can add the
+      // FIRST condition — previously the panel was hidden until one already existed and had no controls.
+      id: 'pf2-conditions', label: 'Conditions', emoji: '⚠', show: hasConditions || canDoEdit,
+      render: () => {
+        const active = pf2.combat.conditions ?? [];
+        return (
         <>
           <SectionHead title="Conditions" note="· folded into rolls (worst status + worst circumstance) · hover or tap ⓘ" />
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {(pf2.combat.conditions ?? []).map((c) => {
-              const note = pf2ConditionMechanics(c.name)?.note ?? '';
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {active.map((c) => {
+              const mech = pf2ConditionMechanics(c.name);
+              const note = mech?.note ?? '';
               return (
                 <span key={c.name} title={note} className={styles.pf2Cond}>
                   {c.name}{c.value && c.value > 1 ? ` ${c.value}` : ''}
                   {note && <InfoTip tip={note} label={`${c.name} rules`} />}
+                  {/* Valued conditions (Frightened 2, Clumsy 1…) get a ▲▼ to bump the value; ▼ to 0 removes. */}
+                  {canDoEdit && mech?.valued && (
+                    <>
+                      <button type="button" aria-label={`Increase ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) + 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1 }}>▲</button>
+                      <button type="button" aria-label={`Decrease ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) - 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1 }}>▼</button>
+                    </>
+                  )}
+                  {canDoEdit && (
+                    <button type="button" aria-label={`Remove ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: 0 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 0 0 3px', fontSize: 13, lineHeight: 1 }}>×</button>
+                  )}
                 </span>
               );
             })}
+            {canDoEdit && (
+              // Add a condition — the reducer upserts by name, so this can never double-apply one.
+              <select aria-label="Add condition" value="" disabled={saving}
+                onChange={(ev) => { if (ev.target.value) void postEdit({ op: 'set_condition', name: ev.target.value, value: 1 }); }}
+                style={{ fontSize: 13, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}>
+                <option value="">+ add condition…</option>
+                {PF2_CONDITION_MECHANICS.filter((m) => !active.some((a) => a.name.toLowerCase() === m.name.toLowerCase())).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+              </select>
+            )}
           </div>
         </>
-      ),
+        );
+      },
     },
     {
       id: 'pf2-skills', label: 'Skills', emoji: '◇', show: true, count: pf2.skills.length,
