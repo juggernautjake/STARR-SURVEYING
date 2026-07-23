@@ -139,6 +139,9 @@ export interface PF2Spellcasting {
    *  spells filled them, so a PF2 sheet could say "3 rank-2 slots" and not name a single spell.
    *  Optional so every PF2 character already stored stays valid without migration. */
   spells?: PF2KnownSpell[];
+  /** Current Focus Points in the pool (0–3). Focus spells are cast from this, not from slots; the pool
+   *  refills to its max on a 10-minute Refocus. Optional — undefined = 0 — so no migration is needed. */
+  focusPoints?: number;
 }
 
 /** A spell on a PF2 character: in a prepared caster's list for the day, or a spontaneous caster's

@@ -176,3 +176,15 @@ describe('PF2 hero points (S7d — a core always-on resource that was missing)',
     expect(describePf2Edit({ op: 'set_hero_points', value: 3 })).toMatch(/3 Hero Points/);
   });
 });
+
+describe('PF2 focus points (S7e — the pool focus spells cast from)', () => {
+  it('sets focus points on the spellcasting sidecar, clamps to 0–3, parses, describes', () => {
+    const c = fighter();
+    expect(applyPf2Edit(c, { op: 'set_focus_points', value: 2 }).spellcasting.focusPoints).toBe(2);
+    expect(applyPf2Edit(c, { op: 'set_focus_points', value: 9 }).spellcasting.focusPoints).toBe(3); // clamps
+    expect(applyPf2Edit(c, { op: 'set_focus_points', value: -1 }).spellcasting.focusPoints).toBe(0);
+    expect(parsePf2Edit({ op: 'set_focus_points', value: 1 })).toEqual({ edit: { op: 'set_focus_points', value: 1 } });
+    expect(describePf2Edit({ op: 'set_focus_points', value: 1 })).toMatch(/1 Focus Point\b/);
+    expect(describePf2Edit({ op: 'set_focus_points', value: 2 })).toMatch(/2 Focus Points/);
+  });
+});

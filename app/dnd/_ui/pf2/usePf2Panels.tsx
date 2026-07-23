@@ -792,6 +792,28 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                   </span>
                 ) : null))}
               </div>
+              {/* Focus Points pool (S7e) — focus spells are cast from this, not from slots; it was flagged
+                  on spells but never trackable. Max = number of focus spells (cap 3). Refocus recovers 1. */}
+              {(() => {
+                const focusSpells = (pf2.spellcasting.spells ?? []).filter((s) => s.focus);
+                if (focusSpells.length === 0) return null;
+                const max = Math.min(3, focusSpells.length);
+                const fp = Math.min(max, pf2.spellcasting.focusPoints ?? 0);
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span title="Focus Points — focus spells are cast from this pool, not from slots. It refills toward its max (up to 3) as you Refocus (10 minutes recovers 1 point)." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: 'var(--hx-teal-1)' }}>Focus Points</span>
+                    <span aria-label={`${fp} of ${max} focus points`} style={{ display: 'inline-flex', gap: 4 }}>
+                      {Array.from({ length: max }, (_, i) => i + 1).map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= fp ? 'var(--hx-teal-1)' : 'var(--hx-line)' }}>{n <= fp ? '◆' : '◇'}</span>)}
+                    </span>
+                    {canDoEdit && (
+                      <span style={{ display: 'inline-flex', gap: 4 }}>
+                        <button type="button" aria-label="Spend a focus point" disabled={saving || fp <= 0} onClick={() => void postEdit({ op: 'set_focus_points', value: fp - 1 })} style={{ fontSize: 12, fontWeight: 700, lineHeight: 1, padding: '4px 9px', background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', borderRadius: 6, cursor: 'pointer' }}>− Spend</button>
+                        <button type="button" aria-label="Refocus (recover a focus point)" disabled={saving || fp >= max} onClick={() => void postEdit({ op: 'set_focus_points', value: Math.min(max, fp + 1) })} style={{ fontSize: 12, fontWeight: 700, lineHeight: 1, padding: '4px 9px', background: 'none', border: '1px solid var(--hx-teal-2, var(--hx-line))', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>Refocus</button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
           <div style={{ display: 'grid', gap: 5 }}>

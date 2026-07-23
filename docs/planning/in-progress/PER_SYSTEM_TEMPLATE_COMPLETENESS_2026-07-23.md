@@ -122,8 +122,11 @@ mechanics with server ops but missing/buried UI. Ordered most-severe first:
   enum/description), and a ◆◇ view + −Spend/＋Gain control in the Defenses block (on every template). Coerced
   `heroPoints ?? 0` so pre-migration characters don't post NaN. Verified in Playwright (1→2, "2 Hero
   Points"); pf2-edit test added; three PF2Combat literals updated. 409 PF2 tests green.
-- [ ] **S7e — Focus Points pool** (untracked): add `focusPoints`/`focusPointsMax` to `PF2Spellcasting`,
-  a set/spend/Refocus control in the Spells panel; focus spells are flagged but uncastable without it.
+- [x] **S7e — Focus Points pool (DONE 2026-07-23).** Focus spells were flagged but uncastable — no pool.
+  Added optional `focusPoints` to `PF2Spellcasting`, a `set_focus_points` edit op (clamps 0–3, parse via
+  the value fall-through, describe, in `PF2_EDIT_OPS` + the AI tool), and a ◆◇ pool (max = # focus spells,
+  cap 3) with −Spend / Refocus in the Spells panel, shown only when the caster has focus spells. pf2-edit
+  test added; 384 PF2 tests green.
 - [x] **S7f — conditions promoted into the Codex/Dashboard identity + Play hero when present (DONE
   2026-07-23).** `PF2Sheet.tsx` adds `pf2-conditions` to `identityIds`/`heroIds` when there are active
   conditions, so combat penalties are visible while fighting instead of one collapsed drawer away. A clean

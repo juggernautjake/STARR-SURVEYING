@@ -19,6 +19,8 @@ export type PF2Edit =
   | { op: 'set_wounded'; value: number }
   // Hero Points (0–3) — spend to reroll a check or (at 3) avoid death. A core always-on PF2 resource.
   | { op: 'set_hero_points'; value: number }
+  // Focus Points (0–3) — the pool focus spells are cast from; refills to max on a 10-minute Refocus.
+  | { op: 'set_focus_points'; value: number }
   // Set (or, with value 0, clear) a PF2 condition by name — Frightened 2, Sickened 1, Prone. The sheet folds
   // active conditions into rolls under PF2's non-stacking penalty rule.
   | { op: 'set_condition'; name: string; value: number }
@@ -62,7 +64,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -71,6 +73,7 @@ export type PF2EditOp = (typeof PF2_EDIT_OPS)[number];
 
 const DYING_MAX = 4; // PF2: Dying 4 = dead.
 const HERO_POINTS_MAX = 3; // PF2: you can hold at most 3 Hero Points.
+const FOCUS_POINTS_MAX = 3; // PF2: the focus pool caps at 3.
 
 /** Apply one edit, returning a NEW PF2Character (input never mutated). A no-op edit returns the input. */
 export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOptions = {}): PF2Character {
@@ -132,6 +135,11 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       // 0–3 is the RAW range (start a session with 1, GM awards more, spend to reroll / avoid death).
       combat.heroPoints = Math.max(0, Math.min(HERO_POINTS_MAX, Math.round(edit.value || 0)));
       return { ...pf2, combat };
+    }
+    case 'set_focus_points': {
+      // The focus pool holds at most 3 (RAW cap); a spent point returns via a 10-minute Refocus.
+      const v = Math.max(0, Math.min(FOCUS_POINTS_MAX, Math.round(edit.value || 0)));
+      return { ...pf2, spellcasting: { ...pf2.spellcasting, focusPoints: v } };
     }
     case 'set_condition': {
       // Upsert the condition by name; value 0 removes it. Values clamp to 0–10 (well past any real cap).
@@ -484,6 +492,7 @@ export function describePf2Edit(edit: PF2Edit): string {
     case 'set_dying': return edit.value ? `Now Dying ${edit.value}.` : 'No longer Dying.';
     case 'set_wounded': return edit.value ? `Now Wounded ${edit.value}.` : 'No longer Wounded.';
     case 'set_hero_points': return `${edit.value} Hero Point${edit.value === 1 ? '' : 's'}.`;
+    case 'set_focus_points': return `${edit.value} Focus Point${edit.value === 1 ? '' : 's'}.`;
     case 'set_condition': return edit.value ? `Now ${edit.name} ${edit.value}.` : `No longer ${edit.name}.`;
     case 'set_attribute': return `Set ${edit.attribute} to ${edit.value >= 0 ? '+' : ''}${edit.value}.`;
     case 'add_feat': return `Gained the ${edit.name} feat${edit.offRules ? ` (off-rules: ${edit.offRules})` : ''}.`;
