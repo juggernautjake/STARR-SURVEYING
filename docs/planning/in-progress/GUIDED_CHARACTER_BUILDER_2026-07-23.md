@@ -273,8 +273,13 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   TOTAL level, HP additive, all classes' features kept (tagged `sourceClass`), warlock pact slots summed, and
   the combined `casterLevel` via `multiclassCasterLevel` (non-casters add 0). Returns `perClass` snapshots for
   display. Verified over REAL class data (Fighter 3/Wizard 2 → level 5, +3 prof, additive HP, features from
-  both, caster level 2; martial multiclass casts nothing; unknown classes skipped). 4 tests. **Next slice
-  (MC-5e-2b):** map `casterLevel` → the standard multiclass spell-slot table for the actual slots.
+  both, caster level 2; martial multiclass casts nothing; unknown classes skipped). 4 tests.
+- [x] **MC-5e-2b — multiclass spell slots (DONE 2026-07-23).** Added the canonical PHB multiclass spellcaster
+  slot table + `multiclassSpellSlots(casterLevel)`, and the correct PHB RULE in `multiclassSnapshot`: with ONE
+  leveled spellcasting class you keep its OWN table; with TWO+ you use the multiclass table at the combined
+  caster level. Verified: Wizard 3/Fighter 2 → wizard's own slots; Wizard 3/Cleric 2 → multiclass table L5
+  `[_,4,3,2]`; non-caster → none. 7 tests total. Warlock pact slots stay separate + summed. Every multiclass
+  spell-slot synergy now resolves correctly regardless of the class combination.
 - [ ] **MC-5e-3 — multiclass eligibility:** the ability-score prerequisites to ENTER a second class.
 - [ ] **MC-5e-4 — LevelBuilder multiclass:** at each character level, choose which class to advance (or add a
   new class), then resolve that class-level's owed choices via the existing `planLevelUp` per class.

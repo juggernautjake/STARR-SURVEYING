@@ -44,6 +44,28 @@ describe('5e multiclass aggregation (MC-5e-2)', () => {
     expect(martial.casterLevel).toBe(0);
   });
 
+  it('spell slots: ONE spellcasting class keeps its own table (PHB)', () => {
+    // Wizard 3 / Fighter 2 — only one leveled caster (Wizard), so slots are the Wizard's own at level 3.
+    const ms = multiclassSnapshot([{ classKey: 'wizard', level: 3 }, { classKey: 'fighter', level: 2 }], lookup);
+    expect(ms.spellcastingClassCount).toBe(1);
+    const wizardOwn = multiclassSnapshot([{ classKey: 'wizard', level: 3 }], lookup).spellSlots;
+    expect(ms.spellSlots).toEqual(wizardOwn); // NOT the multiclass table at caster level 3
+  });
+
+  it('spell slots: TWO+ spellcasting classes use the multiclass table at the combined level', () => {
+    // Wizard 3 / Cleric 2 — two full casters → combined caster level 5 → multiclass table L5 = [_,4,3,2].
+    const ms = multiclassSnapshot([{ classKey: 'wizard', level: 3 }, { classKey: 'cleric', level: 2 }], lookup);
+    expect(ms.spellcastingClassCount).toBe(2);
+    expect(ms.casterLevel).toBe(5);
+    expect(ms.spellSlots).toEqual([0, 4, 3, 2]); // 4 first-rank, 3 second, 2 third — the multiclass table
+  });
+
+  it('a non-caster multiclass has no leveled spell slots', () => {
+    const ms = multiclassSnapshot([{ classKey: 'fighter', level: 3 }, { classKey: 'barbarian', level: 2 }], lookup);
+    expect(ms.spellcastingClassCount).toBe(0);
+    expect(ms.spellSlots).toBeUndefined();
+  });
+
   it('skips unknown classes rather than throwing', () => {
     const ms = multiclassSnapshot([{ classKey: 'fighter', level: 2 }, { classKey: 'not-a-class', level: 3 }], lookup);
     expect(ms.perClass.map((p) => p.classKey)).toEqual(['fighter']);

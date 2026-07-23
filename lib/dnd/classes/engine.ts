@@ -208,6 +208,24 @@ export function multiclassCasterLevel(
   return Math.min(20, total);
 }
 
+/** The 5e MULTICLASS spellcaster slot table (PHB), by COMBINED caster level 1..20. `[level] = [_, r1..r9]`
+ *  (index 0 unused, matching the class `slots` convention). Used ONLY when a character has 2+ spellcasting
+ *  classes; a single spellcasting class keeps its own table. Warlock pact slots are separate. */
+const MULTICLASS_SPELL_SLOTS: SpellSlotRow[] = [
+  [0], // 0 — unused
+  [0, 2], [0, 3], [0, 4, 2], [0, 4, 3], [0, 4, 3, 2], [0, 4, 3, 3], [0, 4, 3, 3, 1], [0, 4, 3, 3, 2],
+  [0, 4, 3, 3, 3, 1], [0, 4, 3, 3, 3, 2], [0, 4, 3, 3, 3, 2, 1], [0, 4, 3, 3, 3, 2, 1],
+  [0, 4, 3, 3, 3, 2, 1, 1], [0, 4, 3, 3, 3, 2, 1, 1], [0, 4, 3, 3, 3, 2, 1, 1, 1], [0, 4, 3, 3, 3, 2, 1, 1, 1],
+  [0, 4, 3, 3, 3, 2, 1, 1, 1, 1], [0, 4, 3, 3, 3, 3, 1, 1, 1, 1], [0, 4, 3, 3, 3, 3, 2, 1, 1, 1],
+  [0, 4, 3, 3, 3, 3, 2, 2, 1, 1],
+];
+
+/** The spell slots a MULTICLASS spellcaster of the given combined caster level has (0 → none). */
+export function multiclassSpellSlots(casterLevel: number): SpellSlotRow {
+  const n = Math.max(0, Math.min(20, Math.floor(casterLevel || 0)));
+  return n === 0 ? [] : [...MULTICLASS_SPELL_SLOTS[n]];
+}
+
 /** Everything a MULTICLASS character has, aggregated across its classes (MC-5e-2). Built by resolving each
  *  class's own `snapshotAtLevel` and combining under the 5e rules: proficiency bonus by TOTAL level, HP
  *  additive, every class's features kept (tagged with the class they came from), warlock pact slots summed,
@@ -223,8 +241,14 @@ export interface MulticlassSnapshot {
   resources: LevelSnapshot['resources'];
   /** Warlock pact magic, summed across any pact classes. */
   pact?: { slots: number; rank: number };
-  /** Combined 5e multiclass spellcaster level — 0 for a non-caster. Map to the standard slot table for slots. */
+  /** Combined 5e multiclass spellcaster level — 0 for a non-caster. */
   casterLevel: number;
+  /** The character's leveled (non-pact) spell slots, `[_, r1..r9]`. With ONE spellcasting class it's that
+   *  class's own table; with TWO+ it's the multiclass table at `casterLevel` (the PHB rule). Undefined when
+   *  the character has no leveled spellcasting. */
+  spellSlots?: SpellSlotRow;
+  /** How many of the character's classes are leveled (full/half/third) spellcasters — drives the slot rule. */
+  spellcastingClassCount: number;
   /** Each class's own snapshot, for per-class display (subclass features, resources, class level). */
   perClass: { classKey: string; level: number; name: string; snapshot: LevelSnapshot }[];
 }
@@ -240,6 +264,9 @@ export function multiclassSnapshot(
   let hp = 0;
   let pactSlots = 0;
   let pactRank = 0;
+  // Track the LEVELED (full/half/third) spellcasting classes — the PHB slot rule keys off how many there are.
+  let leveledCasterCount = 0;
+  let soleCasterSlots: SpellSlotRow | undefined;
   for (const cl of classes) {
     const found = lookup(cl.classKey);
     if (!found) continue;
@@ -250,10 +277,22 @@ export function multiclassSnapshot(
     for (const r of snap.resources) resources.push(r);
     if (snap.pact) { pactSlots += snap.pact.slots; pactRank = Math.max(pactRank, snap.pact.rank); }
     const sc = found.def.spellcasting;
-    // Every caster class contributes to the combined caster level; pact/non-casters add 0 in the math.
-    if (sc) casterParts.push({ kind: sc.kind, level: cl.level, roundUp: sc.roundHalfUp });
+    if (sc) {
+      // Every caster class contributes to the combined caster level; pact/non-slot casters add 0 in the math.
+      casterParts.push({ kind: sc.kind, level: cl.level, roundUp: sc.roundHalfUp });
+      if (sc.kind === 'full' || sc.kind === 'half' || sc.kind === 'third') {
+        leveledCasterCount++;
+        soleCasterSlots = snap.spellSlots; // the one caster's own table, used when it's the ONLY one
+      }
+    }
   }
   const totalLevel = totalClassLevel(classes);
+  const casterLevel = multiclassCasterLevel(casterParts);
+  // Slot rule (PHB): one leveled caster → its own table; two+ → the multiclass table at the combined level.
+  const spellSlots =
+    leveledCasterCount === 0 ? undefined
+      : leveledCasterCount === 1 ? soleCasterSlots
+        : multiclassSpellSlots(casterLevel);
   return {
     totalLevel,
     proficiencyBonus: proficiencyBonusFor(totalLevel),
@@ -261,7 +300,9 @@ export function multiclassSnapshot(
     features,
     resources,
     ...(pactSlots > 0 ? { pact: { slots: pactSlots, rank: pactRank } } : {}),
-    casterLevel: multiclassCasterLevel(casterParts),
+    casterLevel,
+    ...(spellSlots ? { spellSlots } : {}),
+    spellcastingClassCount: leveledCasterCount,
     perClass,
   };
 }
