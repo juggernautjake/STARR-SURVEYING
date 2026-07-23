@@ -21,6 +21,7 @@ import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
 import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
 import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplateBar';
+import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
 import { resolveRollerTemplate } from '@/lib/dnd/roller-templates';
@@ -1050,10 +1051,12 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   //    theme tokens are inherited from the IG sheet root. Tapping a save/skill/attack lands here, animated. ──
   const rollerId = resolveRollerTemplate(rollerTemplate, layout);
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} />
         {rollerStageFor(rollerId)}
+        {/* The manual dice pad (d4–d100 + count), on EVERY template (owner) — the chosen template animates it. */}
+        <DicePad />
       </div>
     </RollFeedProvider>
   );

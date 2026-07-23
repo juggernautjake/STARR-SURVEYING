@@ -585,7 +585,7 @@
 .dnd-sheet .rbn-card { width: 68px; height: 96px; position: relative; }
 .dnd-sheet .rbn-inner {
   position: absolute; inset: 0; transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: transform 0.62s cubic-bezier(0.2, 0.7, 0.2, 1); /* a touch slower flip (owner) */
 }
 .dnd-sheet .rbn-card.is-up .rbn-inner { transform: rotateY(180deg); }
 .dnd-sheet .rbn-back,
@@ -595,9 +595,16 @@
 }
 .dnd-sheet .rbn-back {
   background: linear-gradient(135deg, rgba(var(--void-rgb), 0.92), var(--panel));
-  color: var(--tealbright); font-size: 24px; opacity: 0.9;
+  opacity: 0.9;
   box-shadow: inset 0 0 0 3px rgba(var(--tealbright-rgb), 0.14), inset 0 0 20px rgba(var(--void-rgb), 0.6);
 }
+.dnd-sheet .rbn-star { font-size: 24px; color: var(--tealbright); }
+/* Suit pips in the corners of BOTH faces, tinted like the back's star (owner). */
+.dnd-sheet .rbn-pip {
+  position: absolute; font-size: 12px; line-height: 1; color: var(--tealbright); opacity: 0.92;
+}
+.dnd-sheet .rbn-pip-tl { top: 5px; left: 6px; }
+.dnd-sheet .rbn-pip-br { bottom: 5px; right: 6px; transform: rotate(180deg); }
 .dnd-sheet .rbn-front {
   transform: rotateY(180deg);
   background: radial-gradient(120% 120% at 50% 0%, var(--panel-2, var(--panel)), var(--void));
@@ -611,25 +618,43 @@
 .dnd-sheet .rb-felt.is-crit .rbn-num { color: var(--tealbright); text-shadow: 0 0 18px rgba(var(--tealbright-rgb), 0.6); }
 .dnd-sheet .rb-felt.is-fumble .rbn-num { color: var(--danger); text-shadow: 0 0 18px rgba(var(--danger-rgb), 0.6); }
 
-/* slide the three off */
-.dnd-sheet .rbn-phase-out .rbn-card { animation: rbnOut 0.36s ease forwards; }
-.dnd-sheet .rbn-phase-out .rbn-c1 { animation-delay: 0.05s; }
-.dnd-sheet .rbn-phase-out .rbn-c2 { animation-delay: 0.1s; }
-@keyframes rbnOut { to { transform: translateX(-170%) rotate(-13deg); opacity: 0; } }
+/* slide the three off (a touch slower) */
+.dnd-sheet .rbn-phase-out .rbn-card { animation: rbnOut 0.46s ease forwards; }
+.dnd-sheet .rbn-phase-out .rbn-c1 { animation-delay: 0.06s; }
+.dnd-sheet .rbn-phase-out .rbn-c2 { animation-delay: 0.12s; }
+@keyframes rbnOut { to { transform: translateX(-175%) rotate(-13deg); opacity: 0; } }
 
 /* three new slide in (fresh, via the key remount) */
-.dnd-sheet .rbn-phase-in .rbn-card { animation: rbnIn 0.38s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
-.dnd-sheet .rbn-phase-in .rbn-c1 { animation-delay: 0.06s; }
-.dnd-sheet .rbn-phase-in .rbn-c2 { animation-delay: 0.12s; }
-@keyframes rbnIn { from { transform: translateX(175%) rotate(11deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.dnd-sheet .rbn-phase-in .rbn-card { animation: rbnIn 0.48s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.dnd-sheet .rbn-phase-in .rbn-c1 { animation-delay: 0.07s; }
+.dnd-sheet .rbn-phase-in .rbn-c2 { animation-delay: 0.14s; }
+@keyframes rbnIn { from { transform: translateX(180%) rotate(11deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* mix around */
-.dnd-sheet .rbn-phase-shuffle .rbn-c0 { animation: rbnMixA 0.5s ease-in-out; }
-.dnd-sheet .rbn-phase-shuffle .rbn-c1 { animation: rbnMixB 0.5s ease-in-out; }
-.dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: rbnMixC 0.5s ease-in-out; }
-@keyframes rbnMixA { 0%, 100% { transform: none; } 30% { transform: translate(84px, -10px) rotate(9deg); } 60% { transform: translate(168px, 4px); } }
-@keyframes rbnMixB { 0%, 100% { transform: none; } 30% { transform: translateY(13px) scale(0.95); } 60% { transform: translateY(-7px); } }
-@keyframes rbnMixC { 0%, 100% { transform: none; } 30% { transform: translate(-84px, 8px) rotate(-9deg); } 60% { transform: translate(-168px, -4px); } }
+/* mix around — longer (~1s) and more randomly, each card weaving a different multi-step path (owner) */
+.dnd-sheet .rbn-phase-shuffle .rbn-c0 { animation: rbnMixA 1s ease-in-out; }
+.dnd-sheet .rbn-phase-shuffle .rbn-c1 { animation: rbnMixB 1s ease-in-out; }
+.dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: rbnMixC 1s ease-in-out; }
+@keyframes rbnMixA {
+  0%, 100% { transform: none; z-index: 1; }
+  18% { transform: translate(92px, -18px) rotate(11deg); z-index: 3; }
+  40% { transform: translate(176px, 10px) rotate(-6deg); }
+  62% { transform: translate(70px, 22px) rotate(9deg); z-index: 2; }
+  82% { transform: translate(-24px, -8px) rotate(-4deg); }
+}
+@keyframes rbnMixB {
+  0%, 100% { transform: none; z-index: 2; }
+  18% { transform: translate(-18px, 20px) scale(0.93) rotate(-7deg); z-index: 1; }
+  40% { transform: translate(-96px, -6px) rotate(8deg); }
+  62% { transform: translate(20px, -20px) rotate(-10deg); z-index: 3; }
+  82% { transform: translate(60px, 12px) rotate(5deg); }
+}
+@keyframes rbnMixC {
+  0%, 100% { transform: none; z-index: 3; }
+  18% { transform: translate(-92px, 12px) rotate(-11deg); z-index: 2; }
+  40% { transform: translate(-176px, -12px) rotate(7deg); }
+  62% { transform: translate(-70px, -22px) rotate(-8deg); z-index: 1; }
+  82% { transform: translate(28px, 6px) rotate(6deg); }
+}
 
 /* the always-shown readout beneath */
 .dnd-sheet .rbn-readout { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 6px; text-align: center; }

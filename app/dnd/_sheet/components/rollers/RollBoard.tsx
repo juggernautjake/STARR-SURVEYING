@@ -31,6 +31,7 @@ import './rollBoard.css'
 // any) flips back over, the three cards slide OFF, three new cards slide IN, mix around, then ONE flips face
 // up to reveal the number. Deliberately a touch longer + more theatrical than the old deal-a-hand. The full
 // calculation + total still reads BELOW the cards (the always-show-breakdown rule). Reads only the RollFeed.
+const SUITS = ['♠', '♥', '♦', '♣'] as const
 type BoardPhase = 'idle' | 'flipback' | 'out' | 'in' | 'shuffle' | 'reveal' | 'shown'
 interface Shown {
   value: number
@@ -54,6 +55,7 @@ export function BoardStage() {
   const timers = useRef<number[]>([])
   const lastToken = useRef(-1)
   const cardUp = useRef(false) // whether a card is currently face-up (drives the opening flip-back)
+  const firstRoll = useRef(true) // the FIRST roll after load just shuffles + reveals; later rolls slide off first
   const pending = useRef<{ entry: ActiveRoll['entry']; done: boolean } | null>(null)
 
   const clearTimers = () => {
@@ -110,19 +112,28 @@ export function BoardStage() {
       return () => clearTimers()
     }
 
-    // The theatrical sequence: flip-back (only if a card was up) → slide out → slide in → shuffle → reveal.
+    // The theatrical sequence. The FIRST roll after a page load has no cards to slide away yet, so the three
+    // face-down cards just SHUFFLE then reveal. Every roll after that flips the shown card back, slides the
+    // three OFF, slides three new ones IN, then shuffles + reveals.
     const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms))
     let t = 0
-    if (cardUp.current) { setPhase('flipback'); t += 280 } else { setPhase('idle') }
-    at(t, () => { setPhase('out'); whoosh() }); t += 360
-    at(t, () => { setShown(data); setRevealIndex(idx); setDeck((d) => d + 1); setPhase('in') }); t += 360
-    at(t, () => { setPhase('shuffle'); tick(0.5) }); t += 500
-    at(t, () => { setPhase('reveal'); cardUp.current = true; chime() }); t += 540
+    if (firstRoll.current) {
+      // No slide off/in — the initial deck just shuffles then reveals. Set the number now (behind the faces).
+      setShown(data); setRevealIndex(idx)
+    } else {
+      if (cardUp.current) { setPhase('flipback'); t += 360 }
+      at(t, () => { setPhase('out'); whoosh() }); t += 460
+      at(t, () => { setShown(data); setRevealIndex(idx); setDeck((d) => d + 1); setPhase('in') }); t += 460
+    }
+    // A longer, more elaborate mix (owner) — the CSS shuffle keyframes run ~1s.
+    at(t, () => { setPhase('shuffle'); tick(0.5) }); t += 1000
+    at(t, () => { setPhase('reveal'); cardUp.current = true; chime() }); t += 620
     at(t, () => {
       setPhase('shown')
       commitRoll(e)
       if (pending.current) pending.current.done = true
     })
+    firstRoll.current = false
 
     return () => clearTimers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,18 +146,27 @@ export function BoardStage() {
     <div className={`rb-felt rbn-phase-${phase} ${shown?.crit ? 'is-crit' : ''} ${shown?.fumble ? 'is-fumble' : ''}`}>
       <div className="rb-felt-label">{label}</div>
 
-      {/* Three cards. Only the reveal card flips face-up (`.is-up`); the phase drives slide/shuffle on all. */}
+      {/* Three cards. Only the reveal card flips face-up (`.is-up`); the phase drives slide/shuffle on all.
+          Each card carries a suit (♠♥♦♣) in its corners, tinted like the back's star. */}
       <div className="rbn-cards" key={deck} aria-hidden={idle}>
-        {[0, 1, 2].map((i) => (
-          <div key={i} className={`rbn-card rbn-c${i}${i === revealIndex ? ' is-reveal' : ''}${(phase === 'reveal' || phase === 'shown') && i === revealIndex ? ' is-up' : ''}`}>
-            <div className="rbn-inner">
-              <div className="rbn-back" aria-hidden>✦</div>
-              <div className="rbn-front">
-                <span className="rbn-num">{shown ? shown.value : ''}</span>
+        {[0, 1, 2].map((i) => {
+          const suit = SUITS[(i + deck) % SUITS.length]
+          return (
+            <div key={i} className={`rbn-card rbn-c${i}${i === revealIndex ? ' is-reveal' : ''}${(phase === 'reveal' || phase === 'shown') && i === revealIndex ? ' is-up' : ''}`}>
+              <div className="rbn-inner">
+                <div className="rbn-back" aria-hidden>
+                  <span className="rbn-star">✦</span>
+                </div>
+                <div className="rbn-front">
+                  {/* Suits only on the FRONT — seen when the card flips over (owner). */}
+                  <span className="rbn-pip rbn-pip-tl" aria-hidden>{suit}</span>
+                  <span className="rbn-num">{shown ? shown.value : ''}</span>
+                  <span className="rbn-pip rbn-pip-br" aria-hidden>{suit}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {idle ? (
