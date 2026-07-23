@@ -38,6 +38,13 @@ const SKIN_FONTS: Record<string, SheetTheme['fonts']> = {
   jack: rangorTheme.fonts,
 };
 
+/** The `skin-<id>` class for a chosen `sheet_type`, so the bespoke PF2/IG sheet roots can carry a skin hook
+ *  the same way the 5e `.dnd-sheet` root does — enabling per-skin CSS accents (CS-2). Empty for an unknown id. */
+export function skinClass(sheetType: string | undefined): string {
+  const style = SHEET_STYLES.find((s) => s.id === sheetType);
+  return style ? `skin-${style.id}` : '';
+}
+
 /** Emit `--hx-font-display` / `--hx-font-body` / `--hx-font-mono` from a theme's `fonts` onto a var map. */
 function emitFontVars(vars: Record<string, string>, fonts: SheetTheme['fonts']) {
   if (!fonts) return;

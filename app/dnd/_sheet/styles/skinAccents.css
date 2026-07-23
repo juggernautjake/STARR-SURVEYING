@@ -1,0 +1,52 @@
+/* skinAccents.css — per-skin SURFACE TEXTURE for the bespoke PF2/IG sheet roots (CS-2), loaded on every
+ * /dnd page. The bespoke sheets restyle by colour + (now) font; this adds a distinct, SUBTLE texture per
+ * style so a skin switch changes the surface too — the affordable subset of what the 5e `.skin-*` CSS does.
+ *
+ * Each rule targets `.skin-<id>` (added to the sheet root by `skinClass`) and paints a low-opacity, non-
+ * interactive `::before` overlay. Opacity is deliberately tiny so text stays fully legible even where the
+ * overlay paints in front. Hextech (default) gets no overlay — it IS the baseline surface. */
+.skin-lazzuh,
+.skin-streamer,
+.skin-donata,
+.skin-jack {
+  position: relative;
+}
+.skin-lazzuh::before,
+.skin-streamer::before,
+.skin-donata::before,
+.skin-jack::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+/* Neon Odyssey — a faint tech grid. */
+.skin-lazzuh::before {
+  background-image:
+    linear-gradient(rgba(120, 200, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 200, 255, 0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+  opacity: 0.5;
+}
+
+/* Magical Streamer — CRT scanlines (its faces are pixel/terminal). */
+.skin-streamer::before {
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 3px);
+  opacity: 0.7;
+}
+
+/* Candy Bazaar — a soft dotted sticker sheet. */
+.skin-donata::before {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1.2px, transparent 1.3px);
+  background-size: 16px 16px;
+  opacity: 0.7;
+}
+
+/* Homebrew Rulebook — ruled-paper lines, like a printed page. */
+.skin-jack::before {
+  background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(60, 40, 20, 0.05) 27px 28px);
+  opacity: 0.8;
+}

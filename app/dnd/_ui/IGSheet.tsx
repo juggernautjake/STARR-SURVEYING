@@ -21,7 +21,7 @@
 import { Fragment } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { useIgPanels, type Tagged } from './ig/useIgPanels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
@@ -101,6 +101,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
   const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
   const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
+  const skin = skinClass(sheetType); // the skin-<id> hook for per-skin surface textures (CS-2)
   const shellStyle = {
     ...hxVars,
     ...shellTokens,
@@ -125,7 +126,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       </aside>
     );
     return (
-      <div className="sheet-shell igs-root" style={shellStyle}>
+      <div className={`sheet-shell igs-root ${skin}`} style={shellStyle}>
         <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
         {layout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
@@ -151,7 +152,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       </>
     );
     return (
-      <div className="sheet-shell igs-root" style={shellStyle}>
+      <div className={`sheet-shell igs-root ${skin}`} style={shellStyle}>
         <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
         <PlayShell
           identity={identity}
@@ -173,7 +174,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     // chosen skin (default → {} → unchanged). Spread first so the layout props below still win. Panels render
     // in order as direct grid children (each returns its own `<Section id=…>` wrapper, so the jump-nav anchors
     // still land), reproducing the monolith's DOM exactly.
-    <div className={`${styles.framedPanel} igs-root`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+    <div className={`${styles.framedPanel} igs-root ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
       {/* Scoped interactivity CSS (req 3). Injected once at the top of this component's own subtree; every
           selector is prefixed `.igs-root` so it cannot leak into the PF2 sheet or the rest of the page. */}
       <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
