@@ -8,10 +8,12 @@
 > scores), a searchable per-system glossary, per-system **stepped Foundations** (5e/PF2/IG all walk their
 > sections one at a time, reusing the tested builders), the 5e **per-level walk** (LevelBuilder → planLevelUp),
 > and a **Review summary**. What remains is the LEVEL-BY-LEVEL PROGRESSION for PF2 + IG, which is a different
-> class of work: **B7–B11 (PF2)** = large data authoring (finish `PF2_CLASS_PROGRESSIONS`) + a level-up
-> planner engine; **B12–B16 (IG)** = ⛔ BLOCKED on owner input — IG has no per-level progression data and the
-> IG Ground Rules forbid inventing the schedule, so the owner must confirm what each class gains at each level
-> before it can be authored. B5 (a build-time 5e spell picker) is a real but non-blocking convenience.
+> class of work. **PF2 data is COMPLETE (B7 done + tested):** every builder class has a full 1–20 progression,
+> so **B8–B11 (PF2)** are now SAFE code — a `pf2PlanLevelUp` engine (mirroring 5e's, reading the existing
+> tested data + feat schedule) + per-level persistence + a wizard Levels step + QA. No rules-data risk.
+> **B12–B16 (IG)** = ⛔ still BLOCKED on owner input — IG has NO per-level progression data and the IG Ground
+> Rules forbid inventing the schedule, so the owner must confirm what each class gains at each level before it
+> can be authored. B5 (a build-time 5e spell picker) is a real but non-blocking convenience.
 
 ## Owner ask (verbatim intent)
 
@@ -189,7 +191,14 @@ Data is COMPLETE. Steps:
   state, `Pf2BoostAllocator`, `PF2BuildPicks`, eligibility, and the `/pf2-build` POST. Panel mode (sheet)
   unchanged. Verified in the SSR HTML (Identity step + progress dots + Next). The AI-build block stays at the
   top in both modes.
-- [ ] **B7 — complete `PF2_CLASS_PROGRESSIONS`** for the remaining classes (+ reduced-caster slot tables).
+- [x] **B7 — `PF2_CLASS_PROGRESSIONS` cover every builder class (DONE — verified 2026-07-23).** The infra
+  summary's "12 of ~25" counted only full-caster slot tables; in fact all 20 Remaster classes carry a full
+  1–20 progression, and — the invariant that matters — **every one of the 14 classes the builder can create
+  (Alchemist/Barbarian/Bard/Champion/Cleric/Druid/Fighter/Monk/Oracle/Ranger/Rogue/Sorcerer/Witch/Wizard)
+  has one.** The `PF2_CLASS_PROGRESSION_GAPS` are documented modelling CAVEATS (Monk player-chosen saves,
+  Cleric doctrine-dependent tracks, Magus/Summoner reduced-caster slot tables, Fighter weapon-group scoping),
+  not missing classes. Locked by `pf2-progressions-cover-builder.test.ts`. **So B8–B11 are SAFE code work
+  (a planner engine + UI reading this complete, tested data) — no rules-data authoring / invention risk.**
 - [ ] **B8 — `pf2PlanLevelUp` engine** + per-level `outstanding` choices (feats/boosts/skills/prof/spells).
 - [ ] **B9 — PF2 per-level choice persistence** (`data.pf2e.build.choices` + route).
 - [ ] **B10 — PF2 wizard build plan** (Foundations + per-level) reusing the allocator/pickers/eligibility.
