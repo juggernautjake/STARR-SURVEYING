@@ -201,18 +201,23 @@ export function igPlanLevelUp(args: {
   const from = Math.max(1, Math.min(to, Math.floor(Number(args.from) || 1)));
   const recorded = args.recorded ?? [];
   const outstanding: IGOutstandingChoice[] = [];
+  // House-rule (MC-IG): a dedication widens the subclass-power options to include the dedicated subclass's.
+  const dedications = igDedicatedSubclasses(recorded);
 
   for (const row of igLevelBreakdown(args.subclass, to)) {
     for (const g of row.gains) {
       if (!g.choose) continue;
       const rec = recorded.find((r) => r.level === row.level && r.kind === g.kind);
       if (igSatisfied(rec, g.count)) continue;
+      const options = g.kind === 'subclass-power' && dedications.length
+        ? igSubclassPowerOptions(args.subclass, dedications)
+        : g.options;
       outstanding.push({
         level: row.level,
         kind: g.kind,
         label: g.label,
         ...(g.count ? { count: g.count } : {}),
-        ...(g.options ? { options: g.options } : {}),
+        ...(options ? { options } : {}),
       });
     }
   }
@@ -223,4 +228,47 @@ export function igPlanLevelUp(args: {
 export function igRecordChoice(recorded: IGRecordedChoice[], choice: IGRecordedChoice): IGRecordedChoice[] {
   const rest = recorded.filter((r) => !(r.level === choice.level && r.kind === choice.kind));
   return [...rest, choice];
+}
+
+// ── Multiclass — a FLAGGED house-rule (MC-IG) ─────────────────────────────────────────────────────────
+// IG publishes NO multiclass rule (confirmed: nothing on /classes, /core-rules, /faqs). The owner authorized
+// designing a balanced one. Design: it echoes the Freebooter's "Dabbler" specialization, which officially
+// grants "subclass powers from other classes." A character may spend a FEAT slot on a "Multiclass Dedication
+// (<Subclass>)"; once dedicated, their "New Subclass Power" slots (L3/5/7/9) may draw from that subclass's
+// power list as well as their own. Balanced — it costs a feat slot and consumes normal power slots, no free
+// stacking. This is CUSTOM content: the UI flags it, and it is never presented as official IG.
+
+const DEDICATION_RE = /^Multiclass Dedication \((.+)\)$/;
+
+/** The synthetic feat-slot option that dedicates into `subclass` (a house-rule pick, flagged custom). */
+export function igMulticlassDedicationName(subclass: string): string {
+  return `Multiclass Dedication (${subclass})`;
+}
+
+/** Every OTHER catalogued subclass a character could dedicate into (all subclasses except their own). */
+export function igMulticlassTargets(ownSubclass: string): string[] {
+  const own = (ownSubclass ?? '').trim().toLowerCase();
+  return IG_CLASS_DETAILS
+    .filter((c) => /subclass of/i.test(c.classification ?? '') && c.name.toLowerCase() !== own)
+    .map((c) => c.name);
+}
+
+/** The subclasses a character has dedicated into, read from their recorded feat choices. */
+export function igDedicatedSubclasses(recorded: IGRecordedChoice[]): string[] {
+  const out: string[] = [];
+  for (const r of recorded) {
+    if ((r.kind === 'feat-general' || r.kind === 'feat-combat') && r.value) {
+      const m = DEDICATION_RE.exec(r.value.trim());
+      if (m && !out.includes(m[1])) out.push(m[1]);
+    }
+  }
+  return out;
+}
+
+/** A subclass-power option list expanded by any dedications: own powers first, then each dedicated
+ *  subclass's powers labelled "<Subclass>: <Power>" so their provenance (and the house-rule) is visible. */
+export function igSubclassPowerOptions(ownSubclass: string, dedications: string[]): string[] {
+  const own = igEntry(ownSubclass)?.powers ?? [];
+  const extra = dedications.flatMap((sub) => (igEntry(sub)?.powers ?? []).map((p) => `${sub}: ${p}`));
+  return [...own, ...extra];
 }

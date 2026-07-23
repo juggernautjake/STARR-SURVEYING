@@ -55,8 +55,13 @@ house-rule** (provenance: custom, not vanilla), never presented as official IG.
   specialization / capstone) or the right IG catalog (feats by category from `IG_FEATS`, skills from
   `systemSkills`, the five documented trait benefits); ability boosts are a distinct-N attribute pick. The
   levels page now dispatches IG → `IGLevelBuilder` (PF2 → `PF2LevelBuilder`, 5e → `LevelBuilder`). 5 tests.
-- [ ] **MC-IG — multiclass house-rule** — the Multiclass Dedication above: eligibility + how it opens other
-  subclasses' power lists at the subclass-power slots; flagged as custom provenance.
+- [x] **MC-IG — multiclass house-rule (DONE 2026-07-23).** IG has no official multiclass, so this is the
+  owner-authorized, flagged house-rule: `igMulticlassDedicationName` / `igMulticlassTargets` /
+  `igDedicatedSubclasses` / `igSubclassPowerOptions`. A "Multiclass Dedication (<Subclass>)" taken at a FEAT
+  slot (offered in the IG builder's feat picker alongside real feats) opens that subclass's powers at the
+  character's "New Subclass Power" slots (L3/5/7/9) — `igPlanLevelUp` widens those options, labelling
+  dedicated powers "<Subclass>: <Power>" so provenance is visible. Balanced (costs a feat slot, consumes power
+  slots, no free stacking); no leakage without a dedication. 6 tests (`ig-multiclass.test.ts`).
 - [ ] **IG-5 — QA** (browser, vanilla L1→10 for a martial + a caster subclass).
 
 ## Done means

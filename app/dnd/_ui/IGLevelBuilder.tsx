@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { IG_FEATS } from '@/lib/dnd/systems/intuitive-games/content';
+import { igMulticlassDedicationName, igMulticlassTargets } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { systemSkills } from '@/lib/dnd/system-rules';
 
 const IG_ATTRS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -130,10 +131,13 @@ function ChoicePrompt({ choice, subclass, count, busy, onRecord }: { choice: Out
 
 /** The option list for a choice: the plan's own options (subclass power / specialization / capstone) when
  *  present, else the right IG catalog (feats by category, skills, trait benefits). */
-function optionsFor(choice: Outstanding, _subclass: string): string[] {
+function optionsFor(choice: Outstanding, subclass: string): string[] {
   if (choice.options?.length) return choice.options;
-  if (choice.kind === 'feat-general') return IG_FEATS.filter((f) => f.category === 'General').map((f) => f.name);
-  if (choice.kind === 'feat-combat') return IG_FEATS.filter((f) => f.category === 'Combat').map((f) => f.name);
+  // Feat slots also offer the flagged Multiclass Dedication house-rule (MC-IG) — dedicate into another
+  // subclass to draw its powers at your subclass-power slots.
+  const dedications = igMulticlassTargets(subclass).map(igMulticlassDedicationName);
+  if (choice.kind === 'feat-general') return [...IG_FEATS.filter((f) => f.category === 'General').map((f) => f.name), ...dedications];
+  if (choice.kind === 'feat-combat') return [...IG_FEATS.filter((f) => f.category === 'Combat').map((f) => f.name), ...dedications];
   if (choice.kind === 'skill-proficiency') return systemSkills('intuitive-games').map((s) => s.name);
   if (choice.kind === 'trait') return TRAIT_BENEFITS;
   return [];
