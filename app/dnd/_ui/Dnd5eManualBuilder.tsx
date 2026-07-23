@@ -46,13 +46,16 @@ export interface Dnd5eBuildResult {
 
 export default function Dnd5eManualBuilder({
   system,
+  characterId,
   onBuild,
-  saving,
 }: {
   system: string;
+  /** When set (and no `onBuild`), the builder persists via POST /dnd5e-build then reloads, like the PF2/IG
+   *  builders — so it works standalone. Provide `onBuild` to intercept instead. */
+  characterId?: string;
   onBuild?: (result: Dnd5eBuildResult) => void;
-  saving?: boolean;
 }) {
+  const [saving, setSaving] = React.useState(false);
   const is2024 = system === 'dnd5e-2024';
   const speciesList = React.useMemo(() => speciesCatalogFor(system), [system]);
   const classList = React.useMemo(() => classesForSystem(system), [system]);
@@ -85,6 +88,23 @@ export default function Dnd5eManualBuilder({
   const canBuild = validation.valid && bgSpreadOk && !saving;
 
   const finalAbilities = applyAbilityIncreases5e(base, increases);
+
+  const doBuild = async (result: Dnd5eBuildResult) => {
+    if (onBuild) return onBuild(result);
+    if (!characterId) return;
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/dnd5e-build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...result.picks, abilities: result.abilities, backgroundAbilities: is2024 ? bgSpread : undefined, feats: result.feats }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      window.location.reload();
+    } catch {
+      setSaving(false);
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gap: 16, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: INSET }}>
@@ -186,7 +206,7 @@ export default function Dnd5eManualBuilder({
         </ul>
       )}
       <button type="button" disabled={!canBuild}
-        onClick={() => onBuild?.({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats })}
+        onClick={() => doBuild({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats })}
         style={{ justifySelf: 'start', fontSize: 14, fontWeight: 700, padding: '9px 18px', borderRadius: 9, cursor: canBuild ? 'pointer' : 'default', opacity: canBuild ? 1 : 0.5,
           border: `1px solid var(--hx-gold-1, #8a6d3b)`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' }}>
         {saving ? 'Building…' : 'Build character'}
