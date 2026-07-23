@@ -262,6 +262,9 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
 export interface PF2Build {
   ancestry?: string; heritage?: string; background?: string;
   className?: string; subclass?: string; deity?: string;
+  /** Per-level choices the guided level-by-level builder has recorded (B9). Additive: absent on characters
+   *  built before this, and the planner treats absent as "nothing recorded yet". */
+  choices?: import('./levelup').PF2RecordedChoice[];
 }
 
 let _uid = 0;

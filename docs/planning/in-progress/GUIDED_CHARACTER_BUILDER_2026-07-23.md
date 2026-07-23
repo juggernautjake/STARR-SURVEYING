@@ -209,10 +209,21 @@ Data is COMPLETE. Steps:
   FEATURES gained (from the tested `PF2_CLASS_PROGRESSIONS`) + which feat tracks grant a slot (from the
   tested `pf2FeatLevelsFor` schedule) — reading only verified data, no invention. Wired into the PF2 builder
   as a read-only "level 1–N progression" preview (Class & kit step), so a player sees their whole path before
-  building. 4 tests. **Remaining B8:** the INTERACTIVE `pf2PlanLevelUp` (assemble the `outstanding` choices to
-  RESOLVE — feat picks/boosts/skill-increases — like 5e's), which needs the per-level persistence (B9) it
-  writes to; that's the next slice.
-- [ ] **B9 — PF2 per-level choice persistence** (`data.pf2e.build.choices` + route).
+  building. 4 tests. **B8 COMPLETE (2026-07-23):** added the interactive `pf2PlanLevelUp({className, to,
+  recorded, from})` + `pf2RecordChoice` — the PF2 mirror of 5e's `planLevelUp`/`recordChoice`. It returns the
+  `outstanding` choices owed at levels 1..to: one FEAT prompt per track that grants a slot that level (tested
+  `pf2FeatLevelsFor`), the class's SUBCLASS moment (Instinct/Bloodline/Doctrine… from the class's own
+  `subclassName`/`subclassLevels`), and the universal 4-attribute BOOSTS at 5/10/15/20. **Honest omissions
+  held** (per this module's existing caveats + `PF2_CLASS_PROGRESSION_GAPS`): per-class SKILL-INCREASE
+  schedules and concrete subclass OPTIONS are NOT surfaced (the subclass prompt names the moment; the picker
+  supplies the legal list) — no invented rules. 6 tests (`pf2-plan-levelup.test.ts`).
+- [x] **B9 — PF2 per-level choice persistence (DONE 2026-07-23).** New `/pf2-levels` route (GET plan / POST
+  record+commit), the PF2 mirror of `/levels`: GET `?to=N` returns `pf2PlanLevelUp`; POST records one choice
+  (coerced/validated, `pf2RecordChoice`) into `data.pf2Build.choices` (additive field on `PF2Build`) and/or
+  commits a level — but ONLY when the plan is `ready` (409 otherwise), the same "level moves only through a
+  fully-resolved plan" invariant 5e enforces. PF2-only, behind `requireCharacterWrite`. 6 tests
+  (`pf2-levels-route.test.ts`). **Remaining PF2 wizard: B10 (walk these prompts in the GuidedBuilder UI) +
+  B11 (Playwright QA).**
 - [ ] **B10 — PF2 wizard build plan** (Foundations + per-level) reusing the allocator/pickers/eligibility.
 - [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial).
 

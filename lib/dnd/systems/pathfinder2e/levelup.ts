@@ -13,6 +13,7 @@
 import { PF2_CLASS_PROGRESSIONS } from './data/classes';
 import { pf2FeatLevelsFor } from './eligibility';
 import type { PF2FeatTrack } from './defs';
+import type { PF2AttributeKey } from './model';
 
 /** The feat tracks that follow a fixed level schedule (archetype feats ride the class schedule). */
 const FEAT_TRACKS: PF2FeatTrack[] = ['ancestry', 'class', 'skill', 'general'];
@@ -49,4 +50,118 @@ export function pf2LevelBreakdown(className: string, toLevel: number): PF2LevelS
     steps.push({ level, features, featTracks, abilityBoosts: ABILITY_BOOST_LEVELS.has(level) });
   }
   return steps;
+}
+
+// ── Interactive planner (B8/B9) ─────────────────────────────────────────────────────────────────────
+// `pf2PlanLevelUp` is the PF2 mirror of 5e's `planLevelUp`: given the class, a target level, and the
+// choices already recorded, it returns what is still OWED before the character can BE that level — the
+// per-level FEAT slots (one prompt per track that grants a feat that level), the class's defining
+// subclass choice (Instinct/Bloodline/Doctrine…), and the universal 4-attribute boosts at 5/10/15/20.
+// It reads only verified data: the tested feat schedule (`pf2FeatLevelsFor`), the class's own
+// `subclassName`/`subclassLevels`, and the universal boost levels. DELIBERATELY NOT surfaced — matching
+// this module's existing caveats and `PF2_CLASS_PROGRESSION_GAPS` — are per-class SKILL-INCREASE
+// schedules (vary by class; showing a fixed one would be wrong) and the concrete subclass OPTIONS (not
+// reliably modelled): the subclass prompt names the moment, the picker supplies the legal list.
+
+export type PF2ChoiceKind = 'subclass' | 'feat' | 'boosts';
+
+/** A choice the player has already made, persisted on `data.pf2e.build.choices`. */
+export interface PF2RecordedChoice {
+  level: number;
+  kind: PF2ChoiceKind;
+  /** feat → which track the slot belongs to (a level can grant more than one). */
+  track?: PF2FeatTrack;
+  /** subclass → the chosen subclass name/key · feat → the chosen feat name. */
+  value?: string;
+  /** boosts → the (up to 4) attributes raised this boost level. */
+  attributes?: PF2AttributeKey[];
+}
+
+/** A choice still owed at a level, with what the UI needs to prompt for it. */
+export interface PF2OutstandingChoice {
+  level: number;
+  kind: PF2ChoiceKind;
+  track?: PF2FeatTrack;
+  label: string;
+  detail: string;
+  /** boosts → how many distinct attributes to raise (4). */
+  pick?: number;
+}
+
+export interface PF2LevelUpPlan {
+  from: number;
+  to: number;
+  /** Every choice owed at levels 1..to, in level order. Empty ⇒ nothing blocks the level-up. */
+  outstanding: PF2OutstandingChoice[];
+  ready: boolean;
+}
+
+const TRACK_LABEL: Record<PF2FeatTrack, string> = {
+  ancestry: 'Ancestry feat',
+  class: 'Class feat',
+  skill: 'Skill feat',
+  general: 'General feat',
+  archetype: 'Archetype feat',
+};
+
+/** Is a recorded choice actually resolved (not just a placeholder)? */
+function pf2Satisfied(rec: PF2RecordedChoice | undefined, kind: PF2ChoiceKind): boolean {
+  if (!rec) return false;
+  if (kind === 'boosts') return (rec.attributes?.length ?? 0) >= 4;
+  return !!rec.value && rec.value.trim() !== '';
+}
+
+/**
+ * What the character still owes before it can be `to` (clamped 1–20), given `recorded` choices.
+ * Surfaces, per level: one FEAT prompt per track that grants a feat that level, the class's SUBCLASS
+ * choice at its subclass level(s), and the 4-attribute BOOSTS at 5/10/15/20. Reads only verified data.
+ */
+export function pf2PlanLevelUp(args: {
+  className: string;
+  to: number;
+  recorded?: PF2RecordedChoice[];
+  from?: number;
+}): PF2LevelUpPlan {
+  const prog = PF2_CLASS_PROGRESSIONS.find((p) => p.className === args.className);
+  const to = Math.max(1, Math.min(20, Math.floor(Number(args.to) || 1)));
+  const from = Math.max(0, Math.min(to, Math.floor(Number(args.from) || 0)));
+  const recorded = args.recorded ?? [];
+  const has = (level: number, kind: PF2ChoiceKind, track?: PF2FeatTrack) =>
+    recorded.find((r) => r.level === level && r.kind === kind && (track ? r.track === track : true));
+
+  const subclassLevels = new Set(prog?.subclassLevels ?? (prog?.subclassName ? [1] : []));
+  const outstanding: PF2OutstandingChoice[] = [];
+
+  for (let level = 1; level <= to; level++) {
+    // The class's defining choice (Instinct/Bloodline/Doctrine/…) — only when the class HAS one.
+    if (prog?.subclassName && subclassLevels.has(level) && !pf2Satisfied(has(level, 'subclass'), 'subclass')) {
+      outstanding.push({
+        level,
+        kind: 'subclass',
+        label: prog.subclassName,
+        detail: `Your ${prog.className}'s defining choice — it shapes features you gain now and later.`,
+      });
+    }
+    // One feat prompt per track that grants a slot this level (the tested schedule).
+    for (const track of FEAT_TRACKS) {
+      if (!pf2FeatLevelsFor(track, level, prog?.classFeatLevels).includes(level)) continue;
+      if (pf2Satisfied(has(level, 'feat', track), 'feat')) continue;
+      outstanding.push({ level, kind: 'feat', track, label: TRACK_LABEL[track], detail: `Pick a ${track} feat you qualify for.` });
+    }
+    // Universal 4-attribute boosts.
+    if (ABILITY_BOOST_LEVELS.has(level) && !pf2Satisfied(has(level, 'boosts'), 'boosts')) {
+      outstanding.push({ level, kind: 'boosts', label: 'Attribute boosts', detail: 'Raise four different attributes by 1 (partial past +4).', pick: 4 });
+    }
+  }
+
+  outstanding.sort((a, b) => a.level - b.level);
+  return { from, to, outstanding, ready: outstanding.length === 0 };
+}
+
+/** Add or REPLACE a recorded choice (same level + kind + track), returning a new array. */
+export function pf2RecordChoice(recorded: PF2RecordedChoice[], choice: PF2RecordedChoice): PF2RecordedChoice[] {
+  const rest = recorded.filter(
+    (r) => !(r.level === choice.level && r.kind === choice.kind && (r.track ?? null) === (choice.track ?? null)),
+  );
+  return [...rest, choice];
 }
