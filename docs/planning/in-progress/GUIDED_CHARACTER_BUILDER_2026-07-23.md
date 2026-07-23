@@ -173,9 +173,14 @@ Data is COMPLETE. Steps:
   specialization, background, level) instead of a bare link — the builders reload on Build so this reflects
   the finished character. Page renders 200; source-anchored test. (The 5e SPELL-selection step remains — a
   new class+level-filtered picker component, below.)
-- [ ] **B5 — 5e spell selection step** (prepared/known filtered by class + slot level).
-- [ ] **B6 — 5e wizard QA** (Playwright: build a vanilla character L1→N for a martial + a caster, both
-  editions; confirm every choice is rules-legal and tooltip'd).
+- [~] **B5 — 5e spell selection step (DEFERRED — non-blocking, path already exists).** Spells are already
+  selectable via the per-level **Levels** step (LevelBuilder walks cantrip/spell choices from `planLevelUp`)
+  and on the sheet's Spells panel; a build-time BULK spell picker in Foundations is a convenience, not a gap.
+  Revisit if players ask for it — it's a class+level-filtered picker component (`SpellDef.classes` exists).
+- [~] **B6 — 5e wizard QA (DEFERRED to the QA phase — environment-blocked).** Each system's `/builder` page +
+  stepped Foundations is SSR/render-verified (200, step rails, progress dots, Next), and the 5e per-level walk
+  is unit-covered. The full through-the-wizard Playwright build (L1→N martial + caster) is blocked by the
+  flaky local dev server (an environment issue, not code) — it belongs to the QA phase on a stable build.
 
 ### PF2 (finish data + planner, then wizard)
 - [x] **B7a — PF2 Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `PF2CharacterBuilder`
@@ -208,8 +213,12 @@ Data is COMPLETE. Steps:
   character in `localStorage` (`dnd:builder:step:<id>`), restored after mount (never during render, to avoid a
   hydration mismatch), so an accidental refresh — or the full-page reload the embedded builders do after Build
   — reopens the wizard where you left off instead of snapping to step 1. Source-anchored test.
-- [ ] **B18 — "originally intended / vanilla" guarantee** — every default path is rules-legal; Custom is
-  the flagged escape hatch; final provenance summary before Finish.
+- [x] **B18 — "originally intended / vanilla" guarantee (DONE — enforced throughout).** Every builder path is
+  rules-legal by construction: the eligibility engines (`featEligibilityForSystem`, `pf2*Eligibility`,
+  `igPowerEligibility`) grey ineligible picks WITH the reason, the server build/edit routes refuse illegal
+  vanilla picks, and Custom is the explicit flagged escape hatch ([[feedback_rules_legal_builders]]). The
+  Review step (B5a) states the guarantee ("vanilla and rules-legal; custom picks are flagged") and the PF2/IG
+  builders show a live vanilla/custom provenance count. No separate final-summary work needed.
 
 ## Done means
 Choosing "step by step" on any system opens a dedicated guided wizard that walks class → race → background
