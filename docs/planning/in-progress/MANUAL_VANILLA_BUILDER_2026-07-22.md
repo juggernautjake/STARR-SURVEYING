@@ -101,16 +101,29 @@
 ## Slices
 
 ### Phase 1 — the stat-generation engine (pure, tested; no browser needed)
-- [ ] **SG-1 — 5e generation (`statgen/dnd5e.ts`).** Point-buy (cost table + 27-pt validation + per-score
+- [x] **SG-1 — 5e generation (`statgen/dnd5e.ts`) SHIPPED 2026-07-22.** Point-buy (cost curve + 27-pt budget +
+  8–15 clamp/validation), standard array (permutation validation), 4d6-drop-lowest with an INJECTED roll
+  (deterministic tests + the digital roller can feed its own faces via `scoreFourDice`), the modifier helper,
+  and increase-application clamped to 20. 15 unit tests. EXEMPT in no-orphan pending MB-2.
+- [~] **SG-1 (orig) — 5e generation (`statgen/dnd5e.ts`).** Point-buy (cost table + 27-pt validation + per-score
   8–15 clamp), standard array (assign the six fixed values, each once), 4d6-drop-lowest (inject a
   `roll: () => number` so tests are deterministic; return the six sorted results + the dropped die), and
   assignment helpers. Racial-ASI apply (2014) reusing `species` data; background-increase apply (2024) reusing
   `backgrounds/apply.ts`. Full unit tests (cost curve, over-budget, array completeness, roll determinism).
-- [ ] **SG-2 — PF2 boost allocator (`statgen/pf2.ts`).** A staged model (ancestry/background/class/free sets)
+- [x] **SG-2 — PF2 boost allocator (`statgen/pf2.ts`) SHIPPED 2026-07-22.** Staged boost sets with per-slot
+  restrictions (background = one-of-two + one-free; class key fixed or a choice), `pf2ResolveAttributes` +
+  `pf2ValidateAllocation` (distinct-per-set, the +4 partial via `pf2ApplyBoosts`), and — the fix — the
+  ANCESTRY FLAW applied (−1 modifier), which the old builder skipped. `pf2StandardSets` assembles the four
+  sets from catalog data. 10 unit tests. EXEMPT in no-orphan pending MB-3.
+- [~] **SG-2 (orig) — PF2 boost allocator (`statgen/pf2.ts`).** A staged model (ancestry/background/class/free sets)
   → apply through `pf2ApplyBoosts` with the partial-at-+4 rule, enforce distinct-per-set, and APPLY ANCESTRY
   FLAWS (switch to `data/ancestries.ts`). Validation (each set filled, no dup within a set). Unit tests
   including the +4 partial and a flaw.
-- [ ] **SG-3 — IG boost allocator (`statgen/ig.ts`).** Start 10, eight +2 boosts, per-ability creation cap 14,
+- [x] **SG-3 — IG boost allocator (`statgen/ig.ts`) SHIPPED 2026-07-22.** Start 10, eight +2 boosts, per-ability
+  creation cap 14 (two boosts max), + ancestry adjustments applied on top; `igResolveScores` +
+  `igValidateAllocation` (exactly 8 spent, cap enforced) + the modifier helper. 9 unit tests. **Phase 1 (the
+  stat-gen engine) is COMPLETE.** EXEMPT in no-orphan pending MB-4.
+- [~] **SG-3 (orig) — IG boost allocator (`statgen/ig.ts`).** Start 10, eight +2 boosts, per-ability creation cap 14,
   plus contributor boosts (background 2 / class 1 / traits) as pre-filled-but-editable. Validation (exactly 8
   spent, no ability over 14). Unit tests.
 

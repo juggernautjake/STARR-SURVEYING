@@ -28,6 +28,10 @@ const EXEMPT: Record<string, string> = {
     'PENDING WIRING (SG-2): the pure PF2 attribute-boost allocator (staged sets, per-slot restrictions, +4 ' +
     'partial rule, ancestry flaws) for the manual builder. Built ahead of its UI; wired by MB-3 (the PF2 ' +
     'manual builder upgrade), when this exemption is removed. Unit-tested in statgen-pf2.test.ts.',
+  'lib/dnd/statgen/ig.ts':
+    'PENDING WIRING (SG-3): the pure IG ability-boost allocator (start 10, eight +2 boosts, creation cap 14, ' +
+    'ancestry adjustments). Built ahead of its UI; wired by MB-4 (the IG manual builder upgrade), when this ' +
+    'exemption is removed. Unit-tested in statgen-ig.test.ts.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
