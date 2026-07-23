@@ -32,6 +32,7 @@ import './rollBoard.css'
 // up to reveal the number. Deliberately a touch longer + more theatrical than the old deal-a-hand. The full
 // calculation + total still reads BELOW the cards (the always-show-breakdown rule). Reads only the RollFeed.
 const SUITS = ['♠', '♥', '♦', '♣'] as const
+const SHUFFLE_PATTERNS = 3 // CSS variants (.rbn-shuf-0..2) picked at random each roll
 type BoardPhase = 'idle' | 'flipback' | 'out' | 'in' | 'shuffle' | 'reveal' | 'shown'
 interface Shown {
   value: number
@@ -42,6 +43,24 @@ interface Shown {
   fumble: boolean
   boosts?: string[]
   penalties?: string[]
+  natural?: number
+  isD20?: boolean
+}
+
+interface Face { value: string; label: string; total?: boolean }
+const signedStr = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
+
+/** The three card faces for a roll. The TOTAL is the headline (revealed first); the other two show the
+ *  supporting numbers — a d20's natural roll + its modifier, or (for a pool) the first breakdown numbers —
+ *  so "reveal all" shows what the other two cards were. */
+function boardFaces(s: Shown): Face[] {
+  const total: Face = { value: String(s.value), label: 'total', total: true }
+  if (s.isD20 && s.natural != null) {
+    return [{ value: String(s.natural), label: 'natural' }, { value: signedStr(s.value - s.natural), label: 'modifier' }, total]
+  }
+  const nums = (s.breakdown.match(/\d+/g) ?? []).slice(0, 2)
+  const other = (v: string | undefined, label: string): Face => (v ? { value: v, label } : { value: '·', label: '' })
+  return [other(nums[0], 'dice'), other(nums[1], nums[1] ? 'dice' : ''), total]
 }
 
 export function BoardStage() {
@@ -52,6 +71,8 @@ export function BoardStage() {
   const [shown, setShown] = useState<Shown | null>(null)
   const [revealIndex, setRevealIndex] = useState(1)
   const [deck, setDeck] = useState(0) // re-keys the cards each roll so the slide-in animation restarts
+  const [revealAll, setRevealAll] = useState(false) // flips the other two cards to show what they were
+  const [shufN, setShufN] = useState(0) // which random shuffle pattern this roll uses (.rbn-shuf-N)
   const timers = useRef<number[]>([])
   const lastToken = useRef(-1)
   const cardUp = useRef(false) // whether a card is currently face-up (drives the opening flip-back)
@@ -79,6 +100,7 @@ export function BoardStage() {
       cardUp.current = false
       setPhase('idle')
       setShown(null)
+      setRevealAll(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll])
@@ -95,8 +117,11 @@ export function BoardStage() {
     const data: Shown = {
       value: e.total, label: e.label, breakdown: e.breakdown, tag: e.tag,
       crit: activeRoll.crit, fumble: activeRoll.fumble, boosts: e.boosts, penalties: e.penalties,
+      natural: activeRoll.landing, isD20: activeRoll.isD20,
     }
     const idx = ((activeRoll.token % 3) + 3) % 3 // which of the three cards reveals (varies per roll)
+    setRevealAll(false) // a new roll hides the other two again
+    setShufN(Math.floor(Math.random() * SHUFFLE_PATTERNS)) // alternate shuffle patterns at random
     const chime = () => {
       if (activeRoll.fumble) errorBuzz()
       else if (activeRoll.crit) tada()
@@ -125,9 +150,9 @@ export function BoardStage() {
       at(t, () => { setPhase('out'); whoosh() }); t += 460
       at(t, () => { setShown(data); setRevealIndex(idx); setDeck((d) => d + 1); setPhase('in') }); t += 460
     }
-    // A longer, more elaborate mix (owner) — the CSS shuffle keyframes run ~1s.
-    at(t, () => { setPhase('shuffle'); tick(0.5) }); t += 1000
-    at(t, () => { setPhase('reveal'); cardUp.current = true; chime() }); t += 620
+    // A longer, more elaborate mix (owner) — the CSS shuffle patterns run ~1.5s with several passes.
+    at(t, () => { setPhase('shuffle'); tick(0.3) }); at(t + 500, () => tick(0.6)); at(t + 1000, () => tick(0.9)); t += 1500
+    at(t, () => { setPhase('reveal'); cardUp.current = true; chime() }); t += 640
     at(t, () => {
       setPhase('shown')
       commitRoll(e)
@@ -141,26 +166,36 @@ export function BoardStage() {
 
   const idle = phase === 'idle' && !shown
   const label = phase === 'out' || phase === 'in' ? 'shuffling…' : phase === 'shuffle' ? 'mixing…' : phase === 'reveal' || phase === 'shown' ? 'the reveal' : 'Roll Board'
+  // Assign the three faces to the three card slots so the TOTAL lands on the reveal card and the other two
+  // carry the supporting numbers (seen with "reveal all").
+  const faces = shown ? boardFaces(shown) : null
+  const totalFace = faces?.find((f) => f.total) ?? null
+  const others = faces?.filter((f) => !f.total) ?? []
+  const slotFace = (i: number): Face | null => (i === revealIndex ? totalFace : others[i < revealIndex ? i : i - 1] ?? null)
+  // Font scales down as the number grows so up to 999 fits the card.
+  const digitClass = (v: string) => `rbn-d${Math.min(4, (v.match(/\d/g)?.length ?? 1))}`
 
   return (
-    <div className={`rb-felt rbn-phase-${phase} ${shown?.crit ? 'is-crit' : ''} ${shown?.fumble ? 'is-fumble' : ''}`}>
+    <div className={`rb-felt rbn-phase-${phase} rbn-shuf-${shufN} ${revealAll ? 'rbn-all' : ''} ${shown?.crit ? 'is-crit' : ''} ${shown?.fumble ? 'is-fumble' : ''}`}>
       <div className="rb-felt-label">{label}</div>
 
-      {/* Three cards. Only the reveal card flips face-up (`.is-up`); the phase drives slide/shuffle on all.
-          Each card carries a suit (♠♥♦♣) in its corners, tinted like the back's star. */}
+      {/* Three cards. The reveal card flips face-up (`.is-up`); "reveal all" flips the other two too. Each
+          card carries a suit (♠♥♦♣) on its FRONT corners, tinted like the back's star. */}
       <div className="rbn-cards" key={deck} aria-hidden={idle}>
         {[0, 1, 2].map((i) => {
           const suit = SUITS[(i + deck) % SUITS.length]
+          const face = slotFace(i)
+          const up = revealAll || ((phase === 'reveal' || phase === 'shown') && i === revealIndex)
           return (
-            <div key={i} className={`rbn-card rbn-c${i}${i === revealIndex ? ' is-reveal' : ''}${(phase === 'reveal' || phase === 'shown') && i === revealIndex ? ' is-up' : ''}`}>
+            <div key={i} className={`rbn-card rbn-c${i}${i === revealIndex ? ' is-reveal' : ''}${up ? ' is-up' : ''}`}>
               <div className="rbn-inner">
                 <div className="rbn-back" aria-hidden>
                   <span className="rbn-star">✦</span>
                 </div>
                 <div className="rbn-front">
-                  {/* Suits only on the FRONT — seen when the card flips over (owner). */}
                   <span className="rbn-pip rbn-pip-tl" aria-hidden>{suit}</span>
-                  <span className="rbn-num">{shown ? shown.value : ''}</span>
+                  <span className={`rbn-num ${digitClass(face?.value ?? '')}`}>{face ? face.value : ''}</span>
+                  {face?.label ? <span className="rbn-face-label">{face.label}</span> : null}
                   <span className="rbn-pip rbn-pip-br" aria-hidden>{suit}</span>
                 </div>
               </div>
@@ -168,6 +203,13 @@ export function BoardStage() {
           )
         })}
       </div>
+
+      {/* Reveal-all toggle — flip the other two cards to see what they were. */}
+      {(phase === 'shown') && others.length > 0 && (
+        <button type="button" className="rbn-revealall" onClick={() => setRevealAll((v) => !v)}>
+          {revealAll ? 'hide the other cards' : 'reveal all cards'}
+        </button>
+      )}
 
       {idle ? (
         <div className="rb-idle"><span>tap a stat to roll — a card reveals it</span></div>
