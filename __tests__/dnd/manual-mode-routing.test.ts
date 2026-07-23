@@ -9,10 +9,12 @@ import { join } from 'node:path';
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
 describe('manual mode routing', () => {
-  it('the new-character form does NOT run AI ingestion for stepbystep mode', () => {
+  it('the new-character form routes stepbystep to the guided builder without AI ingestion', () => {
     const form = read('app/dnd/_ui/NewCharacterForm.tsx');
-    expect(form).toMatch(/if \(mode !== 'stepbystep'\)/);
-    // the ingest call is inside that guard
+    // stepbystep is the guided manual builder: route to /builder, and DON'T run AI ingestion.
+    expect(form).toMatch(/mode === 'stepbystep'/);
+    expect(form).toMatch(/characters\/\$\{j\.characterId\}\/builder/);
+    // The ingest call still exists for the AI modes, in the else branch.
     expect(form).toContain('/ingest');
   });
 

@@ -146,12 +146,15 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // The IG hero is the table-facing pair: Vitals (HP + saves) and Combat. The rest folds into the
   // reference drawer.
   if (effLayout === 'play') {
-    const heroIds = new Set(['ig-vitals', 'ig-combat']);
+    // Abilities join the hero so a player can roll/set an ability at the table without opening the drawer
+    // (S8c) — Vitals (HP + stance + conditions) and Combat lead, Abilities beside them.
+    const heroIds = new Set(['ig-vitals', 'ig-abilities', 'ig-combat']);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
     const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;
     const hero = (
       <>
         {render('ig-vitals')}
+        {render('ig-abilities')}
         {render('ig-combat')}
       </>
     );
@@ -165,7 +168,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
           roller={roller}
           storageKey={characterId}
           drawerPanels={drawerPanels}
-          drawerHint="abilities · skills · powers · feats"
+          drawerHint="skills · powers · feats · reference"
         />
         {overlays}
       </div>

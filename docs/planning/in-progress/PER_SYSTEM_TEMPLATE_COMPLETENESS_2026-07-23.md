@@ -99,6 +99,40 @@ Where a real gap CAN exist:
 - [ ] Confirm the 2014 sheet shows no 2024-exclusive rules and vice-versa (edition-bleed suite already
   guards data; verify the sheet surface too).
 
+### S7 — PF2 sheet completeness gaps (from the 2026-07-23 audit — REAL, several severe)
+Two subagent audits found the stance-class bug is NOT unique to IG. PF2 has several always-relevant
+mechanics with server ops but missing/buried UI. Ordered most-severe first:
+- [ ] **S7a — HP editable (damage/heal/temp).** `usePf2Panels.tsx` HP is a read-only `<Stat>`; port IG's
+  −/＋ control posting `apply_damage`/`heal`/`set_temp_hp` (ops already in PF2 `edit.ts`). Defenses block is
+  in the identity column + Play hero → shows on every template.
+- [ ] **S7b — Dying / Wounded death track renders + settable.** `model.ts` has `dyingValue`/`woundedValue`,
+  `edit.ts` has `set_dying`/`set_wounded`, but no panel shows them — a downed PF2 PC shows nothing. Add
+  Dying (n/4) + Wounded pips + steppers to Defenses.
+- [ ] **S7c — Conditions add/remove from the sheet + ungate.** Panel gated on `hasConditions` (hidden until
+  one exists) and view-only, so a player can't add their first condition. Ungate for editors
+  (`hasConditions || canDoEdit`) + add/remove controls posting `set_condition`.
+- [ ] **S7d — Hero Points** (currently absent model→op→UI): add `heroPoints` to `PF2Character`, a
+  `set_hero_points` op, and a view + spend/gain control in Defenses (surfaced on every template).
+- [ ] **S7e — Focus Points pool** (untracked): add `focusPoints`/`focusPointsMax` to `PF2Spellcasting`,
+  a set/spend/Refocus control in the Spells panel; focus spells are flagged but uncastable without it.
+- [ ] **S7f — promote conditions into the Codex/Dashboard identity + Play hero when present**, so active
+  penalties are visible while fighting (not one collapsed drawer away).
+- [ ] **S7g — skill actions** (Trip/Grapple/Demoralize/Feint/Recall Knowledge…) — lower priority reference.
+
+### S8 — IG sheet completeness gaps (from the 2026-07-23 audit)
+Stance + conditions are fixed (S0), but the audit found more of the same pattern:
+- [x] **S8a — Defensive Power lifted out of the `hasCombat` gate.** Added the `set_defensive_power` control
+  to the Vitals "In Play" block (beside stance/conditions), so it's available on every template; still shown
+  in Combat too. (DONE 2026-07-23)
+- [ ] **S8b — Attacks have no add/edit/remove UI** on any template — the ops (`add_attack`/`update_attack`/
+  `remove_attack`) and `IGElementEditor` `kind:'weapon'` exist but are never invoked. Wire a `＋ add weapon`/
+  `✎`/`×` set into the Combat attacks table, mirroring the Powers panel.
+- [x] **S8c — Ability scores are drawer-only on Play.** Added `ig-abilities` to the Play `heroIds` so a
+  player can roll/set an ability at the table without opening the drawer. (DONE 2026-07-23)
+- [ ] **S8d — three-action economy double-collapsed on Codex** (low): open the `<details>` by default or
+  add `ig-reference` to the Codex default-open set.
+- [ ] **S8e — nonlethal damage not settable** (low): add a nonlethal toggle beside the HP damage control.
+
 ## Done means
 Every (system × template × style × theme) renders that system's full mechanic set, nothing from another
 system, with the chosen style/theme visibly applied — confirmed by the Playwright/OCR sweep.

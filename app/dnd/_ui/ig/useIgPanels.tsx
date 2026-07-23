@@ -449,7 +449,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
           every template — the old placement buried the selector in Combat behind its has-combat gate, so a
           character without other combat data could never enter a stance. The view shows whenever something
           is active; the write controls appear for an owner (canDoEdit). ─────────────────────────────────── */}
-      {(activeStance || cb.conditions.length > 0 || canDoEdit) && (
+      {(activeStance || cb.conditions.length > 0 || cb.defensivePower || canDoEdit) && (
         <div style={{ display: 'grid', gap: 11, borderTop: '1px solid var(--hx-line)', paddingTop: 12 }}>
           {(activeStance || canDoEdit) && (
             <div style={{ display: 'grid', gap: 6 }}>
@@ -534,6 +534,20 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                   </div>
                 );
               })()}
+            </div>
+          )}
+          {/* Defensive Power (a reaction) — lifted here from Combat (S8a) so it isn't trapped behind the
+              has-combat gate; it's ALSO still shown in Combat, like stance. */}
+          {(cb.defensivePower || canDoEdit) && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={label}>{ACTION_GLYPH.Reaction} Defensive Power <span style={{ textTransform: 'none', letterSpacing: 0 }}>(reaction)</span></span>
+              {cb.defensivePower && <div>{chip(cb.defensivePower)}</div>}
+              {canDoEdit && (
+                <select aria-label="Defensive power (In Play)" value={cb.defensivePower} disabled={editing} onChange={(ev) => postEdit({ op: 'set_defensive_power', name: ev.target.value })} style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px', justifySelf: 'start' }}>
+                  <option value="">— no defensive power —</option>
+                  {IG_DEFENSIVE_POWERS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+                </select>
+              )}
             </div>
           )}
         </div>

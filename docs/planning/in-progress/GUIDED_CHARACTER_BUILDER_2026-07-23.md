@@ -118,12 +118,21 @@ Data is COMPLETE. Steps:
 ## Slice roadmap (ordered, buildable)
 
 ### Foundations
-- [ ] **B1 — Wizard shell + route.** `app/dnd/characters/[id]/builder/page.tsx` + `GuidedBuilder` shell
-  (step rail, current-step frame, live preview, Back/Next, owed-choices gating). Route `stepbystep` mode
-  here (NewCharacterForm + import route redirect). Define the `BuildPlan`/`BuildStep` interface. Ship with
-  a stub plan so the shell renders end-to-end.
+- [x] **B1 — Wizard shell + route (DONE 2026-07-23).** `app/dnd/characters/[id]/builder/page.tsx` (owner-
+  gated, per-system step assembly) + `GuidedBuilder` shell (`app/dnd/_ui/builder/GuidedBuilder.tsx`: phase-
+  grouped step rail, current-step frame, Back/Next, Finish→sheet). `lib/dnd/builder/types.ts` defines the
+  `GuidedStepMeta`/phase model. `stepbystep` mode now routes here (NewCharacterForm). B1 reuses the existing
+  per-system builders as the Foundations step body + the 5e `LevelBuilder` as the Levels step, so it's a
+  real working page; later slices deepen each step.
+- [x] **B1r — permanently docked roller in the builder (DONE 2026-07-23).** `app/dnd/_ui/builder/
+  BuilderRoller.tsx` — the same animated Dice Core stage + dice pad the sheet uses, rendered INLINE (no
+  FloatingRoller), docked in the builder's left column with a "Roll a stat" (4d6-drop-lowest) button. The
+  sheet/play roller stays a movable/resizable floating modal (unchanged). Owner: "the builder roller is a
+  fixed page mechanic; the sheet roller still floats."
 - [ ] **B2 — Tooltip/help kit.** Standardize an `InfoTip`/`RuleTip` wrapper the steps use for every option
-  (rules text + prereqs + "what it grants"), + a glossary "?" affordance. Wire `lib/dnd/glossary`.
+  (rules text + prereqs + "what it grants"), + a glossary "?" affordance. Wire `lib/dnd/glossary`. Also:
+  wire the docked roller's "Roll a stat" result INTO the abilities step (auto-fill the field), and replace
+  the one-shot Foundations bodies with true per-choice flows (B3+).
 
 ### 5e (has the engine — do this system first, end-to-end)
 - [ ] **B3 — 5e Foundations steps** (class/species/background/abilities) reusing `StatGenPanel` + catalogs,
