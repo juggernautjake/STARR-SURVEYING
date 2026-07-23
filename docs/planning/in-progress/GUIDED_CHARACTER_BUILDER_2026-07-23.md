@@ -147,8 +147,13 @@ Data is COMPLETE. Steps:
   bodies become true per-choice flows.
 
 ### 5e (has the engine — do this system first, end-to-end)
-- [ ] **B3 — 5e Foundations steps** (class/species/background/abilities) reusing `StatGenPanel` + catalogs,
-  persisting foundation picks.
+- [x] **B3 — 5e Foundations walk step-by-step (DONE 2026-07-23).** `Dnd5eManualBuilder` gained a
+  `layout='steps'` mode that walks its SAME sections one at a time — Class & level → Species/Race →
+  Background → Ability scores → Feats & finish — with per-step help text, a progress bar (click a dot to
+  jump), and Prev/Next; the panel layout (sheet page) is unchanged, and all state/validation/`/dnd5e-build`
+  POST are reused (no logic duplicated). The wizard mounts it with `layout="steps"`. Verified in the SSR
+  HTML (step 1 "Class & level", Next, progress dots for all 5 steps). Reuses `StatGenPanel` for abilities +
+  the docked roller for 4d6.
 - [ ] **B4 — 5e per-level steps** from `planLevelUp().outstanding` (subclass/ASI/feat/style/expertise/
   cantrip) with eligibility + tooltips, persisting to `data.build.choices` via `/levels`.
 - [ ] **B5 — 5e spell selection step** (prepared/known filtered by class + slot level) + Review & Finish.

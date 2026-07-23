@@ -48,14 +48,20 @@ export default function Dnd5eManualBuilder({
   system,
   characterId,
   onBuild,
+  layout = 'panel',
 }: {
   system: string;
   /** When set (and no `onBuild`), the builder persists via POST /dnd5e-build then reloads, like the PF2/IG
    *  builders — so it works standalone. Provide `onBuild` to intercept instead. */
   characterId?: string;
   onBuild?: (result: Dnd5eBuildResult) => void;
+  /** 'panel' (default) shows every field at once — the sheet-page builder. 'steps' walks the SAME fields
+   *  one section at a time with Prev/Next, for the guided /builder wizard (B3). Same state, validation,
+   *  and POST — only the presentation differs. */
+  layout?: 'panel' | 'steps';
 }) {
   const [saving, setSaving] = React.useState(false);
+  const [fstep, setFstep] = React.useState(0); // which foundation section is shown in 'steps' layout
   const is2024 = system === 'dnd5e-2024';
   const speciesList = React.useMemo(() => speciesCatalogFor(system), [system]);
   const classList = React.useMemo(() => classesForSystem(system), [system]);
@@ -106,111 +112,159 @@ export default function Dnd5eManualBuilder({
     }
   };
 
+  // ── Section nodes — defined once, then arranged by `layout` (panel = all at once; steps = one at a time,
+  //    same state/validation/POST). Extracting them keeps the two layouts from drifting. ─────────────────
+  const levelField = (
+    <Field label="Level">
+      <select value={level} onChange={(e) => setLevel(Number(e.target.value))} style={selectStyle}>
+        {Array.from({ length: 20 }, (_, i) => i + 1).map((l) => <option key={l} value={l}>{l}</option>)}
+      </select>
+    </Field>
+  );
+  const speciesField = (
+    <Field label={is2024 ? 'Species' : 'Race'}>
+      <select value={species} onChange={(e) => setSpecies(e.target.value)} style={selectStyle}>
+        <option value="">—</option>
+        {speciesList.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+      </select>
+    </Field>
+  );
+  const classField = (
+    <Field label="Class">
+      <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={selectStyle}>
+        <option value="">—</option>
+        {classList.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+      </select>
+    </Field>
+  );
+  const subclassField = subclassUnlocked ? (
+    <Field label="Subclass">
+      <select value={subclass} onChange={(e) => setSubclass(e.target.value)} style={selectStyle}>
+        <option value="">—</option>
+        {subOptions.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+      </select>
+    </Field>
+  ) : null;
+  const backgroundField = (
+    <Field label="Background">
+      <select value={background} onChange={(e) => { setBackground(e.target.value); setBgSpread({}); }} style={selectStyle}>
+        <option value="">—</option>
+        {bgList.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+      </select>
+    </Field>
+  );
+  const bgSpreadNode = is2024 && bgAbils.length > 0 ? (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600 }}>Background increase — assign +2/+1 (or +1/+1/+1), total +3:</div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {bgAbils.map((a) => (
+          <label key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <strong>{a.toUpperCase()}</strong>
+            <select value={bgSpread[a] ?? 0} onChange={(e) => setBgSpread((cur) => ({ ...cur, [a]: Number(e.target.value) }))} style={{ ...selectStyle, width: 64 }}>
+              <option value={0}>—</option>
+              <option value={1}>+1</option>
+              <option value={2}>+2</option>
+            </select>
+          </label>
+        ))}
+        <span style={{ fontSize: 12, opacity: 0.7, alignSelf: 'center' }}>assigned +{bgSpreadTotal}</span>
+      </div>
+    </div>
+  ) : null;
+  const abilitiesNode = (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700 }}>Ability scores</div>
+      <StatGenPanel value={base} onChange={setBase} method={method} onMethodChange={setMethod} increases={increases} increaseLabel={is2024 ? 'Backg.' : 'Racial'} />
+    </div>
+  );
+  const featsNode = featSlots > 0 ? (
+    <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+        Feats — {featSlots} ASI/feat slot{featSlots === 1 ? '' : 's'} by level {level} ({feats.length} chosen)
+      </div>
+      {featList.length === 0 ? (
+        <div style={{ fontSize: 12.5, opacity: 0.7 }}>No feat catalog for this edition yet — take ASIs, or add feats later on the sheet.</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 160, overflowY: 'auto' }}>
+          {featList.map((f) => {
+            const on = feats.includes(f.name);
+            const full = !on && feats.length >= featSlots;
+            return (
+              <button key={f.name} type="button" disabled={full}
+                onClick={() => setFeats((cur) => on ? cur.filter((x) => x !== f.name) : [...cur, f.name])}
+                style={{ fontSize: 12, padding: '4px 9px', borderRadius: 6, cursor: full ? 'default' : 'pointer', opacity: full ? 0.45 : 1,
+                  border: `1px solid ${on ? 'var(--hx-gold-1, #8a6d3b)' : LINE}`, background: on ? 'var(--hx-inset-strong, rgba(130,132,140,0.14))' : 'none', color: 'inherit' }}>
+                {on ? '✓ ' : ''}{f.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  ) : null;
+  const validationNode = !validation.valid || !bgSpreadOk ? (
+    <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--hx-danger, #c0392b)', fontSize: 12.5 }}>
+      {validation.errors.map((e, i) => <li key={i}>{e}</li>)}
+      {!bgSpreadOk && <li>Background increase must total +3 (+2/+1 or +1/+1/+1).</li>}
+    </ul>
+  ) : null;
+  const buildButton = (
+    <button type="button" disabled={!canBuild}
+      onClick={() => doBuild({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats })}
+      style={{ justifySelf: 'start', fontSize: 14, fontWeight: 700, padding: '9px 18px', borderRadius: 9, cursor: canBuild ? 'pointer' : 'default', opacity: canBuild ? 1 : 0.5,
+        border: `1px solid var(--hx-gold-1, #8a6d3b)`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' }}>
+      {saving ? 'Building…' : 'Build character'}
+    </button>
+  );
+
+  // ── STEPS layout (B3) — the guided /builder wizard walks the SAME sections one at a time. ─────────────
+  if (layout === 'steps') {
+    const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${LINE}`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' };
+    const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
+      { title: 'Class & level', help: 'Choose your class (and subclass, once your level unlocks it) and the level you are building to.', body: <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>{levelField}{classField}{subclassField}</div> },
+      { title: is2024 ? 'Species' : 'Race', help: is2024 ? 'Your species sets traits; 2024 puts ability increases on your background, not here.' : 'Your race sets traits and its ability score increases (folded into the scores step).', body: <div style={{ display: 'grid', gap: 10, maxWidth: 340 }}>{speciesField}</div> },
+      { title: 'Background', help: is2024 ? 'Your background grants an origin feat and a +2/+1 (or +1/+1/+1) ability increase you assign below.' : 'Your background grants skills, tools, and a feature.', body: <div style={{ display: 'grid', gap: 12 }}><div style={{ maxWidth: 340 }}>{backgroundField}</div>{bgSpreadNode}</div> },
+      { title: 'Ability scores', help: 'Set your six ability scores — standard array, point buy, or roll (use the docked roller for 4d6-drop-lowest). Increases are folded in.', body: abilitiesNode },
+      { title: 'Feats & finish', help: 'Spend any ASI/feat slots your class has by this level, then build. Only rules-legal picks are offered.', body: <div style={{ display: 'grid', gap: 12 }}>{featsNode ?? <div style={{ fontSize: 12.5, opacity: 0.7 }}>No ASI/feat slots by level {level}.</div>}{validationNode}{buildButton}</div> },
+    ];
+    const idx = Math.min(fstep, stepDefs.length - 1);
+    const cur = stepDefs[idx];
+    return (
+      <div style={{ display: 'grid', gap: 12, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: INSET }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{cur.title}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Foundation {idx + 1} of {stepDefs.length}{is2024 ? ' · D&D 2024' : ' · D&D 2014'}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {stepDefs.map((s, i) => (
+            <button key={i} type="button" onClick={() => setFstep(i)} title={s.title} aria-label={`Go to ${s.title}`}
+              style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', background: i <= idx ? 'var(--hx-teal-1, #0ac8b9)' : LINE }} />
+          ))}
+        </div>
+        <div style={{ fontSize: 12.5, opacity: 0.75, lineHeight: 1.45 }}>{cur.help}</div>
+        <div>{cur.body}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <button type="button" disabled={idx === 0} onClick={() => setFstep((i) => Math.max(0, i - 1))} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1, cursor: idx === 0 ? 'default' : 'pointer' }}>← Prev</button>
+          {idx < stepDefs.length - 1 && (
+            <button type="button" onClick={() => setFstep((i) => Math.min(stepDefs.length - 1, i + 1))} style={navBtn}>Next →</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PANEL layout (default) — every field at once, as on the sheet page. ──────────────────────────────
   return (
     <div style={{ display: 'grid', gap: 16, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: INSET }}>
       <div style={{ fontSize: 16, fontWeight: 800 }}>Manual build{is2024 ? ' — D&D 2024' : ' — D&D 2014'}</div>
-
-      {/* Core dropdowns */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-        <Field label="Level">
-          <select value={level} onChange={(e) => setLevel(Number(e.target.value))} style={selectStyle}>
-            {Array.from({ length: 20 }, (_, i) => i + 1).map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-        </Field>
-        <Field label={is2024 ? 'Species' : 'Race'}>
-          <select value={species} onChange={(e) => setSpecies(e.target.value)} style={selectStyle}>
-            <option value="">—</option>
-            {speciesList.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Class">
-          <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={selectStyle}>
-            <option value="">—</option>
-            {classList.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
-          </select>
-        </Field>
-        {subclassUnlocked && (
-          <Field label="Subclass">
-            <select value={subclass} onChange={(e) => setSubclass(e.target.value)} style={selectStyle}>
-              <option value="">—</option>
-              {subOptions.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
-            </select>
-          </Field>
-        )}
-        <Field label="Background">
-          <select value={background} onChange={(e) => { setBackground(e.target.value); setBgSpread({}); }} style={selectStyle}>
-            <option value="">—</option>
-            {bgList.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
-          </select>
-        </Field>
+        {levelField}{speciesField}{classField}{subclassField}{backgroundField}
       </div>
-
-      {/* 2024 background ability spread */}
-      {is2024 && bgAbils.length > 0 && (
-        <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>Background increase — assign +2/+1 (or +1/+1/+1), total +3:</div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {bgAbils.map((a) => (
-              <label key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                <strong>{a.toUpperCase()}</strong>
-                <select value={bgSpread[a] ?? 0} onChange={(e) => setBgSpread((cur) => ({ ...cur, [a]: Number(e.target.value) }))} style={{ ...selectStyle, width: 64 }}>
-                  <option value={0}>—</option>
-                  <option value={1}>+1</option>
-                  <option value={2}>+2</option>
-                </select>
-              </label>
-            ))}
-            <span style={{ fontSize: 12, opacity: 0.7, alignSelf: 'center' }}>assigned +{bgSpreadTotal}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Ability scores */}
-      <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700 }}>Ability scores</div>
-        <StatGenPanel value={base} onChange={setBase} method={method} onMethodChange={setMethod} increases={increases} increaseLabel={is2024 ? 'Backg.' : 'Racial'} />
-      </div>
-
-      {/* Feats */}
-      {featSlots > 0 && (
-        <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700 }}>
-            Feats — {featSlots} ASI/feat slot{featSlots === 1 ? '' : 's'} by level {level} ({feats.length} chosen)
-          </div>
-          {featList.length === 0 ? (
-            <div style={{ fontSize: 12.5, opacity: 0.7 }}>No feat catalog for this edition yet — take ASIs, or add feats later on the sheet.</div>
-          ) : (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 160, overflowY: 'auto' }}>
-              {featList.map((f) => {
-                const on = feats.includes(f.name);
-                const full = !on && feats.length >= featSlots;
-                return (
-                  <button key={f.name} type="button" disabled={full}
-                    onClick={() => setFeats((cur) => on ? cur.filter((x) => x !== f.name) : [...cur, f.name])}
-                    style={{ fontSize: 12, padding: '4px 9px', borderRadius: 6, cursor: full ? 'default' : 'pointer', opacity: full ? 0.45 : 1,
-                      border: `1px solid ${on ? 'var(--hx-gold-1, #8a6d3b)' : LINE}`, background: on ? 'var(--hx-inset-strong, rgba(130,132,140,0.14))' : 'none', color: 'inherit' }}>
-                    {on ? '✓ ' : ''}{f.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Validation + build */}
-      {(!validation.valid || !bgSpreadOk) && (
-        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--hx-danger, #c0392b)', fontSize: 12.5 }}>
-          {validation.errors.map((e, i) => <li key={i}>{e}</li>)}
-          {!bgSpreadOk && <li>Background increase must total +3 (+2/+1 or +1/+1/+1).</li>}
-        </ul>
-      )}
-      <button type="button" disabled={!canBuild}
-        onClick={() => doBuild({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats })}
-        style={{ justifySelf: 'start', fontSize: 14, fontWeight: 700, padding: '9px 18px', borderRadius: 9, cursor: canBuild ? 'pointer' : 'default', opacity: canBuild ? 1 : 0.5,
-          border: `1px solid var(--hx-gold-1, #8a6d3b)`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' }}>
-        {saving ? 'Building…' : 'Build character'}
-      </button>
+      {bgSpreadNode}
+      {abilitiesNode}
+      {featsNode}
+      {validationNode}
+      {buildButton}
     </div>
   );
 }

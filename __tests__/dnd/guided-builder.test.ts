@@ -48,6 +48,17 @@ describe('guided character builder (B1)', () => {
     expect(shell).toMatch(/phase/); // phase-grouped rail
   });
 
+  it('walks the 5e Foundations one step at a time in the wizard (B3), reusing the same builder', () => {
+    const builder = read('app/dnd/_ui/Dnd5eManualBuilder.tsx');
+    const page = read('app/dnd/characters/[id]/builder/page.tsx');
+    // The 5e builder gained a 'steps' layout that walks its sections with Prev/Next; the panel layout
+    // (sheet page) is unchanged. The wizard requests the stepped layout.
+    expect(builder).toMatch(/layout\?: 'panel' \| 'steps'/);
+    expect(builder).toMatch(/layout === 'steps'/);
+    expect(builder).toMatch(/Foundation \{idx \+ 1\} of/);
+    expect(page).toMatch(/<Dnd5eManualBuilder[^>]*layout="steps"/);
+  });
+
   it('surfaces the current system\'s rules glossary in the builder (B2)', () => {
     const page = read('app/dnd/characters/[id]/builder/page.tsx');
     const shell = read('app/dnd/_ui/builder/GuidedBuilder.tsx');
