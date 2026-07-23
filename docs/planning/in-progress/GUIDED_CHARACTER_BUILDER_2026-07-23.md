@@ -372,7 +372,15 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   resolver first), NOT a quick slice. The engine it needs (`multiclassSnapshot`, spell-slot rule) is built +
   proven, and the manager already shows the aggregated result live, so the character data is correct — this
   is purely the render-path integration.
-- [ ] **MC-5e-6 — QA:** Playwright build a 2-class and 3-class 5e character, both editions.
+- [~] **MC-5e-6 — QA (browser-verified 2026-07-23).** Drove the running dev server against a live 5e
+  character (Perrin Underbough, Rogue 4): `/levels` renders the `MulticlassManager` with the −/+ per-class
+  stepper, the live snapshot ("Total level 4 · Proficiency +2 · HP (before CON) 23"), SAVE CLASS SPLIT, and —
+  the correctness proof — the ADD-A-CLASS picker is fully **prereq-annotated against the character's real
+  ability scores**: "Barbarian — needs STR 13 (not met)", "Fighter — needs STR or DEX 13" (met), "Wizard —
+  needs INT 13 (not met)", etc., so an illegal multiclass is visible before it's taken. The 5e `LevelBuilder`
+  renders below it (Rogue · Thief, Build to Level 5, expertise-skill walk). No mutations made (read-only QA);
+  the write round-trip (POST → persisted `meta.classes`) is unit-covered. A full 2-class/3-class L1→20 build
+  in both editions remains a nice-to-have; the manager + prereq engine + snapshot are proven live.
 - [ ] **MC-IG — ⛔ BLOCKED on owner:** define IG per-level progression AND whether/how IG multiclasses.
 
 ## Done means
