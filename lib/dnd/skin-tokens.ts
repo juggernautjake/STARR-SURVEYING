@@ -26,6 +26,25 @@
 import type { CSSProperties } from 'react';
 import { SHEET_STYLES } from './sheet-styles';
 import type { SheetTheme } from '@/app/dnd/_sheet/theme';
+import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme } from '@/app/dnd/_sheet/theme';
+
+/** Each skin's FONT set, keyed by `sheet_type`, so the bespoke PF2/IG sheets get the skin's TYPEFACE — not
+ *  only its colours (CS-1). `default` (Hextech) keeps the baseline `--hx-font-*`, so it's absent here. The
+ *  webfonts are loaded on every /dnd page by `_sheet/styles/fonts.css`. */
+const SKIN_FONTS: Record<string, SheetTheme['fonts']> = {
+  lazzuh: lazzuhTheme.fonts,
+  streamer: streamerTheme.fonts,
+  donata: donataTheme.fonts,
+  jack: rangorTheme.fonts,
+};
+
+/** Emit `--hx-font-display` / `--hx-font-body` / `--hx-font-mono` from a theme's `fonts` onto a var map. */
+function emitFontVars(vars: Record<string, string>, fonts: SheetTheme['fonts']) {
+  if (!fonts) return;
+  if (fonts.display) vars['--hx-font-display'] = fonts.display;
+  if (fonts.body) vars['--hx-font-body'] = fonts.body;
+  if (fonts.mono) vars['--hx-font-mono'] = fonts.mono;
+}
 
 // ── tiny hex-colour math ───────────────────────────────────────────────────────
 // Kept local + dependency-free (this module is imported by client sheets). All ops work on plain
@@ -176,6 +195,8 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
     vars['--hx-inset'] = 'rgba(0, 0, 0, 0.05)';
     vars['--hx-inset-strong'] = 'rgba(0, 0, 0, 0.08)';
   }
+  // The skin's TYPEFACE (CS-1) — so a style switch changes the font on PF2/IG, not just the colours.
+  emitFontVars(vars, SKIN_FONTS[style.id]);
   // TS's CSSProperties has no index signature for `--custom` keys; the cast is the standard way to hand
   // React inline CSS custom properties. The values are all plain strings, so this is sound.
   return vars as CSSProperties;
@@ -241,6 +262,9 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
     vars['--hx-inset'] = 'rgba(0, 0, 0, 0.05)';
     vars['--hx-inset-strong'] = 'rgba(0, 0, 0, 0.08)';
   }
+  // The theme's typeface too (streamer's pink/blue variants use the Pixelify set; the shared THEMES all
+  // carry the Hextech font, so those stay put) — CS-1.
+  emitFontVars(vars, theme?.fonts);
   return vars as CSSProperties;
 }
 

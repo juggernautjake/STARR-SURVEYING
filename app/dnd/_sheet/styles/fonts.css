@@ -1,0 +1,11 @@
+/* fonts.css — the skin/theme webfonts, loaded on EVERY /dnd page (imported by the dnd layout).
+ *
+ * These @imports used to live only in the 5e-scoped theme.css, so the bespoke PF2/IG sheets referenced skin
+ * font-families (via --hx-font-*) that were never actually LOADED there — a style switch changed colours but
+ * not the typeface. Loading them from the layout makes every skin's fonts available on every system's sheet.
+ * (theme.css keeps its own copies; browsers de-dupe identical @imports.) */
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@400;500;700;900&family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Rajdhani:wght@500;600;700&family=Syncopate:wght@400;700&family=Michroma&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Silkscreen:wght@400;700&family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,600&family=Fredoka:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap');
