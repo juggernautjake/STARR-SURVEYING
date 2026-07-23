@@ -136,7 +136,16 @@
   inside MB-3/MB-4; the roll-vs-boost UIs are genuinely different, so this "shared" panel is the 5e one.)
 - [~] **MB-1 (orig) — shared `StatGenPanel`.** Method picker + one input per ability + digital-roller hookup + live
   modifier + contribution breakdown. Colour tokens so it reads on every skin. Render-tested.
-- [ ] **MB-2 — the 5e manual builder (the missing one).** Dropdowns: species (+subrace/lineage) · class ·
+- [~] **MB-2 — the 5e manual builder (the missing one). LOGIC LAYER SHIPPED 2026-07-22; UI shell + persist
+  remain.** `lib/dnd/statgen/builder5e.ts` (12 tests over the LIVE catalogs) answers everything the dropdowns
+  need — `dnd5eSpeciesIncreases` (racial 2014 / none 2024), `dnd5eBackgroundAbilities` (the 2024 spread trio),
+  `dnd5eSubclassLevelFor`, `dnd5eFeatLevelsFor` + `dnd5eFeatSlotsAtLevel`, `dnd5eSubclassOptions`, and
+  `dnd5eValidatePicks` (real class, 1–20, subclass required once unlocked). REMAINING: **(MB-2a)** the builder
+  UI shell — species/class/subclass/background/level dropdowns + `StatGenPanel` (increases fed per edition) +
+  feat picks at the ASI levels; **(MB-2b)** assemble-to-level via the shared engine (`classes/engine.ts` +
+  `levelup.ts`) + persist through a `dnd5e-build` route (mirrors pf2/ig-build). These two are the browser-
+  verified UI slices. Original scope:
+  Dropdowns: species (+subrace/lineage) · class ·
   subclass (shown at the class's subclass level) · background · level (1–20). The StatGenPanel (array/
   point-buy/roll) + racial ASI (2014) or background spread (2024). Feat picks at the class's ASI/feat levels
   (`feats/eligibility.ts`). Assemble to the chosen level via the shared engine + `levelup.ts`, posting through
