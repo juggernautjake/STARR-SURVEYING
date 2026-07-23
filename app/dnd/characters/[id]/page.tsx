@@ -252,6 +252,8 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           effective={effectivePreferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences)}
           player={playerPreferences}
           canWrite={canWrite}
+          isOwner={isOwner}
+          characterName={character.name}
         />
       )}
       {approvalPanel}

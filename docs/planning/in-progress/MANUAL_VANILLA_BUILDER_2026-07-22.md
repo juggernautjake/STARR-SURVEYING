@@ -169,7 +169,12 @@
 - [~] **MB-3 (orig) — PF2 manual builder upgrade.** Replace the raw modifier inputs with the SG-2 boost allocator;
   keep the existing ancestry/class/subclass/background/level/skill/feat pickers; build to level via the
   progression data. Feats + subclass at the correct feat levels.
-- [ ] **MB-4 — IG manual builder upgrade.** Replace the raw score inputs with the SG-3 allocator; wire the
+- [x] **MB-4 — IG manual builder upgrade SHIPPED 2026-07-22.** `app/dnd/_ui/IgBoostAllocator.tsx` (3 render
+  tests): IG's method — start 10, eight +2 boosts, max two per ability (cap 14) — as per-ability steppers
+  driving the tested `statgen/ig`, resolved scores/modifiers + remaining budget live. Wired into
+  `IGCharacterBuilder` in place of the raw 1–30 score inputs; still emits `picks.abilities`, so `ig-build` is
+  unchanged. **All four systems' manual stat generation now drive their real, tested engines.**
+- [~] **MB-4 (orig) — IG manual builder upgrade.** Replace the raw score inputs with the SG-3 allocator; wire the
   background/class boosts; keep the ancestry/class/subclass/stance/power/feat pickers; powers/specializations
   at their levels.
 - [ ] **MB-5 — wire the manual mode into entry.** From `NewCharacterForm`, the "manual/step-by-step" choice

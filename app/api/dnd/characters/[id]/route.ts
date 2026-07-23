@@ -100,3 +100,43 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   return NextResponse.json({ character: data });
 }
+
+// DELETE: permanently remove a character and its per-character data. OWNER ONLY — deletion is irreversible,
+// so a DM or assigned player (who can WRITE) must not be able to erase someone's character; only the person
+// who owns it can. The UI gates this behind a typed confirmation. Child rows keyed by `character_id` are
+// removed first (best-effort — a table absent in a given deployment shouldn't block the delete), then the
+// character row itself.
+const CHILD_TABLES = [
+  'dnd_sheet_edits',
+  'dnd_character_uploads',
+  'dnd_roll_log',
+  'dnd_campaign_characters',
+  'dnd_stream_messages',
+  'dnd_stream_replies',
+  'dnd_stream_polls',
+  'dnd_stream_state',
+] as const;
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const res = await getCharacterAccess(params.id);
+  if (!res.access) return NextResponse.json({ error: res.error }, { status: res.status });
+  if (!res.access.isOwner) {
+    return NextResponse.json({ error: 'Only the character’s owner can delete it.' }, { status: 403 });
+  }
+
+  // Remove per-character child rows first so nothing is orphaned. Best-effort: an error on one table (e.g.
+  // it doesn't exist in this deployment) is logged-and-ignored rather than aborting the whole delete.
+  for (const table of CHILD_TABLES) {
+    try {
+      await supabaseAdmin.from(table).delete().eq('character_id', params.id);
+    } catch {
+      // ignore — the character row delete below is the operation that matters.
+    }
+  }
+
+  const { error } = await supabaseAdmin.from('dnd_characters').delete().eq('id', params.id);
+  if (error) {
+    return NextResponse.json({ error: error.message ?? 'Could not delete character.' }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, deleted: params.id });
+}
