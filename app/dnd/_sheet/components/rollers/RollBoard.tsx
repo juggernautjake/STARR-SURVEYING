@@ -6,18 +6,15 @@
 // arithmetic is one answer everywhere and works for every system (5e/PF2/IG). What differs is the
 // RENDER and the DEAL SIMULATION, not the maths.
 //
-// WHY IT LOOKS THE WAY IT DOES. The Dashboard is a grid of cards; the Roll Board echoes that
-// identity. A roll is DEALT as a HAND OF CARDS onto a felt: the natural die flips face-up as the
-// first card, each modifier / source flips down beside it, and the grand total reads as the final
-// HAND VALUE. Advantage/disadvantage deals TWO d20 cards and visibly discards the unused one; a crit
-// deals a highlighted flourish card. Distinct deal-and-flip settle (3D card flip, staggered), NOT
-// the Sigil Stack's vertical cascade.
+// WHY IT LOOKS THE WAY IT DOES (owner 2026-07-22). Three cards sit face down on the felt. On a roll the
+// shown card (if any) flips back over, the three cards slide OFF, three new ones slide IN, mix around, then
+// ONE card flips face up to reveal the number — a longer, more theatrical reveal than the old deal-a-hand.
+// A distinct card sequence, NOT the Sigil Stack's vertical cascade.
 //
-// THE TOTAL IS NEVER RECOMPUTED HERE. The store is the single source of the answer; the cards only
-// EXPLAIN it by rendering the natural die (`activeRoll.landing`), the folded modifier
-// (`entry.total − landing`, exactly what the store folded), the named boosts/penalties, and
-// crit/fumble. The hand value always prints `entry.total`. Boosts read non-red, penalties red — the
-// same contract Dice Core keeps.
+// THE TOTAL IS NEVER RECOMPUTED HERE. The store/feed is the single source of the answer; the revealed card
+// prints `entry.total`, and the FULL calculation (breakdown + tag + named boosts/penalties + total) always
+// reads BELOW the cards — never behind a "show breakdown" click. Works for every system (5e/PF2/IG) from the
+// same `activeRoll`; boosts read non-red, penalties red, the same contract the other rollers keep.
 import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
@@ -28,103 +25,41 @@ import { shouldAnimateRoller } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
 
-type CardKind = 'die' | 'discard' | 'mod' | 'boost' | 'penalty' | 'crit' | 'fumble'
-interface DealtCard {
-  key: string
-  pip: string
+
+// ── The resolution stage: three face-down cards; one flips to reveal the roll ────────────────
+// The owner's card sequence (D-BOARD): three cards sit face down; when a roll comes in, the shown card (if
+// any) flips back over, the three cards slide OFF, three new cards slide IN, mix around, then ONE flips face
+// up to reveal the number. Deliberately a touch longer + more theatrical than the old deal-a-hand. The full
+// calculation + total still reads BELOW the cards (the always-show-breakdown rule). Reads only the RollFeed.
+type BoardPhase = 'idle' | 'flipback' | 'out' | 'in' | 'shuffle' | 'reveal' | 'shown'
+interface Shown {
+  value: number
   label: string
-  value: string
-  kind: CardKind
+  breakdown: string
+  tag?: string
+  crit: boolean
+  fumble: boolean
+  boosts?: string[]
+  penalties?: string[]
 }
 
-const signed = (n: number) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`)
-// Extract the kept die + (for adv/dis) the pair from a d20 breakdown: `d20[7,18]→18` / `d20[14]`.
-const D20_RE = /d20\[([^\]]*)\](?:→(\d+))?/
-
-/** Turn a damage/heal/expr breakdown into readable cards. Typed damage
- *  (`slashing d8[3,5]+3 (11) · poison d6[4] (4)`) splits on ` · ` into per-type cards;
- *  a plain expression (`d8[3,5] +3`) splits into per-die + flat cards. The hand value still
- *  owns the authoritative total, so an imperfect parse never changes the answer. */
-function buildDamageCards(breakdown: string): DealtCard[] {
-  const cards: DealtCard[] = []
-  if (breakdown.includes(' · ')) {
-    breakdown.split(' · ').forEach((part, i) => {
-      const sub = part.match(/\((\d+)\)\s*$/)
-      const label = part.trim().split(/\s+/)[0] || 'damage'
-      cards.push({ key: `t${i}`, pip: '✦', label, value: sub ? sub[1] : part.trim(), kind: 'mod' })
-    })
-    return cards
-  }
-  breakdown.split(/\s+/).filter(Boolean).forEach((tok, i) => {
-    const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/)
-    if (dm) {
-      const sign = dm[1] ? -1 : 1
-      const sum = dm[3].split(',').reduce((a, v) => a + (parseInt(v.trim(), 10) || 0), 0) * sign
-      cards.push({ key: `d${i}`, pip: '◆', label: dm[2], value: signed(sum), kind: 'die' })
-    } else if (/^[+−-]?\d+$/.test(tok)) {
-      const n = parseInt(tok.replace('−', '-'), 10)
-      cards.push({ key: `f${i}`, pip: '♦', label: 'flat', value: signed(n), kind: 'mod' })
-    }
-  })
-  return cards
-}
-
-/** Build the ordered hand of cards for one roll. */
-function buildCards(roll: ActiveRoll): DealtCard[] {
-  const { isD20, landing, entry } = roll
-  const cards: DealtCard[] = []
-  if (isD20) {
-    const m = entry.breakdown.match(D20_RE)
-    const pair = m?.[1] ?? String(landing)
-    // Advantage/disadvantage: the store rolled a pair — deal BOTH d20 cards and mark the one
-    // that was discarded, so the player sees the choice, not just the survivor.
-    if (pair.includes(',') && (entry.mode === 'adv' || entry.mode === 'dis')) {
-      const faces = pair.split(',').map((v) => parseInt(v.trim(), 10)).filter((n) => Number.isFinite(n))
-      faces.forEach((f, i) => {
-        const kept = f === landing && !cards.some((c) => c.kind === 'die')
-        cards.push({
-          key: `d20-${i}`,
-          pip: '♠',
-          label: kept ? (entry.mode === 'adv' ? 'd20 · kept high' : 'd20 · kept low') : 'd20 · discarded',
-          value: String(f),
-          kind: kept ? 'die' : 'discard',
-        })
-      })
-    } else {
-      cards.push({ key: 'die', pip: '♠', label: 'd20', value: String(landing), kind: 'die' })
-    }
-    // The folded modifier the store already computed — total = natural + mod, so this is exact.
-    const mod = entry.total - landing
-    if (mod !== 0) cards.push({ key: 'mod', pip: '♦', label: 'modifiers', value: signed(mod), kind: 'mod' })
-  } else {
-    buildDamageCards(entry.breakdown).forEach((c) => cards.push(c))
-  }
-  entry.boosts?.forEach((b, i) => cards.push({ key: `bo${i}`, pip: '♣', label: b, value: 'helped', kind: 'boost' }))
-  entry.penalties?.forEach((p, i) => cards.push({ key: `pe${i}`, pip: '♥', label: p, value: 'hurt', kind: 'penalty' }))
-  // Crit / fumble deal a highlighted flourish card of their own — the Dashboard's card identity.
-  if (entry.crit && entry.kind !== 'damage') cards.push({ key: 'crit', pip: '★', label: 'NAT 20 · CRIT', value: '×', kind: 'crit' })
-  if (entry.fumble && entry.kind !== 'damage') cards.push({ key: 'fumble', pip: '✖', label: 'NAT 1 · FUMBLE', value: '×', kind: 'fumble' })
-  return cards
-}
-
-// ── The resolution stage: consumes `activeRoll` and deals the cards onto the felt ────────────
 export function BoardStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
-  const [cards, setCards] = useState<DealtCard[]>([])
-  const [visible, setVisible] = useState(0)
-  const [phase, setPhase] = useState<'idle' | 'dealing' | 'settled'>('idle')
-  const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; tag?: string } | null>(null)
+  const [phase, setPhase] = useState<BoardPhase>('idle')
+  const [shown, setShown] = useState<Shown | null>(null)
+  const [revealIndex, setRevealIndex] = useState(1)
+  const [deck, setDeck] = useState(0) // re-keys the cards each roll so the slide-in animation restarts
   const timers = useRef<number[]>([])
   const lastToken = useRef(-1)
+  const cardUp = useRef(false) // whether a card is currently face-up (drives the opening flip-back)
   const pending = useRef<{ entry: ActiveRoll['entry']; done: boolean } | null>(null)
 
   const clearTimers = () => {
     timers.current.forEach((t) => window.clearTimeout(t))
     timers.current = []
   }
-  // Commit any not-yet-logged roll before starting a new one, so rapid clicks never drop entries.
   const flush = () => {
     if (pending.current && !pending.current.done) {
       commitRoll(pending.current.entry)
@@ -132,17 +67,16 @@ export function BoardStage() {
     }
   }
 
-  // Reset to idle when the stage is cleared.
+  // Reset to idle (three face-down cards) when the stage is cleared.
   useEffect(() => {
     if (activeRoll === null) {
       clearTimers()
       flush()
       pending.current = null
       lastToken.current = -1
+      cardUp.current = false
       setPhase('idle')
-      setCards([])
-      setVisible(0)
-      setMeta(null)
+      setShown(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll])
@@ -151,95 +85,85 @@ export function BoardStage() {
     if (!activeRoll || activeRoll.token === lastToken.current) return
     lastToken.current = activeRoll.token
     clearTimers()
-    flush() // log the previous roll if it was still mid-deal
+    flush()
     pending.current = { entry: activeRoll.entry, done: false }
-    const c = buildCards(activeRoll)
-    const sound = () => {
+    primeAudio()
+
+    const e = activeRoll.entry
+    const data: Shown = {
+      value: e.total, label: e.label, breakdown: e.breakdown, tag: e.tag,
+      crit: activeRoll.crit, fumble: activeRoll.fumble, boosts: e.boosts, penalties: e.penalties,
+    }
+    const idx = ((activeRoll.token % 3) + 3) % 3 // which of the three cards reveals (varies per roll)
+    const chime = () => {
       if (activeRoll.fumble) errorBuzz()
       else if (activeRoll.crit) tada()
       else blip()
     }
-    setCards(c)
-    setMeta({ crit: activeRoll.crit, fumble: activeRoll.fumble, total: activeRoll.entry.total, label: activeRoll.entry.label, tag: activeRoll.entry.tag })
-    setPhase('dealing')
-    setVisible(0)
-    primeAudio()
 
-    // Instant: no deal — lay the whole hand at once, still commit + chime. Taken when the player turned
-    // animation off (RO-6) OR the OS asks for reduced motion (`shouldAnimateRoller`).
+    // Instant (animation off / reduced motion): lay the revealed card at once, still commit + chime.
     if (!animate) {
-      setVisible(c.length)
-      setPhase('settled')
-      sound()
-      const done = window.setTimeout(() => {
-        commitRoll(activeRoll.entry)
-        if (pending.current) pending.current.done = true
-      }, 60)
+      setShown(data); setRevealIndex(idx); setDeck((d) => d + 1); setPhase('shown'); cardUp.current = true
+      chime()
+      const done = window.setTimeout(() => { commitRoll(e); if (pending.current) pending.current.done = true }, 60)
       timers.current.push(done)
       return () => clearTimers()
     }
 
-    // Deal-and-flip: each card snaps face-up onto the felt in turn, then the hand value locks.
-    whoosh()
-    const START = 130
-    const STEP = 135
-    for (let i = 0; i < c.length; i++) {
-      const id = window.setTimeout(() => {
-        setVisible(i + 1)
-        tick(c.length > 1 ? i / (c.length - 1) : 1)
-      }, START + i * STEP)
-      timers.current.push(id)
-    }
-    const end = START + c.length * STEP
-    const settle = window.setTimeout(() => {
-      setPhase('settled')
-      sound()
-    }, end)
-    timers.current.push(settle)
-    const commit = window.setTimeout(() => {
-      commitRoll(activeRoll.entry)
+    // The theatrical sequence: flip-back (only if a card was up) → slide out → slide in → shuffle → reveal.
+    const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms))
+    let t = 0
+    if (cardUp.current) { setPhase('flipback'); t += 280 } else { setPhase('idle') }
+    at(t, () => { setPhase('out'); whoosh() }); t += 360
+    at(t, () => { setShown(data); setRevealIndex(idx); setDeck((d) => d + 1); setPhase('in') }); t += 360
+    at(t, () => { setPhase('shuffle'); tick(0.5) }); t += 500
+    at(t, () => { setPhase('reveal'); cardUp.current = true; chime() }); t += 540
+    at(t, () => {
+      setPhase('shown')
+      commitRoll(e)
       if (pending.current) pending.current.done = true
-    }, end + 300)
-    timers.current.push(commit)
+    })
 
     return () => clearTimers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll?.token])
 
+  const idle = phase === 'idle' && !shown
+  const label = phase === 'out' || phase === 'in' ? 'shuffling…' : phase === 'shuffle' ? 'mixing…' : phase === 'reveal' || phase === 'shown' ? 'the reveal' : 'Roll Board'
+
   return (
-    <div className={`rb-felt ${phase === 'settled' ? 'rb-settled' : ''} ${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}`}>
-      <div className="rb-felt-label">{phase === 'idle' ? 'Roll Board' : phase === 'dealing' ? 'dealing…' : 'hand'}</div>
-      {phase === 'idle' ? (
-        <div className="rb-idle">
-          <span>
-            <span className="rb-idlepips" aria-hidden>
-              ♠ ♦ ♣
-            </span>
-            tap a stat to roll — the hand is dealt
-            <br />
-            adv / dis deal two cards, one discarded
-          </span>
-        </div>
-      ) : (
-        <>
-          <div className="rb-hand">
-            {cards.slice(0, visible).map((c) => (
-              <div key={c.key} className={`rb-card rc-${c.kind}`}>
-                <span className="rb-pip rb-pip-tl" aria-hidden>{c.pip}</span>
-                <span className="rb-card-val">{c.value}</span>
-                <span className="rb-card-label">{c.label}</span>
-                <span className="rb-pip rb-pip-br" aria-hidden>{c.pip}</span>
+    <div className={`rb-felt rbn-phase-${phase} ${shown?.crit ? 'is-crit' : ''} ${shown?.fumble ? 'is-fumble' : ''}`}>
+      <div className="rb-felt-label">{label}</div>
+
+      {/* Three cards. Only the reveal card flips face-up (`.is-up`); the phase drives slide/shuffle on all. */}
+      <div className="rbn-cards" key={deck} aria-hidden={idle}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`rbn-card rbn-c${i}${i === revealIndex ? ' is-reveal' : ''}${(phase === 'reveal' || phase === 'shown') && i === revealIndex ? ' is-up' : ''}`}>
+            <div className="rbn-inner">
+              <div className="rbn-back" aria-hidden>✦</div>
+              <div className="rbn-front">
+                <span className="rbn-num">{shown ? shown.value : ''}</span>
               </div>
-            ))}
-          </div>
-          {phase === 'settled' && meta && (
-            <div className="rb-hand-value" role="status">
-              <span className="rb-hv-label">{meta.label}</span>
-              <span className="rb-hv-total">{meta.total}</span>
-              {meta.tag && <span className="rb-hv-tag">{meta.tag}</span>}
             </div>
-          )}
-        </>
+          </div>
+        ))}
+      </div>
+
+      {idle ? (
+        <div className="rb-idle"><span>tap a stat to roll — a card reveals it</span></div>
+      ) : (
+        // The full calculation + total, always shown beneath the reveal (never a "show breakdown" click).
+        <div className="rbn-readout" role="status">
+          <span className="rbn-ro-label">{shown?.label}</span>
+          <span className="rbn-ro-break">{shown?.breakdown}{shown?.tag ? ` · ${shown.tag}` : ''}</span>
+          {(shown?.boosts?.length || shown?.penalties?.length) ? (
+            <span className="rbn-ro-src">
+              {shown?.boosts?.map((b) => <em key={b} className="rbn-src-up">▲ {b}</em>)}
+              {shown?.penalties?.map((p) => <em key={p} className="rbn-src-dn">▼ {p}</em>)}
+            </span>
+          ) : null}
+          <span className="rbn-ro-total">Total <strong>{shown?.value}</strong></span>
+        </div>
       )}
     </div>
   )
