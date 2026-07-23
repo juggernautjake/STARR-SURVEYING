@@ -313,8 +313,18 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   overview footer shows the split for multiclass (subsuming the total level + single subclass) and keeps
   species+class+level for single-class. **So the split now shows on all four template headers** (Classic +
   Codex via Hero, Codex identity via IdentityColumn, Play via PlayLayout, classic footer via App). Anti-drift
-  pinned in `multiclass-display-consumers.test.ts`. DISPLAY layer of MC-5e-5 is complete; only the STAT layer
-  (aggregated HP/prof/slots/features into App.tsx resolution + Feat/Spell pickers) remains.
+  pinned in `multiclass-display-consumers.test.ts`. DISPLAY layer of MC-5e-5 is complete.
+
+  **STAT layer resolved (2026-07-23).** Investigated what the sheet actually RECOMPUTES vs stores: the derive
+  engine keys proficiency / save-DC / skills / initiative off `meta.level` — which the `/classes` route keeps
+  = the TOTAL level — so those are already multiclass-correct with no change. Spell slots are STORED (not
+  auto-derived from class+level for single-class either), so the only genuine gap was the flagship synergy:
+  the level manager PREVIEWED the PHB combined caster-level table ("(multiclass table)") but saving didn't
+  apply it. Closed it — the `/classes` route now writes the rules-correct multiclass slots into an existing
+  spellcasting block via `applyMulticlassSlots`, preserving spent pips (old `current` clamped to new max, new
+  ranks start full; pact/warlock slots left separate; a non-caster split untouched; no spellcasting block
+  invented for a caster-dip since the sheet models a single casting ability). Pinned in
+  `multiclass-slots-apply.test.ts` (incl. end-to-end Cleric 3 / Wizard 2 → CL5 table). **MC-5e-5 done.**
   Original assessment: Make the 5e sheet resolve
   `meta.classes` through `multiclassSnapshot` so a multiclass character's features / HP / proficiency / spell
   slots actually render. **Assessed 2026-07-23:** the class is resolved in MANY sheet components (App.tsx,

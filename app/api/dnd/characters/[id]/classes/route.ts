@@ -10,6 +10,7 @@ import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { findClass } from '@/lib/dnd/classes/registry';
 import { totalClassLevel } from '@/lib/dnd/classes/engine';
+import { characterMulticlass, applyMulticlassSlots, type SlotBlock } from '@/lib/dnd/classes/multiclass-resolve';
 import type { ClassLevel } from '@/lib/dnd/classes/types';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -42,6 +43,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   meta.level = total;
   meta.className = findClass(system, clean[0].classKey)?.name ?? meta.className;
   data.meta = meta;
+
+  // Apply the rules-correct spell slots for the split — the flagship multiclass synergy (the PHB combined
+  // caster-level table, which most trackers get wrong). We only REWRITE the slot COUNTS of an EXISTING
+  // spellcasting block: which ability a multiclass casts with is per-class and the sheet models a single
+  // ability, so we don't invent a spellcasting block for a non-caster who dipped into a caster. This makes
+  // the level manager's "(multiclass table)" preview and the saved sheet agree.
+  const spellcasting = data.spellcasting as { ability?: unknown; slots?: SlotBlock } | undefined;
+  if (spellcasting && spellcasting.ability != null) {
+    const { snapshot } = characterMulticlass(system, { classKey: clean[0].classKey, level: clean[0].level }, clean);
+    const nextSlots = applyMulticlassSlots(snapshot.spellSlots, spellcasting.slots);
+    if (nextSlots) data.spellcasting = { ...spellcasting, slots: nextSlots };
+  }
 
   const { error } = await supabaseAdmin.from('dnd_characters').update({ data }).eq('id', row.id);
   if (error) return NextResponse.json({ error: 'Could not save the class split.' }, { status: 500 });

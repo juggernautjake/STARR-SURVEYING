@@ -10,6 +10,30 @@ import { findClass } from './registry';
 import { resolveClassLevels, multiclassSnapshot, formatClassLevels, type MulticlassSnapshot } from './engine';
 import type { ClassDefinition, SubclassDefinition, ClassLevel } from './types';
 
+/** The sheet's stored standard spell-slot block: `current`/`max` pips per rank (1–9). */
+export type SlotBlock = Partial<Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, { max: number; current: number }>>;
+
+/** Rebuild the standard spell-slot block from a multiclass slot row (`[_, r1..r9]`), PRESERVING spent pips:
+ *  a rank's `current` is clamped to the new max, and a newly-gained rank starts full. Pact (warlock) slots are
+ *  separate in the rules and the sheet has no pact-slot field, so they are intentionally not merged here.
+ *  Returns the new block, or `null` when there is no leveled caster row (so a non-caster split is untouched).
+ *  This is what makes the level manager's "(multiclass table)" preview and the saved sheet agree (MC-5e-5). */
+export function applyMulticlassSlots(
+  row: readonly number[] | undefined,
+  prev: SlotBlock | undefined,
+): SlotBlock | null {
+  if (!row) return null;
+  const next: SlotBlock = {};
+  for (let rank = 1 as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9; rank <= 9; rank = (rank + 1) as typeof rank) {
+    const max = Math.max(0, Math.floor(row[rank] ?? 0));
+    if (max <= 0) continue;
+    const had = prev?.[rank];
+    const current = had ? Math.min(had.current, max) : max; // keep how many are spent; new rank starts full
+    next[rank] = { max, current };
+  }
+  return next;
+}
+
 /** The class line a SHEET shows: the multiclass split ("Fighter 3 / Wizard 2") when the character holds more
  *  than one class, else the single class · subclass exactly as before. Display only — safe for every sheet. */
 export function classDisplayFor(
