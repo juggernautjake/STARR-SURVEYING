@@ -10,7 +10,7 @@
 // B1 ships the shell + navigation, reusing the existing per-system builder components as the step bodies;
 // later slices (B3+) replace those with true per-level choice flows and a live preview. Styling is
 // hextech-token only so every skin applies.
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import styles from '../hextech.module.css';
 import type { GuidedStepMeta } from '@/lib/dnd/builder/types';
@@ -40,7 +40,23 @@ export default function GuidedBuilder({
   glossary?: GlossaryEntry[];
 }) {
   const [active, setActive] = useState(0);
-  const current = steps[active];
+  // Resume where you left off (B17). Persist the current step per character so an accidental refresh — or the
+  // full-page reload the embedded builders do after Build — keeps your place instead of snapping to step 1.
+  // Read AFTER mount (never during render) so the server's step-0 markup and the client's first render agree.
+  useEffect(() => {
+    if (!characterId) return;
+    try {
+      const raw = window.localStorage.getItem(`dnd:builder:step:${characterId}`);
+      const n = raw != null ? parseInt(raw, 10) : NaN;
+      if (Number.isInteger(n) && n >= 0 && n < steps.length) setActive(n);
+    } catch { /* private-mode / disabled storage — a resume is never worth an error */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characterId]);
+  useEffect(() => {
+    if (!characterId) return;
+    try { window.localStorage.setItem(`dnd:builder:step:${characterId}`, String(active)); } catch { /* ignore */ }
+  }, [characterId, active]);
+  const current = steps[Math.min(active, steps.length - 1)];
 
   // Group the rail by phase, preserving first-seen order, so Foundations → Levels → Review reads top-down.
   const phases = useMemo(() => {

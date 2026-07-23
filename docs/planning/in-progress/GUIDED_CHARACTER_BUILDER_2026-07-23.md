@@ -204,7 +204,10 @@ Data is COMPLETE. Steps:
 - [ ] **B16 — IG wizard QA** (Playwright, vanilla L1→10).
 
 ### Cross-cutting
-- [ ] **B17 — resume/partial builds** (a half-finished wizard reopens where it left off).
+- [x] **B17 — resume/partial builds (DONE 2026-07-23).** `GuidedBuilder` persists the current step per
+  character in `localStorage` (`dnd:builder:step:<id>`), restored after mount (never during render, to avoid a
+  hydration mismatch), so an accidental refresh — or the full-page reload the embedded builders do after Build
+  — reopens the wizard where you left off instead of snapping to step 1. Source-anchored test.
 - [ ] **B18 — "originally intended / vanilla" guarantee** — every default path is rules-legal; Custom is
   the flagged escape hatch; final provenance summary before Finish.
 

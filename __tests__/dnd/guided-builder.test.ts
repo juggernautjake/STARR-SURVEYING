@@ -51,6 +51,15 @@ describe('guided character builder (B1)', () => {
     expect(shell).toMatch(/phase/); // phase-grouped rail
   });
 
+  it('resumes the wizard step across a reload, per character (B17)', () => {
+    const shell = read('app/dnd/_ui/builder/GuidedBuilder.tsx');
+    expect(shell).toMatch(/dnd:builder:step:\$\{characterId\}/); // persisted key
+    expect(shell).toMatch(/localStorage\.getItem/);
+    expect(shell).toMatch(/localStorage\.setItem/);
+    // Read AFTER mount (in an effect), not during render — avoids a hydration mismatch.
+    expect(shell).toMatch(/useEffect\(\(\) => \{[\s\S]*localStorage\.getItem/);
+  });
+
   it('walks the 5e Foundations one step at a time in the wizard (B3), reusing the same builder', () => {
     const builder = read('app/dnd/_ui/Dnd5eManualBuilder.tsx');
     const page = read('app/dnd/characters/[id]/builder/page.tsx');
