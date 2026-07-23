@@ -160,7 +160,13 @@
   (`feats/eligibility.ts`). Assemble to the chosen level via the shared engine + `levelup.ts`, posting through
   a new `dnd5e-build` route (mirrors pf2/ig-build) or the existing sheet-apply path. Gear from the class's
   starting equipment.
-- [ ] **MB-3 — PF2 manual builder upgrade.** Replace the raw modifier inputs with the SG-2 boost allocator;
+- [x] **MB-3 — PF2 manual builder upgrade SHIPPED 2026-07-22.** `app/dnd/_ui/Pf2BoostAllocator.tsx` (3 render
+  tests over real ancestry data): the staged ancestry/background/class/free boost picker driving the tested
+  `statgen/pf2` — ancestry flaw applied, the two-free-no-flaw alternative offered, each free slot a
+  restricted-where-required dropdown, resolving to the final modifiers shown live. Wired into
+  `PF2CharacterBuilder` in place of the raw ±modifier inputs; still emits `picks.attributes`, so the
+  `pf2-build` endpoint is unchanged. On-screen review is a QA-phase item.
+- [~] **MB-3 (orig) — PF2 manual builder upgrade.** Replace the raw modifier inputs with the SG-2 boost allocator;
   keep the existing ancestry/class/subclass/background/level/skill/feat pickers; build to level via the
   progression data. Feats + subclass at the correct feat levels.
 - [ ] **MB-4 — IG manual builder upgrade.** Replace the raw score inputs with the SG-3 allocator; wire the
