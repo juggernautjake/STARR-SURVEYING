@@ -308,8 +308,13 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   4 resolver tests. **Play + classic-header display routed too (2026-07-23):** `PlayLayout` subtitle and the
   Play `Hero` now show the split (Hero still lets an identity EFFECT override the class; the split subsumes the
   subclass line when multiclass). So the multiclass split shows on **Codex + Play**. **Remaining:** the
-  STAT-computing consumers (App.tsx main resolution, FeatPicker, SpellPicker) + the classic/dashboard summary
-  line — the spread-out, high-risk part, one at a time with render tests.
+  STAT-computing consumers (App.tsx main resolution, FeatPicker, SpellPicker) — the spread-out, high-risk
+  part, one at a time with render tests. **Classic/dashboard footer routed too (2026-07-23):** the App
+  overview footer shows the split for multiclass (subsuming the total level + single subclass) and keeps
+  species+class+level for single-class. **So the split now shows on all four template headers** (Classic +
+  Codex via Hero, Codex identity via IdentityColumn, Play via PlayLayout, classic footer via App). Anti-drift
+  pinned in `multiclass-display-consumers.test.ts`. DISPLAY layer of MC-5e-5 is complete; only the STAT layer
+  (aggregated HP/prof/slots/features into App.tsx resolution + Feat/Spell pickers) remains.
   Original assessment: Make the 5e sheet resolve
   `meta.classes` through `multiclassSnapshot` so a multiclass character's features / HP / proficiency / spell
   slots actually render. **Assessed 2026-07-23:** the class is resolved in MANY sheet components (App.tsx,

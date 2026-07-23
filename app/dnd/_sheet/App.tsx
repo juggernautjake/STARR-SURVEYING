@@ -37,6 +37,7 @@ import Balance from './components/Balance'
 import Progression from './components/Progression'
 import Inventory from './components/Inventory'
 import Bio from './components/Bio'
+import { classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve'
 import { rollerFor } from './components/rollers/rollerFor'
 import RollerTemplateBar from './components/rollers/RollerTemplateBar'
 import { RollFeedProvider } from './components/rollers/rollFeed'
@@ -443,8 +444,12 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           <div className="footer">
             {[
               char.meta.name,
-              [char.meta.species, char.meta.className, char.meta.level].filter(Boolean).join(' '),
-              char.meta.subclass,
+              // Multiclass shows the split (which already carries per-class levels), so the total level and
+              // the single subclass line are subsumed by it; single-class keeps species + class + level (MC-5e-5).
+              (char.meta.classes?.length ?? 0) > 1
+                ? [char.meta.species, classDisplayFor(system ?? '', char.meta)].filter(Boolean).join(' ')
+                : [char.meta.species, char.meta.className, char.meta.level].filter(Boolean).join(' '),
+              (char.meta.classes?.length ?? 0) > 1 ? null : char.meta.subclass,
               char.dmNote,
             ]
               .filter((s) => s != null && String(s).trim() !== '')
