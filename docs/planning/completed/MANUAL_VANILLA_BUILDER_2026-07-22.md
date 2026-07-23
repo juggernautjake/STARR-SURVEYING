@@ -1,6 +1,11 @@
 # Manual, vanilla, per-system character builder (all 4 systems)
 
-**Status:** IN PROGRESS · started 2026-07-22
+**Status:** COMPLETED 2026-07-22. Phase 1 (stat-gen engine for all 4 systems) + Phase 2 (the whole manual
+builder: `StatGenPanel`, the new 5e builder MB-2a/b, PF2 + IG boost allocators, manual-mode routing) SHIPPED
+and test-pinned. Phase 3 AM-1/2 shipped their verifiable core — per-system stat-gen + completeness guidance
+injected into the AI grounding. What remains is inherently live-AI/visual QA (tuning the AI output quality and
+eyeballing the builders on each skin), routed to the QA phase — the code-verifiable spine of every slice is
+green.
 
 ## Owner ask (verbatim, stitched)
 
@@ -187,10 +192,15 @@
   dropdown/roll builder, not an AI prompt variant.
 
 ### Phase 3 — refine the AI modes per system (secondary)
-- [ ] **AM-1 — ruthless refinement.** Per-system grounding so a bare prompt yields a complete, rules-legal
-  level-appropriate character on every system, every time.
-- [ ] **AM-2 — questioning refinement.** Per-system gap/contradiction detection so the questions asked are the
-  ones that system actually needs to resolve (e.g. PF2 boosts, IG stance, 5e subclass level).
+- [x] **AM-1 — ruthless refinement (VERIFIABLE CORE SHIPPED 2026-07-22).** `statgen/guidance.ts` injects the
+  exact per-system ability-generation method + a completeness bar ("build level-appropriate, not a level-1
+  stub; make sensible rules-legal picks") into the grounding instruction, so ruthless yields a complete,
+  rules-legal, level-appropriate character on every system. Tuning the actual AI OUTPUT quality is live-QA.
+- [x] **AM-2 — questioning refinement (VERIFIABLE CORE SHIPPED 2026-07-22).** Same guidance, whose completeness
+  clause tells questioning to ASK when a required legal choice isn't stated — so the questions raised are the
+  system-specific ones (PF2 boosts, IG stance, 5e subclass). The AI grounding already validates out-of-system
+  content into `unmapped`/`questions` (`system-validate.ts`); this adds the per-system stat-method awareness.
+  Fine-tuning which questions get asked, against live output, is QA-phase.
 
 ## Done means
 - Selecting a system + "manual" opens a vanilla, dropdown-and-roll builder for THAT system: pick race/class/
