@@ -23,6 +23,7 @@ import InlineNumber from '../components/ui/InlineNumber'
 import ConditionTracker from '../components/ConditionTracker'
 import ActiveEffects from '../components/ActiveEffects'
 import { profContribution } from '../rules/dnd'
+import { classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve'
 
 export default function IdentityColumn({ artUrl, ownerName }: { artUrl?: string | null; ownerName?: string | null }) {
   const {
@@ -83,7 +84,9 @@ export default function IdentityColumn({ artUrl, ownerName }: { artUrl?: string 
           {char.meta.className && (
             <>
               <dt>Class</dt>
-              <dd>{[char.meta.className, char.meta.subclass].filter(Boolean).join(' · ')}</dd>
+              {/* Shows the multiclass split ("Fighter 3 / Wizard 2") when the character holds more than one
+                  class (MC-5e-5), else the single class · subclass exactly as before. */}
+              <dd>{classDisplayFor(system, char.meta)}</dd>
             </>
           )}
           {char.meta.species && (

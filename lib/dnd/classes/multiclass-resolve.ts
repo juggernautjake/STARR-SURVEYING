@@ -7,8 +7,19 @@
 // registry lookup. Single-class characters resolve to their one class exactly as before, so routing the
 // sheet through this is safe for every character.
 import { findClass } from './registry';
-import { resolveClassLevels, multiclassSnapshot, type MulticlassSnapshot } from './engine';
+import { resolveClassLevels, multiclassSnapshot, formatClassLevels, type MulticlassSnapshot } from './engine';
 import type { ClassDefinition, SubclassDefinition, ClassLevel } from './types';
+
+/** The class line a SHEET shows: the multiclass split ("Fighter 3 / Wizard 2") when the character holds more
+ *  than one class, else the single class · subclass exactly as before. Display only — safe for every sheet. */
+export function classDisplayFor(
+  system: string,
+  meta: { className?: string; subclass?: string; classes?: readonly ClassLevel[] | null },
+): string {
+  const classes = meta.classes ?? [];
+  if (classes.length > 1) return formatClassLevels(classes, (k) => findClass(system, k)?.name ?? k);
+  return [meta.className, meta.subclass].filter(Boolean).join(' · ');
+}
 
 /** A class-key → definition lookup for a system, honouring any homebrew classes/subclasses the character
  *  carries (resolved identically to official ones). Subclass resolution is left to the caller for now

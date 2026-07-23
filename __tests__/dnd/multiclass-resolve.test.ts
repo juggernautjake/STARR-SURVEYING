@@ -1,6 +1,6 @@
 // __tests__/dnd/multiclass-resolve.test.ts — MC-5e-5 foundation: the one multiclass-aware resolver.
 import { describe, it, expect } from 'vitest';
-import { characterMulticlass, classLookupFor } from '@/lib/dnd/classes/multiclass-resolve';
+import { characterMulticlass, classLookupFor, classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve';
 
 const SYS = 'dnd5e-2014';
 
@@ -28,5 +28,13 @@ describe('characterMulticlass resolver (MC-5e-5 foundation)', () => {
     const lookup = classLookupFor(SYS);
     expect(lookup('wizard')?.def.name).toBe('Wizard');
     expect(lookup('not-a-class')).toBeNull();
+  });
+
+  it('classDisplayFor: single-class shows class · subclass; multiclass shows the split (MC-5e-5)', () => {
+    // Single class (no `classes` array) — unchanged from before.
+    expect(classDisplayFor(SYS, { className: 'Fighter', subclass: 'Champion' })).toBe('Fighter · Champion');
+    expect(classDisplayFor(SYS, { className: 'Wizard' })).toBe('Wizard');
+    // Multiclass — the split by class NAME + level.
+    expect(classDisplayFor(SYS, { className: 'Fighter', classes: [{ classKey: 'fighter', level: 3 }, { classKey: 'wizard', level: 2 }] })).toBe('Fighter 3 / Wizard 2');
   });
 });
