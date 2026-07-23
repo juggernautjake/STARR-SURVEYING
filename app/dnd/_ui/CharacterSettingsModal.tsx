@@ -28,6 +28,7 @@ export default function CharacterSettingsModal({
   canWrite = true,
   isOwner = false,
   characterName,
+  campaignId,
 }: {
   characterId: string;
   /** The resolved preferences (value + lockedByDM per field), so each control shows the live value. */
@@ -39,6 +40,9 @@ export default function CharacterSettingsModal({
   isOwner?: boolean;
   /** Shown in the delete confirmation so the owner knows exactly what they're removing. */
   characterName?: string;
+  /** The character's home campaign, if any — after deleting, we return the owner THERE (the campaign they
+   *  were in) rather than always dumping them in the account lobby; a campaign-less character → the lobby. */
+  campaignId?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(player);
@@ -52,7 +56,8 @@ export default function CharacterSettingsModal({
     try {
       const r = await fetch(`/api/dnd/characters/${characterId}`, { method: 'DELETE' });
       if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `Delete failed (${r.status}).`); }
-      window.location.href = '/dnd/characters'; // back to the lobby; the character is gone
+      // The character is gone — return to where it lived: its campaign if it had one, else the account lobby.
+      window.location.href = campaignId ? `/dnd/campaigns/${campaignId}` : '/dnd/characters';
     } catch (e) {
       setDeleting(false);
       setErr(e instanceof Error ? e.message : 'Could not delete the character.');

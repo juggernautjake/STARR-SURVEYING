@@ -254,6 +254,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           canWrite={canWrite}
           isOwner={isOwner}
           characterName={character.name}
+          campaignId={character.campaign_id}
         />
       )}
       {approvalPanel}

@@ -41,4 +41,12 @@ describe('the settings UI deletes behind a typed confirmation', () => {
     expect(modal).toMatch(/confirmText\.trim\(\) !== \(characterName \|\| 'DELETE'\)/);
     expect(modal).toContain('Permanently delete');
   });
+
+  it('after deleting, returns to the character\'s campaign if it had one, else the account lobby', () => {
+    // depending on context: a campaign character → back to that campaign; a lobby character → the lobby.
+    expect(modal).toContain("campaignId ? `/dnd/campaigns/${campaignId}` : '/dnd/characters'");
+    // and the page feeds the character's home campaign into the modal
+    const page = read('app/dnd/characters/[id]/page.tsx');
+    expect(page).toContain('campaignId={character.campaign_id}');
+  });
 });
