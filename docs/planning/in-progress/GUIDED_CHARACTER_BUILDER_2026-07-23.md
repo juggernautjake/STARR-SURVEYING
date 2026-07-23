@@ -128,7 +128,12 @@ Data is COMPLETE. Steps:
   BuilderRoller.tsx` — the same animated Dice Core stage + dice pad the sheet uses, rendered INLINE (no
   FloatingRoller), docked in the builder's left column with a "Roll a stat" (4d6-drop-lowest) button. The
   sheet/play roller stays a movable/resizable floating modal (unchanged). Owner: "the builder roller is a
-  fixed page mechanic; the sheet roller still floats."
+  fixed page mechanic; the sheet roller still floats." **Extended 2026-07-23:** rolled ability scores are
+  now KEPT as a "Rolled scores" list (roll six, then assign) instead of vanishing on the next roll.
+- [x] **B1-QA — the /builder page is browser-verified (2026-07-23).** Playwright: renders 200 with no error
+  for all four systems (5e-2014/2024, PF2, IG), each showing the phase-grouped step rail (5e: Foundations →
+  Levels → Review; PF2/IG: Foundations → Review — PF2/IG have no per-level walk yet, that's B7–B16), the
+  docked roller, and the correct "Building in <system>" header.
 - [ ] **B2 — Tooltip/help kit.** Standardize an `InfoTip`/`RuleTip` wrapper the steps use for every option
   (rules text + prereqs + "what it grants"), + a glossary "?" affordance. Wire `lib/dnd/glossary`. Also:
   wire the docked roller's "Roll a stat" result INTO the abilities step (auto-fill the field), and replace

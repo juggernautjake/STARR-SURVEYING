@@ -20,6 +20,9 @@ import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 
 export default function BuilderRoller() {
   const [activeRoll, setActiveRoll] = useState<ActiveRoll | null>(null);
+  // The rolled ability scores, kept so a player can do the classic "roll 4d6 six times, then assign" —
+  // otherwise the number vanishes from the animated dice on the next roll and can't be collected.
+  const [rolledStats, setRolledStats] = useState<number[]>([]);
   const tokenRef = useRef(0);
   const commit = useCallback(() => {}, []);
 
@@ -36,6 +39,7 @@ export default function BuilderRoller() {
     const rolls = [0, 0, 0, 0].map(() => rollDiceExpr('1d6').total); // rollDiceExpr('1d6') → 1..6
     const kept = [...rolls].sort((a, b) => a - b).slice(1); // drop the single lowest
     const total = kept.reduce((s, v) => s + v, 0);
+    setRolledStats((prev) => [...prev, total]); // keep it so the array can be assigned to abilities
     setActiveRoll(buildD20ActiveRoll({
       token: ++tokenRef.current, label: 'Ability score (4d6 drop lowest)',
       natural: total, total, modifier: 0, crit: false, fumble: false,
@@ -58,6 +62,21 @@ export default function BuilderRoller() {
         </div>
         {rollerStageFor('core')}
         <DicePad />
+        {/* The rolled ability scores, newest last, so you can roll six and assign them in the abilities step. */}
+        {rolledStats.length > 0 && (
+          <div style={{ display: 'grid', gap: 5, borderTop: '1px solid var(--hx-line)', paddingTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Rolled scores</span>
+              <button type="button" onClick={() => setRolledStats([])} title="Clear rolled scores"
+                style={{ fontSize: 11, fontWeight: 600, background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}>clear</button>
+            </div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {rolledStats.map((v, i) => (
+                <span key={i} style={{ fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--hx-text)', background: 'var(--hx-inset-strong)', border: '1px solid var(--hx-line)', borderRadius: 6, padding: '2px 8px' }}>{v}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </RollFeedProvider>
   );

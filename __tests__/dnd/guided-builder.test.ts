@@ -35,8 +35,11 @@ describe('guided character builder (B1)', () => {
     expect(roller).toContain('DicePad');
     expect(roller).not.toMatch(/import[^\n]*FloatingRoller/);
     expect(roller).not.toMatch(/<FloatingRoller/);
-    // And offers a stat roll (4d6 drop lowest).
+    // And offers a stat roll (4d6 drop lowest) whose results are KEPT as a list (roll six, then assign),
+    // not lost from the animated dice on the next roll.
     expect(roller).toMatch(/drop.*lowest/i);
+    expect(roller).toMatch(/rolledStats/);
+    expect(roller).toMatch(/Rolled scores/i);
   });
 
   it('the shell groups steps by phase Foundations -> Levels -> Review', () => {
