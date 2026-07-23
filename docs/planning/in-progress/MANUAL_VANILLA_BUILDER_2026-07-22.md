@@ -128,7 +128,13 @@
   spent, no ability over 14). Unit tests.
 
 ### Phase 2 — the manual builder UI, per system
-- [ ] **MB-1 — shared `StatGenPanel`.** Method picker + one input per ability + digital-roller hookup + live
+- [x] **MB-1 — `StatGenPanel` (5e) SHIPPED 2026-07-22.** `app/dnd/_ui/StatGenPanel.tsx` (5 render tests): the
+  4-method picker (standard array / point buy / roll / manual), one input per ability with a live modifier,
+  pool-assignment dropdowns for array/roll (each value usable once), point-buy steppers with the 27-pt budget
+  readout, an inline "Roll 4d6 ×6" button, and the racial/background base→+bonus→final→mod breakdown. Bound to
+  the unit-tested `statgen/dnd5e`; token colours for every skin. (PF2/IG get their own boost-allocator panels
+  inside MB-3/MB-4; the roll-vs-boost UIs are genuinely different, so this "shared" panel is the 5e one.)
+- [~] **MB-1 (orig) — shared `StatGenPanel`.** Method picker + one input per ability + digital-roller hookup + live
   modifier + contribution breakdown. Colour tokens so it reads on every skin. Render-tested.
 - [ ] **MB-2 — the 5e manual builder (the missing one).** Dropdowns: species (+subrace/lineage) · class ·
   subclass (shown at the class's subclass level) · background · level (1–20). The StatGenPanel (array/
