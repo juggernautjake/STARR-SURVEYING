@@ -319,6 +319,20 @@ function shellVarsFromHx(hx: Record<string, string>): CSSProperties {
     '--hotpink': teal1,
     '--hotpink-rgb': trip(teal1),
     '--violet-rgb': trip(teal1),
+    // The COMPLETE set the animated dice-roller STAGES reach for (RollStage/Sigil/Board/Impact CSS), so the
+    // rollers render fully styled on the bespoke PF2/IG sheets — not the "basic modal" they were when these
+    // tokens resolved to nothing. `--void` is the darkest ground; the `*-rgb` triplets feed rgba(); accents
+    // harmonise to the skin's teal, `--good` to teal too (a positive hue that reads on the hextech grounds).
+    '--void': navy0,
+    '--gold-rgb': trip(gold3),
+    '--tealbright-rgb': trip(teal1),
+    '--muted-2': muted,
+    '--violet-2': teal1,
+    '--violet-2-rgb': trip(teal1),
+    '--good': teal1,
+    '--good-rgb': trip(teal1),
+    '--danger-rgb': trip('#c0483e'),
+    '--font-mono': 'var(--hx-font-mono, ui-monospace, monospace)',
   };
   return vars as CSSProperties;
 }

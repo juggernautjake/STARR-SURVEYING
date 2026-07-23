@@ -38,7 +38,9 @@ import { join as _join } from 'node:path';
 describe('per-skin sounds + spin animations (Area D4e)', () => {
   const audio = _rf(_join(process.cwd(), 'app/dnd/_sheet/lib/audio.ts'), 'utf8');
   const rollStage = _rf(_join(process.cwd(), 'app/dnd/_sheet/components/RollStage.tsx'), 'utf8');
-  const theme = _rf(_join(process.cwd(), 'app/dnd/_sheet/styles/theme.css'), 'utf8');
+  // The Dice Core stage's CSS (incl. the per-skin spin keyframes) now travels WITH the stage in
+  // rollStage.css, so it renders styled on PF2/IG too — read it here instead of theme.css.
+  const theme = _rf(_join(process.cwd(), 'app/dnd/_sheet/components/rollers/rollStage.css'), 'utf8');
 
   it('audio defines a distinct VOICE per skin and every SFX takes the skin', () => {
     for (const skin of ['futuristic', 'rugged', 'natural', 'fantasy', 'medieval']) {

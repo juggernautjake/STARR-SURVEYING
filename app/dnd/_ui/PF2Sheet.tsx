@@ -148,7 +148,10 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   return (
     // The skin's `--hx-*` overrides ride on the sheet's own root, so every var(--hx-…) below re-resolves
     // to the chosen skin (default → {} → unchanged). Spread first so the layout props below still win.
-    <div className={styles.framedPanel} style={{ ...hxVars, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+    // `shellTokens` (the `--void`/`--gold`/… bridge) rides here too so the floating animated roller — which
+    // styles from those 5e tokens — renders correctly on the Classic view; the PF2 panels use `--hx-*`, so
+    // these extra vars don't touch them (RO-5 roller-styling fix).
+    <div className={styles.framedPanel} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
       {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
       {artUrl ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>

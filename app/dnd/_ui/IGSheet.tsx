@@ -173,7 +173,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     // chosen skin (default → {} → unchanged). Spread first so the layout props below still win. Panels render
     // in order as direct grid children (each returns its own `<Section id=…>` wrapper, so the jump-nav anchors
     // still land), reproducing the monolith's DOM exactly.
-    <div className={`${styles.framedPanel} igs-root`} style={{ ...hxVars, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
+    <div className={`${styles.framedPanel} igs-root`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 14 }}>
       {/* Scoped interactivity CSS (req 3). Injected once at the top of this component's own subtree; every
           selector is prefixed `.igs-root` so it cannot leak into the PF2 sheet or the rest of the page. */}
       <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />

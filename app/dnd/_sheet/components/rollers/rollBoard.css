@@ -573,3 +573,79 @@
     transition: none;
   }
 }
+
+/* ══ D-BOARD: three-card reveal (owner 2026-07-22) ═══════════════════════════════════════════════════════
+   Three cards sit face down; a roll flips the shown card back, slides the three off, slides three new ones
+   in, mixes them, then flips ONE face up to reveal the number. Longer + more theatrical than the old deal.
+   All colours are the shared --* tokens (bridged from --hx-* on PF2/IG), so it reads on every system. */
+.dnd-sheet .rbn-cards {
+  display: flex; justify-content: center; align-items: center; gap: 16px;
+  perspective: 950px; min-height: 118px; margin: 8px 0 6px;
+}
+.dnd-sheet .rbn-card { width: 68px; height: 96px; position: relative; }
+.dnd-sheet .rbn-inner {
+  position: absolute; inset: 0; transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.dnd-sheet .rbn-card.is-up .rbn-inner { transform: rotateY(180deg); }
+.dnd-sheet .rbn-back,
+.dnd-sheet .rbn-front {
+  position: absolute; inset: 0; border-radius: 10px; backface-visibility: hidden;
+  display: flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong);
+}
+.dnd-sheet .rbn-back {
+  background: linear-gradient(135deg, rgba(var(--void-rgb), 0.92), var(--panel));
+  color: var(--tealbright); font-size: 24px; opacity: 0.9;
+  box-shadow: inset 0 0 0 3px rgba(var(--tealbright-rgb), 0.14), inset 0 0 20px rgba(var(--void-rgb), 0.6);
+}
+.dnd-sheet .rbn-front {
+  transform: rotateY(180deg);
+  background: radial-gradient(120% 120% at 50% 0%, var(--panel-2, var(--panel)), var(--void));
+  box-shadow: inset 0 0 0 2px rgba(var(--gold-rgb), 0.5), 0 8px 20px rgba(0, 0, 0, 0.42);
+}
+.dnd-sheet .rbn-num {
+  font-family: var(--font-display); font-size: 36px; font-weight: 800;
+  color: var(--gold); text-shadow: 0 0 15px rgba(var(--gold-rgb), 0.5);
+}
+.dnd-sheet .rbn-card.is-reveal.is-up { transition: transform 0.3s ease; transform: translateY(-9px) scale(1.07); }
+.dnd-sheet .rb-felt.is-crit .rbn-num { color: var(--tealbright); text-shadow: 0 0 18px rgba(var(--tealbright-rgb), 0.6); }
+.dnd-sheet .rb-felt.is-fumble .rbn-num { color: var(--danger); text-shadow: 0 0 18px rgba(var(--danger-rgb), 0.6); }
+
+/* slide the three off */
+.dnd-sheet .rbn-phase-out .rbn-card { animation: rbnOut 0.36s ease forwards; }
+.dnd-sheet .rbn-phase-out .rbn-c1 { animation-delay: 0.05s; }
+.dnd-sheet .rbn-phase-out .rbn-c2 { animation-delay: 0.1s; }
+@keyframes rbnOut { to { transform: translateX(-170%) rotate(-13deg); opacity: 0; } }
+
+/* three new slide in (fresh, via the key remount) */
+.dnd-sheet .rbn-phase-in .rbn-card { animation: rbnIn 0.38s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.dnd-sheet .rbn-phase-in .rbn-c1 { animation-delay: 0.06s; }
+.dnd-sheet .rbn-phase-in .rbn-c2 { animation-delay: 0.12s; }
+@keyframes rbnIn { from { transform: translateX(175%) rotate(11deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* mix around */
+.dnd-sheet .rbn-phase-shuffle .rbn-c0 { animation: rbnMixA 0.5s ease-in-out; }
+.dnd-sheet .rbn-phase-shuffle .rbn-c1 { animation: rbnMixB 0.5s ease-in-out; }
+.dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: rbnMixC 0.5s ease-in-out; }
+@keyframes rbnMixA { 0%, 100% { transform: none; } 30% { transform: translate(84px, -10px) rotate(9deg); } 60% { transform: translate(168px, 4px); } }
+@keyframes rbnMixB { 0%, 100% { transform: none; } 30% { transform: translateY(13px) scale(0.95); } 60% { transform: translateY(-7px); } }
+@keyframes rbnMixC { 0%, 100% { transform: none; } 30% { transform: translate(-84px, 8px) rotate(-9deg); } 60% { transform: translate(-168px, -4px); } }
+
+/* the always-shown readout beneath */
+.dnd-sheet .rbn-readout { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 6px; text-align: center; }
+.dnd-sheet .rbn-ro-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.dnd-sheet .rbn-ro-break { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+.dnd-sheet .rbn-ro-src { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 11px; }
+.dnd-sheet .rbn-src-up { color: var(--good); font-style: normal; }
+.dnd-sheet .rbn-src-dn { color: var(--danger); font-style: normal; }
+.dnd-sheet .rbn-ro-total { font-family: var(--font-display); font-size: 15px; color: var(--ink); }
+.dnd-sheet .rbn-ro-total strong { color: var(--gold); font-size: 20px; margin-left: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sheet .rbn-phase-out .rbn-card,
+  .dnd-sheet .rbn-phase-in .rbn-card,
+  .dnd-sheet .rbn-phase-shuffle .rbn-c0,
+  .dnd-sheet .rbn-phase-shuffle .rbn-c1,
+  .dnd-sheet .rbn-phase-shuffle .rbn-c2 { animation: none; }
+  .dnd-sheet .rbn-inner { transition: none; }
+}

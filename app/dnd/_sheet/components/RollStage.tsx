@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import './rollers/rollStage.css' // Dice Core styles travel WITH the stage, so it renders styled on PF2/IG too (RO-5 fix)
 import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
 import { shouldAnimateRoller } from './rollers/rollerAnim'
