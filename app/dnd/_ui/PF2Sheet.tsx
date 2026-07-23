@@ -15,7 +15,7 @@
 
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars } from '@/lib/dnd/skin-tokens';
+import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { usePf2Panels } from './pf2/usePf2Panels';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
@@ -74,6 +74,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
   const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
   const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
+  const skin = skinClass(sheetType); // the skin-<id> hook for per-skin surface textures (CS-2)
   const shellWrap: React.CSSProperties = {
     ...hxVars,
     ...shellTokens,
@@ -103,7 +104,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       </aside>
     );
     return (
-      <div className="sheet-shell" style={shellWrap}>
+      <div className={`sheet-shell ${skin}`} style={shellWrap}>
         {layout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
@@ -130,7 +131,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       </>
     );
     return (
-      <div className="sheet-shell" style={shellWrap}>
+      <div className={`sheet-shell ${skin}`} style={shellWrap}>
         <PlayShell
           identity={identity}
           above={banner}
@@ -151,7 +152,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     // `shellTokens` (the `--void`/`--gold`/… bridge) rides here too so the floating animated roller — which
     // styles from those 5e tokens — renders correctly on the Classic view; the PF2 panels use `--hx-*`, so
     // these extra vars don't touch them (RO-5 roller-styling fix).
-    <div className={styles.framedPanel} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+    <div className={`${styles.framedPanel} ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
       {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
       {artUrl ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
