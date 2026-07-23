@@ -18,6 +18,10 @@ export interface RollFeed {
   commitRoll: (entry: Omit<RollEntry, 'id'>) => void
   /** Whether the roller animates (false → instant); folded with prefers-reduced-motion by the stage. */
   rollerAnim?: boolean
+  /** Roll a raw pool of dice from the on-roller dice pad — `count` × d`sides` (e.g. 3d6). Publishes an
+   *  `ActiveRoll` into the feed like any other roll, so it animates through the chosen template. Each system
+   *  provides this (5e via its store, PF2/IG via their panel hooks); omitted → the dice pad hides. */
+  rollDice?: (sides: number, count: number) => void
 }
 
 const RollFeedCtx = createContext<RollFeed | null>(null)
