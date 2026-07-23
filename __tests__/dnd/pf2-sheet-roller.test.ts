@@ -40,7 +40,8 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
     // through rollerStageFor (Dice Core / Sigil / Board / Impact) — so every template is reachable + switchable
     // on PF2, exactly as on 5e.
     expect(sheet).toContain('RollerTemplateBar');
-    expect(sheet).toContain('resolveRollerTemplate(');
+    // The chosen template resolves through the client-cache helper (instant switching), then the stage.
+    expect(sheet).toContain('effectiveRollerChoice(');
     expect(sheet).toContain('rollerStageFor(rollerId)');
   });
 

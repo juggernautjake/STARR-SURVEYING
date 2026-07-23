@@ -3,7 +3,7 @@
 // root for the machine-scoped theme.css imported below — every rule in that file
 // is prefixed with `.dnd-sheet`, so the sheet's global styles (background, fonts,
 // scrollbars) apply here without leaking onto the rest of the Starr site.
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useReducer } from 'react'
 import './styles/theme.css'
 // Codex layout styles (CX-1 …). Imported unconditionally beside theme.css rather than lazily:
 // both are scoped under `.dnd-sheet`, and the Codex rules match nothing at all unless a
@@ -40,7 +40,8 @@ import Bio from './components/Bio'
 import { rollerFor } from './components/rollers/rollerFor'
 import RollerTemplateBar from './components/rollers/RollerTemplateBar'
 import { RollFeedProvider } from './components/rollers/rollFeed'
-import { resolveRollerTemplate } from '@/lib/dnd/roller-templates'
+import { type RollerTemplateId } from '@/lib/dnd/roller-templates'
+import { effectiveRollerChoice, rememberRollerChoice } from '@/lib/dnd/rollerChoice'
 import FloatingRoller from './components/rollers/FloatingRoller'
 import DmOverridePanel from './components/DmOverridePanel'
 import StreamOwnerControls from './components/StreamOwnerControls'
@@ -81,6 +82,7 @@ type TabId = (typeof TABS)[number]['id']
 export default function App({ theme, sheetType, system, ownerName }: { theme?: SheetTheme; sheetType?: string; system?: string; ownerName?: string | null }) {
   // `tab` also holds a custom-section id (D-13), so it is a plain string, not just TabId.
   const [tab, setTab] = useState<TabId | string>('overview')
+  const [, forceRoller] = useReducer((x: number) => x + 1, 0) // re-render when the roller template is picked
   const { char, media, ledger, characterId, campaignId, isDM, canWrite, offline, setChar, activeRoll, commitRoll } = useChar()
 
   // Registry-driven config for this character's sheet_type (C8): which bespoke
@@ -156,7 +158,10 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
   // layout (so nothing regresses), and render THAT node in every path below instead of the one the shell
   // used to hardcode. All four rollers read the same store, so any renders under any layout. The
   // RollerTemplateBar (RO-4) rides above it so the player switches roller presentation FROM the roller.
-  const rollerId = resolveRollerTemplate(char.rollerTemplate, layout)
+  // The chosen template comes from the client cache (instant + survives re-render), falling back to the
+  // saved value / layout default; the picker writes the cache and forces a re-render so the switch is live.
+  const rollerId = effectiveRollerChoice(characterId, char.rollerTemplate, layout)
+  const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller() }
   const rollerNode = (
     // The roller STAGES read the system-agnostic RollFeed (RO-5), not the store directly — so the 5e
     // sheet PROVIDES the feed here from its store. The bespoke PF2/IG sheets provide their own feed, and
@@ -168,6 +173,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
         canWrite={canWrite}
         anim={char.rollerAnim !== false}
         onToggleAnim={canWrite ? () => setChar((c) => ({ ...c, rollerAnim: c.rollerAnim === false })) : undefined}
+        onPick={pickRoller}
       />
       {rollerFor(rollerId)}
     </RollFeedProvider>
