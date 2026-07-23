@@ -47,4 +47,13 @@ describe('guided character builder (B1)', () => {
     expect(shell).toContain('BuilderRoller'); // the docked roller is built into the shell
     expect(shell).toMatch(/phase/); // phase-grouped rail
   });
+
+  it('surfaces the current system\'s rules glossary in the builder (B2)', () => {
+    const page = read('app/dnd/characters/[id]/builder/page.tsx');
+    const shell = read('app/dnd/_ui/builder/GuidedBuilder.tsx');
+    // The page feeds THIS system's glossary; the shell renders a searchable look-up panel.
+    expect(page).toContain('glossaryFor(system)');
+    expect(shell).toContain('BuilderGlossary');
+    expect(shell).toMatch(/Search the glossary/);
+  });
 });

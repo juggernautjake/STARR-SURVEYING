@@ -14,6 +14,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import styles from '../hextech.module.css';
 import type { GuidedStepMeta } from '@/lib/dnd/builder/types';
+import type { GlossaryEntry } from '@/lib/dnd/glossary';
 import BuilderRoller from './BuilderRoller';
 
 export interface GuidedStep extends GuidedStepMeta {
@@ -26,6 +27,7 @@ export default function GuidedBuilder({
   characterName,
   systemLabel,
   steps,
+  glossary = [],
 }: {
   characterId: string;
   characterName: string;
@@ -33,6 +35,9 @@ export default function GuidedBuilder({
    *  "building in THIS system", answering the owner's "geared to the system we chose". */
   systemLabel: string;
   steps: GuidedStep[];
+  /** This system's rules glossary (from `glossaryFor(system)`) — surfaced as a look-up-anything panel so a
+   *  new player building a character can find what a term means without leaving the wizard (B2). */
+  glossary?: GlossaryEntry[];
 }) {
   const [active, setActive] = useState(0);
   const current = steps[active];
@@ -89,6 +94,7 @@ export default function GuidedBuilder({
         ))}
       </nav>
         <BuilderRoller />
+        {glossary.length > 0 && <BuilderGlossary glossary={glossary} systemLabel={systemLabel} />}
       </div>
 
       {/* ── Current step ─────────────────────────────────────────────────────────────────────────────── */}
@@ -117,5 +123,41 @@ export default function GuidedBuilder({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A look-up-anything panel for the current system's rules glossary (B2). Collapsed by default; when open it
+ *  filters this system's terms by a query and shows each term with its one-line definition — so a player
+ *  building a character can find "what's Proficiency Bonus / Off-Guard / Stance" without leaving the wizard. */
+function BuilderGlossary({ glossary, systemLabel }: { glossary: GlossaryEntry[]; systemLabel: string }) {
+  const [q, setQ] = useState('');
+  const query = q.trim().toLowerCase();
+  const shown = useMemo(() => {
+    const list = query
+      ? glossary.filter((e) => e.term.toLowerCase().includes(query) || e.short.toLowerCase().includes(query) || (e.aliases ?? []).some((a) => a.toLowerCase().includes(query)))
+      : glossary;
+    return [...list].sort((a, b) => a.term.localeCompare(b.term));
+  }, [glossary, query]);
+  return (
+    <details style={{ border: '1px solid var(--hx-line)', borderRadius: 12, background: 'var(--hx-inset-soft)', padding: '10px 12px' }}>
+      <summary style={{ cursor: 'pointer', fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--hx-gold-2)', listStyle: 'none' }}>
+        {systemLabel} glossary <span style={{ color: 'var(--hx-muted)', fontWeight: 500 }}>· {glossary.length} terms</span>
+      </summary>
+      <div style={{ marginTop: 8, display: 'grid', gap: 8 }}>
+        <input
+          value={q} onChange={(e) => setQ(e.target.value)} placeholder="Look up a term…" aria-label="Search the glossary"
+          style={{ width: '100%', fontSize: 13, padding: '5px 8px', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }}
+        />
+        <div style={{ display: 'grid', gap: 8, maxHeight: 280, overflowY: 'auto', scrollbarWidth: 'thin' }}>
+          {shown.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>No term matches “{q}”.</div>}
+          {shown.map((e) => (
+            <div key={`${e.term}-${e.kind}`} style={{ display: 'grid', gap: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e.term} <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--hx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{e.kind}</span></span>
+              <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-text)', lineHeight: 1.4 }}>{e.short}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }

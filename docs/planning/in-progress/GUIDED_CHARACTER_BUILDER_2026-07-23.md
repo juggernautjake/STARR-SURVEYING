@@ -139,10 +139,12 @@ Data is COMPLETE. Steps:
   wizard opens them expanded — the build controls are the page's whole purpose. Verified: PF2 details open,
   IG builder open (its secondary Vanilla Library stays collapsed). (5e builder isn't a `<details>`, already
   visible.) Interim until B3 replaces the one-shot bodies with true per-step flows.
-- [ ] **B2 — Tooltip/help kit.** Standardize an `InfoTip`/`RuleTip` wrapper the steps use for every option
-  (rules text + prereqs + "what it grants"), + a glossary "?" affordance. Wire `lib/dnd/glossary`. Also:
-  wire the docked roller's "Roll a stat" result INTO the abilities step (auto-fill the field), and replace
-  the one-shot Foundations bodies with true per-choice flows (B3+).
+- [~] **B2 — Tooltip/help kit (PARTIAL — glossary shipped 2026-07-23).** Wired `lib/dnd/glossary`: the builder
+  now shows a searchable **"<system> glossary"** panel (PF2 140 / IG 103 / 2014 102 terms — each system's own),
+  so a player can look up any rules term without leaving the wizard. Verified per system in Playwright.
+  Remaining (with B3+): a per-OPTION `InfoTip`/`RuleTip` wrapper on each choice, and wiring the docked
+  roller's "Roll a stat" result INTO the abilities field — both land naturally when the one-shot Foundations
+  bodies become true per-choice flows.
 
 ### 5e (has the engine — do this system first, end-to-end)
 - [ ] **B3 — 5e Foundations steps** (class/species/background/abilities) reusing `StatGenPanel` + catalogs,

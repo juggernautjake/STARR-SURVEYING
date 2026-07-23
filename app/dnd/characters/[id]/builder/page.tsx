@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { getDndUser } from '@/lib/dnd/auth';
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { normalizeSystem } from '@/lib/dnd/systems';
+import { glossaryFor } from '@/lib/dnd/glossary';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -125,6 +126,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
             characterName={character.name}
             systemLabel={SYSTEM_LABEL[system] ?? system}
             steps={steps}
+            glossary={glossaryFor(system)}
           />
         </div>
       </div>
