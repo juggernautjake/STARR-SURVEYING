@@ -1,7 +1,12 @@
 # Intuitive Games — level-by-level builder + multiclass
 
-**Status:** IN PROGRESS · unblocked 2026-07-23 (owner authorized scraping the source + designing multiclass).
-Carved out of `GUIDED_CHARACTER_BUILDER_2026-07-23.md` (now in `completed/`).
+**Status:** COMPLETED · shipped 2026-07-23 (owner authorized scraping the source + designing multiclass).
+Carved out of `GUIDED_CHARACTER_BUILDER_2026-07-23.md`.
+
+> **Completion note:** all six slices shipped and IG-5 was browser-verified live. The schedule was found and
+> scraped from the source (no invention); the engine, `/ig-levels` route, and `IGLevelBuilder` walk UI mirror
+> the proven PF2 pattern; and multiclass — which IG has no official rule for — is a balanced, flagged
+> house-rule the owner authorized. IG now has full level-by-level parity with 5e and PF2.
 
 ## The schedule was found (no invention needed)
 
@@ -62,7 +67,13 @@ house-rule** (provenance: custom, not vanilla), never presented as official IG.
   character's "New Subclass Power" slots (L3/5/7/9) — `igPlanLevelUp` widens those options, labelling
   dedicated powers "<Subclass>: <Power>" so provenance is visible. Balanced (costs a feat slot, consumes power
   slots, no free stacking); no leakage without a dedication. 6 tests (`ig-multiclass.test.ts`).
-- [ ] **IG-5 — QA** (browser, vanilla L1→10 for a martial + a caster subclass).
+- [x] **IG-5 — QA (browser-verified 2026-07-23).** Drove the dev server against a live Freebooter 6 (Vashti
+  Kelln): `/levels` dispatches to `IGLevelBuilder`, which renders with the Remastered-schedule copy, the
+  correct first prompt (New Trait with the 5 documented benefits), and "12 choices left before level 6" (the
+  right count for L2–6). The live `/ig-levels?to=10` plan returned **23** outstanding choices across all 9
+  kinds with correct scraped options — subclass-power → 7 real Freebooter powers, specialization → Dabbler /
+  Virtuoso, capstone → all 12. No component console errors. Read-only (no seed mutation); the write + commit
+  paths are unit-covered.
 
 ## Done means
 Choosing "step by step" for an IG character walks each level's real (scraped) choices with tooltips and a live

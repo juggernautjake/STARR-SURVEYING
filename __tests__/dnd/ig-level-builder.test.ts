@@ -28,6 +28,12 @@ describe('IGLevelBuilder (IG-4)', () => {
   it('will not commit past the current level until the plan is ready', () => {
     expect(UI).toMatch(/canCommit = plan\?\.ready && target > currentLevel/);
   });
+
+  it('offers the flagged Multiclass Dedication house-rule in the feat pickers (MC-IG)', () => {
+    expect(UI).toContain('igMulticlassTargets(subclass).map(igMulticlassDedicationName)');
+    expect(UI).toMatch(/feat-general.*dedications/s);
+    expect(UI).toMatch(/feat-combat.*dedications/s);
+  });
 });
 
 describe('levels page dispatches IG → IGLevelBuilder', () => {
