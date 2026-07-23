@@ -298,7 +298,15 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   panel renders on `/levels`, and the route round-trips live (POST Rogue 3 / Wizard 1 → persisted
   `meta.classes`, total 4). 3 wiring tests + the engine tests underneath. **Next: MC-5e-5** — make the SHEET
   read `meta.classes` (via `multiclassSnapshot`) so a multiclass character's slots/features/HP actually render.
-- [ ] **MC-5e-5 — sheet display:** show "Fighter 3 / Wizard 2" + the aggregated features/slots.
+- [ ] **MC-5e-5 — sheet renders the multiclass (FOCUSED REFACTOR — needs care).** Make the 5e sheet resolve
+  `meta.classes` through `multiclassSnapshot` so a multiclass character's features / HP / proficiency / spell
+  slots actually render. **Assessed 2026-07-23:** the class is resolved in MANY sheet components (App.tsx,
+  codex/IdentityColumn, codex/PlayLayout, Hero, FeatPicker, SpellPicker) — there is NO single integration
+  point, so this is a spread-out change where a mistake mis-renders every 5e sheet. It must be done as a
+  deliberate, thoroughly-tested refactor (ideally routing every consumer through one multiclass-aware
+  resolver first), NOT a quick slice. The engine it needs (`multiclassSnapshot`, spell-slot rule) is built +
+  proven, and the manager already shows the aggregated result live, so the character data is correct — this
+  is purely the render-path integration.
 - [ ] **MC-5e-6 — QA:** Playwright build a 2-class and 3-class 5e character, both editions.
 - [ ] **MC-IG — ⛔ BLOCKED on owner:** define IG per-level progression AND whether/how IG multiclasses.
 
