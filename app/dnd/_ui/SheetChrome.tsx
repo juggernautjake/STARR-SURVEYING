@@ -16,8 +16,14 @@ import styles from './hextech.module.css';
 import { SHEET_STYLES } from '@/lib/dnd/sheet-styles';
 import { templatesForSystem } from '@/lib/dnd/sheet-templates';
 import { themeVariantsFor } from '@/app/dnd/_sheet/theme';
+import { rememberLayout } from '@/lib/dnd/layoutChoice';
 
 type Axis = 'style' | 'template' | 'theme';
+
+// The bespoke, prop-driven sheets (PF2/IG) read their template from the `layoutChoice` session cache, so a
+// TEMPLATE pick can re-render them into the new shell instantly — no full reload (CM-1). The 5e sheet reads
+// `sheetLayout` from its zustand store, which a soft refresh won't re-hydrate, so it stays on the reload path.
+const INSTANT_TEMPLATE_SYSTEMS = new Set(['pathfinder2e', 'intuitive-games']);
 
 export default function SheetChrome({
   characterId,
@@ -39,16 +45,25 @@ export default function SheetChrome({
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Optimistic template for the instant PF2/IG path: moves the chip highlight the moment the sheet re-renders,
+  // without waiting for the (reload-free) background save. Null until a session pick is made.
+  const [optTemplate, setOptTemplate] = useState<string | null>(null);
 
   const skin = currentSkin === 'generic' || !currentSkin ? 'default' : currentSkin;
   const templates = templatesForSystem(system);
-  const activeTemplate = currentTemplate && templates.some((t) => t.id === currentTemplate) ? currentTemplate : 'classic';
+  const savedTemplate = currentTemplate && templates.some((t) => t.id === currentTemplate) ? currentTemplate : 'classic';
+  const activeTemplate = optTemplate && templates.some((t) => t.id === optTemplate) ? optTemplate : savedTemplate;
   const themes = themeVariantsFor(skin);
   const activeTheme = currentTheme && themes.some((t) => t.key === currentTheme) ? currentTheme : themes[0]?.key;
 
   async function post(axis: Axis, value: string) {
     const key = `${axis}:${value}`;
+    // Instant template switch on the prop-driven PF2/IG sheets (CM-1): push the pick into the session cache so
+    // the sheet re-renders into the new shell now, move the chip highlight, then persist in the background and
+    // skip the reload. Everything else (styles, themes, 5e templates) keeps the store-safe reload path.
+    const instant = axis === 'template' && INSTANT_TEMPLATE_SYSTEMS.has(system);
     setBusy(key); setErr(null);
+    if (instant) { rememberLayout(characterId, value); setOptTemplate(value); }
     try {
       // Style is a column (generic PATCH); template + theme live in `data` and have their own endpoints.
       const req = axis === 'style'
@@ -56,6 +71,7 @@ export default function SheetChrome({
         : fetch(`/api/dnd/characters/${characterId}/${axis === 'template' ? 'layout' : 'theme'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(axis === 'template' ? { layout: value } : { theme: value }) });
       const r = await req;
       if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not apply that choice.'); setBusy(null); return; }
+      if (instant) { setBusy(null); return; } // sheet already reflects the pick; the save was the only remote work
       window.location.reload();
     } catch {
       setErr('Network error — please try again.'); setBusy(null);

@@ -101,14 +101,23 @@ export interface PaneStack {
 export function usePaneStack(
   characterId: string | null | undefined,
   order: readonly string[],
-  defaultOpen: string,
+  defaultOpen: string | readonly string[],
 ): PaneStack {
   const viewportRef = useRef<HTMLDivElement>(null)
   // Measured available height. Seeded with one default pane's worth rather than 0 so the very
   // first open — which can land before the observer has fired — does not compute against a
   // zero budget and slam everything to the minimum.
   const availableRef = useRef<number>(DEFAULT_PANE_H)
-  const [panes, setPanes] = useState<Pane[]>(() => [{ id: defaultOpen, height: DEFAULT_PANE_H }])
+  // The panes open on a fresh load / reset. Accepts several ids so the stack FILLS its column instead
+  // of leaving a tall staircase of closed rail tabs beside one short pane (the "empty codex" look).
+  // Filtered to ids that actually exist in `order`, deduped, in canonical order.
+  const defaultOpenIds = useMemo(() => {
+    const wanted = Array.isArray(defaultOpen) ? defaultOpen : [defaultOpen]
+    const seen = new Set<string>()
+    const ids = wanted.filter((id) => order.includes(id) && !seen.has(id) && (seen.add(id), true))
+    return ids.length ? ids : [order[0] ?? (Array.isArray(defaultOpen) ? defaultOpen[0] : defaultOpen)]
+  }, [defaultOpen, order])
+  const [panes, setPanes] = useState<Pane[]>(() => defaultOpenIds.map((id) => ({ id, height: DEFAULT_PANE_H })))
   // The player's custom tab order (Part B); null → canonical. Persisted with the panes.
   const [tabOrder, setTabOrder] = useState<string[] | null>(null)
   const loaded = useRef(false)
@@ -177,9 +186,9 @@ export function usePaneStack(
   const effective = useMemo(() => effectiveOrder(order, tabOrder), [order, tabOrder])
   const setOrder = useCallback((ids: string[]) => setTabOrder(effectiveOrder(order, ids)), [order])
   const reset = useCallback(() => {
-    setPanes([{ id: defaultOpen, height: DEFAULT_PANE_H }])
+    setPanes(defaultOpenIds.map((id) => ({ id, height: DEFAULT_PANE_H })))
     setTabOrder(null) // a reset also restores the canonical tab order
-  }, [defaultOpen])
+  }, [defaultOpenIds])
 
   return { panes, viewportRef, isOpen, toggle, resize, setContentHeight, collapse, solo, order: effective, setOrder, reset }
 }

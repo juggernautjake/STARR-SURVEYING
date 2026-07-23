@@ -131,7 +131,12 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
       const w = DEFAULT_W
       const { x, y } = defaultPos(w)
       freshDefault.current = true
-      setState({ x, y, w, h: null, minimized: false })
+      // Start MINIMIZED (just the corner dice FAB) rather than open. An open 396px window docked
+      // bottom-right otherwise overlaps the right edge of the sheet on a fresh load — on every
+      // template and system — before the player has moved it. Minimized keeps the sheet unobstructed;
+      // the roller pops open on the first roll (useExpandOnRoll) or a click of the FAB, and its
+      // position/size/open-state persist per character from then on.
+      setState({ x, y, w, h: null, minimized: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId])

@@ -18,6 +18,7 @@ import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { usePf2Panels } from './pf2/usePf2Panels';
+import { useLayoutChoice } from '@/lib/dnd/layoutChoice';
 import CodexShell from '@/app/dnd/_sheet/shells/CodexShell';
 import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
@@ -55,7 +56,11 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   /** Player-authored custom sections (`data.customSections`, D-13). */
   customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
 }) {
-  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout, customSections });
+  // The TEMPLATE is read reactively (CM-1): the SheetChrome chip writes the session cache and pings, so a
+  // template pick re-renders this sheet into the new shell instantly — no full reload. Falls back to the
+  // saved `layout` prop (and 'classic') until a pick is made, matching the server render.
+  const effLayout = useLayoutChoice(characterId, layout);
+  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
   // Defenses and Conditions, the modals between Strikes and Feats. Gated panels are simply absent
   // from `panels`, so their `section(...)` renders nothing, matching the old conditional sections.
@@ -90,7 +95,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // gives the shell its layout CSS without theme.css's element rules bleeding onto the PF2 panels; the
   // two token sets ride on the root — `skinHxVars` for the PF2 panels' `--hx-*`, `shellThemeVars` for
   // the shell's `--gold`/`--panel-rgb`/… — so the whole thing re-skins together.
-  if (layout === 'codex' || layout === 'dashboard') {
+  if (effLayout === 'codex' || effLayout === 'dashboard') {
     // The left identity column is PF2's own "at a glance": who they are (header) + attributes + the
     // defences/vitals block (AC/HP/saves). The body then holds everything else.
     const identityIds = new Set(['pf2-attributes', 'pf2-defenses']);
@@ -105,7 +110,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     );
     return (
       <div className={`sheet-shell ${skin}`} style={shellWrap}>
-        {layout === 'codex' ? (
+        {effLayout === 'codex' ? (
           <CodexShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
         ) : (
           <DashboardShell identity={identity} panels={bodyPanels} roller={roller} above={banner} storageKey={characterId} />
@@ -120,7 +125,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // Built for the table: the PF2 HERO is what you touch in a fight — the defences/vitals block (AC,
   // HP, saves, class/spell DC) and the Strikes. Everything you only look up (attributes, skills,
   // feats, spells, conditions) folds into the reference drawer. Same `.sheet-shell` + dual token sets.
-  if (layout === 'play') {
+  if (effLayout === 'play') {
     const heroIds = new Set(['pf2-defenses', 'pf2-strikes']);
     const drawerPanels = panels.filter((p) => !heroIds.has(p.id));
     const identity = <div className="play-id"><SheetPortrait artUrl={artUrl} name={name} />{header}</div>;
