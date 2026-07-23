@@ -153,7 +153,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
               Build {character.name}
             </h1>
             <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0', maxWidth: 760 }}>
-              Building in <strong style={{ color: 'var(--hx-gold-2)' }}>{SYSTEM_LABEL[system] ?? system}</strong> — step by step, in the system's own vanilla rules. Every option explains itself; ineligible picks are greyed with the reason.
+              Building in <strong style={{ color: 'var(--hx-gold-2)' }}>{SYSTEM_LABEL[system] ?? system}</strong> — step by step, in the system&rsquo;s own vanilla rules. Every option explains itself; ineligible picks are greyed with the reason.
             </p>
           </div>
           <GuidedBuilder

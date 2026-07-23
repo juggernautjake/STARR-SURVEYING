@@ -207,9 +207,12 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             </div>
           </>
         );
+        // How many feat slots the class owes by this level (across all tracks), from the tested schedule —
+        // gives the picker the "X of N owed by level L" budget context, like 5e's per-level slots.
+        const featsOwed = className ? pf2LevelBreakdown(className, level).reduce((n, s) => n + s.featTracks.length, 0) : 0;
         const featsBlock = (
           <>
-            <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{feats.length ? `(${feats.length} chosen)` : ''}</span></div>
+            <div style={label}>FEATS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{featsOwed ? `(${feats.length} chosen · ${featsOwed} owed by level ${level})` : feats.length ? `(${feats.length} chosen)` : ''}</span></div>
             <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
           </>
         );
