@@ -156,7 +156,12 @@ Data is COMPLETE. Steps:
   the docked roller for 4d6.
 - [ ] **B4 — 5e per-level steps** from `planLevelUp().outstanding` (subclass/ASI/feat/style/expertise/
   cantrip) with eligibility + tooltips, persisting to `data.build.choices` via `/levels`.
-- [ ] **B5 — 5e spell selection step** (prepared/known filtered by class + slot level) + Review & Finish.
+- [x] **B5a — Review & finish shows a build summary (DONE 2026-07-23).** The wizard's Review step now reads
+  the character's data per system and lists the key facts (name, ancestry/species, class + subclass,
+  specialization, background, level) instead of a bare link — the builders reload on Build so this reflects
+  the finished character. Page renders 200; source-anchored test. (The 5e SPELL-selection step remains — a
+  new class+level-filtered picker component, below.)
+- [ ] **B5 — 5e spell selection step** (prepared/known filtered by class + slot level).
 - [ ] **B6 — 5e wizard QA** (Playwright: build a vanilla character L1→N for a martial + a caster, both
   editions; confirm every choice is rules-legal and tooltip'd).
 

@@ -96,13 +96,48 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     redirect(`/dnd/characters/${params.id}`);
   }
 
-  // A final Review step (its deeper "confirm every choice is rules-legal" summary is a later slice).
+  // Build summary for the Review step (B5/B18). Read from the character's current data — the builders reload
+  // the page after Build, so this reflects the finished character. Kept loose (optional access) so a
+  // half-built or unbuilt character just shows fewer facts.
+  const idFacts: [string, string][] = [['Name', character.name]];
+  if (system === 'pathfinder2e' || system === 'intuitive-games') {
+    const key = system === 'pathfinder2e' ? 'pf2e' : 'ig';
+    const idn = (character.data as Record<string, { identity?: Record<string, unknown> }> | null)?.[key]?.identity;
+    if (idn) {
+      if (idn.ancestry) idFacts.push(['Ancestry', String(idn.ancestry)]);
+      if (idn.className) idFacts.push(['Class', String(idn.className) + (idn.subclass ? ` (${idn.subclass})` : '')]);
+      if (idn.specialization) idFacts.push(['Specialization', String(idn.specialization)]);
+      if (idn.background) idFacts.push(['Background', String(idn.background)]);
+      if (idn.level) idFacts.push(['Level', String(idn.level)]);
+    }
+  } else {
+    const meta = data.meta;
+    if (meta) {
+      if (meta.species) idFacts.push([system === 'dnd5e-2024' ? 'Species' : 'Race', String(meta.species)]);
+      if (meta.className) idFacts.push(['Class', String(meta.className) + (meta.subclass ? ` (${meta.subclass})` : '')]);
+      if (meta.background) idFacts.push(['Background', String(meta.background)]);
+      if (meta.level) idFacts.push(['Level', String(meta.level)]);
+    }
+  }
+
   steps.push({
     id: 'review', title: 'Review & finish', phase: 'Review',
     help: 'Review the character you built, then open the sheet. You can always come back and keep building.',
     node: (
-      <div style={{ display: 'grid', gap: 10, fontSize: 14, color: 'var(--hx-text)' }}>
-        <p style={{ margin: 0, color: 'var(--hx-muted)' }}>Your picks are saved as you make them. Open the sheet to see the finished character on any template and style.</p>
+      <div style={{ display: 'grid', gap: 12, fontSize: 14, color: 'var(--hx-text)' }}>
+        {idFacts.length > 1 ? (
+          <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '4px 14px', margin: 0 }}>
+            {idFacts.map(([k, v]) => (
+              <div key={k} style={{ display: 'contents' }}>
+                <dt style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--hx-muted)', alignSelf: 'baseline' }}>{k}</dt>
+                <dd style={{ margin: 0, fontWeight: 600, color: 'var(--hx-text)' }}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p style={{ margin: 0, color: 'var(--hx-muted)' }}>Make your picks in the earlier steps and press Build — then this shows a summary of the finished character.</p>
+        )}
+        <p style={{ margin: 0, color: 'var(--hx-muted)', fontSize: 12.5 }}>Everything picked from the library is vanilla and rules-legal; custom picks are flagged. Open the sheet to see the finished character on any template and style.</p>
         <Link className={styles.hexBtn} href={`/dnd/characters/${character.id}`} style={{ justifySelf: 'start' }}>Open the character sheet →</Link>
       </div>
     ),

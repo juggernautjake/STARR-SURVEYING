@@ -19,6 +19,9 @@ describe('guided character builder (B1)', () => {
     expect(page).toContain('LevelBuilder'); // 5e Levels step
     expect(page).toContain('<GuidedBuilder');
     expect(page).toMatch(/phase: 'Review'/);
+    // The Review step shows a build summary read from the character's data (B5/B18), per system.
+    expect(page).toMatch(/idFacts/);
+    expect(page).toMatch(/Open the character sheet/);
   });
 
   it('the stepbystep create mode routes to the dedicated builder, not the sheet', () => {
