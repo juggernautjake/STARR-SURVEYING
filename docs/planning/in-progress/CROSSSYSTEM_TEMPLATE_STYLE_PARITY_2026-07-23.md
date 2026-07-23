@@ -38,12 +38,12 @@ looks like "nothing changed but colors."** This doc closes both, and hardens the
   every PF2/IG root; `skinAccents.css` paints a distinct subtle surface per style. 3 tests.
 
 ### Distinctness — make the four TEMPLATES unmistakably different (all systems)
-- [ ] **CT-1 — verify + guard the four are structurally distinct per system.** Render-test `PF2Sheet` and
+- [x] **CT-1 — verify + guard the four are structurally distinct per system.** Render-test `PF2Sheet` and
   `IGSheet` (and the 5e layouts) at each of classic/codex/dashboard/play and assert each produces its shell's
   signature (Classic → the stacked `pf2Section`/`igs` cards; Codex → `codex` grid + `codex-accordion`/pane
   rail; Dashboard → `dash-grid`; Play → `play` + the reference drawer). This proves — and locks — that the
   templates really change on PF2/IG, and surfaces any layout that silently falls through.
-- [ ] **CT-2 — make Codex vs Dashboard read as clearly different (shared shells → lands on every system).**
+- [x] **CT-2 (SHIPPED 2026-07-23) — make Codex vs Dashboard read as clearly different (shared shells → lands on every system).**
   The two share the outer 2-column frame; nudge them apart: Dashboard = a denser, boxier, always-open card
   GRID (equal-height cards, visible card chrome, tighter gutters); Codex = the single tall resizable pane
   RAIL it already is, emphasized (wider panes, rail affordance). A player switching between them must see an

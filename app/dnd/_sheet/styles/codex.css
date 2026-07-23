@@ -757,8 +757,10 @@
      `min(100%, 320px)` floor is load-bearing on mobile (CX-R5): a bare `minmax(320px, 1fr)` forces a
      320px track even when the container is only ~300px wide, which pushes the grid past the viewport
      and horizontally-scrolls the whole page. `min(100%, …)` lets the track shrink to the container. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 14px;
+  /* Denser than Codex on purpose (CT-2): smaller min track = MORE columns of smaller tiles, so the
+     Dashboard reads as a BOARD of many cards, unmistakably different from the Codex's single tall pane rail. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 264px), 1fr));
+  gap: 10px;
   align-items: start;
 }
 .sheet-shell .dash-card {
@@ -783,13 +785,17 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 9px 12px;
+  padding: 8px 11px;
+  /* A FILLED, gold-tinted header bar with a left accent (CT-2) — makes each card read as a distinct boxed
+     tile, the "dashboard of tiles" identity, versus the Codex's seamless resizable panes. Token-only, so it
+     recolours per skin/theme. */
   border-bottom: 1px solid var(--line);
-  background: rgba(var(--void-rgb), 0.4);
+  border-left: 3px solid var(--gold);
+  background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.1), rgba(var(--void-rgb), 0.45));
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink);
 }
@@ -808,7 +814,7 @@
   /* Scroll lives on the card body past a max height, so one long section does not stretch the whole
      grid row — the board stays scannable. */
   padding: 10px;
-  max-height: 460px;
+  max-height: 400px; /* shorter tiles → a denser board, more cards visible at once (CT-2) */
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
