@@ -45,7 +45,10 @@ house-rule** (provenance: custom, not vanilla), never presented as official IG.
   specializations, capstones) resolved from `IG_CLASS_DETAILS`. Replaced the thin `igLevelMilestones`. Wired
   into `IGCharacterBuilder` as a full "Level 2–N progression" preview (both layouts). 10 tests.
 - [x] **IG-2 — interactive `igPlanLevelUp` (DONE 2026-07-23).** `igPlanLevelUp({subclass, to, recorded, from})` + `igRecordChoice` — the IG mirror of `pf2PlanLevelUp`. Surfaces every player-choice gain (trait / feat-by-category / ability-boosts×2 / subclass-power / specialization / skill / capstone) across levels 2..to as an outstanding prompt until recorded; automatic grants never block. Options come from the scraped breakdown. 6 tests (`ig-plan-levelup.test.ts`).
-- [ ] **IG-3 — per-level choice persistence** (`data.ig.build.choices` + `/ig-levels` route), like `/pf2-levels`.
+- [x] **IG-3 — per-level choice persistence (DONE 2026-07-23).** New `/ig-levels` route (GET plan / POST
+  record+commit), the IG mirror of `/pf2-levels`: records validated choices into `data.igBuild.choices`
+  (additive field on `IGBuild`) and commits a level only when the plan is `ready` (409 otherwise), keeping the
+  `ig` sidecar's level in step. IG-only, behind `requireCharacterWrite`. 6 tests (`ig-levels-route.test.ts`).
 - [ ] **IG-4 — IG level-by-level walk UI** (`IGLevelBuilder`) + levels-page dispatch, like `PF2LevelBuilder`.
 - [ ] **MC-IG — multiclass house-rule** — the Multiclass Dedication above: eligibility + how it opens other
   subclasses' power lists at the subclass-power slots; flagged as custom provenance.

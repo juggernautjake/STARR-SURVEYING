@@ -29,6 +29,9 @@ export interface IGBuild {
   defensivePower?: string;
   /** Companion creature type (from the bestiary) — flagged as a vanilla creature-type when recognized. */
   companionType?: string;
+  /** Per-level choices the guided level-by-level builder has recorded (IG-3). Additive: absent on characters
+   *  built before this; the planner treats absent as "nothing recorded yet". */
+  choices?: import('./levelup').IGRecordedChoice[];
 }
 
 export interface IGPicks extends IGBuild {
