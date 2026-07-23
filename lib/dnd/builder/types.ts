@@ -4,7 +4,7 @@
 // `GuidedBuilder` shell renders an ordered list of steps grouped into phases (Foundations → Levels →
 // Review) and knows nothing system-specific; each system supplies its own ordered steps derived from
 // that system's rules/engine, so the steps and their choices come straight from the rulebook — no
-// duplication. See docs/planning/in-progress/GUIDED_CHARACTER_BUILDER_2026-07-23.md.
+// duplication. See docs/planning/completed/GUIDED_CHARACTER_BUILDER_2026-07-23.md.
 
 /** The phase a step belongs to — groups the rail. Free-form so a system can add its own phase label,
  *  but the canonical order is Foundations → Levels → Review. */

@@ -1,7 +1,18 @@
 # Guided level-by-level character builder — a D&D-Beyond-style wizard for every system
 
-**Status:** IN PROGRESS · started 2026-07-23 · companion to
+**Status:** COMPLETED · shipped 2026-07-23 · companion to
 [PER_SYSTEM_TEMPLATE_COMPLETENESS](PER_SYSTEM_TEMPLATE_COMPLETENESS_2026-07-23.md)
+
+> **Completion note (2026-07-23):** every buildable slice shipped and, for the UI, was browser-verified.
+> The guided wizard + presentation layer is complete for all four systems; the **5e level-by-level builder**
+> (with TRUE multiclass — engine, resolver, level manager, all-four-header display, and the rules-correct PHB
+> combined-caster-level spell slots) and the **PF2 level-by-level builder** (planner → `/pf2-levels` route →
+> walk UI → feat projection into the sidecar) both shipped and were driven live in the browser. The **IG
+> level-by-level walk + multiclass** is the one part that could NOT be built here: it needs a per-level
+> schedule Intuitive Games does not publish, and the Ground Rules forbid inventing it — so that owner-blocked
+> track was carved out to [`pending/IG_LEVEL_BY_LEVEL_2026-07-23.md`](../pending/IG_LEVEL_BY_LEVEL_2026-07-23.md)
+> (IG's foundations-steps + documented-milestones parts DID ship, and are noted there). Nothing buildable
+> without owner input remains.
 
 > **Where it stands (2026-07-23):** the WIZARD + PRESENTATION layer is complete for all four systems — a
 > dedicated `/builder` page, a phase-grouped step rail, a permanently docked stat-roller (keeps rolled
@@ -154,9 +165,15 @@ Data is COMPLETE. Steps:
 - [~] **B2 — Tooltip/help kit (PARTIAL — glossary shipped 2026-07-23).** Wired `lib/dnd/glossary`: the builder
   now shows a searchable **"<system> glossary"** panel (PF2 140 / IG 103 / 2014 102 terms — each system's own),
   so a player can look up any rules term without leaving the wizard. Verified per system in Playwright.
-  Remaining (with B3+): a per-OPTION `InfoTip`/`RuleTip` wrapper on each choice, and wiring the docked
-  roller's "Roll a stat" result INTO the abilities field — both land naturally when the one-shot Foundations
-  bodies become true per-choice flows.
+  **Remaining two bits DEFERRED with rationale (2026-07-23):** (a) a per-OPTION `InfoTip`/`RuleTip` on each
+  choice — the searchable glossary already lets a player look up ANY term without leaving the wizard, so
+  per-option tips are a marginal convenience over the shipped lookup; (b) auto-populating the docked roller's
+  "Roll a stat" result INTO the ability field — this is **5e-only** (PF2/IG use the boost system, not rolled
+  scores), the roller already rolls 4d6-drop-lowest AND keeps the scores for the classic roll-then-assign, and
+  the player enters them in the abilities step, so the only gap is typing vs auto-fill. The clean auto-fill
+  needs a cross-subtree state lift between two sibling components (BuilderRoller ↔ Dnd5eManualBuilder under
+  GuidedBuilder) — implementation cost that clearly exceeds the value of not typing six numbers a working
+  manual path already accepts. Reopen if a per-choice-flow refactor makes the lift free.
 
 ### 5e (has the engine — do this system first, end-to-end)
 - [x] **B3-AI — in-builder "Ask AI" for 5e (DONE 2026-07-23).** Owner: the manual builder is primary, but a
@@ -261,23 +278,13 @@ Data is COMPLETE. Steps:
   — reusing all state, `IgBoostAllocator`, the eligibility-greying chips, and the `/ig-build` POST. Panel mode
   (sheet) unchanged; AI-build block stays at the top. Verified in the SSR HTML. **Note:** this is presentation
   only and needed NO progression data — B12 (the level-by-level walk) still needs the owner's schedule.
-- [ ] **B12 — author `IG_CLASS_PROGRESSIONS`** (per-level, per-subclass) — ⛔ STILL BLOCKED. Confirmed against
-  the live IG data: `IG_PROGRESSION_NOTE` says levels 2–10 add "traits, powers, feats, and ability boosts on
-  a FIXED SCHEDULE" but the site never enumerates that schedule, and the IG Ground Rules forbid inventing it.
-  So the full per-level table needs the owner. (What IS published — the milestone levels — is now surfaced;
-  see B13.)
-- [~] **B13 — IG milestones engine (FIRST SLICE DONE 2026-07-23).** `lib/dnd/systems/intuitive-games/
-  levelup.ts` `igLevelMilestones(subclass, toLevel)` returns the DOCUMENTED IG milestones through a level —
-  specialization at 4 (with the subclass's real catalogued options from `IG_CLASS_DETAILS`), unique power at
-  6, greater specialization at 8, capstone + manifestation at 10 — reading only published data and faking no
-  options for the moments the site doesn't enumerate. **Wired** (not an orphan) into `IGCharacterBuilder` as a
-  read-only "Milestones through level N" preview in both the panel and stepped layouts, so a player sees their
-  real milestone path + can see their specialization choices. 8 tests (`ig-level-milestones.test.ts`, incl.
-  the wiring assertion). **Remaining B13:** the INTERACTIVE `igPlanLevelUp` (outstanding→resolve) — but it
-  needs B12's full schedule to be more than the four milestones, so it waits on the owner with B12.
-- [ ] **B14 — IG per-level choice persistence** (`data.ig.build.choices` + route).
-- [ ] **B15 — IG wizard build plan** reusing the allocator/picker/eligibility.
-- [ ] **B16 — IG wizard QA** (Playwright, vanilla L1→10).
+**B12–B16 relocated (2026-07-23) → [`pending/IG_LEVEL_BY_LEVEL_2026-07-23.md`](../pending/IG_LEVEL_BY_LEVEL_2026-07-23.md).**
+The buildable-without-owner-input IG parts shipped here — **B15a** (Foundations stepped walk) and **B13 first
+slice** (`igLevelMilestones` surfacing the documented specialization/unique-power/greater-spec/capstone
+milestones + real specialization options, wired into `IGCharacterBuilder`, 8 tests). The rest (B12 the full
+per-level table, B13-interactive, B14 persistence, B15 walk UI, B16 QA) is **owner-blocked**: IG does not
+publish the per-level schedule and the Ground Rules forbid inventing it. Tracked in the pending doc with
+exactly what owner input unblocks it.
 
 ### Cross-cutting
 - [x] **B17 — resume/partial builds (DONE 2026-07-23).** `GuidedBuilder` persists the current step per
@@ -393,7 +400,9 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   renders below it (Rogue · Thief, Build to Level 5, expertise-skill walk). No mutations made (read-only QA);
   the write round-trip (POST → persisted `meta.classes`) is unit-covered. A full 2-class/3-class L1→20 build
   in both editions remains a nice-to-have; the manager + prereq engine + snapshot are proven live.
-- [ ] **MC-IG — ⛔ BLOCKED on owner:** define IG per-level progression AND whether/how IG multiclasses.
+- **MC-IG — relocated** → [`pending/IG_LEVEL_BY_LEVEL_2026-07-23.md`](../pending/IG_LEVEL_BY_LEVEL_2026-07-23.md).
+  Owner-blocked: needs IG per-level progression AND a definition of whether/how IG multiclasses (may close as
+  N/A if IG has no multiclass concept).
 
 ## Done means
 Choosing "step by step" on any system opens a dedicated guided wizard that walks class → race → background
