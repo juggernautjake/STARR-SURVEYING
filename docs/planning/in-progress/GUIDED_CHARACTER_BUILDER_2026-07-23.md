@@ -174,6 +174,12 @@ Data is COMPLETE. Steps:
 - [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial).
 
 ### IG (author data first — biggest lift)
+- [x] **B15a — IG Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `IGCharacterBuilder` gained
+  the same `layout='steps'` mode as 5e/PF2: Identity & class → Role & defense → Ability scores → Stances &
+  powers → Feats/weapons/companion & finish, one at a time, with per-step help, a progress bar, and Prev/Next
+  — reusing all state, `IgBoostAllocator`, the eligibility-greying chips, and the `/ig-build` POST. Panel mode
+  (sheet) unchanged; AI-build block stays at the top. Verified in the SSR HTML. **Note:** this is presentation
+  only and needed NO progression data — B12 (the level-by-level walk) still needs the owner's schedule.
 - [ ] **B12 — author `IG_CLASS_PROGRESSIONS`** (per-level, per-subclass; confirm schedule vs IG rules).
 - [ ] **B13 — IG known-at-level model + `igPlanLevelUp`** (powers/feats/specialization schedule).
 - [ ] **B14 — IG per-level choice persistence** (`data.ig.build.choices` + route).

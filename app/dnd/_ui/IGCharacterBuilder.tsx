@@ -6,7 +6,7 @@
 // custom (allowed here, blocked only at submission in a vanilla-only campaign). AI-customize comes next.
 'use client';
 
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import IgBoostAllocator from './IgBoostAllocator';
@@ -48,13 +48,16 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
   );
 }
 
-export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', startOpen = false }: { characterId: string; initialName: string; aiConfigured?: boolean;
+export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
   /** Vanilla builds are held to the class rules; custom ones may take anything (Area MV). Defaults
    *  to vanilla — the safe direction for an unlabelled sheet, matching the server. */
   variantKind?: 'vanilla' | 'custom';
   /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
    *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
-  startOpen?: boolean }) {
+  startOpen?: boolean;
+  /** 'panel' (default) shows every field at once — the sheet-page builder. 'steps' walks the SAME fields one
+   *  section at a time with Prev/Next for the guided /builder wizard (B15). Same state, picks, and POST. */
+  layout?: 'panel' | 'steps' }) {
   const router = useRouter();
   const catalog = useMemo(() => igCatalog(), []);
   const ancestries = useMemo(() => names(catalog, 'ancestry'), [catalog]);
@@ -77,6 +80,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   const [specialization, setSpecialization] = useState('');
   const [background, setBackground] = useState('');
   const [level, setLevel] = useState(1);
+  const [istep, setIstep] = useState(0); // which foundation section is shown in 'steps' layout
   const [stances, setStances] = useState<string[]>([]);
   const [powers, setPowers] = useState<string[]>([]);
   const [feats, setFeats] = useState<string[]>([]);
@@ -202,29 +206,31 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         ◆ Build from the Intuitive Games library
         <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)', marginLeft: 8 }}>· pick vanilla content or add your own (flagged custom)</span>
       </summary>
-      <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-        {aiConfigured && (
+      {(() => {
+        // ── Section nodes — arranged by `layout` (panel = all at once; steps = one at a time), same state. ──
+        const sectionLabel = { fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' } as const;
+        const aiBlock = aiConfigured ? (
           <div style={{ display: 'grid', gap: 6, padding: '8px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(200,170,110,0.05)' }}>
             <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-gold-2)' }}>✨ AI BUILD (grounded to Intuitive Games)</span>
             <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={2} placeholder="Describe the character — e.g. “a cunning Migoi freebooter duelist who fights defensively and has a griffon companion”" style={input} />
             <button type="button" className={styles.hexBtn} disabled={aiBusy} onClick={aiBuild} style={{ justifySelf: 'start' }}>{aiBusy ? 'Building…' : '✨ Build with AI'}</button>
             <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>The AI matches Intuitive Games mechanics; anything it invents is auto-flagged custom for DM review.</span>
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Character name" style={{ ...input, flex: 2, minWidth: 160 }} />
-          <input type="number" min={1} max={10} value={level} onChange={(e) => setLevel(Math.max(1, Math.min(10, +e.target.value || 1)))} style={{ ...input, width: 70 }} title="Level" />
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <select value={ancestry} onChange={(e) => setAncestry(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Ancestry…</option>{ancestries.map((a) => <option key={a} value={a}>{a}</option>)}</select>
-          <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Class…</option>{classes.map((a) => <option key={a} value={a}>{a}</option>)}</select>
-          {/* Subclasses are scoped to the chosen PARENT class (Area T1) — you can only pick one of ITS
-              subclasses, never a subclass from another family. Falls back to the full list before a class is chosen. */}
-          <select value={subclass} onChange={(e) => setSubclass(e.target.value)} disabled={!className} title={className ? `Subclasses of ${className}` : 'Pick a class first'} style={{ ...input, flex: 1, minWidth: 130, opacity: className ? 1 : 0.6 }}><option value="">Subclass…</option>{(className ? igSubclassesOf(className) : subclasses).map((a) => <option key={a} value={a}>{a}</option>)}</select>
-        </div>
-        {/* B2: preview what the chosen class/subclass grants (HP, primary attribute, stance, powers, …) from the
-            captured A10 data, so you can see the class's features at pick-time. WIP classes show their note honestly. */}
-        {classDetail && (
+        ) : null;
+        const nameLevelRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Character name" style={{ ...input, flex: 2, minWidth: 160 }} />
+            <input type="number" min={1} max={10} value={level} onChange={(e) => setLevel(Math.max(1, Math.min(10, +e.target.value || 1)))} style={{ ...input, width: 70 }} title="Level" />
+          </div>
+        );
+        const classRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <select value={ancestry} onChange={(e) => setAncestry(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Ancestry…</option>{ancestries.map((a) => <option key={a} value={a}>{a}</option>)}</select>
+            <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Class…</option>{classes.map((a) => <option key={a} value={a}>{a}</option>)}</select>
+            <select value={subclass} onChange={(e) => setSubclass(e.target.value)} disabled={!className} title={className ? `Subclasses of ${className}` : 'Pick a class first'} style={{ ...input, flex: 1, minWidth: 130, opacity: className ? 1 : 0.6 }}><option value="">Subclass…</option>{(className ? igSubclassesOf(className) : subclasses).map((a) => <option key={a} value={a}>{a}</option>)}</select>
+          </div>
+        );
+        const classDetailNode = classDetail ? (
           <div data-testid="ig-class-features" style={{ fontSize: 11.5, lineHeight: 1.5, border: '1px solid var(--hx-line)', borderRadius: 6, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', display: 'grid', gap: 1 }}>
             <div style={{ color: 'var(--hx-teal-1)', fontWeight: 600 }}>{classDetail.name}{classDetail.classification ? ` — ${classDetail.classification}` : ''}</div>
             {detailRow('Primary', classDetail.primaryAbility)}
@@ -232,9 +238,6 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {detailRow('Stance', classDetail.grantedStance)}
             {detailRow('Defensive power', classDetail.defensivePower)}
             {detailRow('Starting power', classDetail.startingPower)}
-            {/* Powers/specializations render as chips, each carrying its verbatim effect text as a hover
-                tooltip (from IG_CLASS_POWER_EFFECTS) — so the class is "hooked up": you see what a power DOES
-                at pick-time, not just its name. A chip with known effect gets a dotted underline + help cursor. */}
             {classDetail.powers?.length ? (
               <div><span style={{ color: 'var(--hx-muted)' }}>Powers: </span>
                 {classDetail.powers.map((p, i) => {
@@ -254,51 +257,111 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             ) : null}
             {classDetail.note ? <div style={{ color: 'var(--hx-muted)', fontStyle: 'italic' }}>{classDetail.note}</div> : null}
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <input list="ig-spec-opts" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
-          <datalist id="ig-spec-opts">
-            {Array.from(new Set(IG_CLASS_DETAILS.flatMap((c) => c.specializations ?? []))).map((s) => {
-              const name = s.split(' (')[0];
-              return <option key={s} value={name}>{s}</option>;
-            })}
-          </datalist>
-          <input list="ig-background-opts" value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
-          <datalist id="ig-background-opts">{IG_BACKGROUND_DEFS.map((b) => <option key={b.name} value={b.name}>{`${b.name} — ${b.stance} stance, ${b.hp} HP`}</option>)}</datalist>
-          <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>ABILITY SCORES</div>
-        {/* MB-4: the real IG method — start 10, eight +2 boosts, cap 14 — replacing the raw score inputs. */}
-        <IgBoostAllocator onChange={setAbilities} />
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>STANCES</div>
-        <Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} />
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>POWERS</div>
-        <Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} />
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>FEATS</div>
-        <Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} />
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>WEAPON GROUPS</div>
-        <Chips opts={weaponTypeOpts} sel={weaponTypes} on={(v) => toggle(setWeaponTypes, v)} />
-        <input value={weaponsText} onChange={(e) => setWeaponsText(e.target.value)} placeholder="Weapons (comma-separated, e.g. Cutlass, Pistol)" style={input} />
-        <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>COMPANION CREATURE</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <select value={companionType} onChange={(e) => setCompanionType(e.target.value)} style={{ ...input, flex: 1, minWidth: 150 }}>
-            <option value="">No companion</option>
-            {Object.entries(bestiary).map(([grp, list]) => (
-              <optgroup key={grp} label={grp}>{list.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>
-            ))}
-          </select>
-          {companionType && <input value={companionName} onChange={(e) => setCompanionName(e.target.value)} placeholder="Companion name" style={{ ...input, flex: 1, minWidth: 130 }} />}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
-            {preview.total} picked · <span style={{ color: 'var(--hx-teal-1)' }}>{preview.vanilla} vanilla</span>{preview.custom > 0 && <> · <span style={{ color: 'var(--hx-danger)' }}>{preview.custom} custom</span></>}
+        ) : null;
+        const roleRow = (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input list="ig-spec-opts" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
+            <datalist id="ig-spec-opts">
+              {Array.from(new Set(IG_CLASS_DETAILS.flatMap((c) => c.specializations ?? []))).map((s) => {
+                const nm = s.split(' (')[0];
+                return <option key={s} value={nm}>{s}</option>;
+              })}
+            </datalist>
+            <input list="ig-background-opts" value={background} onChange={(e) => setBackground(e.target.value)} placeholder="Background" style={{ ...input, flex: 1, minWidth: 130 }} />
+            <datalist id="ig-background-opts">{IG_BACKGROUND_DEFS.map((b) => <option key={b.name} value={b.name}>{`${b.name} — ${b.stance} stance, ${b.hp} HP`}</option>)}</datalist>
+            <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
           </div>
-          <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Building replaces the current sheet. Custom picks are allowed here and flagged — a vanilla-only campaign only blocks them at submission.</div>
-        {msg && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</div>}
-      </div>
+        );
+        const abilitiesBlock = (<><div style={sectionLabel}>ABILITY SCORES</div><IgBoostAllocator onChange={setAbilities} /></>);
+        const stancesBlock = (<><div style={sectionLabel}>STANCES</div><Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} /></>);
+        const powersBlock = (<><div style={sectionLabel}>POWERS</div><Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} /></>);
+        const featsBlock = (<><div style={sectionLabel}>FEATS</div><Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} /></>);
+        const weaponsBlock = (
+          <>
+            <div style={sectionLabel}>WEAPON GROUPS</div>
+            <Chips opts={weaponTypeOpts} sel={weaponTypes} on={(v) => toggle(setWeaponTypes, v)} />
+            <input value={weaponsText} onChange={(e) => setWeaponsText(e.target.value)} placeholder="Weapons (comma-separated, e.g. Cutlass, Pistol)" style={input} />
+          </>
+        );
+        const companionBlock = (
+          <>
+            <div style={sectionLabel}>COMPANION CREATURE</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <select value={companionType} onChange={(e) => setCompanionType(e.target.value)} style={{ ...input, flex: 1, minWidth: 150 }}>
+                <option value="">No companion</option>
+                {Object.entries(bestiary).map(([grp, list]) => (
+                  <optgroup key={grp} label={grp}>{list.map((n) => <option key={n} value={n}>{n}</option>)}</optgroup>
+                ))}
+              </select>
+              {companionType && <input value={companionName} onChange={(e) => setCompanionName(e.target.value)} placeholder="Companion name" style={{ ...input, flex: 1, minWidth: 130 }} />}
+            </div>
+          </>
+        );
+        const buildRow = (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
+                {preview.total} picked · <span style={{ color: 'var(--hx-teal-1)' }}>{preview.vanilla} vanilla</span>{preview.custom > 0 && <> · <span style={{ color: 'var(--hx-danger)' }}>{preview.custom} custom</span></>}
+              </div>
+              <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Building replaces the current sheet. Custom picks are allowed here and flagged — a vanilla-only campaign only blocks them at submission.</div>
+            {msg && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{msg}</div>}
+          </>
+        );
+
+        if (layout === 'steps') {
+          const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.55)', color: 'var(--hx-text)' };
+          const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
+            { title: 'Identity & class', help: 'Name, level, ancestry, and your class + subclass — the class preview shows what it grants.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{classRow}{classDetailNode}</div> },
+            { title: 'Role & defense', help: 'Your specialization and background (which sets a stance + HP), and a defensive power (your reaction).', body: <div style={{ display: 'grid', gap: 10 }}>{roleRow}</div> },
+            { title: 'Ability scores', help: 'The IG method: start 10, eight +2 boosts, cap 14 (≤2 per ability).', body: <div style={{ display: 'grid', gap: 8 }}>{abilitiesBlock}</div> },
+            { title: 'Stances & powers', help: 'Pick the stances you know and your powers — ineligible powers are greyed with the reason.', body: <div style={{ display: 'grid', gap: 8 }}>{stancesBlock}{powersBlock}</div> },
+            { title: 'Feats, weapons, companion & finish', help: 'Choose feats, weapon groups + weapons, and an optional companion creature, then build.', body: <div style={{ display: 'grid', gap: 8 }}>{featsBlock}{weaponsBlock}{companionBlock}{buildRow}</div> },
+          ];
+          const idx = Math.min(istep, stepDefs.length - 1);
+          const cur = stepDefs[idx];
+          return (
+            <div style={{ marginTop: 10, display: 'grid', gap: 12 }}>
+              {aiBlock}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--hx-gold-2)' }}>{cur.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Foundation {idx + 1} of {stepDefs.length} · Intuitive Games</div>
+              </div>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {stepDefs.map((s, i) => (
+                  <button key={i} type="button" onClick={() => setIstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)' }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{cur.help}</div>
+              <div>{cur.body}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <button type="button" disabled={idx === 0} onClick={() => setIstep((i) => Math.max(0, i - 1))} style={{ ...navBtn, opacity: idx === 0 ? 0.4 : 1, cursor: idx === 0 ? 'default' : 'pointer' }}>← Prev</button>
+                {idx < stepDefs.length - 1 && (
+                  <button type="button" onClick={() => setIstep((i) => Math.min(stepDefs.length - 1, i + 1))} style={navBtn}>Next →</button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+            {aiBlock}
+            {nameLevelRow}
+            {classRow}
+            {classDetailNode}
+            {roleRow}
+            {abilitiesBlock}
+            {stancesBlock}
+            {powersBlock}
+            {featsBlock}
+            {weaponsBlock}
+            {companionBlock}
+            {buildRow}
+          </div>
+        );
+      })()}
     </details>
   );
 }

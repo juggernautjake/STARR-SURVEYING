@@ -87,7 +87,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
       'Ancestry, class, background, abilities & picks',
       'Pick your ancestry, class and subclass, specialization and background, allocate your ability boosts, and choose stances, powers, feats and your defensive power. Provenance (vanilla vs custom) is tracked as you go.',
       <div style={{ display: 'grid', gap: 16 }}>
-        <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} variantKind={variantKind} startOpen />
+        <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} variantKind={variantKind} startOpen layout="steps" />
         <IGVanillaLibrary />
       </div>,
     );

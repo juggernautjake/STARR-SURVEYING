@@ -68,6 +68,15 @@ describe('guided character builder (B1)', () => {
     expect(page).toMatch(/<PF2CharacterBuilder[^>]*layout="steps"/);
   });
 
+  it('walks the IG Foundations one step at a time in the wizard too (B15)', () => {
+    const builder = read('app/dnd/_ui/IGCharacterBuilder.tsx');
+    const page = read('app/dnd/characters/[id]/builder/page.tsx');
+    expect(builder).toMatch(/layout\?: 'panel' \| 'steps'/);
+    expect(builder).toMatch(/layout === 'steps'/);
+    expect(builder).toMatch(/Foundation \{idx \+ 1\} of/);
+    expect(page).toMatch(/<IGCharacterBuilder[^>]*layout="steps"/);
+  });
+
   it('surfaces the current system\'s rules glossary in the builder (B2)', () => {
     const page = read('app/dnd/characters/[id]/builder/page.tsx');
     const shell = read('app/dnd/_ui/builder/GuidedBuilder.tsx');
