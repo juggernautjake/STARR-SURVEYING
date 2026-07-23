@@ -146,9 +146,13 @@
     with the edition's increases folded in (racial 2014 / assignable +2/+1 background spread 2024), a feat
     picker sized to the class's ASI/feat slots by that level, live validation + a build button. Emits a
     `Dnd5eBuildResult` via `onBuild`.
-  - **REMAINING (MB-2b):** assemble-to-level via the shared engine (`classes/engine.ts` + `levelup.ts`) +
-    persist through a `dnd5e-build` route (mirrors pf2/ig-build), and mount the builder on the character page
-    for 5e characters. Browser-verified UI/route slice.
+  - **MB-2b SHIPPED 2026-07-22 — MB-2 DONE.** `lib/dnd/statgen/assemble5e.ts` (6 tests, real catalog) turns the
+    picks into a character DATA patch (class/subclass key→label, primary abilities, final abilities as running
+    totals, 2024 spread kept, feats→features); `POST /dnd5e-build` merges it onto the character `data` and
+    re-normalizes (safe, mirrors pf2/ig-build); the builder self-persists (route+reload) and is MOUNTED on the
+    character page for either 5e edition (owner/DM), beside the AI Build Kit. The sheet derives
+    HP/AC/proficiency/class-features-by-level from the choices, so "the exact mechanics per class per level"
+    come from the existing engine. On-screen review of the built character is a QA-phase item.
   - Original scope:
   Dropdowns: species (+subrace/lineage) · class ·
   subclass (shown at the class's subclass level) · background · level (1–20). The StatGenPanel (array/
