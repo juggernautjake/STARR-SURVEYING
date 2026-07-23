@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import DndHeader from './_ui/DndHeader';
 import DndFooter from './_ui/DndFooter';
 import styles from './_ui/hextech.module.css';
+import './_sheet/styles/fonts.css'; // every skin's webfonts, loaded on all /dnd pages (CS-1) so PF2/IG restyle too
 import { getDndSession } from '@/lib/dnd/auth';
 
 export const metadata: Metadata = {
