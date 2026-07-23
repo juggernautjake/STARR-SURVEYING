@@ -285,8 +285,14 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   STR-or-DEX) + `meetsMulticlassPrereq(classKey, abilities)`. Unknown/homebrew classes are unrestricted (the
   custom escape hatch); system-prefixed keys tolerated. 5 tests. The level manager (MC-5e-4) gates entering a
   new class on this.
-- [ ] **MC-5e-4 — LevelBuilder multiclass:** at each character level, choose which class to advance (or add a
-  new class), then resolve that class-level's owed choices via the existing `planLevelUp` per class.
+- [x] **MC-5e-4 — the level manager UI + save route (DONE 2026-07-23).** `MulticlassManager` — a D&D-Beyond-
+  style panel with −/+ level steppers per class, an "add a class" picker annotated with each class's multiclass
+  ability prereq, and a LIVE aggregated summary (total level, proficiency, HP, combined spell slots, pact)
+  straight from `multiclassSnapshot`. Saves `data.meta.classes` via a new owner-gated, 5e-only,
+  total-capped-at-20 `/classes` route. Mounted on the `/levels` page above the per-level walker. Verified: the
+  panel renders on `/levels`, and the route round-trips live (POST Rogue 3 / Wizard 1 → persisted
+  `meta.classes`, total 4). 3 wiring tests + the engine tests underneath. **Next: MC-5e-5** — make the SHEET
+  read `meta.classes` (via `multiclassSnapshot`) so a multiclass character's slots/features/HP actually render.
 - [ ] **MC-5e-5 — sheet display:** show "Fighter 3 / Wizard 2" + the aggregated features/slots.
 - [ ] **MC-5e-6 — QA:** Playwright build a 2-class and 3-class 5e character, both editions.
 - [ ] **MC-IG — ⛔ BLOCKED on owner:** define IG per-level progression AND whether/how IG multiclasses.
