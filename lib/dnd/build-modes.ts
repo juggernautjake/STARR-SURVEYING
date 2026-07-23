@@ -5,7 +5,7 @@ export type BuildMode = 'ruthless' | 'questioning' | 'stepbystep';
 export const BUILD_MODES: { key: BuildMode; name: string; blurb: string }[] = [
   { key: 'ruthless', name: 'Ruthless', blurb: 'Builds the whole character now — no questions. Makes the best call on anything missing.' },
   { key: 'questioning', name: 'Questioning', blurb: 'Builds what’s clear, then asks you about anything missing, confusing, or conflicting.' },
-  { key: 'stepbystep', name: 'Step-by-step', blurb: 'You define every stat, feature, ability and mechanic (native or custom), guided one step at a time.' },
+  { key: 'stepbystep', name: 'Manual (step-by-step)', blurb: 'No AI — pick your race, class, subclass, background and level from dropdowns, roll or point-buy your stats, and choose your feats. The vanilla builder for your system opens on the character page.' },
 ];
 
 export function normalizeBuildMode(value: unknown): BuildMode {
