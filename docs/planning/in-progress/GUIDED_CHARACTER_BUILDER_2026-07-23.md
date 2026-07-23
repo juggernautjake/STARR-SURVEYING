@@ -261,8 +261,13 @@ concept. The faithful mapping differs per system, so "multiclass for all four" m
   couldn't be confirmed, so nothing was invented) has a `<Class> Dedication` archetype feat, and the
   eligibility gate refuses an archetype's feats until its Dedication is held. **Small remaining data gap:**
   Oracle/Witch Dedications — needs their confirmed Remaster feat details (not autonomously authorable).
-- [ ] **MC-5e-1 — model:** extend the 5e character to hold `classes: {classKey, subclassKey?, level}[]`
-  (migrating the single `className`/`subclass`), with a total-level derivation. Non-breaking read path.
+- [x] **MC-5e-1 — model + unified read path (DONE 2026-07-23).** Added a `ClassLevel` type
+  (`classKey`/`subclassKey?`/`level`) + an optional `meta.classes?: ClassLevel[]` on the 5e character
+  (additive — absent = single-class, byte-for-byte unchanged; present = authoritative). Engine helpers
+  `resolveClassLevels` (single OR multi → one unified list), `totalClassLevel` (SUM across classes),
+  `isMulticlass`, `formatClassLevels` ("Fighter 3 / Wizard 2"), so every later consumer stops caring whether
+  a character is single- or multi-class. 5 tests. Next: MC-5e-2 (aggregate features/HP/prof/slots across
+  classes, reusing `snapshotAtLevel` per class + `multiclassCasterLevel`).
 - [ ] **MC-5e-2 — engine:** aggregate features / proficiencies / HP / saves / spell slots across classes
   (per-class `snapshotAtLevel` + `multiclassCasterLevel`), one subclass per class.
 - [ ] **MC-5e-3 — multiclass eligibility:** the ability-score prerequisites to ENTER a second class.

@@ -357,6 +357,11 @@ export interface Character {
     className: string
     subclass: string
     level: number
+    /** 5e MULTICLASS (MC-5e-1): the classes a character has levels in. Optional + additive — when present
+     *  it is authoritative (resolved via `resolveClassLevels`); when absent, `className`/`subclass`/`level`
+     *  describe the single class exactly as before, so every existing character is unchanged. `level` above
+     *  stays the character TOTAL level. */
+    classes?: import('@/lib/dnd/classes/types').ClassLevel[]
     chips: { text: string; tone?: 'pink' | 'teal' | 'gold' }[]
     /** Descriptive identity fields (Slice 11) — optional, shown in the Bio "Details" line and
      *  overlayable by an identity effect (a potion that changes your recorded profession). */

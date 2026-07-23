@@ -9,7 +9,47 @@ import type {
   LevelSnapshot,
   ClassFeature,
   SpellSlotRow,
+  ClassLevel,
 } from './types';
+
+// ── 5e MULTICLASS foundation (MC-5e-1) ────────────────────────────────────────────────────────────────
+// A UNIFIED read path so single-class and multiclass characters resolve the same way: everything else can
+// consume `resolveClassLevels(...)` and stop caring whether a character has one class or five. The optional
+// `classes[]` (when a character multiclasses) is authoritative; without it we synthesise a one-element list
+// from the character's single class, so today's single-class characters are byte-for-byte unchanged.
+
+/** Resolve a character's class list. `multi` (the `data.meta.classes` array) wins when present + non-empty;
+ *  otherwise the single class/subclass/level is wrapped as a one-element list. Empty/invalid → []. */
+export function resolveClassLevels(
+  single: { classKey?: string | null; subclassKey?: string | null; level?: number | null },
+  multi?: readonly ClassLevel[] | null,
+): ClassLevel[] {
+  const clean = (multi ?? [])
+    .filter((c) => c && typeof c.classKey === 'string' && c.classKey && Number(c.level) >= 1)
+    .map((c) => ({ classKey: c.classKey, subclassKey: c.subclassKey || undefined, level: Math.max(1, Math.floor(Number(c.level))) }));
+  if (clean.length) return clean;
+  if (single.classKey && Number(single.level) >= 1) {
+    return [{ classKey: single.classKey, subclassKey: single.subclassKey || undefined, level: Math.max(1, Math.floor(Number(single.level))) }];
+  }
+  return [];
+}
+
+/** The character's TOTAL level — the sum across all classes. Proficiency bonus, feats, and multiclass
+ *  spell-slot math all key off this, not any single class's level. */
+export function totalClassLevel(classes: readonly ClassLevel[]): number {
+  return classes.reduce((n, c) => n + Math.max(0, Math.floor(c.level || 0)), 0);
+}
+
+/** True when a character holds levels in more than one class. */
+export function isMulticlass(classes: readonly ClassLevel[]): boolean {
+  return classes.length > 1;
+}
+
+/** A short display of the class split, e.g. "Fighter 3 / Wizard 2". `nameFor` maps a class key to its
+ *  display name (falls back to the key). Single-class → just "Fighter 3". */
+export function formatClassLevels(classes: readonly ClassLevel[], nameFor: (key: string) => string): string {
+  return classes.map((c) => `${nameFor(c.classKey) || c.classKey} ${c.level}`).join(' / ');
+}
 
 /** 5e proficiency bonus by character level. Index 1..20. */
 export const PROF_BY_LEVEL = [0, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6];

@@ -112,6 +112,16 @@ export interface SubclassDefinition {
   custom?: { authorName?: string };
 }
 
+/** One class a character has levels in (5e MULTICLASS, MC-5e-1). A single-class character is just a
+ *  one-element list; a multiclass character (Fighter 3 / Wizard 2) has one entry per class. `level` is the
+ *  level IN THIS CLASS, not the character total — the character total is the sum across entries. */
+export interface ClassLevel {
+  classKey: string;
+  subclassKey?: string;
+  /** Levels in THIS class (≥1). */
+  level: number;
+}
+
 /** A resolved snapshot: everything a character of this class/subclass HAS at a given level. */
 export interface LevelSnapshot {
   level: number;
