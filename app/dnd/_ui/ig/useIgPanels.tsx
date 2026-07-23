@@ -346,9 +346,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const anc = findIGAncestry(id.ancestry);
   const eq = ig.equipment;
   const eqSlots = ([['Arms', eq.arms], ['Head', eq.head], ['Torso', eq.torso], ['Legs', eq.legs], ['Hands', eq.hands]] as [string, string][]).filter(([, v]) => v && v.trim());
-  // Mirrors the Combat block's original `has` check EXACTLY (no `canDoEdit` term), so the section's
-  // presence — and the nav anchor to it — is byte-for-byte the old behaviour, not a widened one.
-  const hasCombat = !!(cb.attacks.length || cb.stances.length || cb.defensivePower || cb.conditions.length || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction);
+  // Combat gates on genuine combat CONTENT only (attacks, defensive power, situational bonuses, HP, DR).
+  // Stance + conditions moved to Vitals (IN PLAY), so they no longer force a Combat panel — a stance/
+  // condition-only character now manages them in the always-present Vitals, not a near-empty Combat card.
+  // Still NOT widened by `canDoEdit` (Combat stays a real has-content check — see ig-panels.test).
+  const hasCombat = !!(cb.attacks.length || cb.defensivePower || cb.situationalBonuses.length || cb.hitPoints.classBackgroundHp || cb.damageReduction);
   const hasSkills = ig.skills.length > 0;
   const hasPowers = ig.powers.length > 0 || canDoEdit;
   const hasFeats = ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit;
@@ -399,23 +401,6 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
         </div>
       )}
     >
-      {/* Active stance banner (req 3) — a stance is a HELD state that modifies rolls, so when one is active it
-          deserves a "Currently in: X" callout, not a buried list item. Hover explains the full rules. The
-          stance selector to change it lives in Combat; this is the always-visible status. */}
-      {activeStance && (() => {
-        const e = igStanceInPlay(activeStance, derived.level);
-        return (
-          <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 13, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(10,200,185,0.12), rgba(10,200,185,0.04))', borderRadius: 9, padding: '10px 14px', cursor: 'help' }}>
-            <span aria-hidden style={{ fontSize: 23, lineHeight: 1 }}>🜲</span>
-            <div style={{ display: 'grid', gap: 2 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>
-            </div>
-            {e?.summary && <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-text)', flex: '1 1 200px', lineHeight: 1.45 }}>{e.summary}</span>}
-          </div>
-        );
-      })()}
-
       {/* The stat strip: HP · the three saves · Proficiency. Uniform tiles in a responsive grid so they read
           as one coherent panel and reflow cleanly from phone to wide monitor. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
@@ -457,6 +442,102 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
           <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, color: 'var(--hx-text)' }}>{fmt(derived.proficiency)}</div>
         </div>
       </div>
+
+      {/* ── IN PLAY — IG's live, always-relevant status: the active STANCE (view + change) and CONDITIONS.
+          These belong to Vitals, NOT Combat: Vitals leads every format and sits in the identity column
+          (Codex/Dashboard) or the hero (Play), so the stance a player holds is visible AND changeable on
+          every template — the old placement buried the selector in Combat behind its has-combat gate, so a
+          character without other combat data could never enter a stance. The view shows whenever something
+          is active; the write controls appear for an owner (canDoEdit). ─────────────────────────────────── */}
+      {(activeStance || cb.conditions.length > 0 || canDoEdit) && (
+        <div style={{ display: 'grid', gap: 11, borderTop: '1px solid var(--hx-line)', paddingTop: 12 }}>
+          {(activeStance || canDoEdit) && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={label}>Stance <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
+              {activeStance ? (() => {
+                const e = igStanceInPlay(activeStance, derived.level);
+                return (
+                  <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(10,200,185,0.12), rgba(10,200,185,0.04))', borderRadius: 9, padding: '9px 13px', cursor: 'help' }}>
+                    <span aria-hidden style={{ fontSize: 21, lineHeight: 1 }}>🜲</span>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>
+                    </div>
+                    {e?.summary && <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-text)', flex: '1 1 150px', lineHeight: 1.45 }}>{e.summary}</span>}
+                  </div>
+                );
+              })() : (
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)' }}>No stance active.</span>
+              )}
+              {canDoEdit && (
+                // Enter a stance (one active at a time — the route replaces the current one) or clear it.
+                <select
+                  aria-label="Active stance"
+                  value={activeStance ?? ''}
+                  disabled={editing}
+                  onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
+                  style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px', justifySelf: 'start' }}
+                >
+                  <option value="">— no stance —</option>
+                  {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
+                </select>
+              )}
+              {(() => {
+                // The active stance's precise mechanical effect at this level (adv/disadv/DR/bonus) — shown,
+                // per the same legibility pattern as the condition penalty (not folded into base numbers).
+                const note = cb.stances[0] ? igStanceMechanicNote(cb.stances[0], derived.level) : null;
+                return note ? <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-teal-1)', lineHeight: 1.45 }}>{note}</div> : null;
+              })()}
+            </div>
+          )}
+          {(cb.conditions.length > 0 || canDoEdit) && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover or tap ⓘ for the full rules)</span></span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {cb.conditions.map((c) => {
+                  const e = igConditionInPlay(c);
+                  return (
+                    <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
+                      {c}
+                      {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
+                      {canDoEdit && (
+                        <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                      )}
+                    </span>
+                  );
+                })}
+                {canDoEdit && (
+                  // Apply a condition — the route de-dupes, so re-applying an active one is a no-op.
+                  <select
+                    aria-label="Add condition"
+                    value=""
+                    disabled={editing}
+                    onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
+                    style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
+                  >
+                    <option value="">+ add condition…</option>
+                    {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                )}
+              </div>
+              {(() => {
+                // Legible "what's actually applied" note — the stacking flat penalty + any disadvantages,
+                // straight from the IG condition rules (shown, not silently folded into the base numbers).
+                const sum = igConditionSummary(cb.conditions);
+                if (sum.flatD20 === 0 && sum.disadvantages.length === 0) return null;
+                return (
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
+                    {sum.flatD20 !== 0 && (
+                      <div><span style={{ color: 'var(--hx-danger)', fontWeight: 700 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
+                    )}
+                    {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      )}
     </Section>
   );
 
@@ -592,41 +673,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
           </div>
         )}
       </div>
-      {(cb.stances.length > 0 || canDoEdit) && (
-        <div style={{ display: 'grid', gap: 4 }}>
-          <span style={label}>Stances <span style={{ textTransform: 'none', letterSpacing: 0 }}>(one active at a time — hover for the full rules)</span></span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {cb.stances.map((name) => {
-              const e = igStanceInPlay(name, derived.level);
-              return (
-                <span key={name} className="igs-int" title={e?.tooltip ?? name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: 'help' }}>
-                  {e?.name ?? name} {badgeFor(name)}
-                  {e?.summary ? <span style={{ color: 'var(--hx-muted)', fontSize: 12.5 }}>· {e.summary}</span> : null}
-                </span>
-              );
-            })}
-            {canDoEdit && (
-              // Enter a stance (one active at a time — the route replaces the current one) or clear it.
-              <select
-                aria-label="Active stance"
-                value={cb.stances[0] ?? ''}
-                disabled={editing}
-                onChange={(ev) => postEdit(ev.target.value ? { op: 'set_active_stance', name: ev.target.value } : { op: 'clear_stance' })}
-                style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
-              >
-                <option value="">— no stance —</option>
-                {IG_STANCE_DEFS.map((s) => <option key={s.name} value={s.name}>{s.name} Stance</option>)}
-              </select>
-            )}
-          </div>
-          {(() => {
-            // The active stance's precise mechanical effect at this level (adv/disadv/DR/bonus) — shown,
-            // per the same legibility pattern as the condition penalty (not folded into base numbers).
-            const note = cb.stances[0] ? igStanceMechanicNote(cb.stances[0], derived.level) : null;
-            return note ? <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-teal-1)', lineHeight: 1.45 }}>{note}</div> : null;
-          })()}
-        </div>
-      )}
+      {/* Stance + Conditions moved to Vitals (IN PLAY) so they surface on every template — see renderVitals. */}
       {(cb.defensivePower || canDoEdit) && (
         <div style={{ display: 'grid', gap: 4 }}>
           {/* Defensive powers are a REACTION — tag the heading with the reaction glyph so its action cost
@@ -644,52 +691,6 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
         </div>
       )}
       {cb.situationalBonuses.length > 0 && <div style={{ display: 'grid', gap: 4 }}><span style={label}>Situational Bonuses</span><div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)' }}>{cb.situationalBonuses.join(' · ')}</div></div>}
-      {(cb.conditions.length > 0 || canDoEdit) && (
-        <div style={{ display: 'grid', gap: 4 }}>
-          <span style={label}>Conditions <span style={{ textTransform: 'none', letterSpacing: 0 }}>(hover or tap ⓘ for the full rules)</span></span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {cb.conditions.map((c) => {
-              const e = igConditionInPlay(c);
-              return (
-                <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
-                  {c}
-                  {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
-                  {canDoEdit && (
-                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
-                  )}
-                </span>
-              );
-            })}
-            {canDoEdit && (
-              // Apply a condition — the route de-dupes, so re-applying an active one is a no-op.
-              <select
-                aria-label="Add condition"
-                value=""
-                disabled={editing}
-                onChange={(ev) => { if (ev.target.value) postEdit({ op: 'add_condition', name: ev.target.value }); }}
-                style={{ fontSize: 13.5, fontWeight: 500, background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 8, padding: '4px 8px' }}
-              >
-                <option value="">+ add condition…</option>
-                {IG_CONDITIONS.filter((c) => !cb.conditions.some((x) => x.toLowerCase() === c.name.toLowerCase())).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-            )}
-          </div>
-          {(() => {
-            // Legible "what's actually applied" note — the stacking flat penalty + any disadvantages,
-            // straight from the IG condition rules (shown, not silently folded into the base numbers).
-            const sum = igConditionSummary(cb.conditions);
-            if (sum.flatD20 === 0 && sum.disadvantages.length === 0) return null;
-            return (
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
-                {sum.flatD20 !== 0 && (
-                  <div><span style={{ color: 'var(--hx-danger)', fontWeight: 700 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
-                )}
-                {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </Section>
   );
 
