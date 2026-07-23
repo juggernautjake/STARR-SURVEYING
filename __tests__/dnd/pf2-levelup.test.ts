@@ -31,6 +31,13 @@ describe('pf2LevelBreakdown', () => {
     expect(at(5)).toContain('ancestry');
   });
 
+  it('flags the 4 free ability boosts at levels 5/10/15/20 (universal)', () => {
+    const steps = pf2LevelBreakdown('Cleric', 20);
+    const boostLevels = steps.filter((s) => s.abilityBoosts).map((s) => s.level);
+    expect(boostLevels).toEqual([5, 10, 15, 20]);
+    expect(steps.find((s) => s.level === 4)!.abilityBoosts).toBe(false);
+  });
+
   it('an unknown class yields the feat schedule with no class features', () => {
     const steps = pf2LevelBreakdown('Not A Class', 3);
     expect(steps).toHaveLength(3);

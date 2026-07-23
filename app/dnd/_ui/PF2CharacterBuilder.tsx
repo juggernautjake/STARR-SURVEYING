@@ -155,6 +155,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
                   <span style={{ color: 'var(--hx-text)' }}>
                     {r.features.length ? r.features.map((f) => f.name).join(', ') : <span style={{ color: 'var(--hx-muted)' }}>—</span>}
                     {r.featTracks.length ? <span style={{ color: 'var(--hx-gold-2)' }}> · {r.featTracks.join(' / ')} feat</span> : null}
+                    {r.abilityBoosts ? <span style={{ color: 'var(--hx-teal-1)' }}> · 4 ability boosts</span> : null}
                   </span>
                 </div>
               ))}
