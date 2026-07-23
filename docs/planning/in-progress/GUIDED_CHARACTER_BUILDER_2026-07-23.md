@@ -261,8 +261,20 @@ Data is COMPLETE. Steps:
   — reusing all state, `IgBoostAllocator`, the eligibility-greying chips, and the `/ig-build` POST. Panel mode
   (sheet) unchanged; AI-build block stays at the top. Verified in the SSR HTML. **Note:** this is presentation
   only and needed NO progression data — B12 (the level-by-level walk) still needs the owner's schedule.
-- [ ] **B12 — author `IG_CLASS_PROGRESSIONS`** (per-level, per-subclass; confirm schedule vs IG rules).
-- [ ] **B13 — IG known-at-level model + `igPlanLevelUp`** (powers/feats/specialization schedule).
+- [ ] **B12 — author `IG_CLASS_PROGRESSIONS`** (per-level, per-subclass) — ⛔ STILL BLOCKED. Confirmed against
+  the live IG data: `IG_PROGRESSION_NOTE` says levels 2–10 add "traits, powers, feats, and ability boosts on
+  a FIXED SCHEDULE" but the site never enumerates that schedule, and the IG Ground Rules forbid inventing it.
+  So the full per-level table needs the owner. (What IS published — the milestone levels — is now surfaced;
+  see B13.)
+- [~] **B13 — IG milestones engine (FIRST SLICE DONE 2026-07-23).** `lib/dnd/systems/intuitive-games/
+  levelup.ts` `igLevelMilestones(subclass, toLevel)` returns the DOCUMENTED IG milestones through a level —
+  specialization at 4 (with the subclass's real catalogued options from `IG_CLASS_DETAILS`), unique power at
+  6, greater specialization at 8, capstone + manifestation at 10 — reading only published data and faking no
+  options for the moments the site doesn't enumerate. **Wired** (not an orphan) into `IGCharacterBuilder` as a
+  read-only "Milestones through level N" preview in both the panel and stepped layouts, so a player sees their
+  real milestone path + can see their specialization choices. 8 tests (`ig-level-milestones.test.ts`, incl.
+  the wiring assertion). **Remaining B13:** the INTERACTIVE `igPlanLevelUp` (outstanding→resolve) — but it
+  needs B12's full schedule to be more than the four milestones, so it waits on the owner with B12.
 - [ ] **B14 — IG per-level choice persistence** (`data.ig.build.choices` + route).
 - [ ] **B15 — IG wizard build plan** reusing the allocator/picker/eligibility.
 - [ ] **B16 — IG wizard QA** (Playwright, vanilla L1→10).

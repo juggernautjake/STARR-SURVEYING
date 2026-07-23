@@ -13,6 +13,7 @@ import IgBoostAllocator from './IgBoostAllocator';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail, igClassPowerEffect } from '@/lib/dnd/systems/intuitive-games/content';
 import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
+import { igLevelMilestones } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
@@ -258,6 +259,22 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {classDetail.note ? <div style={{ color: 'var(--hx-muted)', fontStyle: 'italic' }}>{classDetail.note}</div> : null}
           </div>
         ) : null;
+        // The DOCUMENTED IG level milestones for this subclass through the chosen level (specialization at 4,
+        // unique power at 6, greater specialization at 8, capstone at 10) — read-only, from real data. The
+        // per-level trait/feat/boost schedule the site never publishes is deliberately NOT shown.
+        const milestones = (className || subclass) ? igLevelMilestones(subclass || className, level) : [];
+        const milestoneNode = milestones.length ? (
+          <div data-testid="ig-milestones" style={{ fontSize: 11.5, lineHeight: 1.5, border: '1px solid var(--hx-line)', borderRadius: 6, padding: '7px 10px', background: 'rgba(255,255,255,0.02)', display: 'grid', gap: 2 }}>
+            <div style={{ color: 'var(--hx-teal-1)', fontWeight: 600 }}>Milestones through level {level}</div>
+            {milestones.map((m) => (
+              <div key={`${m.level}-${m.kind}`}>
+                <span style={{ color: 'var(--hx-muted)' }}>L{m.level} · </span>
+                <span style={{ color: 'var(--hx-ink)' }}>{m.label}</span>
+                {m.options?.length ? <span style={{ color: 'var(--hx-muted)' }}> — {m.options.map((o) => o.split(' (')[0]).join(' / ')}</span> : null}
+              </div>
+            ))}
+          </div>
+        ) : null;
         const roleRow = (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <input list="ig-spec-opts" value={specialization} onChange={(e) => setSpecialization(e.target.value)} placeholder="Specialization" style={{ ...input, flex: 1, minWidth: 130 }} />
@@ -313,7 +330,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         if (layout === 'steps') {
           const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.55)', color: 'var(--hx-text)' };
           const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
-            { title: 'Identity & class', help: 'Name, level, ancestry, and your class + subclass — the class preview shows what it grants.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{classRow}{classDetailNode}</div> },
+            { title: 'Identity & class', help: 'Name, level, ancestry, and your class + subclass — the class preview shows what it grants and your milestone path.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{classRow}{classDetailNode}{milestoneNode}</div> },
             { title: 'Role & defense', help: 'Your specialization and background (which sets a stance + HP), and a defensive power (your reaction).', body: <div style={{ display: 'grid', gap: 10 }}>{roleRow}</div> },
             { title: 'Ability scores', help: 'The IG method: start 10, eight +2 boosts, cap 14 (≤2 per ability).', body: <div style={{ display: 'grid', gap: 8 }}>{abilitiesBlock}</div> },
             { title: 'Stances & powers', help: 'Pick the stances you know and your powers — ineligible powers are greyed with the reason.', body: <div style={{ display: 'grid', gap: 8 }}>{stancesBlock}{powersBlock}</div> },
@@ -351,6 +368,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {nameLevelRow}
             {classRow}
             {classDetailNode}
+            {milestoneNode}
             {roleRow}
             {abilitiesBlock}
             {stancesBlock}
