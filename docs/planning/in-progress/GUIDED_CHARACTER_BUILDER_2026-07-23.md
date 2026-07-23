@@ -242,8 +242,17 @@ Data is COMPLETE. Steps:
   the flat `PF2Attributes` modifier map doesn't carry — a naive +1 would over-boost — so boosts stay
   recorded-and-visible-in-the-plan until the model can track partial boosts. Cost of that model change
   clearly exceeds the value of auto-applying 4 boosts a player can set on the sheet directly.
-- [ ] **B11 — PF2 wizard QA** (Playwright, vanilla L1→N caster + martial) — needs the running app. The last
-  remaining PF2 item; everything it would exercise (planner, route, walk UI, feat projection) is unit-green.
+- [~] **B11 — PF2 wizard QA (browser-verified 2026-07-23).** Drove the running dev server against a live
+  level-9 Wizard (Orin Sallowmere): the levels page dispatches to `PF2LevelBuilder`, which renders correctly,
+  fetches `GET /pf2-levels?to=9` → 200, and surfaces the RIGHT first choice — the Wizard's **Arcane Thesis**
+  (its real subclass moment) with the real Remaster thesis options (Improved Familiar Attunement, Spell
+  Blending, Spell Substitution, Metamagical Experimentation, Experimental Spellshaping), plus "15 choices left
+  before level 9" and a 9→20 target selector. No component console errors (only a benign extension-injected
+  `fdprocessedid` hydration warning on an unrelated header button). **Not exercised in-browser** (deliberate):
+  recording each choice + committing, to avoid mutating the seed character via flaky native-select
+  automation — those write + feat-projection paths are covered by the 13 unit tests (`pf2-plan-levelup`,
+  `pf2-levels-route`, `pf2-project-feats`). A full manual L1→20 caster+martial walk remains a nice-to-have but
+  the critical path is proven live.
 
 ### IG (author data first — biggest lift)
 - [x] **B15a — IG Foundations walk step-by-step in the wizard (DONE 2026-07-23).** `IGCharacterBuilder` gained
