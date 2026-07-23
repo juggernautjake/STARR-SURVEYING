@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
+import IgBoostAllocator from './IgBoostAllocator';
 import { igCatalog } from '@/lib/dnd/systems/intuitive-games/catalog';
 import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDetail, igClassPowerEffect } from '@/lib/dnd/systems/intuitive-games/content';
 import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
@@ -264,14 +265,8 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
           <select value={defensivePower} onChange={(e) => setDefensivePower(e.target.value)} style={{ ...input, flex: 1, minWidth: 130 }}><option value="">Defensive power…</option>{defPowerOpts.map((a) => <option key={a} value={a}>{a}</option>)}</select>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>ABILITY SCORES</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-          {ABILITY_KEYS.map((k) => (
-            <label key={k} style={{ display: 'grid', gap: 2, textAlign: 'center' }}>
-              <span style={{ fontSize: 10, color: 'var(--hx-muted)' }}>{k}</span>
-              <input type="number" min={1} max={30} value={abilities[k]} onChange={(e) => setAbilities((a) => ({ ...a, [k]: Math.max(1, Math.min(30, +e.target.value || 10)) }))} style={{ ...input, textAlign: 'center', padding: '5px 2px' }} />
-            </label>
-          ))}
-        </div>
+        {/* MB-4: the real IG method — start 10, eight +2 boosts, cap 14 — replacing the raw score inputs. */}
+        <IgBoostAllocator onChange={setAbilities} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>STANCES</div>
         <Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} />
         <div style={{ fontSize: 11.5, color: 'var(--hx-teal-1)', fontWeight: 700, letterSpacing: '0.05em' }}>POWERS</div>

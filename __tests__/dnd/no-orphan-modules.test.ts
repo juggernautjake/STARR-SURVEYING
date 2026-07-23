@@ -20,10 +20,6 @@ const ROOT = process.cwd();
  * point of the list is that adding to it is a deliberate act, not a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
-  'lib/dnd/statgen/ig.ts':
-    'PENDING WIRING (SG-3): the pure IG ability-boost allocator (start 10, eight +2 boosts, creation cap 14, ' +
-    'ancestry adjustments). Built ahead of its UI; wired by MB-4 (the IG manual builder upgrade), when this ' +
-    'exemption is removed. Unit-tested in statgen-ig.test.ts.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
