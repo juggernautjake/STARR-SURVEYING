@@ -79,14 +79,14 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Ancestry, class, background, attributes & picks',
       'Pick your ancestry/heritage, class and subclass, background and deity, allocate your attribute boosts, and choose your trained skills, feats and spells. Ineligible picks are shown greyed with the reason.',
-      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} />,
+      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen />,
     );
   } else if (system === 'intuitive-games') {
     foundations(
       'Ancestry, class, background, abilities & picks',
       'Pick your ancestry, class and subclass, specialization and background, allocate your ability boosts, and choose stances, powers, feats and your defensive power. Provenance (vanilla vs custom) is tracked as you go.',
       <div style={{ display: 'grid', gap: 16 }}>
-        <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} variantKind={variantKind} />
+        <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} variantKind={variantKind} startOpen />
         <IGVanillaLibrary />
       </div>,
     );

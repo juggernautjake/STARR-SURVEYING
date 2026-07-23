@@ -48,10 +48,13 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
   );
 }
 
-export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla' }: { characterId: string; initialName: string; aiConfigured?: boolean;
+export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', startOpen = false }: { characterId: string; initialName: string; aiConfigured?: boolean;
   /** Vanilla builds are held to the class rules; custom ones may take anything (Area MV). Defaults
    *  to vanilla — the safe direction for an unlabelled sheet, matching the server. */
-  variantKind?: 'vanilla' | 'custom' }) {
+  variantKind?: 'vanilla' | 'custom';
+  /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
+   *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
+  startOpen?: boolean }) {
   const router = useRouter();
   const catalog = useMemo(() => igCatalog(), []);
   const ancestries = useMemo(() => names(catalog, 'ancestry'), [catalog]);
@@ -66,7 +69,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   const weaponTypeOpts = useMemo(() => names(catalog, 'weapon-type'), [catalog]);
   const bestiary = useMemo(() => igCreaturesByGroup(), []);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [name, setName] = useState(initialName);
   const [ancestry, setAncestry] = useState('');
   const [className, setClassName] = useState('');

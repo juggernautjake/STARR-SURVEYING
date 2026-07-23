@@ -15,13 +15,16 @@ import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, P
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 
-export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured }: { characterId: string; initialName: string; aiConfigured?: boolean }) {
+export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false }: { characterId: string; initialName: string; aiConfigured?: boolean;
+  /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
+   *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
+  startOpen?: boolean }) {
   const router = useRouter();
   const ancestries = useMemo(() => PF2_ANCESTRIES, []);
   const classes = useMemo(() => PF2_CLASSES, []);
   const backgrounds = useMemo(() => PF2_BACKGROUNDS, []);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [name, setName] = useState(initialName);
   const [level, setLevel] = useState(1);
   const [ancestry, setAncestry] = useState('');

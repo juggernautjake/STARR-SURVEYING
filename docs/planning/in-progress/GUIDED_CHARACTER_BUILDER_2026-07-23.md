@@ -134,6 +134,11 @@ Data is COMPLETE. Steps:
   for all four systems (5e-2014/2024, PF2, IG), each showing the phase-grouped step rail (5e: Foundations →
   Levels → Review; PF2/IG: Foundations → Review — PF2/IG have no per-level walk yet, that's B7–B16), the
   docked roller, and the correct "Building in <system>" header.
+- [x] **B1c — build controls open by default on /builder (DONE 2026-07-23).** The reused IG/PF2 builders are
+  a collapsed `<details>` on the sheet (secondary there); added a `startOpen` prop so the dedicated /builder
+  wizard opens them expanded — the build controls are the page's whole purpose. Verified: PF2 details open,
+  IG builder open (its secondary Vanilla Library stays collapsed). (5e builder isn't a `<details>`, already
+  visible.) Interim until B3 replaces the one-shot bodies with true per-step flows.
 - [ ] **B2 — Tooltip/help kit.** Standardize an `InfoTip`/`RuleTip` wrapper the steps use for every option
   (rules text + prereqs + "what it grants"), + a glossary "?" affordance. Wire `lib/dnd/glossary`. Also:
   wire the docked roller's "Roll a stat" result INTO the abilities step (auto-fill the field), and replace
