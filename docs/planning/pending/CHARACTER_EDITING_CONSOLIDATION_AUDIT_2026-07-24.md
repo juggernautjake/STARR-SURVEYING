@@ -1,7 +1,7 @@
 # Character Editing / Building / Variant — Consolidation Audit
 
 **Date:** 2026-07-24
-**Status:** Audit complete. Consolidation design **not yet decided** (owner will decide after reviewing this map).
+**Status:** Audit complete and shipped. Consolidation design **not yet decided** (owner chose "full audit first, decide later"). **Parked in `pending/`** awaiting the owner's direction choice — move back to `in-progress/` when consolidation work starts.
 **Scope:** Every interface — UI or AI, any system — that can create, build, edit, level, or vary a D&D character on the `/dnd` platform.
 
 ---
@@ -221,4 +221,5 @@ When a direction is chosen, this doc moves from audit → build plan (slices), s
 
 ## Slice log
 
-- **2026-07-24 — Audit compiled + load-bearing claims verified.** Four-way parallel sweep catalogued every create/build/edit/level/variant interface (UI + AI, all 3 systems). Verified the two consequential findings against live code: the `/level-up` route is a redundant endpoint (no UI caller) but not dead logic; PF2 feat projection is already DONE (only attribute-boost projection pending) — corrected the earlier stale framing. **Blocked-not-deferred:** every §6/§7 action item is gated on the owner's consolidation-direction decision (owner explicitly chose "full audit first, decide later"), so nothing is deferred or shipped as behaviour yet. Doc stays in `in-progress/` until the direction is chosen; it is intentionally not eligible for `completed/` while its action items are pending a decision.
+- **2026-07-24 — Audit compiled + load-bearing claims verified.** Four-way parallel sweep catalogued every create/build/edit/level/variant interface (UI + AI, all 3 systems). Verified the two consequential findings against live code: the `/level-up` route is a redundant endpoint (no UI caller) but not dead logic; PF2 feat projection is already DONE (only attribute-boost projection pending) — corrected the earlier stale framing. **Blocked-not-deferred:** every §6/§7 action item is gated on the owner's consolidation-direction decision (owner explicitly chose "full audit first, decide later"), so nothing is deferred or shipped as behaviour yet. Not eligible for `completed/` while its action items are pending a decision.
+- **2026-07-24 — Parked in `pending/`.** With the audit shipped and all remaining items decision-gated (blocked, not cost-exceeds-value), the doc is moved `in-progress/` → `pending/` per the README rubric ("planned work we intend to build later — scoped and parked deliberately"). This is not a completion and not a deferral of the work — it reflects that the next action is the owner's direction choice. Move back to `in-progress/` when a direction is picked.
