@@ -20,11 +20,8 @@ import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
 import DmGrantPanel from '@/app/dnd/_ui/DmGrantPanel';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
-import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import IGSheet from '@/app/dnd/_ui/IGSheet';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
-import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
@@ -161,7 +158,6 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   // source, shown to anyone who can edit an Intuitive Games character.
   const isIG = canWrite && normalizeSystem((character as { system?: string }).system) === 'intuitive-games';
   const igLibrary = isIG ? <IGVanillaLibrary /> : null;
-  const igBuilder = isIG ? <IGCharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'} /> : null;
 
   // The bespoke IG sheet (full-sheet Slice 4+): render the IGCharacter model sidecar (data.ig) for ANY
   // viewer of an Intuitive Games character that has been built with the IG builder, with provenance badges.
@@ -191,16 +187,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     }
   }
 
-  // Pathfinder 2e builder + bespoke sheet (mirrors the IG flow): the builder shows to anyone who can edit
-  // a PF2 character; the sheet renders the pf2e sidecar (real Remaster numbers) for any viewer once built.
-  // The 5e MANUAL builder (MB-2) — a vanilla dropdown-and-roll builder for either 5e edition, alongside the
-  // AI Build Kit. Owner/DM only, like the PF2/IG builders.
-  const sys5e = normalizeSystem((character as { system?: string }).system);
-  const is5e = canWrite && (sys5e === 'dnd5e-2014' || sys5e === 'dnd5e-2024');
-  const dnd5eBuilder = is5e ? <Dnd5eManualBuilder system={sys5e} characterId={character.id} /> : null;
-
-  const isPF2 = canWrite && normalizeSystem((character as { system?: string }).system) === 'pathfinder2e';
-  const pf2Builder = isPF2 ? <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={dndAiConfigured()} /> : null;
+  // Pathfinder 2e bespoke sheet (mirrors the IG flow): renders the pf2e sidecar (real Remaster numbers) for
+  // any viewer once built. The PF2 / IG / 5e-manual BUILDERS are no longer mounted here — see the note at
+  // their old render site: they live on /builder, reached from the Edit dialog.
   let pf2Sheet = null;
   if (normalizeSystem((character as { system?: string }).system) === 'pathfinder2e') {
     const pf2Data = (character.data as { pf2e?: unknown } | null)?.pf2e;
@@ -326,11 +315,13 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {approvalPanel}
       {grantPanel}
       {igSheet}
-      {igBuilder}
       {igLibrary}
       {pf2Sheet}
-      {pf2Builder}
-      {dnd5eBuilder}
+      {/* The Foundation BUILDERS (5e manual / PF2 / IG) were removed from the sheet in consolidation C4 —
+          they live on the dedicated /builder wizard, reached from Edit → "Rebuild this version step by
+          step". They REPLACE a sheet's foundation, so having them permanently expanded under a finished
+          character was both redundant with /builder and the easiest way to overwrite a character by
+          accident. `igLibrary` stays: it is a read-only vanilla reference, not a builder. */}
       {/* Vanilla ⇄ Custom for a bespoke (PF2/IG) sheet. The shared 5e engine carries its own copy
           of this control, but that engine no longer renders for a built PF2/IG character, so the
           toggle is mounted here in the page chrome instead — same endpoint, same server-derived

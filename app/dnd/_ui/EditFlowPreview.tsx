@@ -27,6 +27,7 @@ export default function EditFlowPreview({ cards, systems }: { cards: VariantCard
       {showEdit && (
         <EditFlow characterId="preview" slotId="dnd5e-2024" name="Gandalf the Grey" system="dnd5e-2024" systems={systems.filter((s) => s.id !== 'dnd5e-2024')} aiConfigured
           level={5}
+          canRebuild
           levelUpTargets={[{ slotId: 'dnd5e-2024#2', name: 'Gandalf the White', level: 12, systemLabel: 'D&D 5e (2024)' }]}
           onClose={() => setShowEdit(false)} />
       )}

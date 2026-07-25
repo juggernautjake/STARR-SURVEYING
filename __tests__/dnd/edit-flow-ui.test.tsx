@@ -69,6 +69,27 @@ describe('EditFlow — level up to match another version', () => {
   });
 });
 
+describe('the guided builder is reachable from an existing character', () => {
+  // The inline builder panels came off the sheet (C4), so this is the ONLY route to /builder for a
+  // character that already exists. If it regresses, IG/PF2 characters lose their builder entirely.
+  it('offers the rebuild entry on the active version', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        canRebuild onClose={() => {}} />,
+    );
+    expect(html).toContain('Rebuild this version step by step');
+    expect(html).toContain('guided builder');
+  });
+
+  it('withholds it on a non-active version — /builder always builds the active sheet', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        canRebuild={false} onClose={() => {}} />,
+    );
+    expect(html).not.toContain('Rebuild this version');
+  });
+});
+
 describe('a vanilla-only campaign is still enforced after SystemSwitcher retired', () => {
   it('says so up front on the transpose choice — not two clicks later', () => {
     // The consent gate used to live in SystemSwitcher; retiring that panel must not lose the rule. Stating

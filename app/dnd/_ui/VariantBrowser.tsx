@@ -282,6 +282,8 @@ export default function VariantBrowser({
           // sheet IN PLACE, and only for the shared 5e engine (a PF2/IG level-up through edit_sheet would
           // touch a blank projection). Anything else passes an empty list, so the option never shows as a
           // button that only ever errors. Same predicate the route refuses on — one definition, no drift.
+          // The guided builder rebuilds the ACTIVE sheet, so it is only offered on the active card.
+          canRebuild={editing.slotId === cards.find((c) => c.active)?.slotId}
           levelUpTargets={
             editing.slotId === cards.find((c) => c.active)?.slotId && isSharedEngineSystem(editing.system)
               ? cards

@@ -81,7 +81,7 @@ export function TransposeReport({ result, onOpen, openLabel = 'Open the new vers
 
 export default function EditFlow({
   characterId, slotId, name, system, systems, aiConfigured = true, onClose,
-  level = 0, levelUpTargets = [], allowCustom = true,
+  level = 0, levelUpTargets = [], allowCustom = true, canRebuild = false,
 }: {
   characterId: string;
   /** The version being edited (source). */
@@ -105,6 +105,12 @@ export default function EditFlow({
    * which case the homebrew choices are not offered at all — the campaign's rule, not a preference.
    */
   allowCustom?: boolean;
+  /**
+   * Whether to offer the guided builder for THIS sheet. True only for the active version, because
+   * `/builder` always builds the active sheet — and this is now the only route to it from a character
+   * that already exists, since the inline builder panels came off the sheet (consolidation C4).
+   */
+  canRebuild?: boolean;
 }) {
   const router = useRouter();
   type Step = 'root' | 'system' | 'how' | 'ai-kind' | 'levelup-ref' | 'levelup-kind' | 'result';
@@ -233,8 +239,18 @@ export default function EditFlow({
             })}
             {/* Only offered when the caller found a higher-level sibling AND this sheet can actually be
                 levelled in place — so the option never appears as a button that only ever errors. */}
+            {/* The guided builder for THIS sheet — the way back to the foundation choices (class, ancestry,
+                stats) once a character exists. It rebuilds in place, so it is offered only for the active
+                version and named plainly as a rebuild. */}
+            {canRebuild && choice({
+              icon: '🛠', title: 'Rebuild this version step by step',
+              desc: 'Open the guided builder on this sheet and walk the foundation choices — class, ancestry, background, stats — one step at a time.',
+              onClick: () => router.push(`/dnd/characters/${characterId}/builder`),
+            })}
             {levelUpTargets.length > 0 && choice({
-              icon: '⬆', title: 'Level up to match another version',
+              // ⇡, not ⬆ — U+2B06 has no coverage in the display face and rendered as a bare stroke. This
+              // is the same glyph the sheet's Forms tab uses, so it is known to render here.
+              icon: '⇡', title: 'Level up to match another version',
               desc: `This version is level ${level || '?'}. Build it up to match a higher-level version of the same character — the AI adds every level in between and keeps what it already has.`,
               onClick: () => setStep('levelup-ref'), disabled: !aiConfigured,
               hint: !aiConfigured ? 'AI is not configured' : undefined,
