@@ -16,7 +16,8 @@ import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import {
   readVariants, readActiveSlotMeta, withActiveSlotMeta, resolveOriginSlotId, isAtVariantCap,
-  forkSheet, switchToSlot, MAX_VARIANTS, variantSystemOf, type ActiveSheet, type SystemVariants,
+  forkSheet, switchToSlot, beginDraft, commitDraftToOriginal, promoteDraftToVariant, discardDraft,
+  MAX_VARIANTS, variantSystemOf, type ActiveSheet, type SystemVariants,
 } from '@/lib/dnd/system-variants';
 import { generateVariantSummary, type SummaryInputs } from '@/lib/dnd/variant-summary';
 
@@ -57,6 +58,33 @@ function sheetInputsFor(slotId: string, active: ActiveSheet, variants: SystemVar
   if (slotId === activeSlotIdOf(active)) return { data: active.data, system: normalizeSystem(active.system) };
   const v = variants[slotId];
   return v ? { data: v.data, system: variantSystemOf(v, slotId) } : null;
+}
+
+/** Persist a new active-sheet transition (full column set) — matches the /system switch/fork writes. Art is
+ *  non-destructive (falls back to the current column). */
+function persistActiveTransition(id: string, row: CharRow, next: { active: ActiveSheet; variants: SystemVariants }) {
+  return supabaseAdmin.from('dnd_characters').update({
+    system: next.active.system,
+    data: next.active.data,
+    sheet_type: next.active.sheet_type,
+    custom_layout: next.active.custom_layout ?? { blocks: [] },
+    custom_css: next.active.custom_css ?? '',
+    art_url: next.active.artUrl ?? row.art_url ?? null,
+    system_variants: withActiveSlotMeta(next.variants, next.active),
+  }).eq('id', id);
+}
+
+/** Best-effort AI summary regen for the resulting active sheet vs the character's origin; mutates next.active. */
+async function regenActiveSummary(next: { active: ActiveSheet; variants: SystemVariants }): Promise<void> {
+  if (!dndAiConfigured()) return;
+  try {
+    const originId = resolveOriginSlotId(next.active, next.variants);
+    const originInputs = sheetInputsFor(originId, next.active, next.variants);
+    const gen = await generateVariantSummary({ data: next.active.data, system: normalizeSystem(next.active.system) }, originInputs, dndComplete);
+    next.active.summary = gen.summary;
+    next.active.summaryUpdatedAt = new Date().toISOString();
+    next.active.summaryHash = gen.hash;
+  } catch { /* summaries are best-effort */ }
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -171,6 +199,55 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({ ok: true, kind: 'set-campaign', slotId, campaignId });
+  }
+
+  // ── BEGIN-DRAFT — start editing a version on a working copy (Edit-flow). Allowed even at the cap. ──
+  if (action === 'begin-draft') {
+    const fromSlotId = typeof body?.fromSlotId === 'string' && body.fromSlotId ? body.fromSlotId : activeSlotId;
+    let begun;
+    try { begun = beginDraft(active, variants, { fromSlotId }); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not start editing.' }, { status: 400 }); }
+    const { error } = await persistActiveTransition(params.id, row, begun);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'begin-draft', draftSlotId: begun.draftSlotId });
+  }
+
+  // ── SAVE-TO-ORIGINAL — commit the draft's edits onto the version it came from (no new version). ──
+  if (action === 'save-to-original') {
+    if (!active.draft) return NextResponse.json({ error: 'No draft in progress.' }, { status: 400 });
+    let next;
+    try { next = commitDraftToOriginal(active, variants); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not save.' }, { status: 400 }); }
+    await regenActiveSummary(next);
+    const { error } = await persistActiveTransition(params.id, row, next);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'save-to-original', slotId: next.targetSlotId });
+  }
+
+  // ── SAVE-AS-VARIANT — promote the draft to a permanent variant (source untouched); cap-enforced. ──
+  if (action === 'save-as-variant') {
+    if (!active.draft) return NextResponse.json({ error: 'No draft in progress.' }, { status: 400 });
+    let next;
+    try { next = promoteDraftToVariant(active, variants, { name: typeof body?.name === 'string' ? body.name : undefined }); }
+    catch (e) {
+      const atCap = /limit/i.test(e instanceof Error ? e.message : '');
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not save as a variant.', atCap }, { status: atCap ? 409 : 400 });
+    }
+    await regenActiveSummary(next);
+    const { error } = await persistActiveTransition(params.id, row, next);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'save-as-variant', slotId: next.active.slotId });
+  }
+
+  // ── DISCARD-DRAFT — throw the draft away and return to its source version. ──
+  if (action === 'discard-draft') {
+    if (!active.draft) return NextResponse.json({ error: 'No draft in progress.' }, { status: 400 });
+    let next;
+    try { next = discardDraft(active, variants); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not discard.' }, { status: 400 }); }
+    const { error } = await persistActiveTransition(params.id, row, next);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, kind: 'discard-draft', slotId: next.active.slotId });
   }
 
   return NextResponse.json({ error: `Unknown action "${action}".` }, { status: 400 });
