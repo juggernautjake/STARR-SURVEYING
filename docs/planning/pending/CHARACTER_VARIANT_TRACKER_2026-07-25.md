@@ -1,7 +1,7 @@
 # Character Variant Tracker
 
 **Date:** 2026-07-25
-**Status:** In progress — building in slices.
+**Status:** Code-complete, unit- + render-tested, shipped on branch `feat/character-variant-tracker`. **Parked in `pending/`** for one remaining item: live eyes-on visual/interaction QA, which needs a working authenticated dev server (the owner's session — the VERSIONS panel is owner/DM-gated). Move back to `in-progress/` when that QA runs. Not `completed/` because this repo's rule is "drive the browser before calling UI done," and a render test isn't eyes-on.
 **Predecessor context:** `pending/CHARACTER_EDITING_CONSOLIDATION_AUDIT_2026-07-24.md`. This tracker ships FIRST; the build/edit consolidation follows and will fold the variant flows into a unified editor. Build the create-variant flow to route into the existing builder/editor so the later consolidation inherits it cleanly.
 
 ---
