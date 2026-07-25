@@ -100,6 +100,24 @@ export async function dndToolCall<T = unknown>(opts: DndAIOptions): Promise<{ in
   return block ? { input: block.input as T, name: block.name } : null;
 }
 
+/** Like `dndToolCall`, but ALSO returns the model's prose when it chose not to call a tool.
+ *  `dndToolCall` throws that text away, which is fine for a build/edit-only endpoint but makes a
+ *  single box that both ANSWERS questions and PROPOSES edits impossible — a question would come back
+ *  as "no edits". The two-phase sheet assistant routes on exactly this: `tool` present → a proposal,
+ *  `text` only → an answer. */
+export async function dndToolCallOrText<T = unknown>(
+  opts: DndAIOptions,
+): Promise<{ tool: { input: T; name: string } | null; text: string }> {
+  const res = await dndCreate(opts);
+  const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+  const text = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+    .trim();
+  return { tool: block ? { input: block.input as T, name: block.name } : null, text };
+}
+
 /** Stream a prompt's text deltas (for live NL edits / recaps — I3/I5). */
 export async function* dndStream(opts: DndAIOptions): AsyncGenerator<string> {
   const stream = anthropic().messages.stream({

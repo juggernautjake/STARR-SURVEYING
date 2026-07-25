@@ -30,6 +30,26 @@ describe('every AI edit tool offered by ai-edit is dispatched', () => {
   });
   it('the offered toolset is exactly these tools (so a NEW tool forces a matching dispatch here)', () => {
     // If someone adds another tool to the route, this list must change — prompting them to add its handler too.
-    expect(route).toContain('tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])]');
+    // Declared once as `promptTools` and shared by all three phases (legacy apply, preview, confirm), so
+    // the preview can never offer a tool the apply path doesn't handle.
+    expect(route).toContain('const promptTools = [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])]');
+  });
+
+  // Two-phase mode (Workstream B): a proposal is described, shown, and only applied on confirm. Each tool
+  // that can be PROPOSED must therefore also be describable, or the player is asked to approve blank text.
+  it('every dispatched tool has a proposal description', () => {
+    const proposal = readFileSync(join(process.cwd(), 'lib/dnd/proposal.ts'), 'utf8');
+    for (const name of [SHEET_EDIT_TOOL.name, ...namedDispatch]) {
+      expect(proposal, `${name} has no describeProposal branch`).toContain(`tool === '${name}'`);
+    }
+  });
+
+  it('confirm re-enters the SAME apply path rather than trusting the client', () => {
+    // The proposal round-trips through the browser, so the gates must run again on confirm. They do
+    // because confirm just rebuilds `result` and falls into the identical dispatch below.
+    expect(route).toContain("if (mode === 'confirm')");
+    expect(route).toContain('result = { name: proposal!.tool as string');
+    // And the gate is not conditional on the phase.
+    expect(route).not.toContain("mode !== 'confirm' && gateEdits");
   });
 });

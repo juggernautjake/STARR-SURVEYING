@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
-import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
+import { dndToolCall, dndToolCallOrText, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, editPath, editOldValue, validateSheetEdits, revertBatch, SHEET_EDIT_TOOL, type SheetEdit, type AuditedEdit } from '@/lib/dnd/sheet-edits';
 import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
 import { recentBatchDigest, latestUndoableBatch, type EditHistoryRow } from '@/lib/dnd/edit-history';
@@ -15,10 +15,16 @@ import { applyLayoutEdits, LAYOUT_EDIT_TOOL, type LayoutEdit } from '@/lib/dnd/l
 import { normalizeLayout } from '@/lib/dnd/custom-sheet';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem, violationsSummary } from '@/lib/dnd/system-validate';
-import { normalizeSystem } from '@/lib/dnd/systems';
+import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
 import { gateEdits, refusalSummary } from '@/lib/dnd/rules-gate';
-import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
-import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
+import {
+  readActiveSlotMeta, readVariants, withActiveSlotMeta, forkSheet, isAtVariantCap, MAX_VARIANTS,
+  type ActiveSheet,
+} from '@/lib/dnd/system-variants';
+import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
+import { characterDigest, adjudicationInstruction } from '@/lib/dnd/character-digest';
+import { sheetMechanicsHelp } from '@/lib/dnd/sheet-help';
+import { describeProposal } from '@/lib/dnd/proposal';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { IG_EDIT_TOOL, parseIGEditToolCall, igEditToolInstruction } from '@/lib/dnd/systems/intuitive-games/ai';
 import { applyIgEdit, describeIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
@@ -55,6 +61,22 @@ const UNDO_TOOL = {
   input_schema: { type: 'object' as const, properties: {}, required: [] as string[] },
 };
 
+// ── Workstream B: the sheet chat is a real ASSISTANT, not an edit-only box ────────────────────────
+// In two-phase (`mode:'preview'`) requests the model may ANSWER instead of editing. Without this the
+// architect prompt below treats every message as a change request, so "what does Alert do?" came back
+// as an edit (or as "the AI did not return any edits"). A question must never mutate the sheet.
+const ASSISTANT_ROUTING =
+  'You are ALSO this character’s rules assistant, and this message may be a QUESTION rather than a ' +
+  'change request. Decide first:\n' +
+  '· A QUESTION (what does X do, how does my Y work, can I Z, what are my options, explain/compare/' +
+  'should I…) → answer it in prose and call NO TOOL AT ALL. Ground the answer in the rules block and ' +
+  'this character’s real numbers; be concrete and brief (1–3 short paragraphs or tight "· " bullets). ' +
+  'If the rules block does not cover it, say so plainly — never invent a rule, number or page.\n' +
+  '· A CHANGE REQUEST (add/remove/raise/give/make/level/undo/restyle…) → call the matching tool as ' +
+  'described above. Nothing you propose is saved until the user confirms it, so propose the full change.\n' +
+  'When in doubt, ANSWER. A question answered as an edit silently rewrites someone’s character; an ' +
+  'edit answered as prose costs one more message.';
+
 /** A compact index of the current custom blocks so the agent can target them by position. */
 function layoutSummary(raw: unknown): string {
   const { blocks } = normalizeLayout(raw);
@@ -87,13 +109,96 @@ function sheetDigest(c: Character): string {
   });
 }
 
+/** The character row fields the universal save needs. */
+interface SaveRow {
+  id: string; name: string; data?: unknown; system?: string; sheet_type?: string;
+  custom_layout?: unknown; custom_css?: string | null; system_variants?: unknown; art_url?: string | null;
+}
+/** What a tool branch produced — the columns it wants written. */
+interface SavePatch {
+  data?: unknown; custom_layout?: unknown; custom_css?: string | null; sheet_type?: string; name?: string;
+  /** Live-column only — a variant slot has no such column, so the fork path ignores it. */
+  updated_at?: string;
+}
+
+/**
+ * The UNIVERSAL SAVE CHOICE (owner, 2026-07-25): every committed change can land either on the version
+ * you're looking at or on a NEW variant branched from it, leaving the current one untouched. One helper so
+ * the choice behaves identically for mechanics, layout, PF2, IG and level-up edits — the same mental model
+ * as the draft Save banner.
+ *
+ * `sheet`   → write the live columns (today's behaviour).
+ * `variant` → fork the active sheet, write the change into the FORK, persist only `system_variants`. The
+ *             live sheet is not touched at all, so nothing can half-apply to the version being viewed.
+ */
+async function persistChange(
+  id: string, row: SaveRow, target: 'sheet' | 'variant', patch: SavePatch, variantName?: string,
+): Promise<{ error: string | null; status: number; variantSlotId: string | null }> {
+  if (target !== 'variant') {
+    const update: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) if (v !== undefined) update[k] = v;
+    if (!Object.keys(update).length) return { error: null, status: 200, variantSlotId: null };
+    const { error } = await supabaseAdmin.from('dnd_characters').update(update).eq('id', id);
+    return error ? { error: error.message, status: 500, variantSlotId: null } : { error: null, status: 200, variantSlotId: null };
+  }
+
+  const active: ActiveSheet = {
+    system: normalizeSystem(row.system),
+    data: row.data ?? blankCharacter(row.name),
+    sheet_type: row.sheet_type || 'default',
+    custom_layout: row.custom_layout,
+    custom_css: row.custom_css ?? '',
+    artUrl: row.art_url ?? null,
+    ...readActiveSlotMeta(row.system_variants),
+  };
+  const variants = readVariants(row.system_variants);
+  if (isAtVariantCap(active, variants)) {
+    return { error: `You’ve hit the ${MAX_VARIANTS}-version limit for this character. Delete a variant to make room, or apply this change to the current version instead.`, status: 409, variantSlotId: null };
+  }
+  const fromSlotId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
+  let forked;
+  try { forked = forkSheet(active, variants, { fromSlotId, ...(variantName ? { name: variantName } : {}) }); }
+  catch (e) { return { error: e instanceof Error ? e.message : 'Could not branch a new variant.', status: 400, variantSlotId: null }; }
+
+  // Overwrite the fork's copied content with the change — the source keeps what it had.
+  const slot = { ...forked.variants[forked.newSlotId] };
+  if (patch.data !== undefined) slot.data = patch.data;
+  if (patch.custom_layout !== undefined) slot.custom_layout = patch.custom_layout;
+  if (patch.custom_css !== undefined) slot.custom_css = patch.custom_css ?? '';
+  if (patch.sheet_type !== undefined) slot.sheet_type = patch.sheet_type;
+  if (patch.name) slot.name = patch.name;
+  const nextVariants = { ...forked.variants, [forked.newSlotId]: slot };
+
+  const { error } = await supabaseAdmin
+    .from('dnd_characters')
+    .update({ system_variants: withActiveSlotMeta(nextVariants, forked.active) })
+    .eq('id', id);
+  return error ? { error: error.message, status: 500, variantSlotId: null } : { error: null, status: 200, variantSlotId: forked.newSlotId };
+}
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured.' }, { status: 503 });
 
-  const { instruction } = await req.json().catch(() => ({}));
-  if (!instruction || !String(instruction).trim()) return NextResponse.json({ error: 'An instruction is required.' }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  const { instruction } = body ?? {};
+  // ── Two-phase mode (Workstream B). Absent `mode` = the original apply-immediately behaviour, which the
+  //    builders and the NPC generator still use. `preview` answers or PROPOSES without writing anything;
+  //    `confirm` applies a proposal the user approved — and chooses where it lands (universal save choice).
+  const mode: 'preview' | 'confirm' | null =
+    body?.mode === 'preview' ? 'preview' : body?.mode === 'confirm' ? 'confirm' : null;
+  const saveTarget: 'sheet' | 'variant' = body?.target === 'variant' ? 'variant' : 'sheet';
+  const variantName = typeof body?.variantName === 'string' && body.variantName.trim() ? body.variantName.trim() : undefined;
+  const proposal = (body?.proposal ?? null) as { tool?: string; input?: unknown } | null;
+
+  if (mode === 'confirm') {
+    if (!proposal?.tool || typeof proposal.tool !== 'string' || proposal.input == null) {
+      return NextResponse.json({ error: 'Nothing to confirm — the proposed change was lost. Please ask again.' }, { status: 400 });
+    }
+  } else if (!instruction || !String(instruction).trim()) {
+    return NextResponse.json({ error: 'An instruction is required.' }, { status: 400 });
+  }
 
   // The single write chokepoint (Slice 8b boundary): keyed to THIS character id + the
   // caller's owner/assigned-player/DM authorization. No path writes elsewhere.
@@ -101,7 +206,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
   const row = access.access.character;
   const isDM = access.access.isDM;
-  const instr = String(instruction).trim();
+  const instr = String(instruction ?? '').trim();
+  // Where a confirmed change lands. `variant` branches a fork and writes the change THERE — so the live
+  // sheet keeps its audit trail meaningful: we log to dnd_sheet_edits only when the live sheet changed,
+  // or "Undo" would revert a version that was never touched.
+  const saveRow = row as unknown as SaveRow;
+  const toVariant = saveTarget === 'variant';
 
   const current: Character = (row.data as unknown as Character | null) ?? blankCharacter(row.name);
 
@@ -130,40 +240,87 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const history = (histRows ?? []) as EditHistoryRow[];
   const historyDigest = recentBatchDigest(history);
 
-  let result;
-  try {
-    // The agent picks the right tool per request: edit_sheet for MECHANICS (Slice 8) or
-    // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
-    // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
-    result = await dndToolCall<{ summary?: string; edits: unknown[] }>({
-      system: [SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null,
-        isPF2 ? 'To change this Pathfinder 2e character in play, call edit_pf2_sheet: apply_damage / heal (with `amount`), set_temp_hp, or the death track set_dying (0–4) / set_wounded. Use it for HP + death-track changes; use edit_sheet for everything else.' : null,
-        grounding?.instruction].filter(Boolean).join('\n\n'),
-      user: [
-        `Current sheet:\n${sheetDigest(current)}`,
-        // The FULL IG state (stance + its effect, conditions + the computed penalty, defensive power, feats,
-        // powers) — not just stance/condition names — so the edit AI knows what the character already has
-        // (won't re-add a held feat/power) and can reason about the active mechanics. Same summary the
-        // librarian adjudicates from, so edit + explain agree.
-        isIG ? igCharacterDigest(igData as IGCharacter) : null,
-        // Likewise the PF2 state (AC/HP/saves/perception, class/spell DC, MAP schedule, strikes, skills) so
-        // the edit AI is state-aware for a Pathfinder character, matching the librarian's context.
-        isPF2 ? pf2CharacterDigest(pf2Data as PF2Character) : null,
-        `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
-        historyDigest || null,
-        grounding?.block || null,
-        `Instruction: ${instr}`,
-      ].filter(Boolean).join('\n\n'),
-      tools: [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])],
-      toolChoice: { type: 'auto' },
-      maxTokens: 4096,
-      temperature: 0.4,
+  const charSystemLabel = systemLabel(normalizeSystem((row as { system?: string }).system));
+
+  const promptSystem = [
+    SYSTEM, LAYOUT_ROUTING, isIG ? igEditToolInstruction() : null,
+    isPF2 ? 'To change this Pathfinder 2e character in play, call edit_pf2_sheet: apply_damage / heal (with `amount`), set_temp_hp, or the death track set_dying (0–4) / set_wounded. Use it for HP + death-track changes; use edit_sheet for everything else.' : null,
+    grounding?.instruction,
+    // Two-phase only (B3): the same box also ANSWERS. The librarian's grounding — how this sheet derives its
+    // numbers, how to rule for THIS character — is folded in so an answer here is as good as the library
+    // chat's, instead of being a second-class "sorry, I only edit".
+    mode === 'preview' ? ASSISTANT_ROUTING : null,
+    mode === 'preview' ? adjudicationInstruction(row.name, charSystemLabel) : null,
+    mode === 'preview' ? sheetMechanicsHelp() : null,
+  ].filter(Boolean).join('\n\n');
+
+  const promptUser = [
+    `Current sheet:\n${sheetDigest(current)}`,
+    // The FULL IG state (stance + its effect, conditions + the computed penalty, defensive power, feats,
+    // powers) — not just stance/condition names — so the edit AI knows what the character already has
+    // (won't re-add a held feat/power) and can reason about the active mechanics. Same summary the
+    // librarian adjudicates from, so edit + explain agree.
+    isIG ? igCharacterDigest(igData as IGCharacter) : null,
+    // Likewise the PF2 state (AC/HP/saves/perception, class/spell DC, MAP schedule, strikes, skills) so
+    // the edit AI is state-aware for a Pathfinder character, matching the librarian's context.
+    isPF2 ? pf2CharacterDigest(pf2Data as PF2Character) : null,
+    // The librarian's own full digest, so an ANSWER quotes this character's real derived numbers rather than
+    // the compact edit-oriented sheetDigest above.
+    mode === 'preview' && !isIG && !isPF2
+      ? `THE CHARACTER'S SHEET (facts — use these numbers, not a generic character's):\n${characterDigest(normalizeCharacter((row.data as unknown) ?? {}), normalizeSystem((row as { system?: string }).system))}`
+      : null,
+    `Current custom layout blocks: ${layoutSummary((row as { custom_layout?: unknown }).custom_layout)}`,
+    historyDigest || null,
+    grounding?.block || null,
+    `${mode === 'preview' ? 'Message' : 'Instruction'}: ${instr}`,
+  ].filter(Boolean).join('\n\n');
+
+  const promptTools = [SHEET_EDIT_TOOL, LAYOUT_EDIT_TOOL, UNDO_TOOL, LEVEL_UP_TOOL, ...(isIG ? [IG_EDIT_TOOL] : []), ...(isPF2 ? [PF2_EDIT_TOOL] : [])];
+
+  // ── Phase routing ────────────────────────────────────────────────────────────────────
+  // `confirm` re-enters the SAME apply path below with the approved tool call — deliberately without a model
+  // call, so what gets saved is exactly what was shown. Every rules gate below re-runs on server-derived
+  // inputs, so echoing the proposal back through the client cannot buy anything the first phase refused.
+  let result: { input: { summary?: string; edits?: unknown[] } & Record<string, unknown>; name: string } | null;
+  if (mode === 'confirm') {
+    result = { name: proposal!.tool as string, input: proposal!.input as { summary?: string; edits?: unknown[] } & Record<string, unknown> };
+  } else if (mode === 'preview') {
+    let call;
+    try {
+      call = await dndToolCallOrText<{ summary?: string; edits?: unknown[] } & Record<string, unknown>>({
+        system: promptSystem, user: promptUser, tools: promptTools,
+        toolChoice: { type: 'auto' }, maxTokens: 4096, temperature: 0.4,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
+    }
+    // No tool → the model answered a question. Nothing is written; there is nothing to confirm.
+    if (!call.tool) {
+      return NextResponse.json({ ok: true, kind: 'answer', text: call.text || 'I don’t have an answer for that.' });
+    }
+    return NextResponse.json({
+      ok: true, kind: 'proposal',
+      ...describeProposal(call.tool.name, call.tool.input, call.text),
+      proposal: { tool: call.tool.name, input: call.tool.input },
     });
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
+  } else {
+    try {
+      // The agent picks the right tool per request: edit_sheet for MECHANICS (Slice 8) or
+      // customize_layout for LAYOUT/STYLING of the custom sheet (Slice 12: add/remove/move/
+      // resize/restyle blocks, set CSS). Both are scoped to this one character (Slice 8b).
+      result = await dndToolCall<{ summary?: string; edits?: unknown[] } & Record<string, unknown>>({
+        system: promptSystem, user: promptUser, tools: promptTools,
+        toolChoice: { type: 'auto' }, maxTokens: 4096, temperature: 0.4,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'AI call failed.' }, { status: 502 });
+    }
   }
   // ── Undo path (history/undo C1): the user asked to undo/revert/put it back ────────────
   if (result?.name === 'undo_last_change') {
+    // Undo restores the LIVE sheet from its own audit trail — there is no coherent "undo onto a new
+    // variant", so say so rather than branching a fork that quietly means something else.
+    if (toVariant) return NextResponse.json({ error: 'Undo puts this version back to how it was — it can’t be saved as a new variant. Choose “apply to this sheet”.' }, { status: 400 });
     const target = latestUndoableBatch(history);
     if (!target) {
       return NextResponse.json({ ok: true, kind: 'undo', reverted: 0, batchId: null, summary: 'There is no recent change of mine to undo on this character.' });
@@ -210,17 +367,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const nextIg = igGate.offRules && igGate.edit.op === 'add_power'
       ? markIgOffRules(applyIgEdit(igData as IGCharacter, igGate.edit), igGate.edit.name, igGate.offRules)
       : applyIgEdit(igData as IGCharacter, igGate.edit);
-    const { error: igErr } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, ig: nextIg } }).eq('id', params.id);
-    if (igErr) return NextResponse.json({ error: igErr.message }, { status: 500 });
-    await supabaseAdmin.from('dnd_sheet_edits').insert({
-      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
-      field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
-      source: 'ai', summary: describeIgEdit(parsed.edit) + (igGate.offRules ? ` — off-rules: ${igGate.offRules}` : ''),
-    }).then(() => {}, () => {});
+    const igSave = await persistChange(params.id, saveRow, saveTarget, { data: { ...rawData, ig: nextIg } }, variantName);
+    if (igSave.error) return NextResponse.json({ error: igSave.error }, { status: igSave.status });
+    if (!toVariant) {
+      await supabaseAdmin.from('dnd_sheet_edits').insert({
+        character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+        field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
+        source: 'ai', summary: describeIgEdit(parsed.edit) + (igGate.offRules ? ` — off-rules: ${igGate.offRules}` : ''),
+      }).then(() => {}, () => {});
+    }
     return NextResponse.json({
       ok: true, kind: 'ig-edit',
       summary: describeIgEdit(parsed.edit) + (igGate.offRules ? `\n⚑ Off-rules: ${igGate.offRules}` : ''),
       stances: nextIg.combat.stances, conditions: nextIg.combat.conditions,
+      savedTo: saveTarget, variantSlotId: igSave.variantSlotId,
     });
   }
 
@@ -248,14 +408,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!pf2Gate.edit) return NextResponse.json({ error: pf2Gate.refusal ?? 'That edit was refused.' }, { status: 400 });
 
     const nextPf2 = applyPf2Edit(pf2Data as PF2Character, pf2Gate.edit, { downedDamageModel });
-    const { error: pf2Err } = await supabaseAdmin.from('dnd_characters').update({ data: { ...rawData, pf2e: nextPf2 } }).eq('id', params.id);
-    if (pf2Err) return NextResponse.json({ error: pf2Err.message }, { status: 500 });
-    await supabaseAdmin.from('dnd_sheet_edits').insert({
-      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
-      field_path: `pf2:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
-      source: 'ai', summary: describePf2Edit(parsed.edit),
-    }).then(() => {}, () => {});
-    return NextResponse.json({ ok: true, kind: 'pf2-edit', summary: describePf2Edit(parsed.edit), currentHp: nextPf2.combat.currentHp, dyingValue: nextPf2.combat.dyingValue });
+    const pf2Save = await persistChange(params.id, saveRow, saveTarget, { data: { ...rawData, pf2e: nextPf2 } }, variantName);
+    if (pf2Save.error) return NextResponse.json({ error: pf2Save.error }, { status: pf2Save.status });
+    if (!toVariant) {
+      await supabaseAdmin.from('dnd_sheet_edits').insert({
+        character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+        field_path: `pf2:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
+        source: 'ai', summary: describePf2Edit(parsed.edit),
+      }).then(() => {}, () => {});
+    }
+    return NextResponse.json({ ok: true, kind: 'pf2-edit', summary: describePf2Edit(parsed.edit), currentHp: nextPf2.combat.currentHp, dyingValue: nextPf2.combat.dyingValue, savedTo: saveTarget, variantSlotId: pf2Save.variantSlotId });
   }
 
   // ── Level-up path (Area LU): the user asked to gain a level (vanilla or custom) ───────
@@ -264,15 +426,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (fromLevel >= 20) return NextResponse.json({ error: 'This character is already level 20.' }, { status: 400 });
     const draft = parseLevelUpToolCall(result.input, fromLevel);
     const next = applyLevelUpDraft(current, draft);
-    const { error: luErr } = await supabaseAdmin.from('dnd_characters').update({ data: next, updated_at: new Date().toISOString() }).eq('id', params.id);
-    if (luErr) return NextResponse.json({ error: luErr.message }, { status: 500 });
+    const luSave = await persistChange(params.id, saveRow, saveTarget, { data: next, updated_at: new Date().toISOString() }, variantName);
+    if (luSave.error) return NextResponse.json({ error: luSave.error }, { status: luSave.status });
     const summary = `Level ${fromLevel} → ${draft.toLevel} (${draft.mode})${draft.features.length ? `: ${draft.features.map((f) => f.name).join(', ')}` : ''}.`;
-    await supabaseAdmin.from('dnd_sheet_edits').insert({
-      character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
-      field_path: `level:${draft.toLevel}`, old_value: null, new_value: null, scope: 'permanent',
-      source: 'ai', summary,
-    }).then(() => {}, () => {});
-    return NextResponse.json({ ok: true, kind: 'level-up', fromLevel, toLevel: draft.toLevel, mode: draft.mode, hpGained: draft.hpGained, featuresAdded: draft.features.map((f) => f.name), summary });
+    if (!toVariant) {
+      await supabaseAdmin.from('dnd_sheet_edits').insert({
+        character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
+        field_path: `level:${draft.toLevel}`, old_value: null, new_value: null, scope: 'permanent',
+        source: 'ai', summary,
+      }).then(() => {}, () => {});
+    }
+    return NextResponse.json({ ok: true, kind: 'level-up', fromLevel, toLevel: draft.toLevel, mode: draft.mode, hpGained: draft.hpGained, featuresAdded: draft.features.map((f) => f.name), summary, savedTo: saveTarget, variantSlotId: luSave.variantSlotId });
   }
 
   const editsRaw = result?.input?.edits;
@@ -286,12 +450,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       editsRaw as LayoutEdit[],
     );
     // Applying a layout edit switches the character onto its custom sheet so the change shows.
-    const { error: upErr } = await supabaseAdmin
-      .from('dnd_characters')
-      .update({ custom_layout: layout, custom_css: css, sheet_type: 'custom' })
-      .eq('id', params.id);
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-    return NextResponse.json({ ok: true, kind: 'layout', summary: result?.input?.summary ?? null, editCount: editsRaw.length, blockCount: layout.blocks.length });
+    const laySave = await persistChange(params.id, saveRow, saveTarget, { custom_layout: layout, custom_css: css, sheet_type: 'custom' }, variantName);
+    if (laySave.error) return NextResponse.json({ error: laySave.error }, { status: laySave.status });
+    return NextResponse.json({ ok: true, kind: 'layout', summary: result?.input?.summary ?? null, editCount: editsRaw.length, blockCount: layout.blocks.length, savedTo: saveTarget, variantSlotId: laySave.variantSlotId });
   }
 
   // ── Mechanics path (Slice 8) ───────────────────────────────────────────────────────
@@ -342,18 +503,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     equipLimits = readCampaignPreferences((campRow as { theme?: unknown } | null)?.theme).equipLimits.value;
   }
   const updated = applySheetEdits(current, edits, { equipLimits, system: charSystem });
-  const { error: upErr } = await supabaseAdmin.from('dnd_characters').update({ data: updated, name: updated.meta.name || row.name }).eq('id', params.id);
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+  // The name only follows the edits onto the LIVE sheet — a variant carries its own name, and renaming the
+  // character because a branched-off version renamed itself would rename the version you're still viewing.
+  const mechSave = await persistChange(
+    params.id, saveRow, saveTarget,
+    toVariant ? { data: updated } : { data: updated, name: updated.meta.name || row.name },
+    variantName,
+  );
+  if (mechSave.error) return NextResponse.json({ error: mechSave.error }, { status: mechSave.status });
 
   // Audit each edit (best-effort — don't fail the request if logging fails). Capture old_value from
   // the PRE-edit character (Slice 26), so the DM review queue can show the diff and Revert can restore
   // the prior value — computed against `current`, before any edit in the batch applied. Every edit from
   // THIS request shares one `batch_id` so the whole change can be undone as a unit (history/undo A2).
-  const batchId = randomUUID();
+  // Skipped when the change went to a NEW variant: the live sheet is unchanged, so an "undo" bound to
+  // these rows would revert a version that never had them.
+  const batchId = toVariant ? null : randomUUID();
   const batchSummary = (result?.input?.summary ?? '').toString().slice(0, 500) || `${edits.length} edit(s)`;
-  await supabaseAdmin.from('dnd_sheet_edits').insert(
-    edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent', batch_id: batchId, source: 'ai', summary: batchSummary })),
-  ).then(() => {}, () => {});
+  if (batchId) {
+    await supabaseAdmin.from('dnd_sheet_edits').insert(
+      edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent', batch_id: batchId, source: 'ai', summary: batchSummary })),
+    ).then(() => {}, () => {});
+  }
 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system
   // mechanic is surfaced to the user rather than silently kept.
@@ -369,5 +540,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Return the batch id + a compact preview so the chat can offer an immediate "Undo this change"
   // button bound to exactly the edits this request made (history/undo A3).
   const editsPreview = edits.map((e) => ({ op: e.op, path: editPath(e) }));
-  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects, batchId, batchSummary, editsPreview });
+  return NextResponse.json({ ok: true, kind: 'mechanics', summary: summary || null, editCount: edits.length, name: updated.meta.name, violations, rejectedEffects, batchId, batchSummary, editsPreview, savedTo: saveTarget, variantSlotId: mechSave.variantSlotId });
 }

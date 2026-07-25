@@ -395,18 +395,24 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in
           force and which the DM locked. Only shown for a character in a campaign. */}
       {effectivePreferences && <HouseRulesPanel preferences={effectivePreferences} />}
-      {/* Ask the librarian ABOUT THIS CHARACTER. The system is pinned to the character's own, and
-          passing characterId makes the chat adjudicate against the real sheet ("can I shove while
-          grappled?") rather than answer about a generic character. Anyone who can see the sheet can
-          ask; the route re-checks access itself. */}
-      <LibraryChat
-        aiConfigured={dndAiConfigured()}
-        system={normalizeSystem((character as { system?: string }).system)}
-        characterId={character.id}
-        characterName={character.name}
-        title={`Ask the librarian about ${character.name}`}
-      />
+      {/* Ask the librarian ABOUT THIS CHARACTER — for READ-ONLY viewers only. The sheet assistant below
+          now answers questions with the same grounding AND proposes changes, so showing both to an editor
+          is two boxes that do the same thing (Workstream B3). A viewer who can't write still needs a way
+          to ask, so they keep the librarian. The system is pinned to the character's own, and passing
+          characterId makes the chat adjudicate against the real sheet ("can I shove while grappled?")
+          rather than answer about a generic character; the route re-checks access itself. */}
+      {!canWrite && (
+        <LibraryChat
+          aiConfigured={dndAiConfigured()}
+          system={normalizeSystem((character as { system?: string }).system)}
+          characterId={character.id}
+          characterName={character.name}
+          title={`Ask the librarian about ${character.name}`}
+        />
+      )}
       {character.campaign_id && <SheetChatPanel campaignId={character.campaign_id} actorName={character.name} />}
+      {/* One box: answers questions about this character AND proposes changes, each confirmed before it
+          saves — to this version or as a new variant (the universal save choice). */}
       {canWrite && <SheetEditChat characterId={character.id} characterName={character.name} aiConfigured={dndAiConfigured()} />}
     </>
   );

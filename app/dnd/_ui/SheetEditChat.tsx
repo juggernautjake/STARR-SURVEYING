@@ -21,24 +21,32 @@ interface Msg {
    *  one-click "Undo this change". Cleared once undone. */
   batchId?: string;
   undone?: boolean;
+  /** Workstream B — a PROPOSED change, not yet saved. The message carries the exact tool call the
+   *  server described, and Confirm sends it back to be applied. Nothing was written to produce this. */
+  proposal?: { tool: string; input: unknown };
+  /** How the proposal was resolved, so the buttons collapse into a statement of what happened. */
+  resolved?: 'sheet' | 'variant' | 'cancelled';
 }
 
 /** Reveal the latest AI message with a typewriter effect for a smooth streamed feel. */
 function useTypewriter(msgs: Msg[]): string {
   const last = msgs[msgs.length - 1];
+  // Keyed on the TEXT, not the message object: resolving a proposal in place (Confirm/Cancel sets
+  // `resolved`) makes a new object for the same message, and depending on identity replayed the whole
+  // typewriter every time a button was pressed.
+  const full = last && last.role === 'ai' ? last.text : null;
   const [shown, setShown] = useState('');
   useEffect(() => {
-    if (!last || last.role !== 'ai') { setShown(''); return; }
+    if (full == null) { setShown(''); return; }
     setShown('');
     let i = 0;
-    const full = last.text;
     const id = setInterval(() => {
       i += 2;
       setShown(full.slice(0, i));
       if (i >= full.length) clearInterval(id);
     }, 16);
     return () => clearInterval(id);
-  }, [last]);
+  }, [full]);
   return shown;
 }
 
@@ -69,32 +77,85 @@ export default function SheetEditChat({
     requestAnimationFrame(() => listRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' }));
   }, [msgs, typed, busy]);
 
-  /** Run one instruction. Assumes the caller owns the busy flag (see the queue below). */
+  /** Refresh whatever the change touched: a layout edit changes server props, everything else the
+   *  mounted sheet. */
+  const refreshAfter = useCallback(
+    (kind: string) => {
+      if (kind === 'layout') router.refresh();
+      else window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
+    },
+    [characterId, router],
+  );
+
+  /**
+   * PHASE 1 — ask. The assistant either ANSWERS (nothing is written) or PROPOSES a change, describing
+   * what it does and where on the sheet to look. Neither outcome touches the character: the change is
+   * only saved if the user confirms it below. Assumes the caller owns the busy flag (see the queue).
+   */
   const runEdit = useCallback(
     async (instruction: string) => {
       setMsgs((prev) => [...prev, { role: 'user', text: instruction }]);
       try {
         const r = await fetch(`/api/dnd/characters/${characterId}/ai-edit`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, mode: 'preview' }),
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
-          setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That change could not be applied.' }]);
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That could not be done.' }]);
+        } else if (j.kind === 'proposal') {
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.text || j.description || 'I can make that change.', proposal: j.proposal }]);
         } else {
-          const n = j.editCount ?? 0;
-          // A mechanics edit carries a batchId → the reply gets a one-click Undo bound to it.
-          setMsgs((prev) => [...prev, { role: 'ai', text: j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.`, batchId: j.kind === 'mechanics' ? j.batchId : undefined }]);
-          if (j.kind === 'layout') {
-            router.refresh();
-          } else {
-            window.dispatchEvent(new CustomEvent('dnd:reload-character', { detail: { id: characterId } }));
-          }
+          // A plain answer — a question must never mutate the sheet, so there is nothing to confirm.
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.text || 'I don’t have an answer for that.' }]);
         }
       } catch {
         setMsgs((prev) => [...prev, { role: 'ai', text: 'Network error — please try again.' }]);
       }
     },
-    [characterId, characterName, router],
+    [characterId],
+  );
+
+  const [confirming, setConfirming] = useState<number | null>(null);
+  /**
+   * PHASE 2 — commit. The UNIVERSAL SAVE CHOICE: the same decision the draft Save banner offers, so
+   * every commit in the app means one of exactly two things — change the version you're looking at, or
+   * branch a new variant that has the change while this version keeps what it had.
+   */
+  const confirm = useCallback(
+    async (index: number, target: 'sheet' | 'variant') => {
+      const msg = msgs[index];
+      if (!msg?.proposal) return;
+      setConfirming(index);
+      try {
+        const r = await fetch(`/api/dnd/characters/${characterId}/ai-edit`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'confirm', proposal: msg.proposal, target }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setMsgs((prev) => [...prev, { role: 'ai', text: j.error ?? 'That change could not be saved.' }]);
+        } else {
+          const n = j.editCount ?? 0;
+          setMsgs((prev) => prev.map((m, i) => (i === index ? { ...m, resolved: target } : m)));
+          setMsgs((prev) => [...prev, {
+            role: 'ai',
+            text: target === 'variant'
+              ? `Saved as a new variant — ${characterName} is unchanged. Open VERSIONS to switch to it.`
+              : (j.summary || `Applied ${n} change${n === 1 ? '' : 's'} to ${j.name ?? characterName}.`),
+            // Undo is bound to the live sheet's batch; a variant save has none (nothing on this
+            // version changed), so no Undo button is offered there.
+            batchId: j.kind === 'mechanics' && j.batchId ? j.batchId : undefined,
+          }]);
+          if (target === 'variant') router.refresh(); // the VERSIONS list gained a card
+          else refreshAfter(j.kind);
+        }
+      } catch {
+        setMsgs((prev) => [...prev, { role: 'ai', text: 'Network error — the change was not saved.' }]);
+      } finally {
+        setConfirming(null);
+      }
+    },
+    [characterId, characterName, msgs, refreshAfter, router],
   );
 
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -167,7 +228,7 @@ export default function SheetEditChat({
           <span aria-hidden className={styles.spark}>✦</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className={styles.headTitle}>SHEET ASSISTANT</div>
-            <div className={styles.headSub}>Edits only {characterName}&apos;s sheet</div>
+            <div className={styles.headSub}>Asks answered · changes confirmed before saving</div>
           </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close" className={styles.close}>×</button>
         </div>
@@ -175,9 +236,13 @@ export default function SheetEditChat({
         <div ref={listRef} className={styles.stream}>
           {msgs.length === 0 && (
             <div className={styles.hint}>
-              Ask for any change — mechanics like “add a fire-breath action”, “give them the Alert feat”,
-              “raise Strength to 18”; or the sheet itself: “add a counter for focus points”, “move the stats
-              to the top”, “make the headers gold”. Only this character is affected.
+              <strong>Ask anything</strong> about {characterName} or the rules — “what does Alert do?”, “can I
+              cast this while grappled?”, “what are my best options at this level?” — and get a grounded answer.
+              <br /><br />
+              <strong>Or ask for a change</strong> — “give them the Alert feat”, “raise Strength to 18”, “add a
+              counter for focus points”, “make the headers gold”. Changes are <em>proposed first</em>: you see
+              what it does and where to check it, then choose to apply it to this version or save it as a new
+              variant. Nothing is saved until you confirm. Only this character is affected.
             </div>
           )}
           {msgs.map((m, i) => {
@@ -187,6 +252,38 @@ export default function SheetEditChat({
               <div key={i} className={`${styles.bubble} ${m.role === 'user' ? styles.user : styles.ai}`}>
                 {text}
                 {isLastAi && text.length < m.text.length && <span className={styles.caret}>▍</span>}
+                {/* A PROPOSAL — nothing has been saved yet. Confirm decides both whether and where. */}
+                {m.proposal && (
+                  m.resolved ? (
+                    <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
+                      {m.resolved === 'sheet' ? '✓ applied to this sheet' : m.resolved === 'variant' ? '✓ saved as a new variant' : '✕ cancelled'}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        type="button" onClick={() => confirm(i, 'sheet')} disabled={confirming !== null}
+                        title="Save this change to the version you're looking at"
+                        style={{ fontSize: 11.5, cursor: 'pointer', padding: '4px 11px', borderRadius: 12, border: '1px solid var(--hx-gold-2, currentColor)', background: 'rgba(200,170,110,0.14)', color: 'inherit' }}
+                      >
+                        {confirming === i ? 'Saving…' : '✓ Apply to this sheet'}
+                      </button>
+                      <button
+                        type="button" onClick={() => confirm(i, 'variant')} disabled={confirming !== null}
+                        title="Branch a new variant that has this change — this version keeps what it has"
+                        style={{ fontSize: 11.5, cursor: 'pointer', padding: '4px 11px', borderRadius: 12, border: '1px solid var(--hx-line, currentColor)', background: 'transparent', color: 'inherit' }}
+                      >
+                        ⑂ Save as new variant
+                      </button>
+                      <button
+                        type="button" onClick={() => setMsgs((prev) => prev.map((x, xi) => (xi === i ? { ...x, resolved: 'cancelled' } : x)))}
+                        disabled={confirming !== null}
+                        style={{ fontSize: 11.5, cursor: 'pointer', padding: '4px 11px', borderRadius: 12, border: 'none', background: 'transparent', color: 'inherit', opacity: 0.7 }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )
+                )}
                 {m.batchId && (
                   m.undone ? (
                     <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>↩ change undone</div>
@@ -226,7 +323,7 @@ export default function SheetEditChat({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={aiConfigured ? 'Describe a change…' : 'AI is not configured'}
+            placeholder={aiConfigured ? 'Ask a question, or describe a change…' : 'AI is not configured'}
             // NOT disabled while busy. The request is in flight, not the person — locking the box
             // for the whole round-trip takes it away at exactly the moment you have something to
             // add. Sends made while busy queue (see above) instead of being dropped.
