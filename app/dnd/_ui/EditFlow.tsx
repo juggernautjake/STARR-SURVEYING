@@ -59,7 +59,11 @@ export default function EditFlow({
   }
 
   const overlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
-  const panel: React.CSSProperties = { width: 'min(560px, 96vw)', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', padding: '18px 20px', boxSizing: 'border-box' };
+  // The frame does NOT scroll: .framedPanel draws its gold corners at -1px, so `overflow-y: auto` on the
+  // frame itself always overflows by that 1px and shows a scrollbar even on a short step. The frame stays
+  // visible-overflow and an inner wrapper does the scrolling, so the bar appears only when it's needed.
+  const panel: React.CSSProperties = { width: 'min(560px, 96vw)', maxHeight: '90vh', padding: '18px 20px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' };
+  const scroller: React.CSSProperties = { overflowY: 'auto', overflowX: 'hidden', minHeight: 0 };
 
   const choice = (opts: { title: string; desc: string; onClick: () => void; icon: string; primary?: boolean; disabled?: boolean; hint?: string }) => (
     <button type="button" disabled={busy || opts.disabled} onClick={opts.onClick} style={{
@@ -93,6 +97,7 @@ export default function EditFlow({
   return (
     <div style={overlay} onClick={onClose}>
       <div className={styles.framedPanel} style={panel} onClick={(e) => e.stopPropagation()}>
+        <div style={scroller}>
         {step === 'root' && (<>
           {header(`Edit ${name}`, 'Edit this version, or reimagine it in another game system. You choose whether to overwrite this version or branch a new one when you save.')}
           <div style={{ display: 'grid', gap: 10 }}>
@@ -129,6 +134,7 @@ export default function EditFlow({
 
         {busy && <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--hx-teal-1)' }}>Working… this can take a few seconds.</p>}
         {err && <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--hx-danger, #ff6b6b)' }}>{err}</p>}
+        </div>
       </div>
     </div>
   );
