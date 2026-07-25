@@ -17,7 +17,6 @@ import SheetVisibilityToggle from '@/app/dnd/_ui/SheetVisibilityToggle';
 import PromoteCampaignVersionButton from '@/app/dnd/_ui/PromoteCampaignVersionButton';
 import ExportSheetButton from '@/app/dnd/_ui/ExportSheetButton';
 import SheetEditChat from '@/app/dnd/_ui/SheetEditChat';
-import SystemSwitcher from '@/app/dnd/_ui/SystemSwitcher';
 import SheetApprovalPanel from '@/app/dnd/_ui/SheetApprovalPanel';
 import DmGrantPanel from '@/app/dnd/_ui/DmGrantPanel';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
@@ -28,13 +27,13 @@ import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
 import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { readVariants, builtSystems, listSheets, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
 import type { SubmissionStatusLite } from '@/lib/dnd/variant-tags';
 import { availableSystems } from '@/lib/dnd/systems';
-import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
+import { normalizeSystem } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { normalizeSubmissionStatus } from '@/lib/dnd/submission';
 import { readGrants } from '@/lib/dnd/dm-grant';
@@ -281,7 +280,10 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     } else {
       const transposeSystems = availableSystems().map((s) => ({ id: s.key, label: s.name }));
       versionsPanel = (
-        <VariantBrowser characterId={character.id} cards={variantCards} aiConfigured={dndAiConfigured()} canWrite={canWrite} transposeSystems={transposeSystems} />
+        // allowCustom carries the campaign's vanilla-only policy (Area TR2) into the Edit dialog, so a
+        // vanilla-only campaign never offers "let the AI homebrew" — the rule outlived the panel that
+        // used to enforce it.
+        <VariantBrowser characterId={character.id} cards={variantCards} aiConfigured={dndAiConfigured()} canWrite={canWrite} transposeSystems={transposeSystems} allowCustom={transposeAllowsCustom} />
       );
     }
   }
@@ -342,23 +344,11 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {canWrite && character.campaign_id !== DEMO_CAMPAIGN_ID && (
         <AddToDemoButton characterId={character.id} campaignId={DEMO_CAMPAIGN_ID} />
       )}
-      {canWrite && (() => {
-        const rawVariants = (character as { system_variants?: unknown }).system_variants;
-        const activeMeta = readActiveSlotMeta(rawVariants);
-        const active: ActiveSheet = {
-          system: normalizeSystem((character as { system?: string }).system),
-          data: character.data,
-          sheet_type: character.sheet_type,
-          ...(activeMeta.slotId ? { slotId: activeMeta.slotId } : {}),
-          kind: activeMeta.kind,
-          ...(activeMeta.name ? { name: activeMeta.name } : {}),
-        };
-        const variants = readVariants(rawVariants);
-        const built = builtSystems(active, variants);
-        // Every sheet the character holds (Area MV2c) — active + each stored slot, with kind + name.
-        const sheets = listSheets(active, variants, systemLabel);
-        return <SystemSwitcher characterId={character.id} activeSystem={active.system} builtSystems={built} sheets={sheets} aiConfigured={dndAiConfigured()} allowCustom={transposeAllowsCustom} />;
-      })()}
+      {/* SystemSwitcher was RETIRED here (consolidation C3): every capability it had now lives in the
+          VERSIONS picker + EditFlow above — switch/rename/delete on the cards, add/transpose and the
+          vanilla-vs-homebrew choice in the Edit dialog, the build report after a transpose, and finally
+          level-up-to-match. Two panels doing the same job was the redundancy this consolidation set out to
+          remove; the component file stays until the branch merges, in case QA wants it back in one revert. */}
       {/* Private/Public is the creator's call — only the owner sees this control (the DM always sees the
           character regardless; other players' view is governed by this flag). */}
       {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}

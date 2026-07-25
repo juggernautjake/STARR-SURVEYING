@@ -10,15 +10,19 @@ import styles from './hextech.module.css';
 import { VARIANT_TAG_COLORS, type VariantTag } from '@/lib/dnd/variant-tags';
 import type { VariantCard } from '@/lib/dnd/variant-view';
 import { MAX_VARIANTS } from '@/lib/dnd/system-variants';
+import { isSharedEngineSystem } from '@/lib/dnd/systems';
 import EditFlow, { type EditFlowSystem } from './EditFlow';
 
 export default function VariantBrowser({
   characterId, cards, aiConfigured = false, canWrite = true, transposeSystems = [], startOpen = false,
+  allowCustom = true,
 }: {
   characterId: string;
   cards: VariantCard[];
   aiConfigured?: boolean;
   canWrite?: boolean;
+  /** False in a vanilla-only campaign — the Edit dialog then never offers AI homebrew (Area TR2). */
+  allowCustom?: boolean;
   /** Playable systems the Edit→Transpose step can target (the current one is filtered out per card). */
   transposeSystems?: EditFlowSystem[];
   /** Open the panel expanded on mount (used by the preview harness). */
@@ -28,7 +32,7 @@ export default function VariantBrowser({
   const [busy, setBusy] = useState<string | null>(null); // slotId:action while a request is in flight
   const [err, setErr] = useState<string | null>(null);
   const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
-  const [editing, setEditing] = useState<{ slotId: string; name: string; system: string } | null>(null);
+  const [editing, setEditing] = useState<{ slotId: string; name: string; system: string; level: number } | null>(null);
   const [renaming, setRenaming] = useState<{ slotId: string; value: string } | null>(null); // inline rename
   // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
   const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
@@ -213,7 +217,7 @@ export default function VariantBrowser({
                   style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, cursor: 'pointer', border: '1px solid var(--hx-teal-1, #0ac8b9)', background: 'rgba(10,200,185,0.10)', color: 'var(--hx-teal-1, #0ac8b9)' }}>
                   {sum.stale ? 'ⓘ Summary ·' : 'ⓘ Summary'}{sum.stale ? <span style={{ color: '#f0dd8a' }}> stale</span> : null}
                 </button>
-                {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
+                {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system, level: c.level }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.name }), { title: `Rename this version (currently “${c.name}”)` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : `Branch a new variant from ${c.name}`, disabled: atCap })}
                 {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => deleteVariant(c.slotId), { title: 'Delete this version', danger: true })}
@@ -273,8 +277,21 @@ export default function VariantBrowser({
           slotId={editing.slotId}
           name={editing.name}
           system={editing.system}
+          level={editing.level}
+          // Level-up-to-match is only offered where it can actually work: the route levels the ACTIVE
+          // sheet IN PLACE, and only for the shared 5e engine (a PF2/IG level-up through edit_sheet would
+          // touch a blank projection). Anything else passes an empty list, so the option never shows as a
+          // button that only ever errors. Same predicate the route refuses on — one definition, no drift.
+          levelUpTargets={
+            editing.slotId === cards.find((c) => c.active)?.slotId && isSharedEngineSystem(editing.system)
+              ? cards
+                  .filter((c) => !c.active && c.level > editing.level)
+                  .map((c) => ({ slotId: c.slotId, name: c.name, level: c.level, systemLabel: c.systemLabel }))
+              : []
+          }
           systems={transposeSystems.filter((s) => s.id !== editing.system)}
           aiConfigured={aiConfigured}
+          allowCustom={allowCustom}
           onClose={() => setEditing(null)}
         />
       )}

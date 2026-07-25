@@ -13,7 +13,7 @@ import { dndToolCall, dndAiConfigured } from '@/lib/dnd/ai';
 import { applySheetEdits, coerceEditsArray, SHEET_EDIT_TOOL, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
-import { normalizeSystem, systemLabel, isSystemAvailable, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
+import { normalizeSystem, systemLabel, isSystemAvailable, isSharedEngineSystem, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
 import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, listSheets, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { pickSourceSheet } from '@/lib/dnd/transpose/source-sheet';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
@@ -108,12 +108,6 @@ function levelupSystemPrompt(allowCustom: boolean): string {
   return LEVELUP_BASE + (allowCustom ? LEVELUP_ALLOW_CUSTOM : LEVELUP_VANILLA_ONLY);
 }
 
-/** The systems whose sheets are the SHARED 5e engine `Character` shape, which the level-up flow
- *  edits through `edit_sheet`/`applySheetEdits`. PF2 and IG store their real sheet in `data.pf2e` /
- *  `data.ig` with their own edit paths, so an `edit_sheet` level-up would silently touch only their
- *  blank 5e projection — hence they are handled separately (a rebuild via Switch/Transpose), and the
- *  action refuses rather than pretending to work. */
-const SHARED_ENGINE_SYSTEMS = new Set(['dnd5e-2014', 'dnd5e-2024', SYSTEM_AMBIGUOUS]);
 
 /** A COMPLETE, readable digest of the source character so the AI can faithfully recreate everything it can do
  *  (Area MV/transpose quality). Unlike a name-only summary, this carries the descriptions, numbers and rules
@@ -291,7 +285,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Only the shared-engine systems can be levelled through `edit_sheet`. A PF2/IG sheet lives in
     // `data.pf2e` / `data.ig` with its own model; an `edit_sheet` level-up would touch only its blank
     // 5e projection and appear to do nothing. Refuse honestly and point at the working path.
-    if (!SHARED_ENGINE_SYSTEMS.has(active.system)) {
+    if (!isSharedEngineSystem(active.system)) {
       return NextResponse.json({
         error: `Levelling up in place isn't available for ${systemLabel(active.system)} yet — its sheet uses a different engine. Use Switch / Transpose to rebuild the ${systemLabel(active.system)} sheet at the higher level instead.`,
       }, { status: 400 });

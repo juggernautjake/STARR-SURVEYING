@@ -11,6 +11,7 @@ import EditFlow, { TransposeReport } from '@/app/dnd/_ui/EditFlow';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
+import { isSharedEngineSystem } from '@/lib/dnd/systems';
 import type { ActiveSheet, SystemVariants } from '@/lib/dnd/system-variants';
 
 const meta5e = (over: Record<string, unknown> = {}) => ({ meta: { name: 'Gandalf', level: 5, className: 'Wizard', species: 'Human', ...over } });
@@ -35,6 +36,70 @@ describe('EditFlow dialog — the root decision', () => {
     );
     expect(html).toContain('No other systems available');
     expect(html).toContain('disabled');
+  });
+});
+
+describe('EditFlow — level up to match another version', () => {
+  const TARGETS = [{ slotId: 'dnd5e-2024#2', name: 'Gandalf the White', level: 13, systemLabel: 'D&D 5e (2024)' }];
+
+  it('offers the option, naming this version’s level, when a higher-level version exists', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        level={5} levelUpTargets={TARGETS} onClose={() => {}} />,
+    );
+    expect(html).toContain('Level up to match another version');
+    expect(html).toContain('This version is level 5');
+  });
+
+  it('hides the option entirely when there is nothing higher to match', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        level={5} levelUpTargets={[]} onClose={() => {}} />,
+    );
+    expect(html).not.toContain('Level up to match');
+  });
+
+  it('disables it with a reason when AI is unavailable — the level-up is an AI build', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS}
+        aiConfigured={false} level={5} levelUpTargets={TARGETS} onClose={() => {}} />,
+    );
+    expect(html).toContain('Level up to match another version');
+    expect(html).toContain('AI is not configured');
+  });
+});
+
+describe('a vanilla-only campaign is still enforced after SystemSwitcher retired', () => {
+  it('says so up front on the transpose choice — not two clicks later', () => {
+    // The consent gate used to live in SystemSwitcher; retiring that panel must not lose the rule. Stating
+    // it at the root step is also what stops the flow from dead-ending on a disabled last choice.
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        allowCustom={false} onClose={() => {}} />,
+    );
+    expect(html).toContain('This campaign is vanilla-only');
+  });
+
+  it('offers it normally when custom content is permitted', () => {
+    const html = renderToStaticMarkup(
+      <EditFlow characterId="c1" slotId="s" name="Gandalf" system="dnd5e-2024" systems={SYSTEMS} aiConfigured
+        allowCustom onClose={() => {}} />,
+    );
+    expect(html).not.toContain('vanilla-only');
+  });
+});
+
+describe('the level-up gate is ONE predicate, shared by the UI and the route', () => {
+  it('accepts the shared 5e engine and rejects the bespoke-sidecar systems', () => {
+    // PF2/IG keep their real sheet in data.pf2e / data.ig; an edit_sheet level-up would touch only their
+    // blank 5e projection, so the route refuses — and the UI must hide the option on exactly those.
+    expect(isSharedEngineSystem('dnd5e-2024')).toBe(true);
+    expect(isSharedEngineSystem('dnd5e-2014')).toBe(true);
+    expect(isSharedEngineSystem('ambiguous')).toBe(true);
+    expect(isSharedEngineSystem('pathfinder2e')).toBe(false);
+    expect(isSharedEngineSystem('intuitive-games')).toBe(false);
+    // An unknown/blank system normalizes to ambiguous, which the route does allow.
+    expect(isSharedEngineSystem(undefined)).toBe(true);
   });
 });
 

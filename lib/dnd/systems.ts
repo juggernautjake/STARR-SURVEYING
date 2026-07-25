@@ -46,6 +46,20 @@ export function isSystemAvailable(key: CharacterSystem): boolean {
   return GAME_SYSTEMS.find((s) => s.key === key)?.status === 'available';
 }
 
+/**
+ * The systems that share the 5e `Character` model (`data`), as opposed to owning a bespoke sidecar
+ * (`data.pf2e`, `data.ig`) with its own rules engine.
+ *
+ * This is the gate for anything that edits a sheet through the shared `edit_sheet` vocabulary — most
+ * notably levelling a sheet up in place. On a PF2/IG character those edits would land on a blank 5e
+ * projection and appear to do nothing. Exported so the UI can HIDE the affordance and the route can
+ * REFUSE it from one definition: when those two drift, you get a button that always errors.
+ */
+export function isSharedEngineSystem(key: unknown): boolean {
+  const k = normalizeSystem(key);
+  return k === 'dnd5e-2014' || k === 'dnd5e-2024' || k === SYSTEM_AMBIGUOUS;
+}
+
 export type CharacterSystem = string; // a GAME_SYSTEMS key, or SYSTEM_AMBIGUOUS
 
 /** Normalize any stored/user value to a known system key or 'ambiguous'. */

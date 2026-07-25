@@ -39,14 +39,21 @@ describe('system route — multi-sheet slot operations (MV2b)', () => {
   });
 });
 
+// SystemSwitcher is RETIRED from the sheet page (consolidation C3) — the VERSIONS picker + EditFlow do its
+// job now. The component file is kept for one merge cycle in case QA wants it back, and the tests below
+// still describe it, but the PAGE-level guard has moved to its replacement: what matters is that the sheet
+// list is still rendered somewhere, not that a particular component receives it.
 describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
   const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
   const page = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
 
-  it('the page passes the full sheet list (listSheets) to the switcher', () => {
-    expect(page).toContain('listSheets(active, variants, systemLabel)');
+  it('the page renders every version through the VERSIONS picker (which replaced the switcher)', () => {
     expect(page).toContain('readActiveSlotMeta(rawVariants)');
-    expect(page).toContain('sheets={sheets}');
+    // buildVariantCards is the listSheets equivalent for the picker: one card per version, active + stored.
+    expect(page).toContain('buildVariantCards(');
+    expect(page).toContain('cards={variantCards}');
+    // And the switcher is genuinely gone from the page, not just visually hidden.
+    expect(page).not.toContain('<SystemSwitcher');
   });
 
   it('renders each sheet as a switchable chip (by slotId) with a vanilla/custom badge', () => {

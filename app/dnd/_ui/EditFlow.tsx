@@ -12,6 +12,9 @@ import styles from './hextech.module.css';
 
 export interface EditFlowSystem { id: string; label: string }
 
+/** Another version of this character that the edited sheet could be levelled UP to match. */
+export interface LevelUpTarget { slotId: string; name: string; level: number; systemLabel: string }
+
 /** The `/system` transpose response, as far as the report cares about it. */
 export interface TransposeResult {
   system: string;
@@ -30,7 +33,7 @@ export interface TransposeResult {
  * The custom list is the reason this exists: the house rule is that homebrew is flagged, not hidden, and a
  * flag that scrolls past in a page reload was never shown at all.
  */
-export function TransposeReport({ result, onOpen }: { result: TransposeResult; onOpen: () => void }) {
+export function TransposeReport({ result, onOpen, openLabel = 'Open the new version →' }: { result: TransposeResult; onOpen: () => void; openLabel?: string }) {
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       {result.summary && (
@@ -71,13 +74,14 @@ export function TransposeReport({ result, onOpen }: { result: TransposeResult; o
       <button type="button" onClick={onOpen} style={{
         marginTop: 2, padding: '9px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--hx-font-display)',
         border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(200,170,110,0.16)', color: 'var(--hx-gold-2, #c8aa6e)', fontSize: 13,
-      }}>Open the new version →</button>
+      }}>{openLabel}</button>
     </div>
   );
 }
 
 export default function EditFlow({
   characterId, slotId, name, system, systems, aiConfigured = true, onClose,
+  level = 0, levelUpTargets = [], allowCustom = true,
 }: {
   characterId: string;
   /** The version being edited (source). */
@@ -88,11 +92,27 @@ export default function EditFlow({
   systems: EditFlowSystem[];
   aiConfigured?: boolean;
   onClose: () => void;
+  /** This version's level, for the level-up copy. */
+  level?: number;
+  /**
+   * Higher-level versions this one could be levelled up to match. The caller supplies these ONLY when the
+   * level-up is actually possible — the route levels the ACTIVE sheet in place and only for the shared 5e
+   * engine, so a non-active or PF2/IG card passes an empty list and never sees the option.
+   */
+  levelUpTargets?: LevelUpTarget[];
+  /**
+   * Whether the AI may invent content for this character (Area TR2). False in a vanilla-only campaign, in
+   * which case the homebrew choices are not offered at all — the campaign's rule, not a preference.
+   */
+  allowCustom?: boolean;
 }) {
   const router = useRouter();
-  type Step = 'root' | 'system' | 'how' | 'ai-kind' | 'result';
+  type Step = 'root' | 'system' | 'how' | 'ai-kind' | 'levelup-ref' | 'levelup-kind' | 'result';
   const [step, setStep] = useState<Step>('root');
   const [target, setTarget] = useState<string>('');
+  const [levelRef, setLevelRef] = useState<LevelUpTarget | null>(null);
+  /** Set when the result came from a level-up rather than a transpose, so the report says so. */
+  const [levelled, setLevelled] = useState<{ fromLevel: number; toLevel: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   /** What the AI actually built (consolidation: this report used to exist only in SystemSwitcher). Reloading
@@ -129,6 +149,24 @@ export default function EditFlow({
     });
     setStep('result');
   }
+  /** Raise THIS sheet to a higher-level version's level, in place — vanilla or balanced homebrew for the
+   *  gained levels. Reuses the same report as a transpose: the response carries the same shape. */
+  async function runLevelUp(allowCustom: boolean) {
+    if (!levelRef) return;
+    const j = await post(`/api/dnd/characters/${characterId}/system`, { action: 'levelup', referenceSlotId: levelRef.slotId, allowCustom });
+    if (!j) return;
+    setBusy(false);
+    setLevelled({ fromLevel: Number(j.fromLevel ?? level), toLevel: Number(j.toLevel ?? levelRef.level) });
+    setResult({
+      system,
+      summary: (j.summary as string | null) ?? null,
+      hp: typeof j.hp === 'number' ? j.hp : undefined,
+      custom: Array.isArray(j.custom) ? j.custom as TransposeResult['custom'] : [],
+      violations: Array.isArray(j.violations) ? j.violations as TransposeResult['violations'] : [],
+    });
+    setStep('result');
+  }
+
   async function fromScratch() {
     const add = await post(`/api/dnd/characters/${characterId}/system`, { action: 'add', system: target });
     if (!add) return;
@@ -185,8 +223,49 @@ export default function EditFlow({
           {header(`Edit ${name}`, 'Edit this version, or reimagine it in another game system. You choose whether to overwrite this version or branch a new one when you save.')}
           <div style={{ display: 'grid', gap: 10 }}>
             {choice({ icon: '✎', title: `Edit ${name} directly`, desc: 'Open the editor on a working copy. When you save, keep it on this version or branch a new variant.', onClick: editDirectly, primary: true })}
-            {choice({ icon: '⇄', title: 'Transpose to another system', desc: 'Rebuild this character in a different game system. Always saved as a new variant — this version stays as it is.', onClick: () => setStep('system'), disabled: systems.length === 0, hint: systems.length === 0 ? 'No other systems available' : undefined })}
+            {choice({
+              icon: '⇄', title: 'Transpose to another system',
+              desc: 'Rebuild this character in a different game system. Always saved as a new variant — this version stays as it is.',
+              onClick: () => setStep('system'), disabled: systems.length === 0,
+              // Say the campaign is vanilla-only HERE, not two clicks later at the step where the homebrew
+              // option turns out to be disabled — a constraint you meet at the end reads as a dead end.
+              hint: systems.length === 0 ? 'No other systems available' : !allowCustom ? 'This campaign is vanilla-only — the AI will match it with official content' : undefined,
+            })}
+            {/* Only offered when the caller found a higher-level sibling AND this sheet can actually be
+                levelled in place — so the option never appears as a button that only ever errors. */}
+            {levelUpTargets.length > 0 && choice({
+              icon: '⬆', title: 'Level up to match another version',
+              desc: `This version is level ${level || '?'}. Build it up to match a higher-level version of the same character — the AI adds every level in between and keeps what it already has.`,
+              onClick: () => setStep('levelup-ref'), disabled: !aiConfigured,
+              hint: !aiConfigured ? 'AI is not configured' : undefined,
+            })}
           </div>
+        </>)}
+
+        {step === 'levelup-ref' && (<>
+          {header('Match which version?', `${name} is level ${level || '?'}. Pick the version to level up to.`)}
+          <div style={{ display: 'grid', gap: 8 }}>
+            {levelUpTargets.map((t) => choice({
+              icon: '◆', title: `${t.name} — level ${t.level}`,
+              desc: `Raise this sheet from level ${level || '?'} to level ${t.level}, matching ${t.name}’s power (${t.systemLabel}).`,
+              onClick: () => { setLevelRef(t); setStep('levelup-kind'); },
+            }))}
+          </div>
+          {back('root')}
+        </>)}
+
+        {step === 'levelup-kind' && (<>
+          {header('How should the new levels be built?', `Levelling ${name} up to level ${levelRef?.level ?? '?'} to match ${levelRef?.name ?? 'that version'}.`)}
+          <div style={{ display: 'grid', gap: 10 }}>
+            {choice({ icon: '📖', title: 'Vanilla only', desc: 'Use only official content from this system for every level gained.', onClick: () => runLevelUp(false), primary: true })}
+            {choice({
+              icon: '⚗️', title: 'Allow balanced homebrew',
+              desc: 'Invent balanced content for the new levels where no official option matches the version being matched — each piece is flagged.',
+              onClick: () => runLevelUp(true), disabled: !allowCustom,
+              hint: !allowCustom ? 'This campaign is vanilla-only' : undefined,
+            })}
+          </div>
+          {back('levelup-ref')}
         </>)}
 
         {step === 'system' && (<>
@@ -210,24 +289,32 @@ export default function EditFlow({
           {header('Vanilla or homebrew?', 'How faithful vs. how creative should the AI be?')}
           <div style={{ display: 'grid', gap: 10 }}>
             {choice({ icon: '📖', title: 'Use vanilla system content', desc: 'Match the original as closely as possible using only official content from the system library.', onClick: () => transposeAI(false), primary: true })}
-            {choice({ icon: '⚗️', title: 'Let AI homebrew to match', desc: 'Invent balanced feats, abilities and stats where needed to capture the original — never too weak or too strong.', onClick: () => transposeAI(true) })}
+            {choice({
+              icon: '⚗️', title: 'Let AI homebrew to match',
+              desc: 'Invent balanced feats, abilities and stats where needed to capture the original — never too weak or too strong.',
+              onClick: () => transposeAI(true), disabled: !allowCustom,
+              hint: !allowCustom ? 'This campaign is vanilla-only' : undefined,
+            })}
           </div>
           {back('how')}
         </>)}
 
         {step === 'result' && result && (<>
-          {header(`Built in ${systems.find((s) => s.id === result.system)?.label ?? 'the new system'}`, `${name} now has a new version in this system. Your other versions are untouched.`)}
-          <TransposeReport result={result} onOpen={() => window.location.reload()} />
+          {levelled
+            ? header(`Levelled up to ${levelled.toLevel}`, `${name} went from level ${levelled.fromLevel} to level ${levelled.toLevel}, in place — this is the same version, now higher level.`)
+            : header(`Built in ${systems.find((s) => s.id === result.system)?.label ?? 'the new system'}`, `${name} now has a new version in this system. Your other versions are untouched.`)}
+          <TransposeReport result={result} onOpen={() => window.location.reload()} openLabel={levelled ? 'Open the levelled sheet →' : 'Open the new version →'} />
         </>)}
 
         {/* A transpose is a full AI rebuild, so it says what is happening and that nothing is being lost —
             "Working…" on a 20-second wait reads like the app hung. */}
-        {busy && (step === 'ai-kind' ? (
+        {busy && (step === 'ai-kind' || step === 'levelup-kind' ? (
           <div style={{ margin: '12px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span className={styles.spinner} aria-hidden />
             <span style={{ fontSize: 12, color: 'var(--hx-teal-1)', lineHeight: 1.45 }}>
-              Rebuilding {name} in {systems.find((s) => s.id === target)?.label ?? 'the new system'}…
-              <span style={{ color: 'var(--hx-muted)' }}> This takes a few seconds. Your other versions are kept.</span>
+              {step === 'levelup-kind'
+                ? <>Levelling {name} up to level {levelRef?.level ?? '?'}…<span style={{ color: 'var(--hx-muted)' }}> This takes a few seconds. Everything they already have is kept.</span></>
+                : <>Rebuilding {name} in {systems.find((s) => s.id === target)?.label ?? 'the new system'}…<span style={{ color: 'var(--hx-muted)' }}> This takes a few seconds. Your other versions are kept.</span></>}
             </span>
           </div>
         ) : (

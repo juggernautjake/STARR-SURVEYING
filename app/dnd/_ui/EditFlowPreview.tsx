@@ -25,7 +25,10 @@ export default function EditFlowPreview({ cards, systems }: { cards: VariantCard
       {heading('Edit flow dialog')}
       <button type="button" onClick={() => setShowEdit(true)} data-testid="open-editflow" style={{ fontSize: 13, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(200,170,110,0.12)', color: 'var(--hx-gold-2, #c8aa6e)', fontFamily: 'var(--hx-font-display)' }}>Open Edit dialog</button>
       {showEdit && (
-        <EditFlow characterId="preview" slotId="dnd5e-2024" name="Gandalf the Grey" system="dnd5e-2024" systems={systems.filter((s) => s.id !== 'dnd5e-2024')} aiConfigured onClose={() => setShowEdit(false)} />
+        <EditFlow characterId="preview" slotId="dnd5e-2024" name="Gandalf the Grey" system="dnd5e-2024" systems={systems.filter((s) => s.id !== 'dnd5e-2024')} aiConfigured
+          level={5}
+          levelUpTargets={[{ slotId: 'dnd5e-2024#2', name: 'Gandalf the White', level: 12, systemLabel: 'D&D 5e (2024)' }]}
+          onClose={() => setShowEdit(false)} />
       )}
 
       {/* The post-transpose report, which the dialog only reaches after a real AI build — rendered here with
