@@ -29,6 +29,7 @@ export default function VariantBrowser({
   const [err, setErr] = useState<string | null>(null);
   const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
   const [editing, setEditing] = useState<{ slotId: string; name: string; system: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ slotId: string; value: string } | null>(null); // inline rename
   // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
   const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
   const autoFired = useRef(false);
@@ -84,6 +85,21 @@ export default function VariantBrowser({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(j.error ?? 'Could not create a variant.'); setBusy(null); return; }
       window.location.reload(); // the fork is now the active sheet — the user lands in the editor on it
+    } catch { setErr('Network error — please try again.'); setBusy(null); }
+  }
+
+  /** Rename a version in place (consolidation: the last of SystemSwitcher's switch/rename/delete trio to
+   *  land here, so the versions picker is capability-complete before that panel can be retired). */
+  async function renameVariant(slotId: string, name: string) {
+    const next = name.trim();
+    if (!next) { setRenaming(null); return; }
+    setBusy(`${slotId}:rename`); setErr(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rename', slotId, name: next }),
+      });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not rename that version.'); setBusy(null); return; }
+      window.location.reload();
     } catch { setErr('Network error — please try again.'); setBusy(null); }
   }
 
@@ -155,9 +171,33 @@ export default function VariantBrowser({
                 </span>
               )}
 
-              <div style={{ display: 'grid', gap: 2 }}>
-                <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 14.5, color: 'var(--hx-gold-2)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
-                <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{c.systemLabel}</span>
+              {/* width:100% + minWidth:0 so the inline rename input shrinks to the card instead of widening
+                  it — an auto-width grid sizes to the input's content and the row overhangs the card edge. */}
+              <div style={{ display: 'grid', gap: 2, width: '100%', minWidth: 0 }}>
+                {renaming?.slotId === c.slotId ? (
+                  // Inline rename — committed on Enter or ✓, abandoned on Escape. Click-through to the
+                  // card's switch handler is stopped so typing a name can't swap the version under you.
+                  <span onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input
+                      autoFocus value={renaming.value} maxLength={60}
+                      onChange={(e) => setRenaming({ slotId: c.slotId, value: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') renameVariant(c.slotId, renaming.value);
+                        if (e.key === 'Escape') setRenaming(null);
+                      }}
+                      aria-label={`Rename ${c.name}`}
+                      style={{ width: '100%', minWidth: 0, fontSize: 12.5, padding: '3px 6px', borderRadius: 5, background: 'rgba(1,10,19,0.7)', border: '1px solid var(--hx-gold-1, #c8aa6e)', color: 'var(--hx-text, #e8e0cf)' }}
+                    />
+                    <button type="button" title="Save name" onClick={() => renameVariant(c.slotId, renaming.value)} disabled={!!busy}
+                      style={{ fontSize: 11, padding: '3px 7px', borderRadius: 5, cursor: 'pointer', border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'transparent', color: 'var(--hx-gold-2, #c8aa6e)' }}>✓</button>
+                    <button type="button" title="Cancel" onClick={() => setRenaming(null)}
+                      style={{ fontSize: 11, padding: '3px 7px', borderRadius: 5, cursor: 'pointer', border: 'none', background: 'transparent', color: 'var(--hx-muted)' }}>×</button>
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 14.5, color: 'var(--hx-gold-2)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
+                )}
+                {/* The system is NOT repeated here — it's already a tag below, and printing it twice on a
+                    210px card cost a line for nothing. Tags are the one place system/kind/lineage live. */}
                 <span style={{ fontSize: 11.5, color: 'var(--hx-teal-1)' }}>{c.levelLabel}</span>
                 {c.parentName && !c.origin && <span style={{ fontSize: 10, color: 'var(--hx-muted)', fontStyle: 'italic' }}>branched from {c.parentName}</span>}
               </div>
@@ -174,16 +214,35 @@ export default function VariantBrowser({
                   {sum.stale ? 'ⓘ Summary ·' : 'ⓘ Summary'}{sum.stale ? <span style={{ color: '#f0dd8a' }}> stale</span> : null}
                 </button>
                 {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
+                {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.name }), { title: `Rename this version (currently “${c.name}”)` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : `Branch a new variant from ${c.name}`, disabled: atCap })}
                 {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => deleteVariant(c.slotId), { title: 'Delete this version', danger: true })}
               </div>
 
-              {/* Summary popover */}
+              {/* Summary tooltip — FLOATS over the grid rather than expanding the card. Growing the card
+                  pushed every other card's row down and made the whole picker jump, which is exactly what
+                  you don't want from a peek at one version. Anchored above the card, centred, with a gold
+                  arrow; on a narrow card it still gets a readable minimum width by overhanging. */}
               {showSummary && (
-                <div onClick={(e) => e.stopPropagation()} style={{
-                  width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, textAlign: 'left',
-                  background: 'rgba(1,10,19,0.7)', border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
+                <div role="tooltip" onClick={(e) => e.stopPropagation()} style={{
+                  position: 'absolute', bottom: 'calc(100% + 10px)', left: '50%', transform: 'translateX(-50%)',
+                  width: 'max(100%, 240px)', maxWidth: '82vw', zIndex: 30,
+                  padding: '9px 11px', borderRadius: 8, textAlign: 'left',
+                  background: 'linear-gradient(180deg, rgba(6,20,32,0.98), rgba(1,10,19,0.98))',
+                  border: '1px solid var(--hx-gold-1, #c8aa6e)',
+                  boxShadow: '0 10px 26px rgba(0,0,0,0.6), inset 0 0 22px rgba(200,155,60,0.05)',
                 }}>
+                  {/* Arrow: a rotated square straddling the bottom border, so the border reads continuous. */}
+                  <span aria-hidden style={{
+                    position: 'absolute', bottom: -5, left: '50%', width: 9, height: 9, marginLeft: -4.5,
+                    transform: 'rotate(45deg)', background: 'rgba(1,10,19,0.98)',
+                    borderRight: '1px solid var(--hx-gold-1, #c8aa6e)', borderBottom: '1px solid var(--hx-gold-1, #c8aa6e)',
+                  }} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                    <span style={{ fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>Summary</span>
+                    <button type="button" aria-label="Close summary" onClick={(e) => { e.stopPropagation(); setOpenSummary(null); }}
+                      style={{ fontSize: 13, lineHeight: 1, background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', padding: 0 }}>×</button>
+                  </div>
                   {sum.summary ? (
                     <>
                       <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--hx-text, #e8e0cf)' }}>{sum.summary}</p>

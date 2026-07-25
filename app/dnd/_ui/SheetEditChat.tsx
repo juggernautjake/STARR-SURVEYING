@@ -270,9 +270,11 @@ export default function SheetEditChat({
                       <button
                         type="button" onClick={() => confirm(i, 'variant')} disabled={confirming !== null}
                         title="Branch a new variant that has this change — this version keeps what it has"
-                        style={{ fontSize: 11.5, cursor: 'pointer', padding: '4px 11px', borderRadius: 12, border: '1px solid var(--hx-line, currentColor)', background: 'transparent', color: 'inherit' }}
+                        // Teal, matching the draft Save banner: branching a variant is a real choice, not the
+                        // leftover option, so it gets its own tone rather than a bare outline.
+                        style={{ fontSize: 11.5, cursor: 'pointer', padding: '4px 11px', borderRadius: 12, border: '1px solid var(--hx-teal-1, #0ac8b9)', background: 'rgba(10,200,185,0.14)', color: 'var(--hx-teal-1, #0ac8b9)' }}
                       >
-                        ⑂ Save as new variant
+                        + Save as new variant
                       </button>
                       <button
                         type="button" onClick={() => setMsgs((prev) => prev.map((x, xi) => (xi === i ? { ...x, resolved: 'cancelled' } : x)))}

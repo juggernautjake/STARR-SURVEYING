@@ -69,6 +69,24 @@ describe('VERSIONS picker — Edit/Branch on every version', () => {
     expect(html).toContain('Branch a new variant from Gandalf the White');
   });
 
+  it('offers rename on every card — the last of switch/rename/delete to land here', () => {
+    const cards = buildVariantCards(active, variants, { characterName: 'Gandalf' });
+    const html = renderToStaticMarkup(
+      <VariantBrowser characterId="c1" cards={cards} aiConfigured canWrite transposeSystems={SYSTEMS} startOpen />,
+    );
+    expect(html.match(/✎ Name/g) ?? []).toHaveLength(2);
+    expect(html).toContain('Rename this version');
+  });
+
+  it('names the system ONCE, as a tag — not also as a line under the character', () => {
+    const cards = buildVariantCards(active, variants, { characterName: 'Gandalf' });
+    const html = renderToStaticMarkup(
+      <VariantBrowser characterId="c1" cards={cards} aiConfigured canWrite transposeSystems={SYSTEMS} startOpen />,
+    );
+    // Two cards, both D&D 5e (2024) → exactly two mentions, the tags. A third would be the duplicate line.
+    expect(html.match(/D&amp;D 5e \(2024\)/g) ?? []).toHaveLength(2);
+  });
+
   it('hides Edit and + Variant for viewers without write access', () => {
     const cards = buildVariantCards(active, variants, { characterName: 'Gandalf' });
     const html = renderToStaticMarkup(

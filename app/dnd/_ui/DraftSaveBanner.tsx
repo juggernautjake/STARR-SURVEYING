@@ -28,16 +28,25 @@ export default function DraftSaveBanner({
     } catch { setErr('Network error — please try again.'); setBusy(null); }
   }
 
-  const btn = (label: string, onClick: () => void, opts: { primary?: boolean; danger?: boolean; key: string } ) => (
-    <button type="button" disabled={!!busy} onClick={onClick} style={{
-      fontSize: 12.5, padding: '7px 14px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
-      fontFamily: 'var(--hx-font-display)', letterSpacing: '0.02em',
-      border: `1px solid ${opts.danger ? 'var(--hx-danger, #ff6b6b)' : opts.primary ? 'var(--hx-gold-2, #c8aa6e)' : 'var(--hx-line, rgba(255,255,255,0.14))'}`,
-      background: opts.primary ? 'rgba(200,170,110,0.16)' : opts.danger ? 'rgba(255,107,107,0.10)' : 'rgba(255,255,255,0.03)',
-      color: opts.danger ? '#ff9d9d' : opts.primary ? 'var(--hx-gold-2, #c8aa6e)' : 'var(--hx-text, #e8e0cf)',
-      opacity: busy ? 0.6 : 1,
-    }}>{busy === opts.key ? 'Working…' : label}</button>
-  );
+  // Three commits, three tones — each is a real choice, so none of them should read as the leftover option.
+  // Gold = save to this version, TEAL = branch a new variant (the tone the versions picker already uses for
+  // "Variant"), red = discard. A borderless middle button looked disabled next to the other two.
+  const btn = (label: string, onClick: () => void, opts: { tone: 'gold' | 'teal' | 'danger'; key: string }) => {
+    const tone = {
+      gold: { line: 'var(--hx-gold-2, #c8aa6e)', bg: 'rgba(200,170,110,0.16)', fg: 'var(--hx-gold-2, #c8aa6e)', glow: 'rgba(200,170,110,0.18)' },
+      teal: { line: 'var(--hx-teal-1, #0ac8b9)', bg: 'rgba(10,200,185,0.14)', fg: 'var(--hx-teal-1, #0ac8b9)', glow: 'rgba(10,200,185,0.16)' },
+      danger: { line: 'var(--hx-danger, #ff6b6b)', bg: 'rgba(255,107,107,0.10)', fg: '#ff9d9d', glow: 'transparent' },
+    }[opts.tone];
+    return (
+      <button type="button" disabled={!!busy} onClick={onClick} style={{
+        fontSize: 12.5, padding: '7px 14px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+        fontFamily: 'var(--hx-font-display)', letterSpacing: '0.02em',
+        border: `1px solid ${tone.line}`, background: tone.bg, color: tone.fg,
+        boxShadow: `inset 0 0 12px ${tone.glow}`,
+        opacity: busy ? 0.6 : 1,
+      }}>{busy === opts.key ? 'Working…' : label}</button>
+    );
+  };
 
   return (
     <div className={styles.framedPanel} style={{ margin: '10px 0', padding: '12px 14px', display: 'grid', gap: 8, borderColor: 'var(--hx-gold-1)' }}>
@@ -46,9 +55,10 @@ export default function DraftSaveBanner({
         <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Changes are on a working copy of <strong style={{ color: 'var(--hx-text)' }}>{sourceName}</strong> — nothing is saved until you choose:</span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {btn(`Save to ${sourceName}`, () => act('save-to-original'), { primary: true, key: 'save-to-original' })}
-        {btn('Save as new variant', () => act('save-as-variant'), { key: 'save-as-variant' })}
-        {btn('Discard', () => act('discard-draft'), { danger: true, key: 'discard-draft' })}
+        {btn(`Save to ${sourceName}`, () => act('save-to-original'), { tone: 'gold', key: 'save-to-original' })}
+        {/* No fork glyph: ⑂ (U+2442) has no coverage in the display face and rendered as tofu. */}
+        {btn('+ Save as new variant', () => act('save-as-variant'), { tone: 'teal', key: 'save-as-variant' })}
+        {btn('Discard', () => act('discard-draft'), { tone: 'danger', key: 'discard-draft' })}
       </div>
       <p style={{ margin: 0, fontSize: 11, color: 'var(--hx-muted)' }}>
         <strong style={{ color: 'var(--hx-text)' }}>Save to {sourceName}</strong> overwrites that version. <strong style={{ color: 'var(--hx-text)' }}>Save as new variant</strong> keeps {sourceName} unchanged and branches a new version with your edits.
