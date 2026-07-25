@@ -168,7 +168,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
   const row = access.access.character as unknown as {
     id: string; name: string; data: Character | null; system?: string; sheet_type: string;
-    custom_layout?: unknown; custom_css?: string | null; system_variants?: unknown;
+    custom_layout?: unknown; custom_css?: string | null; system_variants?: unknown; art_url?: string | null;
   };
 
   const body = await req.json().catch(() => ({}));
@@ -189,6 +189,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ...(activeMeta.slotId ? { slotId: activeMeta.slotId } : {}),
     kind: activeMeta.kind,
     ...(activeMeta.name ? { name: activeMeta.name } : {}),
+    // VT: the active sheet's image is the `art_url` COLUMN (source of truth), with the slot-meta as a
+    // transition fallback. Threaded so snapshotActive parks it into the slot and a switch can restore it.
+    artUrl: row.art_url ?? activeMeta.artUrl ?? null,
+    ...(activeMeta.parentSlotId ? { parentSlotId: activeMeta.parentSlotId } : {}),
+    ...(activeMeta.campaignId != null ? { campaignId: activeMeta.campaignId } : {}),
+    ...(activeMeta.summary != null ? { summary: activeMeta.summary } : {}),
+    ...(activeMeta.summaryUpdatedAt ? { summaryUpdatedAt: activeMeta.summaryUpdatedAt } : {}),
+    ...(activeMeta.summaryHash ? { summaryHash: activeMeta.summaryHash } : {}),
   };
   const variants = readVariants(row.system_variants);
 
@@ -208,6 +216,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         sheet_type: next.active.sheet_type,
         custom_layout: next.active.custom_layout ?? { blocks: [] },
         custom_css: next.active.custom_css ?? '',
+        // VT: the active portrait follows the switched-to slot's image; non-destructive — falls back to the
+        // current column so switching to an art-less variant never blanks the portrait.
+        art_url: next.active.artUrl ?? row.art_url ?? null,
         system_variants: withActiveSlotMeta(next.variants, next.active),
       })
       .eq('id', params.id);
@@ -398,6 +409,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         sheet_type: next.active.sheet_type,
         custom_layout: next.active.custom_layout ?? { blocks: [] },
         custom_css: next.active.custom_css ?? '',
+        art_url: next.active.artUrl ?? row.art_url ?? null, // VT: portrait follows the switched-to sheet
         system_variants: withActiveSlotMeta(next.variants, next.active),
       })
       .eq('id', params.id);

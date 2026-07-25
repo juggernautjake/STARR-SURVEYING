@@ -1,0 +1,205 @@
+'use client';
+// VariantBrowser — the character VERSIONS picker (VT). A dropdown section (same framedPanel idiom as the
+// STYLE·TEMPLATE·THEME chrome) that lists every version of a character as lobby-style cards: portrait, name,
+// system, per-class level line, tags and an AI summary tooltip. The version being viewed is highlighted;
+// clicking another switches to it (reload). The highlighted card can branch a NEW variant (git-like), which
+// drops the user into the editor on the fork. Up to 20 versions; at the cap, creating one is blocked with a
+// message to delete another first.
+import { useEffect, useRef, useState } from 'react';
+import styles from './hextech.module.css';
+import { VARIANT_TAG_COLORS, type VariantTag } from '@/lib/dnd/variant-tags';
+import type { VariantCard } from '@/lib/dnd/variant-view';
+import { MAX_VARIANTS } from '@/lib/dnd/system-variants';
+
+export default function VariantBrowser({
+  characterId, cards, aiConfigured = false, canWrite = true,
+}: {
+  characterId: string;
+  cards: VariantCard[];
+  aiConfigured?: boolean;
+  canWrite?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null); // slotId:action while a request is in flight
+  const [err, setErr] = useState<string | null>(null);
+  const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
+  // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
+  const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
+  const autoFired = useRef(false);
+
+  const atCap = cards.length >= MAX_VARIANTS;
+  const activeCard = cards.find((c) => c.active) ?? null;
+
+  const summaryOf = (c: VariantCard) => summaries[c.slotId] ?? { summary: c.summary ?? '', updatedAt: c.summaryUpdatedAt, stale: c.summaryStale };
+
+  async function generateSummary(slotId: string, silent = false) {
+    if (!aiConfigured) return;
+    if (!silent) { setBusy(`${slotId}:summary`); setErr(null); }
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/variants`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'summary', slotId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.summary) setSummaries((s) => ({ ...s, [slotId]: { summary: j.summary, updatedAt: j.summaryUpdatedAt ?? null, stale: false } }));
+      else if (!silent) setErr(j.error ?? 'Could not generate a summary.');
+    } catch { if (!silent) setErr('Network error — please try again.'); }
+    finally { if (!silent) setBusy(null); }
+  }
+
+  // "Saved after changes / on create" freshness: when the viewed version's summary is missing or has gone
+  // stale since the last edit, regenerate it once on load. Staleness only becomes true after a real save, so
+  // an unchanged sheet reloaded repeatedly costs nothing.
+  useEffect(() => {
+    if (autoFired.current || !aiConfigured || !canWrite || !activeCard) return;
+    const cur = summaryOf(activeCard);
+    if (!cur.summary || cur.stale) { autoFired.current = true; void generateSummary(activeCard.slotId, true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiConfigured, canWrite, activeCard?.slotId]);
+
+  async function switchTo(slotId: string) {
+    setBusy(`${slotId}:switch`); setErr(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slotId }),
+      });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not switch to that version.'); setBusy(null); return; }
+      window.location.reload();
+    } catch { setErr('Network error — please try again.'); setBusy(null); }
+  }
+
+  async function createVariant(fromSlotId: string) {
+    if (atCap) { setErr(`You’ve hit the ${MAX_VARIANTS}-version limit. Delete a version to make room.`); return; }
+    setBusy(`${fromSlotId}:fork`); setErr(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/variants`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fork', fromSlotId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.error ?? 'Could not create a variant.'); setBusy(null); return; }
+      window.location.reload(); // the fork is now the active sheet — the user lands in the editor on it
+    } catch { setErr('Network error — please try again.'); setBusy(null); }
+  }
+
+  async function deleteVariant(slotId: string) {
+    setBusy(`${slotId}:delete`); setErr(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/system`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', slotId }),
+      });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not delete that version.'); setBusy(null); return; }
+      window.location.reload();
+    } catch { setErr('Network error — please try again.'); setBusy(null); }
+  }
+
+  const tagChip = (t: VariantTag, i: number) => {
+    const c = VARIANT_TAG_COLORS[t.tone];
+    return (
+      <span key={`${t.label}:${i}`} style={{
+        display: 'inline-flex', alignItems: 'center', padding: '1px 7px', borderRadius: 999, fontSize: 10,
+        lineHeight: 1.5, fontWeight: 600, letterSpacing: '0.02em',
+        background: c.bg, border: `1px solid ${c.border}`, color: c.fg, whiteSpace: 'nowrap',
+      }}>{t.label}</span>
+    );
+  };
+
+  const iconBtn = (label: string, onClick: () => void, opts: { title: string; disabled?: boolean; danger?: boolean } = { title: '' }) => (
+    <button type="button" title={opts.title} disabled={!!busy || opts.disabled} onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        fontSize: 11, padding: '3px 9px', borderRadius: 6, cursor: busy || opts.disabled ? 'default' : 'pointer',
+        border: `1px solid ${opts.danger ? 'var(--hx-danger, #ff6b6b)' : 'var(--hx-line, rgba(255,255,255,0.14))'}`,
+        background: 'rgba(255,255,255,0.03)', color: opts.danger ? '#ff9d9d' : 'var(--hx-text, #e8e0cf)',
+        opacity: busy || opts.disabled ? 0.5 : 1,
+      }}>{label}</button>
+  );
+
+  return (
+    <details className={styles.framedPanel} style={{ margin: '10px 0', padding: '10px 14px' }} open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary style={{ cursor: 'pointer', fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', letterSpacing: '0.08em' }}>
+        VERSIONS //
+        <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)', marginLeft: 8 }}>
+          {cards.length} of {MAX_VARIANTS} · every version of this character{atCap ? ' · limit reached' : ''}
+        </span>
+      </summary>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginTop: 10 }}>
+        {cards.map((c) => {
+          const sum = summaryOf(c);
+          const showSummary = openSummary === c.slotId;
+          const canDelete = !c.active && !c.origin;
+          return (
+            <div
+              key={c.slotId}
+              onClick={() => { if (!c.active && canWrite) switchTo(c.slotId); }}
+              className={styles.framedPanel}
+              style={{
+                position: 'relative', padding: '12px 12px 10px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', textAlign: 'center',
+                cursor: c.active || !canWrite ? 'default' : 'pointer',
+                outline: c.active ? '2px solid var(--hx-gold-3, #e5c07b)' : 'none',
+                boxShadow: c.active ? '0 0 14px rgba(229,192,123,0.35)' : undefined,
+              }}
+            >
+              {/* Portrait — the variant's own image, else a first-letter monogram (mirrors the lobby card). */}
+              {c.artUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className={c.active ? styles.portraitActive : styles.portrait} src={c.artUrl} alt="" style={{ width: 72, height: 72 }} />
+              ) : (
+                <span className={c.active ? styles.portraitActive : styles.portrait} style={{ width: 72, height: 72, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>
+                  {(c.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+
+              <div style={{ display: 'grid', gap: 2 }}>
+                <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 14.5, color: 'var(--hx-gold-2)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{c.systemLabel}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--hx-teal-1)' }}>{c.levelLabel}</span>
+                {c.parentName && !c.origin && <span style={{ fontSize: 10, color: 'var(--hx-muted)', fontStyle: 'italic' }}>branched from {c.parentName}</span>}
+              </div>
+
+              {/* Tags */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                {c.tags.map(tagChip)}
+              </div>
+
+              {/* Actions row */}
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
+                <button type="button" title="Show summary" onClick={(e) => { e.stopPropagation(); setOpenSummary(showSummary ? null : c.slotId); }}
+                  style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, cursor: 'pointer', border: '1px solid var(--hx-teal-1, #0ac8b9)', background: 'rgba(10,200,185,0.10)', color: 'var(--hx-teal-1, #0ac8b9)' }}>
+                  {sum.stale ? 'ⓘ Summary ·' : 'ⓘ Summary'}{sum.stale ? <span style={{ color: '#f0dd8a' }}> stale</span> : null}
+                </button>
+                {canWrite && c.active && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : 'Branch a new variant from this version', disabled: atCap })}
+                {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => deleteVariant(c.slotId), { title: 'Delete this version', danger: true })}
+              </div>
+
+              {/* Summary popover */}
+              {showSummary && (
+                <div onClick={(e) => e.stopPropagation()} style={{
+                  width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, textAlign: 'left',
+                  background: 'rgba(1,10,19,0.7)', border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
+                }}>
+                  {sum.summary ? (
+                    <>
+                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--hx-text, #e8e0cf)' }}>{sum.summary}</p>
+                      {sum.updatedAt && <p style={{ margin: '5px 0 0', fontSize: 10, color: 'var(--hx-muted)' }}>Updated {new Date(sum.updatedAt).toLocaleString()}{sum.stale ? ' · out of date' : ''}</p>}
+                    </>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--hx-muted)' }}>{aiConfigured ? 'No summary yet.' : 'AI summaries are unavailable.'}</p>
+                  )}
+                  {canWrite && aiConfigured && (
+                    <button type="button" disabled={!!busy} onClick={(e) => { e.stopPropagation(); generateSummary(c.slotId); }}
+                      style={{ marginTop: 6, fontSize: 11, padding: '3px 9px', borderRadius: 6, cursor: busy ? 'default' : 'pointer', border: '1px solid var(--hx-line)', background: 'rgba(255,255,255,0.04)', color: 'var(--hx-text)' }}>
+                      {busy === `${c.slotId}:summary` ? 'Generating…' : sum.summary ? (sum.stale ? 'Update summary' : 'Regenerate') : 'Generate summary'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {err && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--hx-danger, #ff6b6b)' }}>{err}</p>}
+      {atCap && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>This character has the maximum {MAX_VARIANTS} versions. Delete one to create another.</p>}
+    </details>
+  );
+}

@@ -36,6 +36,19 @@ export interface SystemVariant {
   /** Which system this sheet is FOR (Area MV1b). Lets a system hold multiple sheets: the map key becomes a
    *  slot id, and this records the system independently. Falls back to the map key (legacy = key is system). */
   system?: string;
+  // ── Variant-tracker fields (VT). All optional + additive; legacy slots read as origin/vanilla/no-summary. ──
+  /** The slot this sheet was forked FROM (git-like lineage, VT). Absent on the original (lineage root). */
+  parentSlotId?: string;
+  /** This variant's own image (VT) — captured on fork/snapshot so each version shows a distinct portrait. */
+  artUrl?: string | null;
+  /** The campaign this variant belongs to (VT) — variants can live in different campaigns than the original. */
+  campaignId?: string | null;
+  /** The AI-generated summary of this variant (VT), revealed by the card's summary tooltip. */
+  summary?: string;
+  /** ISO timestamp the summary was generated (VT). */
+  summaryUpdatedAt?: string;
+  /** Hash of the sheet digest the summary was built from (VT) — lets the UI flag a stale summary after edits. */
+  summaryHash?: string;
 }
 
 export type SystemVariants = Record<string, SystemVariant>;
@@ -54,6 +67,17 @@ export interface ActiveSheet {
   /** Which slot this live sheet came from (Area MV2), so switching snapshots it back to the same slot id
    *  instead of colliding with another sheet of the same system. Absent on legacy data → generated on demand. */
   slotId?: string;
+  // ── Variant-tracker fields (VT), carried through snapshot/switch so the active sheet keeps its lineage. ──
+  /** The slot this active sheet was forked from (VT). Absent on the original. */
+  parentSlotId?: string;
+  /** The active sheet's image (VT) — the character's `art_url` column is the source of truth; seeded from it. */
+  artUrl?: string | null;
+  /** The campaign this active sheet belongs to (VT). */
+  campaignId?: string | null;
+  /** The active sheet's AI summary + freshness metadata (VT). */
+  summary?: string;
+  summaryUpdatedAt?: string;
+  summaryHash?: string;
 }
 
 /** A quick default name for a sheet, so every sheet is identifiable without the user naming it (Area MV):
@@ -70,8 +94,12 @@ export const ACTIVE_SLOT_META_KEY = '__activeSlot';
 /** True for reserved (non-sheet) keys in the variants map. */
 const isReservedKey = (k: string): boolean => k.startsWith('__');
 
-/** The persisted metadata for the character's active sheet (Area MV2b). */
-export interface ActiveSlotMeta { slotId?: string; kind?: SheetVariantKind; name?: string }
+/** The persisted metadata for the character's active sheet (Area MV2b + VT lineage/summary/art fields). */
+export interface ActiveSlotMeta {
+  slotId?: string; kind?: SheetVariantKind; name?: string;
+  parentSlotId?: string; artUrl?: string | null; campaignId?: string | null;
+  summary?: string; summaryUpdatedAt?: string; summaryHash?: string;
+}
 
 /** Read the active sheet's slot metadata out of the raw `system_variants` jsonb. */
 export function readActiveSlotMeta(raw: unknown): ActiveSlotMeta {
@@ -82,15 +110,28 @@ export function readActiveSlotMeta(raw: unknown): ActiveSlotMeta {
     ...(typeof m.slotId === 'string' ? { slotId: m.slotId } : {}),
     kind: variantKind(m),
     ...(typeof m.name === 'string' && m.name.trim() ? { name: m.name.trim() } : {}),
+    ...(typeof m.parentSlotId === 'string' ? { parentSlotId: m.parentSlotId } : {}),
+    ...(typeof m.artUrl === 'string' ? { artUrl: m.artUrl } : {}),
+    ...(typeof m.campaignId === 'string' ? { campaignId: m.campaignId } : {}),
+    ...(typeof m.summary === 'string' ? { summary: m.summary } : {}),
+    ...(typeof m.summaryUpdatedAt === 'string' ? { summaryUpdatedAt: m.summaryUpdatedAt } : {}),
+    ...(typeof m.summaryHash === 'string' ? { summaryHash: m.summaryHash } : {}),
   };
 }
 
-/** Merge the active sheet's slot metadata into a variants map for persistence (Area MV2b). */
+/** Merge the active sheet's slot metadata into a variants map for persistence (Area MV2b + VT lineage/art/
+ *  summary fields, so the active sheet keeps them across a page reload). */
 export function withActiveSlotMeta(variants: SystemVariants, active: ActiveSheet): Record<string, unknown> {
   const meta: ActiveSlotMeta = {
     ...(active.slotId ? { slotId: active.slotId } : {}),
     kind: variantKind(active),
     ...(active.name ? { name: active.name } : {}),
+    ...(active.parentSlotId ? { parentSlotId: active.parentSlotId } : {}),
+    ...(active.artUrl != null ? { artUrl: active.artUrl } : {}),
+    ...(active.campaignId != null ? { campaignId: active.campaignId } : {}),
+    ...(active.summary != null ? { summary: active.summary } : {}),
+    ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
+    ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
   };
   return { ...variants, [ACTIVE_SLOT_META_KEY]: meta };
 }
@@ -111,13 +152,21 @@ export function readVariants(raw: unknown): SystemVariants {
         // The variant's own system: explicit `system` field, else the map key (legacy — key IS the system).
         system: normalizeSystem((typeof rec.system === 'string' ? rec.system : undefined) ?? k),
         ...(typeof rec.name === 'string' && rec.name.trim() ? { name: rec.name.trim() } : {}),
+        // ── Variant-tracker fields (VT), preserved verbatim so lineage/art/summary survive every write. ──
+        ...(typeof rec.parentSlotId === 'string' ? { parentSlotId: rec.parentSlotId } : {}),
+        ...(typeof rec.artUrl === 'string' ? { artUrl: rec.artUrl } : {}),
+        ...(typeof rec.campaignId === 'string' ? { campaignId: rec.campaignId } : {}),
+        ...(typeof rec.summary === 'string' ? { summary: rec.summary } : {}),
+        ...(typeof rec.summaryUpdatedAt === 'string' ? { summaryUpdatedAt: rec.summaryUpdatedAt } : {}),
+        ...(typeof rec.summaryHash === 'string' ? { summaryHash: rec.summaryHash } : {}),
       };
     }
   }
   return out;
 }
 
-/** Snapshot the character's current active columns into a variant object. */
+/** Snapshot the character's current active columns into a variant object. Carries the VT lineage/art/summary
+ *  metadata so a sheet parked back into its slot keeps its parent, image and summary. */
 export function snapshotActive(active: ActiveSheet): SystemVariant {
   return {
     data: active.data,
@@ -127,6 +176,12 @@ export function snapshotActive(active: ActiveSheet): SystemVariant {
     kind: variantKind(active),
     system: normalizeSystem(active.system),
     ...(active.name ? { name: active.name } : {}),
+    ...(active.parentSlotId ? { parentSlotId: active.parentSlotId } : {}),
+    ...(active.artUrl != null ? { artUrl: active.artUrl } : {}),
+    ...(active.campaignId != null ? { campaignId: active.campaignId } : {}),
+    ...(active.summary != null ? { summary: active.summary } : {}),
+    ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
+    ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
   };
 }
 
@@ -153,7 +208,18 @@ export function hasVariant(active: ActiveSheet, variants: SystemVariants, system
 /** A flat, UI-friendly list of ALL of a character's sheets (active + variants), each with its slot id,
  *  system, kind and display name (Area MV1b) — what the switcher/"+" UI renders. `systemLabelFn` supplies a
  *  human system name for the auto-default sheet name. */
-export interface SheetSlot { slotId: string; system: string; kind: SheetVariantKind; name: string; active: boolean; level: number }
+export interface SheetSlot {
+  slotId: string; system: string; kind: SheetVariantKind; name: string; active: boolean; level: number;
+  // ── Variant-tracker fields (VT) — small display/lineage metadata, safe to serialize to the client.
+  //    `origin` is optional so legacy SheetSlot literals still typecheck; listSheets always sets it. ──
+  origin?: boolean;
+  parentSlotId?: string;
+  artUrl?: string | null;
+  campaignId?: string | null;
+  summary?: string;
+  summaryUpdatedAt?: string;
+  summaryHash?: string;
+}
 /** The character level a sheet's data records, read defensively (data is `unknown` here). Defaults
  *  to 1 so a blank/legacy sheet never reads as level 0. Used by the switcher to show each version's
  *  level and to offer "level up to match a higher version". */
@@ -164,20 +230,166 @@ function levelOf(data: unknown): number {
 export function listSheets(active: ActiveSheet, variants: SystemVariants, systemLabelFn: (s: string) => string): SheetSlot[] {
   const nameFor = (v: { name?: string; kind?: SheetVariantKind }, system: string): string =>
     (v.name && v.name.trim()) || defaultVariantName(systemLabelFn(system), variantKind(v));
+  const originId = resolveOriginSlotId(active, variants);
+  const activeId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
   const out: SheetSlot[] = [{
     // Its real slotId when known (from the active-slot meta), else an `active:` marker — matches the route.
-    slotId: active.slotId ?? `active:${normalizeSystem(active.system)}`,
+    slotId: activeId,
     system: normalizeSystem(active.system),
     kind: variantKind(active),
     name: nameFor(active, normalizeSystem(active.system)),
     active: true,
     level: levelOf(active.data),
+    origin: activeId === originId,
+    ...(active.parentSlotId ? { parentSlotId: active.parentSlotId } : {}),
+    ...(active.artUrl != null ? { artUrl: active.artUrl } : {}),
+    ...(active.campaignId != null ? { campaignId: active.campaignId } : {}),
+    ...(active.summary != null ? { summary: active.summary } : {}),
+    ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
+    ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
   }];
   for (const [k, v] of Object.entries(variants)) {
     const system = variantSystemOf(v, k);
-    out.push({ slotId: k, system, kind: variantKind(v), name: nameFor(v, system), active: false, level: levelOf(v.data) });
+    out.push({
+      slotId: k, system, kind: variantKind(v), name: nameFor(v, system), active: false, level: levelOf(v.data),
+      origin: k === originId,
+      ...(v.parentSlotId ? { parentSlotId: v.parentSlotId } : {}),
+      ...(v.artUrl != null ? { artUrl: v.artUrl } : {}),
+      ...(v.campaignId != null ? { campaignId: v.campaignId } : {}),
+      ...(v.summary != null ? { summary: v.summary } : {}),
+      ...(v.summaryUpdatedAt ? { summaryUpdatedAt: v.summaryUpdatedAt } : {}),
+      ...(v.summaryHash ? { summaryHash: v.summaryHash } : {}),
+    });
   }
   return out;
+}
+
+// ── Variant lineage, cap + fork (VT) — git-like branching. The ORIGINAL is the lineage root; every fork
+//    carries a parentSlotId. Origin is DERIVED (no global pointer), so it survives every existing write path
+//    (the /system route rebuilds the map, but per-slot fields are preserved by readVariants + withActiveSlotMeta). ──
+
+/** The per-character version cap (VT, owner): at 20 total sheets, creating another is refused until one is
+ *  deleted. */
+export const MAX_VARIANTS = 20;
+
+/** Total number of sheets (active + stored) the character holds. */
+export function sheetCount(active: ActiveSheet, variants: SystemVariants): number {
+  return 1 + Object.keys(variants).length;
+}
+
+/** True when the character is at the version cap and cannot create another variant (VT). */
+export function isAtVariantCap(active: ActiveSheet, variants: SystemVariants): boolean {
+  return sheetCount(active, variants) >= MAX_VARIANTS;
+}
+
+/** Every sheet as a {slotId, parentSlotId} ref (active first), for lineage math. */
+function allSlotRefs(active: ActiveSheet, variants: SystemVariants): { slotId: string; parentSlotId?: string }[] {
+  const activeId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
+  const refs: { slotId: string; parentSlotId?: string }[] = [{ slotId: activeId, ...(active.parentSlotId ? { parentSlotId: active.parentSlotId } : {}) }];
+  for (const [k, v] of Object.entries(variants)) refs.push({ slotId: k, ...(v.parentSlotId ? { parentSlotId: v.parentSlotId } : {}) });
+  return refs;
+}
+
+/** Rank a slot id for origin selection: a bare system key (the first sheet of a system gets the clean key) is
+ *  the most likely original, then `#n` slots, then fork-prefixed ids, then the ephemeral `active:` marker
+ *  (used only before a sheet has been assigned a real id). Lower rank = more likely the original. */
+function originRank(slotId: string): number {
+  if (slotId.startsWith('active:')) return 3;
+  if (slotId.startsWith('variant-') || slotId.startsWith('fork-')) return 2;
+  if (slotId.includes('#')) return 1;
+  return 0;
+}
+
+/** The original sheet's slot id (VT): the parentless sheet that ranks first. Derived, deterministic, and
+ *  independent of which sheet is active, so it stays stable after the user switches away from the original.
+ *  Once a fork backfill has run there is exactly one parentless sheet (the origin); before it, the comparator
+ *  still selects the same one, so read-only display and the eventual backfill agree. (For a legacy character
+ *  with several pre-lineage sheets and no forks yet, this is a best-effort designation — see ensureLineage.) */
+export function resolveOriginSlotId(active: ActiveSheet, variants: SystemVariants): string {
+  const refs = allSlotRefs(active, variants);
+  const parentless = refs.filter((r) => !r.parentSlotId);
+  const pool = parentless.length ? parentless : refs;
+  return pool.slice().sort((a, b) => originRank(a.slotId) - originRank(b.slotId) || a.slotId.localeCompare(b.slotId))[0].slotId;
+}
+
+/** True when `slotId` is the character's original sheet (VT). */
+export function isOriginSlot(slotId: string, active: ActiveSheet, variants: SystemVariants): boolean {
+  return slotId === resolveOriginSlotId(active, variants);
+}
+
+/** Ensure the active sheet has a stable slotId and that lineage has a SINGLE root (VT). Assigns the active
+ *  sheet a real slotId if it lacks one, designates the origin, and backfills `parentSlotId` onto any OTHER
+ *  parentless sheet (e.g. a pre-lineage transpose/add) so exactly one sheet stays parentless. Pure; the caller
+ *  persists. Run by the fork route before creating a variant. */
+export function ensureLineage(
+  active: ActiveSheet,
+  variants: SystemVariants,
+): { active: ActiveSheet; variants: SystemVariants; originSlotId: string } {
+  const nextActive: ActiveSheet = { ...active, slotId: active.slotId ?? newSlotId(variants, active.system) };
+  const originSlotId = resolveOriginSlotId(nextActive, variants);
+  const nextVariants: SystemVariants = { ...variants };
+  for (const [k, v] of Object.entries(nextVariants)) {
+    if (k !== originSlotId && !v.parentSlotId) nextVariants[k] = { ...v, parentSlotId: originSlotId };
+  }
+  if (nextActive.slotId !== originSlotId && !nextActive.parentSlotId) nextActive.parentSlotId = originSlotId;
+  return { active: nextActive, variants: nextVariants, originSlotId };
+}
+
+/** Deep-clone a sheet's `data` (or any jsonb) defensively; used when forking so the variant owns its own copy. */
+function cloneJson(d: unknown): unknown {
+  return d == null ? null : JSON.parse(JSON.stringify(d));
+}
+
+/**
+ * Create a NEW variant by forking an existing sheet (VT). `fromSlotId` selects the source — the active sheet's
+ * slot id or a stored slot id. Deep-clones the source's data + presentation into a fresh slot whose
+ * `parentSlotId` is the source, inheriting system/kind/art. Returns the lineage-ensured active sheet, the
+ * updated variants map (with the new slot) and the new slot id; the caller switches to it to make the fork
+ * active. Throws if the source doesn't exist. Does NOT enforce the cap — the route checks `isAtVariantCap`
+ * first so it can return a friendly message.
+ */
+export function forkSheet(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  opts: { fromSlotId: string; name?: string },
+): { active: ActiveSheet; variants: SystemVariants; newSlotId: string } {
+  const lineage = ensureLineage(active, variants);
+  const a = lineage.active;
+  const vs = lineage.variants;
+  const activeId = a.slotId as string;
+
+  let src: { data: unknown; sheet_type: string; custom_layout?: unknown; custom_css?: string | null; system: string; kind: SheetVariantKind; artUrl?: string | null; name?: string };
+  if (opts.fromSlotId === activeId) {
+    src = {
+      data: a.data, sheet_type: a.sheet_type, custom_layout: a.custom_layout, custom_css: a.custom_css,
+      system: normalizeSystem(a.system), kind: variantKind(a), artUrl: a.artUrl ?? null, name: a.name,
+    };
+  } else if (opts.fromSlotId in vs) {
+    const s = vs[opts.fromSlotId];
+    src = {
+      data: s.data, sheet_type: s.sheet_type, custom_layout: s.custom_layout, custom_css: s.custom_css,
+      system: variantSystemOf(s, opts.fromSlotId), kind: variantKind(s), artUrl: s.artUrl ?? null, name: s.name,
+    };
+  } else {
+    throw new Error(`No sheet "${opts.fromSlotId}" to fork.`);
+  }
+
+  const id = newSlotId(vs, src.system);
+  const nextVariants: SystemVariants = {
+    ...vs,
+    [id]: {
+      data: cloneJson(src.data),
+      sheet_type: src.sheet_type || 'default',
+      custom_layout: cloneJson(src.custom_layout) ?? { blocks: [] },
+      custom_css: src.custom_css ?? '',
+      kind: src.kind,
+      system: src.system,
+      parentSlotId: opts.fromSlotId,
+      ...(src.artUrl != null ? { artUrl: src.artUrl } : {}),
+      ...((opts.name && opts.name.trim()) || src.name ? { name: (opts.name && opts.name.trim()) || src.name } : {}),
+    },
+  };
+  return { active: a, variants: nextVariants, newSlotId: id };
 }
 
 /**
@@ -210,8 +422,21 @@ export function switchActive(
       custom_css: chosen.custom_css ?? '',
       kind: variantKind(chosen),
       ...(chosen.name ? { name: chosen.name } : {}),
+      ...activeVtFrom(chosen),
     },
     variants: nextVariants,
+  };
+}
+
+/** The VT lineage/art/summary fields to carry from a stored slot onto the sheet becoming active. */
+function activeVtFrom(v: SystemVariant): Partial<ActiveSheet> {
+  return {
+    ...(v.parentSlotId ? { parentSlotId: v.parentSlotId } : {}),
+    ...(v.artUrl != null ? { artUrl: v.artUrl } : {}),
+    ...(v.campaignId != null ? { campaignId: v.campaignId } : {}),
+    ...(v.summary != null ? { summary: v.summary } : {}),
+    ...(v.summaryUpdatedAt ? { summaryUpdatedAt: v.summaryUpdatedAt } : {}),
+    ...(v.summaryHash ? { summaryHash: v.summaryHash } : {}),
   };
 }
 
@@ -316,6 +541,7 @@ export function switchToSlot(
       custom_css: chosen.custom_css ?? '',
       kind: variantKind(chosen),
       ...(chosen.name ? { name: chosen.name } : {}),
+      ...activeVtFrom(chosen),
     },
     variants: next,
   };
