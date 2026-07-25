@@ -34,6 +34,23 @@ export interface VariantCard {
   parentName: string | null;
 }
 
+/**
+ * The campaign a given version actually belongs to: its OWN per-slot assignment, else — for the original
+ * only — the character-level campaign. Variants are **personal until explicitly assigned**, which is why a
+ * character whose original sits in a campaign can still have purely personal branches.
+ *
+ * Exported because this rule decides more than a tag: campaign-scoped chrome (DM approval, house rules)
+ * must follow the VERSION being viewed, not the character row. Reading `character.campaign_id` directly is
+ * the bug this prevents — it shows "Awaiting DM review" over a personal variant no DM can see.
+ */
+export function effectiveCampaignId(
+  slotCampaignId: string | null | undefined,
+  isOrigin: boolean,
+  characterCampaignId: string | null | undefined,
+): string | null {
+  return slotCampaignId ?? (isOrigin ? (characterCampaignId ?? null) : null);
+}
+
 export interface VariantViewContext {
   characterName: string;
   characterCampaignId?: string | null;
@@ -105,7 +122,7 @@ export function buildVariantCards(active: ActiveSheet, variants: SystemVariants,
     const breakdown = sheetClassBreakdown(r.data, r.system);
     // The campaign this version is in: its own per-slot assignment, else (for the original only) the
     // character-level campaign. Variants are personal until explicitly assigned.
-    const effCampaignId = r.campaignId ?? (origin ? (ctx.characterCampaignId ?? null) : null);
+    const effCampaignId = effectiveCampaignId(r.campaignId, origin, ctx.characterCampaignId);
     const campaignName = effCampaignId ? (campaignNames[effCampaignId] ?? null) : null;
     // Stale = we have a summary + the hash it was built from, and the sheet has changed since.
     const summaryStale = !!(r.summary && r.summaryHash && r.summaryHash !== sheetSummaryHash(r.data, r.system));

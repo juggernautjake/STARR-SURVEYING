@@ -84,6 +84,50 @@ describe('already-built characters need NO migration (back-compat)', () => {
     expect(cards[0].tags.map((t) => t.label)).toContain('Original');
   });
 
+  // Reported live: "+ Variant" on a pre-tracker character died with
+  //   No sheet "active:dnd5e-2024" to fork.
+  // A character with no stored slotId is named by the synthetic `active:<system>` marker everywhere the UI
+  // and routes refer to it, but forkSheet ran ensureLineage FIRST — which mints a real slotId — and then
+  // compared only against the minted id, so the marker matched nothing. It broke fork AND begin-draft
+  // (Edit → "edit directly") on exactly the characters that predate the feature.
+  describe('the active sheet can be forked by its synthetic `active:` id (legacy characters)', () => {
+    it('forks from the marker the UI actually sends', () => {
+      const active = active5e({ slotId: undefined });
+      const marker = `active:${active.system}`;
+      const forked = forkSheet(active, {}, { fromSlotId: marker });
+      // A real new slot exists, distinct from the source, parented to the now-materialised active id.
+      expect(forked.newSlotId).toBeTruthy();
+      expect(forked.newSlotId).not.toBe(forked.active.slotId);
+      expect(forked.variants[forked.newSlotId].parentSlotId).toBe(forked.active.slotId);
+      // And it is a real copy of the source, not an empty slot.
+      expect(forked.variants[forked.newSlotId].data).toEqual(active.data);
+    });
+
+    it('begins a draft from the marker too (Edit → edit directly)', () => {
+      const active = active5e({ slotId: undefined });
+      const begun = beginDraft(active, {}, { fromSlotId: `active:${active.system}` });
+      // The draft becomes the ACTIVE sheet (switchToSlot moves it out of `variants`), and its parent is
+      // the source's materialised id — never the `active:` marker, which names no stored slot.
+      expect(isDraftActive(begun.active)).toBe(true);
+      expect(begun.active.slotId).toBe(begun.draftSlotId);
+      expect(begun.active.parentSlotId).toBeTruthy();
+      expect(begun.active.parentSlotId?.startsWith('active:')).toBe(false);
+      // The source is parked as a stored version under that same real id, so the lineage resolves.
+      expect(begun.variants[begun.active.parentSlotId as string]).toBeTruthy();
+    });
+
+    it('still forks by the real slot id once the character has one', () => {
+      const active = active5e({ slotId: 'dnd5e-2024' });
+      const forked = forkSheet(active, {}, { fromSlotId: 'dnd5e-2024' });
+      expect(forked.variants[forked.newSlotId].parentSlotId).toBe('dnd5e-2024');
+    });
+
+    it('still refuses a slot id that genuinely does not exist', () => {
+      const active = active5e({ slotId: undefined });
+      expect(() => forkSheet(active, {}, { fromSlotId: 'no-such-slot' })).toThrow(/No sheet/);
+    });
+  });
+
   it('a legacy multi-sheet character (old transpose, bare keys, no VT fields) still lists + forks', () => {
     // Exactly the shape old data has: system-name keys, no parentSlotId/summary/art/kind metadata.
     const raw = {

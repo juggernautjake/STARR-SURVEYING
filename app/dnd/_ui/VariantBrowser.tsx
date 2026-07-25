@@ -6,6 +6,7 @@
 // drops the user into the editor on the fork. Up to 20 versions; at the cap, creating one is blocked with a
 // message to delete another first.
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { VARIANT_TAG_COLORS, type VariantTag } from '@/lib/dnd/variant-tags';
 import type { VariantCard } from '@/lib/dnd/variant-view';
@@ -28,18 +29,28 @@ export default function VariantBrowser({
   /** Open the panel expanded on mount (used by the preview harness). */
   startOpen?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState<string | null>(null); // slotId:action while a request is in flight
   const [err, setErr] = useState<string | null>(null);
   const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
   const [editing, setEditing] = useState<{ slotId: string; name: string; system: string; level: number } | null>(null);
   const [renaming, setRenaming] = useState<{ slotId: string; value: string } | null>(null); // inline rename
+  // The version pending a delete confirmation. Deleting a version is irreversible and the button sits
+  // between "+ Variant" and the card body, so it asks first — in-app, not the browser's confirm().
+  const [confirmDelete, setConfirmDelete] = useState<{ slotId: string; name: string } | null>(null);
   // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
   const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
   const autoFired = useRef(false);
 
-  const atCap = cards.length >= MAX_VARIANTS;
-  const activeCard = cards.find((c) => c.active) ?? null;
+  // The card list is LOCAL state seeded from the server prop, so a delete can drop its card immediately
+  // instead of reloading the page. Re-synced whenever the server sends a new list (router.refresh(), a
+  // switch, a fork), so the optimistic removal is replaced by the real thing rather than fighting it.
+  const [rows, setRows] = useState<VariantCard[]>(cards);
+  useEffect(() => { setRows(cards); }, [cards]);
+
+  const atCap = rows.length >= MAX_VARIANTS;
+  const activeCard = rows.find((c) => c.active) ?? null;
 
   const summaryOf = (c: VariantCard) => summaries[c.slotId] ?? { summary: c.summary ?? '', updatedAt: c.summaryUpdatedAt, stale: c.summaryStale };
 
@@ -114,7 +125,15 @@ export default function VariantBrowser({
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', slotId }),
       });
       if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not delete that version.'); setBusy(null); return; }
-      window.location.reload();
+      // Drop the card here and now — the delete has succeeded on the server, so a full reload would only
+      // make the user watch the whole page rebuild to see one card go. Anything else the deletion changed
+      // (the cap notice, other panels) catches up via router.refresh(), which re-renders the server
+      // components in the background and re-seeds `rows` without discarding scroll position or focus.
+      setRows((prev) => prev.filter((c) => c.slotId !== slotId));
+      setConfirmDelete(null);
+      setOpenSummary((s) => (s === slotId ? null : s));
+      setBusy(null);
+      router.refresh();
     } catch { setErr('Network error — please try again.'); setBusy(null); }
   }
 
@@ -144,12 +163,12 @@ export default function VariantBrowser({
       <summary style={{ cursor: 'pointer', fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', letterSpacing: '0.08em' }}>
         VERSIONS //
         <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)', marginLeft: 8 }}>
-          {cards.length} of {MAX_VARIANTS} · every version of this character{atCap ? ' · limit reached' : ''}
+          {rows.length} of {MAX_VARIANTS} · every version of this character{atCap ? ' · limit reached' : ''}
         </span>
       </summary>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginTop: 10 }}>
-        {cards.map((c) => {
+        {rows.map((c) => {
           const sum = summaryOf(c);
           const showSummary = openSummary === c.slotId;
           const canDelete = !c.active && !c.origin;
@@ -220,7 +239,7 @@ export default function VariantBrowser({
                 {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system, level: c.level }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.name }), { title: `Rename this version (currently “${c.name}”)` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : `Branch a new variant from ${c.name}`, disabled: atCap })}
-                {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => deleteVariant(c.slotId), { title: 'Delete this version', danger: true })}
+                {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => setConfirmDelete({ slotId: c.slotId, name: c.name }), { title: `Delete ${c.name}`, danger: true })}
               </div>
 
               {/* Summary tooltip — FLOATS over the grid rather than expanding the card. Growing the card
@@ -271,6 +290,40 @@ export default function VariantBrowser({
       {err && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--hx-danger, #ff6b6b)' }}>{err}</p>}
       {atCap && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>This character has the maximum {MAX_VARIANTS} versions. Delete one to create another.</p>}
 
+      {/* Delete confirmation — deleting a version is irreversible and the ✕ sits inches from "+ Variant",
+          so it asks first. A themed in-app dialog rather than the browser's confirm(), matching the idiom
+          the retired switcher used. */}
+      {confirmDelete && (
+        <div role="dialog" aria-label={`Delete ${confirmDelete.name}?`} onClick={(e) => e.stopPropagation()} style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div className={styles.framedPanel} style={{ width: 'min(440px, 96vw)', padding: '16px 18px', display: 'grid', gap: 12, borderColor: 'var(--hx-danger, #ff6b6b)' }}>
+            <div>
+              <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-danger, #ff6b6b)', fontSize: 15 }}>
+                Delete “{confirmDelete.name}”?
+              </strong>
+              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>
+                This permanently removes that version of this character — its sheet, its art and its summary.
+                It <strong style={{ color: 'var(--hx-text)' }}>can’t be undone</strong>. Your other versions are kept.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" disabled={!!busy} onClick={() => deleteVariant(confirmDelete.slotId)} style={{
+                fontSize: 12.5, padding: '7px 15px', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+                fontFamily: 'var(--hx-font-display)', border: '1px solid var(--hx-danger, #ff6b6b)',
+                background: 'rgba(255,107,107,0.14)', color: '#ff9d9d', opacity: busy ? 0.6 : 1,
+              }}>{busy === `${confirmDelete.slotId}:delete` ? 'Deleting…' : 'Delete this version'}</button>
+              <button type="button" disabled={!!busy} onClick={() => setConfirmDelete(null)} style={{
+                fontSize: 12.5, padding: '7px 15px', borderRadius: 8, cursor: 'pointer',
+                fontFamily: 'var(--hx-font-display)', border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
+                background: 'transparent', color: 'var(--hx-text, #e8e0cf)',
+              }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editing && (
         <EditFlow
           characterId={characterId}
@@ -283,10 +336,10 @@ export default function VariantBrowser({
           // touch a blank projection). Anything else passes an empty list, so the option never shows as a
           // button that only ever errors. Same predicate the route refuses on — one definition, no drift.
           // The guided builder rebuilds the ACTIVE sheet, so it is only offered on the active card.
-          canRebuild={editing.slotId === cards.find((c) => c.active)?.slotId}
+          canRebuild={editing.slotId === rows.find((c) => c.active)?.slotId}
           levelUpTargets={
-            editing.slotId === cards.find((c) => c.active)?.slotId && isSharedEngineSystem(editing.system)
-              ? cards
+            editing.slotId === rows.find((c) => c.active)?.slotId && isSharedEngineSystem(editing.system)
+              ? rows
                   .filter((c) => !c.active && c.level > editing.level)
                   .map((c) => ({ slotId: c.slotId, name: c.name, level: c.level, systemLabel: c.systemLabel }))
               : []

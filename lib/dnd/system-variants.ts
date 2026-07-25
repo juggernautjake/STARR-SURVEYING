@@ -366,18 +366,34 @@ export function forkSheet(
   variants: SystemVariants,
   opts: { fromSlotId: string; name?: string },
 ): { active: ActiveSheet; variants: SystemVariants; newSlotId: string } {
+  // The PRE-lineage id of the active sheet. A character built before the variant tracker has no stored
+  // slotId, so `listSheets` / `buildVariantCards` / the routes name its active sheet with the synthetic
+  // `active:<system>` marker — and that is the id the UI hands back here. `ensureLineage` MINTS a real
+  // slotId for that sheet one line below, so comparing only against the minted id missed the marker and
+  // the fork died with `No sheet "active:dnd5e-2024" to fork.` — on exactly the pre-existing characters
+  // this whole feature promised to work on without migration. Resolve the marker BEFORE lineage runs.
+  const preLineageActiveId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
+
   const lineage = ensureLineage(active, variants);
   const a = lineage.active;
   const vs = lineage.variants;
   const activeId = a.slotId as string;
 
   let src: { data: unknown; sheet_type: string; custom_layout?: unknown; custom_css?: string | null; system: string; kind: SheetVariantKind; artUrl?: string | null; name?: string };
-  if (opts.fromSlotId === activeId) {
+  // The source's REAL id, which is what the fork records as its parent. For the active sheet that is the
+  // id lineage just materialised — never the `active:` marker, which names no stored slot and would leave
+  // the fork pointing at a parent that does not exist.
+  let resolvedFromId: string;
+  // Either spelling of "the active sheet" resolves to it. The marker is checked against the pre-lineage
+  // id so a legacy character forks from what the user actually clicked.
+  if (opts.fromSlotId === activeId || opts.fromSlotId === preLineageActiveId) {
+    resolvedFromId = activeId;
     src = {
       data: a.data, sheet_type: a.sheet_type, custom_layout: a.custom_layout, custom_css: a.custom_css,
       system: normalizeSystem(a.system), kind: variantKind(a), artUrl: a.artUrl ?? null, name: a.name,
     };
   } else if (opts.fromSlotId in vs) {
+    resolvedFromId = opts.fromSlotId;
     const s = vs[opts.fromSlotId];
     src = {
       data: s.data, sheet_type: s.sheet_type, custom_layout: s.custom_layout, custom_css: s.custom_css,
@@ -401,7 +417,7 @@ export function forkSheet(
       custom_css: src.custom_css ?? '',
       kind: src.kind,
       system: src.system,
-      parentSlotId: opts.fromSlotId,
+      parentSlotId: resolvedFromId,
       ...(src.artUrl != null ? { artUrl: src.artUrl } : {}),
       ...((opts.name && opts.name.trim()) || src.name ? { name: (opts.name && opts.name.trim()) || src.name } : {}),
     },

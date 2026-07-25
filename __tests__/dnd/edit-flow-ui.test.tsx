@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push:
 import EditFlow, { TransposeReport } from '@/app/dnd/_ui/EditFlow';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
-import { buildVariantCards } from '@/lib/dnd/variant-view';
+import { buildVariantCards, effectiveCampaignId } from '@/lib/dnd/variant-view';
 import { isSharedEngineSystem } from '@/lib/dnd/systems';
 import type { ActiveSheet, SystemVariants } from '@/lib/dnd/system-variants';
 
@@ -66,6 +66,32 @@ describe('EditFlow — level up to match another version', () => {
     );
     expect(html).toContain('Level up to match another version');
     expect(html).toContain('AI is not configured');
+  });
+});
+
+// Reported live: "Awaiting DM review" sat above a version tagged Personal. The approval panel keyed off
+// the CHARACTER row's campaign_id, but a variant is personal until explicitly assigned — only the original
+// inherits the character's campaign. One exported rule now decides both the tag and the campaign chrome.
+describe('effectiveCampaignId — campaign chrome follows the VERSION, not the character row', () => {
+  it('the original inherits the character-level campaign', () => {
+    expect(effectiveCampaignId(null, true, 'camp-1')).toBe('camp-1');
+    expect(effectiveCampaignId(undefined, true, 'camp-1')).toBe('camp-1');
+  });
+
+  it('a variant does NOT inherit it — it is personal until assigned', () => {
+    // This is the reported bug: character in a campaign, viewing a personal branch.
+    expect(effectiveCampaignId(null, false, 'camp-1')).toBeNull();
+    expect(effectiveCampaignId(undefined, false, 'camp-1')).toBeNull();
+  });
+
+  it('an explicit per-slot assignment wins for either', () => {
+    expect(effectiveCampaignId('camp-2', false, 'camp-1')).toBe('camp-2');
+    expect(effectiveCampaignId('camp-2', true, 'camp-1')).toBe('camp-2');
+  });
+
+  it('is null when nothing assigns a campaign at all', () => {
+    expect(effectiveCampaignId(null, true, null)).toBeNull();
+    expect(effectiveCampaignId(null, false, null)).toBeNull();
   });
 });
 

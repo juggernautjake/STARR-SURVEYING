@@ -2,9 +2,12 @@
 // card model end-to-end. A server-render (renderToStaticMarkup) guard: it catches the "authored but not
 // wired" / bad-prop / missing-field class of bug that the pure-logic unit tests can't, without needing a dev
 // server or auth. (Full visual/interaction QA is still a live-browser step.)
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+
+// The browser refreshes server props after an in-place delete, so it needs the app router.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
 import { MAX_VARIANTS, type ActiveSheet, type SystemVariants } from '@/lib/dnd/system-variants';

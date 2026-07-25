@@ -24,10 +24,10 @@ import IGSheet from '@/app/dnd/_ui/IGSheet';
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { readVariants, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, readActiveSlotMeta, resolveOriginSlotId, type ActiveSheet } from '@/lib/dnd/system-variants';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
-import { buildVariantCards } from '@/lib/dnd/variant-view';
+import { buildVariantCards, effectiveCampaignId } from '@/lib/dnd/variant-view';
 import type { SubmissionStatusLite } from '@/lib/dnd/variant-tags';
 import { availableSystems } from '@/lib/dnd/systems';
 import { normalizeSystem } from '@/lib/dnd/systems';
@@ -108,15 +108,26 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     campaignOverridePending = (rosterRow as { data_override?: unknown } | null)?.data_override != null;
   }
 
+  // The campaign the VERSION BEING VIEWED belongs to — not the character row's. A variant is personal
+  // until explicitly assigned (only the original inherits the character's campaign), so reading
+  // `character.campaign_id` here put "Awaiting DM review" over personal branches that no DM can even see.
+  // Same rule the version cards tag with, from one exported definition.
+  const activeSlotMetaForCampaign = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants);
+  const activeIsOrigin = resolveOriginSlotId(
+    { system: normalizeSystem((character as { system?: string }).system), data: character.data, sheet_type: character.sheet_type, ...(activeSlotMetaForCampaign.slotId ? { slotId: activeSlotMetaForCampaign.slotId } : {}), ...(activeSlotMetaForCampaign.parentSlotId ? { parentSlotId: activeSlotMetaForCampaign.parentSlotId } : {}) },
+    readVariants((character as { system_variants?: unknown }).system_variants),
+  ) === (activeSlotMetaForCampaign.slotId ?? `active:${normalizeSystem((character as { system?: string }).system)}`);
+  const activeCampaignId = effectiveCampaignId(activeSlotMetaForCampaign.campaignId, activeIsOrigin, character.campaign_id);
+
   // Submission/approval panel (IG builder Slice 5): show the custom/vanilla content summary + submit
-  // (owner) / review (DM) controls for any character in a campaign. The provenance is computed live so
-  // it reflects the current sheet, and the campaign's custom policy drives whether a submit is allowed.
+  // (owner) / review (DM) controls for a version that is actually IN a campaign. The provenance is computed
+  // live so it reflects the current sheet, and the campaign's custom policy drives whether a submit is allowed.
   let approvalPanel = null;
-  if (character.campaign_id && (canWrite || isDM)) {
+  if (activeCampaignId && (canWrite || isDM)) {
     const sys = normalizeSystem((character as { system?: string }).system);
     const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
     const summary = summarizeCharacterProvenance((character.data as unknown as Character | null) ?? blankCharacter(character.name), sys, dmGranted);
-    const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('allow_custom').eq('id', character.campaign_id).maybeSingle();
+    const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('allow_custom').eq('id', activeCampaignId).maybeSingle();
     const allowCustom = (camp as { allow_custom?: boolean } | null)?.allow_custom !== false;
     approvalPanel = (
       <SheetApprovalPanel
