@@ -104,6 +104,7 @@ export interface ActiveSlotMeta {
   slotId?: string; kind?: SheetVariantKind; name?: string;
   parentSlotId?: string; artUrl?: string | null; campaignId?: string | null;
   summary?: string; summaryUpdatedAt?: string; summaryHash?: string;
+  draft?: boolean;
 }
 
 /** Read the active sheet's slot metadata out of the raw `system_variants` jsonb. */

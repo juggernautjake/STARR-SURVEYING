@@ -10,19 +10,25 @@ import styles from './hextech.module.css';
 import { VARIANT_TAG_COLORS, type VariantTag } from '@/lib/dnd/variant-tags';
 import type { VariantCard } from '@/lib/dnd/variant-view';
 import { MAX_VARIANTS } from '@/lib/dnd/system-variants';
+import EditFlow, { type EditFlowSystem } from './EditFlow';
 
 export default function VariantBrowser({
-  characterId, cards, aiConfigured = false, canWrite = true,
+  characterId, cards, aiConfigured = false, canWrite = true, transposeSystems = [], startOpen = false,
 }: {
   characterId: string;
   cards: VariantCard[];
   aiConfigured?: boolean;
   canWrite?: boolean;
+  /** Playable systems the Edit→Transpose step can target (the current one is filtered out per card). */
+  transposeSystems?: EditFlowSystem[];
+  /** Open the panel expanded on mount (used by the preview harness). */
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState<string | null>(null); // slotId:action while a request is in flight
   const [err, setErr] = useState<string | null>(null);
   const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
+  const [editing, setEditing] = useState<{ slotId: string; name: string; system: string } | null>(null);
   // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
   const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
   const autoFired = useRef(false);
@@ -142,9 +148,9 @@ export default function VariantBrowser({
               {/* Portrait — the variant's own image, else a first-letter monogram (mirrors the lobby card). */}
               {c.artUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className={c.active ? styles.portraitActive : styles.portrait} src={c.artUrl} alt="" style={{ width: 72, height: 72 }} />
+                <img className={c.active ? styles.portraitActive : styles.portrait} src={c.artUrl} alt="" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover' }} />
               ) : (
-                <span className={c.active ? styles.portraitActive : styles.portrait} style={{ width: 72, height: 72, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>
+                <span className={c.active ? styles.portraitActive : styles.portrait} style={{ width: 72, height: 72, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>
                   {(c.name || '?').charAt(0).toUpperCase()}
                 </span>
               )}
@@ -167,7 +173,8 @@ export default function VariantBrowser({
                   style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, cursor: 'pointer', border: '1px solid var(--hx-teal-1, #0ac8b9)', background: 'rgba(10,200,185,0.10)', color: 'var(--hx-teal-1, #0ac8b9)' }}>
                   {sum.stale ? 'ⓘ Summary ·' : 'ⓘ Summary'}{sum.stale ? <span style={{ color: '#f0dd8a' }}> stale</span> : null}
                 </button>
-                {canWrite && c.active && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : 'Branch a new variant from this version', disabled: atCap })}
+                {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
+                {canWrite && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : `Branch a new variant from ${c.name}`, disabled: atCap })}
                 {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => deleteVariant(c.slotId), { title: 'Delete this version', danger: true })}
               </div>
 
@@ -200,6 +207,18 @@ export default function VariantBrowser({
 
       {err && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--hx-danger, #ff6b6b)' }}>{err}</p>}
       {atCap && <p style={{ margin: '8px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>This character has the maximum {MAX_VARIANTS} versions. Delete one to create another.</p>}
+
+      {editing && (
+        <EditFlow
+          characterId={characterId}
+          slotId={editing.slotId}
+          name={editing.name}
+          system={editing.system}
+          systems={transposeSystems.filter((s) => s.id !== editing.system)}
+          aiConfigured={aiConfigured}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </details>
   );
 }

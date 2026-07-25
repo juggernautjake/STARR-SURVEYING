@@ -30,8 +30,10 @@ import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, builtSystems, listSheets, readActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
+import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
 import type { SubmissionStatusLite } from '@/lib/dnd/variant-tags';
+import { availableSystems } from '@/lib/dnd/systems';
 import { normalizeSystem, systemLabel } from '@/lib/dnd/systems';
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { normalizeSubmissionStatus } from '@/lib/dnd/submission';
@@ -229,9 +231,10 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   const bespokeSheet = pf2Sheet ?? igSheet;
   const activeKind = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind;
 
-  // ── Variant tracker (VT): the VERSIONS picker — every version of this character as lobby-style cards with
-  //    tags + AI summaries. Computed server-side so the client renders without fetching. Owner/DM only. ──
-  let variantBrowser = null;
+  // ── Variant tracker (VT) + unified edit flow: the VERSIONS picker (every version as lobby-style cards with
+  //    tags + AI summaries + Edit/Branch), OR — while editing a working-copy DRAFT — the Save banner in its
+  //    place. Computed server-side so the client renders without fetching. Owner/DM only. ──
+  let versionsPanel = null;
   if (canWrite) {
     const rawVariants = (character as { system_variants?: unknown }).system_variants;
     const vMeta = readActiveSlotMeta(rawVariants);
@@ -248,6 +251,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       ...(vMeta.summary != null ? { summary: vMeta.summary } : {}),
       ...(vMeta.summaryUpdatedAt ? { summaryUpdatedAt: vMeta.summaryUpdatedAt } : {}),
       ...(vMeta.summaryHash ? { summaryHash: vMeta.summaryHash } : {}),
+      ...(vMeta.draft ? { draft: true } : {}),
     };
     const vbVariants = readVariants(rawVariants);
     // Resolve every referenced campaign's name for the Campaign tag (character-level + any per-slot).
@@ -269,9 +273,17 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       submissionStatus: (character as { submission_status?: string }).submission_status as SubmissionStatusLite,
       hasDmGranted: Array.isArray(character.dm_granted) && character.dm_granted.length > 0,
     });
-    variantBrowser = (
-      <VariantBrowser characterId={character.id} cards={variantCards} aiConfigured={dndAiConfigured()} canWrite={canWrite} />
-    );
+    if (vMeta.draft) {
+      // A working-copy draft is active — show the Save bar (Save to source / new variant / discard) in place
+      // of the versions list. The source is the version this draft branched from.
+      const src = variantCards.find((c) => c.slotId === vMeta.parentSlotId);
+      versionsPanel = <DraftSaveBanner characterId={character.id} sourceName={src?.name ?? 'the current version'} />;
+    } else {
+      const transposeSystems = availableSystems().map((s) => ({ id: s.key, label: s.name }));
+      versionsPanel = (
+        <VariantBrowser characterId={character.id} cards={variantCards} aiConfigured={dndAiConfigured()} canWrite={canWrite} transposeSystems={transposeSystems} />
+      );
+    }
   }
 
   return (
@@ -291,10 +303,10 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           canWrite={canWrite}
         />
       )}
-      {/* VERSIONS picker (VT) — every version of this character (up to 20): switch, branch a new variant, and
-          read each version's AI summary. Sits with the STYLE·TEMPLATE·THEME chrome so all the character-level
-          pickers are in one place. */}
-      {variantBrowser}
+      {/* VERSIONS picker (VT) — every version of this character (up to 20): switch, Edit (direct/transpose),
+          branch a new variant, read each version's AI summary. While editing a draft this becomes the Save
+          banner instead. Sits with the STYLE·TEMPLATE·THEME chrome so the character-level controls are together. */}
+      {versionsPanel}
       {/* Per-character settings gear (S-3) — rules variants + display/roller prefs in one place, for every
           system. Fed the SSR-resolved effective preferences (DM locks honoured) + the player's own choices;
           always resolvable even outside a campaign (vanilla baseline ∩ the player's choices). */}
