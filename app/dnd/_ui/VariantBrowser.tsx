@@ -125,6 +125,11 @@ export default function VariantBrowser({
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', slotId }),
       });
       if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not delete that version.'); setBusy(null); return; }
+      // Deleting the version you're VIEWING means the server switched you to another one, so the whole
+      // sheet below is now a different character version — that genuinely needs a full load, not a card
+      // removal. Every other delete stays in place.
+      const j = await r.json().catch(() => ({}));
+      if (j?.switchedTo) { window.location.reload(); return; }
       // Drop the card here and now — the delete has succeeded on the server, so a full reload would only
       // make the user watch the whole page rebuild to see one card go. Anything else the deletion changed
       // (the cap notice, other panels) catches up via router.refresh(), which re-renders the server
@@ -171,7 +176,10 @@ export default function VariantBrowser({
         {rows.map((c) => {
           const sum = summaryOf(c);
           const showSummary = openSummary === c.slotId;
-          const canDelete = !c.active && !c.origin;
+          // Only the ORIGINAL is protected (owner 2026-07-25) — every other version, including the one
+          // being viewed, can be deleted individually. Deleting the viewed one switches away server-side
+          // first, so it no longer requires the user to go and switch by hand.
+          const canDelete = !c.origin;
           return (
             <div
               key={c.slotId}

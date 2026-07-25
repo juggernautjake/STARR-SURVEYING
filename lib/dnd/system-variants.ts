@@ -687,6 +687,49 @@ export function deleteVariant(variants: SystemVariants, slotId: string): SystemV
   return next;
 }
 
+/**
+ * Delete ANY version, including the one currently being viewed (owner, 2026-07-25: "only the original
+ * should be protected, all others can be individually deleted").
+ *
+ * The active sheet lives in the live columns rather than in `variants`, which is why deleting it used to be
+ * refused with "switch to another sheet first" — a real chore when the version you want gone is the one
+ * you're looking at. Here that switch happens FOR you, atomically: fall back to another version (the
+ * original by preference, so you land somewhere meaningful), then drop the old active's snapshot.
+ *
+ * The ORIGINAL is protected because every other version records it as their lineage parent — deleting it
+ * would orphan the branches that describe themselves as "branched from" it.
+ *
+ * Accepts either spelling of the active sheet's id (its real slot id, or the synthetic `active:<system>`
+ * marker a pre-tracker character is named by), for the same reason `forkSheet` does.
+ */
+export function deleteSheet(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  slotId: string,
+): { active: ActiveSheet; variants: SystemVariants; switchedTo: string | null } {
+  const preLineageActiveId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
+  const lineage = ensureLineage(active, variants);
+  const a = lineage.active;
+  const vs = lineage.variants;
+  const activeId = a.slotId as string;
+  const target = slotId === activeId || slotId === preLineageActiveId ? activeId : slotId;
+
+  const originId = resolveOriginSlotId(a, vs);
+  if (target === originId) {
+    throw new Error('The original version can’t be deleted — every other version branches from it.');
+  }
+  if (target !== activeId && !(target in vs)) throw new Error(`No sheet "${slotId}" to delete.`);
+
+  // A stored (non-active) version: just drop it.
+  if (target !== activeId) return { active: a, variants: deleteVariant(vs, target), switchedTo: null };
+
+  // The viewed version: switch away first so the character is never left without an active sheet.
+  const fallback = originId in vs ? originId : Object.keys(vs)[0];
+  if (!fallback) throw new Error('This is the only version of this character — there is nothing to switch to.');
+  const switched = switchToSlot(a, vs, fallback);
+  return { active: switched.active, variants: deleteVariant(switched.variants, activeId), switchedTo: fallback };
+}
+
 /** Rename a stored sheet slot (Area MV). Empty name clears back to the auto-default. No-op if not found. */
 export function renameVariant(variants: SystemVariants, slotId: string, name: string): SystemVariants {
   if (!(slotId in variants)) return variants;

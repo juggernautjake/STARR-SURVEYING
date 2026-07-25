@@ -14,7 +14,7 @@ import { applySheetEdits, coerceEditsArray, SHEET_EDIT_TOOL, type SheetEdit } fr
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { validateCharacterForSystem } from '@/lib/dnd/system-validate';
 import { normalizeSystem, systemLabel, isSystemAvailable, isSharedEngineSystem, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
-import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, renameVariant, readActiveSlotMeta, withActiveSlotMeta, listSheets, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, hasVariant, switchActive, installTransposed, installTransposedNewSlot, switchToSlot, addSheetSlot, deleteVariant, deleteSheet, renameVariant, readActiveSlotMeta, withActiveSlotMeta, listSheets, type ActiveSheet } from '@/lib/dnd/system-variants';
 import { pickSourceSheet } from '@/lib/dnd/transpose/source-sheet';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { opNoteFor } from '@/lib/dnd/transpose/op-check';
@@ -264,15 +264,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // ── Delete a STORED sheet (Area MV) — never the active one (switch away first). ──
   if (body?.action === 'delete' && typeof body?.slotId === 'string') {
-    if (body.slotId === activeSlotId) return NextResponse.json({ error: 'Switch to another sheet before deleting this one.' }, { status: 400 });
-    if (!(body.slotId in variants)) return NextResponse.json({ error: 'No such sheet.' }, { status: 400 });
-    const next = deleteVariant(variants, body.slotId);
-    const { error } = await supabaseAdmin
-      .from('dnd_characters')
-      .update({ system_variants: withActiveSlotMeta(next, active) })
-      .eq('id', params.id);
+    // Any version can go except the ORIGINAL (owner 2026-07-25). Deleting the one being VIEWED used to be
+    // refused outright; `deleteSheet` now switches to another version first and drops it in one step, so
+    // the character is never left without an active sheet. Refusals (the original, the last version, an
+    // unknown id) come back as the helper's own message rather than a generic one.
+    let next;
+    try { next = deleteSheet(active, variants, body.slotId); }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Could not delete that version.' }, { status: 400 }); }
+
+    // When the active version was the one deleted, the live columns now hold a DIFFERENT sheet, so they
+    // must be written too — persisting only `system_variants` would leave the deleted sheet on screen.
+    const update: Record<string, unknown> = { system_variants: withActiveSlotMeta(next.variants, next.active) };
+    if (next.switchedTo) {
+      update.system = next.active.system;
+      update.data = next.active.data;
+      update.sheet_type = next.active.sheet_type;
+      update.custom_layout = next.active.custom_layout ?? { blocks: [] };
+      update.custom_css = next.active.custom_css ?? '';
+      update.art_url = next.active.artUrl ?? row.art_url ?? null;
+    }
+    const { error } = await supabaseAdmin.from('dnd_characters').update(update).eq('id', params.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, kind: 'delete', slotId: body.slotId });
+    return NextResponse.json({ ok: true, kind: 'delete', slotId: body.slotId, switchedTo: next.switchedTo });
   }
 
   // ── Level UP the ACTIVE sheet to match another version (Area MV, owner 2026-07-22). ──

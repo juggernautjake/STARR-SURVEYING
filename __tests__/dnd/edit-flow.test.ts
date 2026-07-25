@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   beginDraft, commitDraftToOriginal, promoteDraftToVariant, discardDraft, isDraftActive,
-  resolveOriginSlotId, forkSheet, readVariants, sheetCount, MAX_VARIANTS,
+  resolveOriginSlotId, forkSheet, readVariants, sheetCount, MAX_VARIANTS, deleteSheet, switchToSlot,
   type ActiveSheet, type SystemVariants,
 } from '@/lib/dnd/system-variants';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
@@ -72,6 +72,61 @@ describe('edit-flow draft — begin / commit / promote / discard', () => {
     const cards = buildVariantCards(active5e(), variants, { characterName: 'Gandalf' });
     expect(cards).toHaveLength(1); // only the real version, not the parked draft
     expect(cards[0].name).toBe('Gandalf');
+  });
+});
+
+// Owner 2026-07-25: "only the original should be protected, all others can be individually deleted."
+// Deleting the VIEWED version used to be refused ("switch to another sheet first"), which is what made
+// some versions feel undeletable — the ✕ simply wasn't there.
+describe('deleteSheet — any version but the original', () => {
+  const withVariants = () => {
+    const active = active5e({ slotId: 'dnd5e-2024' }); // the origin, and active
+    const forked = forkSheet(active, {}, { fromSlotId: 'dnd5e-2024', name: 'Branch A' });
+    const second = forkSheet(forked.active, forked.variants, { fromSlotId: 'dnd5e-2024', name: 'Branch B' });
+    return { active: second.active, variants: second.variants, a: forked.newSlotId, b: second.newSlotId };
+  };
+
+  it('deletes a stored version without touching the active one', () => {
+    const { active, variants, a, b } = withVariants();
+    const res = deleteSheet(active, variants, a);
+    expect(res.switchedTo).toBeNull();
+    expect(res.variants[a]).toBeUndefined();
+    expect(res.variants[b]).toBeTruthy();
+    expect(res.active.slotId).toBe(active.slotId); // still viewing the same version
+  });
+
+  it('deletes the VIEWED version by switching away first — no manual switch needed', () => {
+    const { active, variants, a } = withVariants();
+    // Switch so a branch is the active version, then delete that very version.
+    const onBranch = switchToSlot(active, variants, a);
+    const res = deleteSheet(onBranch.active, onBranch.variants, a);
+    expect(res.switchedTo).toBe('dnd5e-2024');      // landed on the original
+    expect(res.active.slotId).toBe('dnd5e-2024');
+    expect(res.variants[a]).toBeUndefined();        // and the deleted version is gone, not parked
+  });
+
+  it('accepts the synthetic `active:` id for a legacy character', () => {
+    const active = active5e({ slotId: undefined });
+    const forked = forkSheet(active, {}, { fromSlotId: `active:${active.system}` });
+    const onFork = switchToSlot(forked.active, forked.variants, forked.newSlotId);
+    const res = deleteSheet(onFork.active, onFork.variants, forked.newSlotId);
+    expect(res.variants[forked.newSlotId]).toBeUndefined();
+    expect(res.switchedTo).toBeTruthy();
+  });
+
+  it('REFUSES the original — every other version branches from it', () => {
+    const { active, variants } = withVariants();
+    expect(() => deleteSheet(active, variants, 'dnd5e-2024')).toThrow(/original version can’t be deleted/);
+  });
+
+  it('refuses a version that does not exist', () => {
+    const { active, variants } = withVariants();
+    expect(() => deleteSheet(active, variants, 'no-such-slot')).toThrow(/No sheet/);
+  });
+
+  it('a lone version is the original, so it is protected — never zero versions', () => {
+    const active = active5e({ slotId: 'dnd5e-2024' });
+    expect(() => deleteSheet(active, {}, 'dnd5e-2024')).toThrow(/original version can’t be deleted/);
   });
 });
 

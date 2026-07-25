@@ -96,12 +96,18 @@ describe('active sheet label on the switcher (MV3)', () => {
 describe('rename + delete sheet route/UI (Area MV)', () => {
   const route2 = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/system/route.ts'), 'utf8');
   const switcher2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
-  it('the route renames (active via meta or a stored slot) and deletes a NON-active slot', () => {
+  it('the route renames (active via meta or a stored slot) and deletes ANY version but the original', () => {
     expect(route2).toContain("body?.action === 'rename'");
     expect(route2).toContain('renameVariant(variants, body.slotId, name)');
     expect(route2).toContain("body?.action === 'delete'");
-    expect(route2).toContain('Switch to another sheet before deleting this one'); // can't delete the active
-    expect(route2).toContain('deleteVariant(variants, body.slotId)');
+    // Deleting the ACTIVE version used to be refused outright ("switch to another sheet first"), which is
+    // what made some versions feel undeletable. `deleteSheet` now switches away and deletes in one step;
+    // only the ORIGINAL is protected, and that refusal lives in the helper (see edit-flow.test.ts).
+    expect(route2).toContain('deleteSheet(active, variants, body.slotId)');
+    expect(route2).not.toContain('Switch to another sheet before deleting this one');
+    // When the active version was deleted the live columns hold a different sheet, so they must be written.
+    expect(route2).toContain('if (next.switchedTo)');
+    expect(route2).toContain('update.data = next.active.data');
   });
   it('the switcher has inline rename + a delete on non-active sheets, guarded by an in-app confirm popup', () => {
     expect(switcher2).toContain("slotAction(sh.slotId, { action: 'rename', name: editSlotName })");

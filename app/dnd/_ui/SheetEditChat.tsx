@@ -209,7 +209,9 @@ export default function SheetEditChat({
     return (
       <div className={styles.root}>
         <button type="button" onClick={() => setOpen(true)} className={styles.launcher}>
-          <span aria-hidden className={styles.spark}>✦</span> Edit with AI
+          {/* "Chat with AI", not "Edit with AI": since Workstream B this box answers questions as well as
+              proposing changes, and the old label made it look like a one-way edit tool. */}
+          <span aria-hidden className={styles.spark}>✦</span> Chat with AI
         </button>
       </div>
     );
