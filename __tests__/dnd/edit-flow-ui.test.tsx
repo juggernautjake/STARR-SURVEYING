@@ -223,8 +223,9 @@ describe('VERSIONS picker — Edit/Branch on every version', () => {
     expect(cards).toHaveLength(2);
     expect(html.match(/✎ Edit/g) ?? []).toHaveLength(2);
     expect(html.match(/\+ Variant/g) ?? []).toHaveLength(2);
-    // Branching is offered from each version by name (the relative "original").
-    expect(html).toContain('Branch a new variant from Gandalf the White');
+    // Creating is offered from each version by name (the relative "original"). "+ Variant" now opens the
+    // creation wizard rather than forking on the spot, so the tooltip says create, not branch.
+    expect(html).toContain('Create a new version from Gandalf the White');
   });
 
   it('offers rename on every card — the last of switch/rename/delete to land here', () => {

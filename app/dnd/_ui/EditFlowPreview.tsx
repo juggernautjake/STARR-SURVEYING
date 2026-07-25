@@ -16,7 +16,7 @@ export default function EditFlowPreview({ cards, systems }: { cards: VariantCard
       <h1 style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-3)', fontSize: 20 }}>Edit / Build flow — visual harness</h1>
       <p style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>Mock data. Dev-only.</p>
 
-      {heading('Versions picker (VariantBrowser, expanded)')}
+      {heading('Versions picker (VariantBrowser, expanded) — “+ Variant” opens the creation wizard')}
       <VariantBrowser characterId="preview" cards={cards} aiConfigured canWrite transposeSystems={systems} startOpen />
 
       {heading('Draft save banner (while editing a working copy)')}

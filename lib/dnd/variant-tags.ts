@@ -8,7 +8,8 @@ import type { SheetVariantKind } from './system-variants';
 /** A tone drives the chip's colour in the browser (mapped to `--hx-*` there). */
 export type VariantTagTone =
   | 'original' | 'variant' | 'active' | 'system' | 'vanilla' | 'custom' | 'dm'
-  | 'multiclass' | 'campaign' | 'personal' | 'npc' | 'draft' | 'submitted' | 'approved' | 'rejected' | 'diff';
+  | 'multiclass' | 'campaign' | 'personal' | 'npc' | 'draft' | 'submitted' | 'approved' | 'rejected' | 'diff'
+  | 'duplicate';
 
 export interface VariantTag { label: string; tone: VariantTagTone }
 
@@ -34,6 +35,8 @@ export interface VariantTagInput {
   submissionStatus?: SubmissionStatusLite;
   /** This variant's system differs from the original's system. */
   differentSystemFromOrigin?: boolean;
+  /** The parent version's name when this copy is still byte-identical to it — drives the Duplicate tag. */
+  duplicateOf?: string | null;
   /** Character carries DM-granted content. */
   hasDmGranted?: boolean;
   /** Suppress the low-signal "Personal" chip (default true — most cards don't need it). */
@@ -64,6 +67,10 @@ export function variantTags(input: VariantTagInput): VariantTag[] {
   // Shape.
   if (input.multiclass) tags.push({ label: 'Multiclass', tone: 'multiclass' });
   if (!input.origin && input.differentSystemFromOrigin) tags.push({ label: 'Different system', tone: 'diff' });
+  // An exact copy that hasn't diverged yet. Deliberately SELF-CLEARING: it is derived from the sheet
+  // content, so the moment the copy is edited it stops matching its parent and the tag disappears on its
+  // own — no flag to set, and none to go stale.
+  if (input.duplicateOf) tags.push({ label: `Duplicate of ${input.duplicateOf}`, tone: 'duplicate' });
 
   // Placement — campaign vs personal.
   if (input.campaignName) tags.push({ label: `Campaign: ${input.campaignName}`, tone: 'campaign' });
@@ -104,4 +111,5 @@ export const VARIANT_TAG_COLORS: Record<VariantTagTone, { bg: string; border: st
   approved: { bg: 'rgba(80,200,120,0.14)', border: '#4fb477', fg: '#8fe0ac' },
   rejected: { bg: 'rgba(255,107,107,0.14)', border: 'var(--hx-danger, #ff6b6b)', fg: '#ff9d9d' },
   diff: { bg: 'rgba(130,120,230,0.16)', border: '#8278e6', fg: '#bcb4ff' },
+  duplicate: { bg: 'rgba(150,150,160,0.16)', border: '#9a9aa6', fg: '#c9c9d4' },
 };

@@ -127,12 +127,24 @@ export function buildVariantCards(active: ActiveSheet, variants: SystemVariants,
     // Stale = we have a summary + the hash it was built from, and the sheet has changed since.
     const summaryStale = !!(r.summary && r.summaryHash && r.summaryHash !== sheetSummaryHash(r.data, r.system));
 
+    // Is this version still an exact copy of the one it branched from? Derived from the sheet CONTENT
+    // rather than a stored "isDuplicate" flag, so it clears itself the instant the copy is edited — a
+    // stored flag would have to be cleared by every write path, and would go stale the first time one
+    // forgot. Same-system only: two systems' sheets are never byte-comparable.
+    const parent = r.parentSlotId ? refs.find((p) => p.slotId === r.parentSlotId) : undefined;
+    const duplicateOf = parent
+      && normalizeSystem(parent.system) === normalizeSystem(r.system)
+      && sheetSummaryHash(parent.data, parent.system) === sheetSummaryHash(r.data, r.system)
+      ? nameOf(parent)
+      : null;
+
     const tags = variantTags({
       origin, active: r.active, system: r.system, kind: r.kind,
       multiclass: breakdown.multiclass, isNpc: ctx.isNpc, underConstruction: ctx.underConstruction && origin,
       campaignName, inCampaign: !!effCampaignId,
       submissionStatus: origin ? ctx.submissionStatus : null,
       differentSystemFromOrigin: normalizeSystem(r.system) !== normalizeSystem(originSystem),
+      duplicateOf,
       hasDmGranted: ctx.hasDmGranted,
     });
 

@@ -36,7 +36,9 @@ describe('custom content is balanced to a concrete level (transpose)', () => {
     // Previously partyLevel came only from the request body (which the UI never sent), so the "balance to
     // level N" line never appeared; now it falls back to the character's own level.
     expect(route).toContain("(source.meta.level || undefined)");
-    expect(route).toMatch(/Balance any custom content to level \$\{partyLevel\}/);
+    // A level-variant rebuild sets an explicit targetLevel, which must win over the source's own level —
+    // homebrew for a level-1 rebuild has to be balanced to 1, not to the level-12 sheet it came from.
+    expect(route).toMatch(/Balance any custom content to level \$\{targetLevel \?\? partyLevel\}/);
   });
 });
 

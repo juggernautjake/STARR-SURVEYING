@@ -445,6 +445,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // sent partyLevel, so this line never fired; the character-level fallback makes it always concrete.)
   const partyLevel = typeof body?.partyLevel === 'number' ? body.partyLevel : (source.meta.level || undefined);
 
+  // Build the new version AT A GIVEN LEVEL (owner 2026-07-25): the "same character, different level"
+  // variant. This rides the transpose path deliberately — a level rebuild IS a full rebuild, and going
+  // DOWN especially cannot be done by editing (a level-1 sheet must not keep level-12 features, HP or
+  // slots). The target system may be the character's own, which `forceNewSheet` already allows.
+  const rawTargetLevel = typeof body?.targetLevel === 'number' ? Math.floor(body.targetLevel) : null;
+  const targetLevel = rawTargetLevel != null && rawTargetLevel >= 1 && rawTargetLevel <= 20 ? rawTargetLevel : null;
+
   type CustomEntry = { type: string; name: string; note?: string };
   let result;
   try {
@@ -452,10 +459,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       system: [transposeSystemPrompt(allowCustom), grounding?.instruction].filter(Boolean).join('\n\n'),
       user: [
         `Target system: ${label}. Rebuild this character under ${label} only.`,
+        // The level instruction has to be emphatic in BOTH directions. Told only "build at level 3", a
+        // model handed a level-12 source tends to copy its features across; the character then reads as
+        // level 3 while playing like level 12, which is the whole failure mode of a "lower level" variant.
+        targetLevel != null
+          ? `BUILD THIS CHARACTER AT LEVEL ${targetLevel}${source.meta.level ? ` (the source sheet is level ${source.meta.level})` : ''}. The result must have EXACTLY what a level-${targetLevel} character of this class has and NOTHING more: only the class/subclass features unlocked by level ${targetLevel}, only the spells and spell slots that level grants, proficiency bonus and MAX/CURRENT HP recomputed for level ${targetLevel} from the hit die + CON. If the source is HIGHER level, you MUST leave out every feature, spell, slot and hit point it has not yet earned at level ${targetLevel} — do not carry them over. If the source is LOWER level, add each level up to ${targetLevel}. Keep the character's identity: name, species/ancestry, background, personality, story and non-mechanical gear. Emit set_level to ${targetLevel}.`
+          : null,
         allowCustom
           ? 'Custom content IS permitted where no vanilla option fits. Be thorough — preserve EVERY signature ability, weapon, spell and stance, inventing balanced homebrew where needed, and record each in `custom`.'
           : 'Custom content is NOT permitted — use only official target-system content.',
-        typeof partyLevel === 'number' ? `Balance any custom content to level ${partyLevel} (the character's level / the campaign's party level).` : null,
+        typeof (targetLevel ?? partyLevel) === 'number' ? `Balance any custom content to level ${targetLevel ?? partyLevel}.` : null,
         `Source character (system: ${systemLabel(sourceSystem)}). Recreate everything it can do:\n${sheetDigest(source)}`,
         grounding?.block || null,
       ].filter(Boolean).join('\n\n'),

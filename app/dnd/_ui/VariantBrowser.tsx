@@ -13,6 +13,7 @@ import type { VariantCard } from '@/lib/dnd/variant-view';
 import { MAX_VARIANTS } from '@/lib/dnd/system-variants';
 import { isSharedEngineSystem } from '@/lib/dnd/systems';
 import EditFlow, { type EditFlowSystem } from './EditFlow';
+import NewVariantFlow from './NewVariantFlow';
 
 export default function VariantBrowser({
   characterId, cards, aiConfigured = false, canWrite = true, transposeSystems = [], startOpen = false,
@@ -36,6 +37,8 @@ export default function VariantBrowser({
   const [openSummary, setOpenSummary] = useState<string | null>(null); // slotId whose summary popover is open
   const [editing, setEditing] = useState<{ slotId: string; name: string; system: string; level: number } | null>(null);
   const [renaming, setRenaming] = useState<{ slotId: string; value: string } | null>(null); // inline rename
+  // The version a NEW variant is being branched from — drives the creation wizard. Null = wizard closed.
+  const [creating, setCreating] = useState<{ slotId: string; name: string; system: string; level: number } | null>(null);
   // The version pending a delete confirmation. Deleting a version is irreversible and the button sits
   // between "+ Variant" and the card body, so it asks first — in-app, not the browser's confirm().
   const [confirmDelete, setConfirmDelete] = useState<{ slotId: string; name: string } | null>(null);
@@ -90,17 +93,12 @@ export default function VariantBrowser({
     } catch { setErr('Network error — please try again.'); setBusy(null); }
   }
 
-  async function createVariant(fromSlotId: string) {
+  /** Open the creation wizard. "+ Variant" used to fork on the spot, which produced an unnamed byte-identical
+   *  copy from a single click; nothing is written now until the wizard is completed. */
+  function createVariant(c: VariantCard) {
     if (atCap) { setErr(`You’ve hit the ${MAX_VARIANTS}-version limit. Delete a version to make room.`); return; }
-    setBusy(`${fromSlotId}:fork`); setErr(null);
-    try {
-      const r = await fetch(`/api/dnd/characters/${characterId}/variants`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'fork', fromSlotId }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setErr(j.error ?? 'Could not create a variant.'); setBusy(null); return; }
-      window.location.reload(); // the fork is now the active sheet — the user lands in the editor on it
-    } catch { setErr('Network error — please try again.'); setBusy(null); }
+    setErr(null);
+    setCreating({ slotId: c.slotId, name: c.name, system: c.system, level: c.level });
   }
 
   /** Rename a version in place (consolidation: the last of SystemSwitcher's switch/rename/delete trio to
@@ -246,7 +244,7 @@ export default function VariantBrowser({
                 </button>
                 {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system, level: c.level }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
                 {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.name }), { title: `Rename this version (currently “${c.name}”)` })}
-                {canWrite && iconBtn(busy === `${c.slotId}:fork` ? 'Creating…' : '+ Variant', () => createVariant(c.slotId), { title: atCap ? 'Version limit reached — delete one first' : `Branch a new variant from ${c.name}`, disabled: atCap })}
+                {canWrite && iconBtn('+ Variant', () => createVariant(c), { title: atCap ? 'Version limit reached — delete one first' : `Create a new version from ${c.name}`, disabled: atCap })}
                 {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => setConfirmDelete({ slotId: c.slotId, name: c.name }), { title: `Delete ${c.name}`, danger: true })}
               </div>
 
@@ -330,6 +328,22 @@ export default function VariantBrowser({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Creating a version is now a decision, not a click: what it's for, then a required name, then the
+          details that follow from the purpose. Nothing is written until the last step. */}
+      {creating && (
+        <NewVariantFlow
+          characterId={characterId}
+          sourceSlotId={creating.slotId}
+          sourceName={creating.name}
+          sourceSystem={creating.system}
+          sourceLevel={creating.level}
+          systems={transposeSystems.filter((s) => s.id !== creating.system)}
+          aiConfigured={aiConfigured}
+          allowCustom={allowCustom}
+          onClose={() => setCreating(null)}
+        />
       )}
 
       {editing && (
