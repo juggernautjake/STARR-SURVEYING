@@ -12,6 +12,70 @@ import styles from './hextech.module.css';
 
 export interface EditFlowSystem { id: string; label: string }
 
+/** The `/system` transpose response, as far as the report cares about it. */
+export interface TransposeResult {
+  system: string;
+  summary?: string | null;
+  hp?: number;
+  /** Every element the AI INVENTED because the target system had no vanilla equivalent. */
+  custom?: { type: string; name: string; note?: string }[];
+  /** Rule-legality issues the safety net caught on the built sheet. */
+  violations?: { field: string; severity: string; message: string }[];
+}
+
+/**
+ * What the AI built on a transpose — the summary, the HP it landed on, every element it INVENTED, and any
+ * rules issues. Its own component so it can be rendered (and tested) without driving a real AI build.
+ *
+ * The custom list is the reason this exists: the house rule is that homebrew is flagged, not hidden, and a
+ * flag that scrolls past in a page reload was never shown at all.
+ */
+export function TransposeReport({ result, onOpen }: { result: TransposeResult; onOpen: () => void }) {
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {result.summary && (
+        <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--hx-text)', whiteSpace: 'pre-wrap' }}>{result.summary}</p>
+      )}
+      {typeof result.hp === 'number' && (
+        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Built at <strong style={{ color: 'var(--hx-text)' }}>{result.hp} HP</strong> for the character’s level.</span>
+      )}
+      {result.custom && result.custom.length > 0 && (
+        <div style={{ border: '1px solid var(--hx-gold-1)', borderRadius: 8, background: 'rgba(212,175,55,0.07)', padding: '9px 11px', display: 'grid', gap: 6 }}>
+          <strong style={{ fontSize: 11.5, color: 'var(--hx-gold-2)', letterSpacing: '0.04em' }}>
+            ✦ {result.custom.length} custom {result.custom.length === 1 ? 'element' : 'elements'} created — not vanilla to this system
+          </strong>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
+            {result.custom.map((c, i) => (
+              <li key={i} style={{ fontSize: 11.5, color: 'var(--hx-text)', lineHeight: 1.45 }}>
+                <span style={{ fontSize: 9, color: 'var(--hx-gold-2)', border: '1px solid currentColor', borderRadius: 3, padding: '0 4px', marginRight: 5, textTransform: 'uppercase' }}>{c.type}</span>
+                <strong>{c.name}</strong>
+                {c.note && <span style={{ color: 'var(--hx-muted)' }}> — {c.note}</span>}
+              </li>
+            ))}
+          </ul>
+          <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>These are flagged as customized on the sheet for DM review.</span>
+        </div>
+      )}
+      {result.violations && result.violations.length > 0 && (
+        <div style={{ border: '1px solid var(--hx-danger)', borderRadius: 8, background: 'rgba(198,64,59,0.08)', padding: '9px 11px', display: 'grid', gap: 5 }}>
+          <strong style={{ fontSize: 11.5, color: 'var(--hx-danger)' }}>⚠ {result.violations.length} rules {result.violations.length === 1 ? 'issue' : 'issues'} to review</strong>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+            {result.violations.map((v, i) => (
+              <li key={i} style={{ fontSize: 11.5, color: v.severity === 'error' ? 'var(--hx-danger)' : 'var(--hx-muted)', lineHeight: 1.45 }}>
+                <span style={{ fontSize: 9, textTransform: 'uppercase', marginRight: 5, opacity: 0.8 }}>{v.severity}</span>{v.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <button type="button" onClick={onOpen} style={{
+        marginTop: 2, padding: '9px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--hx-font-display)',
+        border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(200,170,110,0.16)', color: 'var(--hx-gold-2, #c8aa6e)', fontSize: 13,
+      }}>Open the new version →</button>
+    </div>
+  );
+}
+
 export default function EditFlow({
   characterId, slotId, name, system, systems, aiConfigured = true, onClose,
 }: {
@@ -26,11 +90,15 @@ export default function EditFlow({
   onClose: () => void;
 }) {
   const router = useRouter();
-  type Step = 'root' | 'system' | 'how' | 'ai-kind';
+  type Step = 'root' | 'system' | 'how' | 'ai-kind' | 'result';
   const [step, setStep] = useState<Step>('root');
   const [target, setTarget] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** What the AI actually built (consolidation: this report used to exist only in SystemSwitcher). Reloading
+   *  straight past it threw away the two things that matter most on a transpose — WHICH pieces are homebrew
+   *  rather than vanilla, and any rules issues to review. A flag that never gets shown isn't a flag. */
+  const [result, setResult] = useState<TransposeResult | null>(null);
 
   async function post(url: string, body: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     setBusy(true); setErr(null);
@@ -48,7 +116,18 @@ export default function EditFlow({
   }
   async function transposeAI(allowCustom: boolean) {
     const j = await post(`/api/dnd/characters/${characterId}/system`, { action: 'transpose', system: target, allowCustom });
-    if (j) window.location.reload(); // new-system variant is now active
+    if (!j) return;
+    // The new variant IS saved and active at this point — we hold the dialog open on the report rather than
+    // reloading, so what the AI built (and invented) is read before the page changes under the user.
+    setBusy(false);
+    setResult({
+      system: target,
+      summary: (j.summary as string | null) ?? null,
+      hp: typeof j.hp === 'number' ? j.hp : undefined,
+      custom: Array.isArray(j.custom) ? j.custom as TransposeResult['custom'] : [],
+      violations: Array.isArray(j.violations) ? j.violations as TransposeResult['violations'] : [],
+    });
+    setStep('result');
   }
   async function fromScratch() {
     const add = await post(`/api/dnd/characters/${characterId}/system`, { action: 'add', system: target });
@@ -57,6 +136,10 @@ export default function EditFlow({
     if (slot) { const sw = await post(`/api/dnd/characters/${characterId}/system`, { slotId: slot }); if (!sw) return; }
     router.push(`/dnd/characters/${characterId}/builder`);
   }
+
+  // Dismissing the report still has to reload: by then the new variant is saved AND active, so the page
+  // behind the dialog is showing a version that is no longer the live one.
+  const closeFlow = () => { if (result) window.location.reload(); else onClose(); };
 
   const overlay: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
   // The frame does NOT scroll: .framedPanel draws its gold corners at -1px, so `overflow-y: auto` on the
@@ -86,7 +169,7 @@ export default function EditFlow({
     <div style={{ display: 'grid', gap: 3, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 16, color: 'var(--hx-gold-2)', letterSpacing: '0.04em' }}>{title}</span>
-        <button type="button" onClick={onClose} aria-label="Close" style={{ fontSize: 18, lineHeight: 1, background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer' }}>✕</button>
+        <button type="button" onClick={closeFlow} aria-label="Close" style={{ fontSize: 18, lineHeight: 1, background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer' }}>✕</button>
       </div>
       {sub && <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>{sub}</span>}
     </div>
@@ -95,7 +178,7 @@ export default function EditFlow({
   const back = (to: Step) => <button type="button" onClick={() => { setStep(to); setErr(null); }} disabled={busy} style={{ marginTop: 12, fontSize: 12, background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer' }}>← Back</button>;
 
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={overlay} onClick={closeFlow}>
       <div className={styles.framedPanel} style={panel} onClick={(e) => e.stopPropagation()}>
         <div style={scroller}>
         {step === 'root' && (<>
@@ -132,7 +215,24 @@ export default function EditFlow({
           {back('how')}
         </>)}
 
-        {busy && <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--hx-teal-1)' }}>Working… this can take a few seconds.</p>}
+        {step === 'result' && result && (<>
+          {header(`Built in ${systems.find((s) => s.id === result.system)?.label ?? 'the new system'}`, `${name} now has a new version in this system. Your other versions are untouched.`)}
+          <TransposeReport result={result} onOpen={() => window.location.reload()} />
+        </>)}
+
+        {/* A transpose is a full AI rebuild, so it says what is happening and that nothing is being lost —
+            "Working…" on a 20-second wait reads like the app hung. */}
+        {busy && (step === 'ai-kind' ? (
+          <div style={{ margin: '12px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className={styles.spinner} aria-hidden />
+            <span style={{ fontSize: 12, color: 'var(--hx-teal-1)', lineHeight: 1.45 }}>
+              Rebuilding {name} in {systems.find((s) => s.id === target)?.label ?? 'the new system'}…
+              <span style={{ color: 'var(--hx-muted)' }}> This takes a few seconds. Your other versions are kept.</span>
+            </span>
+          </div>
+        ) : (
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--hx-teal-1)' }}>Working… this can take a few seconds.</p>
+        ))}
         {err && <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--hx-danger, #ff6b6b)' }}>{err}</p>}
         </div>
       </div>

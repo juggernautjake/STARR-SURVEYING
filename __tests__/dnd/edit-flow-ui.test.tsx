@@ -7,7 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
-import EditFlow from '@/app/dnd/_ui/EditFlow';
+import EditFlow, { TransposeReport } from '@/app/dnd/_ui/EditFlow';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
@@ -35,6 +35,52 @@ describe('EditFlow dialog — the root decision', () => {
     );
     expect(html).toContain('No other systems available');
     expect(html).toContain('disabled');
+  });
+});
+
+describe('TransposeReport — what the AI actually built', () => {
+  const full = {
+    system: 'pathfinder2e',
+    summary: 'Rebuilt as a PF2 Wizard at level 5.',
+    hp: 42,
+    custom: [{ type: 'feat', name: 'Grey Wanderer', note: 'no vanilla equivalent' }],
+    violations: [{ field: 'abilities.int', severity: 'warning', message: 'Intelligence 20 is at the cap.' }],
+  };
+
+  it('NAMES every invented element — homebrew is flagged, not hidden', () => {
+    const html = renderToStaticMarkup(<TransposeReport result={full} onOpen={() => {}} />);
+    expect(html).toContain('1 custom element created');
+    expect(html).toContain('Grey Wanderer');
+    expect(html).toContain('feat');
+    expect(html).toContain('no vanilla equivalent');
+    expect(html).toContain('flagged as customized');
+  });
+
+  it('surfaces the rules issues the safety net caught', () => {
+    const html = renderToStaticMarkup(<TransposeReport result={full} onOpen={() => {}} />);
+    expect(html).toContain('1 rules issue to review');
+    expect(html).toContain('Intelligence 20 is at the cap.');
+    expect(html).toContain('warning');
+  });
+
+  it('reports the summary and the HP it landed on', () => {
+    const html = renderToStaticMarkup(<TransposeReport result={full} onOpen={() => {}} />);
+    expect(html).toContain('Rebuilt as a PF2 Wizard at level 5.');
+    expect(html).toContain('42 HP');
+  });
+
+  it('pluralises, and omits the panels entirely when there is nothing to report', () => {
+    const many = renderToStaticMarkup(
+      <TransposeReport onOpen={() => {}} result={{ ...full, custom: [full.custom[0], { type: 'spell', name: 'Kindled Word' }], violations: [full.violations[0], { field: 'x', severity: 'error', message: 'Second issue.' }] }} />,
+    );
+    expect(many).toContain('2 custom elements created');
+    expect(many).toContain('2 rules issues to review');
+
+    const clean = renderToStaticMarkup(<TransposeReport result={{ system: 'pathfinder2e', summary: 'A clean vanilla rebuild.' }} onOpen={() => {}} />);
+    expect(clean).not.toContain('custom element');
+    expect(clean).not.toContain('to review');
+    expect(clean).not.toContain('HP'); // no hp given → no fabricated HP line
+    expect(clean).toContain('Open the new version'); // the way forward is always offered
   });
 });
 

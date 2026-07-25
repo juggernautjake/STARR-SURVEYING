@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import VariantBrowser from './VariantBrowser';
 import DraftSaveBanner from './DraftSaveBanner';
-import EditFlow, { type EditFlowSystem } from './EditFlow';
+import EditFlow, { TransposeReport, type EditFlowSystem } from './EditFlow';
 import type { VariantCard } from '@/lib/dnd/variant-view';
 
 export default function EditFlowPreview({ cards, systems }: { cards: VariantCard[]; systems: EditFlowSystem[] }) {
@@ -27,6 +27,23 @@ export default function EditFlowPreview({ cards, systems }: { cards: VariantCard
       {showEdit && (
         <EditFlow characterId="preview" slotId="dnd5e-2024" name="Gandalf the Grey" system="dnd5e-2024" systems={systems.filter((s) => s.id !== 'dnd5e-2024')} aiConfigured onClose={() => setShowEdit(false)} />
       )}
+
+      {/* The post-transpose report, which the dialog only reaches after a real AI build — rendered here with
+          a mock result so the homebrew/violations styling can be seen without one. */}
+      {heading('Transpose report (what the AI built)')}
+      <TransposeReport
+        onOpen={() => {}}
+        result={{
+          system: 'pathfinder2e',
+          summary: 'Rebuilt as a Pathfinder 2e Wizard (Evocation) at level 5. Mapped the 5e spell list onto PF2 arcane spells of equivalent rank; kept the staff as a bonded item.',
+          hp: 42,
+          custom: [
+            { type: 'feat', name: 'Grey Wanderer', note: 'no vanilla PF2 equivalent for the 5e Ritual Caster build' },
+            { type: 'spell', name: 'Kindled Word', note: 'balanced against rank-3 arcane damage spells' },
+          ],
+          violations: [{ field: 'abilities.int', severity: 'warning', message: 'Intelligence 20 is at the level-5 cap — verify the ancestry boost.' }],
+        }}
+      />
     </div>
   );
 }
