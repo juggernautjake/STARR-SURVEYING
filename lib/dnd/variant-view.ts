@@ -68,16 +68,19 @@ interface SheetRef {
   summary: string | null; summaryUpdatedAt: string | null; summaryHash: string | null;
 }
 
-/** Flatten active + stored slots into one ref list (active first) with the fields the cards need. */
+/** Flatten active + stored slots into one ref list (active first) with the fields the cards need. Working-copy
+ *  DRAFTS are excluded — they're transient edit sessions, not versions to browse. */
 function sheetRefs(active: ActiveSheet, variants: SystemVariants): SheetRef[] {
   const activeId = active.slotId ?? `active:${normalizeSystem(active.system)}`;
-  const refs: SheetRef[] = [{
+  const refs: SheetRef[] = [];
+  if (!active.draft) refs.push({
     slotId: activeId, active: true, data: active.data, system: normalizeSystem(active.system), kind: variantKind(active),
     name: active.name, artUrl: active.artUrl ?? null, parentSlotId: active.parentSlotId ?? null,
     campaignId: active.campaignId ?? null, summary: active.summary ?? null,
     summaryUpdatedAt: active.summaryUpdatedAt ?? null, summaryHash: active.summaryHash ?? null,
-  }];
+  });
   for (const [k, v] of Object.entries(variants)) {
+    if (v.draft) continue; // never list a stale/parked draft as a version
     refs.push({
       slotId: k, active: false, data: v.data, system: variantSystemOf(v, k), kind: variantKind(v),
       name: v.name, artUrl: v.artUrl ?? null, parentSlotId: v.parentSlotId ?? null,

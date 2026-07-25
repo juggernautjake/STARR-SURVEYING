@@ -49,6 +49,9 @@ export interface SystemVariant {
   summaryUpdatedAt?: string;
   /** Hash of the sheet digest the summary was built from (VT) — lets the UI flag a stale summary after edits. */
   summaryHash?: string;
+  /** A working-copy being edited (Edit-flow draft). Excluded from the versions list; on Save it either
+   *  overwrites its source (commit) or becomes a permanent variant (promote). Transient. */
+  draft?: boolean;
 }
 
 export type SystemVariants = Record<string, SystemVariant>;
@@ -78,6 +81,8 @@ export interface ActiveSheet {
   summary?: string;
   summaryUpdatedAt?: string;
   summaryHash?: string;
+  /** The active sheet is a working-copy draft being edited (Edit-flow). */
+  draft?: boolean;
 }
 
 /** A quick default name for a sheet, so every sheet is identifiable without the user naming it (Area MV):
@@ -116,6 +121,7 @@ export function readActiveSlotMeta(raw: unknown): ActiveSlotMeta {
     ...(typeof m.summary === 'string' ? { summary: m.summary } : {}),
     ...(typeof m.summaryUpdatedAt === 'string' ? { summaryUpdatedAt: m.summaryUpdatedAt } : {}),
     ...(typeof m.summaryHash === 'string' ? { summaryHash: m.summaryHash } : {}),
+    ...(m.draft === true ? { draft: true } : {}),
   };
 }
 
@@ -132,6 +138,7 @@ export function withActiveSlotMeta(variants: SystemVariants, active: ActiveSheet
     ...(active.summary != null ? { summary: active.summary } : {}),
     ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
     ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
+    ...(active.draft ? { draft: true } : {}),
   };
   return { ...variants, [ACTIVE_SLOT_META_KEY]: meta };
 }
@@ -159,6 +166,7 @@ export function readVariants(raw: unknown): SystemVariants {
         ...(typeof rec.summary === 'string' ? { summary: rec.summary } : {}),
         ...(typeof rec.summaryUpdatedAt === 'string' ? { summaryUpdatedAt: rec.summaryUpdatedAt } : {}),
         ...(typeof rec.summaryHash === 'string' ? { summaryHash: rec.summaryHash } : {}),
+        ...(rec.draft === true ? { draft: true } : {}),
       };
     }
   }
@@ -182,6 +190,7 @@ export function snapshotActive(active: ActiveSheet): SystemVariant {
     ...(active.summary != null ? { summary: active.summary } : {}),
     ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
     ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
+    ...(active.draft ? { draft: true } : {}),
   };
 }
 
@@ -219,6 +228,7 @@ export interface SheetSlot {
   summary?: string;
   summaryUpdatedAt?: string;
   summaryHash?: string;
+  draft?: boolean;
 }
 /** The character level a sheet's data records, read defensively (data is `unknown` here). Defaults
  *  to 1 so a blank/legacy sheet never reads as level 0. Used by the switcher to show each version's
@@ -247,6 +257,7 @@ export function listSheets(active: ActiveSheet, variants: SystemVariants, system
     ...(active.summary != null ? { summary: active.summary } : {}),
     ...(active.summaryUpdatedAt ? { summaryUpdatedAt: active.summaryUpdatedAt } : {}),
     ...(active.summaryHash ? { summaryHash: active.summaryHash } : {}),
+    ...(active.draft ? { draft: true } : {}),
   }];
   for (const [k, v] of Object.entries(variants)) {
     const system = variantSystemOf(v, k);
@@ -259,6 +270,7 @@ export function listSheets(active: ActiveSheet, variants: SystemVariants, system
       ...(v.summary != null ? { summary: v.summary } : {}),
       ...(v.summaryUpdatedAt ? { summaryUpdatedAt: v.summaryUpdatedAt } : {}),
       ...(v.summaryHash ? { summaryHash: v.summaryHash } : {}),
+      ...(v.draft ? { draft: true } : {}),
     });
   }
   return out;
@@ -374,7 +386,11 @@ export function forkSheet(
     throw new Error(`No sheet "${opts.fromSlotId}" to fork.`);
   }
 
-  const id = newSlotId(vs, src.system);
+  // The active sheet is NOT in `vs` (it lives in the live columns), so its slot id must be treated as occupied
+  // too — otherwise forking the active original (whose id is the bare system key) collides with it and the
+  // fork would overwrite / self-parent the source. Reserve the active id when minting the new slot id.
+  const occupied: SystemVariants = activeId in vs ? vs : { ...vs, [activeId]: {} as SystemVariant };
+  const id = newSlotId(occupied, src.system);
   const nextVariants: SystemVariants = {
     ...vs,
     [id]: {
@@ -390,6 +406,103 @@ export function forkSheet(
     },
   };
   return { active: a, variants: nextVariants, newSlotId: id };
+}
+
+// ── Edit-flow drafts (working copies) — begin/commit/promote/discard. A draft IS the active sheet while
+//    editing (so every existing editor operates on it), flagged draft:true, forked from the source version
+//    (its parentSlotId = the "original" this edit branches from). On Save it either overwrites the source
+//    (commit — no new version), becomes a permanent variant (promote — source untouched), or is thrown away. ──
+
+/** True when the active sheet is an in-progress edit draft. */
+export function isDraftActive(active: ActiveSheet): boolean {
+  return active.draft === true;
+}
+
+/** Load a STORED slot as the active sheet, DISCARDING whatever is currently active (used to finish a draft:
+ *  the draft lives in the live columns and is simply not stored, so it vanishes). Throws if the slot is gone. */
+function loadStoredAsActive(variants: SystemVariants, slotId: string): { active: ActiveSheet; variants: SystemVariants } {
+  if (!(slotId in variants)) throw new Error(`No sheet "${slotId}" to load.`);
+  const chosen = variants[slotId];
+  const next: SystemVariants = { ...variants };
+  delete next[slotId];
+  return {
+    active: {
+      slotId, system: variantSystemOf(chosen, slotId), data: chosen.data,
+      sheet_type: chosen.sheet_type || 'default', custom_layout: chosen.custom_layout, custom_css: chosen.custom_css ?? '',
+      kind: variantKind(chosen), ...(chosen.name ? { name: chosen.name } : {}), ...activeVtFrom(chosen),
+    },
+    variants: next,
+  };
+}
+
+/** Begin editing `fromSlotId` on a working-copy DRAFT (Edit-flow). Forks the source, flags the copy as a
+ *  draft, and makes it active so the existing editors operate on it. Allowed even at the version cap (a draft
+ *  is transient — the cap is re-checked when promoting it to a permanent variant). Returns the draft's slot id. */
+export function beginDraft(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  opts: { fromSlotId: string; name?: string },
+): { active: ActiveSheet; variants: SystemVariants; draftSlotId: string } {
+  const forked = forkSheet(active, variants, { fromSlotId: opts.fromSlotId, name: opts.name });
+  const withFlag: SystemVariants = { ...forked.variants, [forked.newSlotId]: { ...forked.variants[forked.newSlotId], draft: true } };
+  const next = switchToSlot(forked.active, withFlag, forked.newSlotId);
+  return { active: next.active, variants: next.variants, draftSlotId: forked.newSlotId };
+}
+
+/** SAVE → "this version": the active draft's content overwrites its SOURCE version (kept identity/lineage/
+ *  name; replaced data + presentation + art), the draft is discarded, and the source becomes active. No new
+ *  version is created. Throws if the active sheet isn't a draft with a resolvable source. */
+export function commitDraftToOriginal(
+  active: ActiveSheet,
+  variants: SystemVariants,
+): { active: ActiveSheet; variants: SystemVariants; targetSlotId: string } {
+  if (!active.draft) throw new Error('Not editing a draft.');
+  const target = active.parentSlotId;
+  if (!target || !(target in variants)) throw new Error('The version this draft came from is no longer available — save it as a new variant instead.');
+  const src = variants[target];
+  // Overwrite the source's CONTENT with the draft's; keep the source's slot identity (name/kind label stays a
+  // slot concern), lineage, campaign. The summary is left to go stale (hash mismatch) so it regenerates.
+  const merged: SystemVariant = {
+    ...src,
+    data: active.data,
+    sheet_type: active.sheet_type || 'default',
+    custom_layout: active.custom_layout,
+    custom_css: active.custom_css ?? '',
+    kind: variantKind(active),
+    ...(active.artUrl != null ? { artUrl: active.artUrl } : {}),
+    draft: false,
+  };
+  const staged: SystemVariants = { ...variants, [target]: merged };
+  const loaded = loadStoredAsActive(staged, target); // discards the draft (it was only in the live columns)
+  return { active: loaded.active, variants: loaded.variants, targetSlotId: target };
+}
+
+/** SAVE → "new variant": the active draft becomes a PERMANENT variant (its `draft` flag cleared), branched from
+ *  its source (which is left untouched). Enforces the version cap on the permanent count — throws when keeping
+ *  the draft would exceed it (the caller should offer commit/discard instead). Optionally renames it. */
+export function promoteDraftToVariant(
+  active: ActiveSheet,
+  variants: SystemVariants,
+  opts: { name?: string } = {},
+): { active: ActiveSheet; variants: SystemVariants } {
+  if (!active.draft) throw new Error('Not editing a draft.');
+  // Total sheets counts the draft (the active). Keeping it permanent must stay within the cap.
+  if (sheetCount(active, variants) > MAX_VARIANTS) {
+    throw new Error(`Keeping this as a new variant would exceed the ${MAX_VARIANTS}-version limit. Save it to the current version, or delete another version first.`);
+  }
+  const nextActive: ActiveSheet = { ...active, draft: false, ...(opts.name && opts.name.trim() ? { name: opts.name.trim() } : {}) };
+  return { active: nextActive, variants };
+}
+
+/** DISCARD a draft: drop it and return to its source version, unchanged. Throws if not a draft with a source. */
+export function discardDraft(
+  active: ActiveSheet,
+  variants: SystemVariants,
+): { active: ActiveSheet; variants: SystemVariants } {
+  if (!active.draft) throw new Error('Not editing a draft.');
+  const target = active.parentSlotId;
+  if (!target || !(target in variants)) throw new Error('The version this draft came from is no longer available.');
+  return loadStoredAsActive(variants, target);
 }
 
 /**
@@ -437,6 +550,7 @@ function activeVtFrom(v: SystemVariant): Partial<ActiveSheet> {
     ...(v.summary != null ? { summary: v.summary } : {}),
     ...(v.summaryUpdatedAt ? { summaryUpdatedAt: v.summaryUpdatedAt } : {}),
     ...(v.summaryHash ? { summaryHash: v.summaryHash } : {}),
+    ...(v.draft ? { draft: true } : {}),
   };
 }
 
