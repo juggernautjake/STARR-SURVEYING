@@ -215,6 +215,28 @@ constraint that does not exist. The page confirms it: one hatch, on the only lis
 **All three systems' hatches are now browser-verified** (5e's count caps 2026-07-26, PF2 S6b, IG here).
 **No live data changed** — the builder was driven to the pick and never saved.
 
+### 2026-07-26 — live-data audit after the level-walker gates (slot plan S6d)
+
+The PF2 and IG level routes validated only the SHAPE of a recorded choice until today, so a pick made
+through them was never judged against eligibility. Gating new picks does nothing about ones already
+stored, so the live database was audited read-only for choices the new gates would refuse.
+
+**Result: no exposure — but for a reason worth stating precisely, because the headline number is
+misleading on its own.** The audit reported `CHECKED 0 … FOUND 0`. It found nothing wrong because there
+was **nothing to check**: not one of the three live PF2/IG characters (Orin Sallowmere, Vashti Kelln,
+`dddddd`) carries a `pf2Build` or `igBuild` block at all. No level-walker pick has ever been recorded on
+them.
+
+So: **no cleanup is needed**, and equally **this is not evidence that the walkers were producing legal
+characters** — they had simply never been driven to the point of recording a choice. A "0 found" that
+comes from an empty set is not the same claim as a "0 found" from a full one, and reading it as the
+latter is exactly the kind of false reassurance this pass exists to avoid.
+
+The audit script is disposable (it lived in the scratchpad and wrote nothing), but the query is trivial to
+repeat: read `pf2Build.choices` / `igBuild.choices`, skip anything already carrying an `exception`, and
+run the same `pf2FeatEligibility` / `igPowerEligibility` the routes now use. Worth re-running if these
+characters are ever levelled through the walkers before the gates are browser-verified.
+
 ## Known gaps / notes for the walkthrough
 
 - **`VOYAGE_API_KEY` is absent**, so semantic search returns nothing; keyword search
