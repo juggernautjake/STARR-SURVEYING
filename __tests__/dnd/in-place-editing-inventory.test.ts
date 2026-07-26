@@ -108,11 +108,26 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
     expect(saves).toContain('char.saves[key].proficient, next');
   });
 
-  it('PLAY state stays out of the log', () => {
-    // HP spent, slots used, conditions and prepared toggles are how a character is played, not how it is
-    // built. Logging them would bury the build changes the queue exists to surface.
-    expect(read('SpellsPanel.tsx')).not.toContain('logManualEdit');
+  it('PLAY state stays out of the log — asserted per ACTION, not per file', () => {
+    // This used to assert `SpellsPanel.tsx` contains no `logManualEdit` at all, to prove play state stays
+    // out. That was the wrong shape and it LOCKED A GAP IN: the file holds both kinds of change — casting
+    // and prepare toggles are play, but gaining or deleting a spell is build — so a file-level rule could
+    // only be satisfied by leaving the build changes unaudited. It passed for months while spell deletion
+    // went unrecorded.
+    //
+    // Asserted on the ACTIONS now. The prepared toggle must not log; duplicate and remove must.
+    const spells = read('SpellsPanel.tsx');
+    const from = spells.indexOf('function togglePrepared');
+    expect(from, 'togglePrepared should exist').toBeGreaterThan(-1);
+    const toggle = spells.slice(from, spells.indexOf('// Show the panel if'));
+    expect(toggle, 'preparing is play — it must not audit').not.toContain('logManualEdit');
     expect(saves).not.toMatch(/logManualEdit\([^)]*currentHp/);
+  });
+
+  it('but gaining or LOSING a spell does audit', () => {
+    const spells = read('SpellsPanel.tsx');
+    expect(spells).toContain('logManualEdit(characterId, `spell.${sp.name}`, sp.name, null)');
+    expect(spells).toContain('logManualEdit(characterId, `spell.${sp.name} (copy)`');
   });
 
   it('ADDING content audits — a feat or a spell arriving is what a DM reviews', () => {

@@ -17,6 +17,7 @@ import SpellPicker from './ui/SpellPicker'
 import SpellDetail from './ui/SpellDetail'
 import type { Spell, SpellLevel } from '../types'
 import { preparedCapFor } from '@/lib/dnd/spells/counts'
+import { logManualEdit } from '../lib/log-edit'
 
 const ORDINAL = ['Cantrips', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level', '9th Level']
 const lab: React.CSSProperties = { fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }
@@ -29,14 +30,22 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, abilities, pb, setChar, editMode, canWrite, isDM, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences, edition } = useChar()
+  const { char, abilities, pb, setChar, editMode, canWrite, isDM, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences, edition, characterId } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const [picking, setPicking] = useState(false)
   const [viewing, setViewing] = useState<Spell | null>(null)
-  const duplicate = (sp: Spell) =>
+  // Audited, like every other element arriving or leaving. This file holds BOTH kinds of change — casting,
+  // slot spending and prepare toggles are play; gaining or losing a spell is build — and that mixture is
+  // exactly why it was missed: the sweep's guard asserted this file must NOT contain `logManualEdit`, to
+  // prove "play state stays out of the log". A file-level assertion cannot express a per-action rule, so it
+  // locked the gap in instead of catching it.
+  const duplicate = (sp: Spell) => {
+    logManualEdit(characterId, `spell.${sp.name} (copy)`, null, `${sp.name} (copy)`)
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), { ...sp, id: `${sp.id}-copy-${(c.spells ?? []).length}`, name: `${sp.name} (copy)` }] }))
+  }
   const remove = (sp: Spell) => {
     if (!confirm(`Delete “${sp.name}”? This cannot be undone.`)) return
+    logManualEdit(characterId, `spell.${sp.name}`, sp.name, null)
     setChar((c) => ({ ...c, spells: (c.spells ?? []).filter((x) => x.id !== sp.id) }))
   }
   const sc = char.spellcasting
