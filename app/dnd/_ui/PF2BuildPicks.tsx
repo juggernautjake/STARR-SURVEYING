@@ -15,9 +15,12 @@
 import { useMemo, useState } from 'react';
 import { PF2_ALL_FEATS, PF2_ALL_SPELLS, PF2_CATALOG_STATUS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { pf2FeatEligibility, pf2SpellEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
+import TakeAnyway from './builder/TakeAnyway';
+import type { UnlockOffer } from '@/lib/dnd/slots/entitlement';
 
 export default function PF2BuildPicks({
   kind, className, ancestry, level, tradition, selected, onToggle, limit,
+  offer, exceptions = [], onTakeAnyway, onUndoException,
 }: {
   kind: 'feat' | 'spell';
   className: string;
@@ -35,6 +38,12 @@ export default function PF2BuildPicks({
    *  character could take thirty feats — while the label above it truthfully read "7 owed by level 12".
    *  The count was computed and displayed and then not enforced. */
   limit?: number;
+  /** The escape hatch (slot plan S6b). Omitted → no hatch, and the picker behaves exactly as before. */
+  offer?: UnlockOffer;
+  /** Names already taken through the hatch. */
+  exceptions?: string[];
+  onTakeAnyway?: (name: string) => void;
+  onUndoException?: (name: string) => void;
 }) {
   const [q, setQ] = useState('');
 
@@ -113,6 +122,23 @@ export default function PF2BuildPicks({
           );
         })}
       </div>
+      {/* The escape hatch. Its options are the refusals THIS SEARCH surfaced, not the whole catalog — with
+          thousands of entries a complete "everything you can't have" list would be unusable, and the player
+          is already looking at the thing they want. Scoped to eligibility refusals, not the slot `limit`,
+          because the server gate judges eligibility only: a hatch over the cap would promise an exception
+          the build never records. */}
+      {offer && onTakeAnyway && onUndoException && (
+        <TakeAnyway
+          offer={offer}
+          noun={kind}
+          blocked={rows
+            .filter((r) => !r.ok && !selected.some((s) => s.toLowerCase() === r.name.toLowerCase()))
+            .map((r) => ({ name: r.name, ...(r.reason ? { reason: r.reason } : {}) }))}
+          taken={exceptions}
+          onTake={onTakeAnyway}
+          onUntake={onUndoException}
+        />
+      )}
       {q.trim().length < 2 && (
         <div style={{ fontSize: 11, color: 'var(--hx-muted)' }}>
           Type at least two characters to search. {!status.complete && `${status.count} ${kind}s catalogued so far — not the full list yet.`}

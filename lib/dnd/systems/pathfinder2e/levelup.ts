@@ -12,6 +12,7 @@
 // left to a later slice rather than shown partially.
 import { PF2_CLASS_PROGRESSIONS } from './data/classes';
 import { pf2FeatLevelsFor } from './eligibility';
+import type { SlotException } from '../../slots/entitlement';
 import type { PF2FeatTrack } from './defs';
 import type { PF2AttributeKey } from './model';
 
@@ -63,7 +64,13 @@ export function pf2LevelBreakdown(className: string, toLevel: number): PF2LevelS
 // schedules (vary by class; showing a fixed one would be wrong) and the concrete subclass OPTIONS (not
 // reliably modelled): the subclass prompt names the moment, the picker supplies the legal list.
 
-export type PF2ChoiceKind = 'subclass' | 'feat' | 'boosts';
+// `other` is never PROMPTED for — `pf2PlanLevelUp` only ever emits subclass/feat/boosts. It exists so a
+// pick taken through the escape hatch that occupies no real slot still has somewhere to be recorded
+// (slot plan S6). Inert by construction: the planner looks choices up by (level, kind, track) and never
+// asks for this one, and every `choice.kind` switch in the UI runs on OUTSTANDING choices, which the
+// planner produces. Widening a union is where gates silently change behaviour — see the `SheetVariantKind`
+// note in system-variants.ts — so this one was added only after checking each consumer.
+export type PF2ChoiceKind = 'subclass' | 'feat' | 'boosts' | 'other';
 
 /** A choice the player has already made, persisted on `data.pf2e.build.choices`. */
 export interface PF2RecordedChoice {
@@ -75,6 +82,9 @@ export interface PF2RecordedChoice {
   value?: string;
   /** boosts → the (up to 4) attributes raised this boost level. */
   attributes?: PF2AttributeKey[];
+  /** Set when this pick came through the escape hatch — the rules refused it and the player (or DM) took it
+   *  anyway. Carries the gate's own objection so the sheet can name WHY (slot plan S6). */
+  exception?: SlotException;
 }
 
 /** A choice still owed at a level, with what the UI needs to prompt for it. */

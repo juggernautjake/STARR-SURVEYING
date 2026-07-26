@@ -182,10 +182,24 @@ slices are driven in the browser before being called done — this repo's standi
 
       Q1 was never answered, so this ships on the assumption recorded below (**available always, marked,
       DM review surface shows it**) rather than blocking. Reversible: the offer is one function.
-- [ ] **S6b/S6c — the same hatch on PF2 and IG.** `TakeAnyway` already takes plain `{name, reason}` rows so
-      neither needs a shared content model; what each needs is the server half — `pf2-build`/`ig-build`
-      splitting their own gates' refusals and recording the exception on `PF2RecordedChoice`/
-      `IGRecordedChoice` (both additive, like `RecordedChoice.exception` was).
+- [x] **S6b — the same hatch on PF2. Shipped 2026-07-26.** 19 tests. Reuses the 5e decision core rather than
+      growing a second one — three systems drifting into three definitions of "vanilla" is the failure mode
+      `rules-gate.ts` exists to prevent, and this is exactly the surface where it would happen.
+      **PF2's gate covers SPELLS as well as feats**, so "recorded even though it fills no slot" is the
+      ordinary case here rather than an edge: a refused spell never had a feat slot to sit in.
+      **`PF2ChoiceKind` gained `'other'`**, which is the risky part and was checked before it was written —
+      widening a union is where gates silently change behaviour (the `SheetVariantKind` lesson from S8a).
+      It is inert because `pf2PlanLevelUp` looks choices up by (level, kind, track) and never asks for this
+      one, and every `choice.kind` switch in the UI runs on OUTSTANDING choices, which the planner emits.
+      Both properties are now tested, not just reasoned about: an off-slot exception leaves `outstanding`
+      byte-identical, and the planner never emits the kind.
+      **The hatch offers what the SEARCH surfaced**, not the whole catalog — with thousands of entries a
+      complete "everything you can't have" list would be unusable, and the player is already looking at the
+      thing they want.
+- [ ] **S6c — the same hatch on IG.** The remaining system. Needs `IGRecordedChoice.exception` (additive, as
+      the other two were), `igBuilderChoicesFor` stamping, `ig-build` splitting its gate's refusals, and the
+      chips in `IGCharacterBuilder` feeding `TakeAnyway`. IG's `Chips` is shared by stances and weapon types,
+      which are deliberately UNCAPPED — so the hatch must be opt-in per block, not added inside `Chips`.
 - [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
       spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**

@@ -83,7 +83,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Ancestry, class, background, attributes & picks',
       'Pick your ancestry/heritage, class and subclass, background and deity, allocate your attribute boosts, and choose your trained skills, feats and spells. Ineligible picks are shown greyed with the reason.',
-      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" />,
+      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" variantKind={variantKind} isDM={isDM} />,
     );
     // PF2 has twenty levels and a working level walker of its own (`PF2LevelBuilder` → /pf2-levels), but
     // the guided builder only ever gave it Foundations → Review: a Pathfinder player walking this flow

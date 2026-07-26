@@ -15,8 +15,15 @@ import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, P
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2LevelBreakdown } from '@/lib/dnd/systems/pathfinder2e/levelup';
+import { unlockOffer } from '@/lib/dnd/slots/entitlement';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
-export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
+export default function PF2CharacterBuilder({ characterId, initialName, aiConfigured, startOpen = false, layout = 'panel', variantKind = 'vanilla', isDM = false }: { characterId: string; initialName: string; aiConfigured?: boolean;
+  /** The character's build kind, which decides whether the rules bind. Defaults to `vanilla` so a caller
+   *  that doesn't know still gets the gate — failing closed is the point. */
+  variantKind?: SheetVariantKind;
+  /** A DM's pick is recorded as `dm-granted` rather than as the player's own exception. */
+  isDM?: boolean;
   /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
    *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
   startOpen?: boolean;
@@ -46,6 +53,25 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   // character could only gain them afterwards via the sheet or the AI.
   const [feats, setFeats] = useState<string[]>([]);
   const [spells, setSpells] = useState<string[]>([]);
+  // Picks taken THROUGH THE HATCH (slot plan S6b) — a subset of `feats`/`spells`, tracked separately so the
+  // POST can name exactly what the player acknowledged. PF2's gate covers spells as well as feats, so both
+  // pickers get one; one list holds both, because the server matches by name against its own refusals.
+  const [exceptions, setExceptions] = useState<string[]>([]);
+  const offer = useMemo(() => unlockOffer({ isDM, kind: variantKind }), [isDM, variantKind]);
+  const takeAnyway = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (n: string) => {
+    setter((p) => p.includes(n) ? p : [...p, n]);
+    setExceptions((p) => p.includes(n) ? p : [...p, n]);
+  };
+  const undoException = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (n: string) => {
+    setter((p) => p.filter((x) => x !== n));
+    setExceptions((p) => p.filter((x) => x !== n));
+  };
+  /** Deselecting a hatch pick from its own chip must drop the exception too, or the POST would acknowledge
+   *  a refusal for something it is no longer sending. */
+  const toggleWith = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (n: string) => {
+    setter((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n]);
+    setExceptions((p) => p.filter((x) => x !== n));
+  };
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -78,6 +104,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
 
   const build = () => post(`/api/dnd/characters/${characterId}/pf2-build`, {
     picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, armor, weapon, feats, spells },
+    exceptions,
   }, setBusy);
 
   const aiBuild = () => {
@@ -222,13 +249,15 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
                 picker accepted any number, so a level-1 character could take thirty feats under a label that
                 said "1 owed by level 1". Uncapped when the class isn't chosen yet (the schedule is unknown,
                 and blocking every pick would be worse than allowing one that is re-judged on save). */}
-            <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} {...(featsOwed ? { limit: featsOwed } : {})} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
+            <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} {...(featsOwed ? { limit: featsOwed } : {})} onToggle={toggleWith(setFeats)}
+              offer={offer} exceptions={exceptions.filter((e) => feats.includes(e))} onTakeAnyway={takeAnyway(setFeats)} onUndoException={undoException(setFeats)} />
           </>
         );
         const spellsBlock = cls?.spellcasting ? (
           <>
             <div style={label}>SPELLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{spells.length ? `(${spells.length} chosen)` : ''}</span></div>
-            <PF2BuildPicks kind="spell" className={className} ancestry={ancestry} level={level} tradition={cls.spellcasting.tradition} selected={spells} onToggle={(n: string) => setSpells((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
+            <PF2BuildPicks kind="spell" className={className} ancestry={ancestry} level={level} tradition={cls.spellcasting.tradition} selected={spells} onToggle={toggleWith(setSpells)}
+              offer={offer} exceptions={exceptions.filter((e) => spells.includes(e))} onTakeAnyway={takeAnyway(setSpells)} onUndoException={undoException(setSpells)} />
           </>
         ) : null;
         const buildRow = (
