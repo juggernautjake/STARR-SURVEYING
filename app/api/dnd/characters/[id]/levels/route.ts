@@ -16,6 +16,7 @@ import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
 import { readHomebrewClasses, readHomebrewFeats, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
 import { customFeatToFeat } from '@/lib/dnd/feats/homebrew-adapter';
 import { featCatalogForSystem } from '@/lib/dnd/feats/catalog';
+import { fightingStyles2014 } from '@/lib/dnd/classes/dnd5e-2014/fighting-styles';
 import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
@@ -70,8 +71,14 @@ function planFor(data: Character, system: string, to: number) {
   const byCategory = (cat: string) => featPool
     .filter((f) => f.category === cat)
     .map((f) => ({ key: f.key, name: f.name, description: f.benefit ?? f.summary ?? '' }));
-  const fightingStyles = byCategory('fighting-style');
-  const epicBoons = byCategory('epic-boon');
+  // 2024 models Fighting Styles as feats, so they come from the catalog. 2014 does not — they are a
+  // per-class list (a Paladin's four are not a Ranger's four), so they come from their own module.
+  // Without this branch the 2014 Fighter/Ranger/Paladin hit the exact bug 2024 just had: a demanded
+  // choice with nothing to choose from, because every 2014 feat carries `category: null`.
+  const fightingStyles = def.system === 'dnd5e-2014'
+    ? [...fightingStyles2014(def.key), ...byCategory('fighting-style')]
+    : byCategory('fighting-style');
+  const epicBoons = byCategory('epic-boon');   // a 2024 concept; 2014 has none, and correctly returns []
 
   const plan = planLevelUp(def, { from: level, to, recorded: choices, subclasses: subs, subclass: sub, proficientSkills, fightingStyles, epicBoons });
   return {

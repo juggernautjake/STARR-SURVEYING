@@ -305,5 +305,46 @@ should be made deliberately rather than as a side effect of this pass. Recorded 
 
 **Bar:** 5 new guards, 4609/4609 D&D tests, typecheck + lint clean. QA character deleted.
 
-**Next slice:** the same 1 → 20 probe for **5e 2014**, then the PF2 and IG builders (their level flows are
-separate implementations, so none of the above transfers).
+### 2026-07-25 — slice 6: 5e 2014, and a fix of mine that was only half a fix
+
+Ran the same 1 → 20 probe across all **13** 2014 classes. It caught two things, one of them my own.
+
+**Defect — slice 4's Fighting Style fix did nothing for 2014.** It pulled `category: 'fighting-style'`
+feats out of the catalog, but `featCatalogForSystem('dnd5e-2014')` sets `category: null` for *every* feat
+(deliberately — the origin/general/fighting-style/epic-boon split is a 2024 structure). So the filter
+matched nothing and the 2014 Fighter, Ranger and Paladin still demanded a Fighting Style and offered none:
+the exact bug, still live on the other edition, behind a fix that looked complete.
+
+2014 also can't reuse the 2024 shape, for a rules reason: **the list is per class.** A Fighter has six
+styles, a Ranger four, a Paladin four — and the Paladin's four are not the Ranger's. One shared list would
+offer a Paladin "Archery", which 2014 does not. New `lib/dnd/classes/dnd5e-2014/fighting-styles.ts` gives
+that structure; nothing is invented, each entry is the style already written into the corresponding class's
+feature body in the same directory. The route branches on edition rather than trusting a category that is
+null by design.
+
+**Defect — Barbarian 2014 never asked for four of its five ASIs.** It declares
+`asiLevels: [4,8,12,16,19]` but annotated only the level-4 feature, so the walker demanded one ASI and
+silently skipped 8/12/16/19. Every sibling 2014 class annotates all of theirs. Fixed by completing the
+data, not by changing the derivation — the four rows now match the level-4 one already in that file.
+**All 13 2014 classes now demand exactly the ASIs they declare**, and a test asserts that property for the
+whole edition rather than for Barbarian alone.
+
+#### Why 2024 was left alone, precisely
+
+The same probe says 2024 is under-annotated on **8 of 13** classes (Fighter, Barbarian, Monk, Rogue: none
+at all; Bard, Sorcerer, Warlock, Wizard: level 4 only). It is tempting to complete that data the same way —
+but the two cases are not alike:
+
+- In **2014**, every other class already surfaced its full ASI list, so Barbarian was the outlier and
+  completing it made behaviour *uniform with what players already get elsewhere in that edition*.
+- In **2024**, most classes surface none, so annotating them would newly introduce the Foundations/walker
+  **double-ask** described in slice 5 across the whole edition at once.
+
+So 2024 still waits on the same decision — *which surface owns ASI slots* — and that decision is now the
+only thing standing between this edition and consistency. The probe above is the tool for verifying it
+afterwards.
+
+**Bar:** 7 new guards, 4616/4616 D&D tests, typecheck + lint clean.
+
+**Next slice:** the PF2 and IG builders. Their level flows are separate implementations
+(`pf2-levels-route`, `ig-levels-route`), so none of the above transfers and each needs its own probe.

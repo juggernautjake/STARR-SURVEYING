@@ -96,6 +96,7 @@ export const BARBARIAN_2014: ClassDefinition = {
       body:
         'Your instincts are so honed that you have **Advantage on Initiative rolls**.\n\nAdditionally, if you are Surprised at the start of combat and are not Incapacitated, you can act normally on your first turn — but only if you **enter your Rage** before doing anything else on that turn.',
     },
+    { level: 8, name: 'Ability Score Improvement', body: 'You can increase one ability score by **2**, or two ability scores by **1** each (to a maximum of 20), or take a **feat**.', choice: 'asi' },
     {
       level: 9,
       name: 'Brutal Critical',
@@ -108,18 +109,21 @@ export const BARBARIAN_2014: ClassDefinition = {
       body:
         'If you drop to **0 Hit Points while raging** and do not die outright, you can make a **DC 10 Constitution saving throw**. If you succeed, you drop to **1 Hit Point** instead.\n\nEach time you use this feature after the first, the **DC increases by 5**. The DC resets to 10 when you finish a Short Rest or a Long Rest.',
     },
+    { level: 12, name: 'Ability Score Improvement', body: 'You can increase one ability score by **2**, or two ability scores by **1** each (to a maximum of 20), or take a **feat**.', choice: 'asi' },
     {
       level: 15,
       name: 'Persistent Rage',
       body:
         'Your Rage is so fierce that it ends early only if you fall **Unconscious** or if you **choose to end it**.',
     },
+    { level: 16, name: 'Ability Score Improvement', body: 'You can increase one ability score by **2**, or two ability scores by **1** each (to a maximum of 20), or take a **feat**.', choice: 'asi' },
     {
       level: 18,
       name: 'Indomitable Might',
       body:
         'If your total for a **Strength check** is less than your **Strength score**, you can use that score in place of the total.',
     },
+    { level: 19, name: 'Ability Score Improvement', body: 'You can increase one ability score by **2**, or two ability scores by **1** each (to a maximum of 20), or take a **feat**.', choice: 'asi' },
     {
       level: 20,
       name: 'Primal Champion',
