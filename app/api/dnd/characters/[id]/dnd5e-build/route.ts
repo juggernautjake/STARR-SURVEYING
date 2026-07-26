@@ -13,6 +13,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { gateDnd5eBuildFeats } from '@/lib/dnd/rules-gate';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { builderChoicesFor, mergeBuilderChoices, type BuilderChoice } from '@/lib/dnd/statgen/builder-choices';
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -119,6 +120,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         k, { ...base.saves[k], proficient: !!assembly.saves[k]?.proficient },
       ]),
     ) as Character['saves'],
+    // THE SAME LEDGER THE LEVEL WALKER READS. Foundations collected these choices; `planLevelUp` treats a
+    // slot as filled only when there is a `RecordedChoice` for it, so without this a Fighter built to level
+    // 8 with two feats arrived holding both feats AND owing both ASIs — the walker asking again for choices
+    // the player had just made. This is the "ASI slot ownership" question the plan docs left open, and
+    // recording the picks dissolves it instead of answering it: Foundations fills the slots it collected,
+    // the walker fills whatever is left, and there is one source of truth. Subclass too — it is the other
+    // choice this builder collects and the walker asks for.
+    build: {
+      ...base.build,
+      // Both are already KEYS here, not labels — `assembleDnd5e`'s job is resolving them to display
+      // names for `meta`, which is why it takes them in this form. Passed through rather than re-slugged
+      // so a homebrew class whose key isn't a slug of its name still resolves in the walker.
+      ...(body.className ? { classKey: String(body.className) } : {}),
+      ...(body.subclass ? { subclassKey: String(body.subclass) } : {}),
+      choices: mergeBuilderChoices(
+        base.build?.choices as BuilderChoice[] | undefined,
+        builderChoicesFor({
+          system, level,
+          className: typeof body.className === 'string' ? body.className : undefined,
+          feats: requestedFeats,
+          subclass: typeof body.subclass === 'string' ? body.subclass : undefined,
+        }),
+        level,
+      ) as NonNullable<Character['build']>['choices'],
+    },
   };
 
   const normalized = normalizeCharacter(merged);
