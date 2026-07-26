@@ -10,7 +10,23 @@
 > **The single remaining `[ ]` is an owner decision, not work:** whether Rangor/Pugilist become a real custom
 > class through the Slice-5 builder (line ~745). Nobody but Jack can answer it.
 >
-> **What actually keeps this doc open is the 31 `[~]` partials and Slice 8b**, not that one checkbox. The
+> ### ⚠ 2026-07-26 — THE PARTIAL COUNT IS NOT TRUSTWORTHY. Verify before working one.
+>
+> **Three of the three `[~]` partials examined in detail turned out to be stale**, each in a different way:
+> two said equip validation was unwired (the owner had wired it a day earlier), and one said the
+> weapon→Attacks row was unbuilt (shipped 2026-07-26 — and its own description of the gap was wrong, implying
+> a one-line wiring job for what was two different weapon models). All three are now `[x]` with the
+> correction inline.
+>
+> A spot-check of the "Tests: …" partials found the named suites **do** exist — `edit-review.test.ts`,
+> `revert-batch.test.ts`, `map-studio-config.test.ts`, `consume-plan.test.ts` — so several more of those are
+> likely closable too.
+>
+> **So the number below is an upper bound on remaining work, not a measure of it.** Anyone picking this doc up
+> should check the live code for a given item before believing it — that check has been cheaper than the work
+> every time it has been run here.
+>
+> **What actually keeps this doc open is the `[~]` partials and Slice 8b**, not that one checkbox. The
 > partials are overwhelmingly of one kind: the mechanical half is shipped and guarded, and the remainder needs
 > *visual judgment on a live render* — e.g. the 3D sun/terminator angle, which the doc itself warns must not be
 > fixed by eyeballing the sun vector. Those belong with the final QA walkthrough, and several are the same
@@ -1265,13 +1281,17 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       mechanic the user asked to be real, was invisible in the rail. Now effective. `statrail-effective-speed.test.ts`
       (2). With AC, Save DC, Max HP, and Speed, the StatRail and the detail panels no longer disagree on
       any derived value — every prominent number on the sheet reads one ledger-effective source.
-- [~] **An equipped item lands in the right place, automatically.** ✅ *Mostly wired:* **armour drives AC**
-      (live via `deriveAc` — category + DEX cap + one-at-a-time, tested), a **consumable** is usable from
-      Inventory (the ⚗ Use path, Slice 12), and **granted feature/attack/spell/resource** all render sourced
-      + gone-on-unequip (Slice 11 grants, `grant-render-paths.test.ts`). **Remaining — the weapon→Attacks
-      row:** `engine/weapons.ts` (`attacksFromInventory`) derives an attack from a weapon item correctly but
-      is NOT called by the live Attacks table (which renders stored + `grantsAttack` attacks) — wiring it in
-      is the same browser-verified surface as the weapon builder (Slice 27), so it moves with that.
+- [x] **An equipped item lands in the right place, automatically. ✅ COMPLETE (2026-07-26).** **Armour drives
+      AC** (live via `deriveAc` — category + DEX cap + one-at-a-time, tested), a **consumable** is usable from
+      Inventory (the ⚗ Use path, Slice 12), **granted feature/attack/spell/resource** all render sourced +
+      gone-on-unequip (Slice 11 grants, `grant-render-paths.test.ts`), and the **weapon→Attacks row now
+      renders** (`engine/weapon-items.ts` + `weapon-item-attacks.test.ts`).
+      **The "remaining" text here was misleading and is worth keeping in mind:** it said
+      `attacksFromInventory` "derives an attack correctly but is NOT called", implying a one-line wiring job.
+      That function takes `EquipItem`/`WeaponSpec` while the live sheet holds `InvItem`/`WeaponStats` — two
+      different weapon models — and its only caller is the dead `deriveCharacter` reducer. It could not be
+      called; the live model had to be mapped. Which turned out easier, because `WeaponStats` states ability
+      and proficiency outright.
 - [x] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
       shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the panel show
       the truth. **✅ SHIPPED — the "not wired" text below is STALE** (closed 2026-07-19 via
