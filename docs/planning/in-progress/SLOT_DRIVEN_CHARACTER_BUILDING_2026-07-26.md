@@ -106,7 +106,19 @@ slices are driven in the browser before being called done — this repo's standi
       8-of-13 gap is closed, and "a class with a ladder but no prompt" is now unrepresentable — which is the
       part that stops it coming back with the next class someone authors. The whole suite stayed green
       (4818), which is worth noting for a change that ADDS prompts: nothing was relying on the silence.
-- [ ] **S3 — the shared slot vocabulary — DEFERRED until a third system needs it.** Reordered after S4
+- [x] **S3 — PARTIALLY EXTRACTED 2026-07-26, on the evidence this deferral asked for.** Its own terms were
+      "revisit once IG (S5) shows what it actually needs". S5 landed, then S6a/b/c added exception-stamping
+      to all three modules — and two things came out **byte-identical in three files**: the exception index,
+      and the rebuild filter deciding which ledger rows survive. That is duplication *I* created, three
+      times, while auditing this codebase for exactly that habit. Now `lib/dnd/slots/rebuild.ts`
+      (`normName` / `exceptionIndex` / `keptOnRebuild` / `mergeOnRebuild`).
+      **The rest of the deferral still holds and was NOT extracted.** `asiLevels` + `RecordedChoice`,
+      `pf2LevelBreakdown` + tracks, and IG's scraped schedule are genuinely different shapes describing
+      genuinely different rules; flattening them would invent a vocabulary none of the three games uses.
+      Mechanical overlap shared, slot models left alone — which is what "abstraction after evidence" looks
+      like in practice.
+      *(Original deferral kept below for the reasoning.)*
+      **S3 — the shared slot vocabulary — DEFERRED until a third system needs it.** Reordered after S4
       shipped: 5e and PF2 each turned out to have a working slot model of their own already
       (`asiLevels` + `RecordedChoice`; `pf2LevelBreakdown` + `PF2RecordedChoice`), and both fixes were about
       *feeding* those models rather than replacing them. Extracting a shared `lib/dnd/slots/` before IG (S5)

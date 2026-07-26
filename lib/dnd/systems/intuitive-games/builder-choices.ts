@@ -23,8 +23,8 @@
 //     owner is tracked in the slot plan (S5's open question).
 import { igLevelBreakdown, type IGGainKind, type IGRecordedChoice } from './levelup';
 import type { SlotException } from '../../slots/entitlement';
+import { normName, exceptionIndex, mergeOnRebuild } from '../../slots/rebuild';
 
-const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** One choice the schedule owes: the level that grants it and what kind of thing it is. */
 export interface IGSlot {
@@ -78,12 +78,12 @@ export function igBuilderChoicesFor(input: IGBuilderChoiceInput): IGRecordedChoi
   const slots = igSlots(input.subclass, level);
   const out: IGRecordedChoice[] = [];
 
-  const byName = new Map((input.exceptions ?? []).map((e) => [norm(e.name), e]));
+  const byName = exceptionIndex(input.exceptions);
   const stamped = new Set<string>();
   const stamp = (value: string) => {
-    const e = byName.get(norm(value));
+    const e = byName.get(normName(value));
     if (!e) return {};
-    stamped.add(norm(value));
+    stamped.add(normName(value));
     return { exception: e };
   };
 
@@ -127,14 +127,8 @@ export function mergeIgBuilderChoices(
   builder: IGRecordedChoice[],
   builtLevel: number,
 ): IGRecordedChoice[] {
-  // `other` is excluded from the owned set for the same reason as the 5e and PF2 modules: the builder only
-  // emits it for an off-schedule EXCEPTION, so treating it as owned would delete anything else at that kind.
-  // Its own exception entries are dropped by the second clause, so a rebuild replaces rather than stacks.
-  const owned = new Set(builder.map((c) => c.kind).filter((k) => k !== 'other'));
-  const kept = (existing ?? []).filter((c) => {
-    if (owned.has(c.kind) && c.level <= builtLevel) return false;
-    if (c.kind === 'other' && c.exception && c.level <= builtLevel) return false;
-    return true;
-  });
-  return [...kept, ...builder].sort((a, b) => a.level - b.level);
+  // The rebuild rule now lives in `lib/dnd/slots/rebuild.ts` — it was byte-identical in all three
+  // systems, which is the evidence S3 was waiting for. What each system still owns is its own slot MODEL;
+  // only the mechanical rebuild filter is shared.
+  return mergeOnRebuild(existing, builder, builtLevel);
 }

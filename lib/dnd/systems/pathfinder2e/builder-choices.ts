@@ -22,8 +22,8 @@ import { pf2LevelBreakdown, type PF2RecordedChoice } from './levelup';
 import { PF2_CLASS_PROGRESSIONS } from './data/classes';
 import type { PF2FeatTrack } from './defs';
 import type { SlotException } from '../../slots/entitlement';
+import { normName, exceptionIndex, mergeOnRebuild } from '../../slots/rebuild';
 
-const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** One feat slot the class's own schedule grants: a level plus the track it belongs to. */
 export interface PF2FeatSlot {
@@ -69,11 +69,11 @@ export function pf2BuilderChoicesFor(input: PF2BuilderChoiceInput): PF2RecordedC
   const slots = pf2FeatSlots(input.className, level);
   // Only as many slots as there are feats: an unfilled slot must stay OUTSTANDING, because the player
   // really does still owe that choice.
-  const byName = new Map((input.exceptions ?? []).map((e) => [norm(e.name), e]));
+  const byName = exceptionIndex(input.exceptions);
   const stamped = new Set<string>();
   slots.slice(0, feats.length).forEach((s, i) => {
-    const exception = byName.get(norm(feats[i]));
-    if (exception) stamped.add(norm(feats[i]));
+    const exception = byName.get(normName(feats[i]));
+    if (exception) stamped.add(normName(feats[i]));
     out.push({ level: s.level, kind: 'feat', track: s.track, value: feats[i], ...(exception ? { exception } : {}) });
   });
 
@@ -110,14 +110,8 @@ export function mergePf2BuilderChoices(
   builder: PF2RecordedChoice[],
   builtLevel: number,
 ): PF2RecordedChoice[] {
-  // `other` is excluded from the owned set for the same reason as the 5e module: the builder only ever emits
-  // it for an off-slot EXCEPTION, so treating it as owned would delete anything else recorded at that kind.
-  // Its own exception entries are dropped by the second clause, so a rebuild replaces rather than stacks.
-  const owned = new Set(builder.map((c) => c.kind).filter((k) => k !== 'other'));
-  const kept = (existing ?? []).filter((c) => {
-    if (owned.has(c.kind) && c.level <= builtLevel) return false;
-    if (c.kind === 'other' && c.exception && c.level <= builtLevel) return false;
-    return true;
-  });
-  return [...kept, ...builder].sort((a, b) => a.level - b.level);
+  // The rebuild rule now lives in `lib/dnd/slots/rebuild.ts` — it was byte-identical in all three
+  // systems, which is the evidence S3 was waiting for. What each system still owns is its own slot MODEL;
+  // only the mechanical rebuild filter is shared.
+  return mergeOnRebuild(existing, builder, builtLevel);
 }

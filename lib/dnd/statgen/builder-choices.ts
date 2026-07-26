@@ -25,6 +25,7 @@
 // which do not spend an ASI).
 import { dnd5eFeatLevelsFor, dnd5eSubclassLevelFor } from './builder5e';
 import type { SlotException } from '../slots/entitlement';
+import { normName, exceptionIndex, mergeOnRebuild } from '../slots/rebuild';
 
 /** The ledger shape, structurally identical to `RecordedChoice` in lib/dnd/classes/levelup.ts. Declared
  *  here rather than imported so this module stays in the statgen layer, the same reason `types.ts` keeps
@@ -61,7 +62,6 @@ export interface BuilderChoiceInput {
  * ASI slots are filled earliest-first from `feats`; a subclass choice is recorded when the build chose one
  * and the character is at or past the level that grants it.
  */
-const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 export function builderChoicesFor(input: BuilderChoiceInput): BuilderChoice[] {
   const level = Math.max(1, Math.min(20, Math.round(input.level || 1)));
@@ -74,11 +74,11 @@ export function builderChoicesFor(input: BuilderChoiceInput): BuilderChoice[] {
   // Only as many slots as there are feats to fill them: an unfilled slot must stay OUTSTANDING, because the
   // player really does still owe that choice. Recording a blank would mark it done — `isSatisfied` rejects a
   // record with neither a feat nor two ability points, but a blank entry is still a lie about what happened.
-  const byName = new Map((input.exceptions ?? []).map((e) => [norm(e.name), e]));
+  const byName = exceptionIndex(input.exceptions);
   const stamped = new Set<string>();
   ladder.slice(0, feats.length).forEach((l, i) => {
-    const exception = byName.get(norm(feats[i]));
-    if (exception) stamped.add(norm(feats[i]));
+    const exception = byName.get(normName(feats[i]));
+    if (exception) stamped.add(normName(feats[i]));
     out.push({ level: l, kind: 'asi', featKey: feats[i], ...(exception ? { exception } : {}) });
   });
 
@@ -112,15 +112,8 @@ export function mergeBuilderChoices(
   builder: BuilderChoice[],
   builtLevel: number,
 ): BuilderChoice[] {
-  // `other` is excluded from the owned set on purpose. The builder only ever emits that kind for an
-  // off-ladder EXCEPTION (see above), so treating it as owned would make a rebuild silently delete any
-  // `other` choice the walker had recorded. Its own exception entries are dropped separately, by the
-  // predicate below, so a rebuild still replaces them rather than stacking a duplicate each time.
-  const owned = new Set(builder.map((c) => c.kind).filter((k) => k !== 'other'));
-  const kept = (existing ?? []).filter((c) => {
-    if (owned.has(c.kind) && c.level <= builtLevel) return false;
-    if (c.kind === 'other' && c.exception && c.level <= builtLevel) return false;
-    return true;
-  });
-  return [...kept, ...builder].sort((a, b) => a.level - b.level);
+  // The rebuild rule now lives in `lib/dnd/slots/rebuild.ts` — it was byte-identical in all three
+  // systems, which is the evidence S3 was waiting for. What each system still owns is its own slot MODEL;
+  // only the mechanical rebuild filter is shared.
+  return mergeOnRebuild(existing, builder, builtLevel);
 }
