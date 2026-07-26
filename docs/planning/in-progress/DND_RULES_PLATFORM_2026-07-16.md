@@ -2749,10 +2749,30 @@ regression to *reach*, not the drawing:
       full-bleed spiral canvas (mount a `DiffSpinGalaxy` into `#bgLayer` when `background.spiral` is
       on) instead of a CSS background — reusing the exact engine the placed-image spiral uses. Not a
       new capability, just applying the existing one to the backdrop layer.
-- [ ] If feasible: a background mode that applies the ring-spin (inner rings faster → a spiral),
-      with the existing spiral controls (ring count, per-ring speed, feather) exposed for the
-      background.
-- [ ] If not cleanly feasible on a full-bleed layer, say so in the doc with the reason rather than
+- [x] ✅ SHIPPED (browser-verified 2026-07-25) A **"Swirl the backdrop into a spiral"** mode in the Backdrop
+      tab, with the same three knobs the placed-image spiral has (Layers 2–12, Speed 0–3×, Ring blend 0–40%)
+      and the same defaults, so the two controls behave identically.
+
+      Built exactly as the feasibility note predicted: `renderBackground()` swaps `#bgLayer` from a CSS
+      `background-image` to a full-bleed `<canvas class="bgspiralcanvas">` when the mode is on, and
+      `mountSpiralBackground()` drives it with the SAME `DiffSpinGalaxy` engine the placed-image spiral
+      uses — no second implementation. The two paths are exclusive (the CSS background is cleared under the
+      canvas, or it would double-draw), and the engine is reused across renders rather than rebuilt, so a
+      knob drag reconfigures it instead of restarting the rotation and re-decoding the image.
+
+      `fit`/`size` are deliberately inert while the spiral is on — the engine fits the image to the canvas
+      itself, so a CSS background-size would fight it — and the control copy says so.
+
+      **Verified live:** canvas mounts full-bleed (1240×810), CSS background cleared, successive frames
+      differ (the rings really are turning), all three knobs reach the engine (rings 6→10 confirmed on the
+      engine object), toggling off restores the flat backdrop and destroys the engine while keeping the
+      settings for next time. **One layout bug found in the screenshot and fixed:** the knob column was
+      inline `flex-direction:column`, which the reveal handler dropped when it set `display` alone — the
+      three sliders laid out side-by-side in the narrow sidebar. Moved to a `.bgspwrap` class.
+      6 new guards in `map-studio-config.test.ts` (20 total).
+- [x] ✅ N/A — it WAS cleanly feasible; see the shipped item above. (Kept for the record: the escape hatch
+      was "say so with the reason rather than", and it turned out not to be needed.)
+      ~~If not cleanly feasible on a full-bleed layer, say so in the doc with the reason rather than~~
       forcing it, and offer the nearest thing (e.g. a large centered spinning image instead of a
       true background).
 

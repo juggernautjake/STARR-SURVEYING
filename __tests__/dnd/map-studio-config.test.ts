@@ -132,3 +132,47 @@ describe('map studio: every editor field reaches the renderer it claims to (Slic
     expect(STUDIO).toMatch(/Use an <b>Image<\/b> body if you need it to appear in 3D/);
   });
 });
+
+// ── Backdrop spiral (rules-platform doc, Slice 35c) ────────────────────────────────────────────────
+// "If feasible: a background mode that applies the ring-spin (inner rings faster → a spiral), with the
+// existing spiral controls exposed for the background." Feasible, and built by reusing the SAME
+// DiffSpinGalaxy engine the placed-image spiral already uses — the only blocker was that #bgLayer is a
+// CSS background-image while ring-spin needs a canvas to slice.
+describe('map studio: the backdrop can ring-spin into a spiral (Slice 35c)', () => {
+  const STUDIO = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+
+  it('swaps #bgLayer to a full-bleed canvas when the mode is on, and back to CSS when off', () => {
+    // The two paths are exclusive: leaving the CSS background set under the canvas would double-draw.
+    expect(STUDIO).toMatch(/if\(bg\.spiral&&bg\.spiral\.on\)\{[\s\S]{0,200}canvas class="bgspiralcanvas"/);
+    expect(STUDIO).toMatch(/L\.style\.backgroundImage="";[\s\S]{0,120}bgspiralcanvas/);
+  });
+
+  it('reuses the placed-image spiral engine rather than a second implementation', () => {
+    expect(STUDIO).toMatch(/spiralBg=\{engine:new DiffSpinGalaxy\(cv,\{rings:bg\.spiral\.rings\|\|6/);
+    expect(STUDIO).toContain('spiralBg.engine.fromConfig(bg.spiral)');
+  });
+
+  it('re-decodes the image only when the source changes, so a knob drag cannot restart the rotation', () => {
+    // Rebuilding the engine per render would reset the ring angles and re-decode the image every frame.
+    expect(STUDIO).toMatch(/if\(spiralBg\.imageURL!==bg\.src\)/);
+    expect(STUDIO).toMatch(/const [rmf]=\$\("#bgSp[RMF]"\);[^\n]*mountSpiralBackground\(\)/);
+  });
+
+  it('tears the engine down when the mode is switched off', () => {
+    expect(STUDIO).toMatch(/if\(!want\)\{if\(spiralBg\)\{try\{spiralBg\.engine\.destroy\(\)/);
+  });
+
+  it('exposes the same three knobs the placed-image spiral has', () => {
+    for (const id of ['bgSpOn', 'bgSpR', 'bgSpM', 'bgSpF']) expect(STUDIO).toContain(`id="${id}"`);
+    expect(STUDIO).toContain('{on:false,rings:6,master:1,feather:0.12}'); // identical defaults
+  });
+
+  it('keeps the knob column in a CLASS, not inline, so revealing the box cannot flatten it to a row', () => {
+    // The toggle handler sets only `display`; an inline flex-direction would be lost the moment the box
+    // was revealed live, laying the three sliders side by side in the narrow sidebar. (Found in a
+    // screenshot, not by a test — hence the guard.)
+    expect(STUDIO).toMatch(/\.bgspwrap\{display:flex;flex-direction:column/);
+    expect(STUDIO).toContain('id="bgSpWrap" class="bgspwrap"');
+    expect(STUDIO).not.toMatch(/w\.style\.display=e\.target\.checked\?"flex":"none"/);
+  });
+});

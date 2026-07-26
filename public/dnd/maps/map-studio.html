@@ -77,6 +77,9 @@
   #canvas{position:absolute;inset:0;}
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
+  /* The backdrop-spiral knobs stack. Kept in a class so revealing the box (which sets only `display`)
+     can't drop the column direction and lay the three sliders out side by side in the narrow sidebar. */
+  .bgspwrap{display:flex;flex-direction:column;gap:6px;}
   #fxCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;}
   /* The SVG roots blanket the whole canvas, so left clickable they'd swallow every click meant for a
      body/image sitting underneath. Root is click-through; the actual sector shapes + handles opt back in. */
@@ -1026,6 +1029,8 @@ function updateTabBadges(){TABS.forEach(t=>{const n=assetsOfTab(t.id).length;con
 
 function renderBackdropTab(grid){
   const bg=state.background,isImg=bg&&bg.mode==="image";
+  // Same defaults as the placed-image spiral, so the two controls behave identically.
+  const bgsp=Object.assign({on:false,rings:6,master:1,feather:0.12},(bg&&bg.spiral)||{});
   $("#libSub").innerHTML='Set a whole-map backdrop — import an image, use the built-in starfield, or build a color gradient.';
   const wrap=document.createElement("div");wrap.style.cssText="display:flex;flex-direction:column;gap:8px;margin-bottom:10px";
   wrap.innerHTML=`
@@ -1038,6 +1043,16 @@ function renderBackdropTab(grid){
       <label style="font-size:10.5px;color:var(--dim)">Opacity <span id="bgOpV" style="float:right;color:var(--gold)">${Math.round((bg.opacity!=null?bg.opacity:1)*100)}%</span><input type="range" id="bgOp" min="0" max="100" value="${Math.round((bg.opacity!=null?bg.opacity:1)*100)}" style="width:100%"></label>
       <label style="font-size:11px;color:var(--ink);display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="bgParallax" ${bg.parallax?"checked":""}> Move with the map (parallax)</label>
       <div style="font-size:10px;color:var(--faint);margin-top:-4px">Off = the image stays fixed to the screen as you pan and zoom. On = it pans and zooms with the map.</div>
+      <label style="font-size:11px;color:var(--ink);display:flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="bgSpOn" ${bgsp.on?"checked":""}> Swirl the backdrop into a spiral</label>
+      <div style="font-size:10px;color:var(--faint);margin-top:-4px">Slices the backdrop into concentric rings that rotate at different speeds — inner rings faster, so the whole sky turns like a galaxy. Fit and Size don't apply while this is on; the spiral fills the viewer.</div>
+      <!-- The column layout lives in the .bgspwrap CLASS, not inline: the toggle handler below only flips
+           the display property, so an inline flex-direction would be lost the moment the box was revealed
+           live, and the three knobs would lay out in a row. -->
+      <div id="bgSpWrap" class="bgspwrap" style="${bgsp.on?'':'display:none'}">
+        <label style="font-size:10.5px;color:var(--dim)">Layers <span id="bgSpRV" style="float:right;color:var(--gold)">${bgsp.rings}</span><input type="range" id="bgSpR" min="2" max="12" value="${bgsp.rings}" style="width:100%"></label>
+        <label style="font-size:10.5px;color:var(--dim)">Speed <span id="bgSpMV" style="float:right;color:var(--gold)">${(bgsp.master!=null?bgsp.master:1).toFixed(1)}×</span><input type="range" id="bgSpM" min="0" max="300" value="${Math.round((bgsp.master!=null?bgsp.master:1)*100)}" style="width:100%"></label>
+        <label style="font-size:10.5px;color:var(--dim)">Ring blend <span id="bgSpFV" style="float:right;color:var(--gold)">${Math.round((bgsp.feather!=null?bgsp.feather:0.12)*100)}%</span><input type="range" id="bgSpF" min="0" max="40" value="${Math.round((bgsp.feather!=null?bgsp.feather:0.12)*100)}" style="width:100%"></label>
+      </div>
       <button class="dsimport" id="bgClear" style="background:#3a1420;border-color:#c6403b">✕ Remove backdrop</button>
     </div>`:``}
     <div style="font-size:10.5px;color:var(--faint)">Or build a color-gradient backdrop with <b>＋ New</b>, then click it to apply.</div>`;
@@ -1051,6 +1066,14 @@ function renderBackdropTab(grid){
     $("#bgSize").oninput=e=>{state.background.size=+e.target.value/100;$("#bgSizeV").textContent=e.target.value+"%";renderBackground();markDirty();};
     $("#bgOp").oninput=e=>{state.background.opacity=+e.target.value/100;$("#bgOpV").textContent=e.target.value+"%";renderBackground();markDirty();};
     {const p=$("#bgParallax");if(p)p.onchange=e=>{state.background.parallax=e.target.checked;applyView();markDirty();};}
+    // Backdrop spiral (Slice 35c). `on` re-renders the layer (canvas ⇄ CSS background is a DOM swap);
+    // the three knobs only need the engine re-configured, so they call mountSpiralBackground() directly
+    // rather than rebuilding the canvas — which would restart the rotation on every drag step.
+    {const sp=()=>(state.background.spiral=Object.assign({on:false,rings:6,master:1,feather:0.12},state.background.spiral||{}));
+     const on=$("#bgSpOn");if(on)on.onchange=e=>{sp().on=e.target.checked;const w=$("#bgSpWrap");if(w)w.style.display=e.target.checked?"":"none";renderBackground();markDirty();};
+     const r=$("#bgSpR");if(r)r.oninput=e=>{sp().rings=+e.target.value;$("#bgSpRV").textContent=e.target.value;mountSpiralBackground();markDirty();};
+     const m=$("#bgSpM");if(m)m.oninput=e=>{sp().master=+e.target.value/100;$("#bgSpMV").textContent=(+e.target.value/100).toFixed(1)+"×";mountSpiralBackground();markDirty();};
+     const f=$("#bgSpF");if(f)f.oninput=e=>{sp().feather=+e.target.value/100;$("#bgSpFV").textContent=e.target.value+"%";mountSpiralBackground();markDirty();};}
     $("#bgClear").onclick=clearBackground;}
 }
 function renderLibrary(){
@@ -1264,11 +1287,46 @@ function renderBackground(){
   const L=$("#bgLayer");if(!L)return;const bg=state.background;
   if(bg&&bg.mode==="image"&&bg.src){
     const fit=bg.fit||"cover",s=bg.size!=null?bg.size:1,pct=Math.round(s*100);
-    L.style.display="block";L.style.opacity=bg.opacity!=null?bg.opacity:1;L.style.backgroundImage=`url("${bg.src}")`;
-    if(fit==="tile"){L.style.backgroundRepeat="repeat";L.style.backgroundSize=pct+"%";}
-    else if(fit==="stretch"){L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=pct+"% "+pct+"%";}
-    else{L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=(s===1?(fit==="contain"?"contain":"cover"):pct+"% auto");}
-  } else {L.style.display="none";L.style.backgroundImage="";}
+    L.style.display="block";L.style.opacity=bg.opacity!=null?bg.opacity:1;
+    // SPIRAL backdrop (Slice 35c). Ring-spin needs a <canvas> to slice and rotate rings, and #bgLayer is
+    // otherwise a plain CSS background-image — that mismatch was the whole reason this was open. So when
+    // the mode is on we swap the layer's contents for a full-bleed canvas and let the SAME DiffSpinGalaxy
+    // engine the placed-image spiral uses drive it. Not a new capability, just applied to the backdrop.
+    //
+    // `fit`/`size` are deliberately NOT applied here: the engine draws the image centred and fitted to the
+    // canvas itself, so a CSS background-size would fight it. The controls stay for the flat backdrop.
+    if(bg.spiral&&bg.spiral.on){
+      L.style.backgroundImage="";
+      if(!L.querySelector("canvas.bgspiralcanvas")){
+        L.innerHTML=`<canvas class="bgspiralcanvas" style="width:100%;height:100%;display:block"></canvas>`;
+      }
+    } else {
+      if(L.firstChild)L.innerHTML="";
+      L.style.backgroundImage=`url("${bg.src}")`;
+      if(fit==="tile"){L.style.backgroundRepeat="repeat";L.style.backgroundSize=pct+"%";}
+      else if(fit==="stretch"){L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=pct+"% "+pct+"%";}
+      else{L.style.backgroundRepeat="no-repeat";L.style.backgroundSize=(s===1?(fit==="contain"?"contain":"cover"):pct+"% auto");}
+    }
+  } else {L.style.display="none";L.style.backgroundImage="";if(L.firstChild)L.innerHTML="";}
+  mountSpiralBackground();
+}
+
+/* live layered-spiral BACKDROP — the same DiffSpinGalaxy engine the placed-image spiral uses, mounted on
+   the full-bleed #bgLayer canvas. Mirrors mountSpiralImages(): reuse the engine across re-renders, re-fit
+   when the canvas element is replaced, and only re-decode the image when the source actually changes —
+   re-creating the engine every render would restart the rotation and thrash the image decode. */
+let spiralBg=null;
+function mountSpiralBackground(){
+  const L=$("#bgLayer");const bg=state.background;
+  const want=!!(L&&bg&&bg.mode==="image"&&bg.src&&bg.spiral&&bg.spiral.on);
+  if(!want){if(spiralBg){try{spiralBg.engine.destroy();}catch(e){}spiralBg=null;}return;}
+  const cv=L.querySelector("canvas.bgspiralcanvas");if(!cv)return;
+  if(!spiralBg){spiralBg={engine:new DiffSpinGalaxy(cv,{rings:bg.spiral.rings||6,corePulse:false}),imageURL:null,cv:null};}
+  if(spiralBg.cv!==cv){spiralBg.engine.canvas=cv;spiralBg.engine.ctx=cv.getContext("2d");spiralBg.engine._fit();spiralBg.cv=cv;}
+  if(spiralBg.imageURL!==bg.src){
+    spiralBg.imageURL=bg.src;
+    spiralBg.engine.setImage(bg.src).then(()=>{spiralBg.engine.fromConfig(bg.spiral);spiralBg.engine.start();}).catch(()=>{});
+  } else {spiralBg.engine.fromConfig(bg.spiral);spiralBg.engine._fit();spiralBg.engine.start();}
 }
 function setImageBackground(src){pushUndo();state.background={mode:"image",src,fit:"cover",size:1,opacity:1};renderAll();renderLibrary();markDirty();toast("Image backdrop set");}
 function importBackgroundImage(){
