@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetModule } from '../state/sheetConfig'
 import { isItemActive } from '@/lib/dnd/effects/ledger'
+import { attacksFromWeaponItems } from '../engine/weapon-items'
 import { rollEffectSources } from '../lib/roll-effects'
 import { abilityMod, signed } from '../rules/dnd'
 import type { Attack } from '../types'
@@ -44,9 +45,23 @@ export default function Attacks() {
     .filter((i) => isItemActive(i, preferences.autoAttune.value) && i.grantsAttack)
     .map((i) => ({ atk: i.grantsAttack as Attack, source: i.name }))
 
+  // Attacks from a WEAPON ITEM (`kind: 'weapon'` / the `weapon` tag). `ITEM_TAGS` promises the player
+  // this tag means "it shows up in your Attacks table with its own to-hit and damage", and RESERVED_TAGS
+  // reserves the name because that is what it does — but nothing implemented it, so a weapon built in the
+  // ItemBuilder produced no row. Same treatment as a granted attack: the item's INTRINSIC facts through
+  // the same row logic below (so to-hit can't drift), badged to the item, no ⋯ menu. Deduped against
+  // stored attacks by name, so a hand-authored "Longsword" isn't listed twice.
+  // MODS, not scores: `abilities` here holds scores, and finesse's "better of STR/DEX" tie-breaks
+  // differently between the two (STR 15 vs DEX 14 is the same +2, but the scores are not equal).
+  const attackMods = Object.fromEntries(
+    (Object.keys(abilities) as (keyof typeof abilities)[]).map((k) => [k, abilityMod(abilities[k])]),
+  ) as Record<keyof typeof abilities, number>
+  const weaponAttacks = attacksFromWeaponItems(char.inventory, attackMods, char.attacks.map((a) => a.name))
+
   const rows: { a: Attack; granted: boolean; source?: string }[] = [
     ...char.attacks.map((a) => ({ a, granted: false, source: undefined })),
     ...grantedAttacks.map(({ atk, source }) => ({ a: atk, granted: true, source })),
+    ...weaponAttacks.map(({ atk, source }) => ({ a: atk, granted: true, source })),
   ]
 
   return (

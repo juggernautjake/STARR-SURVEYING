@@ -18,6 +18,44 @@
 > Slice 6 (rules-accurate class data for the other 8 systems L1–20 — huge, source-verify per Ground Rule 3),
 > Slice 7 (wiring), and Slice 8b (library buildout for the four focus systems).
 
+> ### 2026-07-26 — the `weapon` tag's promise, and two partials that were stale
+>
+> **Shipped: a weapon item now appears in the Attacks table.** `ITEM_TAGS.weapon` tells the player *"Can be
+> attacked with — it shows up in your Attacks table with its own to-hit and damage"*; `RESERVED_TAGS` refuses
+> to let a homebrew tag reuse the name **because** "`weapon` is what puts an item in the Attacks table"; and
+> `InvItem.tags` says it a third time. **Nothing implemented it.** `Attacks.tsx` rendered stored attacks plus
+> `grantsAttack` items only, so a player who built a Longsword in the ItemBuilder, read that tooltip and
+> equipped it got no row at all. New pure mapper `engine/weapon-items.ts` + 17 tests.
+>
+> **This item's own description of the gap was wrong, and the wrongness is the interesting part.** It said
+> `attacksFromInventory` "derives it correctly but is still UNCALLED" — implying a one-line wiring job. In
+> fact that function takes `EquipItem`/`WeaponSpec` (`category: 'simple' | 'martial'`, `damage: string`,
+> `range: {normal,long}`) while the live sheet's items are `InvItem`/`WeaponStats` (`ability`, `proficient`,
+> `toHitBonus`, `range: string`, `damage: TypedDamage`, `bonus: TypedDamage[]`). **Two weapon models**, and
+> the only caller of the old one is the dead `deriveCharacter` reducer. So it could not be called; the live
+> model had to be mapped instead — which turned out *easier*, because `WeaponStats` states ability and
+> proficiency explicitly, so nothing has to be inferred and no class-prose proficiency parsing
+> ('Martial weapons that have the Light property') gets invented (Ground Rule 3).
+>
+> Two design points worth keeping: the row carries the weapon's **intrinsic** facts, not a pre-folded
+> `toHit`, because the table adds ability + PB + the ledger itself (a computed `AttackEntry` would
+> double-count — the other reason the old function was the wrong tool); and it is **not** gated on
+> `equipped`, because the promise the player is shown is unconditional and a paper sheet lists the weapons
+> you carry. The old function did filter on equipped, so that divergence is deliberate and reversible in one
+> `filter` if the owner prefers held-only.
+>
+> **Two `[~]` partials were STALE and are now `[x]`.** Both said equip validation
+> (attunement / one body armour / two-handed vs shield) was implemented but "NOT wired to the live paths".
+> The owner's 2026-07-19 work closed that: `lib/dnd/equip-conflicts.ts` is the shared core, `Inventory.tsx`
+> raises `EquipConflictDialog`, `sheet-edits.ts` auto-swaps for the AI op, all gated on the campaign's
+> `equipLimits` preference, and `equip-enforcement-gap.test.ts` is now a closed-gap guard. Their original
+> text is kept inline beneath the correction, because that finding's reasoning — *a dead caller is
+> indistinguishable from no caller* — is what found the ungated 5e build route in the QA walkthrough's
+> slice 22. **A partial list that has gone stale is worse than a long one:** it sent me looking for a
+> defect that no longer existed, the same way slice 21's stale premise cost the walkthrough two slices.
+>
+> **Bar:** 17 new guards, 4778/4778 D&D tests, typecheck exit-0, lint clean.
+
 **Status:** IN PROGRESS · started 2026-07-16 · parked 2026-07-18 · reopened 2026-07-25
 **Goal:** every supported game system fully written out, searchable, AI-explainable, and wired
 into the character sheets — so a player or DM can build a character to level 20 exactly as the
@@ -1031,16 +1069,24 @@ Decisions that stuck:
   parallel vocabulary plus a translation layer.
 
 **Still open in this slice** (moved to the slices that own them):
-- [~] Equipping routes armour → AC / a weapon → Attacks. **Armour → AC ✅ SHIPPED** — `deriveAc(char.inventory,
-      …)` (the store's `acInfo`) folds equipped armour + `ac` effects live. **Weapon → Attacks ⏸** —
-      `attacksFromInventory` derives it correctly but is still UNCALLED by the live Attacks table; wiring it in
-      is the browser-verified surface that moves with the weapon builder (Slice 15/27).
+- [x] Equipping routes armour → AC / a weapon → Attacks. **Armour → AC ✅ SHIPPED** — `deriveAc(char.inventory,
+      …)` (the store's `acInfo`) folds equipped armour + `ac` effects live. **Weapon → Attacks ✅ SHIPPED
+      2026-07-26** — see the slice note below; and this item's own description of the gap was wrong in a way
+      that mattered: `attacksFromInventory` could not simply be "called", because it takes a different data
+      model than the live sheet's items.
 - [x] ✅ SHIPPED (verified 2026-07-18): **AC / speed / HP max / save DC / initiative read the ledger** — AC via
       `deriveAc` (folds `ac` effects), HP max via `buildLedger(c).value('hp_max', …)`, speed via the ledger's
       `speed_*` effects (exhaustion/feats), save DC + initiative fold their own ledger targets — same single
       source the abilities/saves/skills/attacks already read, so no two components derive a stat independently.
-- [~] Equip validation (attunement limits, one body armour). **RULE ✅ SHIPPED; live wiring ⏸ (corrected
-      2026-07-18).** Attunement was already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot
+- [x] Equip validation (attunement limits, one body armour). **✅ NOW FULLY SHIPPED — this item was STALE
+      (re-verified 2026-07-26).** The 2026-07-18 finding below was true when written, and the owner's
+      2026-07-19 work closed it: both live paths route through the pure `lib/dnd/equip-conflicts.ts` core —
+      `Inventory.tsx` raises `EquipConflictDialog` on the sheet, `sheet-edits.ts` auto-swaps for the AI
+      `equip_item` op — gated on the campaign's `equipLimits` preference, and
+      `equip-enforcement-gap.test.ts` (now a *closed*-gap guard) pins both surfaces plus the off-switch.
+      The original note is kept verbatim below because its reasoning about WHY a dead caller is
+      indistinguishable from no caller is what found the 5e build-gate hole in the QA walkthrough's slice 22.
+      **Original 2026-07-18 finding:** **RULE ✅ SHIPPED; live wiring ⏸.** Attunement was already validated (`canAttune` + `ATTUNEMENT_CAP`); added the equip-slot
       rules to `engine/equipment.ts`: `canEquip(items, id)` enforces **one body armour at a time**, **one
       shield**, and **two-handed-weapon vs shield mutual exclusion** (both directions), returning a reason
       string; re-equipping something already on is a harmless no-op; unknown id → not ok. `equipChecked`
@@ -1139,9 +1185,12 @@ One pure function that every later slice reads. Nothing else in Part II can be b
       row:** `engine/weapons.ts` (`attacksFromInventory`) derives an attack from a weapon item correctly but
       is NOT called by the live Attacks table (which renders stored + `grantsAttack` attacks) — wiring it in
       is the same browser-verified surface as the weapon builder (Slice 27), so it moves with that.
-- [~] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
+- [x] Equipping is validated, not blind: attunement limits, "one body armour at a time", two-handed vs
       shield. Where a system has a hard rule, enforce it; where it doesn't, allow it and let the panel show
-      the truth. **The RULE is implemented + tested, but NOT wired to the live paths (finding 2026-07-18).**
+      the truth. **✅ SHIPPED — the "not wired" text below is STALE** (closed 2026-07-19 via
+      `lib/dnd/equip-conflicts.ts` + `EquipConflictDialog` + the `equipLimits` preference; re-verified
+      2026-07-26, see the sibling item under Slice 6's list). **Original 2026-07-18 finding:** **The RULE is
+      implemented + tested, but NOT wired to the live paths.**
       `engine/equipment.ts` `canEquip`/`equipChecked` correctly refuse a second body armour, a second shield,
       and a shield-with-a-two-handed-weapon (both directions), and `equipment.test.ts` covers all of it — BUT
       `equipChecked` is only called by `engine/character.ts`, the DEAD `deriveCharacter` reducer no live
