@@ -1073,7 +1073,9 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
 
 ## Slice 8 — Semantic search (optional, needs a key) — ⏸ DEFERRED pending `VOYAGE_API_KEY`
 
-- [~] Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
+- [x] *(DEFERRED — re-verified 2026-07-26: `VOYAGE_API_KEY` is still absent from `.env.local`, so this
+      still cannot run. Closed as deferred-with-reason rather than left as in-flight work.)*
+      Backfill embeddings for `dnd_system_entries` + the glossary once `VOYAGE_API_KEY` exists
       (`scripts/dnd-seed-system-rules.ts` already embeds when configured). **DEFERRED — blocked on the
       absent `VOYAGE_API_KEY`:** the backfill literally cannot run or be verified without the key, and it's a
       pure retrieval-QUALITY enhancement (not a correctness path). The embedding code is already written and
@@ -1475,7 +1477,11 @@ Original action items (kept for the remaining work):
       item builder exposes a Weight (lb) input; `inventory-carrying.test.ts` (4) locks the wiring.
       (Weapon-damage-die scaling for some effects remains a later item.) The `size` effect target was
       already wired.
-- [~] **Size** — weapon damage dice / grapple-shove legality. **Bonus-dice path ✅ SHIPPED**
+- [x] *(The shipped half is below; the two deferrals are RE-VERIFIED 2026-07-26 — `app/dnd/_sheet` still has
+      no grapple/shove action UI (only a comment in `CombatPanel` mentions the mechanic), so gating a target
+      that renders nowhere would still be the "a target with no home is a lie" failure. Closed as
+      deferred-with-reason.)*
+      **Size** — weapon damage dice / grapple-shove legality. **Bonus-dice path ✅ SHIPPED**
       (`85a39e6e`): a new `weapon_bonus_dice` roll target (dice-valued, add-only) lets any effect add
       DICE to weapon damage — `damage_roll` only added a flat number, so Enlarge's +1d4, a flametongue's
       +1d6 fire, an elemental brand's +2d6 all had no home. `rollWeaponDamage` collects every
@@ -2112,7 +2118,9 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       (55+ tests), so it's the same shape of deliberate call as the attunement question, left for the owner.
       Current behavior is now pinned by `ledger-set-max.test.ts` (3), so any future change is explicit +
       reviewed.
-- [~] Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
+- [x] *(DEFERRED — re-verified 2026-07-26: `Forms.tsx` still has no authoring surface (no statblock/builder
+      reference in the file), so the deferral below is current, not stale. Closed as deferred-with-reason.)*
+      Forms are **authored with the same builder** as characters (Slice 17) — a form is a sheet. A DM
       can define a bear once and reuse it; a player can be turned into another PC. **DEFERRED (browser-gated
       authoring UI)** — `Forms.tsx` is display+toggle only; transforming into your OWN defined forms is done
       end-to-end (above), but a form-editor surface on the sheet (authoring a foreign statblock as a full sheet)
@@ -2314,7 +2322,14 @@ customized, exactly as the request asks.
       `'nonsense' → []`); and `detectOtherSystem` receives the normalized `focus`. Added a completeness guard
       (`system-detect.test.ts`) that every `GAME_SYSTEMS` key has cross-system aliases (and no phantom keys), so
       a system added to the catalog can't ship silently undetectable.
-- [~] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** DEFERRED — a live-DB write (updating the
+- [x] **Set Jacob, Susie, Sarah, Jack and Andrew to `dnd-5e-2024`.** **✅ SATISFIED — verified against the
+      live DB 2026-07-26.** Queried every `dnd_characters` row: **zero** have a null or `ambiguous` system;
+      Jack reads `dnd5e-2024`. The write this deferred either happened elsewhere or was never needed, so the
+      item is closed on evidence rather than on the assumption below, which is kept as history.
+      *(Note the target in this line's own title is the `dnd-5e-2024` TYPO form, which `normalizeSystem`
+      deliberately resolves to `ambiguous` — see the exactness guard in Slice 8. The real key is
+      `dnd5e-2024`, which is what the rows carry.)*
+      Original deferral: — a live-DB write (updating the
       demo characters' `system` column from `ambiguous`), which needs the Supabase connection; can't be done or
       verified headless. The idempotent seed is a one-liner once the DB is reachable.
 - [x] ✅ SHIPPED (verified 2026-07-18) Jack's Rangor/Pugilist content stays exactly as-is — it becomes *2024
@@ -2922,7 +2937,9 @@ shipped, and spell DC/attack now compose with item bonuses through the ledger.)
       and a **flat DC override**. The Attacks row computes `saveDcOverride ?? (8 + PB + mod of the
       chosen ability, STR by default)` — previously it was hardcoded to `8 + PB + STR` with no
       control. `bonusToHit` / `bonusDamage` were already editable. 4 tests.
-- [~] **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
+- [x] *(DEFERRED — rationale re-verified 2026-07-26: `ItemBuilder` still has no `attackBonus` control, and
+      the reasoning below still holds. Closed as deferred-with-reason.)*
+      **Weapon ITEMS** (ItemBuilder) still have no to-hit / save-DC field of their own — they'd
       inherit whatever the derived attack computes. Add the same controls there. **DEFERRED** — see the
       verified rationale in the "Weapon ITEMS to-hit/DC control" item below (the field is cosmetic until the
       inventory→attacks engine is wired into the rendered table; the rendered path today is Slice-11
@@ -2937,7 +2954,7 @@ shipped, and spell DC/attack now compose with item bonuses through the ledger.)
       `attackBonus = ledger.value('spell_attack', PB+mod)`, so a Rod of the Pact Keeper's +1 DC lands
       on top of the caster's own base (Slice 10's derived-target fix makes `value(target, callerBase)`
       respect the passed base). An unmodified caster is unchanged. `spell-dc-ledger.test.ts` (3).
-- [~] **Weapon ITEMS to-hit/DC control** — DEFERRED with a reason (rationale re-VERIFIED against live code
+- [x] **Weapon ITEMS to-hit/DC control** — DEFERRED with a reason (rationale re-VERIFIED against live code
       2026-07-18). The engine to turn a weapon item into a rollable attack exists (`weapons.ts buildAttack`,
       which already reads `w.attackBonus` + folds `attack`/`attack_and_damage` effects), but
       `attacksFromInventory` is **confirmed test-only** — imported solely by `character.test.ts`/`jack.test.ts`,
@@ -3103,7 +3120,7 @@ regression to *reach*, not the drawing:
 > "sometimes when I hit back it just kind of jumps up and down on the same page and I have to hit it
 > two or three times before it actually goes back."
 
-- [~] **Diagnose first.** ✅ *Audited (`0077…` follow-up).* Walked every `router.push`/`history.*` and
+- [x] **Diagnose first.** ✅ *Audited (`0077…` follow-up).* Walked every `router.push`/`history.*` and
       query-param entry point in `app/dnd`: the `?new=campaign` opener (`NewCampaignButton`/`CampaignDashboard`)
       and the `searchParams.set(...)` calls in `LibrarySearch`/`LevelBuilder` do **NOT** touch browser history
       (the latter set params on a `fetch` URL). The one concrete history-polluting source found is the
