@@ -803,6 +803,9 @@ the correction's fix was itself wrong. Every step needed a *different* check tha
 useful generalisation: a contrast fix is not verified by the number going up on the skin you happened to
 be looking at.
 
+*(Slice 24 closes this arc, and finds that slices 19, 21 and 23 were all reasoning from a dock that does not
+exist. See below.)*
+
 ### 2026-07-26 — slice 22: the third build route had no gate, and my first fix broke the happy path
 
 **The defect.** `homebrew/policy.ts` says an uninvoked gate is "indistinguishable from no gate", so I
@@ -909,3 +912,57 @@ across a nest a `[^)]*` can't span.
 
 **Bar:** 22 new guards (`roller-dock-surface.test.ts`) incl. that the dark skin passes *either* way — which
 is why this hid for three slices — 4761/4761 D&D tests, typecheck exit-0, lint clean.
+
+### 2026-07-26 — slice 24: the roller labels, measured at last — and three slices had been wrong
+
+The debt slices 18–23 kept recording ("re-measure those two labels in a browser") finally got paid, on a real
+dev server with a minted `dnd_session` cookie and the **five skins that exist on live characters**
+(streamer, jack, donata, lazzuh, default). It did not confirm the fix. It overturned the premise.
+
+**What every previous slice believed.** That the bar "sits on the ROLLER, which is dark on every skin"
+(slice 21, verbatim), so the panel-clamped body tokens would be near-black on near-black there.
+
+**What the browser says.** On a live streamer sheet `.fld`'s gradient resolves to `rgba(255,250,254,.98)` —
+**near-white**. `.fld` reads `--panel-rgb`, and the SHELL bridge (`shellVarsFromHx`) derives that from the
+skin. That same bridge also sets `--ink: #5a1050` and `--muted: #8a3f7c` — dark inks, correctly clamped for
+that light surface. But `RollerTemplateBar`'s inline styles reached for `--hx-muted`, which on that sheet is
+the **default `#a09b8c`** — a light warm grey meant for a dark panel — because `skinHxVars` is not applied at
+that scope at all (`--hx-panel` was still `#0b1a2c`). And **`--hx-panel-rgb`, the token slice 23 added, was
+EMPTY there**: that fix never reached this surface, so its claim that "the clamp's precondition now holds" was
+false.
+
+Two families, two different assumptions, one strip of text: **2.59:1**, with the active teal tab at
+**1.76:1**.
+
+**The fix is the ink family, not the surface.** The bar now takes `--muted`/`--ink` — the family that paints
+the dock — with the `--hx-*` pair as fallback for a scope where only that one exists. `floatingRoller.css`
+had used that family all along; only the inline styles hadn't, which is why the CSS looked right and the
+component didn't. The active tab cannot keep the accent as text (1.76:1), so it uses ink and stays
+recognisable through its teal border and tint.
+
+| skin | before | after (inactive) | after (active) |
+|---|---|---|---|
+| streamer | **2.59** ❌ | **6.36** ✅ | 10.81 |
+| jack | **2.27–2.59** ❌ | **7.69** ✅ | 13.17 |
+| donata | **2.78** ❌ | **6.32** ✅ | 12.17 |
+| lazzuh (dark) | 6.13 | **6.13** ✅ | 11.48 |
+| default (dark) | 7.54 | **7.54** ✅ | — |
+
+Dark skins were measured **on purpose**: slice 21's lesson was that checking one dark skin makes a wrong swap
+look right, and the inverse obligation holds — a light-skin fix must be shown not to break the dark ones.
+
+**A measurement error of my own, caught before it became a bug report.** My first pass read only
+`backgroundColor` while walking up for the composited background. `.fld`'s background is a *gradient*, so the
+walk stepped straight past the dock and composited the labels onto the page behind it — yielding numbers I
+could easily have filed as a regression. **A contrast measurement that ignores `background-image` is not a
+measurement.** The second pass parses gradient stops.
+
+**Two guards rewritten, not deleted.** `roller-tab-contrast.test.ts` had computed everything against
+`composite(3% white, rgb(12,12,22))` — an *assumed* dark roller. That fiction is precisely what let three
+slices reason confidently and be wrong, so its arithmetic is now the measured per-skin backgrounds, and it
+asserts the failing default as well as the working fix. `roller-dock-surface.test.ts` keeps its hx-scope
+arithmetic (still true where `skinHxVars` applies) under a heading that says so, plus a correction note that
+it is not evidence the labels are legible.
+
+**Bar:** 9 net-new guards, 4977/4977 D&D tests, typecheck exit-0, lint clean. Dev server stopped and the port
+released (the 3000–3009 zombie sockets are a known trap; this ran on 3457).

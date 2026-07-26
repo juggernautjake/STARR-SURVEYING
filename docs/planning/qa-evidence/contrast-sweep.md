@@ -74,6 +74,38 @@ text (≥24px, or ≥18.66px bold) — so a 23px headline at 3.85 is a genuine m
 - Run it once per skin. The light skins (`streamer` / `donata` / `jack`) are the ones `skin-tokens.ts`
   calls out, but the defects found so far were skin-independent.
 
+## RESOLVED 2026-07-26 — measured in a browser, and the previous fix was aimed at the wrong thing
+
+The eyes-on check this file kept asking for finally ran: a dev server on a free port, a minted `dnd_session`
+cookie, and the **five real skins that exist on live characters** (streamer, jack, donata, lazzuh, default).
+Composited backgrounds read from the DOM, counting `background-image` gradients — the first attempt read only
+`backgroundColor`, walked straight past `.fld`'s gradient, and produced numbers that would have been reported
+as a regression. **A contrast measurement that ignores gradients is not a measurement.**
+
+**What was actually wrong.** On a real 5e sheet the shell root carries `--panel-rgb: 255, 250, 254` *and*
+`--ink: #5a1050` / `--muted: #8a3f7c` (all from `shellVarsFromHx`, all skin-derived and mutually consistent),
+while `--hx-panel` is still the default `#0b1a2c`, `--hx-muted` the default `#a09b8c`, and **`--hx-panel-rgb`
+— the token slice 23 added — is empty**. So the dock was light from one family and its labels were coloured
+from the other. Slice 23 never reached this surface; its "the clamp's precondition now holds" was wrong here.
+
+**The fix is the ink family, not the surface.** `RollerTemplateBar`'s inline styles now take `--muted`/`--ink`
+— the family that paints the dock — with the `--hx-*` pair as fallback. `floatingRoller.css` had always used
+that family; only the inline styles hadn't.
+
+| skin | before | after (inactive) | after (active) |
+|---|---|---|---|
+| streamer | **2.59** ❌ | **6.36** ✅ | 10.81 |
+| jack | **2.27–2.59** ❌ | **7.69** ✅ | 13.17 |
+| donata | **2.78** ❌ | **6.32** ✅ | 12.17 |
+| lazzuh (dark) | — | **6.13** ✅ | 11.48 |
+| default (dark) | — | **7.54** ✅ | — |
+
+The active tab could not keep the accent as its text colour: neither family's teal clears AA on a near-white
+dock (**1.76:1**), so it uses the ink and stays recognisable through its teal border and tint.
+
+**The dark skins were measured too, on purpose** — slice 21's lesson was that checking one dark skin makes a
+wrong swap look right, and the inverse holds: a light-skin fix must be shown not to break the dark ones.
+
 ## Outstanding
 
 **Resolved in slice 23 — and the debt was pointing at the wrong thing.** Slices 18–21 treated the roller

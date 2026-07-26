@@ -95,20 +95,30 @@ export default function RollerTemplateBar({
               fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
               border: on ? '1px solid var(--hx-teal-1, #0ac8b9)' : '1px solid var(--hx-line, rgba(255,255,255,0.14))',
               background: on ? 'rgba(10,200,185,0.14)' : 'rgba(255,255,255,0.03)',
-              // `--hx-muted` is CORRECT here, and it took three tries to see why. These 11px labels
-              // measured 2.78:1 — but the token was never the bug. Both `--hx-muted` and `--hx-text` are
-              // clamped against the SKIN'S PANEL, so either is right on a panel-coloured surface and wrong
-              // on any other. Swapping between them (slice 19) just picked a different wrong answer:
-              // `--hx-text` computed to 1.13–1.17:1 on the light skins.
+              // THE INK COMES FROM THE SAME TOKEN FAMILY AS THE SURFACE. That is the whole rule, and it took
+              // four attempts and a real browser to land it.
               //
-              // The real defect was the SURFACE. `.fld`'s gradient reads `--panel-rgb`/`--void-rgb`, which
-              // the bespoke shells derive from the skin but `theme.css` pinned to a fixed dark purple for
-              // the 5e sheet — so on a light skin this dock stayed near-black under near-black ink. Slice
-              // 23 made the dock panel-derived in both scopes (`--hx-panel-rgb`), which restores the
-              // clamp's own precondition: the ink is now clamped against the colour actually behind it.
-              // Pinned per skin in `roller-dock-surface.test.ts`. Do not "fix" this by hard-coding a light
-              // colour — that breaks the shells, whose dock is legitimately light on a light skin.
-              color: on ? 'var(--hx-teal-1, #0ac8b9)' : 'var(--hx-muted, #93a1b5)',
+              // Measured on a live streamer-skinned sheet (2026-07-26): the dock's gradient resolved to
+              // `rgba(255,250,254,.98)` — near-WHITE — because `.fld` reads `--panel-rgb`, which the shell
+              // bridge (`shellVarsFromHx`) derives from the skin. That same bridge also sets `--ink: #5a1050`
+              // and `--muted: #8a3f7c`, dark inks correctly clamped FOR that light panel. But these inline
+              // styles reached for `--hx-muted`, which on that sheet is the DEFAULT `#a09b8c` — a light warm
+              // grey meant for a dark panel, because `skinHxVars` is not applied at this scope at all
+              // (`--hx-panel` was still `#0b1a2c`). Light ink on a near-white dock: **2.59:1**, and the
+              // active teal tab **1.76:1**.
+              //
+              // Slice 23's fix (emitting `--hx-panel-rgb`) never reached this surface — the token was empty
+              // here — so its claim that "the clamp's precondition now holds" was wrong. `floatingRoller.css`
+              // had it right all along: everything IT paints uses `--ink`/`--muted`. Only these inline styles
+              // used the other family. So: shell family first, sheet family as the fallback for a scope where
+              // only that one exists, literal last.
+              //
+              // The ACTIVE tab cannot use the accent for its text — neither family's teal clears AA on a
+              // near-white dock (1.76:1) — so it takes `--ink` and stays recognisable through its teal border
+              // and tint instead. Re-measured in the browser after the change, not computed.
+              color: on
+                ? 'var(--ink, var(--hx-text, #e8e6f0))'
+                : 'var(--muted, var(--hx-muted, #93a1b5))',
               opacity: !canWrite && !on ? 0.5 : 1,
             }}
           >
@@ -132,9 +142,10 @@ export default function RollerTemplateBar({
             borderRadius: 999, fontSize: 11, lineHeight: 1.2, cursor: canWrite ? 'pointer' : 'default',
             fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
             border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
-            // Same bar, same 11px, same token as the template tabs above — and correct for the same reason
-            // (slice 23: the dock's surface is panel-derived, so the panel-clamped ink holds).
-            background: 'rgba(255,255,255,0.03)', color: 'var(--hx-muted, #93a1b5)',
+            // Same bar, same 11px, same family as the template tabs above — the shell's `--muted`, which is
+            // clamped for the surface `.fld` actually paints. Kept in step with them rather than fixed
+            // independently, since they sit on the same strip.
+            background: 'rgba(255,255,255,0.03)', color: 'var(--muted, var(--hx-muted, #93a1b5))',
             opacity: canWrite ? 1 : 0.5,
           }}
         >

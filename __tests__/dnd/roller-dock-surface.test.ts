@@ -26,6 +26,10 @@ import { describe, it, expect } from 'vitest';
 import { skinHxVars, themeToHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
 import { SHEET_STYLES } from '@/lib/dnd/sheet-styles';
 import { parseColor, composite, contrastRatio, type RGBA } from '@/lib/dnd/theme-contrast';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 
 type Vars = Record<string, string>;
 const varsFor = (id: string) => skinHxVars(id) as unknown as Vars;
@@ -69,7 +73,32 @@ describe('every skin ships a dock surface derived from its own panel', () => {
   });
 });
 
-describe('the tab labels clear AA on the dock, on every skin', () => {
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CORRECTION, 2026-07-26, from measuring a real browser instead of modelling one.
+//
+// Everything below this line is still true, and it is NOT what makes the tab labels legible. The model these
+// tests encode — dock surface from `--hx-panel-rgb`, ink from the skin's clamped `--hx-muted` — assumes both
+// token families are applied wherever the dock lives. On a real 5e sheet they are not:
+//
+//   · the shell root carries `--panel-rgb: 255,250,254` and `--ink`/`--muted` (shellVarsFromHx, skin-derived)
+//   · `--hx-panel` is still the DEFAULT `#0b1a2c` and `--hx-muted` the default `#a09b8c`
+//   · `--hx-panel-rgb` — the token slice 23 added — is EMPTY there
+//
+// So the dock was light (from the shell family) while `RollerTemplateBar`'s inline styles reached for
+// `--hx-muted`, a light warm grey meant for a dark panel: measured **2.59:1**, and the active teal tab
+// **1.76:1**. Slice 23's claim that "the clamp's precondition now holds" was therefore wrong for that scope.
+//
+// The actual fix is the INK FAMILY: the bar now uses `--muted`/`--ink` (the family that paints the surface)
+// with the `--hx-*` pair as the fallback for a scope where only that one exists. Measured after the change,
+// per skin, in a browser: streamer 6.36, jack 7.69, donata 6.32, lazzuh 6.13, default 7.54 — worst 6.13,
+// active tabs 10.8–13.2. See `docs/planning/qa-evidence/contrast-sweep.md`.
+//
+// These tests are kept rather than deleted because the hx-scope case is real (a surface should follow its
+// skin, and where `skinHxVars` IS applied this arithmetic is what holds) — but they must not be read as
+// evidence that the labels are legible. The last describe in this file is that evidence.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('IN THE HX SCOPE: the tab labels clear AA on a panel-derived dock', () => {
   for (const skin of SKINS) {
     it(`${skin.id}: --hx-muted on the dock`, () => {
       const v = varsFor(skin.id);
@@ -121,6 +150,43 @@ describe('the bespoke shells were already correct, and stay correct', () => {
       expect(shell['--panel-rgb']).toBe(varsFor(skin.id)['--hx-panel-rgb']);
     });
   }
+});
+
+describe('THE RULE THAT ACTUALLY MAKES THE LABELS LEGIBLE: ink from the surface\'s own family', () => {
+  // Browser-verified 2026-07-26 across all five skins (worst 6.13:1, was 2.59). The source assertion is what
+  // keeps it: `.fld`'s gradient reads `--panel-rgb`, and `shellVarsFromHx` sets `--ink`/`--muted` from the
+  // SAME skin in the SAME place — so taking the ink from that family is correct by construction, on a light
+  // skin and a dark one alike, without anyone computing a ratio.
+  const bar = read('app/dnd/_sheet/components/rollers/RollerTemplateBar.tsx');
+
+  it('an inactive tab takes the shell muted, falling back to the sheet family', () => {
+    expect(bar).toContain("'var(--muted, var(--hx-muted, #93a1b5))'");
+  });
+
+  it('an ACTIVE tab takes the ink, not the accent', () => {
+    // Neither family's teal clears AA on a near-white dock (measured 1.76:1), so the active tab is ink text
+    // and stays recognisable through its teal border and background tint.
+    expect(bar).toContain("'var(--ink, var(--hx-text, #e8e6f0))'");
+    expect(bar).not.toMatch(/color: on\s*\?\s*'var\(--hx-teal-1/);
+  });
+
+  it('the animation toggle on the same strip matches', () => {
+    expect(bar).toContain("color: 'var(--muted, var(--hx-muted, #93a1b5))'");
+  });
+
+  it('the fallback ORDER is shell-then-sheet, never the other way round', () => {
+    // `var(--hx-muted, var(--muted, …))` would reinstate the bug wherever the hx default exists, which is
+    // everywhere — the default is what was being picked up.
+    expect(bar).not.toContain('var(--hx-muted, var(--muted');
+    expect(bar).not.toContain('var(--hx-text, var(--ink');
+  });
+
+  it('the stylesheet already used that family, which is why only the inline styles were wrong', () => {
+    const css = read('app/dnd/_sheet/components/rollers/floatingRoller.css');
+    expect(css).toContain('color: var(--ink, #e8e6f0)');
+    expect(css).toContain('color: var(--muted, #9a97ad)');
+    expect(css).not.toContain('var(--hx-muted');
+  });
 });
 
 describe('a theme (not a skin) gets the same treatment', () => {
