@@ -192,6 +192,29 @@ every call, so there is no second render for the bug to appear in. That limit is
 
 **No live data changed** — the builder was driven up to the pick and never saved.
 
+### 2026-07-26 — browser pass over the escape hatch (slot plan S6c), IG — all three systems now driven
+
+Driven on the **IG guided builder** for Vashti Kelln: ancestry → class **Archon** → subclass **Beastmaster**
+→ three steps to the powers block.
+
+| Check | Result |
+|---|---|
+| Powers block carries its budget | ✅ `POWERS (0/1)` |
+| Hatch renders, with IG's own noun | ✅ `Add a different power…` — not "feat" |
+| Offered with the rules' objection | ✅ *"Dispel Magic — Dispel Magic is not a Beastmaster power."* |
+| **Reason survives being taken** | ✅ *"Dispel Magic — Dispel Magic is not a Beastmaster power."* — the S6b fix holds on IG too |
+| Budget updates | ✅ `POWERS (1/1)` |
+| **Stances get NO hatch** | ✅ exactly one `Add a different…` control on the page, and it is the powers one |
+| Console errors | ✅ none |
+
+The stances result is the one worth calling out: `Chips` is shared by powers, stances and weapon types, and
+the hatch was deliberately mounted on the powers block rather than inside `Chips` — because stances and
+weapon types are uncapped by design and have no eligibility rule, so a hatch there would offer escape from a
+constraint that does not exist. The page confirms it: one hatch, on the only list IG's gate actually refuses.
+
+**All three systems' hatches are now browser-verified** (5e's count caps 2026-07-26, PF2 S6b, IG here).
+**No live data changed** — the builder was driven to the pick and never saved.
+
 ## Known gaps / notes for the walkthrough
 
 - **`VOYAGE_API_KEY` is absent**, so semantic search returns nothing; keyword search
