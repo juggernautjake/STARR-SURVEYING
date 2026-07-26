@@ -198,7 +198,19 @@ slices are driven in the browser before being called done — this repo's standi
       asked for survives. Fork-first would risk the opposite: a stray variant for a campaign they never
       joined. Pinned by a test that asserts the call ORDER, not just that both calls exist.
       Two plainly-labelled buttons rather than a dropdown, because this is the moment the choice matters and
-      it is hard to undo later. **Browser pass still owed** (with S11).
+      it is hard to undo later.
+- [x] **S13 — render the panel in a test, and it found a bug. Shipped 2026-07-26.**
+      S11/S12's other coverage asserts the panel *calls* the right endpoints — the same kind of proof that has
+      already failed twice here (the 5e build gate passed 9 source-anchored tests while refusing every legal
+      build; a green 15k-test suite missed three rendering-condition bugs in one browser pass). So the markup
+      was split out as `CampaignsPanel` — the fetching container returns `null` until its request resolves,
+      which under this repo's node test environment renders *nothing*, making every assertion about it
+      necessarily a grep — and `campaign-membership-panel.test.tsx` (16) renders the real states.
+      **It immediately found one:** the "Add to a campaign" section was gated on `joinable.length`, but its
+      rows are permission-filtered — so a viewer who may join none of them got a heading with nothing under
+      it. Now gated on the filtered list, computed once so the heading and the rows cannot disagree.
+      **This does not close the browser pass**, which is still owed for S11/S12: no effects run here, no CSS
+      is applied, and nothing proves the panel sits sensibly on the page.
 - [ ] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker

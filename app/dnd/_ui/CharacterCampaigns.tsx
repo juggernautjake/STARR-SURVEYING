@@ -100,7 +100,39 @@ export default function CharacterCampaigns({ characterId }: { characterId: strin
   };
 
   if (!view) return null;
+  return (
+    <CampaignsPanel
+      view={view} isOwner={isOwner} busy={busy} msg={msg}
+      onLeave={leave} onJoin={join} onJoinVariant={(c) => void joinAsVariant(c)}
+    />
+  );
+}
 
+/**
+ * The panel's MARKUP, split from the fetching above so it can be rendered in a test.
+ *
+ * Not a tidiness split. The container returns `null` until its fetch resolves, which under this repo's node
+ * test environment (`renderToStaticMarkup`, no effects) means it renders nothing at all — so every assertion
+ * about it could only ever have been a grep over the source, and a grep proves a call exists rather than that
+ * the right button reaches the screen. That distinction has already cost this project twice (the 5e build
+ * gate whose 9 source-greps passed while the gate refused every legal build; three rendering bugs a green
+ * 15k-test suite missed). With the markup pure, `campaign-membership-panel.test.tsx` renders the real states.
+ */
+export function CampaignsPanel({
+  view, isOwner, busy, msg, onLeave, onJoin, onJoinVariant,
+}: {
+  view: MembershipView;
+  isOwner: boolean;
+  busy?: string | null;
+  msg?: string | null;
+  onLeave: (c: CampaignRef) => void;
+  onJoin: (c: CampaignRef) => void;
+  onJoinVariant: (c: CampaignRef) => void;
+}) {
+  const leave = onLeave, join = onJoin, joinAsVariant = onJoinVariant;
+  // The campaigns this caller may actually add the character to — computed once, because both the section's
+  // visibility and its rows must agree about it.
+  const addable = view.joinable.filter((c) => canJoinCampaign({ isOwner, role: c.role }));
   return (
     <section className={styles.framedPanel} style={{ padding: '12px 14px', margin: '10px 0' }}>
       <div className={styles.framedPanelTop} />
@@ -129,7 +161,12 @@ export default function CharacterCampaigns({ characterId }: { characterId: strin
         </div>
       )}
 
-      {view.joinable.length > 0 && (
+      {/* The rows are PERMISSION-FILTERED, so the section is gated on the filtered list rather than on
+          `joinable.length`. Gating on the raw list showed a viewer who may join none of them an
+          "Add to a campaign" heading with nothing under it — a header promising an action that isn't there.
+          Found by `campaign-membership-panel.test.tsx`, which is the case for rendering the thing in a test
+          rather than grepping for the call. */}
+      {addable.length > 0 && (
         <div style={{ display: 'grid', gap: 6 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-muted)' }}>
             Add to a campaign
@@ -138,7 +175,7 @@ export default function CharacterCampaigns({ characterId }: { characterId: strin
               later: bring the character itself, or branch a version that belongs to that table so the
               original build stays untouched (S12). Named plainly rather than behind a dropdown — this is the
               moment the choice matters. */}
-          {view.joinable.filter((c) => canJoinCampaign({ isOwner, role: c.role })).map((c) => (
+          {addable.map((c) => (
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: 'var(--hx-text)' }}>{c.name}</span>
               <button
