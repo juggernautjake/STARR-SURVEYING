@@ -110,3 +110,63 @@ describe('assembleDnd5e writes the combat facts only the class knows', () => {
     expect(odd.saves).toEqual({});
   });
 });
+
+// ── Class features (final-QA walkthrough, slice 11) ─────────────────────────────────────────────────
+// Slice 10 deferred this as "the same open question as ASI-slot ownership". That was WRONG, and worth
+// recording why: an ASI is a player CHOICE, so two surfaces collecting it would double-ask — which is the
+// real blocker there. Class features are automatic GRANTS. Nothing else asks for them, and nothing under
+// `_sheet/` reads the class registry at all (the Features panel renders `char.features` and nothing else),
+// so a level-8 Battle Master simply had no Second Wind, Action Surge or Extra Attack anywhere.
+describe('assembleDnd5e writes the class + subclass features for the level', () => {
+  const bm8 = () => assembleDnd5e({
+    system: 'dnd5e-2024', level: 8, className: 'fighter', subclass: 'battle-master', name: 'T',
+    abilities: { str: 17, dex: 14, con: 14, int: 12, wis: 10, cha: 8 },
+  });
+
+  it('includes the base class features up to that level', () => {
+    const names = bm8().classFeatures.map((f) => f.name);
+    for (const n of ['Fighting Style', 'Second Wind', 'Action Surge', 'Extra Attack']) {
+      expect(names, `missing ${n}`).toContain(n);
+    }
+  });
+
+  it('includes the SUBCLASS features, attributed to the subclass', () => {
+    const cs = bm8().classFeatures.find((f) => f.name === 'Combat Superiority');
+    expect(cs, 'Battle Master should grant Combat Superiority').toBeTruthy();
+    expect(cs!.source).toBe('Fighter (Battle Master)');
+    expect(cs!.unlockLevel).toBe(3);
+  });
+
+  it('grants nothing from above the character’s level', () => {
+    for (const f of bm8().classFeatures) expect(f.unlockLevel, f.name).toBeLessThanOrEqual(8);
+    // Level 9's Indomitable is a Fighter feature the level-8 build must not have.
+    expect(bm8().classFeatures.map((f) => f.name)).not.toContain('Indomitable');
+  });
+
+  it('scales with level — a level-1 Fighter has the level-1 set and no more', () => {
+    const l1 = assembleDnd5e({
+      system: 'dnd5e-2024', level: 1, className: 'fighter', name: 'T',
+      abilities: { str: 16, dex: 14, con: 14, int: 10, wis: 10, cha: 8 },
+    }).classFeatures;
+    expect(l1.map((f) => f.name)).toContain('Second Wind');
+    expect(l1.map((f) => f.name)).not.toContain('Action Surge');   // level 2
+    expect(l1.every((f) => f.unlockLevel === 1)).toBe(true);
+  });
+
+  it('tags every feature with an id the rebuild can replace, and the class as its source', () => {
+    // The route strips `cls-` ids on rebuild so re-classing removes the old class's features instead of
+    // leaving a Fighter's Action Surge on a Wizard. A feature the PLAYER added has no such prefix.
+    for (const f of bm8().classFeatures) {
+      expect(f.id.startsWith('cls-'), f.name).toBe(true);
+      expect(f.source.startsWith('Fighter'), f.name).toBe(true);
+      expect(f.body.join('').length, `${f.name} has no rules text`).toBeGreaterThan(0);
+    }
+  });
+
+  it('an unknown class contributes no features rather than throwing', () => {
+    expect(assembleDnd5e({
+      system: 'dnd5e-2024', level: 5, className: 'not-a-class', name: 'X',
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    }).classFeatures).toEqual([]);
+  });
+});

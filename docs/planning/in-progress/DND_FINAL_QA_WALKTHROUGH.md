@@ -485,3 +485,41 @@ derivation) is the **same open question as ASI-slot ownership** in slices 5–6.
 both, so it waits with them rather than being guessed at here.
 
 **Bar:** 6 new guards, 4632/4632 D&D tests, typecheck + lint clean. QA character deleted.
+
+### 2026-07-26 — slice 11: class features — and a correction to slice 10
+
+**Slice 10 deferred this for the wrong reason.** It said class features were "the same open question as
+ASI-slot ownership". They are not, and the distinction matters:
+
+- An **ASI is a player CHOICE**. Two surfaces collecting it (Foundations' feat picker and the level walker)
+  would *double-ask*. That is the real blocker there, and it stands.
+- A **class feature is an automatic GRANT**. Nothing else asks for it, so there is no second surface to
+  conflict with.
+
+Checking rather than assuming settled it: **nothing under `app/dnd/_sheet/` reads the class registry at
+all.** The Features panel renders `char.features` and nothing else, so there is no render-time derivation
+to conflict with either — a level-8 Battle Master simply had no Second Wind, no Action Surge, no Extra
+Attack, anywhere. Unblocked, and the same class of fix as slice 10's HP.
+
+**Fix.** The build now writes the class + subclass features for the character's level. Verified live: the
+same level-8 Battle Master now carries **11** features —
+
+`L1 Fighting Style · Second Wind · Weapon Mastery` · `L2 Action Surge · Tactical Mind` ·
+`L3 Combat Superiority* · Fighter Subclass · Student of War*` · `L5 Extra Attack · Tactical Shift` ·
+`L7 Know Your Enemy*`  (*= Battle Master)
+
+— each with its full rules text, rendering on the sheet's Features tab. Level 8 grants none, correctly.
+
+Two details that keep a rebuild safe: features are tagged `source: "Fighter"` / `"Fighter (Battle Master)"`
+and given `cls-…` ids, and the route strips only those on rebuild. So re-classing a character removes the
+old class's features instead of stranding a Fighter's Action Surge on a Wizard, while anything the player
+or DM added is untouched.
+
+**The 5e 2024 sheet is now arithmetically complete**: identity, abilities, proficiency, HP, hit dice, AC,
+saves and features all correct for a built character. Slices 10–11 together took it from "1 hit point and
+no class abilities" to a playable sheet.
+
+**Bar:** 6 new guards (18 in the file), 4638/4638 D&D tests, typecheck + lint clean. QA character deleted.
+
+**Still open and genuinely owner-blocked:** ASI-slot ownership (slices 5–6, 10) — unchanged, and now the
+*only* thing left in the 5e build path.

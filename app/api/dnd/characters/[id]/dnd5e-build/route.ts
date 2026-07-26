@@ -55,8 +55,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     primaryAbilities: assembly.primaryAbilities,
     // Replace any prior BUILDER feats (source 'Feat') so re-building doesn't stack duplicates; keep other
     // features (class/species/etc.) untouched — those derive from the class registry, not from here.
+    // Replace any prior BUILDER feats (source 'Feat') and any prior CLASS features (ids prefixed `cls-`)
+    // so rebuilding doesn't stack duplicates or strand the previous class's features on a re-classed
+    // character. Everything else the player or DM added is left alone — the id prefix is what makes
+    // "features this build owns" separable from "features someone put there".
     features: [
-      ...base.features.filter((f) => f.source !== 'Feat'),
+      ...base.features.filter((f) => f.source !== 'Feat' && !f.id.startsWith('cls-')),
+      ...assembly.classFeatures,
       ...assembly.feats.map((f) => ({ id: `feat-${slug(f.name)}`, name: f.name, source: 'Feat', body: f.body ? [f.body] : [] })),
     ],
     // The class-derived combat facts. The sheet recomputes HP when the level changes THROUGH ITS OWN

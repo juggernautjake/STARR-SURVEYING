@@ -55,6 +55,16 @@ export interface Dnd5eAssembly {
   /** Save proficiencies from the class (a Fighter is STR + CON). The sheet stores these per-ability and had
    *  no other source for them, so every manually-built character was proficient in NO saves. */
   saves: Partial<Record<AbilityKey, { proficient: boolean }>>;
+  /**
+   * The class + subclass features the character has AT THIS LEVEL.
+   *
+   * The header's "the sheet derives class features by level" is not true: nothing under `_sheet/` reads
+   * the class registry, and the Features panel renders `char.features` and nothing else. So a level-8
+   * Battle Master had no Second Wind, no Action Surge, no Extra Attack — the sheet had no way to know
+   * about them. Unlike an ASI these are automatic GRANTS, not player choices, so writing them at build
+   * time cannot conflict with a picker: there is no second surface that also asks for them.
+   */
+  classFeatures: { id: string; name: string; source: string; unlockLevel: number; body: string[] }[];
 }
 
 const clampLevel = (n: number) => Math.max(1, Math.min(20, Math.round(n)));
@@ -91,8 +101,36 @@ export function assembleDnd5e(input: Dnd5eAssembleInput): Dnd5eAssembly {
     feats: (input.feats ?? []).map((name) => ({ name, body: '' })),
     combat: combatFor(cls, clampLevel(input.level), input.abilities),
     saves: savesFor(cls),
+    classFeatures: classFeaturesFor(cls, subclassLabel, clampLevel(input.level), input.system),
   };
 }
+
+/** Class + subclass features up to `level`, in the sheet's `FeatureBlock` shape.
+ *
+ *  `source` is the CLASS NAME (or "<Class> (<Subclass>)"), not a bare 'Class': the build route replaces
+ *  features by source when rebuilding, and tagging them with the class means switching class cleanly
+ *  removes the old class's features instead of leaving a Fighter's Action Surge on a Wizard. */
+function classFeaturesFor(cls: ReturnType<typeof findClass>, subclassLabel: string, level: number, system: string) {
+  if (!cls) return [];
+  const sub = subclassLabel
+    ? subclassesFor(system, cls.key).find((s) => s.name === subclassLabel || s.key === subclassLabel) ?? null
+    : null;
+  const all = [
+    ...cls.features.map((f) => ({ ...f, fromSubclass: false })),
+    ...(sub?.features ?? []).map((f) => ({ ...f, fromSubclass: true })),
+  ]
+    .filter((f) => f.level <= level)
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+  return all.map((f) => ({
+    id: `cls-${slugify(cls.key)}-${slugify(f.name)}-${f.level}`,
+    name: f.name,
+    source: f.fromSubclass && sub ? `${cls.name} (${sub.name})` : cls.name,
+    unlockLevel: f.level,
+    body: f.body ? [f.body] : [],
+  }));
+}
+
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 /** Hit die / hit dice / starting HP for a class at a level. Uses the sheet's OWN `maxHpForLevel` so a built
  *  character and a levelled-up one agree — two formulas would drift, and the whole point of writing these
