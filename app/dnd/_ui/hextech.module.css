@@ -28,6 +28,12 @@
   --hx-text: #f0e6d2;
   --hx-muted: #a09b8c;
   --hx-danger: #c6403b;
+  /* Danger as small TEXT on a dark hextech panel. `--hx-danger` is tuned as a border and fill accent; at
+     9.5–12.5px on this module's panels it measures 2.62–2.87:1 (browser-measured 2026-07-26) — the CUSTOM
+     provenance chip and the "N custom" counts were unreadable, and on EVERY skin, because these panels are
+     dark whatever the skin. Lightened to clear AA there (5.43 / 5.95) while keeping the hue, so the visual
+     language is unchanged. Same reasoning as `variant-tags`' custom chip, which already used a light tint. */
+  --hx-danger-2: #ef8b85;
   --hx-font-display: 'Cinzel', 'Marcellus', Georgia, 'Times New Roman', serif;
   --hx-font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--hx-text);
@@ -813,6 +819,12 @@ select.input {
   --hx-text: #f0e6d2;
   --hx-muted: #a09b8c;
   --hx-danger: #c6403b;
+  /* Danger as small TEXT on a dark hextech panel. `--hx-danger` is tuned as a border and fill accent; at
+     9.5–12.5px on this module's panels it measures 2.62–2.87:1 (browser-measured 2026-07-26) — the CUSTOM
+     provenance chip and the "N custom" counts were unreadable, and on EVERY skin, because these panels are
+     dark whatever the skin. Lightened to clear AA there (5.43 / 5.95) while keeping the hue, so the visual
+     language is unchanged. Same reasoning as `variant-tags`' custom chip, which already used a light tint. */
+  --hx-danger-2: #ef8b85;
   --hx-font-display: 'Cinzel', 'Marcellus', Georgia, 'Times New Roman', serif;
   --hx-font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   display: flex;

@@ -1084,3 +1084,37 @@ the element and look at it before touching code.**
 
 **Bar:** no app change (there was nothing to fix), 4986/4986 D&D tests, typecheck exit-0. Dev server stopped,
 port released.
+
+### 2026-07-26 — slice 28: the sweep re-run with the fixed tool, and the one skin-independent failure fixed
+
+With `bgOf` corrected (whole element, colour then image layers back-to-front, stop at the first opaque layer),
+the sweep gives a trustworthy number for the first time in this arc:
+
+| skin | broken tool | corrected | change |
+|---|---|---|---|
+| streamer | 9 | **7** | −2 artifacts |
+| jack | 22 | **4** | −18 (cluster 1 fixed in slice 26, plus artifacts) |
+| donata | 26 | **22** | −4 artifacts |
+| **total** | **57** | **33** | |
+
+**Fixed here: the one failure that appeared on ALL THREE skins.** The `CUSTOM` provenance chip and the
+"N custom" counts used `--hx-danger` (`#c6403b`) as 9.5–12.5px text on the hextech module's dark panels —
+**2.62 / 2.87:1**. Skin-independent, because those panels are dark whatever the skin, and unambiguous: a
+provenance marker nobody can read is the same defect as a missing one. `--hx-danger` is tuned as a border and
+fill accent, so a new `--hx-danger-2: #ef8b85` carries the same hue at a legible weight; the chip's FILL keeps
+the original red. Measured after: **5.45** (chip) and **5.96** ("2 custom"). The codebase already had this
+pattern — `variant-tags`' custom chip uses a light amber on its dark chip for exactly this reason.
+
+**The 30 that remain, and why they are not being swept up.**
+
+- **~18 on donata: `.teal` / `.danger` button fills** (white on `#17b3a3` = 2.62, on `#f0577a` = 3.31).
+  Screenshot-verified as legible-but-marginal. Fixing them means darkening a brand fill or dropping white
+  text — a colour decision, not a bug fix. **Owner's call.**
+- **~7 on streamer: gold and amber accents on pale panels** (`#c8aa6e` on `#ffeef9` = 2.00 "POLL PROPOSED";
+  `#966c00` on `#e7d2c1` = 3.24 "MANAGE LEVELS"; `#b30060`/`#8a3f7c` on the mid-pink `#ea8db4` = 2.90). These
+  are the streamer skin's own palette against its own panels — the same "which token family" question, but
+  the answer changes what the skin looks like, so it wants an eye rather than a rule.
+- **1 on jack: `tap a stat to roll` at 4.33 vs 4.5** — 0.17 short. Real, trivial, and inside the noise of a
+  gradient approximation; recorded rather than chased.
+
+**Bar:** 4986/4986 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.

@@ -19,7 +19,9 @@ const STATUS_COLOR: Record<Status, string> = { draft: 'var(--hx-muted)', submitt
 function Badge({ source }: { source: Tagged['source'] }) {
   const map = {
     vanilla: { t: 'VANILLA', c: 'var(--hx-teal-1)', b: 'rgba(10,200,185,0.12)' },
-    custom: { t: 'CUSTOM', c: 'var(--hx-danger)', b: 'rgba(198,64,59,0.14)' },
+    // `--hx-danger-2`, not `--hx-danger`: this 9.5px chip sits on a dark hextech panel where the border-tuned
+    // red measured 2.62:1 on every skin. The fill keeps the original red — only the TEXT is lightened.
+    custom: { t: 'CUSTOM', c: 'var(--hx-danger-2, #ef8b85)', b: 'rgba(198,64,59,0.14)' },
     'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
   }[source];
   return <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: map.c, background: map.b, border: `1px solid ${map.c}`, borderRadius: 4, padding: '1px 5px' }}>{map.t}</span>;
@@ -81,7 +83,7 @@ export default function SheetApprovalPanel({
 
       {/* Content summary — both DM and player see what's vanilla vs custom. */}
       <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
-        {vanillaCount} vanilla · <span style={{ color: 'var(--hx-danger)' }}>{custom.length} custom</span> · <span style={{ color: 'var(--hx-gold-2)' }}>{dmGranted.length} DM-granted</span>
+        {vanillaCount} vanilla · <span style={{ color: 'var(--hx-danger-2, #ef8b85)' }}>{custom.length} custom</span> · <span style={{ color: 'var(--hx-gold-2)' }}>{dmGranted.length} DM-granted</span>
         {allowCustom ? '' : ' · this campaign is vanilla-only'}
       </div>
       {(custom.length > 0 || dmGranted.length > 0) && (

@@ -334,7 +334,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
-                {preview.total} picked · <span style={{ color: 'var(--hx-teal-1)' }}>{preview.vanilla} vanilla</span>{preview.custom > 0 && <> · <span style={{ color: 'var(--hx-danger)' }}>{preview.custom} custom</span></>}
+                {preview.total} picked · <span style={{ color: 'var(--hx-teal-1)' }}>{preview.vanilla} vanilla</span>{preview.custom > 0 && <> · <span style={{ color: 'var(--hx-danger-2, #ef8b85)' }}>{preview.custom} custom</span></>}
               </div>
               <button type="button" className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} disabled={busy} onClick={build}>{busy ? 'Building…' : '⚒ Build character'}</button>
             </div>
