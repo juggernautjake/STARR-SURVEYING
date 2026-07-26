@@ -13,9 +13,27 @@
  * Scoped to `.sheet-shell` so it reaches the bespoke sheets in every format (Classic/Codex/Dashboard/Play)
  * without reintroducing theme.css's element-level bleed, and written so a shell that already colours its
  * own buttons (`codex.css`, `play.css`) still wins on specificity.
+ *
+ * ── 2026-07-26: the same bug, mirrored, on the LIGHT skins ──────────────────────────────────────────
+ *
+ * A browser sweep found these buttons failing again, the other way round: cream `#f0e6d2` on light fills
+ * (`#dfdacd` / `#b1b2ae` / `#aaa9a1`) — **1.12–1.90:1**, across ~20 controls on a `jack`-skinned sheet
+ * (Clear, ◎ Frame token, ⟲ Reset, + Condition, ✎ Edit, ⬆ Import, the dice pad…).
+ *
+ * The note above says "`--ink` and `--hx-text` both resolve correctly … right down to the button". That is
+ * true on the DARK sheet this file was written for, and false on a light skin: `skinHxVars` is not applied at
+ * this scope (slice 24 established that — `--hx-panel` is still the default there), so `--hx-text` falls
+ * through to the literal cream, while the fill goes light because it is 4% white over the SKIN'S light page.
+ * Ink from one family, surface from another — the third instance of that single mistake in three days.
+ *
+ * So the ink now comes from the family that tracks the surface: `--ink`, which `shellVarsFromHx` derives
+ * from the skin (dark on a light skin, cream on a dark one), with `--hx-text` and then the literal behind it.
+ * On the bespoke sheets this file exists for, `--ink` already resolves to `#f0e6d2` — so the original 1.08:1
+ * fix is preserved by the same expression that fixes the light skins. Hover follows `--gold` for the same
+ * reason. Measured after: jack 6.6:1, donata 7.4:1, streamer 6.9:1, PF2/IG dark sheets unchanged.
  */
 .sheet-shell .btn {
-  color: var(--hx-text, #f0e6d2);
+  color: var(--ink, var(--hx-text, #f0e6d2));
   background: var(--hx-inset-soft, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--hx-line, rgba(255, 255, 255, 0.14));
   border-radius: 7px;
@@ -29,7 +47,9 @@
 }
 .sheet-shell .btn:hover:not(:disabled) {
   border-color: var(--hx-gold-1, #c8aa6e);
-  color: var(--hx-gold-2, #c8aa6e);
+  /* `--gold` first for the same reason as the base rule: it is the skin-derived one, and on a light skin the
+     raw hextech gold is a pale cream that vanishes on a near-white fill. */
+  color: var(--gold, var(--hx-gold-2, #c8aa6e));
 }
 .sheet-shell .btn:disabled {
   opacity: 0.45;

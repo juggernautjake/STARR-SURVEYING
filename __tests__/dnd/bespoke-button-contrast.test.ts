@@ -16,10 +16,18 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const CSS = read('app/dnd/_sheet/styles/bespokeButtons.css');
 
 describe('the bespoke sheets style their own .btn', () => {
-  it('colours it from the hextech token, with a literal fallback', () => {
+  it('colours it from a token, with a literal fallback', () => {
     // The fallback matters: if the token ever fails to resolve the button must still be legible rather
     // than inheriting the page's dark body colour again.
-    expect(CSS).toMatch(/\.sheet-shell \.btn\s*\{[^}]*color:\s*var\(--hx-text,\s*#f0e6d2\)/s);
+    //
+    // The ORDER changed 2026-07-26 and the reason is measured. `--hx-text` first was this file's original
+    // fix (1.08:1 on the dark bespoke panels) and it broke the LIGHT skins: `skinHxVars` is not applied at
+    // that scope, so `--hx-text` fell through to its literal cream while the fill went light with the skin —
+    // 1.12–1.90:1 across ~20 controls. `--ink` comes first now because `shellVarsFromHx` derives it from the
+    // skin alongside the surface tokens, so it tracks the surface in BOTH directions; on the dark bespoke
+    // sheets it already resolves to `#f0e6d2`, so the original fix is preserved by the same expression.
+    // See bespoke-button-ink.test.ts.
+    expect(CSS).toMatch(/\.sheet-shell \.btn\s*\{[^}]*color:\s*var\(--ink,\s*var\(--hx-text,\s*#f0e6d2\)\)/s);
   });
 
   it('is scoped to .sheet-shell, not to a bare element rule', () => {

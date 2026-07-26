@@ -1008,3 +1008,44 @@ name the mechanism, and that is done: the mechanism is one rule, and it is now s
 two guards.
 
 **Bar:** 3 new guards, 4980/4980 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.
+
+### 2026-07-26 — slice 26: cluster 1 fixed. One rule, broken three times in three days.
+
+Slice 25 recorded four clusters and said the fixes were the owner's call. **Re-examining that, cluster 1 was
+not a look decision** — nobody chose invisible button labels — so it is fixed here. Clusters 2–4 still stand
+as recorded.
+
+**The cause was `bespokeButtons.css`, the file written to fix the mirror image of this bug.** Its base rule
+was `color: var(--hx-text, #f0e6d2)`, added when the bespoke PF2/IG buttons matched no colour rule at all and
+inherited near-black onto a near-black panel (1.08:1). On a light skin `skinHxVars` is not applied at that
+scope — slice 24 established this — so `--hx-text` fell through to its **literal cream**, while the fill went
+light because it is 4% white over the skin's light page. Cream on near-white: **1.12–1.90:1** across ~20
+controls (Clear, ◎ Frame token, ⟲ Reset, + Condition, ✎ Edit, ⬆ Import, the dice pad…).
+
+The fix is one expression: `color: var(--ink, var(--hx-text, #f0e6d2))`. `--ink` is derived by
+`shellVarsFromHx` from the skin, in the same place and at the same time as the surface tokens, so it tracks
+the surface in **both** directions — and on the dark bespoke sheets it already resolves to `#f0e6d2`, so the
+original 1.08:1 fix is preserved by the very same expression rather than traded away. Hover follows `--gold`
+for the same reason.
+
+Browser-measured after, on four live characters:
+
+| sheet | `.btn` count | failing | note |
+|---|---|---|---|
+| jack (light 5e) | 27 | **0** | was ~20 failing |
+| PF2 Orin (streamer) | 5 | **0** | the sheet this file was written for; `＋ Weapon` 11.01:1 — no regression |
+| donata (light 5e) | 45 | 18 | **all** `.teal`/`.danger` variants — cluster 3, untouched |
+| perrin (lazzuh dark) | 27 | 3 | all danger fills — cluster 3, untouched |
+
+**THE RULE, now stated in one guard instead of three comments.** `bespoke-button-ink.test.ts` records all
+three instances of the same mistake — the bespoke buttons (1.08:1), the roller dock (2.59:1), these buttons on
+light skins (1.12:1) — and pins the ordering in every place it applies, including that the sheet family must
+never come *first* (its literal always resolves, so the fallback would never be reached). The campaigns panel
+is in there too as the mirror case: it wants the hextech family precisely because its surface is
+hextech-module dark, which is the same rule and not an exception.
+
+**Still open, unchanged from slice 25:** cluster 2 (dark headings on dark section fills, 1.20–1.68), cluster 3
+(white on teal 2.62 / on danger 3.31 — a brand-colour trade, owner's call), cluster 4 (small gold accents,
+2.16–3.24).
+
+**Bar:** 8 new guards, 4986/4986 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.
