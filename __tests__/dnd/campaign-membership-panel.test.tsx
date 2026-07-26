@@ -13,6 +13,8 @@
 // It does NOT replace driving the page in a browser, which is still owed: no effects run here, no CSS is
 // applied, and nothing proves the panel is positioned sensibly on the page.
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CampaignsPanel } from '@/app/dnd/_ui/CharacterCampaigns';
@@ -130,5 +132,32 @@ describe('the states that are easy to render badly', () => {
 
   it('always renders the heading, so the panel is findable even when empty', () => {
     expect(render({ member: [], joinable: [] })).toContain('Campaigns');
+  });
+});
+
+describe('the buttons state the ink of the panel they sit on', () => {
+  // Found by a browser contrast sweep the day after this panel shipped, and it was the WORST contrast
+  // anywhere on those pages: `#0f1419` on `#10192a` — **1.05:1**, invisible on all three light skins.
+  //
+  // The cause is a token-family mismatch, the same one slice 24 found in the roller dock. This panel is
+  // `styles.framedPanel` from the hextech MODULE, which is dark whatever the skin; the shared `.btn` class
+  // takes its colour from `--ink`, the SHELL family, which a light skin makes near-black. Dark ink, dark
+  // panel. Stating the hextech family's ink explicitly fixed it: measured 14.25:1 afterwards.
+  const src = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/CharacterCampaigns.tsx'), 'utf8');
+
+  it('every button carries the dark-panel ink', () => {
+    expect(src).toContain("const onDarkPanel = { color: 'var(--hx-text, #f0e6d2)'");
+    // All three: Take out, Take in, Take in as a variant.
+    expect(src.match(/style=\{onDarkPanel\}/g)?.length).toBe(3);
+  });
+
+  it('and does not rely on the sheet family, which a light skin inverts', () => {
+    expect(src).not.toMatch(/className="btn tiny"\s+disabled/);
+  });
+
+  it('the ink is a TOKEN of that panel, not a hard-coded hex', () => {
+    // So it still tracks if the hextech panel is ever re-toned.
+    expect(src).toContain('var(--hx-text');
+    expect(src).not.toMatch(/color: '#[0-9a-f]{6}'/i);
   });
 });

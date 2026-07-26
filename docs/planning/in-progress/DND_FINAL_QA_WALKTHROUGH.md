@@ -966,3 +966,45 @@ it is not evidence the labels are legible.
 
 **Bar:** 9 net-new guards, 4977/4977 D&D tests, typecheck exit-0, lint clean. Dev server stopped and the port
 released (the 3000–3009 zombie sockets are a known trap; this ran on 3457).
+
+### 2026-07-26 — slice 25: a full contrast sweep of the light skins. I broke one; the skins have 55 more.
+
+Slice 24 proved the point, so the sweep in `qa-evidence/contrast-sweep.md` was finally run **whole** — every
+leaf text node on a real character sheet, each judged against **its own** AA threshold (3:1 for large/bold,
+else 4.5:1), on the three light-skinned live characters. Composited backgrounds, gradients included.
+
+| skin | sampled | failing |
+|---|---|---|
+| streamer | 189 | **9** |
+| jack | 182 | **22** |
+| donata | 238 | **26** |
+
+**The single worst failure on all three pages was mine, one slice old.** The Campaigns panel's buttons (S11)
+rendered `#0f1419` on `#10192a` — **1.05:1**, invisible. Same family mismatch as the roller dock: the panel is
+`styles.framedPanel` from the hextech MODULE, dark whatever the skin, while `.btn` takes its colour from
+`--ink` — the SHELL family, which a light skin makes near-black. **Fixed and re-measured: 14.25:1**, panel
+minimum now 6.36. Pinned in `campaign-membership-panel.test.tsx`. Two slices in a row, the same root cause:
+**a component's ink must come from the family that paints the surface under it.**
+
+**The other 55 are pre-existing, and they cluster into four kinds.** Recorded with measurements rather than
+"fixed" blind — each cluster is a token decision that wants its own slice, and several need the owner's eye:
+
+1. **`.btn` on light skins — the biggest cluster (most of jack's 22).** Cream `#f0e6d2` on light button fills
+   (`#dfdacd` / `#b1b2ae` / `#aaa9a1`): **1.12–1.90:1**. Affects Clear, CUSTOM, ◎ FRAME TOKEN, ⟲ RESET,
+   + START CONCENTRATING, + CONDITION, ✎ EDIT, ⬆ IMPORT, ✨ Effects, the dice pad… This is the *inverse* of my
+   bug — sheet-family surface, hextech-family ink — so the same rule fixes it, applied the other way.
+2. **Section headings and roles: dark ink on dark section fills.** "RESOURCES & USES" `#5a1050` on `#16152e`
+   = **1.38** (needs 3); donata's "Resources & Uses" **1.26**; the `role` line **1.20**; `kicker` **1.68**.
+3. **Coloured button variants.** White on teal `#17b3a3` = **2.62**; white on danger `#f0577a` = **3.31**.
+   These are deliberate brand fills, so the fix is a decision (darken the fill, or darken the text), not a
+   token swap.
+4. **Small gold/amber accents.** `#c8aa6e` on near-white = **2.16** ("📊 POLL PROPOSED"); `#966c00` on
+   `#e7d2c1` = **3.24** ("MANAGE LEVELS"); the CUSTOM chip `#c6403b` = **3.18**.
+
+**Why this is stopping here rather than sweeping on.** 55 fixes across four token families, on skins whose
+whole point is a look, is not a change to make from a ratio table alone — (3) in particular trades brand
+colour against legibility and is the owner's call. What the pass owed was to find them with real numbers and
+name the mechanism, and that is done: the mechanism is one rule, and it is now stated in two components and
+two guards.
+
+**Bar:** 3 new guards, 4980/4980 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.

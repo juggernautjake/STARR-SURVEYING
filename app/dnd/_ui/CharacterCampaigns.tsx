@@ -133,6 +133,21 @@ export function CampaignsPanel({
   // The campaigns this caller may actually add the character to — computed once, because both the section's
   // visibility and its rows must agree about it.
   const addable = view.joinable.filter((c) => canJoinCampaign({ isOwner, role: c.role }));
+
+  /**
+   * INK FROM THIS PANEL'S OWN FAMILY — the same rule slice 24 established for the roller dock, and this panel
+   * broke it on the day it shipped.
+   *
+   * Measured on all three light-skinned sheets: the buttons rendered `#0f1419` on `#10192a` — **1.05:1**,
+   * i.e. invisible, and the worst contrast anywhere on those pages. The cause is a family mismatch: this panel
+   * is `styles.framedPanel` from the **hextech module**, which is dark whatever the skin, while the shared
+   * `.btn` class takes its colour from `--ink` — the SHELL family, which a light skin makes near-black. Dark
+   * ink on a dark panel.
+   *
+   * So these buttons state the hextech family's ink explicitly rather than inheriting the sheet's. Not a
+   * hard-coded colour: `--hx-text`/`--hx-muted` are the tokens that panel is painted from, so they track it.
+   */
+  const onDarkPanel = { color: 'var(--hx-text, #f0e6d2)', borderColor: 'var(--hx-line, rgba(255,255,255,0.18))' } as const;
   return (
     <section className={styles.framedPanel} style={{ padding: '12px 14px', margin: '10px 0' }}>
       <div className={styles.framedPanelTop} />
@@ -152,7 +167,7 @@ export function CampaignsPanel({
                 {c.role === null && <span style={{ fontSize: 10.5, color: 'var(--hx-muted)', marginLeft: 6 }}>you are not in this one</span>}
               </span>
               {canLeaveCampaign({ isOwner, role: c.role }) && (
-                <button className="btn tiny" disabled={busy === `leave-${c.id}`} onClick={() => leave(c)}>
+                <button className="btn tiny" style={onDarkPanel} disabled={busy === `leave-${c.id}`} onClick={() => leave(c)}>
                   {busy === `leave-${c.id}` ? '…' : 'Take out'}
                 </button>
               )}
@@ -179,13 +194,13 @@ export function CampaignsPanel({
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: 'var(--hx-text)' }}>{c.name}</span>
               <button
-                className="btn tiny" disabled={busy === `join-${c.id}`} onClick={() => join(c)}
+                className="btn tiny" style={onDarkPanel} disabled={busy === `join-${c.id}`} onClick={() => join(c)}
                 title={`Play this exact character in ${c.name} — one build, shared across every campaign it is in.`}
               >
                 {busy === `join-${c.id}` ? '…' : 'Take in'}
               </button>
               <button
-                className="btn tiny" disabled={busy === `variant-${c.id}`} onClick={() => void joinAsVariant(c)}
+                className="btn tiny" style={onDarkPanel} disabled={busy === `variant-${c.id}`} onClick={() => void joinAsVariant(c)}
                 title={`Branch a separate version for ${c.name}, so levelling it there never changes your original build.`}
               >
                 {busy === `variant-${c.id}` ? '…' : 'Take in as a variant'}
