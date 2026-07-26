@@ -1843,9 +1843,17 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       **⚑ Partly authorable already (checked 2026-07-26).** `ItemBuilder`'s weapon block has **damage dice**,
       **damage type**, **ability**, **range** (free text, e.g. `5 ft` or `80/320`), **proficient**, and
       **extra typed bonus dice** — and since this session those all flow live to the attack row
-      (`engine/weapon-items.ts`). **Absent: `properties` (finesse/versatile/two-handed…) and 2024 `mastery`**,
-      which the shared engine understands but nothing lets a player set. That is the real remaining gap and it
-      is narrower than "builder UI" suggests — two controls over vocabularies the engine already defines.
+      (`engine/weapon-items.ts`).
+      **`properties` SHIPPED 2026-07-26** — a toggle list over the engine's own nine-value `WeaponProperty`
+      vocabulary (not free text: a typo'd "finesse" would silently derive the wrong attack ability), each with
+      a one-line hint. It is the property that actually changes the maths — `weapon-items.ts` reads `finesse`
+      (better of STR/DEX) and `ammunition` (DEX, and withholds `strMelee` so a bow isn't Reckless-eligible),
+      and `equip-conflicts.ts` reads `two-handed` for the hand slots. **A homebrew rapier could not be finesse
+      until now.** `weapon-properties-control.test.ts` (9) proves the setting reaches the derived row.
+      **Still absent: 2024 `mastery`** — deliberately, because `WeaponStats` has no field for it. A control
+      would persist something nothing reads, which is this repo's most-repeated defect. It needs a model field
+      AND a consumer: a slice, not a control. Same for the armour **STR requirement** (`ArmorStats` has no
+      field), which is why that one stayed open above rather than being added alongside this.
       **Original text follows:** **Mechanic ✅ shipped + now
       hardened (2026-07-18), builder UI browser-gated** (same disposition as the Armor builder below).
       `buildAttack` (`engine/weapons.ts`) already derives the attack from an authored weapon — ability

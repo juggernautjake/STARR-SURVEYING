@@ -28,6 +28,21 @@ const KINDS: { id: ItemKind; label: string }[] = [
 ]
 const ABILITIES: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha']
 const OPS: EffectOperation[] = ['add', 'set', 'set_base', 'advantage', 'disadvantage', 'resistance', 'immunity', 'vulnerability', 'grant_proficiency']
+/** The engine's own `WeaponProperty` vocabulary (engine/equipment.ts) — kept in step deliberately, since a
+ *  free-text property is one typo away from deriving the wrong attack ability. */
+const WEAPON_PROPERTIES = ['finesse', 'versatile', 'two-handed', 'thrown', 'reach', 'light', 'heavy', 'loading', 'ammunition'] as const
+/** What each one DOES here, so the control teaches rather than assuming the player knows 5e's vocabulary. */
+const PROPERTY_HINT: Record<(typeof WEAPON_PROPERTIES)[number], string> = {
+  finesse: 'Attack with the better of STR or DEX.',
+  versatile: 'Larger damage die when wielded two-handed.',
+  'two-handed': 'Needs both hands — cannot be paired with a shield or another weapon.',
+  thrown: 'Can be thrown at its range.',
+  reach: 'Adds 5 ft of reach.',
+  light: 'Suited to two-weapon fighting.',
+  heavy: 'Unwieldy for Small creatures.',
+  loading: 'One shot per action, regardless of extra attacks.',
+  ammunition: 'Fired with ammunition — attacks with DEX.',
+}
 const uid = () => `i-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
 
 const fieldStyle: React.CSSProperties = { width: '100%', padding: '6px 9px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--panel-2)', color: 'var(--ink)', fontSize: 13 }
@@ -208,6 +223,33 @@ export default function ItemBuilder({
             <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)', alignSelf: 'flex-end' }}>
               <input type="checkbox" checked={!!w?.proficient} onChange={(e) => patchWeapon({ proficient: e.target.checked })} /> Proficient
             </label>
+          </div>
+          {/* PROPERTIES. The field has always existed on `WeaponStats` and the engine has always read it —
+              `weapon-items.ts` uses `finesse` (best of STR/DEX) and `ammunition` (DEX, and not STR-melee for
+              Reckless) when deriving the attack row, and `equip-conflicts.ts` uses `two-handed` for the
+              hand-slot rules. Nothing let a player SET it, so a homebrew rapier could not be finesse.
+              The vocabulary is the engine's own `WeaponProperty`, not a free-text field: a typo'd "finesse"
+              would silently derive the wrong ability. */}
+          <div>
+            <label style={lab}>Properties</label>
+            <div className="flex" style={{ gap: 5, flexWrap: 'wrap' }}>
+              {WEAPON_PROPERTIES.map((p) => {
+                const on = (w?.properties ?? []).includes(p);
+                return (
+                  <button
+                    key={p} type="button"
+                    onClick={() => patchWeapon({ properties: on ? (w?.properties ?? []).filter((x) => x !== p) : [...(w?.properties ?? []), p] })}
+                    title={PROPERTY_HINT[p]}
+                    style={{
+                      fontSize: 12, padding: '4px 9px', borderRadius: 12, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--tealbright, var(--hx-teal-1, #0ac8b9))' : 'var(--line)'}`,
+                      background: on ? 'rgba(10,200,185,0.15)' : 'transparent',
+                      color: on ? 'var(--tealbright, var(--hx-teal-1, #0ac8b9))' : 'var(--muted, var(--hx-muted, #93a1b5))',
+                    }}
+                  >{p}</button>
+                );
+              })}
+            </div>
           </div>
           <div>
             <label style={lab}>Bonus damage dice (e.g. +1d6 poison)</label>
