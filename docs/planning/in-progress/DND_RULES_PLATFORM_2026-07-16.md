@@ -497,6 +497,7 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       (errors red/block, warnings gold/advise) → **Save to my character** (persists, gated on a clean
       review) → the saved class **resolves in the level builder like an official one**. **Remaining (nice-
       to-have):** a manual field-by-field edit form on the draft (today you iterate by re-prompting).
+      **→ DONE for FEATS 2026-07-26** (see the note under Slice 5's list below); class + subclass still owed.
 - [x] **Homebrew subclass + homebrew feat builders. ✅ SHIPPED** (`1ceae899`, `f6ada419`, `656a256c`).
       All three designers ship as prompt→draft→review pages on the existing engine: `/build/feat`
       (`buildCustomFeat`+`reviewCustomFeat`) and `/build/subclass` (`buildCustomSubclass`, checks the
@@ -524,6 +525,35 @@ The engine (`lib/dnd/classes/custom.ts`) is built and tested; there is no UI.
       levels route (which the LevelBuilder reads) passes `readHomebrewClasses(data)` to `findClass` as
       `extra` at both call sites, so a saved custom class walks a real level table. +1 test proving it
       resolves via extra and stays system-scoped (Ground Rule 1).
+
+### 2026-07-26 — the feat draft is editable, and authorable without the AI
+
+Slice 5 recorded "a manual field-by-field edit form on the draft" as its remaining nice-to-have **three
+times** (class, feat, subclass). It is more than a nicety, and the owner's current directive is why: homebrew
+is one of the two ways a player customises a character, and *"re-prompt the AI and hope"* is not
+customisation. A player with no AI key could not author a feat at all.
+
+`/build/feat` now renders the draft as a **form** — name, category (the four the model allows),
+prerequisite, per-ability +1 toggles, rules text, repeatable — and adds **✎ Write it myself**, which seeds a
+blank draft so the AI is one path rather than the only one.
+
+**The property worth keeping:** the review shown while typing is the one that decides the save. The page runs
+the pure `reviewCustomFeat` on every edit; the save route runs the same function on parsed input and refuses
+errors. If those ever diverged, a player would clear every message on screen and still get a 400. Editing
+client-side is safe precisely because the server never trusts it — the worst a hand-edited field can do is be
+refused.
+
+**`system` is deliberately not editable and not shown.** The page cannot know the character's system, the
+save route derives it (`normalizeSystem(character.system)`), and inventing one here would be the rules error
+Ground Rule 3 exists to prevent. A test asserts no edition string is hard-coded in the page.
+
+**Bar:** 16 new tests (`homebrew-feat-editable.test.tsx`, rendering the real page), 4923/4923 D&D tests,
+typecheck + lint clean. Two assertions in the older `homebrew-feat-page.test.ts` pinned the read-only shape
+(`feat.body`, `result.review.ok`) and were updated to the new one with the reason inline.
+
+**Still owed:** the same treatment for `/build/class` and `/build/subclass`, which are larger forms (a class
+has progressions and per-level features). Deliberately not batched in with this one — the feat is the shape
+the escape hatch in `SLOT_DRIVEN_CHARACTER_BUILDING` S6 will lean on, so it went first.
 
 ## Slice 6 — Full class data for the remaining systems
 

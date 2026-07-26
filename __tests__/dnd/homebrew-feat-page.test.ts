@@ -13,7 +13,9 @@ describe('homebrew feat designer', () => {
     expect(PAGE).toContain("method: 'POST'");
     expect(PAGE).toContain('review.errors');
     expect(PAGE).toContain('review.warnings');
-    expect(PAGE).toContain('feat.body');
+    // Was `feat.body` — the read-only render of the AI's draft. 2026-07-26 made the draft EDITABLE, so the
+    // body is a bound textarea on `draft` instead. See homebrew-feat-editable.test.tsx.
+    expect(PAGE).toContain('value={draft.body}');
   });
   it('draft endpoint is write-gated + uses the existing engine, propose-only', () => {
     expect(ROUTE).toContain('requireCharacterWrite');
@@ -30,6 +32,8 @@ describe('homebrew feat designer', () => {
   });
   it('page has a Save button gated on a clean review', () => {
     expect(PAGE).toContain('/homebrew-feat/save');
-    expect(PAGE).toContain('!result.review.ok');
+    // The gate is unchanged; what it reads moved. The review is now recomputed locally from the edited draft
+    // (`review`) rather than held from the AI response (`result.review`), so it describes what is on screen.
+    expect(PAGE).toContain('!review.ok');
   });
 });
