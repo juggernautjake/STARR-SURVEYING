@@ -13,15 +13,23 @@ export interface GameSystem {
   name: string;
   publisher: string;
   notes: string;
-  /** 'available' = classes/rules/library built out and playable now; 'under-construction' = seeded
-   *  as a future option (rules catalog only) — offered but clearly labelled, not yet a full build. */
+  /** 'available' = classes/rules/library built out and playable now; 'under-construction' = seeded, with
+   *  authored rules in `system-rules-extra.ts`, but **not surfaced anywhere yet**.
+   *
+   *  This used to say "offered but clearly labelled (rules catalog only)", which is what the code did until
+   *  the owner changed it on 2026-07-18 to hide them SITE-WIDE behind one "more systems coming soon" card.
+   *  The stale wording mattered: search kept indexing their entries after `/dnd/library/[key]` started
+   *  `notFound()`-ing them, so every such hit was a link to a 404 (fixed 2026-07-26). If you are adding a
+   *  surface that lists systems, filter on `isSystemAvailable` — see under-construction-gating.test.ts. */
   status: SystemStatus;
 }
 
 /**
  * The seeded systems (see seeds/422_dnd_systems.sql). Four are BUILT OUT and playable now — D&D 5e
- * 2024, D&D 5e 2014, Pathfinder 2e, and Intuitive Games; the rest are seeded as **under construction**
- * (offered as a future option, rules catalog only). Entries are curated into the store separately.
+ * 2024, D&D 5e 2014, Pathfinder 2e, and Intuitive Games; the rest are seeded as **under construction**:
+ * their rules are authored but every player-facing surface hides them (owner 2026-07-18), so their
+ * name/publisher/notes below are for the pickers a future flip to 'available' will light up, not for
+ * anything rendered today. Entries are curated into the store separately.
  */
 export const GAME_SYSTEMS: GameSystem[] = [
   { key: 'dnd5e-2014', name: 'D&D 5e (2014)', publisher: 'Wizards of the Coast', notes: "The 2014 Player's Handbook edition.", status: 'available' },

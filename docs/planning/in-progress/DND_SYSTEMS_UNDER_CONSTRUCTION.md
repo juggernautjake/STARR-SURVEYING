@@ -40,6 +40,44 @@
 > Pick ONE system and provide its source (book, SRD, or a scrapeable site). Each is then a dedicated build —
 > model → content → editors → library → tagging — on the pattern `lib/dnd/systems/intuitive-games/` set.
 
+> ## 2026-07-26 — searching an unbuilt system's rules led to a 404
+>
+> The one thing this doc says it owes during the under-construction period is that the six are presented
+> **honestly**. A gap in that, at a surface the earlier gate didn't cover:
+>
+> **The defect.** These systems have real, substantial rules authored in `system-rules-extra.ts`, and
+> Slice 8b's `library.test.ts` deliberately asserts search explains them in full (*"a non-d20 system's own
+> vocabulary is fully explained"*). But the owner hid their PAGES site-wide on 2026-07-18, so
+> `/dnd/library/[key]` `notFound()`s them — while `LibrarySearch` went on linking every hit there. Searching
+> **"sanity"** found Call of Cthulhu's article, showed its whole explanation, and clicking it **404'd**. Both
+> the per-system group header and each individual result linked to the same dead page.
+>
+> **My first fix was wrong, and the tests caught it.** I scoped `searchLibrary` to available systems only.
+> Four Slice-8b tests failed — correctly: that discards authored content, and the six's `status` gates the
+> character **builder**, not the rules reference. Two owner-era intents were in conflict and I had quietly
+> picked one. Backed it out.
+>
+> **What shipped instead.** The defect was never the search, it was the LINK. A hit already renders its
+> entire explanation inline — the link only ever added an anchor jump — so an unpublished system's hits now
+> render **unlinked**, with a `rules only · builder in development` badge that says why rather than looking
+> like a result that failed to render. Search, the scope selector and the librarian's focus all keep
+> offering the six, because the content behind them is real. (The librarian was never a Ground-Rule-3 risk
+> for the same reason: `systemGroundingBlock` reads that same authored catalog, so it answers from the book
+> rather than from recall.)
+>
+> **Stale descriptions corrected.** `SystemStatus`'s own doc comment said under-construction meant "offered
+> but clearly labelled (rules catalog only)" — the pre-2026-07-18 behaviour. That wording is exactly how the
+> search surface got missed, so it now records what the code does and points at the guard. The gating test's
+> "they ARE listed, so a blank row reads as a bug" note is corrected the same way: nothing is listed now, and
+> the metadata is required because it is what the pickers will render the moment a `status` flips.
+>
+> **Note on the scope text below:** it says the six are "offered in the UI, labelled 🚧 under construction …
+> the campaign-creation picker lists them in an 'Under construction (coming later)' group". That has been
+> stale since 2026-07-18 — they are hidden entirely, behind one "more systems coming soon" card.
+>
+> **Bar:** 4 new guards (10 in `under-construction-gating.test.ts`), 4782/4782 D&D tests, typecheck exit-0,
+> lint clean. The six builds themselves remain blocked on source material — unchanged.
+
 **Original status:** PENDING · parked 2026-07-16 · pick up after the four focus systems are complete
 **Scope:** the six game systems the platform seeds but has **not** fully built out. They are offered
 in the UI, labelled **🚧 under construction**, and NOT selectable for a real build yet

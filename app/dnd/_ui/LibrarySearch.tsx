@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import styles from './hextech.module.css';
-import { GAME_SYSTEMS } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, isSystemAvailable } from '@/lib/dnd/systems';
 import { libraryHref, sectionForKind } from '@/lib/dnd/library-anchors';
 import { rememberFallbackSection } from './library-anchor-client';
 
@@ -113,6 +113,9 @@ export default function LibrarySearch({ system, systemName }: { system?: string;
             style={{ padding: '9px 11px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
           >
             <option value="">All systems</option>
+            {/* All systems, including the six under construction: their rules are authored and searching
+                them returns real explanations. Only their PAGE is hidden, which the results handle by not
+                linking — see the `published` check below. */}
             {GAME_SYSTEMS.map((s) => (
               <option key={s.key} value={s.key}>{s.name}</option>
             ))}
@@ -178,12 +181,27 @@ export default function LibrarySearch({ system, systemName }: { system?: string;
           {Object.entries(grouped).map(([sysName, list]) => (
             <div key={sysName} style={{ display: 'grid', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, borderBottom: '1px solid var(--hx-line)', paddingBottom: 4 }}>
-                <Link
-                  href={`/dnd/library/${list[0].system}`}
-                  style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', fontSize: 14, textDecoration: 'none' }}
-                >
-                  {sysName} →
-                </Link>
+                {/* AN UNPUBLISHED SYSTEM IS NOT A LINK. The six under-construction systems have real
+                    authored rules, so they legitimately appear in results — but the owner hid their pages
+                    site-wide (2026-07-18) and `/dnd/library/[key]` `notFound()`s them, so every one of
+                    these was a link to a 404: searching "sanity" found Call of Cthulhu's article and
+                    clicking it dead-ended. Nothing is lost by unlinking, because a hit already renders its
+                    whole explanation inline — the link only ever added an anchor jump. */}
+                {isSystemAvailable(list[0].system) ? (
+                  <Link
+                    href={`/dnd/library/${list[0].system}`}
+                    style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', fontSize: 14, textDecoration: 'none' }}
+                  >
+                    {sysName} →
+                  </Link>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', fontSize: 14 }}>{sysName}</span>
+                    <span style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-teal-1)' }}>
+                      rules only · builder in development
+                    </span>
+                  </span>
+                )}
                 <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{list.length}</span>
               </div>
               {/* Each hit is a LINK to the thing itself. It used to be a plain <div>: the reader
@@ -194,21 +212,34 @@ export default function LibrarySearch({ system, systemName }: { system?: string;
                   which is exactly how this link came to navigate nowhere for a year. The click also
                   leaves behind the section it was heading for, so `DeepLinkOpener` has somewhere to
                   land even if the id it is given turns out to be missing after all. */}
-              {list.map((h, i) => (
-                <Link
-                  key={`${h.system}-${h.kind}-${h.name}-${i}`}
-                  href={h.href ?? libraryHref(h.system, h.kind, h.name)}
-                  onClick={() => rememberFallbackSection(sectionForKind(h.kind))}
-                  className={styles.searchHit}
-                  style={{ display: 'grid', gap: 2, padding: '5px 7px', textDecoration: 'none', borderRadius: 4 }}
-                >
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: KIND_COLOR[h.kind] ?? 'var(--hx-muted)' }}>{h.kind}</span>
-                    <strong style={{ fontSize: 13.5, color: 'var(--hx-text)' }}>{h.name}</strong>
-                  </div>
-                  <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>{h.body}</div>
-                </Link>
-              ))}
+              {list.map((h, i) => {
+                const body = (
+                  <>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: KIND_COLOR[h.kind] ?? 'var(--hx-muted)' }}>{h.kind}</span>
+                      <strong style={{ fontSize: 13.5, color: 'var(--hx-text)' }}>{h.name}</strong>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>{h.body}</div>
+                  </>
+                )
+                const key = `${h.system}-${h.kind}-${h.name}-${i}`
+                const shared = { display: 'grid', gap: 2, padding: '5px 7px', borderRadius: 4 } as const
+                // Same rule as the group header: no link to a page that isn't published. The explanation
+                // above is the whole entry, so the reader still gets their answer.
+                return isSystemAvailable(h.system) ? (
+                  <Link
+                    key={key}
+                    href={h.href ?? libraryHref(h.system, h.kind, h.name)}
+                    onClick={() => rememberFallbackSection(sectionForKind(h.kind))}
+                    className={styles.searchHit}
+                    style={{ ...shared, textDecoration: 'none' }}
+                  >
+                    {body}
+                  </Link>
+                ) : (
+                  <div key={key} style={shared}>{body}</div>
+                )
+              })}
             </div>
           ))}
         </div>

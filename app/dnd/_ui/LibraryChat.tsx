@@ -174,6 +174,10 @@ export default function LibraryChat({
             style={{ padding: '7px 10px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
           >
             <option value={SYSTEM_AMBIGUOUS}>— pick a system —</option>
+            {/* ALL systems, deliberately. The under-construction six have authored grounding
+                (`system-rules-extra.ts`), so the librarian answers them from real content — it is not
+                inventing rules, which is the only thing that would make this unsafe. Their `status` gates
+                the character BUILDER, not the rules reference. */}
             {GAME_SYSTEMS.map((s) => (
               <option key={s.key} value={s.key}>{s.name}</option>
             ))}

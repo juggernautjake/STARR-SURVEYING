@@ -21,6 +21,9 @@ export function GET(req: NextRequest) {
   if (systemParam && !GAME_SYSTEMS.some((s) => s.key === systemParam)) {
     return NextResponse.json({ error: `Unknown system: ${systemParam}` }, { status: 400 });
   }
+  // An under-construction system is NOT refused here: its rules are authored and searching them returns
+  // real explanations (Slice 8b). Only its page is hidden, so the client renders those hits unlinked —
+  // see LibrarySearch. Refusing the query instead would throw away content we have.
 
   // The link is resolved HERE rather than in the browser. Working out where a hit actually lands
   // means reading the target system's whole rendered page (see library-anchor-map.ts), which is

@@ -1147,6 +1147,12 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
   const words = q.split(/\s+/).filter((w) => w.length > 1).slice(0, 6);
   if (!words.length) return [];
 
+  // DELIBERATELY ALL SYSTEMS, including the six under construction. Their rules ARE authored
+  // (`system-rules-extra.ts`) and Slice 8b's tests assert they are fully explained here — the
+  // `under-construction` status gates the character BUILDER, not the rules reference. What was broken is
+  // downstream: `/dnd/library/[key]` `notFound()`s them (owner 2026-07-18, hidden site-wide), so a hit's
+  // LINK was a 404 even though its explanation was right there. Fixed where the defect is — `LibrarySearch`
+  // renders an unpublished system's hits unlinked, since the result already carries the whole body.
   const keys = system ? [system] : GAME_SYSTEMS.map((s) => s.key);
   const hits: LibraryHit[] = [];
 
