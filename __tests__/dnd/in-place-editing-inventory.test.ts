@@ -120,6 +120,19 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
     expect(spellPicker).toContain('logManualEdit(characterId, `spell.${def.name}`');
   });
 
+  it('items arriving, being copied, and being DELETED all audit', () => {
+    // Deletion is the one that mattered most: the confirm dialog says outright that it "cannot be undone",
+    // which was true precisely because nothing recorded it. The row's `old_value` is what a revert needs.
+    const inv = read('Inventory.tsx');
+    expect(inv).toContain('logManualEdit(characterId, `item.${item.name}`, null, item.name)');
+    expect(inv).toContain('logManualEdit(characterId, `item.${gone.name}`, gone.name, null)');
+    expect(inv).toContain('(copy)`, null,');
+  });
+
+  it('reads the item BEFORE the update, or there would be nothing left to name', () => {
+    expect(read('Inventory.tsx')).toContain('const gone = char.inventory.find((it) => it.id === id)');
+  });
+
   it('and uses the SAME path vocabulary the element editors use', () => {
     // `feature.<name>` / `spell.<name>` are what FeatureEditor and SpellEditor write, so a gained feat and
     // a later edit to it read as the same element in the queue rather than as two unrelated things.
@@ -136,7 +149,6 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
 // sits. Each entry is a real gap — a build change the DM's queue cannot see — not a deferral.
 describe('KNOWN unaudited build paths (a work list, not a pass)', () => {
   const GAPS: Record<string, string> = {
-    'Inventory.tsx': 'adding and removing items — ItemBuilder audits EDITS to an existing item, but not arrival or deletion',
     'Hero.tsx': 'name and species changes (species goes through SpeciesPicker, which does not log)',
     'Features.tsx': 'deleting a feature',
     'Attacks.tsx': 'deleting an attack',
@@ -145,8 +157,9 @@ describe('KNOWN unaudited build paths (a work list, not a pass)', () => {
 
   it('is honest about how many remain', () => {
     // If this number changes, someone either fixed one (good — remove it here) or added a new unaudited
-    // path (the thing to catch).
-    expect(Object.keys(GAPS)).toHaveLength(5);
+    // path (the thing to catch). It went 5 → 4 when Inventory was fixed, and the test failing was what
+    // forced this list to be updated — which is the whole point of asserting the current state.
+    expect(Object.keys(GAPS)).toHaveLength(4);
   });
 
   for (const [file, why] of Object.entries(GAPS)) {

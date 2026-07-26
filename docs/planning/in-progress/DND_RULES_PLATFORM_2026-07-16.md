@@ -2581,11 +2581,15 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       player granting themselves a feat, or learning a spell, was invisible to the DM's queue. Both now log
       with the same `feature.<name>` / `spell.<name>` vocabulary the element editors use, so a gained feat
       and a later edit to it read as one element rather than two unrelated things.
-      **Five unaudited build paths REMAIN, and are now a listed work list rather than a discovery
-      exercise:** adding/removing inventory items (ItemBuilder audits edits to an existing item but not
-      arrival or deletion), name + species on `Hero`, deleting a feature, deleting an attack, and bio text.
+      **Then INVENTORY, the biggest of them:** an item arriving, being copied, or being **deleted** now
+      audits. Deletion mattered most — the confirm dialog says outright that it *"cannot be undone"*, which
+      was true precisely because nothing recorded it; the row's `old_value` is what a revert would need.
+      Both read the item BEFORE the update, since afterwards there is nothing left to name.
+      **Four unaudited build paths REMAIN, as a listed work list rather than a discovery exercise:**
+      name + species on `Hero`, deleting a feature, deleting an attack, and bio text.
       `in-place-editing-inventory.test.ts` asserts the CURRENT state of each, so fixing one FAILS the test
-      and forces the list to be updated — the only way this stops drifting.
+      and forces the list to be updated — the only way this stops drifting. It has already done that once:
+      the count went 5 → 4 when Inventory was fixed, and the failure is what prompted the update.
       **Root cause, worth stating once:** `log-edit.ts` calls itself *"the ONE client path … one audit
       vocabulary, not a parallel path"* and **nothing enforced that**, so five call sites quietly grew their
       own behaviour while two `[x]` items below recorded "every edit audits" as settled.

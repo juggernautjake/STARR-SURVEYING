@@ -12,6 +12,7 @@ import { carryingCapacity, encumbranceLevel } from '../engine/equipment'
 import { planConsume } from '@/lib/dnd/effects/consume'
 import { equipConflicts, resolveEquipSwap } from '@/lib/dnd/equip-conflicts'
 import EquipConflictDialog, { type EquipConflictState } from './EquipConflictDialog'
+import { logManualEdit } from '../lib/log-edit'
 
 // Kind icons for the no-art fallback token (Slice 28), matching the ItemBuilder kind labels so an
 // item without uploaded art still reads as intentional rather than a hole.
@@ -47,6 +48,13 @@ export default function Inventory() {
   // exists, commit the item UNEQUIPPED and raise the conflict dialog so the player resolves it deliberately
   // (swap / cancel). With equipLimits off, equipping is unrestricted.
   function upsert(item: InvItem) {
+    // AUDIT the ARRIVAL. `ItemBuilder` already audits its own field-level diffs when you edit an existing
+    // item, so this logs only the case it cannot see: an item appearing on the sheet that was not there
+    // before. Magic items are exactly what a DM reviews, and until now one could arrive silently.
+    // Read before the update, since `char` inside the updater is the post-change value.
+    if (!char.inventory.some((x) => x.id === item.id)) {
+      logManualEdit(characterId, `item.${item.name}`, null, item.name)
+    }
     setChar((c) => {
       const exists = c.inventory.some((x) => x.id === item.id)
       const enforce = preferences.equipLimits.value === 'enforced'
@@ -111,6 +119,8 @@ export default function Inventory() {
     }))
   }
   function duplicate(it: InvItem) {
+    // A copy is a new item arriving, so it audits like one.
+    logManualEdit(characterId, `item.${it.name} (copy)`, null, `${it.name} (copy)`)
     setChar((c) => ({
       ...c,
       inventory: [...c.inventory, { ...it, id: `${it.id}-copy-${c.inventory.length}`, name: `${it.name} (copy)` }],
@@ -122,6 +132,12 @@ export default function Inventory() {
     remove(it.id)
   }
   function remove(id: string) {
+    // AUDIT the DELETION, and this is the one that matters most: the confirm dialog above says outright
+    // that deleting "cannot be undone", which was true precisely because nothing recorded it. With a row
+    // in the log the DM's queue can show what left the sheet, and its `old_value` is what a revert would
+    // need. Named from the item BEFORE it is filtered out — afterwards there is nothing left to name.
+    const gone = char.inventory.find((it) => it.id === id)
+    if (gone) logManualEdit(characterId, `item.${gone.name}`, gone.name, null)
     setChar((c) => ({ ...c, inventory: c.inventory.filter((it) => it.id !== id) }))
   }
   function setCurrency(k: keyof typeof curLabels, v: number) {
