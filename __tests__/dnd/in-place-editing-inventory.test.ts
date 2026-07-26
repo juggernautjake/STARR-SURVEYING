@@ -172,6 +172,10 @@ describe('every mechanical build path audits', () => {
     ['Attacks.tsx', 'attack.'],
     ['Inventory.tsx', 'item.'],
     ['SavesSkills.tsx', 'skill.'],
+    // Missed in the first sweep because Resources reads as a PLAY surface. Spending a resource is play;
+    // adding, copying or deleting the TRACK is a build change. The distinction is what the element is, not
+    // which panel it sits in — and that mistake is exactly why this list exists as a test.
+    ['Resources.tsx', 'resource.'],
   ];
 
   for (const [file, path] of MECHANICAL) {

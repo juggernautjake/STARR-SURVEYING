@@ -5,9 +5,10 @@ import type { Resource } from '../types'
 import SectionHead from './ui/SectionHead'
 import ElementMenu from './ui/ElementMenu'
 import ResourceEditor from './ui/ResourceEditor'
+import { logManualEdit } from '../lib/log-edit'
 
 export default function Resources() {
-  const { char, setResource, canWrite, setChar, preferences } = useChar()
+  const { char, setResource, canWrite, setChar, preferences, characterId } = useChar()
   const [editing, setEditing] = useState<Resource | null>(null)
 
   // Usage pools GRANTED by an equipped item (Slice 11 grant-half). Read-only and badged to the
@@ -18,10 +19,19 @@ export default function Resources() {
     .filter((i) => isItemActive(i, preferences.autoAttune.value) && i.grantsResource)
     .map((i) => ({ res: i.grantsResource as Resource, source: i.name }))
 
-  const duplicate = (r: Resource) =>
+  // Audited like every other build path. SPENDING a resource is play and stays out of the log; adding,
+  // copying or DELETING a resource TRACK is a build change — and the delete's own confirm says "cannot be
+  // undone", which was true only because nothing recorded it.
+  //
+  // Missed in the original sweep because this file reads as a play surface. The distinction that matters is
+  // what the ELEMENT is, not which panel it happens to sit in.
+  const duplicate = (r: Resource) => {
+    logManualEdit(characterId, `resource.${r.name} (copy)`, null, `${r.name} (copy)`)
     setChar((c) => ({ ...c, resources: [...(c.resources ?? []), { ...r, id: `${r.id}-copy-${(c.resources ?? []).length}`, name: `${r.name} (copy)` }] }))
+  }
   const remove = (r: Resource) => {
     if (!confirm(`Delete “${r.name}”? This cannot be undone.`)) return
+    logManualEdit(characterId, `resource.${r.name}`, r.name, null)
     setChar((c) => ({ ...c, resources: (c.resources ?? []).filter((x) => x.id !== r.id) }))
   }
 
@@ -96,6 +106,7 @@ export default function Resources() {
               className="btn tiny teal"
               onClick={() => {
                 const r: Resource = { id: `res-${Date.now().toString(36)}`, name: 'New resource', max: 3, current: 3, color: 'teal', resetOn: 'long' }
+                logManualEdit(characterId, `resource.${r.name}`, null, r.name)
                 setChar((c) => ({ ...c, resources: [...(c.resources ?? []), r] }))
                 setEditing(r)
               }}

@@ -2201,6 +2201,17 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
       foreign-statblock authoring UI.)
+      **Deferral RE-DERIVED and it HOLDS, 2026-07-26** — the first of these that has. `CharForm` has no
+      resources field at all (only `abilities`, `effects`, `strikeDie`, `carryOver`), and `grant_resource`
+      is authored on an ITEM's `grantsResource`, rendered read-only from that item. So there is genuinely
+      nothing to scope until a form can carry its own pool — which is the authoring UI this names. Unlike
+      the skills store, the ✎ Revert and the rename link, this estimate was written from the model rather
+      than from a component, and the model still says the same thing.
+      **But checking it found a miss in MY OWN work.** The "every mechanical build path audits" sweep had
+      skipped `Resources.tsx`, because the file reads as a play surface — I classified the PANEL rather
+      than the elements in it. Spending a resource is play; adding, copying or **deleting a resource track**
+      is a build change, and the delete's confirm says "cannot be undone" for the same reason all the others
+      did. All three now audit as `resource.<name>`, and the completed-picture test covers the file.
 - [x] Tests: transform → the sheet renders the form; the stored base character is byte-identical
       throughout (the anti-"permanent bear" guard); revert restores exactly; carry-over policy is
       honoured per form; a save while transformed does not corrupt the base. **✅ SHIPPED 2026-07-17.**
