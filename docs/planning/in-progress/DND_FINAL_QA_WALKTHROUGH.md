@@ -640,3 +640,39 @@ identity it keys off (PF2 by class, IG by **subclass**, since its schedule is pe
 
 With this, all four built systems walk the same three phases, and the "one vanilla character each, step by
 step" directive is satisfiable for every one of them through the same flow.
+
+### 2026-07-26 — slice 16: driving the PF2 Foundations builder
+
+All five PF2 foundation steps render correctly and read well — Identity (8 Player Core ancestries,
+backgrounds), Class & subclass with key attribute/armour/weapon, the **boost** model stated in PF2's own
+terms ("everyone starts +0, then applies ancestry / background / class / free boosts"), trained skills
+scaled to class count + INT, and feats with the archetype/multiclass explainer. No defects in the flow.
+
+**But the class dropdown offers 14 classes, and slice 7 walked 20 progressions.**
+
+Six PF2 classes have **complete, correct 20-level ladders and no way to be chosen**: Investigator,
+Kineticist, Magus, Summoner, Swashbuckler, Thaumaturge.
+
+**This is not IG's Champion.** Champion was *offered* and then presented an empty dropdown — a dead end in
+the player's face, which is why that one got a fix. These six are simply **absent**: nothing misleads
+anyone, they just cannot be built yet. The distinction decides the response.
+
+**And it is not mine to close.** A `PF2ClassDef` needs key attribute, HP per level, trained-skill count,
+fixed skills, initial proficiencies (perception, three saves, defense, attacks, class DC) and the subclass
+list — published Paizo rules from Player Core 2 / Secrets of Magic / Dark Archive / Rage of Elements.
+Ground Rule 3 again: authoring those from memory would produce sheets a player would trust and shouldn't.
+Same call as the six under-construction systems, for the same reason.
+
+Pinned as documentation-as-test (5 cases). It asserts the gap **exactly**, so adding a class's real data
+fails the test and you update the list; and it asserts the gap runs **one way only** — every class the
+builder offers does have level data, because the reverse (pick a class, then cannot advance it) would be
+the genuinely broken case.
+
+It also records that the expensive half is already done: all six have complete ladders with real features,
+so whoever supplies a `PF2ClassDef` gets a working class immediately.
+
+**One test of my own was wrong before the code was.** I asserted every catalogued class has subclass
+options; the PF2 **Fighter has none** — no Research Field, no Doctrine, no Order. Corrected to assert the
+real rule (Fighter empty, Alchemist non-empty) rather than a rule I had invented.
+
+**Bar:** 5 new guards, 4681/4681 D&D tests, typecheck clean. QA character deleted.
