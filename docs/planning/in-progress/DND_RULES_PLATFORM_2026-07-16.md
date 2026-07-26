@@ -1094,8 +1094,17 @@ build plan parked in `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`.
       absent `VOYAGE_API_KEY`:** the backfill literally cannot run or be verified without the key, and it's a
       pure retrieval-QUALITY enhancement (not a correctness path). The embedding code is already written and
       runs automatically once a key is present — so this is a config/ops step, not a build task.
-- [~] Project the glossary into the store so semantic retrieval reaches the full articles. **DEFERRED for the
+- [x] Project the glossary into the store so semantic retrieval reaches the full articles. **DEFERRED for the
       same reason** — semantic retrieval is inert without embeddings, which need the key.
+      **Deferral RE-DERIVED and it HOLDS, 2026-07-26**, and the reason is sharper than "same as above":
+      the glossary is **already reachable without embeddings**. `searchLibrary` calls the in-memory
+      `searchGlossary` directly and scores its hits **+6 above** the generated catalog lines, so looking up
+      "Blinded" returns the written article today, key or no key. The store projection therefore buys only
+      SEMANTIC reach — which is exactly the inert half. Nothing is missing for a player right now.
+      **The rationale is now guarded** (`glossary-keyword-reach.test.ts`, 4), which is an unusual thing to
+      test and the point: this deferral is only fair *because* that keyword path exists. If it were ever
+      removed the articles would become unreachable and nobody would connect the regression to a note in a
+      planning doc. A deferral whose reasoning depends on a code path deserves a guard on that path.
 - [x] Keyword search must remain the fallback — it is the only thing that works without a key. **✅ SHIPPED /
       verified throughout:** `searchLibrary` (`lib/dnd/library.ts`) is pure + DB-free and is what actually
       runs today (no key, no seeded rows) — the whole four-focus-system library + IG's 25 sections are
