@@ -15,6 +15,7 @@ import { igCreaturesByGroup, IG_BACKGROUND_DEFS, IG_CLASS_DETAILS, findIGClassDe
 import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
 import { igLevelBreakdown } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
+import { igFeatBudget, igPowerBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -151,16 +152,24 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   // the end. Ineligible chips are shown greyed WITH their reason rather than hidden: "why can't I
   // take this?" is a question the builder should answer, and hiding it makes the list look
   // arbitrary. Same treatment as the 5e spell/feat pickers.
-  const Chips = ({ opts, sel, on, reasonFor }: {
+  const Chips = ({ opts, sel, on, reasonFor, budget }: {
     opts: string[]; sel: string[]; on: (v: string) => void;
     reasonFor?: (o: string) => string | undefined;
+    /** How many of this kind the level schedule grants. Once used, the rest are blocked with the reason.
+     *  Omitted = uncapped, which is still right for stances and weapon types: the schedule grants a stance
+     *  through the BACKGROUND and improves stances at level 5 rather than doling them out per level, so
+     *  there is no per-level number to enforce and inventing one would be worse than none. */
+    budget?: number;
   }) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
       {opts.map((o) => {
         const active = sel.includes(o);
         // An already-selected chip is never blocked, so a pick made before the class was set (or
         // one a DM granted) can always be removed again. Blocking deselection would strand it.
-        const reason = active ? undefined : reasonFor?.(o);
+        const full = budget != null && !active && sel.length >= budget;
+        const reason = active ? undefined
+          : full ? `That's all ${budget} this character has earned by level ${level} — deselect one first`
+          : reasonFor?.(o);
         const blocked = !!reason;
         return (
           <button
@@ -293,8 +302,12 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
         );
         const abilitiesBlock = (<><div style={sectionLabel}>ABILITY SCORES</div><IgBoostAllocator onChange={setAbilities} /></>);
         const stancesBlock = (<><div style={sectionLabel}>STANCES</div><Chips opts={stanceOpts} sel={stances} on={(v) => toggle(setStances, v)} /></>);
-        const powersBlock = (<><div style={sectionLabel}>POWERS</div><Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} /></>);
-        const featsBlock = (<><div style={sectionLabel}>FEATS</div><Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} /></>);
+        {/* The budgets come from the SCRAPED schedule (IG_LEVEL_SCHEDULE), so the chips can no longer offer
+            the whole catalog at once: a level-2 character gets what level 2 grants. Powers are exact (the
+            site states one class power at level 1, plus the schedule's later gains); feats allow one extra
+            for the level-1 "starting feats" the site names but our scrape doesn't quantify. */}
+        const powersBlock = (<><div style={sectionLabel}>POWERS <span style={{ fontWeight: 400, opacity: 0.65 }}>({powers.length}/{igPowerBudget(subclass || className, level)})</span></div><Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} budget={igPowerBudget(subclass || className, level)} /></>);
+        const featsBlock = (<><div style={sectionLabel}>FEATS <span style={{ fontWeight: 400, opacity: 0.65 }}>({feats.length}/{igFeatBudget(subclass || className, level)})</span></div><Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} budget={igFeatBudget(subclass || className, level)} /></>);
         const weaponsBlock = (
           <>
             <div style={sectionLabel}>WEAPON GROUPS</div>

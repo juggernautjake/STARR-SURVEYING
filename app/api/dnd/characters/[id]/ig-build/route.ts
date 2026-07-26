@@ -12,6 +12,8 @@ import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/proven
 import { gateIgPicks, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { igBuilderChoicesFor, mergeIgBuilderChoices } from '@/lib/dnd/systems/intuitive-games/builder-choices';
+import type { IGRecordedChoice } from '@/lib/dnd/systems/intuitive-games/levelup';
 
 const strArr = (v: unknown): string[] => Array.isArray(v) ? v.map((x) => String(x ?? '').trim()).filter(Boolean) : [];
 
@@ -65,6 +67,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const assembled = assembleIGVanillaCharacter(picks);
+
+  // THE SAME LEDGER `igPlanLevelUp` READS. Foundations collected these picks; without recording them the
+  // walker re-prompts every level's feat and power as though nothing had been chosen. Same fix as 5e's
+  // `builderChoicesFor` and PF2's `pf2BuilderChoicesFor`, against IG's scraped schedule.
+  const priorChoices = ((character as { data?: { igBuild?: { choices?: IGRecordedChoice[] } } }).data?.igBuild?.choices) ?? [];
+  const built = assembled as unknown as { igBuild?: { choices?: IGRecordedChoice[] } };
+  built.igBuild = {
+    ...(built.igBuild ?? {}),
+    choices: mergeIgBuilderChoices(priorChoices, igBuilderChoicesFor({
+      subclass: picks.subclass || picks.className,
+      level: picks.level ?? 1,
+      feats: picks.feats,
+      powers: picks.powers,
+      specialization: picks.specialization,
+    }), picks.level ?? 1),
+  };
   // Carry the off-rules reasons onto the built sheet (IG S3). Only reachable for a custom
   // character or a DM build — a vanilla one was refused above, so it never accumulates any.
   if (Object.keys(buildGate.offRules).length && (assembled as { ig?: unknown }).ig) {

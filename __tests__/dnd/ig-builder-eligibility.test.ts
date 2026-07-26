@@ -30,8 +30,10 @@ describe('the builder consults the same eligibility core as the server', () => {
 
   it('never blocks an already-selected chip', () => {
     // Otherwise a pick made before the class was chosen — or one a DM granted — is stranded and
-    // cannot be removed.
-    expect(src).toContain('const reason = active ? undefined : reasonFor?.(o)');
+    // cannot be removed. S5 added a second reason to block (the level-schedule budget), so this asserts
+    // the RULE — every branch of the reason chain exempts an active chip — rather than one literal line.
+    expect(src).toContain('const reason = active ? undefined');
+    expect(src).toContain('budget != null && !active && sel.length >= budget');
   });
 
   it('gates powers only — not stances or feats', () => {

@@ -124,8 +124,26 @@ slices are driven in the browser before being called done — this repo's standi
       An already-selected pick is never blocked, or a full list could never be undone. 17 new tests.
       **Note:** the picker's `limit` is deliberately absent for SPELLS — their per-level known/prepared
       counts are S7, and capping them at the feat number would be worse than not capping them.
-- [ ] **S5 — IG: slot the schedule.** Drive the Foundations chips from `IG_LEVEL_SCHEDULE` per level instead
-      of the flat catalog: one stance where the level grants a stance, one power where it grants a power.
+- [x] **S5 — IG: slot the schedule. Shipped 2026-07-26.**
+      `lib/dnd/systems/intuitive-games/builder-choices.ts` — `igSlots` (player-choice gains only, so granted
+      things like improved stances and the manifestation never become prompts), `igFeatBudget`/
+      `igPowerBudget`, `igBuilderChoicesFor`, `mergeIgBuilderChoices`. The chips now carry a budget and show
+      `(2/4)`, `ig-build` records the picks in `igBuild.choices` so the walker stops re-asking, and a
+      **level-2 character's feat budget is 2, not the whole catalog** — the owner's exact example.
+      18 new tests.
+      **The one unverified number, isolated on purpose.** Powers are exact: the site states *"Subclass —
+      choose one at level 1, granting a single class power of your choice"* and the schedule carries the
+      rest (the level-6 *unique* power is granted, not chosen, so it is not a slot). Feats are exact from
+      level 2 up — one per level — but the schedule starts at 2 and level 1 is described as including
+      "starting feats" **without a count**. So the feat budget allows exactly one level-1 feat and errs
+      PERMISSIVE: a cap one too generous still bounds the list, while one too tight blocks a legal build.
+      → **Q6 below.**
+      **Stances and weapon types stay uncapped**, deliberately: a stance comes from the BACKGROUND and level
+      5 *improves* stances rather than granting another, so there is no per-level number to enforce and
+      inventing one would be worse than none. Pinned by a test.
+      Two of my own errors, corrected inline rather than quietly: I first filed the level-1 pick against
+      level 2 (which would have made the walker skip a real level-2 prompt), and I first expected the
+      unique power to be a choice.
 - [ ] **S6 — the escape hatch, once, shared.** `+ Add a different …` per slot: system catalog → homebrew →
       write-your-own, stamping `expanded`/`homebrew`/`dm-granted`. Wired into all three pickers from one
       component so the tiers cannot drift apart per system.
@@ -189,3 +207,7 @@ same problem in a nicer font. Slice S8 carries that.
 5. **Retrofitting existing characters.** A character already holding 10 feats at level 2 — leave it alone
    (grandfathered, marked custom), or show the DM a "this exceeds its slots" notice? My assumption:
    grandfather and mark, never silently delete a player's content.
+6. **How many feats does an IG character start with at level 1?** The site's schedule covers levels 2–10
+   (one feat per level) and describes level 1 as including "starting feats" without a number, so S5 allows
+   exactly one and errs permissive. If the real answer is zero, or two, it is a one-line change in
+   `igFeatBudget` — and it is the only number in the slot work that isn't source-verified.
