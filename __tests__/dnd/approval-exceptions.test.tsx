@@ -107,7 +107,10 @@ describe('what this deliberately does NOT do', () => {
 describe('the panel is actually mounted with it', () => {
   it('the prop is wired, not just accepted', () => {
     // A component that takes a prop nothing passes is this repo's most common defect.
-    expect(read('app/dnd/_ui/SheetApprovalPanel.tsx')).toContain('exceptions.map((e, i)');
+    // Renders from `exc`, the panel's local copy, since S8d: a DM ruling updates it immediately from the
+    // server's response rather than waiting for a page refresh.
+    expect(read('app/dnd/_ui/SheetApprovalPanel.tsx')).toContain('exc.map((e, i)');
+    expect(read('app/dnd/_ui/SheetApprovalPanel.tsx')).toContain('useState<SlotException[]>(exceptions)');
     expect(read('app/dnd/characters/[id]/page.tsx')).toContain('exceptions={sheetExceptions(');
   });
 });

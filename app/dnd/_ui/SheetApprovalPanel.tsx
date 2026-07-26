@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
-import type { SlotException } from '@/lib/dnd/slots/entitlement';
+import { reviewSummary, type SlotException } from '@/lib/dnd/slots/entitlement';
 
 type Status = 'draft' | 'submitted' | 'approved' | 'rejected';
 interface Tagged { kind: string; name: string; source: 'vanilla' | 'custom' | 'dm-granted'; grantedBy?: string | null }
@@ -66,6 +66,31 @@ export default function SheetApprovalPanel({
   const [notes, setNotes] = useState('');
   const [showReject, setShowReject] = useState(false);
 
+  // The exceptions the DM is ruling on, held locally so a decision shows immediately rather than waiting
+  // for a page refresh — the server's response is authoritative and replaces this wholesale.
+  const [exc, setExc] = useState<SlotException[]>(exceptions);
+  const reviewState = reviewSummary(exc);
+  const tiny: React.CSSProperties = { fontSize: 10.5, padding: '2px 7px' };
+
+  /** Rule on ONE facet. A denial needs a reason — "no" without one leaves the player nothing to act on. */
+  async function rule(name: string, decision: 'approved' | 'denied') {
+    let note = '';
+    if (decision === 'denied') {
+      note = (prompt(`Why are you denying “${name}”? (shown to the player)`) ?? '').trim();
+      if (!note) return;                 // cancelled, or no reason given — do nothing rather than deny blankly
+    }
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/dnd/characters/${characterId}/exceptions/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, decision, note }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setMsg(j.error ?? 'Could not record the ruling.');
+      else { setExc((j.exceptions ?? []) as SlotException[]); router.refresh(); }
+    } catch { setMsg('Network error — please try again.'); } finally { setBusy(false); }
+  }
+
   const custom = elements.filter((e) => e.source === 'custom');
   const dmGranted = elements.filter((e) => e.source === 'dm-granted');
   const vanillaCount = elements.length - custom.length - dmGranted.length;
@@ -109,13 +134,18 @@ export default function SheetApprovalPanel({
           be worse than omitting it: these picks may be entirely book-legal content, so a "CUSTOM" badge
           would be wrong about them, and the DM's question here ("did they take something they shouldn't
           have?") is a different question from "is any of this homebrew?". */}
-      {exceptions.length > 0 && (
+      {exc.length > 0 && (
         <div style={{ display: 'grid', gap: 4 }}>
           <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)', fontWeight: 700 }}>
-            {exceptions.length} taken outside the rules
+            {exc.length} taken outside the rules
+            {/* What is left to look at. "3 exceptions" with no state tells a DM nothing about whether
+                anyone has already been through them. */}
+            {reviewState.pending > 0
+              ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}> · {reviewState.pending} awaiting your ruling</span>
+              : <span style={{ fontWeight: 400, color: 'var(--hx-teal-1)' }}> · all reviewed</span>}
           </div>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
-            {exceptions.map((e, i) => (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+            {exc.map((e, i) => (
               <li key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 7, fontSize: 12.5, color: 'var(--hx-text)', flexWrap: 'wrap' }}>
                 <ExceptionBadge entitlement={e.entitlement} />
                 <span>{e.name}</span>
@@ -123,6 +153,23 @@ export default function SheetApprovalPanel({
                 {/* The RULES' own objection, verbatim. Without it the DM sees a name and has to go and work
                     out for themselves what was wrong with it. */}
                 {e.reason && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>— {e.reason}</span>}
+
+                {/* The RULING. Shown to everyone (a player must see a denial and its reason, or it explains
+                    nothing), actionable only by the DM. Absent is NOT "approved" — it reads as awaiting. */}
+                {e.review ? (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: e.review.decision === 'approved' ? 'var(--hx-teal-1)' : 'var(--hx-danger-2, #ef8b85)' }}>
+                    {e.review.decision === 'approved' ? '✓ Approved' : '✕ Denied'}
+                    {e.review.note ? <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}> — {e.review.note}</span> : null}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>awaiting review</span>
+                )}
+                {isDM && (
+                  <span style={{ display: 'flex', gap: 5, marginLeft: 'auto' }}>
+                    <button type="button" className={styles.hexBtn} disabled={busy} style={tiny} onClick={() => void rule(e.name, 'approved')}>✓ Approve</button>
+                    <button type="button" className={styles.hexBtn} disabled={busy} style={tiny} onClick={() => void rule(e.name, 'denied')}>✕ Deny</button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

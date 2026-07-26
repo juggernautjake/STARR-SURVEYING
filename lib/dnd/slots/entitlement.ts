@@ -37,6 +37,30 @@ export interface SlotException {
   entitlement: Exclude<Entitlement, 'entitled'>;
   /** The slot it was taken against, when the surface knows it. */
   level?: number;
+  /**
+   * The DM's ruling on THIS pick — the owner's ask: *"the DM would need to be able to review all of the
+   * non-vanilla facets of the character and deny or approve them."*
+   *
+   * Absent = not yet reviewed, which is different from approved and must read differently. Lives on the
+   * exception rather than in a side table so the ruling travels with the pick: rebuild the character, fork
+   * a variant, take it into another campaign, and the DM's decision goes with it instead of being
+   * orphaned by an id that no longer resolves.
+   *
+   * A DENIAL does not delete the pick. Silently removing a player's content is the failure this codebase
+   * refuses everywhere else, and a denial the player never sees explains nothing — so the pick stays,
+   * marked, and both sides can see exactly what was refused and why.
+   */
+  review?: ExceptionReview;
+}
+
+export interface ExceptionReview {
+  decision: 'approved' | 'denied';
+  /** Who ruled, for the record. */
+  by?: string;
+  /** ISO timestamp. */
+  at?: string;
+  /** The DM's note — required for a denial by the UI, since "no" without a reason is not reviewable. */
+  note?: string;
 }
 
 /** What the "take it anyway" control should offer for the current actor and character. */
@@ -91,6 +115,37 @@ function isBoundKind(kind: SheetVariantKind): boolean {
 export function variantKindWithExceptions(current: SheetVariantKind, exceptions: SlotException[]): SheetVariantKind {
   if (current === 'custom') return 'custom';
   return exceptions.length > 0 ? 'altered-vanilla' : 'vanilla';
+}
+
+/**
+ * Apply a DM ruling to every exception matching `name`, in a choice ledger. Returns a NEW array.
+ *
+ * Matches by name the way every picker in this repo does. Pure, and shape-only over the choice, so one
+ * implementation serves all three systems' ledgers — the same reason `exceptionsIn` is shape-only.
+ */
+export function reviewExceptions<T extends { exception?: unknown }>(
+  choices: readonly T[] | undefined | null,
+  name: string,
+  review: ExceptionReview,
+): T[] {
+  const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const target = norm(name);
+  if (!Array.isArray(choices) || !target) return Array.isArray(choices) ? [...choices] : [];
+  return choices.map((c) => {
+    const e = c?.exception as SlotException | undefined;
+    if (!e || typeof e !== 'object' || norm(e.name) !== target) return c;
+    return { ...c, exception: { ...e, review } };
+  });
+}
+
+/** What the DM still has to look at. `pending` is the number that have had no ruling either way. */
+export function reviewSummary(exceptions: readonly SlotException[]): {
+  pending: number; approved: number; denied: number; allReviewed: boolean;
+} {
+  const approved = exceptions.filter((e) => e.review?.decision === 'approved').length;
+  const denied = exceptions.filter((e) => e.review?.decision === 'denied').length;
+  const pending = exceptions.length - approved - denied;
+  return { pending, approved, denied, allReviewed: exceptions.length > 0 && pending === 0 };
 }
 
 /** "Magic Initiate (DM-granted, level 4)" — the badge's job is to NAME what changed. */
