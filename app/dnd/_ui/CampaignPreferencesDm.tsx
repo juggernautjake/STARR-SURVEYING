@@ -46,6 +46,12 @@ const ENUM_TITLE: Record<EnumField, string> = {
   recordMode: 'Roll recording mode',
   shapeshiftStats: 'Shape-shift ability scores',
   downedDamageModel: 'Damage while dying (PF2)',
+  // The PF2 GM Core optional rules. A campaign is not pinned to one system, so the DM panel lists them
+  // all with the system in the title (the PER-CHARACTER modal is where they get filtered to the
+  // character's own system — that's the surface where a wrong-system setting actually misleads).
+  proficiencyWithoutLevel: 'Proficiency without level (PF2)',
+  freeArchetype: 'Free archetype (PF2)',
+  startingHeroPoints: 'Starting Hero Points (PF2)',
 };
 
 /** A "players may choose" lock: unticked → the DM's value is forced on every player (locked). */

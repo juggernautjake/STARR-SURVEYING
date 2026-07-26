@@ -17,6 +17,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
+import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
  *  (at +4 or higher, a boost gives +½ — tracked here by only raising every other boost past +4). This
@@ -113,7 +114,7 @@ export function pf2ComputeAttributes(cls: PF2ClassDef | null, anc: PF2AncestryDe
 }
 
 /** Build a complete, level-1-legal PF2Character from the picks. */
-export function buildPF2Character(picks: PF2Picks): PF2Character {
+export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants): PF2Character {
   const cls = pf2Class(picks.className || '');
   const anc = pf2Ancestry(picks.ancestry || '');
   const bg = pf2Background(picks.background || '');
@@ -221,7 +222,10 @@ export function buildPF2Character(picks: PF2Picks): PF2Character {
       ancestryHp: anc?.hp ?? 8,
       classHpPerLevel: cls?.hpPerLevel ?? 8,
       currentHp: (anc?.hp ?? 8) + ((cls?.hpPerLevel ?? 8) + con) * level,
-      tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: 1, // PF2: start play with 1 Hero Point
+      // PF2 RAW: start play with 1 Hero Point. A table may set a different starting count (S-4b), which is
+      // the one variant that has to land at BUILD time rather than at resolve time — Hero Points are stored
+      // state a player spends down, not a derived number, so it cannot be recomputed from preferences later.
+      tempHp: 0, dyingValue: 0, woundedValue: 0, heroPoints: (variants ?? PF2_VANILLA_VARIANTS).startingHeroPoints,
       speed: (anc?.speed ?? 25) + speedPenalty,
       armorRank: defenseRank, dexCap: armor ? armor.dexCap : null, acItemBonus: armor?.acBonus ?? 0, armorName: armor?.name || 'Unarmored', armorCheckPenalty,
       attackRank: attacksRank,
@@ -278,8 +282,8 @@ const modToScore = (mod: number) => Math.max(1, Math.min(30, 10 + mod * 2));
  * and switcher keep working) PLUS the authoritative `pf2e` sidecar the bespoke PF2 sheet reads. A straight
  * assemble from the vanilla library is rules-legal; anything outside it is still placed (flagged custom).
  */
-export function assemblePF2VanillaCharacter(picks: PF2Picks): Character & { pf2Build: PF2Build; pf2e: PF2Character } {
-  const pf2 = buildPF2Character(picks);
+export function assemblePF2VanillaCharacter(picks: PF2Picks, variants?: PF2RulesVariants): Character & { pf2Build: PF2Build; pf2e: PF2Character } {
+  const pf2 = buildPF2Character(picks, variants);
   const char = blankCharacter(pf2.identity.name) as Character & { pf2Build: PF2Build; pf2e: PF2Character };
   char.meta.species = pf2.identity.ancestry;
   char.meta.className = pf2.identity.className;

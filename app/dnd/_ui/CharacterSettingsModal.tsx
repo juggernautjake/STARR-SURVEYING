@@ -15,7 +15,8 @@ import { useState } from 'react';
 import styles from './hextech.module.css';
 import type { EffectivePreferences, PlayerPreferences } from '@/lib/dnd/preferences';
 import {
-  ENUM_OPTIONS, ENUM_HELP, ENUM_LABEL, ENUM_ORDER, BOOL_LABEL, BOOL_HELP, BOOL_ORDER, PREF_GROUP,
+  ENUM_OPTIONS, ENUM_HELP, ENUM_LABEL, BOOL_LABEL, BOOL_HELP, PREF_GROUP,
+  enumPrefsForSystem, boolPrefsForSystem,
   type EnumPrefField, type BoolPrefField,
 } from '@/lib/dnd/preference-options';
 
@@ -29,6 +30,7 @@ export default function CharacterSettingsModal({
   isOwner = false,
   characterName,
   campaignId,
+  system,
 }: {
   characterId: string;
   /** The resolved preferences (value + lockedByDM per field), so each control shows the live value. */
@@ -43,6 +45,10 @@ export default function CharacterSettingsModal({
   /** The character's home campaign, if any — after deleting, we return the owner THERE (the campaign they
    *  were in) rather than always dumping them in the account lobby; a campaign-less character → the lobby. */
   campaignId?: string | null;
+  /** The character's game system. Settings that only exist in ONE system (the PF2 GM Core variants, the
+   *  PF2 dying model) are shown only for that system — a 5e player was previously offered "Damage while
+   *  dying (PF2)", a rule their sheet does not have. Unknown/absent system → cross-system settings only. */
+  system?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(player);
@@ -135,8 +141,12 @@ export default function CharacterSettingsModal({
     );
   };
 
-  const displayFields = ENUM_ORDER.filter((f) => PREF_GROUP[f] === 'display');
-  const rulesEnum = ENUM_ORDER.filter((f) => PREF_GROUP[f] === 'rules');
+  // Scoped to THIS character's system first, then split into sections. A setting the character's system
+  // cannot honour is never rendered, so the modal only ever offers controls that do something.
+  const enumFields = enumPrefsForSystem(system);
+  const boolFields = boolPrefsForSystem(system);
+  const displayFields = enumFields.filter((f) => PREF_GROUP[f] === 'display');
+  const rulesEnum = enumFields.filter((f) => PREF_GROUP[f] === 'rules');
 
   return (
     <>
@@ -168,7 +178,7 @@ export default function CharacterSettingsModal({
             {displayFields.map(enumRow)}
 
             <h3 style={{ fontSize: 13, color: 'var(--hx-teal-1)', margin: '10px 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rules</h3>
-            {BOOL_ORDER.map(boolRow)}
+            {boolFields.map(boolRow)}
             {rulesEnum.map(enumRow)}
 
             {err && <p style={{ fontSize: 12.5, color: 'var(--hx-danger, #ff6b6b)', margin: '4px 0 0' }}>{err}</p>}

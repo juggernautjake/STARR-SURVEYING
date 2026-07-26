@@ -31,6 +31,7 @@ import {
   type PF2AttributeKey, type PF2Character, type PF2SaveKey, type PF2Skill, type PF2Attack,
 } from './model';
 import { pf2Level, pf2Proficiency } from './rules';
+import { type PF2RulesVariants } from './variants';
 import { pf2StackModifiers, pf2ResolveRunes, pf2WeaponNumbers, type PF2Modifier } from './bonuses';
 import { pf2ResolveStrike, type PF2StrikeResult } from './strike';
 import { PF2_CONDITION_MECHANICS, type Pf2ActiveCondition } from '@/lib/dnd/conditions/pathfinder2e';
@@ -264,14 +265,14 @@ function armorItemBonus(char: PF2Character): { ac: number; save: number; notes: 
  *  AC was previously the ONE headline number no condition could touch — an Off-Guard character's AC
  *  card read exactly the same as an unafflicted one, despite Off-Guard being a −2 to precisely that
  *  number and one of the most common states in PF2 combat. */
-export function pf2ResolveAc(char: PF2Character): PF2ResolvedStat {
+export function pf2ResolveAc(char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat {
   const dex = char.attributes.DEX ?? 0;
   const cappedDex = char.combat.dexCap == null ? dex : Math.min(dex, char.combat.dexCap);
   const armor = armorItemBonus(char);
   const base = [
     { label: 'base', value: 10 },
     { label: 'DEX', value: cappedDex },
-    { label: `${char.combat.armorRank}`, value: pf2Proficiency(char.combat.armorRank, char.identity.level) },
+    { label: `${char.combat.armorRank}`, value: pf2Proficiency(char.combat.armorRank, char.identity.level, variants) },
   ];
   const typed: PF2Modifier[] = [
     ...(armor.ac ? [{ type: 'item' as const, value: armor.ac, source: char.combat.armorName || 'armor' }] : []),
@@ -282,14 +283,14 @@ export function pf2ResolveAc(char: PF2Character): PF2ResolvedStat {
 
 /** A saving throw. Resilient armor runes reach it here — the rune line resolved a `saveBonus` that
  *  nothing read until now, so a character in +2 resilient armor saved as though it were mundane. */
-export function pf2ResolveSave(save: PF2SaveKey, char: PF2Character): PF2ResolvedStat {
+export function pf2ResolveSave(save: PF2SaveKey, char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat {
   const s = char.saves[save];
   const attr = PF2_SAVE_ATTRIBUTE[save];
   const armor = armorItemBonus(char);
   const kind = save.toLowerCase() as PF2StatKind;
   const base = [
     { label: attr, value: char.attributes[attr] ?? 0 },
-    { label: s.rank, value: pf2Proficiency(s.rank, char.identity.level) },
+    { label: s.rank, value: pf2Proficiency(s.rank, char.identity.level, variants) },
   ];
   const typed: PF2Modifier[] = [
     // The hand-entered item bonus and the resilient rune are BOTH item bonuses, so the stacking
@@ -304,11 +305,11 @@ export function pf2ResolveSave(save: PF2SaveKey, char: PF2Character): PF2Resolve
 
 /** A skill. The armor check penalty is untyped — it always applies and never competes with an item
  *  bonus, so it must not be typed as one or a magic item would suppress it. */
-export function pf2ResolveSkill(skill: PF2Skill, char: PF2Character): PF2ResolvedStat {
+export function pf2ResolveSkill(skill: PF2Skill, char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat {
   const acp = skill.armorPenalty ? (char.combat.armorCheckPenalty || 0) : 0;
   const base = [
     { label: skill.attribute, value: char.attributes[skill.attribute] ?? 0 },
-    { label: skill.rank, value: pf2Proficiency(skill.rank, char.identity.level) },
+    { label: skill.rank, value: pf2Proficiency(skill.rank, char.identity.level, variants) },
   ];
   const typed: PF2Modifier[] = [
     ...(skill.itemBonus ? [{ type: 'item' as const, value: skill.itemBonus, source: 'item bonus' }] : []),
@@ -319,10 +320,10 @@ export function pf2ResolveSkill(skill: PF2Skill, char: PF2Character): PF2Resolve
 }
 
 /** Perception, which is also PF2's initiative in the default case. */
-export function pf2ResolvePerception(char: PF2Character): PF2ResolvedStat {
+export function pf2ResolvePerception(char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat {
   const base = [
     { label: 'WIS', value: char.attributes.WIS ?? 0 },
-    { label: char.perception.rank, value: pf2Proficiency(char.perception.rank, char.identity.level) },
+    { label: char.perception.rank, value: pf2Proficiency(char.perception.rank, char.identity.level, variants) },
   ];
   const typed = pf2ConditionModifiers(char.combat.conditions ?? [], 'perception', 'WIS');
   return resolve(base, typed, featConditionals(char, 'perception'));
@@ -330,36 +331,36 @@ export function pf2ResolvePerception(char: PF2Character): PF2ResolvedStat {
 
 /** Spell DC (10 + attribute + proficiency) and spell attack. Stupefied reaches both — its own text
  *  says "including spell attacks and spell DCs" — and neither moved before. */
-export function pf2ResolveSpellDc(char: PF2Character): PF2ResolvedStat | null {
+export function pf2ResolveSpellDc(char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat | null {
   if (char.spellcasting.kind === 'none') return null;
   const attr = char.spellcasting.attribute;
   const base = [
     { label: 'base', value: 10 },
     { label: attr, value: char.attributes[attr] ?? 0 },
-    { label: char.spellcasting.rank, value: pf2Proficiency(char.spellcasting.rank, char.identity.level) },
+    { label: char.spellcasting.rank, value: pf2Proficiency(char.spellcasting.rank, char.identity.level, variants) },
   ];
   const typed = pf2ConditionModifiers(char.combat.conditions ?? [], 'spell-dc', attr);
   return resolve(base, typed, featConditionals(char, 'spell-dc'));
 }
 
-export function pf2ResolveSpellAttack(char: PF2Character): PF2ResolvedStat | null {
+export function pf2ResolveSpellAttack(char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat | null {
   if (char.spellcasting.kind === 'none') return null;
   const attr = char.spellcasting.attribute;
   const base = [
     { label: attr, value: char.attributes[attr] ?? 0 },
-    { label: char.spellcasting.rank, value: pf2Proficiency(char.spellcasting.rank, char.identity.level) },
+    { label: char.spellcasting.rank, value: pf2Proficiency(char.spellcasting.rank, char.identity.level, variants) },
   ];
   const typed = pf2ConditionModifiers(char.combat.conditions ?? [], 'spell-attack', attr);
   return resolve(base, typed, featConditionals(char, 'spell-attack'));
 }
 
 /** Class DC. */
-export function pf2ResolveClassDc(char: PF2Character): PF2ResolvedStat {
+export function pf2ResolveClassDc(char: PF2Character, variants?: PF2RulesVariants): PF2ResolvedStat {
   const attr = char.combat.classDcAttribute;
   const base = [
     { label: 'base', value: 10 },
     { label: attr, value: char.attributes[attr] ?? 0 },
-    { label: char.combat.classDcRank, value: pf2Proficiency(char.combat.classDcRank, char.identity.level) },
+    { label: char.combat.classDcRank, value: pf2Proficiency(char.combat.classDcRank, char.identity.level, variants) },
   ];
   const typed = pf2ConditionModifiers(char.combat.conditions ?? [], 'class-dc', attr);
   return resolve(base, typed, featConditionals(char, 'class-dc'));
@@ -384,7 +385,7 @@ export interface PF2ResolvedStrike extends PF2ResolvedStat {
  *  Conditions fold in as typed modifiers, and the attack attribute decides which ones bite — a
  *  Clumsy character takes the penalty on a Dexterity-based Strike and not on a Strength-based one. */
 export function pf2ResolveStrikeInPlay(
-  attack: PF2Attack, char: PF2Character, strikeIndex = 0,
+  attack: PF2Attack, char: PF2Character, strikeIndex = 0, variants?: PF2RulesVariants,
 ): PF2ResolvedStrike {
   const runes = pf2WeaponNumbers(attack);
   const traits = attack.traits ?? [];
@@ -395,7 +396,7 @@ export function pf2ResolveStrikeInPlay(
     {
       level: char.identity.level,
       attributes: char.attributes,
-      proficiency: pf2Proficiency(attack.rank, char.identity.level),
+      proficiency: pf2Proficiency(attack.rank, char.identity.level, variants),
       itemBonus: runes.weaponBonus,
       striking: runes.striking,
       strikeIndex,
@@ -410,7 +411,7 @@ export function pf2ResolveStrikeInPlay(
 
   const base = [
     { label: attackAttr, value: char.attributes[attackAttr] ?? 0 },
-    { label: attack.rank, value: pf2Proficiency(attack.rank, char.identity.level) },
+    { label: attack.rank, value: pf2Proficiency(attack.rank, char.identity.level, variants) },
     ...(strike.map ? [{ label: `MAP${strikeIndex >= 2 ? ' (3rd+)' : ' (2nd)'}`, value: strike.map }] : []),
   ];
   const typed: PF2Modifier[] = [
@@ -428,17 +429,17 @@ export function pf2ResolveStrikeInPlay(
  *  the builder and the AI grounding want a character's numbers WITHOUT the transient combat state,
  *  and the sheet wants them with it. Two callers, two genuinely different questions, rather than
  *  one function with a boolean. */
-export function pf2ResolveAll(char: PF2Character) {
+export function pf2ResolveAll(char: PF2Character, variants?: PF2RulesVariants) {
   return {
-    ac: pf2ResolveAc(char),
-    perception: pf2ResolvePerception(char),
-    classDc: pf2ResolveClassDc(char),
-    spellDc: pf2ResolveSpellDc(char),
-    spellAttack: pf2ResolveSpellAttack(char),
+    ac: pf2ResolveAc(char, variants),
+    perception: pf2ResolvePerception(char, variants),
+    classDc: pf2ResolveClassDc(char, variants),
+    spellDc: pf2ResolveSpellDc(char, variants),
+    spellAttack: pf2ResolveSpellAttack(char, variants),
     saves: {
-      Fortitude: pf2ResolveSave('Fortitude', char),
-      Reflex: pf2ResolveSave('Reflex', char),
-      Will: pf2ResolveSave('Will', char),
+      Fortitude: pf2ResolveSave('Fortitude', char, variants),
+      Reflex: pf2ResolveSave('Reflex', char, variants),
+      Will: pf2ResolveSave('Will', char, variants),
     } as Record<PF2SaveKey, PF2ResolvedStat>,
     level: pf2Level(char.identity.level),
   };

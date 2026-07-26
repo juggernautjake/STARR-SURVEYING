@@ -17,6 +17,7 @@ import type { PF2FeatFull, PF2SpellFull, PF2Prereq, PF2FeatTrack } from './defs'
 import type { PF2AttributeKey } from './model';
 import { pf2Class } from './content';
 import { pf2SpellSlots } from './rules';
+import { pf2FreeArchetypeFeatCount, type PF2RulesVariants } from './variants';
 
 export interface PF2EligibilityContext {
   className: string;
@@ -72,13 +73,18 @@ export function pf2FeatLevelsFor(track: PF2FeatTrack, throughLevel: number, clas
 /** How many feats of each track a character of this level is owed. Used by the builder to show
  *  "2 of 3 class feats chosen" — it is a budget, not a gate, and is deliberately NOT enforced as a
  *  hard cap here: a DM grant or an archetype can legitimately add feats beyond the schedule. */
-export function pf2FeatBudget(level: number, classFeatLevels?: number[]): Record<PF2FeatTrack, number> {
+export function pf2FeatBudget(level: number, classFeatLevels?: number[], variants?: PF2RulesVariants): Record<PF2FeatTrack, number> {
+  // Free Archetype (GM Core) grants an EXTRA archetype-only class feat at every even level. It does not
+  // consume a normal class feat, so it raises the ARCHETYPE budget only — the `class` count is untouched.
+  // (Without the variant, archetype feats come out of the class-feat slots, which is why the two lines
+  // otherwise read the same schedule.)
+  const freeArchetypeExtra = pf2FreeArchetypeFeatCount(level, variants);
   return {
     ancestry: pf2FeatLevelsFor('ancestry', level).length,
     skill: pf2FeatLevelsFor('skill', level).length,
     general: pf2FeatLevelsFor('general', level).length,
     class: pf2FeatLevelsFor('class', level, classFeatLevels).length,
-    archetype: pf2FeatLevelsFor('class', level, classFeatLevels).length,
+    archetype: pf2FeatLevelsFor('class', level, classFeatLevels).length + freeArchetypeExtra,
   };
 }
 

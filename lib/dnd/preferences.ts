@@ -20,6 +20,15 @@ export type ShapeshiftStats = 'full' | 'partial' | 'none';
 // value (by 1, or 2 on a crit / from a persistent source) per the PF2 rules (the DEFAULT); 'off' — dying
 // only advances from failed recovery saves, never from fresh damage (a gentler house rule).
 export type DownedDamageModel = 'official' | 'off';
+// PF2 GM Core "Proficiency Without Level": 'off' — RAW, your level is added to every proficiency-based
+// number (the DEFAULT); 'on' — level is not added and untrained becomes −2, flattening the level treadmill.
+// Modelled in `lib/dnd/systems/pathfinder2e/variants.ts`; PF2 characters only.
+export type ProficiencyWithoutLevel = 'off' | 'on';
+// PF2 GM Core "Free Archetype": 'off' — RAW (the DEFAULT); 'on' — an EXTRA archetype-only class feat at
+// every even level, alongside the normal class feat. PF2 characters only.
+export type FreeArchetype = 'off' | 'on';
+// How many Hero Points a PF2 character starts a session with. RAW is 1. PF2 characters only.
+export type StartingHeroPoints = '0' | '1' | '2' | '3';
 
 const VALUES = {
   exhaustionModel: ['vanilla', 'flat-2-per-level'] as ExhaustionModel[],
@@ -29,6 +38,9 @@ const VALUES = {
   recordMode: ['auto', 'manual', 'irl'] as RecordMode[],
   shapeshiftStats: ['full', 'partial', 'none'] as ShapeshiftStats[],
   downedDamageModel: ['official', 'off'] as DownedDamageModel[],
+  proficiencyWithoutLevel: ['off', 'on'] as ProficiencyWithoutLevel[],
+  freeArchetype: ['off', 'on'] as FreeArchetype[],
+  startingHeroPoints: ['0', '1', '2', '3'] as StartingHeroPoints[],
 } as const;
 
 /** One campaign-level setting: its value + whether a player may override it with their own choice. */
@@ -52,6 +64,11 @@ export interface CampaignPreferences {
   featAutoApply: CampaignSetting<boolean>;
   shapeshiftStats: CampaignSetting<ShapeshiftStats>;
   downedDamageModel: CampaignSetting<DownedDamageModel>;
+  // ── Pathfinder 2e only (GM Core optional rules). Inert on every other system; the settings catalog
+  //    tags them PF2 so a 5e or IG character is never offered them. ──
+  proficiencyWithoutLevel: CampaignSetting<ProficiencyWithoutLevel>;
+  freeArchetype: CampaignSetting<FreeArchetype>;
+  startingHeroPoints: CampaignSetting<StartingHeroPoints>;
 }
 
 /** A player's chosen overrides. Partial — an unset field falls back to the campaign value. Only honored
@@ -67,6 +84,9 @@ export interface PlayerPreferences {
   featAutoApply?: boolean;
   shapeshiftStats?: ShapeshiftStats;
   downedDamageModel?: DownedDamageModel;
+  proficiencyWithoutLevel?: ProficiencyWithoutLevel;
+  freeArchetype?: FreeArchetype;
+  startingHeroPoints?: StartingHeroPoints;
 }
 
 /** One resolved setting the sheet reads, flagged if the DM locked it (so the UI can show "set by your DM"). */
@@ -86,6 +106,9 @@ export interface EffectivePreferences {
   featAutoApply: EffectivePreference<boolean>;
   shapeshiftStats: EffectivePreference<ShapeshiftStats>;
   downedDamageModel: EffectivePreference<DownedDamageModel>;
+  proficiencyWithoutLevel: EffectivePreference<ProficiencyWithoutLevel>;
+  freeArchetype: EffectivePreference<FreeArchetype>;
+  startingHeroPoints: EffectivePreference<StartingHeroPoints>;
 }
 
 /** The vanilla defaults — every setting on its RAW/standard value, and players free to choose by default. */
@@ -100,6 +123,9 @@ export const DEFAULT_CAMPAIGN_PREFERENCES: CampaignPreferences = {
   featAutoApply: { value: true, playerCanChoose: true }, // a feat's ability increase applies itself by default
   shapeshiftStats: { value: 'full', playerCanChoose: true }, // RAW: a form's scores fully replace yours
   downedDamageModel: { value: 'official', playerCanChoose: true }, // PF2 RAW: damage while dying raises Dying
+  proficiencyWithoutLevel: { value: 'off', playerCanChoose: true }, // PF2 RAW: your level IS added to proficiency
+  freeArchetype: { value: 'off', playerCanChoose: true }, // PF2 RAW: no extra archetype feat
+  startingHeroPoints: { value: '1', playerCanChoose: true }, // PF2 RAW: start each session with 1 Hero Point
 };
 
 /** Resolve one setting: a locked setting always uses the campaign value; otherwise the player's choice wins
@@ -129,6 +155,9 @@ export function resolvePreferences(
     featAutoApply: resolveOne(campaign.featAutoApply, player.featAutoApply),
     shapeshiftStats: resolveOne(campaign.shapeshiftStats, player.shapeshiftStats),
     downedDamageModel: resolveOne(campaign.downedDamageModel, player.downedDamageModel),
+    proficiencyWithoutLevel: resolveOne(campaign.proficiencyWithoutLevel, player.proficiencyWithoutLevel),
+    freeArchetype: resolveOne(campaign.freeArchetype, player.freeArchetype),
+    startingHeroPoints: resolveOne(campaign.startingHeroPoints, player.startingHeroPoints),
   };
 }
 
@@ -159,6 +188,9 @@ export function normalizeCampaignPreferences(raw: unknown): CampaignPreferences 
     featAutoApply: setting(r.featAutoApply, null, d.featAutoApply),
     shapeshiftStats: setting(r.shapeshiftStats, VALUES.shapeshiftStats, d.shapeshiftStats),
     downedDamageModel: setting(r.downedDamageModel, VALUES.downedDamageModel, d.downedDamageModel),
+    proficiencyWithoutLevel: setting(r.proficiencyWithoutLevel, VALUES.proficiencyWithoutLevel, d.proficiencyWithoutLevel),
+    freeArchetype: setting(r.freeArchetype, VALUES.freeArchetype, d.freeArchetype),
+    startingHeroPoints: setting(r.startingHeroPoints, VALUES.startingHeroPoints, d.startingHeroPoints),
   };
 }
 
@@ -177,5 +209,8 @@ export function normalizePlayerPreferences(raw: unknown): PlayerPreferences {
   if (typeof r.featAutoApply === 'boolean') out.featAutoApply = r.featAutoApply;
   if (VALUES.shapeshiftStats.includes(r.shapeshiftStats as ShapeshiftStats)) out.shapeshiftStats = r.shapeshiftStats as ShapeshiftStats;
   if (VALUES.downedDamageModel.includes(r.downedDamageModel as DownedDamageModel)) out.downedDamageModel = r.downedDamageModel as DownedDamageModel;
+  if (VALUES.proficiencyWithoutLevel.includes(r.proficiencyWithoutLevel as ProficiencyWithoutLevel)) out.proficiencyWithoutLevel = r.proficiencyWithoutLevel as ProficiencyWithoutLevel;
+  if (VALUES.freeArchetype.includes(r.freeArchetype as FreeArchetype)) out.freeArchetype = r.freeArchetype as FreeArchetype;
+  if (VALUES.startingHeroPoints.includes(r.startingHeroPoints as StartingHeroPoints)) out.startingHeroPoints = r.startingHeroPoints as StartingHeroPoints;
   return out;
 }

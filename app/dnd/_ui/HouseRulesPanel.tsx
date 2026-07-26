@@ -50,6 +50,9 @@ const ROW_HELP: Partial<Record<keyof EffectivePreferences, string>> = {
   recordMode: 'How rolls are entered.',
   shapeshiftStats: 'What a shape-shift does to your ability scores.',
   downedDamageModel: 'PF2: whether damage while dying raises your Dying value.',
+  proficiencyWithoutLevel: 'PF2 (GM Core): when on, your level is not added to checks, saves, AC or DCs, and untrained is −2.',
+  freeArchetype: 'PF2 (GM Core): when on, an extra archetype-only class feat at every even level.',
+  startingHeroPoints: 'PF2: how many Hero Points you begin a session with (RAW is 1).',
 };
 
 const ROWS: { key: keyof EffectivePreferences; name: string }[] = [
@@ -63,6 +66,9 @@ const ROWS: { key: keyof EffectivePreferences; name: string }[] = [
   { key: 'recordMode', name: 'Roll recording' },
   { key: 'shapeshiftStats', name: 'Shape-shift ability scores' },
   { key: 'downedDamageModel', name: 'Damage while dying (PF2)' },
+  { key: 'proficiencyWithoutLevel', name: 'Proficiency without level (PF2)' },
+  { key: 'freeArchetype', name: 'Free archetype (PF2)' },
+  { key: 'startingHeroPoints', name: 'Starting Hero Points (PF2)' },
 ];
 
 export default function HouseRulesPanel({ preferences }: { preferences: EffectivePreferences }) {

@@ -33,6 +33,8 @@ import {
   pf2ResolveAll, pf2ResolveSkill, pf2ResolveStrikeInPlay,
   type PF2ResolvedStat,
 } from '@/lib/dnd/systems/pathfinder2e/resolve';
+import { pf2VariantsFromPreferences, describePf2Variants, isVanillaPf2Variants } from '@/lib/dnd/systems/pathfinder2e/variants';
+import type { EffectivePreferences } from '@/lib/dnd/preferences';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
 import { pf2ConditionMechanics, PF2_CONDITION_MECHANICS } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
@@ -139,6 +141,10 @@ export interface UsePf2PanelsArgs {
   /** Player-authored custom sections (`data.customSections`, D-13), surfaced as a "Custom" panel and
    *  persisted via the `/sections` route. */
   customSections?: CustomSection[];
+  /** The resolved player/DM preferences (S-4a). The PF2 GM Core rules variants are read out of this and
+   *  threaded into EVERY resolve call, so "proficiency without level" reaches each check, save, AC, DC and
+   *  Strike rather than only the ones a caller remembered to update. Absent → vanilla. */
+  preferences?: EffectivePreferences;
 }
 
 export interface Pf2PanelSet {
@@ -162,15 +168,19 @@ export interface Pf2PanelSet {
  * The PF2 panel set for THIS character. Owns all shared state and returns everything a format shell
  * needs to render the sheet. The Classic shell reproduces the previous `PF2Sheet` DOM exactly.
  */
-export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections }: UsePf2PanelsArgs): Pf2PanelSet {
+export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences }: UsePf2PanelsArgs): Pf2PanelSet {
   const router = useRouter();
   const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
+  // The GM Core rules variants in force for this character (S-4b). Derived once and threaded into every
+  // resolve below — the same "one resolution" discipline the note under `d` describes, for the same
+  // reason: a variant applied at some call sites and not others is worse than one applied at none.
+  const rv = useMemo(() => pf2VariantsFromPreferences(preferences), [preferences]);
   // ONE resolution for every headline number (S13b). The card and the roll both read `.total` from
   // this, which is the whole point: the sheet used to display `pf2SaveTotal` and roll that number
   // PLUS a condition penalty applied at the call site, so a Frightened character's card and dice
   // disagreed. Two places that each remember to apply conditions will eventually forget; one place
   // cannot.
-  const d = pf2ResolveAll(pf2);
+  const d = pf2ResolveAll(pf2, rv);
   const maxHp = pf2MaxHp(pf2);
   const id = pf2.identity;
   const [saving, setSaving] = useState(false);
@@ -343,7 +353,28 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     </nav>
   );
 
-  const banner = refusal ? (
+  // The variant-rules notice. Every number on this sheet is computed under `rv`, and Proficiency Without
+  // Level in particular makes a 12th-level character's numbers look wrong to anyone who assumes RAW — so
+  // the sheet says which optional rules are in force rather than leaving the player to reverse-engineer it
+  // from a total that is 12 lower than they expect. Suppressed entirely on a vanilla table.
+  const variantNotes = describePf2Variants(rv);
+  const variantNotice = isVanillaPf2Variants(rv) ? null : (
+    <div
+      role="note"
+      aria-label="Optional Pathfinder 2e rules in force"
+      style={{ display: 'flex', alignItems: 'flex-start', gap: 8, border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(200,170,110,0.10)', borderRadius: 8, padding: '8px 12px' }}
+    >
+      <span aria-hidden style={{ fontSize: 13 }}>⚖</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong style={{ fontSize: 12, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--hx-gold-2)' }}>Variant rules in force</strong>
+        <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.5 }}>
+          {variantNotes.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+
+  const refusalBanner = refusal ? (
     // A refused edit says so, and says what to do about it. Dismissible rather than auto-clearing:
     // the sentence names two courses of action and the player needs time to read it, not a toast
     // that vanishes while they are still deciding.
@@ -351,6 +382,15 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       <span style={{ fontSize: 13 }}>⚠</span>
       <span style={{ flex: 1, fontSize: 13, color: 'var(--hx-text)' }}>{refusal}</span>
       <button className="btn tiny" onClick={() => setRefusal(null)} aria-label="Dismiss">✕</button>
+    </div>
+  ) : null;
+
+  // Both notices share the banner slot. The refusal is transient and the variant notice is standing, so
+  // they stack rather than compete — a refused edit must not hide the reason the numbers look unusual.
+  const banner = (refusalBanner || variantNotice) ? (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {refusalBanner}
+      {variantNotice}
     </div>
   ) : null;
 
@@ -633,7 +673,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           <div className={styles.pf2SkillGrid}>
             {pf2.skills.map((sk) => {
               const penalized = !!sk.armorPenalty && !!pf2.combat.armorCheckPenalty;
-              const stat = pf2ResolveSkill(sk, pf2);
+              const stat = pf2ResolveSkill(sk, pf2, rv);
               const total = stat.total;
               return (
                 <button key={sk.name} type="button" onClick={() => rollLine(`${sk.name} (${sk.attribute})`, stat)} title={`Roll ${sk.name} (d20 ${fmt(total)})\n${stat.breakdown}`}
@@ -684,7 +724,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
               // (S13b). The MAP is the piece that was missing outright: `pf2Map` existed and was
               // tested, but nothing ever passed a strike index, so a Fighter's third attack of the
               // turn displayed and rolled ten points too high.
-              const resolved = pf2ResolveStrikeInPlay(a, pf2, strikeIndex);
+              const resolved = pf2ResolveStrikeInPlay(a, pf2, strikeIndex, rv);
               const strike = resolved.strike;
               const bonus = resolved.total;
               return (
@@ -783,7 +823,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           {pf2.spellcasting.kind !== 'none' && (
             <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
               <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>
-                {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level))} ({pf2.spellcasting.rank}).
+                {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level, rv))} ({pf2.spellcasting.rank}).
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (

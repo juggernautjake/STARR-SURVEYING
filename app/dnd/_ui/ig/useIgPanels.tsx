@@ -24,6 +24,7 @@ import RollerTemplateBar from '@/app/dnd/_sheet/components/rollers/RollerTemplat
 import DicePad from '@/app/dnd/_sheet/components/rollers/DicePad';
 import SectionsManager from '@/app/dnd/_sheet/components/SectionsManager';
 import { normalizeCustomSections, type CustomSection } from '@/lib/dnd/custom-sections';
+import type { EffectivePreferences } from '@/lib/dnd/preferences';
 import { type RollerTemplateId } from '@/lib/dnd/roller-templates';
 import { effectiveRollerChoice, rememberRollerChoice } from '@/lib/dnd/rollerChoice';
 import styles from '../hextech.module.css';
@@ -128,6 +129,11 @@ export interface UseIgPanelsArgs {
   /** Player-authored custom sections (`data.customSections`, D-13). Surfaced as a "Custom" panel that any
    *  system can carry; the owner adds/edits them there, persisted via the `/sections` route. */
   customSections?: CustomSection[];
+  /** The resolved player/DM preferences (S-4a). Until this existed, preferences reached ONLY the shared 5e
+   *  engine (via SheetRoot → CharacterProvider), so a cross-system setting silently did nothing on an IG
+   *  sheet. IG has no rules variants of its own yet — those are the owner's to specify (S-4c) — so nothing
+   *  reads this today; it is threaded now so the wiring is not the blocker when they are named. */
+  preferences?: EffectivePreferences;
 }
 
 /** What the hook hands a format shell: the ordered panel list plus the surrounding furniture. A shell places
@@ -142,7 +148,7 @@ export interface IgPanelSet {
   overlays: ReactNode;
 }
 
-export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections }: UseIgPanelsArgs): IgPanelSet {
+export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences: _preferences }: UseIgPanelsArgs): IgPanelSet {
   const derived = useMemo(() => igDerived(ig), [ig]);
   const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.

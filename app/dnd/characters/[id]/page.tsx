@@ -92,6 +92,12 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     const hasChoices = Object.keys(playerPreferences).length > 0;
     if (hasChoices) effectivePreferences = resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences);
   }
+  // The ALWAYS-resolvable form. `effectivePreferences` is deliberately left undefined when there is nothing
+  // to say (no campaign, no stored choices) because several panels use its presence as "is this character
+  // governed by settings at all". The bespoke PF2/IG sheets need a real value regardless — their rules
+  // variants must resolve to the vanilla defaults rather than to `undefined` — so they read this instead.
+  const resolvedPreferences: EffectivePreferences =
+    effectivePreferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES, playerPreferences);
 
   // Area VIS6a — the creator's "replace my original with the in-campaign version" offer. It appears ONLY when
   // the character is in a campaign that holds its own edited copy (a DM override, seed 451) AND the viewer is the
@@ -193,6 +199,10 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           rollerTemplate={(character.data as { rollerTemplate?: string } | null)?.rollerTemplate}
           rollerAnim={(character.data as { rollerAnim?: boolean } | null)?.rollerAnim}
           customSections={(character.data as { customSections?: import('@/lib/dnd/custom-sections').CustomSection[] } | null)?.customSections}
+          // S-4a: the bespoke sheets were the one surface preferences never reached (only the 5e engine got
+          // them, via SheetRoot). Passing the resolved set here is what lets a per-system rules variant
+          // actually drive an IG/PF2 sheet instead of sitting inert in the settings modal.
+          preferences={resolvedPreferences}
         />
       );
     }
@@ -216,6 +226,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         rollerTemplate={(character.data as { rollerTemplate?: string } | null)?.rollerTemplate}
         rollerAnim={(character.data as { rollerAnim?: boolean } | null)?.rollerAnim}
         customSections={(character.data as { customSections?: import('@/lib/dnd/custom-sections').CustomSection[] } | null)?.customSections}
+        // S-4a/S-4b: carries the PF2 GM Core rules variants (proficiency without level, free archetype,
+        // starting Hero Points) into the sheet's own resolve layer.
+        preferences={resolvedPreferences}
       />
     );
   }
@@ -321,6 +334,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           isOwner={isOwner}
           characterName={character.name}
           campaignId={character.campaign_id}
+          system={normalizeSystem((character as { system?: string }).system)}
         />
       )}
       {approvalPanel}

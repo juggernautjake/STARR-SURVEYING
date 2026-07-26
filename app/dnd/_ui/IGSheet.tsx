@@ -61,7 +61,7 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
@@ -87,11 +87,14 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   rollerAnim?: boolean;
   /** Player-authored custom sections (`data.customSections`, D-13). */
   customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
+  /** Resolved player/DM preferences (S-4a) — the bespoke-sheet analogue of the SheetRoot wiring. IG's own
+   *  rules variants are still to be specified (S-4c); the channel exists so they are a catalog entry away. */
+  preferences?: import('@/lib/dnd/preferences').EffectivePreferences;
 }) {
   // TEMPLATE read reactively (CM-1): the SheetChrome chip pings this cache, so a template pick re-renders
   // into the new shell instantly — no reload. Falls back to the saved `layout` prop (then 'classic').
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections });
+  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   const byId = new Map(panels.map((p) => [p.id, p]));
   const render = (id: string) => byId.get(id)?.render() ?? null;
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`

@@ -23,6 +23,12 @@ const CONSUMERS: Record<string, string[]> = {
   shapeshiftStats: ['app/dnd/_sheet/state/store.tsx'],
   // Consumed server-side at the PF2 edit sites, which resolve it from the campaign and pass it to applyPf2Edit.
   downedDamageModel: ['app/api/dnd/characters/[id]/pf2-edit/route.ts', 'app/api/dnd/characters/[id]/ai-edit/route.ts'],
+  // The PF2 GM Core rules variants (S-4b). All three are read in ONE place — the engine's own bridge —
+  // which then threads them through every resolve call. Concentrating the read is the point: a variant
+  // applied at some call sites and not others is worse than one applied at none.
+  proficiencyWithoutLevel: ['lib/dnd/systems/pathfinder2e/variants.ts'],
+  freeArchetype: ['lib/dnd/systems/pathfinder2e/variants.ts'],
+  startingHeroPoints: ['lib/dnd/systems/pathfinder2e/variants.ts'],
 };
 
 describe('every configurable preference is consumed (no defined-but-unread prefs)', () => {

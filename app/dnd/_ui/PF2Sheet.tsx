@@ -29,7 +29,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections }: {
+export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -55,12 +55,15 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   rollerAnim?: boolean;
   /** Player-authored custom sections (`data.customSections`, D-13). */
   customSections?: import('@/lib/dnd/custom-sections').CustomSection[];
+  /** Resolved player/DM preferences (S-4a). Carries the PF2 GM Core rules variants (proficiency without
+   *  level, free archetype, starting Hero Points) into the resolve layer; absent → vanilla PF2 numbers. */
+  preferences?: import('@/lib/dnd/preferences').EffectivePreferences;
 }) {
   // The TEMPLATE is read reactively (CM-1): the SheetChrome chip writes the session cache and pings, so a
   // template pick re-renders this sheet into the new shell instantly — no full reload. Falls back to the
   // saved `layout` prop (and 'classic') until a pick is made, matching the server render.
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections });
+  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
   // Defenses and Conditions, the modals between Strikes and Feats. Gated panels are simply absent
   // from `panels`, so their `section(...)` renders nothing, matching the old conditional sections.

@@ -163,7 +163,10 @@ describe('runes DERIVE the weapon numbers, and are actually wired in', () => {
     const sheet = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/PF2Sheet.tsx'), 'utf8')
       + fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
     const resolve = fs.readFileSync(path.join(process.cwd(), 'lib/dnd/systems/pathfinder2e/resolve.ts'), 'utf8');
-    expect(sheet).toContain('pf2ResolveStrikeInPlay(a, pf2, strikeIndex)');
+    // Deliberately NOT pinning the full argument list: the call gained a trailing rules-variant argument
+    // (settings S-4b) and this guard's stated job is to anchor on "the sheet delegates to the resolver",
+    // not to freeze the resolver's signature. pf2-resolve.test.ts asserts the resolved numbers themselves.
+    expect(sheet).toContain('pf2ResolveStrikeInPlay(a, pf2, strikeIndex');
     expect(resolve).toContain('pf2WeaponNumbers(attack)');
     expect(resolve).toContain('itemBonus: runes.weaponBonus');
     expect(resolve).toContain('striking: runes.striking');
