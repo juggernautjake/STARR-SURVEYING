@@ -120,6 +120,36 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     }
   }
 
+  // The BUILT numbers, not just the picks. "Review the character you built" showed only identity facts —
+  // species, class, background, level — which are the things you literally just typed in. It could not have
+  // told you the build had gone wrong, and for a while it hadn't been telling anyone: a level-8 Fighter
+  // rendered with 1 hit point and no class features for as long as that bug existed (slices 10–11), and
+  // this screen said "Fighter · Level 8" and looked entirely happy about it.
+  //
+  // These are read from the SAME stored data the sheet renders, so if the review looks right the sheet is
+  // right. Each is optional: a half-built character simply shows fewer rows rather than zeroes.
+  const buildFacts: [string, string][] = [];
+  if (system === 'pathfinder2e' || system === 'intuitive-games') {
+    const pf2 = (character.data as { pf2e?: { combat?: Record<string, unknown>; skills?: unknown[]; feats?: unknown[] } } | null)?.pf2e;
+    if (pf2?.combat) {
+      if (typeof pf2.combat.currentHp === 'number') buildFacts.push(['Hit points', String(pf2.combat.currentHp)]);
+      if (typeof pf2.combat.heroPoints === 'number') buildFacts.push(['Hero points', String(pf2.combat.heroPoints)]);
+      if (Array.isArray(pf2.feats) && pf2.feats.length) buildFacts.push(['Feats', String(pf2.feats.length)]);
+    }
+    const ig = (character.data as { ig?: { combat?: { hitPoints?: Record<string, unknown> }; feats?: unknown[]; powers?: unknown[] } } | null)?.ig;
+    if (ig?.combat?.hitPoints && typeof ig.combat.hitPoints.max === 'number') buildFacts.push(['Hit points', String(ig.combat.hitPoints.max)]);
+    if (Array.isArray(ig?.powers) && ig!.powers.length) buildFacts.push(['Powers', String(ig!.powers.length)]);
+  } else if (data.combat) {
+    const cb = data.combat;
+    if (cb.maxHp) buildFacts.push(['Hit points', String(cb.maxHp)]);
+    if (cb.hitDiceTotal) buildFacts.push(['Hit dice', `${cb.hitDiceTotal}d${cb.hitDiceSize}`]);
+    if (cb.ac) buildFacts.push(['Armour class', String(cb.ac)]);
+    const profSaves = Object.entries(data.saves ?? {}).filter(([, v]) => (v as { proficient?: boolean })?.proficient).map(([k]) => k.toUpperCase());
+    if (profSaves.length) buildFacts.push(['Save proficiencies', profSaves.join(', ')]);
+    const classFeatures = (data.features ?? []).filter((f) => f.id?.startsWith('cls-'));
+    if (classFeatures.length) buildFacts.push(['Class features', String(classFeatures.length)]);
+  }
+
   steps.push({
     id: 'review', title: 'Review & finish', phase: 'Review',
     help: 'Review the character you built, then open the sheet. You can always come back and keep building.',
@@ -136,6 +166,21 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
           </dl>
         ) : (
           <p style={{ margin: 0, color: 'var(--hx-muted)' }}>Make your picks in the earlier steps and press Build — then this shows a summary of the finished character.</p>
+        )}
+        {buildFacts.length > 0 && (
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--hx-teal-1)', marginTop: 2 }}>
+              What the build produced
+            </div>
+            <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '4px 14px', margin: 0 }}>
+              {buildFacts.map(([k, v]) => (
+                <div key={k} style={{ display: 'contents' }}>
+                  <dt style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--hx-muted)', alignSelf: 'baseline' }}>{k}</dt>
+                  <dd style={{ margin: 0, fontWeight: 600, color: 'var(--hx-text)' }}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
         )}
         <p style={{ margin: 0, color: 'var(--hx-muted)', fontSize: 12.5 }}>Everything picked from the library is vanilla and rules-legal; custom picks are flagged. Open the sheet to see the finished character on any template and style.</p>
         <Link className={styles.hexBtn} href={`/dnd/characters/${character.id}`} style={{ justifySelf: 'start' }}>Open the character sheet →</Link>

@@ -555,3 +555,30 @@ classes × hit die / HP band / save proficiencies / features; HP is compared aga
 value, so "still the template default" is the failure it names.
 
 **Bar:** 22 new guards, 4660/4660 D&D tests, typecheck + lint clean. No live-DB characters created.
+
+### 2026-07-26 — slice 13: the Review step now reviews the build
+
+The one builder phase no earlier slice had opened. **"Review & finish" listed only identity facts** —
+species, class, background, level — which are the things the player typed in two screens earlier. It could
+not tell you whether the build had *worked*.
+
+That is not hypothetical: right through slices 10–11, a level-8 Fighter was being produced with **1 hit
+point and no class features**, and this screen said *"Fighter · Level 8"* and looked perfectly happy about
+it. A review that only echoes your inputs cannot catch a broken build — and this one didn't.
+
+**Added a "What the build produced" block** reading the same stored data the sheet renders, so if the
+review looks right the sheet is right. On the same level-8 Battle Master it now reads:
+
+> **HIT POINTS** 68 · **HIT DICE** 8d10 · **ARMOUR CLASS** 12 · **SAVE PROFICIENCIES** CON, STR ·
+> **CLASS FEATURES** 11
+
+Three deliberate details: it counts **class** features specifically (`cls-` ids), because player-added
+features and chosen feats are not evidence the class build worked; every row is behind a truthiness check
+and the block behind a length check, so a half-built character shows fewer rows rather than a table of
+zeroes; and PF2/IG are covered from their own sidecars (hit points, hero points, powers) rather than
+being left blank.
+
+This closes the loop on slices 10–12: the build produces correct numbers, a cross-system test asserts they
+are produced, and now the player is *shown* them before they finish.
+
+**Bar:** 6 new guards, 4666/4666 D&D tests, typecheck + lint clean. QA character deleted.
