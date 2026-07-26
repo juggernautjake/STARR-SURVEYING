@@ -1,7 +1,9 @@
 # Character Variant Tracker
 
 **Date:** 2026-07-25
-**Status:** Code-complete, unit- + render-tested, shipped on branch `feat/character-variant-tracker`. **Parked in `pending/`** for one remaining item: live eyes-on visual/interaction QA, which needs a working authenticated dev server (the owner's session — the VERSIONS panel is owner/DM-gated). Move back to `in-progress/` when that QA runs. Not `completed/` because this repo's rule is "drive the browser before calling UI done," and a render test isn't eyes-on.
+**Status: COMPLETE (2026-07-25).** The live browser QA that was blocking this doc has now run, on a real
+authenticated session against a live dev server. It found and fixed three real bugs (commit `39dc4625`) —
+see the QA log at the bottom. Code-complete, unit- + render-tested, **and eyes-on**.
 **Predecessor context:** `pending/CHARACTER_EDITING_CONSOLIDATION_AUDIT_2026-07-24.md`. This tracker ships FIRST; the build/edit consolidation follows and will fold the variant flows into a unified editor. Build the create-variant flow to route into the existing builder/editor so the later consolidation inherits it cleanly.
 
 ---
@@ -164,4 +166,56 @@ Each slice: typecheck + lint, commit, push, note completion here.
 - **Legacy origin**: for a pre-feature character with several sheets and no forks yet, the original is a best-effort derivation until the first fork backfills lineage. A future "set as original" action could let the owner re-designate.
 - **Live browser QA partially substituted by a render test; visual/interaction pass still owed.**
   - **Done (Slice 9a):** `__tests__/dnd/variant-browser.test.tsx` — server-render (`renderToStaticMarkup`) of `VariantBrowser` against the real `buildVariantCards` model. Asserts the dropdown, both versions by name, lineage/provenance tags, level line + "branched from", the `+ Variant` control, the 20-cap "limit reached" copy, and read-only mode (no create without write). This catches the repo's most common defect class (authored-but-not-wired / render crash / bad prop) without a server or auth. typecheck 0, lint clean, 81/81 unit.
-  - **Still owed (needs a live authed session):** an automated pass was attempted but the local dev server on :3000 was listening yet not serving HTTP (browser landed on a Chrome error page, curl returned 000); not killed since it may be a running instance, and a character *sheet* needs the owner's auth session regardless. Left for the live-browser/final-QA pass: real-sheet render; `+ Variant` forks + lands in the editor on the fork; click-to-switch reload; summary popover + auto-summary-on-change; correctness across 5e/PF2/IG. Treat the visual layer as shipped + render-tested but not yet eyes-on.
+  - ~~**Still owed (needs a live authed session)**~~ — **DONE 2026-07-25.** See below.
+
+---
+
+## Live browser QA — 2026-07-25 (the last item; this doc is now closed)
+
+**Getting unblocked.** The previous attempt failed because ports 3000–3009 all had *listening but dead*
+sockets from orphaned dev servers (some burning 50+ hours of CPU, going back to 21 July) — which is why
+curl returned 000 and the browser hit an error page. Started clean on a genuinely free port instead of
+killing anything. For the owner gate: the roster picker is name+password and "Jacob" is claimed, so rather
+than creating a QA account and character in the live database, the pass used a **locally-minted
+`dnd_session` cookie** (repo's own `AUTH_SECRET`, same token format as `lib/dnd/auth.ts`). Reusable, and it
+leaves no test data behind.
+
+**What passed as built**
+
+| Check | Result |
+|---|---|
+| VERSIONS panel on a real PF2 sheet (Orin Sallowmere, Lv 9 Wizard) | ✅ card, portrait initial, `Wizard · Lv 9` breakdown |
+| Tag taxonomy | ✅ Original / Viewing / Pathfinder 2e / Vanilla / Personal — and **Draft** on an unbuilt IG character |
+| AI summary popover | ✅ accurate to the sheet (named the Seer heritage, Scholar background, Reach/Widen Spell metamagic) |
+| Auto-summary when missing | ✅ generated on load, timestamped during the pass |
+| `+ Variant` → purpose → name → create | ✅ "2 of 20"; fork becomes the active version |
+| Lineage | ✅ "branched from dddddd", `parentSlotId` correct in storage, **Duplicate of** tag on an exact copy |
+| Delete offered on the variant, not the original | ✅ |
+| Click-to-switch | ✅ active slot swapped; the fork kept its name + lineage |
+
+**Three bugs found and fixed** (all invisible to the render test, because in every case the data was being
+stored *correctly* and only the display was wrong):
+
+1. **The card never showed the version's name.** `slotLabel` was computed in `buildVariantCards` and read
+   by nothing at all — the "authored but not wired" class this repo is most prone to. The naming step
+   promises "Every version shows its name on the shelf"; it didn't. Model now exposes `customName`.
+2. **`✎ Name` seeded from the character's name.** The control posts to the *slot*, so opening it and
+   pressing ✓ silently overwrote the version's name with the character's.
+3. **The delete confirmation named the character, not the version.** Sibling versions share the character
+   name, so on the only irreversible action here, the dialog named the version being kept just as
+   accurately as the one being destroyed.
+
+Plus an a11y fix: `NewVariantFlow`'s overlay is a fixed, z-1000, click-outside-to-close modal that was a
+bare `<div>` — no `role`, no `aria-modal`, no label, alone among this feature's modals.
+
+Regression tests added to `variant-browser.test.tsx` (7 total there now). 4563/4563 D&D tests pass.
+
+**Cleanup:** the QA variant created during the pass was deleted; `dddddd` is back to one version and the
+PF2 character's `playerPreferences` is `{}`.
+
+### Follow-ups that remain open (all non-blocking, unchanged)
+- Auto-summary fires from the browser on load when stale/missing rather than from the save paths — folded
+  into the build/edit consolidation, which reworks those paths anyway.
+- Legacy origin is a best-effort derivation until the first fork backfills lineage; a "set as original"
+  action would let the owner re-designate.
+- (`SystemSwitcher` has since been retired in consolidation C3, so that follow-up is closed.)
