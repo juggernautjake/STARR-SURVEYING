@@ -1181,3 +1181,43 @@ and it means custom sections have been unreadable on IG sheets since D-13.
 **Bar:** 5000/5000 D&D tests (a first run reported 427/4993 — the intermittent collection flakiness the vitest
 config documents; re-run confirmed 428/5000 and `git status` confirmed nothing lost), typecheck exit-0, lint
 clean. Dev server stopped, port released.
+
+### 2026-07-26 — slice 31: the PF2 dice-pad finding was measuring hidden UI. Third tool bug.
+
+Went to fix the dice pad's 2.86:1 gold and probed first, because the numbers didn't reconcile: the pad's
+backdrop measured `#302a49` (dark) on a sheet whose dock I had measured as near-**white**.
+
+**The pad is inside `.fld` with `display: none`.** The roller dock was collapsed; `checkVisibility()` is false
+and `getClientRects().length` is 0. My sweep tested `display`/`visibility`/`opacity` **on the element itself
+and never on its ancestors**, so everything inside a collapsed container came through. Recolouring those
+buttons would have been a change nobody could ever have seen. **Finding retracted.**
+
+**How much of the sweeps was never on screen:**
+
+| sheet | leaf text nodes | actually rendered | hidden |
+|---|---|---|---|
+| Vashti (IG) | 314 | 208 | **106 (34%)** |
+| Jack (5e) | 196 | 145 | **51 (26%)** |
+
+So every aggregate COUNT in slices 25–30 is inflated by roughly a quarter to a third. **The individual fixes
+stand** — each was re-measured on its own element afterwards, and I re-checked the one that carried the
+strongest claim: the IG custom-sections block is genuinely visible (2 nodes found, 2 rendered), so slice 30's
+"unreadable since D-13" holds.
+
+**Three tool bugs in one day, every one inventing failures**, and the pattern is worth naming: each came from
+testing a *proxy* for what a reader sees — one background property, one background layer, one element's own
+`display` — instead of the thing itself. The predicate that handles ancestors, `content-visibility` and
+zero-size boxes together is now in `contrast-sweep.md`:
+
+```js
+const isRendered = (el) =>
+  (typeof el.checkVisibility === 'function' ? el.checkVisibility() : true) && el.getClientRects().length > 0;
+```
+
+**Where this leaves the contrast work.** Everything I fixed was verified individually and stands. Everything
+still *recorded* — the donata brand fills, the streamer palette, the PF2 chip values, the IG label and glyph —
+should be **re-run with all three corrections before anyone acts on it**, because the counts are inflated and
+at least one entry (the dice pad) was pure artifact. That re-run is the next slice, and it is cheap now that
+the tool is right.
+
+**Bar:** no app change (the finding was withdrawn), 5000/5000 D&D tests, typecheck exit-0.

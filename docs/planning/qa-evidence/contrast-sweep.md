@@ -74,6 +74,32 @@ text (≥24px, or ≥18.66px bold) — so a 23px headline at 3.85 is a genuine m
 - Run it once per skin. The light skins (`streamer` / `donata` / `jack`) are the ones `skin-tokens.ts`
   calls out, but the defects found so far were skin-independent.
 
+## ⚠ 2026-07-26 (3) — AND IT MEASURES THINGS NOBODY CAN SEE. Read this too.
+
+A third bug, found by trying to fix a "defect" it reported. The filter tested `display`, `visibility` and
+`opacity` **on the element itself** and never on its ancestors — so anything inside a collapsed container came
+through. The PF2 dice pad's `d4…d100` buttons were reported at 2.86:1 while living inside `.fld` with
+`display: none`: the roller dock was collapsed. Recolouring them would have been a change nobody could ever
+have seen.
+
+Measured share of leaf text nodes that are **not actually rendered**: IG sheet **106 of 314 (34%)**, jack
+sheet **51 of 196 (26%)**. Every aggregate failure COUNT reported before this correction is inflated by that
+much. (The individual fixes that shipped were each re-measured on the specific element afterwards, and the
+custom-sections block was confirmed visible — so those stand.)
+
+The predicate to use, which handles ancestors, `content-visibility` and zero-size boxes in one:
+
+```js
+const isRendered = (el) =>
+  (typeof el.checkVisibility === 'function' ? el.checkVisibility() : true) &&
+  el.getClientRects().length > 0;
+```
+
+**Three tool bugs in one day, all of them inventing failures.** The pattern is worth naming: every one came
+from testing a *proxy* for what the reader sees — one background property, one layer, one element's own
+`display` — instead of the thing itself. When a number looks alarming, screenshot the element; when a whole
+list looks alarming, check how much of it is even on screen.
+
 ## ⚠ 2026-07-26 — THE SNIPPET BELOW UNDER-REPORTS BACKGROUNDS. Read this first.
 
 The version of this sweep that walks up through transparent ancestors has **two bugs, both of which invent
