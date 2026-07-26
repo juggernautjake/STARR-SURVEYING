@@ -2215,6 +2215,31 @@ costs more than having no marker at all.
       Revert, `old_value`→ shown). REMAINING: surfacing the SPECIFIC per-element diff ("8d6 → 10d6, by Jacob,
       date") + a Revert directly in the inline ✎ hover — a UI enhancement (browser); the data (audit rows) is
       already there.
+
+      **2026-07-26 — the "8d6 → 10d6" half is SHIPPED, and it was a defect rather than an enhancement.**
+      This item said the data was already there and only the UI was missing. The data was there; the
+      formatter was not — and the surface that was supposed to already show it, didn't.
+      `describeEdit` lived inside `EditReviewPanel` and understood only AI-shaped rows, where `new_value`
+      is a `SheetEdit` carrying an `op`. A **manual** edit is a bare before/after pair (`logManualEdit`
+      posts the raw scalars), so it has no `op`, fell through the first guard, and rendered as the field
+      path alone:
+      · shown — `spell.Fireball.damage`
+      · held — `spell.Fireball.damage: 8d6 → 10d6`
+      Both values were in the row. So the DM's review queue named the field a player had touched and never
+      what they did to it — for every hand-edit on the sheet, which is most of them.
+      Now `lib/dnd/edit-describe.ts`, lifted OUT of the component on purpose: the remaining ask below is the
+      same diff on the ✎ hover, and a second formatter written there would drift from this one — which is
+      how the two `field_path` vocabularies came to exist in the first place. It also exports
+      `editedElementName`, which reads BOTH vocabularies (`spell.Fireball.damage` and `spells[fireball]`),
+      since matching a row to a sheet element is the actual hard part of the hover. 17 tests.
+
+      **STILL REMAINING, with the blockers now known rather than assumed:**
+      · **"by Jacob"** has no data source. `GET /edits` returns `editor_user_id` (a uuid) and `is_dm`; there
+        is no join to `dnd_users.display_name` anywhere in the repo, and the panel renders `'DM' | 'player'`
+        for exactly that reason. Needs a join in the route.
+      · **A Revert inside the ✎ hover** needs `Tip` changed or replaced — it sets `pointerEvents: 'none'`
+        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written.
+      · **A rename breaks the row↔element link**: manual rows are keyed by the element's PRE-edit name.
 - [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
       + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
       `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.

@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useChar } from '../state/store'
 import { recentBatches, type EditHistoryRow } from '@/lib/dnd/edit-history'
+import { describeEdit } from '@/lib/dnd/edit-describe'
 
 interface EditRow {
   id: string
@@ -25,18 +26,10 @@ interface EditRow {
   summary?: string | null
 }
 
-/** A compact "what changed" line from the stored SheetEdit + old_value. */
-function describeEdit(row: EditRow): string {
-  const e = row.new_value as { op?: string; to?: string; value?: unknown } | null
-  const path = row.field_path ?? 'sheet'
-  if (!e?.op) return path
-  if (e.op.startsWith('rename_') && e.to) return `${path}: renamed → “${e.to}”`
-  if (e.op.startsWith('set_') && e.value !== undefined) {
-    const from = row.old_value === null || row.old_value === undefined ? '' : `${JSON.stringify(row.old_value)} → `
-    return `${path}: ${from}${JSON.stringify(e.value)}`
-  }
-  return `${path}: ${e.op}`
-}
+// `describeEdit` now lives in `lib/dnd/edit-describe.ts`. It was local here and understood only AI-shaped
+// rows, so every MANUAL edit rendered as its bare field path with no before/after — on the one panel whose
+// whole purpose is showing what changed. Shared because the same diff is wanted on the inline ✎ hover next,
+// and a second formatter there would drift from this one.
 
 export default function EditReviewPanel() {
   const { characterId, canWrite, reloadFromDb, char, setChar } = useChar()
