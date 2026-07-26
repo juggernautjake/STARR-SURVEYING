@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../../state/store'
+import { logManualEdit } from '../../lib/log-edit'
 
 interface Props {
   value: number
@@ -16,7 +17,7 @@ interface Props {
 /** Double-click to edit a number inline. Commits on Enter/blur, cancels on Esc.
  *  With a `path`, edits made while Temp mode is on are reversible (a ⟲ appears). */
 export default function InlineNumber({ value, onCommit, className, display, min, max, title, stopClick, path }: Props) {
-  const { tempMode, tempOverrides, recordOverride, clearOverride } = useChar()
+  const { tempMode, tempOverrides, recordOverride, clearOverride, characterId } = useChar()
   const [editing, setEditing] = useState(false)
   const [temp, setTemp] = useState(String(value))
   const ref = useRef<HTMLInputElement>(null)
@@ -42,6 +43,18 @@ export default function InlineNumber({ value, onCommit, className, display, min,
     if (path) {
       if (tempMode) recordOverride(path, value) // remember the original (once)
       else clearOverride(path) // permanent edit becomes the new baseline
+      // AUDIT, here, so no caller can forget.
+      //
+      // This is the sheet's easiest edit — double-click a number — and it was the one edit that did not
+      // reach `dnd_sheet_edits`. `DmOverridePanel` logged its own inline fields, but `Abilities` and
+      // `StatRail` did not, so a player double-clicking their AC, HP or Strength on the sheet changed it
+      // with no audit row and it never appeared in the DM's review queue — while the plan doc recorded
+      // "every edit audits" and "every change is visible to the DM, and reversible by them".
+      //
+      // At the choke point rather than in each caller, which is `log-edit.ts`'s own stated rule ("one audit
+      // vocabulary, not a parallel path") and the reason those two callers could diverge in the first
+      // place. `logManualEdit` no-ops when nothing moved and when the sheet isn't DB-backed.
+      logManualEdit(characterId, path, value, n, tempMode ? 'temp' : 'permanent')
     }
     onCommit(n)
     setEditing(false)

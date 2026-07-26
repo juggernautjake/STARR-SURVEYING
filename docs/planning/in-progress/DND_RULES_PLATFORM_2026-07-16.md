@@ -2546,6 +2546,28 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       fields still lack an in-place EDITOR (Slice 20 — the per-field ✎ edit UI, browser-deferred).
 - [~] **The player can edit everything on their own character.** Same as above: the write path + audit are
       shipped; the direct in-place per-field editors (Slice 20 UI) are the remaining browser work.
+
+      **⚑ MEASURED 2026-07-26 — "most fields still lack an in-place editor" overstated the gap, and the
+      measurement found a real defect.** `in-place-editing-inventory.test.ts` (21) now pins what exists,
+      in three groups, so this stops being a vague claim:
+      · **inline + audited** — all six ability scores, AC, current HP, max HP, save DC, speed, level. That
+        is the set a sheet actually gets edited for.
+      · **own editor** — attacks, spells, features, resources, traits, inventory items, species (a picker,
+        not free text), skill proficiency (cycled, not typed).
+      · **deliberately NOT editable** — class/subclass, because `build.classKey`/`subclassKey` drive the
+        level walker, the progression table and every derived feature while `meta.className` is the display
+        name for the same choice; the builders keep the pair in step and a free-text field would let them
+        diverge silently, so the sheet would derive one class's features while showing another. Derived
+        numbers (proficiency bonus, initiative, skill totals) have none for the same reason — an editor
+        there would be overwritten on the next render or detach the sheet from its own maths.
+      **THE DEFECT:** `InlineNumber` took a `path` and used it only for temp-override tracking, never for
+      auditing. `DmOverridePanel` logged its own fields; **`Abilities` and `StatRail` did not.** So a player
+      double-clicking their AC, HP or Strength — the easiest edit on the sheet — changed it with **no audit
+      row**, invisible to the DM's review queue, while the two `[x]` items below record "every edit audits"
+      and "every change is visible to the DM, and reversible by them". Now audited at the choke point
+      (`log-edit.ts`'s own rule: *"one audit vocabulary, not a parallel path"* — the absence of which is
+      exactly how two callers diverged), with `DmOverridePanel`'s per-caller logging removed so one
+      double-click files one row. Level still logs explicitly because its control has no `path`.
 - [x] ✅ SHIPPED (verified 2026-07-18): **every change is visible to the DM, and reversible by them** — the
       `EditReviewPanel` is a campaign review queue, newest-first, with **Approve all** (blesses/clears the ✎
       marks) and per-batch/per-edit **Revert** (reverses exactly through the tested `revertBatch`/`revertSheetEdit`);

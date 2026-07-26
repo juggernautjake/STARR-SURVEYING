@@ -29,12 +29,18 @@ export default function DmOverridePanel({ hasStream = false }: { hasStream?: boo
   const logEdit = (fieldPath: string, oldValue: number, newValue: number) =>
     logManualEdit(characterId, fieldPath, oldValue, newValue, tempMode ? 'temp' : 'permanent')
 
+  // No `logEdit` in these two any more: both are `onCommit` handlers for `InlineNumber`, which now audits
+  // at its own choke point so `Abilities` and `StatRail` are covered too. Logging here as well would file
+  // two rows for one double-click.
+  //
+  // LEVEL below still logs here, and that is not an oversight: its `InlineNumber` has no `path` (level
+  // cascades through `setLevel` and is always permanent, so it is deliberately outside the temp-override
+  // system), and the choke point only audits when a `path` identifies the field. No path, no auto-audit —
+  // so the explicit call is what keeps level in the log.
   const setAbility = (k: keyof Character['abilities']) => (n: number) => {
-    logEdit(`ability.${k}`, char.abilities[k], n)
     setChar((c) => ({ ...c, abilities: { ...c.abilities, [k]: n } }))
   }
-  const setCombat = (k: keyof Character['combat'], fieldPath: string) => (n: number) => {
-    logEdit(fieldPath, Number(char.combat[k] ?? 0), n)
+  const setCombat = (k: keyof Character['combat']) => (n: number) => {
     setChar((c) => ({ ...c, combat: { ...c.combat, [k]: n } }))
   }
 
@@ -88,20 +94,20 @@ export default function DmOverridePanel({ hasStream = false }: { hasStream?: boo
         <div style={cell}>
           <span style={lab}>HP</span>
           <span style={val}>
-            <InlineNumber value={char.combat.currentHp} onCommit={setCombat('currentHp', 'combat.currentHp')} path="combat.currentHp" min={0} />
+            <InlineNumber value={char.combat.currentHp} onCommit={setCombat('currentHp')} path="combat.currentHp" min={0} />
             {' / '}
-            <InlineNumber value={char.combat.maxHp} onCommit={setCombat('maxHp', 'combat.maxHp')} path="combat.maxHp" min={1} />
+            <InlineNumber value={char.combat.maxHp} onCommit={setCombat('maxHp')} path="combat.maxHp" min={1} />
           </span>
         </div>
         <div style={cell}>
           <span style={lab}>AC</span>
-          <InlineNumber value={char.combat.ac} onCommit={setCombat('ac', 'combat.ac')} path="combat.ac" min={0} display={<span style={val}>{char.combat.ac}</span>} />
+          <InlineNumber value={char.combat.ac} onCommit={setCombat('ac')} path="combat.ac" min={0} display={<span style={val}>{char.combat.ac}</span>} />
         </div>
         <div style={cell}>
           <span style={lab}>Save DC</span>
           <InlineNumber
             value={char.combat.saveDCOverride ?? 0}
-            onCommit={setCombat('saveDCOverride', 'combat.saveDC')}
+            onCommit={setCombat('saveDCOverride')}
             path="combat.saveDC"
             min={0}
             display={<span style={val}>{char.combat.saveDCOverride ?? '—'}</span>}
@@ -109,7 +115,7 @@ export default function DmOverridePanel({ hasStream = false }: { hasStream?: boo
         </div>
         <div style={cell}>
           <span style={lab}>Speed</span>
-          <InlineNumber value={char.combat.speed} onCommit={setCombat('speed', 'combat.speed')} path="combat.speed" min={0} display={<span style={val}>{char.combat.speed}</span>} />
+          <InlineNumber value={char.combat.speed} onCommit={setCombat('speed')} path="combat.speed" min={0} display={<span style={val}>{char.combat.speed}</span>} />
         </div>
         <div style={cell}>
           <span style={lab}>Level</span>
