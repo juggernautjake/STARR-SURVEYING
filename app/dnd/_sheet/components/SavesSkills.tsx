@@ -32,6 +32,33 @@ export default function SavesSkills() {
     if (!missing.length) return null                               // 5e (both editions) → identical, no note
     return { label: systemLabel(key), sample: missing.slice(0, 3).map((s) => s.name).join(', ') }
   }, [sheetSystem])
+
+  // THE SYSTEM'S OWN SKILL LIST, rendered rather than merely announced.
+  //
+  // This was deferred as needing "a system-keyed skill-proficiency store, which is larger than a drop-in" —
+  // on the premise that `char.skills` is a fixed 5e-keyed shape. It is not: the type is
+  // `Record<string, SkillState>` and `normalizeCharacter` merges it as a plain map, so an IG character can
+  // hold `arcane`/`appraise`/`bluff` today with no schema change at all. The estimate was written from the
+  // component (which iterates a hardcoded `SKILLS`), not from the store it writes to.
+  //
+  // So the real work is this list plus a default for a key the character has never touched — the same
+  // shape as any other progressive field. 5e keeps the exact rows it always had, since `systemSkills`
+  // returns the identical list for both editions.
+  const rows = useMemo(() => {
+    const own = systemSkills(normalizeSystem(sheetSystem))
+    if (!own.length) return SKILLS                                 // untracked → the 5e list, as before
+    const byLabel = new Map(SKILLS.map((s) => [s.label.toLowerCase(), s]))
+    return own.map((s) => {
+      // Reuse the 5e row when the name matches, so a shared skill keeps its established key — an IG
+      // character's "Athletics" must not become a second, empty skill beside the one it already had.
+      const shared = byLabel.get(s.name.toLowerCase())
+      if (shared) return shared
+      return { key: s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), label: s.name, ability: s.ability as AbilityKey }
+    })
+  }, [sheetSystem])
+
+  /** A skill the character has never touched has no stored state; treat it as untrained rather than crash. */
+  const stateOf = (key: string) => char.skills[key] ?? { prof: 'none' as ProfLevel, misc: 0 }
   const [newName, setNewName] = useState('')
   const [newAbil, setNewAbil] = useState<AbilityKey>('int')
   const [newProf, setNewProf] = useState<ProfLevel>('proficient')
@@ -72,8 +99,10 @@ export default function SavesSkills() {
   const passivePerception =
     10 +
     abilityMod(abilities.wis) +
-    profContribution(char.skills.perception.prof, pb) +
-    char.skills.perception.misc
+    // Defensive: a system whose list has no "Perception" (or a character that has never touched it)
+    // has no stored entry, and this card must still render.
+    profContribution(stateOf('perception').prof, pb) +
+    stateOf('perception').misc
   const saveDC = saveDc // single source (store) — honors the manual override, like the StatRail does
 
   // AUDITED, because these are BUILD changes, not play state.
@@ -88,10 +117,12 @@ export default function SavesSkills() {
   // changes the queue exists to surface.
   function cycleSkill(key: string) {
     const order: ProfLevel[] = ['none', 'proficient', 'expertise']
-    const cur = char.skills[key].prof
+    const cur = stateOf(key).prof
     const next = order[(order.indexOf(cur) + 1) % order.length]
     logManualEdit(characterId, `skill.${key}.prof`, cur, next)
-    setChar((c) => ({ ...c, skills: { ...c.skills, [key]: { ...c.skills[key], prof: next } } }))
+    // `stateOf` supplies the default for a key this character has never touched, so a new system skill
+    // does not land without a `misc`.
+    setChar((c) => ({ ...c, skills: { ...c.skills, [key]: { ...(c.skills[key] ?? { prof: 'none' as ProfLevel, misc: 0 }), prof: next } } }))
   }
 
   function toggleSave(key: (typeof ABILITIES)[number]['key']) {
@@ -155,26 +186,17 @@ export default function SavesSkills() {
         {/* SKILLS */}
         <div className="card">
           <h3>Skills</h3>
-          {/* SAY when this list is not this system's list.
-              This card renders the hardcoded 5e `SKILLS` against `char.skills`, a 5e-keyed store. That is
-              right for both 5e editions (identical lists) and for an ambiguous character, and WRONG for a
-              system with its own skills — Intuitive Games has Arcane/Appraise/Bluff where 5e has
-              Arcana/Athletics/Deception.
-              Reachable, despite PF2 and IG having bespoke sheets: those only render once the character has
-              been BUILT (the page gates on `isIGCharacter(data.ig)`), so an IG character created but not yet
-              built falls through to this shared engine and is shown 5e's skills as if they were its own.
-              The real fix is a system-keyed skill store, which is a data-model change that risks the primary
-              5e path and is deferred deliberately. Until then this says so rather than quietly asserting the
-              wrong list — a sheet that is wrong and silent is worse than one that is wrong and admits it. */}
+          {/* The rows above are now THIS SYSTEM's skills, so the "these are 5e's skills" warning that used
+              to sit here has been removed rather than reworded — it would now be false. What remains worth
+              saying is only which list you are looking at, and only when it is not the 5e one. */}
           {foreignSkillList && (
             <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
-              These are <strong>D&amp;D 5e</strong> skills. {foreignSkillList.label} uses its own list
-              ({foreignSkillList.sample}) — build this character in its own builder to get them.
+              {foreignSkillList.label} skills — including {foreignSkillList.sample}.
             </div>
           )}
           <div className="rowlist">
-            {SKILLS.map((sk) => {
-              const st = char.skills[sk.key]
+            {rows.map((sk) => {
+              const st = stateOf(sk.key)
               const abil = ABILITIES.find((a) => a.key === sk.ability)!
               const mod = abilityMod(abilities[sk.ability]) + profContribution(st.prof, pb) + st.misc
                 + ledger.value(`skill.${sk.key}`, 0) + ledger.value('all_skills', 0)

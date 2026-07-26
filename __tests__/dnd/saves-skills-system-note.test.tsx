@@ -69,16 +69,36 @@ describe('the component derives it rather than hardcoding a system list', () => 
     expect(SRC).toMatch(/missing\.slice\(0, 3\)\.map\(\(s\) => s\.name\)\.join\(/);
   });
 
-  it('points at the fix the player can actually take', () => {
-    expect(SRC).toContain('build this character in its own builder');
+  it('names which list is on screen, now that it IS the right one', () => {
+    // This used to assert the note pointed at the builder, because the card showed 5e's skills to every
+    // system. It shows the system's own now, so the warning was removed rather than reworded — it would
+    // be false. What is left is a label.
+    expect(SRC).toContain('{foreignSkillList.label} skills — including');
+    expect(SRC).not.toContain('These are <strong>D&amp;D 5e</strong> skills');
   });
 });
 
-describe('what this deliberately does NOT do', () => {
-  it('leaves the 5e-keyed store and the rendered rows alone', () => {
-    // The note is additive. Swapping the rendered list without a system-keyed store would break the
-    // proficiency toggles, which read `char.skills[sk.key]` — the reason the real fix is deferred.
-    expect(SRC).toContain('{SKILLS.map((sk) => {');
-    expect(SRC).toContain('char.skills[sk.key]');
+describe('the rows are the SYSTEM\'s skills, and the store needed no change', () => {
+  it('renders the system list, falling back to 5e for an untracked system', () => {
+    // This test used to assert the OPPOSITE — that the rows stayed hardcoded — on the belief that
+    // swapping them "would break the proficiency toggles, which read `char.skills[sk.key]`". They read
+    // through `stateOf` now, and `char.skills` was never 5e-keyed: it is `Record<string, SkillState>`,
+    // merged as a plain map by `normalizeCharacter`. The deferral was written from the component, not
+    // from the store it writes to.
+    expect(SRC).toContain('{rows.map((sk) => {');
+    expect(SRC).toContain('if (!own.length) return SKILLS');
+  });
+
+  it('reuses the 5e row when a name matches, so a shared skill keeps one key', () => {
+    // Otherwise an IG character's "Athletics" would become a second, empty skill beside the one it had.
+    expect(SRC).toContain('const shared = byLabel.get(s.name.toLowerCase())');
+  });
+
+  it('defaults an untouched skill instead of crashing on it', () => {
+    expect(SRC).toContain("const stateOf = (key: string) => char.skills[key] ?? { prof: 'none' as ProfLevel, misc: 0 }");
+  });
+
+  it('and passive perception survives a system with no Perception skill', () => {
+    expect(SRC).toContain("stateOf('perception').prof");
   });
 });

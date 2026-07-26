@@ -880,6 +880,20 @@ now audited and guarded:
       wrong for **intuitive-games**, whose skills differ (Arcane/Appraise/Bluff…). System-scoping it needs
       a system-keyed skill-proficiency store (today `char.skills` is a fixed 5e-keyed shape), which is
       larger than a drop-in and risks the primary 5e path — so it's deferred rather than rushed.
+      **→ SHIPPED 2026-07-26, and the deferral rested on a FALSE PREMISE.** `char.skills` is not a fixed
+      5e-keyed shape: it is `Record<string, SkillState>`, merged by `normalizeCharacter` as a plain map, so
+      an IG character can hold `arcane`/`appraise`/`bluff` today with **no schema change at all**. The
+      estimate had been written from the component (which iterated a hardcoded `SKILLS`) rather than from
+      the store it writes to. The real work was the list plus a default for an untouched key.
+      The card now renders **the system's own skills**, falling back to the 5e list for an untracked system
+      so both 5e editions and an ambiguous character keep exactly the rows they had. A name that matches a
+      5e skill REUSES that row's key, so an IG character's "Athletics" does not become a second, empty
+      skill beside the one it already had. `stateOf` defaults an untouched skill to untrained rather than
+      crashing, and passive perception now reads through it — a system whose list has no "Perception" would
+      otherwise take the card down.
+      The warning added earlier in the day ("these are 5e skills, build in your own builder") was **deleted
+      rather than reworded**: it is now false. Three of my own tests pinned the superseded behaviour,
+      including one asserting the rows must STAY hardcoded, and were rewritten to the new rule.
       **⚑ The SILENCE is fixed, 2026-07-26 (the model change stays deferred).** Two things the deferral had
       not weighed: the wrong list rendered with no indication, and it is **reachable** — PF2/IG bespoke
       sheets only render once the character is BUILT (the page gates on `isIGCharacter(data.ig)`), so an IG

@@ -102,7 +102,9 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
   it('both read the CURRENT value before writing, so the row records a real before/after', () => {
     // Logging inside the `setChar` updater would have been the easy mistake: the old value is only
     // available outside it, and a row whose "before" equals its "after" is worse than no row.
-    expect(saves).toContain('const cur = char.skills[key].prof');
+    // Reads through `stateOf` since the skill list became system-scoped — a key the character has never
+    // touched has no stored entry, and reading it directly would crash rather than log.
+    expect(saves).toContain('const cur = stateOf(key).prof');
     expect(saves).toContain('char.saves[key].proficient, next');
   });
 
