@@ -17,12 +17,17 @@ describe('homebrew class designer page', () => {
   it('renders the built definition + splits errors from warnings', () => {
     expect(PAGE).toContain('review.errors');
     expect(PAGE).toContain('review.warnings');
-    expect(PAGE).toContain('def.features');
+    // Was `def.features` — the read-only render of the AI's built definition. 2026-07-26 made the draft
+    // EDITABLE, so features are a bound repeater over `draft.features`. See homebrew-class-editable.test.tsx.
+    expect(PAGE).toContain('draft.features.map');
   });
   it('links back to the sheet and can Save (gated on a clean review)', () => {
     expect(PAGE).toContain('Back to sheet');
     expect(PAGE).toContain('/homebrew-class/save');
-    expect(PAGE).toContain('!result.review.ok'); // Save disabled while there are errors
+    // The gate is unchanged in intent; `savable` now folds the engine's verdict together with the page's own
+    // completeness guard (a blank draft reviews CLEAN because parse fills defaults — see the editable test).
+    expect(PAGE).toContain('!savable');
+    expect(PAGE).toContain('!!built?.review.ok');
   });
 });
 

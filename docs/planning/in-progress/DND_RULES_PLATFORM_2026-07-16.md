@@ -575,8 +575,40 @@ rather than optimistically allowed, so "Ready to save" never appears on somethin
 **Bar:** 12 new tests (`homebrew-subclass-editable.test.tsx`), 4935/4935 D&D tests, typecheck + lint clean. One
 assertion in the older page test pinned the read-only shape and was updated with the reason inline.
 
-**Still owed:** `/build/class` — the largest of the three (a class carries hit die, proficiencies, an ASI
-ladder and per-level features), so it is its own slice rather than being rushed in beside this one.
+### 2026-07-26 — and the class designer, which closes Slice 5's last item
+
+The third and largest. Editable: name, description, hit die, primary ability and saves (per-ability chips),
+subclass level + label, **ASI levels**, skill count + list, armour/weapon proficiencies, spellcasting kind +
+casting stat, and a features repeater where each feature can also carry a **choice kind** — so a homebrew
+class can prompt the player at its own levels. Plus **✎ Write it myself**, as with the other two.
+
+The ASI-levels field matters more than it looks: S2 made `snapshotAtLevel` prompt from `asiLevels`, so a
+homebrew class with an unusual ladder is now asked at *its* levels — which only helps if the ladder is
+settable, and until now it wasn't.
+
+**The review runs the save route's exact pipeline** — `parseCustomClassDraft → buildCustomClass →
+reviewCustomClass`, in that order. Skipping the parse would have been simpler and subtly wrong: parse is what
+fills a partial draft's defaults, so a review that skipped it would judge a different object than the server
+judges, and the player would clear the screen and still get a 400.
+
+**A hole the test found, and the reason the page is now stricter than the engine.** Writing the test revealed
+that an *untouched blank draft reviews CLEAN: `parseCustomClassDraft` defaults an empty name to "Homebrew
+Class" and `buildCustomClass` injects the subclass feature, so nothing is technically missing. Correct for a
+model's draft with fields unset; wrong as a thing to let someone save — "Write it myself" → "Save" would have
+minted a class called *Homebrew Class* whose only feature the player never wrote. The page now refuses an
+unnamed or featureless class. Deliberately **not** fixed in `validateClassDefinition`, which also judges the
+official class data where those defaults are load-bearing: being stricter in the page is the safe direction,
+since the dangerous one is a page that permits what the server refuses.
+
+**Left to the AI on purpose:** per-level `resources` (an array of per-level arrays needs a grid editor — a
+slice, not a field). An AI draft keeps its resources; a hand-written class has none, and the engine accepts
+both.
+
+**Bar:** 30 new tests (`homebrew-class-editable.test.tsx`), 4965/4965 D&D tests, typecheck + lint clean. Two
+assertions in the older page test pinned the read-only shape and now assert the new one, with reasons inline.
+
+**Slice 5 is now fully shipped** — all three designers (class, subclass, feat) are editable and usable without
+an AI key.
 
 ## Slice 6 — Full class data for the remaining systems
 
