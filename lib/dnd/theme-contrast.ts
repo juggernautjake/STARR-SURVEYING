@@ -123,3 +123,48 @@ export function auditTheme(colors: TokenMap): PairScore[] {
   add('line', 'panel', CONTRAST.border);
   return out;
 }
+
+// ── Additions from the final-QA skin sweep (walkthrough slices 18–20) ──────────────────────────────
+//
+// `composite` above flattens ONE translucent layer over an opaque one, which is all a token audit needs.
+// Measuring a live sheet needs more: its panels are translucent over translucent over a skin base, so a
+// DOM walk collects a STACK. Reading only the first non-transparent background you meet is how an earlier
+// version of that sweep scored purple text on a light pink page at 1.62:1 and flagged 42 healthy samples.
+
+/**
+ * Flatten a stack of backgrounds into the colour a reader actually sees.
+ *
+ * `layers` is ordered NEAREST-FIRST — the element's own background, then its parent's, outward — exactly
+ * as a DOM walk collects them. The first fully opaque layer ends the stack; nothing behind it is visible.
+ * Fully transparent layers contribute nothing.
+ */
+export function flattenStack(layers: RGBA[], base: RGBA): RGBA {
+  const stack: RGBA[] = [];
+  for (const l of layers) {
+    if (l.a <= 0) continue;
+    stack.push(l);
+    if (l.a >= 1) break;
+  }
+  let out: RGBA = stack.length && stack[stack.length - 1].a >= 1 ? stack.pop()! : { ...base, a: 1 };
+  for (let i = stack.length - 1; i >= 0; i--) out = composite(stack[i], out);
+  return out;
+}
+
+/**
+ * The AA threshold for text at a given rendered SIZE.
+ *
+ * `CONTRAST.body` / `CONTRAST.secondary` above are the per-ROLE thresholds a token audit uses. This is the
+ * per-SIZE rule WCAG actually states, which a live measurement needs: large text (≥24px, or ≥18.66px when
+ * bold) clears at 3:1, everything else at 4.5:1. Both directions of getting this wrong showed up in the
+ * sweep — a 23px headline reported as a defect (it isn't large), and 11px labels waved through as if they
+ * were.
+ */
+export function aaThresholdForSize(fontSizePx: number, bold = false): number {
+  const large = fontSizePx >= 24 || (bold && fontSizePx >= 18.66);
+  return large ? CONTRAST.secondary : CONTRAST.body;
+}
+
+/** Does text of this size clear AA at this ratio? */
+export function passesAAForSize(ratio: number, fontSizePx: number, bold = false): boolean {
+  return ratio >= aaThresholdForSize(fontSizePx, bold);
+}
