@@ -2416,9 +2416,31 @@ this is the remaining half.
       angle the preview sun for a real terminator, or give the preview a light-direction control.
       Decide too whether 2D should gain a day/night mask, or 3D should show city lights unmasked —
       they cannot both be right, and the editor promises the two views agree.
-- [ ] **Audit every remaining control against both renderers.** For each kind (planet, moon, star,
-      station, galaxy…), list every slider/toggle and confirm it changes (a) the 2D art and (b) the
-      live 3D model. Two of these have now been mapping gaps; assume more are.
+- [x] ✅ DONE 2026-07-25 **Audit every remaining control against both renderers.** Done MECHANICALLY rather
+      than by eye: harvest every `edWork.<field>=` the editor writes (32 appearance fields), then cross-check
+      each against what `_genericPlanetCfg` forwards and what `planet3d-model.js` reads. The doc's suspicion
+      was right — "assume more are" found exactly one more:
+
+      **Bug found + fixed: Atmosphere → Thickness.** The editor writes `atmoThick` and the 2D art reads it
+      (`stop-opacity` on the rim gradient), but the shader reads `atmoDensity`, which nothing ever set. So
+      the slider moved the 2D rim and left 3D untouched — the identical class to the cloud bug, fixed at the
+      identical place. The scales differ (`atmoThick` 0.10–1.00 default 0.55; `density` a linear alpha
+      multiplier defaulting to 1), so it divides by the editor's own default: every existing map renders
+      exactly as before, and the slider is monotonic over 0.18–1.82.
+
+      **The other 31 classified, none of them dead:**
+      - **21 forwarded and read** through `_genericPlanetCfg` (sea/cscale/coast/ice/seed/spin/ring/atmo/
+        atmoColor/lava/city/lightColor/lightOn/lightRate/boltColor/storms/stormI/tilt/destroyed/destroyI + the
+        translated cloud pair).
+      - **7 star fields** (`c1/c2/c3/brightness/coronaSize/breathe/raySpec`) looked "not forwarded" but are
+        **not a gap**: stars never go through `_genericPlanetCfg` at all — `buildStarModel(b.it.look)` takes
+        the whole look unmapped, and the model reads every one of them. Now pinned by a test, because if the
+        star path ever gains a mapped cfg, all seven need re-checking.
+      - **`creed`** is sector/system lore text shown in the play readout — not an appearance field, so not a
+        renderer question.
+      - **`svgData`** is genuinely 2D-only — see the item below.
+
+      Guarded by 4 new cases in `map-studio-config.test.ts` (14 total).
 - [~] The likely cause, worth checking first: `edPreview()` hands `edWork` to
       `EditorPreview3D.update()`, which rebuilds via `cfgFor(look)` →
       `Map3D._genericPlanetCfg({kind, look})`. Any field that mapping drops never reaches the model,
@@ -2431,9 +2453,14 @@ this is the remaining half.
       visual judgment needed for these; they demonstrably reach + drive the model. The exhaustive per-field
       audit of the AMBIGUOUS fields (which may be genuinely 2D-only) continues under the item above and needs
       eyes on the render.
-- [ ] Both renderers must honour the SAME field. The editor already promises this in its own copy:
-      "These drive both the 2D art and the live 3D model." Where a field genuinely cannot exist in
-      one renderer, say so in the UI rather than leaving a dead control.
+- [x] ✅ DONE 2026-07-25 Both renderers now honour the same field, with exactly ONE labelled exception.
+      The audit above turned up a single field that genuinely cannot exist in both: **an imported SVG**
+      (`svgData`). It is inlined as markup and drawn by the browser, which the WebGL scene has no way to do —
+      unlike an IMAGE body, whose `src` becomes a textured plane. `map3d.js` never references `svgData` at
+      all, so an SVG body simply vanishes when the DM hits ⛶ 3D. Rather than leave that unexplained, the SVG
+      editor now carries a note: *"◈ 2D map only — an imported SVG is drawn as markup, which the 3D viewer
+      can't render. Use an Image body if you need it to appear in 3D."* Pinned by a test asserting both that
+      `map3d.js` still ignores `svgData` and that the UI still says so.
 - [x] ✅ SHIPPED (verified 2026-07-18) Real-time: every control re-renders on `input`, not on release. The
       object editor's continuous sliders (`edSea`, `edCloudAmt`, `edLava`, `edCity`, and the rest) all bind
       `.oninput` — which fires on every drag step — and call `edPreview()` immediately, so the preview updates

@@ -796,6 +796,17 @@ const Map3D = {
     // render, export) goes through.
     if (rich.cloudCov == null && L.cloudAmount != null && L.cloudAmount !== '') rich.cloudCov = +L.cloudAmount;
     if (rich.cloudTint == null && L.cloudColor) rich.cloudTint = L.cloudColor;
+    // Atmosphere → Thickness is the SAME bug the clouds had, found by auditing every editor field against
+    // this chokepoint (the doc predicted more of these: "assume more are"). The editor writes `atmoThick`
+    // and the 2D art reads it, but the model's shader reads `atmoDensity` — which nothing ever set, so the
+    // slider moved the 2D rim and left 3D untouched.
+    //
+    // The scale differs too, so a straight copy would be wrong. `atmoThick` is 0.10–1.00 (default 0.55) and
+    // is used directly as the 2D rim's stop-opacity; `density` is a linear alpha multiplier in the fresnel
+    // shader defaulting to 1. Dividing by the editor's own default maps the default planet to density 1 —
+    // so every existing map renders exactly as it does today — while making the slider monotonic over a
+    // sane 0.18–1.82 range.
+    if (rich.atmoDensity == null && L.atmoThick != null && L.atmoThick !== '') rich.atmoDensity = +L.atmoThick / 0.55;
     // The 2D art defaults clouds on for wet worlds and off elsewhere (see `art()`), and treats
     // "none" as no clouds at all. 3D must agree or the two views disagree about the same planet.
     const cloudStyle = L.cloudStyle || (['terran', 'ocean', 'jungle', 'toxic'].includes(L.ptype) ? 'wispy' : 'none');

@@ -89,3 +89,46 @@ describe('map studio: object-editor sliders re-render in REAL TIME, not on relea
     });
   }
 });
+
+// ── The exhaustive per-field audit (rules-platform doc, Slice 35a) ──────────────────────────────────
+// The doc's standing worry: "Two of these have now been mapping gaps; assume more are." Auditing every
+// editor field against the `_genericPlanetCfg` chokepoint found exactly one more — atmosphere thickness —
+// and classified the rest. These lock the finding and the classification.
+describe('map studio: every editor field reaches the renderer it claims to (Slice 35a audit)', () => {
+  const STUDIO = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/map-studio.html'), 'utf8');
+  const MAP3D = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/map3d.js'), 'utf8');
+  const MODEL = fs.readFileSync(path.join(process.cwd(), 'public/dnd/maps/planet3d-model.js'), 'utf8');
+
+  it('translates Atmosphere → Thickness (atmoThick) into the model field (atmoDensity)', () => {
+    // The editor writes `atmoThick` and the 2D art reads it; the shader reads `atmoDensity`, which nothing
+    // set — so the slider moved the 2D rim and left 3D untouched. Same class as the cloud bug, same fix site.
+    expect(STUDIO).toMatch(/edWork\.atmoThick=\+e\.target\.value\/100/);   // the editor writes atmoThick…
+    expect(MODEL).toContain('cfg.atmoDensity');                             // …the shader reads atmoDensity…
+    expect(MAP3D).toMatch(/rich\.atmoDensity\s*=\s*\+L\.atmoThick/);        // …so the chokepoint translates.
+  });
+
+  it('preserves every existing map’s appearance by mapping the editor default to density 1', () => {
+    // atmoThick defaults to 0.55 and density defaults to 1. Dividing by the editor's own default is what
+    // keeps an untouched planet rendering exactly as it did before the control was wired up.
+    expect(STUDIO).toMatch(/edWork\.atmoThick!=null\?edWork\.atmoThick:0\.55/);
+    expect(MAP3D).toMatch(/\+L\.atmoThick \/ 0\.55/);
+  });
+
+  it('star fields bypass the planet mapping entirely — the whole look goes to buildStarModel', () => {
+    // Why the audit's "not forwarded by _genericPlanetCfg" list is not a bug list: stars never go through
+    // that function. If this ever changes to a mapped cfg, every star field below needs re-checking.
+    expect(MAP3D).toMatch(/buildStarModel\(b\.it\.look \|\| \{\}/);
+    for (const f of ['c1', 'c2', 'c3', 'brightness', 'coronaSize', 'breathe', 'raySpec']) {
+      expect(MODEL, `buildStarModel should read ${f}`).toContain(`cfg.${f}`);
+    }
+  });
+
+  it('says so in the UI where a field genuinely cannot exist in 3D', () => {
+    // svgData is the one genuinely 2D-only appearance field: an imported SVG is inlined as markup, which WebGL
+    // cannot draw (unlike an image body's src, which becomes a textured plane). The editor promises both
+    // renderers honour its controls, so the exception is labelled rather than left as a dead control.
+    expect(MAP3D).not.toContain('svgData');
+    expect(STUDIO).toContain('2D map only');
+    expect(STUDIO).toMatch(/Use an <b>Image<\/b> body if you need it to appear in 3D/);
+  });
+});

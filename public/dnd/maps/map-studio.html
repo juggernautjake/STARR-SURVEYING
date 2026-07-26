@@ -2169,7 +2169,12 @@ function renderEditor(){
       <div class="field"><label>Arm length <span style="float:right;color:var(--gold)" id="edLenV">${(edWork.len!=null?edWork.len:1).toFixed(2)}</span></label><div class="slider"><input type="range" id="edLen" min="50" max="130" value="${Math.round((edWork.len!=null?edWork.len:1)*100)}"></div></div>
       <div class="field"><label>Spin period <span style="float:right;color:var(--gold)" id="edSpinV">${edWork.spinDur||60}s</span></label><div class="slider"><input type="range" id="edSpin" min="10" max="160" value="${edWork.spinDur||60}"></div></div>`;
   }
-  else if(k==="svg"){html+=`<div class="actionbtns" style="margin-top:0"><button id="edReplaceSvg">↑ Replace SVG file</button></div><div style="font-size:11px;color:var(--faint);margin-top:8px">Imported SVGs keep their own colors. Tint controls below recolor via CSS filter where supported.</div>`;}
+  // The 2D-only note is deliberate (Slice 35a audit): an imported SVG is inlined as markup and drawn by the
+  // browser, which the WebGL scene has no way to do — unlike an IMAGE body, whose `src` becomes a textured
+  // plane. So an SVG body genuinely cannot appear in the 3D viewer. The editor's standing promise is "these
+  // drive both the 2D art and the live 3D model"; where that can't be true, say so rather than leaving the
+  // DM to wonder why their SVG vanished when they hit ⛶ 3D.
+  else if(k==="svg"){html+=`<div class="actionbtns" style="margin-top:0"><button id="edReplaceSvg">↑ Replace SVG file</button></div><div style="font-size:11px;color:var(--faint);margin-top:8px">Imported SVGs keep their own colors. Tint controls below recolor via CSS filter where supported.</div><div style="font-size:11px;color:var(--gold);margin-top:6px;opacity:.85">◈ 2D map only — an imported SVG is drawn as markup, which the 3D viewer can't render. Use an <b>Image</b> body if you need it to appear in 3D.</div>`;}
   if(k!=="svg"&&k!=="spingalaxy"&&k!=="planet3d"){
     html+=`<h4>Colors</h4><div class="rowc">
       <div class="field"><label>${k==='star'?'Core':k==='galaxy'?'Arm A':'Main'}</label><input type="color" id="edC1" value="${edWork.c1}"></div>
