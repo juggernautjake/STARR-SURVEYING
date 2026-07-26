@@ -1049,3 +1049,38 @@ hextech-module dark, which is the same rule and not an exception.
 2.16–3.24).
 
 **Bar:** 8 new guards, 4986/4986 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.
+
+### 2026-07-26 — slice 27: cluster 2 RETRACTED. My sweep tool was inventing failures.
+
+I said cluster 2 was "likely the same rule again, but I'd want to check before assuming". Checking it found the
+problem was **my measurement**, not the app.
+
+**What the screenshot shows.** `RESOURCES & USES` on the streamer sheet renders as dark purple on a light pink
+pinstripe — plainly legible. The sweep had reported **1.38:1**.
+
+**Why the sweep was wrong.** `.dnd-sheet`'s `background` is a MULTI-LAYER shorthand: a 5% pink pinstripe
+**over an opaque light base**. My `bgOf` read the first colour of the first layer only, got a 5%-alpha pink,
+concluded the element was still translucent, and kept climbing — all the way to the dark site chrome. Every
+cluster-2 number (headings 1.38 / 1.26, `role` 1.20, `kicker` 1.68) was computed against a surface that is not
+behind those elements. **Retracted, not fixed** — there is nothing to fix.
+
+This is the second measurement bug in this arc: slice 24's first pass ignored `background-image` entirely.
+Both invented failures rather than hiding them, which is the less dangerous direction but still cost time and
+nearly produced two rounds of "fixes" to working code.
+
+**What survives, and how I know.**
+
+| cluster | verdict | evidence |
+|---|---|---|
+| 1 — `.btn` cream on light fills | **REAL, fixed in slice 26** | the sheet surface really is light (the screenshot above proves it), so cream-on-light was genuine; 27 buttons / 0 failing after |
+| 2 — dark headings on dark fills | **RETRACTED — artifact** | screenshot: legible dark-on-light |
+| 3 — coloured button variants | **REAL, marginal, owner's call** | screenshot of `⬇ Export`: white 700-weight 11px on a `#17b3a3 → #0a6b5d` gradient. Legible, but 2.62:1 against the light end of the ramp — a genuine small-text AA miss, and fixing it trades brand colour |
+| 4 — small gold accents | **unverified** | same walk-up method as cluster 2, so treat the numbers as suspect until re-run with the corrected snippet |
+
+**The tool is repaired in `qa-evidence/contrast-sweep.md`**, with a corrected `bgOf` that composites a whole
+element (colour first, then image layers back-to-front) and stops climbing at the first genuinely opaque
+layer — plus a standing instruction that has now earned its place: **when a number looks alarming, screenshot
+the element and look at it before touching code.**
+
+**Bar:** no app change (there was nothing to fix), 4986/4986 D&D tests, typecheck exit-0. Dev server stopped,
+port released.

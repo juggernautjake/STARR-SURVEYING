@@ -74,6 +74,57 @@ text (≥24px, or ≥18.66px bold) — so a 23px headline at 3.85 is a genuine m
 - Run it once per skin. The light skins (`streamer` / `donata` / `jack`) are the ones `skin-tokens.ts`
   calls out, but the defects found so far were skin-independent.
 
+## ⚠ 2026-07-26 — THE SNIPPET BELOW UNDER-REPORTS BACKGROUNDS. Read this first.
+
+The version of this sweep that walks up through transparent ancestors has **two bugs, both of which invent
+failures**, and both bit within a day of each other:
+
+1. **It ignored `background-image`.** `.fld`'s surface is a gradient, so the walk stepped straight past the
+   roller dock and composited its labels onto the page behind it.
+2. **It took only the FIRST colour of the FIRST background layer.** The `background` shorthand can carry
+   several images plus a colour, and `.dnd-sheet` uses exactly that: a 5% pink pinstripe **over an opaque
+   light base**. Reading stop one of layer one gave a 5%-alpha pink, so the walk continued up to the dark site
+   chrome and reported the section headings at **1.38:1**. A screenshot of the same heading shows dark purple
+   text on light pink — **entirely legible**. Those findings were retracted, not fixed.
+
+**The lesson, and it is the third variant of the same lesson in this file:** a contrast number is only as good
+as the surface it was computed against. Ignoring gradients invents failures; so does reading one layer of
+several. When a number looks alarming, **screenshot the element and look at it** before touching code.
+
+Corrected `bgOf`, which composites a whole element (colour first, then image layers back-to-front) and only
+walks up while the result is still translucent:
+
+```js
+const layersOf = (el) => {
+  const cs = getComputedStyle(el);
+  const out = [];
+  const base = parse(cs.backgroundColor);
+  if (base && base.a > 0) out.push(base);           // the colour sits UNDER the images
+  // Split on top-level commas only — a gradient's own commas are inside parens.
+  const imgs = (cs.backgroundImage || 'none').split(/,(?![^()]*\))/).map((s) => s.trim());
+  for (const img of imgs.reverse()) {               // last-declared paints lowest
+    const stops = allColors(img);                   // approximation: a gradient's first stop
+    if (stops.length) out.push(stops[0]);
+  }
+  return out;                                       // bottom → top
+};
+const bgOf = (el) => {
+  let cur = el, stack = [];
+  while (cur) {
+    const ls = layersOf(cur);
+    stack = [...ls, ...stack];                      // ancestors are below descendants
+    if (ls.some((l) => l.a >= 0.999)) break;        // fully opaque somewhere here: stop climbing
+    cur = cur.parentElement;
+  }
+  let base = { r: 255, g: 255, b: 255, a: 1 };
+  for (const l of stack) base = over(l, base);
+  return base;
+};
+```
+
+It is still an approximation for gradients (one stop stands in for a ramp), which is why the *active* roller
+tab was checked against its own measured pill colour rather than a modelled one.
+
 ## RESOLVED 2026-07-26 — measured in a browser, and the previous fix was aimed at the wrong thing
 
 The eyes-on check this file kept asking for finally ran: a dev server on a free port, a minted `dnd_session`
