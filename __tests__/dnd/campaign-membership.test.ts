@@ -134,3 +134,33 @@ describe('the rule lives in ONE place', () => {
     expect(read('app/dnd/characters/[id]/page.tsx')).toContain('<CharacterCampaigns characterId={character.id} />');
   });
 });
+
+describe('joining as a separate variant (S12)', () => {
+  // Owner: "when we are taking a character into a campaign, there is an option to take the exact same
+  // character, or to make a variant to keep separate from the original build." Both pieces already existed —
+  // `fork` (git-like lineage) and `set-campaign` (the Campaign tag on a slot) — and nothing joined them up.
+  const ui = read('app/dnd/_ui/CharacterCampaigns.tsx');
+
+  it('offers both intentions, not just one', () => {
+    expect(ui).toContain('Take in as a variant');
+    expect(ui).toContain('joinAsVariant');
+  });
+
+  it('reuses fork + set-campaign rather than inventing a copy path', () => {
+    expect(ui).toContain("action: 'fork'");
+    expect(ui).toContain("action: 'set-campaign'");
+    expect(ui).toContain('slotId: fb.slotId');
+  });
+
+  it('joins FIRST, so a fork failure cannot lose the thing the player asked for', () => {
+    // The realistic failure is the 20-version cap. Join-then-fork leaves them in the campaign and says the
+    // variant was not made; fork-first would risk a stray variant for a campaign they never joined.
+    const body = ui.slice(ui.indexOf('const joinAsVariant'), ui.indexOf('if (!view)'));
+    expect(body.indexOf('join-character')).toBeLessThan(body.indexOf("action: 'fork'"));
+    expect(body).toContain('but the separate variant could not be made');
+  });
+
+  it('names the variant after the campaign, so the versions list is legible', () => {
+    expect(ui).toContain("action: 'fork', name: c.name");
+  });
+});

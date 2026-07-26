@@ -187,12 +187,18 @@ slices are driven in the browser before being called done — this repo's standi
       authorization, because a third copy of "may this caller do that" is how they drift.
       **Not yet browser-driven** — this repo's rule is that a UI slice isn't done until it is, so that pass is
       owed (alongside S12, which adds the as-is/variant choice to the same panel).
-- [ ] **S12 — join as THIS character, or as a variant.** Owner-flagged 2026-07-26: when taking a character
-      into a campaign, offer *"bring this exact character"* or *"make a variant for this campaign, kept
-      separate from the original build"*. The variant machinery already exists and is the right substrate —
-      the VERSIONS picker, git-like lineage and per-slot summaries from `project_dnd_variant_tracker`, plus
-      `ActiveSlotMeta.campaignId`, which is already a field on a variant slot and today goes mostly unused.
-      This is the natural home for "my home-game Ardyn is level 9, but this new table starts at 3".
+- [x] **S12 — join as THIS character, or as a variant. Shipped 2026-07-26.**
+      The Campaigns panel now offers **Take in** and **Take in as a variant** per campaign. Both pieces
+      already existed and nothing joined them up: `fork` (git-like lineage, makes the new slot active) and
+      `set-campaign` (writes `ActiveSlotMeta.campaignId`, which drives the Campaign tag and was otherwise
+      mostly unused). The variant is named after the campaign so the VERSIONS list reads legibly, and this is
+      now the home for "my home-game character is level 9, but this new table starts at 3".
+      **Join happens FIRST, deliberately.** The realistic failure is the 20-version cap, and join-then-fork
+      leaves the player in the campaign with a clear "the separate variant could not be made" — the thing they
+      asked for survives. Fork-first would risk the opposite: a stray variant for a campaign they never
+      joined. Pinned by a test that asserts the call ORDER, not just that both calls exist.
+      Two plainly-labelled buttons rather than a dropdown, because this is the moment the choice matters and
+      it is hard to undo later. **Browser pass still owed** (with S11).
 - [ ] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker

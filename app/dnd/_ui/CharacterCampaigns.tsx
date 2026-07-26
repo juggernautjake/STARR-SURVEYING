@@ -56,6 +56,49 @@ export default function CharacterCampaigns({ characterId }: { characterId: strin
   const join = (c: CampaignRef) =>
     void act(`join-${c.id}`, `/api/dnd/campaigns/${c.id}/join-character`, 'POST', { characterId });
 
+  /**
+   * Take the character in AS A SEPARATE VARIANT (S12 — owner: "an option to take the exact same character, or
+   * to make a variant to keep separate from the original build").
+   *
+   * ORDER MATTERS, and it is join-then-fork on purpose. Joining is the thing the player actually asked for,
+   * so it goes first and cannot be lost to a later failure; if the fork then fails (the 20-version cap is the
+   * realistic case) they are in the campaign and told plainly that the variant wasn't made, which they can
+   * retry. Fork-first would risk the opposite: a stray variant for a campaign they never joined.
+   */
+  const joinAsVariant = async (c: CampaignRef) => {
+    const label = `variant-${c.id}`;
+    setBusy(label); setMsg(null);
+    try {
+      const j = await fetch(`/api/dnd/campaigns/${c.id}/join-character`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ characterId }),
+      });
+      const jb = await j.json().catch(() => ({}));
+      if (!j.ok) { setMsg(jb.error ?? 'Could not add the character to that campaign.'); return; }
+
+      // Fork the sheet being viewed, name it for the campaign, and tag the new slot with the campaign so the
+      // VERSIONS picker shows it as that table's build. `fork` makes the new slot active, which is right
+      // here: the player is about to play THIS version.
+      const f = await fetch(`/api/dnd/characters/${characterId}/variants`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fork', name: c.name }),
+      });
+      const fb = await f.json().catch(() => ({}));
+      if (!f.ok) {
+        setMsg(`Added to ${c.name}, but the separate variant could not be made: ${fb.error ?? 'unknown error'}`);
+        await load(); router.refresh();
+        return;
+      }
+      if (fb.slotId) {
+        await fetch(`/api/dnd/characters/${characterId}/variants`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set-campaign', slotId: fb.slotId, campaignId: c.id }),
+        });
+      }
+      await load();
+      router.refresh();
+    } catch { setMsg('Network error.'); } finally { setBusy(null); }
+  };
+
   if (!view) return null;
 
   return (
@@ -91,11 +134,24 @@ export default function CharacterCampaigns({ characterId }: { characterId: strin
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-muted)' }}>
             Add to a campaign
           </div>
+          {/* Two ways in, because they are genuinely different intentions and the difference is hard to undo
+              later: bring the character itself, or branch a version that belongs to that table so the
+              original build stays untouched (S12). Named plainly rather than behind a dropdown — this is the
+              moment the choice matters. */}
           {view.joinable.filter((c) => canJoinCampaign({ isOwner, role: c.role })).map((c) => (
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: 'var(--hx-text)' }}>{c.name}</span>
-              <button className="btn tiny" disabled={busy === `join-${c.id}`} onClick={() => join(c)}>
+              <button
+                className="btn tiny" disabled={busy === `join-${c.id}`} onClick={() => join(c)}
+                title={`Play this exact character in ${c.name} — one build, shared across every campaign it is in.`}
+              >
                 {busy === `join-${c.id}` ? '…' : 'Take in'}
+              </button>
+              <button
+                className="btn tiny" disabled={busy === `variant-${c.id}`} onClick={() => void joinAsVariant(c)}
+                title={`Branch a separate version for ${c.name}, so levelling it there never changes your original build.`}
+              >
+                {busy === `variant-${c.id}` ? '…' : 'Take in as a variant'}
               </button>
             </div>
           ))}
