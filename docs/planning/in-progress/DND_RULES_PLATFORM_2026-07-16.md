@@ -2325,10 +2325,17 @@ costs more than having no marker at all.
         a second interactive popover for this alone was not worth it, since the Revert already exists
         per-edit in `EditReviewPanel`; the blocker is now asserted by test so a future slice knows it is
         real rather than an oversight.
-      · **A rename breaks the row↔element link**: manual rows are keyed by the element's PRE-edit name, so
-        after a rename nothing matches and the marker falls back to its general text — which is the right
-        failure (it never shows someone else's edit) but is still a miss. Fixing it means recording an
-        element id on the audit row: a schema change, not a UI one.
+      · ~~A rename breaks the row↔element link~~ — **FIXED 2026-07-26, and it needed no schema change.**
+        I had recorded this as needing an element id on the audit row. It does not: **the rename is itself
+        an audited row** (`spell.Fireball.name: Fireball → Firestorm`), so the old name is recoverable from
+        data already present. `indexEdits` now builds the rename chain from those rows and follows it, so a
+        renamed element finds its own history — which matters because the miss landed on exactly the
+        elements someone had been working on most. Chains resolve (A → B → C), the walk is depth-capped
+        (these names are user input, and renaming X→Y→X would otherwise spin), and an element's own newer
+        row always wins over its inherited one. The indexing was extracted as a pure exported function so
+        all of that is tested behaviourally rather than by source-grep.
+        **Worth noting how the wrong estimate happened:** the blocker was written down from reading the
+        row shape, not from asking what else the log already contains. The data needed was two lines away.
 - [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
       + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
       `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.

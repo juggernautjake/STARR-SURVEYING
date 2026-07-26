@@ -32,29 +32,63 @@ export interface ElementEdit {
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 const inflight = new Map<string, Promise<Map<string, ElementEdit>>>()
 
+/**
+ * Index audit rows by the element each one touched. Pure, and exported so the rename-following below is
+ * testable directly rather than through a mocked fetch.
+ */
+export function indexEdits(edits: Row[]): Map<string, ElementEdit> {
+  const rows = edits.filter((r) => !(r.field_path ?? '').startsWith('revert:'))
+  const out = new Map<string, ElementEdit>()
+  // Newest first from the route, so the FIRST row seen for an element is its latest change and later
+  // ones are skipped. That is the one a hovering player wants — "what changed here", not a history.
+  for (const row of rows) {
+    const name = editedElementName(row.field_path)
+    if (!name) continue
+    const key = norm(name)
+    if (out.has(key)) continue
+    out.set(key, {
+      summary: describeEdit(row),
+      who: row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'the DM' : 'a player'),
+      when: new Date(row.created_at).toLocaleDateString(),
+    })
+  }
+
+  // FOLLOW RENAMES. Rows are keyed by the element's name AT THE TIME OF THE EDIT, so a renamed element
+  // stops matching its own history — the marker would show the general text on exactly the elements
+  // someone has been working on most. That looked like it needed an element id on the audit row (a
+  // schema change), but it does not: **the rename is itself an audited row**. `FeatureEditor` and its
+  // siblings log `spell.Fireball.name: Fireball → Firestorm`, so the old name is recoverable from the
+  // data already here.
+  //
+  // Chains resolve (A → B → C), and the walk is depth-capped: these names come from user input, and a
+  // player who renames X to Y and back again would otherwise spin here forever.
+  const previous = new Map<string, string>()
+  for (const row of rows) {
+    if (!(row.field_path ?? '').endsWith('.name')) continue
+    const from = typeof row.old_value === 'string' ? norm(row.old_value) : ''
+    const to = typeof row.new_value === 'string' ? norm(row.new_value) : ''
+    if (from && to && from !== to && !previous.has(to)) previous.set(to, from)
+  }
+  for (const current of previous.keys()) {
+    if (out.has(current)) continue
+    let at = current
+    for (let hops = 0; hops < 8; hops++) {
+      const older = previous.get(at)
+      if (!older || older === at) break
+      at = older
+      const found = out.get(at)
+      if (found) { out.set(current, found); break }
+    }
+  }
+  return out
+}
+
 function load(characterId: string): Promise<Map<string, ElementEdit>> {
   const cached = inflight.get(characterId)
   if (cached) return cached
   const p = fetch(`/api/dnd/characters/${characterId}/edits?limit=40`)
     .then((r) => (r.ok ? r.json() : { edits: [] }))
-    .then((j) => {
-      const out = new Map<string, ElementEdit>()
-      // Newest first from the route, so the FIRST row seen for an element is its latest change and later
-      // ones are skipped. That is the one a hovering player wants — "what changed here", not a history.
-      for (const row of (j.edits ?? []) as Row[]) {
-        if ((row.field_path ?? '').startsWith('revert:')) continue // the revert's own bookkeeping row
-        const name = editedElementName(row.field_path)
-        if (!name) continue
-        const key = norm(name)
-        if (out.has(key)) continue
-        out.set(key, {
-          summary: describeEdit(row),
-          who: row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'the DM' : 'a player'),
-          when: new Date(row.created_at).toLocaleDateString(),
-        })
-      }
-      return out
-    })
+    .then((j) => indexEdits((j.edits ?? []) as Row[]))
     .catch(() => new Map<string, ElementEdit>())
   inflight.set(characterId, p)
   return p

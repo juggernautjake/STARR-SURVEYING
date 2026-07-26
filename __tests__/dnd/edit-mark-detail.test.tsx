@@ -12,6 +12,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { editedElementName, describeEdit } from '@/lib/dnd/edit-describe';
+import { indexEdits, editFor } from '@/app/dnd/_sheet/lib/use-element-edits';
+
+const NOW = '2026-07-26T12:00:00.000Z';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const HOOK = read('app/dnd/_sheet/lib/use-element-edits.ts');
@@ -67,13 +70,44 @@ describe('the join, and where it legitimately misses', () => {
     expect(HOOK).toContain("s.trim().toLowerCase().replace(/\\s+/g, ' ')");
   });
 
-  it('a RENAMED element misses, and that is recorded rather than hidden', () => {
-    // Manual rows are keyed by the element's PRE-edit name, so after a rename nothing matches. Fixing it
-    // needs an element id on the audit row — a schema change, not a UI one — and until then the marker
-    // falls back to its general text rather than showing someone else's edit.
-    // Matched across the comment's line wrap — a literal `toContain` on a wrapped sentence is the same
-    // brittle-source-assertion trap this session has hit three times already.
-    expect(MARK.replace(/\s*\n\s*\/\/\s*/g, ' ')).toContain('a RENAMED element no longer matches its rows');
+  it('a RENAMED element still finds its history — no schema change needed', () => {
+    // This looked like it needed an element id on the audit row. It does not: the RENAME IS ITSELF AN
+    // AUDITED ROW (`spell.Fireball.name: Fireball → Firestorm`), so the old name is recoverable from data
+    // already present. Without this, the marker showed the generic text on exactly the elements someone
+    // had been working on most.
+    const map = indexEdits([
+      { id: '1', created_at: NOW, field_path: 'spell.Fireball.name', old_value: 'Fireball', new_value: 'Firestorm' },
+      { id: '2', created_at: NOW, field_path: 'spell.Fireball.damage', old_value: '8d6', new_value: '10d6' },
+    ]);
+    expect(editFor(map, 'Firestorm')?.summary).toBe('spell.Fireball.name: Fireball → Firestorm');
+  });
+
+  it('follows a CHAIN of renames', () => {
+    // A → B → C. Rows arrive newest-first, so the walk goes backwards through them.
+    const map = indexEdits([
+      { id: '1', created_at: NOW, field_path: 'feature.B.name', old_value: 'B', new_value: 'C' },
+      { id: '2', created_at: NOW, field_path: 'feature.A.name', old_value: 'A', new_value: 'B' },
+      { id: '3', created_at: NOW, field_path: 'feature.A.body', old_value: 'old text', new_value: 'new text' },
+    ]);
+    expect(editFor(map, 'C')).toBeTruthy();
+  });
+
+  it('does not spin on a rename cycle', () => {
+    // These names are user input: renaming X to Y and back again would loop forever without the depth cap.
+    const map = indexEdits([
+      { id: '1', created_at: NOW, field_path: 'item.Y.name', old_value: 'Y', new_value: 'X' },
+      { id: '2', created_at: NOW, field_path: 'item.X.name', old_value: 'X', new_value: 'Y' },
+    ]);
+    expect(map).toBeInstanceOf(Map); // reaching here at all is the assertion
+  });
+
+  it('never lets a rename overwrite an element\'s OWN newer change', () => {
+    // If the renamed-to name has its own row, that one wins — it is the more recent truth.
+    const map = indexEdits([
+      { id: '1', created_at: NOW, field_path: 'spell.Firestorm.damage', old_value: '10d6', new_value: '12d6' },
+      { id: '2', created_at: NOW, field_path: 'spell.Fireball.name', old_value: 'Fireball', new_value: 'Firestorm' },
+    ]);
+    expect(editFor(map, 'Firestorm')?.summary).toBe('spell.Firestorm.damage: 10d6 → 12d6');
   });
 
   it('the summary it shows is the shared formatter, not a second one', () => {
