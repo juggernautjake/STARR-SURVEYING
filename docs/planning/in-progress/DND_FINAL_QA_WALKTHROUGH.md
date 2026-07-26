@@ -141,5 +141,39 @@ must stay unflagged and the notice must not appear on a vanilla build.
 **Bar:** 4593/4593 D&D tests, typecheck + lint clean. The QA character was deleted afterwards; the live DB
 is unchanged.
 
-**Next slice:** Foundations steps 2–5 (species/background spread/abilities/feats), then the level-by-level
-walk 1 → 20.
+### 2026-07-25 — slice 2: 5e 2024 Foundations steps 2–5
+
+Walked the remaining four foundation sub-steps of a vanilla level-1 Fighter, end to end.
+
+**Verified correct**
+- **Step 2 · Species** — all ten official 2024 species present, and the help text states the edition rule
+  correctly ("2024 puts ability increases on your background, not here").
+- **Step 3 · Background** — all **16** official 2024 backgrounds (Acolyte → Wayfarer), no homebrew among
+  them, and the help text names the +2/+1 (or +1/+1/+1) rule and the origin feat.
+- **Step 4 · Ability scores** — standard array / point buy / roll / manual, with a table that separates
+  SCORE · BACKG. · FINAL · MOD, so the background increase is visible as its own column rather than baked
+  silently into the total.
+- **Step 5 · ASI/feat slots** — correctly reports *"No ASI/feat slots by level 1"* for a level-1 Fighter
+  (the 2024 Fighter's first is at 4). It does not invent a slot.
+
+**Defect found and FIXED — the same provenance gap, one step later, on SPECIES.**
+
+Slice 1 fixed class and subclass; the species dropdown had it too. "Rangor" (the authored homebrew 2024
+species, whose data comment likewise promises *"flagged `custom` so the picker badges it"*) sat unbadged
+among the ten official species. The root cause was one level deeper than the class case: **`SpeciesView`
+had no `custom` field at all**, so the flag was discarded in `speciesView()`'s mapping and no UI downstream
+could have marked it.
+
+Worth recording *why* the existing field couldn't be reused: `SpeciesView.source` is `'vanilla' | 'custom'`
+but it answers a different question — "did we resolve this from data, or do we only know the name?" An
+authored homebrew species resolves fully, so it is `source: 'vanilla'`. Reusing it would have marked
+nothing. A separate `custom` field was the correct fix, and a test now pins that distinction so the two
+don't get conflated later.
+
+Species options now read "Rangor — homebrew (Jacob)", the ten official ones stay bare, and the standing
+notice covers a homebrew species as well as a class (its wording adapts). Guards extended to 8.
+
+**Bar:** 4595/4595 D&D tests, typecheck + lint clean. QA character deleted; live DB unchanged.
+
+**Next slice:** the level-by-level walk 1 → 20 for this Fighter — the ASI slots at 4/6/8/12/14/16/19 are
+where the "only rules-legal feats offered" promise actually gets tested.
