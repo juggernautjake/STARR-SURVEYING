@@ -133,13 +133,48 @@ describe('every marker call site passes its element name', () => {
   }
 });
 
-describe('what is still NOT done here', () => {
-  it('no Revert in the hover — `Tip` cannot host one as written', () => {
-    // It sets `pointerEvents: 'none'` on the tooltip and takes `tip: string`, not a node. Building a
-    // second, interactive popover for this alone was not worth it; the Revert already exists per-edit in
-    // `EditReviewPanel`. Asserted so a future slice knows the blocker is real rather than an oversight.
-    const tip = read('app/dnd/_ui/Tip.tsx');
-    expect(tip).toContain("pointerEvents: 'none'");
-    expect(MARK).not.toContain('Revert');
+describe('Revert, from the marker itself', () => {
+  const TIP = read('app/dnd/_ui/Tip.tsx');
+
+  it('Tip can host controls now — one property was the whole blocker', () => {
+    // Recorded twice as needing `Tip` rebuilt. It did not: the tooltip span is a CHILD of the wrapper, so
+    // moving the mouse into it never fires the wrapper's `onMouseLeave` — reaching it already worked, and
+    // only `pointerEvents: 'none'` stopped the click. Same lesson as the rename blocker: a constraint
+    // written down from a glance, not re-derived.
+    expect(TIP).toContain("pointerEvents: actions ? 'auto' : 'none'");
+  });
+
+  it('stays click-through when there is nothing to click', () => {
+    // A plain tooltip must never swallow a click meant for what is underneath it.
+    expect(TIP).toContain('actions?: ReactNode');
+    expect(TIP).toContain("{actions && <span style={{ display: 'flex'");
+  });
+
+  it('keeps the explanation as TEXT rather than widening `tip` to a node', () => {
+    // `tip` is what `aria-describedby` announces, and a caller that only wants words should not have to
+    // think about interactivity.
+    expect(TIP).toContain('tip: string');
+  });
+
+  it('the marker offers it only with a specific change AND write access', () => {
+    expect(MARK).toContain('actions={detail && canWrite ?');
+  });
+
+  it('reuses the existing endpoint rather than a second revert path', () => {
+    // Same route and same pure `revertSheetEdit` the review panel uses — a second door, not a second
+    // implementation.
+    expect(MARK).toContain('/edits/revert');
+    expect(MARK).toContain("body: JSON.stringify({ editId: detail.id })");
+  });
+
+  it('pulls the sheet back in afterwards, so the marker reflects the undo', () => {
+    expect(MARK).toContain('await reloadFromDb()');
+  });
+
+  it('carries the audit row id through the index for exactly this', () => {
+    const map = indexEdits([
+      { id: 'row-7', created_at: NOW, field_path: 'spell.Fireball.damage', old_value: '8d6', new_value: '10d6' },
+    ]);
+    expect(editFor(map, 'Fireball')?.id).toBe('row-7');
   });
 });

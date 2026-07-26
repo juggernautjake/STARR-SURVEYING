@@ -38,9 +38,17 @@ export type TipProps = {
   className?: string;
   /** Merged over the trigger's own styles — for a marker's colour, mostly. */
   triggerStyle?: CSSProperties;
+  /**
+   * Optional controls rendered under the text, INSIDE the bubble — a Revert button on the ✎ marker.
+   *
+   * Kept as its own slot rather than widening `tip` to a node: the explanation should stay text (it is
+   * what `aria-describedby` announces), and a caller that only wants words should not have to think about
+   * interactivity. Supplying this is also what turns pointer events on — see below.
+   */
+  actions?: ReactNode;
 };
 
-export default function Tip({ tip, title, label, glyph = 'ⓘ', bare = false, className, triggerStyle }: TipProps) {
+export default function Tip({ tip, title, label, glyph = 'ⓘ', bare = false, className, triggerStyle, actions }: TipProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const id = useId();
@@ -109,10 +117,15 @@ export default function Tip({ tip, title, label, glyph = 'ⓘ', bare = false, cl
           textTransform: 'none', letterSpacing: 'normal', fontWeight: 400, textAlign: 'left',
           color: 'var(--hx-text, #e6edf3)', background: 'var(--hx-bg-2, #0b1622)',
           border: '1px solid var(--hx-line, #2a3b47)', boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
-          whiteSpace: 'normal', pointerEvents: 'none',
+          // `none` by default so a plain tooltip never swallows a click meant for whatever is under it.
+          // With `actions` the bubble must BE clickable — and reaching it already works without any other
+          // change, because this span is a CHILD of the wrapper, so moving the mouse into it never fires
+          // the wrapper's `onMouseLeave`. That single property was the whole blocker.
+          whiteSpace: 'normal', pointerEvents: actions ? 'auto' : 'none',
         }}>
           {title && <strong style={{ display: 'block', marginBottom: 3, color: 'var(--hx-gold-2, #f0e6d2)', fontSize: 12 }}>{title}</strong>}
           {tip}
+          {actions && <span style={{ display: 'flex', gap: 6, marginTop: 6 }}>{actions}</span>}
         </span>
       )}
     </span>

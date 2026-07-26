@@ -24,6 +24,8 @@ interface Row extends DescribableEdit {
 
 /** What a marker shows: the newest change to that element, already worded. */
 export interface ElementEdit {
+  /** The audit row, so a marker can offer to revert exactly this change. */
+  id: string
   summary: string
   who: string
   when: string
@@ -47,6 +49,7 @@ export function indexEdits(edits: Row[]): Map<string, ElementEdit> {
     const key = norm(name)
     if (out.has(key)) continue
     out.set(key, {
+      id: row.id,
       summary: describeEdit(row),
       who: row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'the DM' : 'a player'),
       when: new Date(row.created_at).toLocaleDateString(),

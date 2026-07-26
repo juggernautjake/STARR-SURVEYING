@@ -2273,7 +2273,7 @@ costs more than having no marker at all.
       (Slice 20) renders ✎ on any element flagged `customized`; the attack/feature/etc. editors set it via
       `nextCustomized` (a hand-tuned spell/feature/attack/ability). Distinct from ★ (active effect).
       `customized-marker.test.ts` pins it.
-- [~] Hovering ✎ + **Revert**: the ✎ marker + a tooltip ("Hand-customized — this was edited away from how it
+- [x] Hovering ✎ + **Revert**: the ✎ marker + a tooltip ("Hand-customized — this was edited away from how it
       came") are SHIPPED, and the full audited diff + revert exist in the `EditReviewPanel` (per-batch/per-edit
       Revert, `old_value`→ shown). REMAINING: surfacing the SPECIFIC per-element diff ("8d6 → 10d6, by Jacob,
       date") + a Revert directly in the inline ✎ hover — a UI enhancement (browser); the data (audit rows) is
@@ -2319,12 +2319,17 @@ costs more than having no marker at all.
       and then left with no consumer: the "authored but not wired" defect this codebase produces most,
       committed by me while auditing others for it. 16 tests.
 
-      **STILL REMAINING, with the blockers known rather than assumed:**
-      · **A Revert inside the ✎ hover** needs `Tip` changed or replaced — it sets `pointerEvents: 'none'`
-        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written. Building
-        a second interactive popover for this alone was not worth it, since the Revert already exists
-        per-edit in `EditReviewPanel`; the blocker is now asserted by test so a future slice knows it is
-        real rather than an oversight.
+      **→ ITEM CLOSED 2026-07-26. Both "blockers" dissolved on inspection.**
+      · ~~A Revert inside the ✎ hover needs `Tip` rebuilt~~ — **it did not.** I recorded this twice, from
+        reading that the tooltip sets `pointerEvents: 'none'` and takes `tip: string`. But the tooltip span
+        is a CHILD of the wrapper, so moving the mouse into it never fires the wrapper's `onMouseLeave` —
+        reaching it already worked, and that one property was the entire obstacle. `Tip` gained an optional
+        `actions` slot which turns pointer events on; `tip` stays a string (it is what `aria-describedby`
+        announces, and a caller wanting only words should not have to think about interactivity), and a
+        tooltip without actions is still click-through so it never swallows a click meant for what is under
+        it. The marker now offers **⟲ Revert** when there is a specific change AND the viewer can write,
+        hitting the same `/edits/revert` route and the same pure `revertSheetEdit` the review panel uses —
+        a second door, not a second implementation.
       · ~~A rename breaks the row↔element link~~ — **FIXED 2026-07-26, and it needed no schema change.**
         I had recorded this as needing an element id on the audit row. It does not: **the rename is itself
         an audited row** (`spell.Fireball.name: Fireball → Firestorm`), so the old name is recoverable from
