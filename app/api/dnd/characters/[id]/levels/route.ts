@@ -133,8 +133,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Feats the character already has (to block retaking a non-repeatable one) and whether they can
     // cast (to satisfy a feat's spellcasting prerequisite) — so the ASI-slot feat check is rules-legal.
+    //
+    // THE SLOT BEING REPLACED IS EXCLUDED. `recordChoice` replaces the entry at this (level, kind), so a
+    // feat already recorded THERE is not "already taken" — it is the thing being overwritten. Without
+    // this, re-saving the same feat at the same level (a player correcting an ability spread, or simply
+    // re-confirming) is refused as a duplicate it is not.
+    //
+    // The combination with the escape hatch is what makes it worth fixing rather than tolerating: the
+    // spurious refusal would offer "take it anyway", and accepting would file an EXCEPTION against a
+    // perfectly legal pick — marking the character "Altered vanilla" for nothing. The mirror image of the
+    // laundering hole found on the IG route: there a pick justified itself, here it convicts itself.
     const takenFeatKeys = ((next.build?.choices ?? []) as RecordedChoice[])
-      .filter((c) => c.kind === 'asi' && c.featKey)
+      .filter((c) => c.kind === 'asi' && c.featKey && !(c.level === choice.level && c.kind === choice.kind))
       .map((c) => c.featKey as string);
     const canCast = !!next.spellcasting || !!def?.spellcasting;
 

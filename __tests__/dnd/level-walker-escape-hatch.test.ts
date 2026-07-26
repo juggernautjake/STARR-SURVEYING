@@ -261,3 +261,22 @@ describe('a pick cannot justify itself (the laundering hole)', () => {
     expect(PF2).toContain('MUST NOT JUSTIFY ITSELF');
   });
 });
+
+describe('5e: the mirror image — a pick must not CONVICT itself either', () => {
+  it('excludes the slot being replaced from the already-taken feat list', () => {
+    // Same structural fault as the IG laundering hole, opposite symptom. `recordChoice` replaces the entry
+    // at this (level, kind), so a feat recorded THERE is not "already taken" — it is what is being
+    // overwritten. Re-saving the same feat at the same level was refused as a duplicate it is not.
+    expect(ROUTE).toContain("c.kind === 'asi' && c.featKey && !(c.level === choice.level && c.kind === choice.kind)");
+  });
+
+  it('and the reason is recorded, because the fix looks like a redundant filter', () => {
+    expect(ROUTE).toContain('THE SLOT BEING REPLACED IS EXCLUDED');
+  });
+
+  it('which matters because the hatch would turn it into a FALSE flag', () => {
+    // The spurious refusal offers "take it anyway"; accepting files an exception against a legal pick and
+    // marks the character Altered vanilla for nothing. A wrong flag is worse than no flag.
+    expect(ROUTE).toContain('file an EXCEPTION against a');
+  });
+});
