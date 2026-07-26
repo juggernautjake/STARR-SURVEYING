@@ -12,15 +12,18 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
+import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
 
 /**
  * The feats a 2024 character may take at an ASI slot of a given level: General feats (and, at 19+,
- * Epic Boons) whose minLevel is met — never an Origin or Fighting Style feat. Ability/needs
- * prerequisites are checked server-side (validateChoice) since the picker doesn't hold ability scores;
- * they're surfaced in the label so the player knows what a feat needs. Empty for non-2024 systems,
- * where we don't yet ship a feat list — those fall back to the explicit-custom text entry.
+ * Epic Boons) whose minLevel is met — never an Origin or Fighting Style feat. Ability prerequisites are
+ * now enforced HERE too when the caller supplies the character's scores (they were previously only checked
+ * server-side by `validateChoice` and hinted in the label, which left this picker more permissive than the
+ * Foundations one for the same kind of slot). The hint stays — it explains a feat's requirements for the
+ * ones that ARE offered. Empty for non-2024 systems, where we don't yet ship a feat list — those fall back
+ * to the explicit-custom text entry.
  */
-function asiFeatChoices(system: string, level: number, extra: Feat[] = []): Feat[] {
+function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abilities?: Partial<Record<AbilityKey, number>>): Feat[] {
   if (system !== 'dnd5e-2024') return [];
   const official = FEATS_2024.filter((f) => {
     if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
@@ -28,7 +31,18 @@ function asiFeatChoices(system: string, level: number, extra: Feat[] = []): Feat
   });
   // Saved homebrew feats (already category-eligible + adapted by the levels route) sit alongside them.
   const homebrew = extra.filter((f) => f.category === 'general' || (f.category === 'epic-boon' && level >= 19));
-  return [...official, ...homebrew];
+  const pool = [...official, ...homebrew];
+  // ABILITY prerequisites, when we know the character's scores. This picker and the Foundations one spend
+  // the SAME kind of slot, and after the Foundations gate landed they disagreed: Foundations hard-blocked
+  // Grappler below STR 13 while this one offered it with a "(needs STR 13)" hint. Two enforcement levels
+  // for one rule, in one edition. The platform's rule is that a vanilla builder offers only rules-legal
+  // picks and `✎ Custom feat…` is the escape hatch, so this one aligns with that — and only when the
+  // scores are actually known, so a caller without them keeps the previous hint-only behaviour rather
+  // than silently hiding legal choices.
+  if (!abilities) return pool;
+  return pool.filter((f) => featEligibilityForSystem('dnd5e-2024', f.key, {
+    slot: 'asi', level, abilities,
+  }).ok);
 }
 
 /** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
@@ -82,6 +96,7 @@ export default function LevelBuilder({
   currentLevel,
   className,
   subclassName,
+  abilities,
   aiConfigured,
 }: {
   characterId: string;
@@ -90,6 +105,10 @@ export default function LevelBuilder({
   currentLevel: number;
   className: string;
   subclassName: string;
+  /** The character's ability scores, so the ASI feat picker can enforce ability prerequisites the same
+   *  way the Foundations picker does. Optional: without them the picker keeps its hint-only behaviour
+   *  rather than hiding feats it cannot judge. */
+  abilities?: Partial<Record<AbilityKey, number>>;
   aiConfigured: boolean;
 }) {
   const router = useRouter();
@@ -307,7 +326,7 @@ export default function LevelBuilder({
                 )}
                 <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
                 {(() => {
-                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? []);
+                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities);
                   const known = new Set(choices.map((f) => f.key));
                   // A feat is "custom" when it's set but not one of the rules-legal choices — the
                   // explicit escape hatch, which reveals a free-text name field.

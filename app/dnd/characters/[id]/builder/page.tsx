@@ -72,6 +72,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
           currentLevel={data.meta?.level ?? 1}
           className={data.meta?.className ?? ''}
           subclassName={data.meta?.subclass ?? ''}
+          abilities={data.abilities}
           aiConfigured={aiConfigured}
         />
       ),

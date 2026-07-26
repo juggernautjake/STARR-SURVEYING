@@ -96,6 +96,7 @@ export default async function CharacterLevelsPage({ params }: { params: { id: st
               currentLevel={data.meta?.level ?? 1}
               className={data.meta?.className ?? ''}
               subclassName={data.meta?.subclass ?? ''}
+          abilities={data.abilities}
               aiConfigured={dndAiConfigured()}
             />
           )}

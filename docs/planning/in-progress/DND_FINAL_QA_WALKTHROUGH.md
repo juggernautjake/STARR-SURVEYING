@@ -582,3 +582,35 @@ This closes the loop on slices 10–12: the build produces correct numbers, a cr
 are produced, and now the player is *shown* them before they finish.
 
 **Bar:** 6 new guards, 4666/4666 D&D tests, typecheck + lint clean. QA character deleted.
+
+### 2026-07-26 — slice 14: one rule, two pickers, two answers
+
+Checked something I had assumed twice without looking: when the level walker *does* demand an ASI (Wizard,
+Bard, Sorcerer and Warlock at level 4 — the four 2024 classes that happen to be annotated), **does its UI
+actually work?**
+
+**It does, and it is good.** A full ability-point picker plus a feat dropdown that already filtered by
+category and `minLevel` — which is more than the Foundations picker did before slice 3. Two useful
+conclusions: the ASI-ownership question is *genuinely* a decision (both surfaces have working collection,
+so the double-ask is real), and slice 3 brought Foundations up to a standard the walker had all along.
+
+**But after slice 3 they disagreed in the other direction.** Foundations now hard-blocks a feat whose
+ability prerequisite isn't met; the walker offered the same feat with a *"(needs STR 13)"* hint. One rule,
+one edition, two enforcement levels — decided by which screen you happened to be on. The platform's stated
+rule is that a vanilla builder offers only rules-legal picks with an explicit escape hatch, so the walker
+now runs the same `featEligibilityForSystem` gate, fed the character's scores from the page.
+
+Three things kept deliberately: the picker **falls back** to its old hint-only list when scores are unknown
+(hiding choices we cannot judge is the worse failure); the **hint stays**, because it explains the
+requirements of the feats that *are* offered; and `✎ Custom feat…` remains — gating is only defensible
+because there is a way past it.
+
+**Note — this is not the ASI-ownership decision.** It is about how each picker *gates*, not which surface
+*owns* the slot. That question is untouched and still open.
+
+One pre-existing lint warning in `LevelBuilder` (an intentional `useEffect` dep list) was left alone:
+adding `current` would reset the player's draft on every plan refetch, which is a behaviour change, not a
+cleanup.
+
+**Bar:** 6 new guards, 4672/4672 D&D tests, typecheck clean. One older assertion relaxed from pinning the
+full argument list to pinning the anchor, with the reason inline.
