@@ -523,3 +523,35 @@ no class abilities" to a playable sheet.
 
 **Still open and genuinely owner-blocked:** ASI-slot ownership (slices 5–6, 10) — unchanged, and now the
 *only* thing left in the 5e build path.
+
+### 2026-07-26 — slice 12: do the OTHER systems' builds have the same hole?
+
+Slice 11's lesson applied to the obvious next question. Slices 10–11 found that a **5e** character arrived
+with 1 hit point and no class abilities; the same check was owed to PF2 and IG rather than assumed either
+way.
+
+**Both are healthy — the gap was 5e's alone.**
+
+- **Pathfinder 2e** applies its class progression at build time: real hit points from ancestry + class ×
+  level, and proficiency ranks that have actually advanced by level 8 (a Fighter is **master** in Perception,
+  which is correct). The shared `meta` stays in step with the `pf2e` sidecar.
+- **Intuitive Games** produces the full combat block its bespoke sheet reads (hit points, saves, stances,
+  defensive power) with identity in step.
+
+Worth recording *why* 5e was the odd one out: PF2 and IG each build a **system-native sidecar** from their
+own progression data, so their assemblies had to compute the numbers. 5e writes into the **shared** sheet
+model and could lean on "the sheet derives it" — which was true for proficiency bonus and false for
+everything else. The system with the most shared machinery had the least of it actually connected.
+
+**What shipped: the missing question, asked of all three at once.**
+`__tests__/dnd/built-sheet-complete.test.ts` (22) asserts a built character is **playable**, not merely
+correctly identified. Every previous test asked "did assembly return the right identity?"; none asked "can
+you play the result?" — which is exactly why 1-hit-point Fighters survived.
+
+It is deliberately about **coherence rather than exact numbers** (the per-system suites already pin the
+arithmetic), so it stays meaningful as the rules data grows while still failing loudly for the specific
+shape of the bug it exists for: derived stats left at the blank template's defaults. For 5e it checks four
+classes × hit die / HP band / save proficiencies / features; HP is compared against `blankCharacter`'s own
+value, so "still the template default" is the failure it names.
+
+**Bar:** 22 new guards, 4660/4660 D&D tests, typecheck + lint clean. No live-DB characters created.
