@@ -551,9 +551,32 @@ Ground Rule 3 exists to prevent. A test asserts no edition string is hard-coded 
 typecheck + lint clean. Two assertions in the older `homebrew-feat-page.test.ts` pinned the read-only shape
 (`feat.body`, `result.review.ok`) and were updated to the new one with the reason inline.
 
-**Still owed:** the same treatment for `/build/class` and `/build/subclass`, which are larger forms (a class
-has progressions and per-level features). Deliberately not batched in with this one — the feat is the shape
-the escape hatch in `SLOT_DRIVEN_CHARACTER_BUILDING` S6 will lean on, so it went first.
+### 2026-07-26 — the subclass draft too, and it needed one server addition
+
+Same change, one slice later — but this one could not be done client-side alone. A hand-written subclass must
+name a **parent class**, and only the server knows which classes a character's system has, *including a
+homebrew class saved on the character itself*, which `classesForSystem` cannot see. So the draft route gained a
+read-only, access-gated **GET** returning that list (plus each class's real `subclassLevel`), and the form
+offers a picker instead of asking anyone to guess a class KEY. Without it the page could only have exposed a
+free-text identifier field, which is the opposite of a designer.
+
+Features are now a proper repeater — level (clamped 1–20), name, rules text, add and remove — with each row's
+three bare inputs labelled, because a form that generates N unlabelled inputs is unusable without them. A new
+feature defaults to **the parent's own subclass level** rather than a hard-coded 3, which would be wrong for
+the classes that differ.
+
+**One behaviour deliberately changed rather than preserved:** the page used to display the AI response's
+`parentName`. It now resolves the parent from the fetched list, because the AI's answer goes stale the moment
+the player changes the parent — the old field would have kept naming the previous class. Same for the AI's
+one-shot `warnings`, replaced by `problems` recomputed from the current draft, mirroring the save route's two
+real conditions (a parent that RESOLVES, at least one feature). An unknown key is treated as unresolvable
+rather than optimistically allowed, so "Ready to save" never appears on something the server will refuse.
+
+**Bar:** 12 new tests (`homebrew-subclass-editable.test.tsx`), 4935/4935 D&D tests, typecheck + lint clean. One
+assertion in the older page test pinned the read-only shape and was updated with the reason inline.
+
+**Still owed:** `/build/class` — the largest of the three (a class carries hit die, proficiencies, an ASI
+ladder and per-level features), so it is its own slice rather than being rushed in beside this one.
 
 ## Slice 6 — Full class data for the remaining systems
 

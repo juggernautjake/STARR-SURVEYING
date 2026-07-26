@@ -10,9 +10,15 @@ const SAVE = fs.readFileSync(path.join(process.cwd(), 'app/api/dnd/characters/[i
 describe('homebrew subclass designer', () => {
   it('page posts the prompt + renders the parent class, features, and warnings', () => {
     expect(PAGE).toContain('/homebrew-subclass');
-    expect(PAGE).toContain('parentName');
-    expect(PAGE).toContain('sub.features');
-    expect(PAGE).toContain('result.warnings');
+    // All three still render; what they read changed when the draft became EDITABLE (2026-07-26).
+    // · the parent is now resolved from the fetched class list (`parent.name`) rather than from the AI
+    //   response's `parentName`, which would go stale the moment the player changed the parent;
+    // · features come from the editable `draft`;
+    // · the AI's one-shot `warnings` are replaced by `problems`, recomputed from the current draft.
+    // See homebrew-subclass-editable.test.tsx.
+    expect(PAGE).toContain('parent.name');
+    expect(PAGE).toContain('draft.features');
+    expect(PAGE).toContain('problems.map');
   });
   it('endpoint builds via the engine + checks the parent class exists, propose-only', () => {
     expect(ROUTE).toContain('requireCharacterWrite');
