@@ -65,7 +65,9 @@ const SLOT_CATEGORIES: Record<FeatSlot, FeatCategory[]> = {
 export function featEligibility(feat: Feat, ctx: FeatContext): FeatEligibility {
   // 1. The slot gates the category — an Origin feat can't be taken at an ASI slot, etc.
   if (!SLOT_CATEGORIES[ctx.slot].includes(feat.category)) {
-    return { ok: false, reason: `A ${labelFor(feat.category)} feat can't be taken through a ${labelFor2(ctx.slot)}.` };
+    const cat = labelFor(feat.category), slot = labelFor2(ctx.slot);
+    const A = article(cat);
+    return { ok: false, reason: `${A[0].toUpperCase()}${A.slice(1)} ${cat} feat can't be taken through ${article(slot)} ${slot}.` };
   }
 
   // 2. Epic Boons are level 19+ regardless of what else the feat says.
@@ -121,7 +123,13 @@ function labelFor(c: FeatCategory): string {
   return { origin: 'Origin', general: 'General', 'fighting-style': 'Fighting Style', 'epic-boon': 'Epic Boon' }[c];
 }
 function labelFor2(s: FeatSlot): string {
-  return { origin: 'Background/Origin slot', 'fighting-style': 'Fighting Style feature', asi: 'Ability Score Improvement' }[s];
+  return { origin: 'Background/Origin slot', 'fighting-style': 'Fighting Style feature', asi: 'Ability Score Improvement slot' }[s];
+}
+/** "a"/"an" for a label. These reasons are USER-FACING — the builder now prints them under each greyed
+ *  feat — and "A Origin feat can't be taken through a Ability Score Improvement" is the kind of thing that
+ *  makes a correct rule look broken. Vowel test is enough: every label here is a plain English noun. */
+function article(label: string): string {
+  return /^[aeiou]/i.test(label) ? 'an' : 'a';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

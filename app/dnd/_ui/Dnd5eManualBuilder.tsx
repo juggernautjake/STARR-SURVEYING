@@ -15,6 +15,7 @@ import { speciesCatalogFor } from '@/lib/dnd/species/view';
 import { classesForSystem } from '@/lib/dnd/classes/registry';
 import { backgroundsForSystem } from '@/lib/dnd/backgrounds/index';
 import { featCatalogForSystem } from '@/lib/dnd/feats/catalog';
+import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
 import {
   dnd5eSpeciesIncreases,
   dnd5eBackgroundAbilities,
@@ -240,6 +241,25 @@ export default function Dnd5eManualBuilder({
       <StatGenPanel value={base} onChange={setBase} method={method} onMethodChange={setMethod} increases={increases} increaseLabel={is2024 ? 'Backg.' : 'Racial'} />
     </div>
   );
+  // One verdict per catalogued feat, for the level/abilities/picks currently on screen. Memoised on the
+  // things that actually change it, so dragging an ability score doesn't re-judge the catalog per keystroke
+  // but DOES re-judge it once the score lands (an ability prerequisite can flip either way).
+  const featVerdicts = React.useMemo(() => {
+    const m = new Map<string, { ok: boolean; reason?: string }>();
+    for (const f of featList) {
+      m.set(f.name, featEligibilityForSystem(system, f.key ?? f.name, {
+        slot: 'asi',                       // this control spends ASI/feat slots; other slots have their own UI
+        level,
+        abilities: finalAbilities,
+        className: className || undefined, // 2014's rule needs the class; 2024's ignores it
+        takenFeatureNames: feats,          // resolved against the edition's own catalog by the gate
+      }));
+    }
+    return m;
+  }, [featList, system, level, finalAbilities, className, feats]);
+  const eligibilityOf = (f: { name: string }) => featVerdicts.get(f.name) ?? { ok: true };
+  const ineligibleCount = featList.reduce((n, f) => n + (!feats.includes(f.name) && !eligibilityOf(f).ok ? 1 : 0), 0);
+
   const featsNode = featSlots > 0 ? (
     <div style={{ display: 'grid', gap: 6 }}>
       <div style={{ fontSize: 12.5, fontWeight: 700 }}>
@@ -248,20 +268,41 @@ export default function Dnd5eManualBuilder({
       {featList.length === 0 ? (
         <div style={{ fontSize: 12.5, opacity: 0.7 }}>No feat catalog for this edition yet — take ASIs, or add feats later on the sheet.</div>
       ) : (
+        <>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 160, overflowY: 'auto' }}>
           {featList.map((f) => {
             const on = feats.includes(f.name);
             const full = !on && feats.length >= featSlots;
+            // The eligibility gate. This picker's own copy says "Only rules-legal picks are offered" and
+            // the wizard says "ineligible picks are greyed with the reason" — but the ONLY thing it
+            // disabled was a full slot list, so at level 4 it happily offered Epic Boons (level 19+),
+            // Origin feats (those come from your background) and Fighting Styles (a class feature, not an
+            // ASI pick). `featEligibilityForSystem` already knew every one of those rules; nothing called
+            // it from here. It fails closed for both 5e editions and returns ok for a system it doesn't
+            // own, so this cannot start refusing picks on PF2/IG.
+            const verdict = eligibilityOf(f);
+            const blocked = !on && !verdict.ok;
+            const disabled = full || blocked;
+            const why = blocked ? verdict.reason : (full ? `You've used all ${featSlots} slot${featSlots === 1 ? '' : 's'} — deselect one first.` : (f.prerequisiteText || undefined));
             return (
-              <button key={f.name} type="button" disabled={full}
+              <button key={f.name} type="button" disabled={disabled} title={why} aria-disabled={disabled || undefined}
                 onClick={() => setFeats((cur) => on ? cur.filter((x) => x !== f.name) : [...cur, f.name])}
-                style={{ fontSize: 12, padding: '4px 9px', borderRadius: 6, cursor: full ? 'default' : 'pointer', opacity: full ? 0.45 : 1,
+                style={{ fontSize: 12, padding: '4px 9px', borderRadius: 6, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
+                  textDecoration: blocked ? 'line-through' : undefined,
                   border: `1px solid ${on ? 'var(--hx-gold-1, #8a6d3b)' : LINE}`, background: on ? 'var(--hx-inset-strong, rgba(130,132,140,0.14))' : 'none', color: 'inherit' }}>
                 {on ? '✓ ' : ''}{f.name}
               </button>
             );
           })}
         </div>
+        {/* Say WHY out loud, not only on hover — a greyed row with a tooltip is invisible on touch and to
+            anyone who doesn't think to hover. Counts rather than lists: the full reason is on each chip. */}
+        {ineligibleCount > 0 && (
+          <div style={{ fontSize: 11.5, opacity: 0.75 }}>
+            {ineligibleCount} feat{ineligibleCount === 1 ? ' is' : 's are'} greyed out — not legal for an ASI slot at level {level}. Hover one for the reason.
+          </div>
+        )}
+        </>
       )}
     </div>
   ) : null;

@@ -175,5 +175,47 @@ notice covers a homebrew species as well as a class (its wording adapts). Guards
 
 **Bar:** 4595/4595 D&D tests, typecheck + lint clean. QA character deleted; live DB unchanged.
 
-**Next slice:** the level-by-level walk 1 → 20 for this Fighter — the ASI slots at 4/6/8/12/14/16/19 are
-where the "only rules-legal feats offered" promise actually gets tested.
+### 2026-07-25 — slice 3: ASI/feat slot legality (the promise the builder makes twice)
+
+The doc's own test: *"At each ASI slot, confirm the feat picker offers only rules-legal feats."* The picker
+says the same thing in its help text (*"Only rules-legal picks are offered"*) and the wizard says it again
+(*"ineligible picks are greyed with the reason"*).
+
+**Neither was true.** The only thing the picker disabled was a full slot list. At level 4 a Fighter was
+offered — fully clickable, no marking — **Epic Boons** (level 19+), **Origin feats** (those come from your
+background at level 1) and **Fighting Styles** (a class feature, not an ASI pick). `Boon of Truesight` was
+a normal, selectable button on a 4th-level character.
+
+The galling part: `featEligibilityForSystem` already encoded *every one* of those rules — slot-gates-category,
+the Epic Boon level floor, repeatability, minLevel/ability/`needs` prerequisites. **Nothing called it from
+the builder.** This repo's most common defect, again.
+
+Now wired: each chip is disabled + struck through when ineligible, carries the engine's reason as its
+tooltip, and a line under the list says how many are greyed and why (a tooltip alone is invisible on touch
+and to anyone who doesn't think to hover). Verified live at level 4 → 31 greyed, and at level 19 → 22, with
+Epic Boons correctly **opening** at 19 while Origin/Fighting Style stay shut.
+
+**Also fixed — the reason strings themselves.** They read *"A Origin feat can't be taken through a Ability
+Score Improvement"*. They had never been shown to a player before, so the grammar had never mattered; now
+they're on screen. Article selection is derived, and the ASI label reads "slot".
+
+**Verified correct (worth recording, because it looks wrong at a glance):** at level 19 the builder reports
+**6** ASI/feat slots, not 7. That is right — the 2024 Fighter's `asiLevels` are 4/6/8/12/14/16, and its
+19th-level **Epic Boon** is a separate class *feature* (`choice: 'epic-boon'`), not an ASI. And a level-19
+character *may* spend an ASI slot on an Epic Boon, because they now qualify — which is exactly what the gate
+allows. Class data, engine and UI all agree.
+
+**One thing this surfaced about the contract:** `FeatContext.abilities` is keyed by the lowercase
+`AbilityKey`. A first draft of the test used `STR`, which silently made Grappler read as "requires STR 13+"
+against an undefined score. The production path was correct throughout; the note is in the test so the next
+caller doesn't repeat it.
+
+**Bar:** 5 new guards (13 in the file), 4600/4600 D&D tests, typecheck + lint clean. QA character deleted.
+
+**Next slice:** the Levels phase proper — walking 1 → 20 one level at a time and checking each level's
+granted features, then the same pass for 5e 2014 / PF2 / IG.
+
+**Gap noted, not yet built:** the Foundations step models ASI slots only. A Fighter's **Fighting Style**
+(a level-1 class-feature choice) has no slot in this builder, which is why those feats are correctly greyed
+here but have nowhere else to be chosen from. Worth confirming the Levels phase offers it before calling
+the 5e 2024 path complete.
