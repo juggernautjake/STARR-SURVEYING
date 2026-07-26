@@ -437,3 +437,51 @@ collected in the slice logs:
    a real picker (slice 7).
 3. **Rangor/Pugilist** as a real custom class — the last `[ ]` in `DND_RULES_PLATFORM`.
 4. The other six systems are the separate, source-blocked `DND_SYSTEMS_UNDER_CONSTRUCTION`.
+
+### 2026-07-26 — slice 10: do the numbers on the finished sheet add up?
+
+The doc's other named defect class — *"numbers that don't add up on the resulting sheet"* — which none of
+the earlier slices had actually checked. Built a level-8 Human **Battle Master** Fighter (Soldier, STR 17 /
+DEX 14 / CON 14) through the real builder and read every derived number off the rendered sheet.
+
+**It rendered with 1 hit point.**
+
+Also AC **10** and **no saving-throw proficiencies**. Proficiency bonus (+3) and identity were correct, so
+this was not a wholesale failure — which is what made it survivable this long.
+
+**Root cause.** `assemble5e`'s header states the contract: *"the sheet derives the MECHANICS (HP, AC,
+proficiency, class features by level, saves) from those choices via the class registry + ledger."* For
+proficiency bonus that is true. For HP it is not: the sheet recomputes HP **only when the level changes
+through its own setter**, and that setter reads `combat.hitDiceSize`. A character built straight to level 8
+never trips the setter, and nothing had ever written its hit die — so it kept the blank template's d8 and
+its `maxHp: 1`. Saves had no source at all, and `deriveAc` treats `combat.ac` as the *"unarmored / manual"*
+base and never adds Dexterity itself.
+
+**Fix — the build now writes the facts that follow from the class**, which is the boundary being drawn one
+notch too tight rather than a new responsibility:
+
+| | before | after |
+|---|---|---|
+| Hit die | d8 (blank default) | **d10** (Fighter's) |
+| Hit dice | 1 | **8** |
+| Max HP | **1** | **68** = 10+2, then 7 × (avg 6 + CON 2) |
+| Unarmored AC | 10 | **12** = 10 + DEX |
+| Saves | none | **STR + CON** |
+
+Max HP uses the sheet's own `maxHpForLevel` rather than a second formula, so a built character and a
+levelled-up one cannot drift. Current HP is only seeded when there was none to preserve — a rebuild must
+not silently heal a wounded character. Save proficiency merges per-ability so a hand-set `misc` survives.
+AC keeps its manual-override semantics: the player can still type over it, and equipping armour replaces
+the base entirely.
+
+Verified live end to end (stored **and** rendered), and checked against a second class — a level-5 Wizard
+gets d6 / 27 HP / INT + WIS saves.
+
+**Still open, recorded not fixed: class FEATURES are not populated.** The level-8 Battle Master has no
+Second Wind, Action Surge, Extra Attack or Combat Superiority on the sheet (`features` is empty except for
+chosen feats). Unlike HP, this is not a missing seed value — the same header says features derive "by
+level" from the registry, and which surface should own that (build-time snapshot vs. render-time
+derivation) is the **same open question as ASI-slot ownership** in slices 5–6. Fixing one should settle
+both, so it waits with them rather than being guessed at here.
+
+**Bar:** 6 new guards, 4632/4632 D&D tests, typecheck + lint clean. QA character deleted.

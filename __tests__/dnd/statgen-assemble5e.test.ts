@@ -50,3 +50,63 @@ describe('assembleDnd5e', () => {
     expect(out.primaryAbilities).toEqual([]);
   });
 });
+
+// ── The class-derived combat facts (final-QA walkthrough, slice 10) ─────────────────────────────────
+// Building a level-8 Battle Master through the real builder produced a sheet showing **1 hit point**,
+// **AC 10** and **no save proficiencies**. The module header promises "the sheet derives the MECHANICS
+// (HP, AC, proficiency, class features by level, saves) from those choices" — and proficiency bonus does
+// derive correctly — but HP does not: the sheet only recomputes it when the level changes through its own
+// setter, reading `combat.hitDiceSize`, which a straight-to-level-8 build never sets. So the character kept
+// the blank template's d8 and `maxHp: 1`.
+describe('assembleDnd5e writes the combat facts only the class knows', () => {
+  const fighter8 = () => assembleDnd5e({
+    system: 'dnd5e-2024', level: 8, className: 'fighter', name: 'T',
+    abilities: { str: 17, dex: 14, con: 14, int: 12, wis: 10, cha: 8 },
+  });
+
+  it('uses the class hit die, not the blank default', () => {
+    expect(fighter8().combat.hitDiceSize).toBe(10);   // Fighter is d10; the blank character is d8
+    expect(fighter8().combat.hitDiceTotal).toBe(8);
+    expect(fighter8().combat.hitDiceRemaining).toBe(8);
+  });
+
+  it('computes max HP with the SHEET’s own formula, so a built and a levelled character agree', () => {
+    // d10 + CON, then 7 more levels of (avg 6 + CON 2) = 12 + 56.
+    expect(fighter8().combat.maxHp).toBe(68);
+    expect(fighter8().combat.currentHp).toBe(68);
+  });
+
+  it('seeds unarmored AC as 10 + DEX', () => {
+    // `deriveAc` treats combat.ac as the "unarmored / manual" base and never adds Dexterity itself, so a
+    // DEX-14 character left at the default rendered AC 10 instead of 12.
+    expect(fighter8().combat.ac).toBe(12);
+  });
+
+  it('records the class’s saving-throw proficiencies', () => {
+    const s = fighter8().saves;
+    expect(s.str?.proficient).toBe(true);
+    expect(s.con?.proficient).toBe(true);
+    for (const k of ['dex', 'int', 'wis', 'cha'] as const) expect(s[k]?.proficient).toBeFalsy();
+  });
+
+  it('scales with the class, not just the Fighter it was found on', () => {
+    const wizard5 = assembleDnd5e({
+      system: 'dnd5e-2024', level: 5, className: 'wizard', name: 'W',
+      abilities: { str: 8, dex: 14, con: 12, int: 17, wis: 12, cha: 10 },
+    });
+    expect(wizard5.combat.hitDiceSize).toBe(6);            // d6
+    expect(wizard5.combat.maxHp).toBe(6 + 1 + 4 * (4 + 1)); // 27
+    expect(wizard5.saves.int?.proficient).toBe(true);
+    expect(wizard5.saves.wis?.proficient).toBe(true);
+    expect(wizard5.saves.str?.proficient).toBeFalsy();
+  });
+
+  it('an unknown class falls back to the blank d8 rather than throwing', () => {
+    const odd = assembleDnd5e({
+      system: 'dnd5e-2024', level: 3, className: 'not-a-class', name: 'X',
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    });
+    expect(odd.combat.hitDiceSize).toBe(8);
+    expect(odd.saves).toEqual({});
+  });
+});

@@ -59,6 +59,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ...base.features.filter((f) => f.source !== 'Feat'),
       ...assembly.feats.map((f) => ({ id: `feat-${slug(f.name)}`, name: f.name, source: 'Feat', body: f.body ? [f.body] : [] })),
     ],
+    // The class-derived combat facts. The sheet recomputes HP when the level changes THROUGH ITS OWN
+    // setter, reading `combat.hitDiceSize` — but a character built straight to level 8 never trips that
+    // setter and had no hit die set, so it kept the blank d8 and `maxHp: 1`. A level-8 Fighter rendered
+    // with one hit point. Current HP is only seeded when the character had none to preserve (a rebuild
+    // must not silently heal a wounded character back to full).
+    combat: {
+      ...base.combat,
+      ...assembly.combat,
+      currentHp: base.combat.maxHp > 1 ? Math.min(base.combat.currentHp, assembly.combat.maxHp) : assembly.combat.currentHp,
+    },
+    // Save proficiencies come from the class and had no other source, so every manually-built character
+    // was proficient in none. Merged per-ability so a hand-set `misc` bonus survives a rebuild.
+    saves: Object.fromEntries(
+      (Object.keys(base.saves) as (keyof typeof base.saves)[]).map((k) => [
+        k, { ...base.saves[k], proficient: !!assembly.saves[k]?.proficient },
+      ]),
+    ) as Character['saves'],
   };
 
   const normalized = normalizeCharacter(merged);
