@@ -58,7 +58,19 @@ export default function SectionsManager({
   };
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    // COLOUR THE ROOT, because everything below inherits it — including the buttons, whose own style is
+    // `color: 'inherit'`.
+    //
+    // Measured on a live IG sheet (2026-07-26): this whole block rendered `#0f1419` on `#101f31` — **1.11:1**,
+    // invisible, and on the DEFAULT skin, so it was not a light-skin edge case. It is the same defect
+    // `bespokeButtons.css` was written for and describes exactly ("inherited the page's base text colour,
+    // `#0f1419` — a near-black intended for light surfaces — onto the sheet's near-black panel"); that file
+    // only reaches `.btn`, and none of this is a `.btn`.
+    //
+    // `--ink` first for the reason established across this arc: `shellVarsFromHx` derives it from the skin
+    // beside the surface tokens, so it tracks the panel in both directions — dark ink on a light skin's
+    // panel, cream on a dark one — with the sheet family and then a literal behind it.
+    <div style={{ display: 'grid', gap: 16, color: 'var(--ink, var(--hx-text, #f0e6d2))' }}>
       {sections.length === 0 && (
         <p style={{ opacity: 0.65, fontSize: 13.5 }}>
           No custom sections yet.{canWrite ? ' Add one to track anything the sheet doesn’t already — a vehicle, a contact list, downtime notes.' : ''}

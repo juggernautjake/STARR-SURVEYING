@@ -1145,3 +1145,39 @@ remedy: near the threshold, measure the pixel region rather than the model — w
 tab was actually checked.
 
 **Bar:** 14 new guards, 5000/5000 D&D tests, typecheck exit-0, lint clean. No app behaviour changed.
+
+### 2026-07-26 — slice 30: sweeping the BESPOKE sheets, which nobody had swept
+
+Every contrast pass in this arc had run on 5e sheets. PF2 and IG have their own panels, their own CSS and a
+deliberately different token story, so they were genuinely unmeasured. They were not clean.
+
+| sheet | sampled | failing |
+|---|---|---|
+| Vashti — IG, **default (dark) skin** | 302 | 5 |
+| Orin — PF2, streamer (light) skin | 105 | 14 |
+
+**Fixed: custom sections were invisible on the IG sheet — 1.11:1, on the DEFAULT skin.** `SectionsManager`
+renders "No custom sections yet", "＋ Add section" and "Save changes" with no colour of its own, and its
+buttons are `color: 'inherit'`, so the whole block took the page's base `#0f1419` — a near-black meant for
+light surfaces — onto the bespoke sheet's `#101f31` panel. This is *precisely* the defect `bespokeButtons.css`
+exists for and describes verbatim; that file only reaches `.btn`, and none of this is a `.btn`. Colouring the
+root with `var(--ink, var(--hx-text, #f0e6d2))` fixes every descendant at once: **measured 13.45:1 after.**
+
+Worth stating plainly: this was not a light-skin edge case. It was the **default** skin, on a shipped feature,
+and it means custom sections have been unreadable on IG sheets since D-13.
+
+**Recorded, not fixed — the remaining 4 + 14:**
+
+- **PF2 dice pad (6 failures):** the skin's clamped gold `#966c00` on the pad's dark `#302a49` = **2.86**. The
+  same family mismatch again — a gold clamped for the LIGHT panel, painted on a dark control. The fix is the
+  established rule, but the pad is shared with 5e, so changing it needs the 5e sheets re-measured too; that is
+  its own slice rather than a change smuggled into this one.
+- **PF2 chip values (8):** `#966c00` on the light `#f2e4ee` = **3.85** — the same token on the *other* side,
+  0.65 short. Genuinely marginal.
+- **IG "COMBAT SKILLS" label (1):** `#c6403b` = **3.33**. The same danger red slice 28 lightened, at a site
+  that fix did not reach.
+- **IG `🜲` glyph (1):** 1.39, same inherit-the-page-ink cause as the sections block, in a different panel.
+
+**Bar:** 5000/5000 D&D tests (a first run reported 427/4993 — the intermittent collection flakiness the vitest
+config documents; re-run confirmed 428/5000 and `git status` confirmed nothing lost), typecheck exit-0, lint
+clean. Dev server stopped, port released.
