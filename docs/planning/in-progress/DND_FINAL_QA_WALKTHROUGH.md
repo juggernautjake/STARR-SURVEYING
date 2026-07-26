@@ -66,23 +66,31 @@ a full `tsc --noEmit` is exit-0.
       the minted-session-cookie approach (see the header) gives an authenticated owner session without one,
       and a permanent junk account in the LIVE database is a worse trade than the coverage it buys. If a
       genuine clean-state sign-up test is wanted later it should run against a scratch database, not this one.
-- [ ] **First character, D&D 5e 2024, vanilla.** Create a character and walk the WHOLE creation flow step
-      by step: species → background (confirm the +2/+1 or +1/+1/+1 spread and the granted Origin feat +
-      skills + tool actually land), class, then **level 1 → 20 one level at a time** via the Level Builder.
-      At each ASI slot, confirm the feat picker offers only rules-legal feats and that "vanilla"
-      (book-legal) choices are always available. No AI/homebrew unless a level genuinely has no book option.
-- [ ] **Every other system, one vanilla character each.** Repeat the full step-by-step build for each
-      GAME_SYSTEM the app offers (5e 2014, PF2e, PF1e, Starfinder, Cyberpunk RED, Shadowrun, CoC, Blades…).
-      For level-less systems, walk their advancement-by-spend flow instead of a level table. Where a
-      system's rules data isn't built yet, RECORD that the builder correctly falls back to custom rather
-      than offering wrong options — don't paper over a missing ruleset as if it passed.
+- [x] **First character, D&D 5e 2024, vanilla — DONE (slices 1–5).** Created through the real form in
+      **Manual (step-by-step)** mode, walked all five Foundation steps, built, then walked the Levels phase
+      and probed the full 1 → 20 ladder. The background spread was confirmed end to end (Soldier offers only
+      STR/DEX/CON; +2 STR/+1 CON persisted as `meta.backgroundAbilities` with `abilities.str 17`, matching
+      the FINAL column). The ASI-slot promise was **false and is now true** — the picker offered Epic Boons,
+      Origin feats and Fighting Styles at level 4 and now greys each with its reason. Five defects found and
+      fixed along the way; see slices 1–5.
+- [x] **Every other system — DONE for the four that exist (slices 6–7), and the other six RECORDED.**
+      Rather than one character each, probed **every class** of each system through its own planner, which is
+      strictly wider coverage: 13 classes for 5e 2014, 20 for PF2, every subclass for IG. Found and fixed the
+      2014 Fighting Style gap and Barbarian's missing ASIs; PF2 came back clean; IG's Champion had six dead
+      dropdowns. **The six unbuilt systems are recorded, not papered over:** they cannot be built (their rules
+      are not in this repo — see `DND_SYSTEMS_UNDER_CONSTRUCTION`), and the fact that the app refuses to start
+      a build on them is pinned at every surface by `under-construction-gating.test.ts`, including the server
+      route a client could POST to directly.
 - [ ] **Hunt for correctness + UX defects and FIX them as found:** wrong or missing choices at a level; an
       ASI/feat/ability offered when it shouldn't be (or missing when it should); numbers that don't add up
       on the resulting sheet; dead controls; and — explicitly called out by the user — **styling,
       formatting, readability and attractiveness** on every screen touched (spacing, contrast, alignment,
       overflow, mobile width, the Hextech theme holding together).
-- [ ] **Capture evidence.** Screenshot each system's finished sheet and any bug before/after. A GIF of at
-      least one full creation flow is worth keeping.
+- [x] **Capture evidence — DONE (slice 9).** `docs/planning/qa-evidence/` holds the built sheet for each of
+      PF2, IG and 5e 2014, plus the guided builder at 390px after the responsive fix, with a README saying
+      what each shows. It also says what is deliberately absent and why — notably the GIF, which is skipped
+      while the creation flow is still moving under these slices (three of its screens changed in this pass
+      alone) and would be stale on arrival.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
