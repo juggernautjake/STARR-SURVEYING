@@ -1979,3 +1979,24 @@ select.input {
   }
   .pf2Chip:hover, .pf2SkillChip:hover, .pf2SpellChip:hover { transform: none; }
 }
+
+/* ── The guided builder's two-column shell ────────────────────────────────────────────────────────
+   Step rail + docked roller on the left, the current step on the right. This lived as an inline
+   `gridTemplateColumns: minmax(200px, 260px) 1fr`, which cannot fit a phone: the rail's 200px floor plus
+   the gap plus the page padding exceeded a 375px viewport, so the whole builder scrolled SIDEWAYS
+   (measured 439px of content in a 375px window) — the "mobile width" failure the final-QA walkthrough
+   explicitly hunts for. A media query is the fix rather than a container query, because the constraint
+   here is the VIEWPORT, not the parent: the rail must stop being a column when there is no room for two.
+   Below the breakpoint the rail stacks above the step and stops sticking, so it scrolls away instead of
+   eating vertical space on a small screen. */
+.builderGrid {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.builderRail { position: sticky; top: 12px; display: grid; gap: 14px; }
+@media (max-width: 760px) {
+  .builderGrid { grid-template-columns: 1fr; }
+  .builderRail { position: static; }
+}

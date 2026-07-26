@@ -76,10 +76,10 @@ export default function GuidedBuilder({
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 260px) 1fr', gap: 20, alignItems: 'start' }}>
+    <div className={styles.builderGrid}>
       {/* ── Left column: the step rail + the permanently DOCKED dice roller (owner: the builder's roller is a
           fixed page mechanic for rolling stats — it does not float/move like the sheet's play roller). ──── */}
-      <div style={{ position: 'sticky', top: 12, display: 'grid', gap: 14 }}>
+      <div className={styles.builderRail}>
       <nav aria-label="Build steps" style={{ display: 'grid', gap: 14, border: '1px solid var(--hx-line)', borderRadius: 12, background: 'var(--hx-inset-soft)', padding: '14px 12px' }}>
         {phases.map(({ phase, items }) => (
           <div key={phase} style={{ display: 'grid', gap: 5 }}>

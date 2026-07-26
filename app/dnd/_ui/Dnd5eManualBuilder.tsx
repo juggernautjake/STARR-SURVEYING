@@ -259,6 +259,23 @@ export default function Dnd5eManualBuilder({
   }, [featList, system, level, finalAbilities, className, feats]);
   const eligibilityOf = (f: { name: string }) => featVerdicts.get(f.name) ?? { ok: true };
   const ineligibleCount = featList.reduce((n, f) => n + (!feats.includes(f.name) && !eligibilityOf(f).ok ? 1 : 0), 0);
+  // What you CAN take, first. Once the eligibility gate went in, a level-8 Fighter's list was 31 struck-
+  // through entries with five live ones scattered through them, inside a 160px scroller — so the player
+  // had to hunt for the handful of legal picks among the ones the app had just ruled out. Sorting is a
+  // stable partition (catalog order preserved inside each group), so the list doesn't reshuffle as
+  // eligibility changes with level or ability scores; the ineligible ones stay visible, and greyed,
+  // because "why can't I take Alert?" is a question the list should still answer.
+  const orderedFeats = React.useMemo(() => {
+    // Reads `featVerdicts` directly rather than through the `eligibilityOf` helper: the helper is a fresh
+    // closure every render, so depending on it would re-partition the whole catalog on each keystroke and
+    // defeat the memo. The map is the real input, and it IS in the dependency list.
+    const chosenOrOk: typeof featList = [], blocked: typeof featList = [];
+    for (const f of featList) {
+      const ok = feats.includes(f.name) || (featVerdicts.get(f.name)?.ok ?? true);
+      (ok ? chosenOrOk : blocked).push(f);
+    }
+    return [...chosenOrOk, ...blocked];
+  }, [featList, featVerdicts, feats]);
 
   const featsNode = featSlots > 0 ? (
     <div style={{ display: 'grid', gap: 6 }}>
@@ -270,7 +287,7 @@ export default function Dnd5eManualBuilder({
       ) : (
         <>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 160, overflowY: 'auto' }}>
-          {featList.map((f) => {
+          {orderedFeats.map((f) => {
             const on = feats.includes(f.name);
             const full = !on && feats.length >= featSlots;
             // The eligibility gate. This picker's own copy says "Only rules-legal picks are offered" and

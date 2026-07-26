@@ -382,7 +382,50 @@ without catalog data and it fails too, which is the point.
 
 **Bar:** 4 new guards, 4620/4620 D&D tests, typecheck + lint clean.
 
-**Next slice:** the remaining walkthrough items are the cross-cutting ones — styling/readability on the
-screens touched, and evidence capture. The per-system build pass is now done for the four focus systems
-(5e 2024, 5e 2014, PF2, IG); the other six are the separate, source-blocked
-`DND_SYSTEMS_UNDER_CONSTRUCTION` doc.
+### 2026-07-26 — slice 8: styling, readability, mobile width
+
+The doc's cross-cutting item, on the screens these slices actually changed. Two real defects, both only
+visible by looking rather than by testing.
+
+**Defect — the feat picker became unreadable the moment it became correct.** Adding the eligibility gate
+(slice 3) was right, but at level 8 a Fighter's list is **31 struck-through entries with 5 live ones
+scattered among them**, inside a 160px scroller: the player now has to hunt for the handful of legal picks
+among the ones the app just ruled out. The list is now partitioned so **what you can take comes first** —
+verified live, all five legal picks lead the list and are visible without scrolling.
+
+Two decisions worth recording: the ineligible feats stay *visible and greyed* rather than being hidden,
+because "why can't I take Alert?" is a question the list should still answer; and the partition is
+**stable** (two buckets, no comparator), so the list doesn't reshuffle under the cursor as eligibility
+changes with level or ability scores.
+
+**Defect — the builder scrolled sideways on a phone.** At 375px the page measured **439px** of content.
+The two-column shell was an inline `minmax(200px, 260px) 1fr`, and that 200px floor plus the gap plus page
+padding simply cannot fit a phone. Moved to `.builderGrid` / `.builderRail` classes with a 760px
+breakpoint: single column below it, and the step rail stops being sticky so it scrolls away instead of
+eating the viewport. Verified at both widths — **375px: no sideways scroll**; 1440px: unchanged at
+`260px + content` with the rail still sticky.
+
+A follow-up caught by lint rather than by eye: the new partition initially memoised on `eligibilityOf`, a
+closure rebuilt every render, which would have re-partitioned the whole catalog on every keystroke. It
+reads the verdict **map** directly now.
+
+**Bar:** 6 new guards, 4626/4626 D&D tests, typecheck + lint clean (0 warnings). QA character deleted.
+
+**Note on the dev server:** deleting `.next/server` while a build was in flight corrupted a manifest and
+produced a misleading `SyntaxError: Unexpected end of JSON input` on every route. Remove the whole `.next`
+directory, not part of it.
+
+---
+
+## Where this doc stands
+
+The **per-system build pass is complete for all four focus systems** (5e 2024, 5e 2014, PF2, IG), and the
+cross-cutting styling item has had a real pass over the screens these slices touched. What remains is
+either blocked on the owner or belongs to another doc — see the checklist above, and the decisions
+collected in the slice logs:
+
+1. **ASI slot ownership** — Foundations or the level walker? Blocks 8 of 13 2024 classes (slices 5–6).
+2. **Champion's powers/specializations** — paste them from the IG site and the free-text fallback becomes
+   a real picker (slice 7).
+3. **Rangor/Pugilist** as a real custom class — the last `[ ]` in `DND_RULES_PLATFORM`.
+4. The other six systems are the separate, source-blocked `DND_SYSTEMS_UNDER_CONSTRUCTION`.
