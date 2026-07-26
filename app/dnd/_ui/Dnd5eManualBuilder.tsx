@@ -162,31 +162,33 @@ export default function Dnd5eManualBuilder({
       </select>
     </Field>
   );
+  // Homebrew must READ as homebrew here. The 2024 catalogs deliberately include authored-but-custom
+  // content — the Pugilist class and the Rangor species — and each one's data says, in so many words,
+  // "flagged `custom` so the picker badges it". But every option rendered its bare name, so in the VANILLA
+  // builder, whose own copy promises "everything offered is vanilla and rules-legal", they sat in the lists
+  // looking exactly like PHB content. An <option> can't carry markup, so the marker goes in the text.
+  const optionLabel = (o: { name: string; custom?: { authorName?: string } | undefined }) =>
+    o.custom ? `${o.name} — homebrew${o.custom.authorName ? ` (${o.custom.authorName})` : ''}` : o.name;
   const speciesField = (
     <Field label={is2024 ? 'Species' : 'Race'}>
       <select value={species} onChange={(e) => setSpecies(e.target.value)} style={selectStyle}>
         <option value="">—</option>
-        {speciesList.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+        {speciesList.map((s) => <option key={s.name} value={s.name}>{optionLabel(s)}</option>)}
       </select>
     </Field>
   );
-  // A homebrew class/subclass must READ as homebrew here. `classesForSystem('dnd5e-2024')` deliberately
-  // includes the authored-but-custom Pugilist, and both the registry and the class file say it is "flagged
-  // `custom` so the picker badges it" — but the option rendered its bare name, so in the VANILLA builder,
-  // whose own copy promises "everything offered is vanilla and rules-legal", it sat in the list looking
-  // exactly like the twelve PHB classes. An <option> can't carry markup, so the marker goes in the text.
-  const optionLabel = (o: { name: string; custom?: { authorName?: string } | undefined }) =>
-    o.custom ? `${o.name} — homebrew${o.custom.authorName ? ` (${o.custom.authorName})` : ''}` : o.name;
   const pickedClassCustom = classList.find((c) => c.key === className)?.custom;
   const pickedSubCustom = subOptions.find((s) => s.key === subclass)?.custom;
+  const pickedSpeciesCustom = speciesList.find((s) => s.name === species)?.custom;
+  const pickedCustom = pickedClassCustom ?? pickedSubCustom ?? pickedSpeciesCustom;
   // A suffix in a closed <select> is easy to skim past, and the consequence — a character that is not
   // rules-legal for organised/vanilla play — outlives the moment of picking. So a selected homebrew choice
   // also says so standing, next to the control, the way the rest of the platform marks provenance.
-  const homebrewNotice = (pickedClassCustom || pickedSubCustom) ? (
+  const homebrewNotice = pickedCustom ? (
     <div role="note" style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, lineHeight: 1.5, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--hx-gold-1, #c8aa6e)', background: 'rgba(200,170,110,0.10)', color: 'var(--hx-text)' }}>
       <span aria-hidden>⚗</span>
       <span>
-        This build uses <strong>homebrew</strong>{pickedClassCustom?.authorName ? ` by ${pickedClassCustom.authorName}` : ''} — it is authored to the full 1–20 table and plays like any other class, but it is <strong>not</strong> official {is2024 ? '2024' : '2014'} content. A DM running a vanilla-only table may not allow it.
+        This build uses <strong>homebrew</strong>{pickedCustom.authorName ? ` by ${pickedCustom.authorName}` : ''} — it is fully authored and plays like any other {pickedSpeciesCustom && !pickedClassCustom && !pickedSubCustom ? 'species' : 'class'}, but it is <strong>not</strong> official {is2024 ? '2024' : '2014'} content. A DM running a vanilla-only table may not allow it.
       </span>
     </div>
   ) : null;
@@ -283,7 +285,7 @@ export default function Dnd5eManualBuilder({
     const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${LINE}`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' };
     const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
       { title: 'Class & level', help: 'Choose your class (and subclass, once your level unlocks it) and the level you are building to.', body: <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>{levelField}{classField}{subclassField}{homebrewNotice}</div> },
-      { title: is2024 ? 'Species' : 'Race', help: is2024 ? 'Your species sets traits; 2024 puts ability increases on your background, not here.' : 'Your race sets traits and its ability score increases (folded into the scores step).', body: <div style={{ display: 'grid', gap: 10, maxWidth: 340 }}>{speciesField}</div> },
+      { title: is2024 ? 'Species' : 'Race', help: is2024 ? 'Your species sets traits; 2024 puts ability increases on your background, not here.' : 'Your race sets traits and its ability score increases (folded into the scores step).', body: <div style={{ display: 'grid', gap: 10, maxWidth: 340 }}>{speciesField}{homebrewNotice}</div> },
       { title: 'Background', help: is2024 ? 'Your background grants an origin feat and a +2/+1 (or +1/+1/+1) ability increase you assign below.' : 'Your background grants skills, tools, and a feature.', body: <div style={{ display: 'grid', gap: 12 }}><div style={{ maxWidth: 340 }}>{backgroundField}</div>{bgSpreadNode}</div> },
       { title: 'Ability scores', help: 'Set your six ability scores — standard array, point buy, or roll (use the docked roller for 4d6-drop-lowest). Increases are folded in.', body: abilitiesNode },
       { title: 'Feats & finish', help: 'Spend any ASI/feat slots your class has by this level, then build. Only rules-legal picks are offered.', body: <div style={{ display: 'grid', gap: 12 }}>{featsNode ?? <div style={{ fontSize: 12.5, opacity: 0.7 }}>No ASI/feat slots by level {level}.</div>}{validationNode}{buildButton}</div> },

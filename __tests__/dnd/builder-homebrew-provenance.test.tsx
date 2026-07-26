@@ -17,6 +17,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { dnd5eSubclassOptions } from '@/lib/dnd/statgen/builder5e';
 import { classesForSystem } from '@/lib/dnd/classes/registry';
+import { speciesCatalogFor } from '@/lib/dnd/species/view';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
 import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
@@ -54,6 +55,30 @@ describe('subclass options carry provenance through the mapping', () => {
   });
 });
 
+describe('species provenance survives the view mapping too', () => {
+  // Same root cause as subclasses, found on the NEXT step of the same walkthrough: `SpeciesView` had no
+  // `custom` field at all, so Rangor — whose data comment also promises "flagged `custom` so the picker
+  // badges it" — arrived at the dropdown indistinguishable from the ten official 2024 species.
+  const list = speciesCatalogFor('dnd5e-2024');
+
+  it('flags Rangor and leaves the official species bare', () => {
+    const rangor = list.find((s) => /rangor/i.test(s.name));
+    expect(rangor, 'Rangor should still be offered').toBeTruthy();
+    expect(rangor!.custom?.authorName).toBe('Jacob');
+    for (const s of list.filter((x) => !/rangor/i.test(x.name))) {
+      expect(s.custom, `${s.name} must NOT be flagged custom`).toBeFalsy();
+    }
+  });
+
+  it('does not conflate homebrew with the existing `source` field', () => {
+    // `source` answers "did we resolve this from data?" — an authored homebrew species resolves fully, so
+    // it is 'vanilla' by that definition. Reusing it for provenance would have marked nothing.
+    const rangor = list.find((s) => /rangor/i.test(s.name))!;
+    expect(rangor.source).toBe('vanilla');
+    expect(rangor.custom).toBeTruthy();
+  });
+});
+
 describe('the builder renders the flag', () => {
   const render = (props: Record<string, unknown> = {}) =>
     renderToStaticMarkup(<Dnd5eManualBuilder system="dnd5e-2024" characterId="c1" {...props} />);
@@ -61,6 +86,8 @@ describe('the builder renders the flag', () => {
   it('labels the homebrew class in the dropdown and leaves official ones bare', () => {
     const html = render();
     expect(html).toContain('Pugilist — homebrew (Jacob)');
+    expect(html).toContain('Rangor — homebrew (Jacob)');
+    expect(html).not.toContain('Dragonborn — homebrew');
     // The official twelve must not pick up the suffix.
     expect(html).toMatch(/>Fighter</);
     expect(html).not.toContain('Fighter — homebrew');

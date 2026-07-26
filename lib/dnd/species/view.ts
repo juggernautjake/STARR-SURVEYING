@@ -44,6 +44,16 @@ export interface SpeciesView {
   traits: SpeciesTraitLine[];
   /** 'vanilla' when resolved from a system's data; 'custom' when only the recorded name is known. */
   source: 'vanilla' | 'custom';
+  /**
+   * HOMEBREW provenance, when the species is authored in our data but is not official content (Rangor).
+   *
+   * Deliberately NOT the same thing as `source` above, which asks "did we resolve this from data, or do we
+   * only know the name?" — an authored homebrew species is `source: 'vanilla'` by that definition, because
+   * it resolves fully. This field answers the different question a picker needs: *is this official?* The
+   * species data carries the flag and its comment promises "flagged `custom` so the picker badges it", but
+   * this view dropped it, so no UI downstream could tell Rangor from a PHB species.
+   */
+  custom?: { authorName?: string };
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -64,6 +74,7 @@ export function speciesView(system: string | null | undefined, speciesName: stri
         noun: 'Species', name: sp.name, size: sp.size, speed: sp.speed,
         senses: senses.length ? senses : undefined, heritages: sp.lineages,
         traits: sp.traits.map((t) => ({ name: t.name, text: t.text })), source: 'vanilla',
+        custom: sp.custom,
       };
     }
   }
