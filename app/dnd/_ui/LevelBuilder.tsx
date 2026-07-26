@@ -87,6 +87,12 @@ interface PlanResponse {
   ready: boolean;
   choices: Choice[];
   error?: string;
+  /** Set by the route on a refusal it WILL accept as a recorded exception (slot plan S6d). Absent means
+   *  the refusal stands — a custom character has no rules to except, and a malformed choice is just wrong. */
+  canTakeAnyway?: boolean;
+  /** Echoed after a save so the walker can show the character's current badge. */
+  variantKind?: string;
+  exceptions?: string[];
 }
 
 export default function LevelBuilder({
@@ -116,6 +122,9 @@ export default function LevelBuilder({
   const [target, setTarget] = useState(Math.min(20, currentLevel + 1));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // The last refusal the route said could be overridden, held with its exact choice so 'Take it anyway'
+  // re-sends what was actually refused rather than something re-derived from the form.
+  const [refused, setRefused] = useState<{ choice: Choice; reason: string; commitLevel?: number } | null>(null);
   const [draft, setDraft] = useState<Choice | null>(null);
 
   const load = useCallback(
@@ -149,7 +158,7 @@ export default function LevelBuilder({
   }, [current?.level, current?.kind]);
 
   const save = useCallback(
-    async (choice: Choice, opts: { commitLevel?: number } = {}) => {
+    async (choice: Choice, opts: { commitLevel?: number; acceptException?: boolean } = {}) => {
       // The '__custom__' sentinel means "custom feat picked, name not typed yet" — never record it.
       if (choice.kind === 'asi' && choice.featKey === '__custom__') {
         setErr('Type a name for your custom feat, or pick one from the list.');
@@ -161,10 +170,18 @@ export default function LevelBuilder({
         const r = await fetch(`/api/dnd/characters/${characterId}/levels`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ choice, commitLevel: opts.commitLevel, to: target }),
+          body: JSON.stringify({ choice, commitLevel: opts.commitLevel, to: target, acceptException: opts.acceptException }),
         });
         const j = (await r.json().catch(() => ({}))) as PlanResponse;
-        if (!r.ok) { setErr(j?.error || 'Could not save that choice.'); return; }
+        if (!r.ok) {
+          setErr(j?.error || 'Could not save that choice.');
+          // The route tells us whether this refusal is one the player MAY override. Remember the exact
+          // choice so "Take it anyway" re-sends it acknowledged — re-deriving it from the form would risk
+          // sending something subtly different from what was just refused.
+          setRefused(j?.canTakeAnyway ? { choice, reason: j?.error ?? '', commitLevel: opts.commitLevel } : null);
+          return;
+        }
+        setRefused(null);
         setPlan(j);
         if (opts.commitLevel) router.refresh();
       } catch {
@@ -242,6 +259,26 @@ export default function LevelBuilder({
       </section>
 
       {err && <div className={styles.error}>{err}</div>}
+      {/* THE ESCAPE HATCH at the level walker (slot plan S6d). The ask is to build level by level AND to be
+          able to fully customize at each level — so a refusal here has to be a decision, not a wall.
+          Offered only when the ROUTE says this particular refusal can be overridden, so a malformed choice,
+          or a custom character with no rules to except, still simply fails. The exact refused choice is
+          re-sent rather than one re-derived from the form, so what gets recorded is what was judged. */}
+      {refused && (
+        <div className={styles.error} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 200 }}>
+            You can take it anyway — it is recorded as an exception, and this character will read{' '}
+            <strong>Altered vanilla</strong> and name it for your DM.
+          </span>
+          <button
+            type="button" className={styles.hexBtn} disabled={busy}
+            onClick={() => void save(refused.choice, { commitLevel: refused.commitLevel, acceptException: true })}
+          >+ Take it anyway</button>
+          <button type="button" className={styles.hexBtn} disabled={busy} onClick={() => { setRefused(null); setErr(null); }}>
+            Pick something else
+          </button>
+        </div>
+      )}
       {busy && !plan && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: 'var(--hx-muted)' }}>
           <span className={styles.spinner} /> Loading…

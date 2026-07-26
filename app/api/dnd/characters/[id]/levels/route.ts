@@ -20,6 +20,8 @@ import { fightingStyles2014 } from '@/lib/dnd/classes/dnd5e-2014/fighting-styles
 import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
+import { readActiveSlotMeta, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { unlockOffer, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 
 /** Read the character + its recorded build choices. */
 async function load(id: string) {
@@ -151,7 +153,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // which the builder marks and the DM reviews.
       legalOptions: choice.kind === 'subclass' && subs.length && !choice.homebrew ? subs.map((s) => s.key) : undefined,
     });
-    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
+    // ── THE ESCAPE HATCH, at the level walker (slot plan S6d) ──────────────────────────────────────
+    //
+    // S6a–c put this on the FOUNDATIONS builders, which is where a character is assembled in one go. But
+    // the owner's ask is level-by-level: *"be able to build level by level with the appropriately scoped
+    // system mechanics, and also be able to fully customize at each level"*. This walker is that surface,
+    // and a refusal here was a dead end — the player could only pick something else or abandon the level.
+    //
+    // Same three properties the build routes established, for the same reasons:
+    //   · opt-in PER PICK (`acceptException`), never a mode — otherwise it just turns the gate off;
+    //   · the REASON recorded is the validator's own (`v.error`), never one the client supplied, so a
+    //     crafted POST cannot launder a refusal into a flattering explanation;
+    //   · not offered on a CUSTOM character, where the rules never bound and an "exception" would be noise.
+    const rawVariants = (r.row as { system_variants?: unknown }).system_variants;
+    const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
+    const offer = unlockOffer({ isDM: r.access.isDM, kind: buildVariant });
+
+    if (!v.ok) {
+      const accepted = body?.acceptException === true && offer.offered;
+      if (!accepted) {
+        // Tell the player the door exists, rather than leaving them at a wall.
+        return NextResponse.json({ error: v.error, canTakeAnyway: offer.offered }, { status: 400 });
+      }
+      const name = choice.featKey || choice.value || (choice.skills ?? []).join(', ') || choice.kind;
+      choice.exception = {
+        name: String(name),
+        reason: v.error ?? 'not available to this character',
+        entitlement: offer.stamps,
+        level: choice.level,
+      };
+    }
 
     next.build.choices = recordChoice(next.build.choices as RecordedChoice[], choice);
     if (choice.kind === 'subclass' && choice.value) {
@@ -185,8 +216,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     next.meta = { ...next.meta, level: commitLevel };
   }
 
-  const { error } = await supabaseAdmin.from('dnd_characters').update({ data: next }).eq('id', params.id);
+  // The badge, derived from the merged ledger — the same rule the build routes use, so a level-walker
+  // exception moves the character to "Altered vanilla" exactly as a Foundations one does, and removing the
+  // last exception takes it back to plain vanilla rather than leaving a scar.
+  const rawVariants2 = (r.row as { system_variants?: unknown }).system_variants;
+  const priorKind = readActiveSlotMeta(rawVariants2).kind ?? 'vanilla';
+  const exceptions = exceptionsIn(next.build?.choices as { level?: number; exception?: unknown }[] | undefined);
+  const nextKind = variantKindWithExceptions(priorKind, exceptions);
+
+  const patch: Record<string, unknown> = { data: next };
+  if (nextKind !== priorKind) {
+    const raw = rawVariants2 && typeof rawVariants2 === 'object' ? (rawVariants2 as Record<string, unknown>) : {};
+    patch.system_variants = { ...raw, [ACTIVE_SLOT_META_KEY]: { ...readActiveSlotMeta(rawVariants2), kind: nextKind } };
+  }
+
+  const { error } = await supabaseAdmin.from('dnd_characters').update(patch).eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json(planFor(next, system, Math.max(to, commitLevel ?? 0)));
+  return NextResponse.json({
+    ...planFor(next, system, Math.max(to, commitLevel ?? 0)),
+    variantKind: nextKind,
+    ...(exceptions.length ? { exceptions: exceptions.map(describeException) } : {}),
+  });
 }
