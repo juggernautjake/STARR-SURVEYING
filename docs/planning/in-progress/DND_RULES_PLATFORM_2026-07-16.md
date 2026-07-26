@@ -1469,7 +1469,7 @@ Original action items (kept for the remaining work):
       source. Edit mode still binds the input to the BASE `meta` value. `identity-overlay.test.ts` +2 (the
       alignment-overlay isModified trigger + the Bio star wiring). Full dnd suite green (1836). The identity
       target set is now complete AND uniformly explainable.
-- [~] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
+- [x] **Size** is mechanical, not cosmetic. **Carrying capacity ✅ SHIPPED** (`05bbe5b6`):
       `sizeCapacityMultiplier` scales `carryingCapacity`/`encumbranceLevel` (Tiny ½ … Gargantuan ×8), so a
       Large character carries double; +1 test. **Now visible ✅ SHIPPED** (`5c28bbdf`): the Inventory tab
       renders a "Carrying X / Y lb · <encumbrance>" line reading the ledger-effective STR + size (so a
@@ -1477,6 +1477,10 @@ Original action items (kept for the remaining work):
       item builder exposes a Weight (lb) input; `inventory-carrying.test.ts` (4) locks the wiring.
       (Weapon-damage-die scaling for some effects remains a later item.) The `size` effect target was
       already wired.
+      **→ CLOSED 2026-07-26.** That parenthetical is answered by the sibling item below: `weapon_bonus_dice`
+      shipped as the real mechanical route (Enlarge = the size identity-set bundled with a +1d4), and
+      generic size→base-dice auto-scaling is deferred there with its reason — it is a Monster Manual
+      convention, not a PHB rule for PCs, so deriving it would invent one. Nothing is outstanding here.
 - [x] *(The shipped half is below; the two deferrals are RE-VERIFIED 2026-07-26 — `app/dnd/_sheet` still has
       no grapple/shove action UI (only a comment in `CombatPanel` mentions the mechanic), so gating a target
       that renders nowhere would still be the "a target with no home is a lie" failure. Closed as
@@ -1897,7 +1901,7 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       by-NAME weapon proficiency adds PB where the category alone wouldn't. Only the authoring UI in
       `ItemBuilder` (+ wiring the live derivation into the rendered Attacks table) remains — browser-verified
       build/QA work; today a weapon item can already be a rollable attack via Slice-11 `grantsAttack`.
-- [~] **⚑ STR REQUIREMENT SHIPPED 2026-07-26** — and it was worse than "no control": the rule was already
+- [x] **⚑ STR REQUIREMENT SHIPPED 2026-07-26** — and it was worse than "no control": the rule was already
       in the repo twice and applied nowhere. `ARMOR_2014`/`ARMOR_2024` carry `strengthReq` on every row,
       `library.ts` prints it verbatim (*"Requires: Strength N (or lose 10 feet of speed)"*), and
       `engine/equipment.ts` even declared `strengthRequirement?: number` with **no writer and no reader**.
@@ -1910,8 +1914,16 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       **Known limit, recorded in the code:** it compares the RAW Strength score, because sources are
       collected before any target resolves — so a belt of giant strength does not lift the penalty. Fixing
       that reorders the ledger build for every target, which is a bigger change than this rule is worth.
+      **Armour-training gating DEFERRED — reason verified 2026-07-26, and it is about failing safely.**
+      The rule is real (armour you lack training in costs disadvantage on STR/DEX checks, saves and attacks,
+      and blocks spellcasting) but the sheet has **no character-level proficiency list** to judge it from —
+      `armorProficiencies` exists only on the CLASS definition (`classes/types.ts:97`), and a character's
+      real set also comes from multiclassing, species, feats and `grant_proficiency` in the ledger.
+      Deriving it from the class alone would apply disadvantage on attacks and saves to legitimately
+      proficient multiclass and granted characters. A gate that penalises a legal character is worse than no
+      gate, so this waits on a real proficiency model rather than being guessed at.
       Remaining on this item: base AC / category / DEX cap / stealth disadvantage were already authorable;
-      what is left is the per-piece don/doff time and armour-training gating, neither of which has a
+      what is left is the per-piece don/doff time, which has no
       consumer on the sheet yet.
       **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
       resistances, arbitrary `effects`.

@@ -88,6 +88,27 @@ describe('the model and the control', () => {
   });
 });
 
+describe('armour TRAINING is deliberately not gated — and the reason is structural', () => {
+  it('there is no character-level proficiency list to judge it from', () => {
+    // The rule is real: armour you lack training in costs disadvantage on STR/DEX checks, saves and
+    // attacks, and blocks spellcasting. But `armorProficiencies` lives only on the CLASS definition, and a
+    // character's real set also comes from multiclassing, species, feats and ledger `grant_proficiency`.
+    // Deriving it from the class alone would apply disadvantage to legitimately proficient characters —
+    // a gate that penalises a legal character is worse than no gate.
+    const charTypes = readFileSync(join(process.cwd(), 'app/dnd/_sheet/types.ts'), 'utf8');
+    expect(charTypes).not.toMatch(/armorProficiencies|armorTraining/);
+    const classTypes = readFileSync(join(process.cwd(), 'lib/dnd/classes/types.ts'), 'utf8');
+    expect(classTypes).toContain('armorProficiencies: string[]');
+  });
+
+  it('and nothing pretends to apply it', () => {
+    // If this ever fails, a proficiency model landed or someone guessed. The first is the prerequisite;
+    // the second is the failure this test exists to catch.
+    const LEDGER = readFileSync(join(process.cwd(), 'lib/dnd/effects/ledger.ts'), 'utf8');
+    expect(LEDGER).not.toMatch(/armorTraining|armor.?proficien/i);
+  });
+});
+
 describe('the known limit is stated, not hidden', () => {
   it('records that it reads the RAW score, and why', () => {
     // Sources are collected before any target resolves, so there is no effective STR to read yet. A belt
