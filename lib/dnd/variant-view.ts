@@ -10,6 +10,7 @@ import {
 import { sheetClassBreakdown, breakdownLabel, type ClassBreakdownEntry } from './variant-breakdown';
 import { sheetSummaryHash } from './variant-summary';
 import { variantTags, type VariantTag, type SubmissionStatusLite } from './variant-tags';
+import { sheetExceptionLabels } from './slots/sheet-exceptions';
 
 export interface VariantCard {
   slotId: string;
@@ -39,6 +40,13 @@ export interface VariantCard {
   parentSlotId: string | null;
   /** The parent variant's title, for the "branched from …" line. */
   parentName: string | null;
+  /** What makes this version "Altered vanilla", already worded — e.g. ["Magic Initiate (DM-granted,
+   *  level 4)"]. Empty for a plain vanilla or custom build (slot plan S8b).
+   *
+   *  The tag alone says only that SOMETHING changed, which the owner explicitly asked it not to do:
+   *  "we need it to be clear that something is not the usual". A badge that reports a departure without
+   *  naming it is the same problem in a nicer font. */
+  exceptions: string[];
 }
 
 /**
@@ -175,6 +183,10 @@ export function buildVariantCards(active: ActiveSheet, variants: SystemVariants,
       summaryStale,
       parentSlotId: r.parentSlotId,
       parentName: r.parentSlotId ? (refs.find((x) => x.slotId === r.parentSlotId) ? nameOf(refs.find((x) => x.slotId === r.parentSlotId)!) : null) : null,
+      // Read from the slot's own data, which this builder already holds — so naming the exceptions needs no
+      // extra load and no change to the page. A CUSTOM version reports none: it never claimed to follow the
+      // rules, so "exceptions" is not a meaningful thing to list against it.
+      exceptions: r.kind === 'custom' ? [] : sheetExceptionLabels(r.data, r.system),
     };
   });
 }

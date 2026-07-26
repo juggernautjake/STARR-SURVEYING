@@ -25,6 +25,7 @@ import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, readActiveSlotMeta, resolveOriginSlotId, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { sheetExceptionLabels } from '@/lib/dnd/slots/sheet-exceptions';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import CharacterCampaigns from '@/app/dnd/_ui/CharacterCampaigns';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
@@ -243,6 +244,9 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   // sheet, when present, is the ONLY sheet.
   const bespokeSheet = pf2Sheet ?? igSheet;
   const activeKind = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind;
+  // What makes this sheet "Altered vanilla", already worded (S8b). Derived here because the ledger lives in
+  // `data` and the badge is rendered from a server-computed prop — the same reason `activeKind` is.
+  const activeExceptions = sheetExceptionLabels(character.data, normalizeSystem((character as { system?: string }).system));
 
   // ── Variant tracker (VT) + unified edit flow: the VERSIONS picker (every version as lobby-style cards with
   //    tags + AI summaries + Edit/Branch), OR — while editing a working-copy DRAFT — the Save banner in its
@@ -353,7 +357,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           toggle is mounted here in the page chrome instead — same endpoint, same server-derived
           kind. Only when a bespoke sheet is actually showing. */}
       {bespokeSheet && canWrite && (
-        <VariantToggleView characterId={character.id} variantKind={activeKind} canWrite={canWrite} />
+        <VariantToggleView characterId={character.id} variantKind={activeKind} canWrite={canWrite} exceptions={activeExceptions} />
       )}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />

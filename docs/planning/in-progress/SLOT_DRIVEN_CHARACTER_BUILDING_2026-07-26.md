@@ -230,9 +230,31 @@ slices are driven in the browser before being called done — this repo's standi
       named individually rather than blanket-allowed. The seven bespoke-sheet props that hard-coded
       `'vanilla' | 'custom'` now take the shared type, so the new kind cannot be flattened on the way in.
       15 new tests; `variantKind` still fails SAFE (an unknown value reads as vanilla).
-- [ ] **S8b — the badge NAMES its exceptions.** "Altered vanilla: Magic Initiate (DM-granted, level 4)" on
-      the sheet and in the DM's review — a badge that says something changed without saying what is the same
-      problem in a nicer font. Needs the per-slot provenance S6 records, so it follows S6.
+- [x] **S8b — the badge NAMES its exceptions. Shipped 2026-07-26.** 16 tests. Two surfaces:
+      the sheet's **build control** ("Altered vanilla — rules-legal except: Magic Initiate (DM-granted,
+      level 4)") and the **VERSIONS card** (two named, then a count — the full list belongs on the sheet,
+      not on a 210px card).
+      `lib/dnd/slots/sheet-exceptions.ts` is the one module that knows all three ledger keys. S3 deliberately
+      left the three slot models unshared; this is the cost of that decision, and one module paying it beats
+      every badge and panel paying it — which is exactly how the `=== 'vanilla'` check ended up wrong in four
+      separate places. It refuses to read another system's ledger, so a transposed sheet is not badged with
+      exceptions belonging to a build it no longer is.
+      **A fourth instance of the union-widening bug, found and fixed here.** `VariantToggle` derived
+      `isCustom = variantKind === 'custom'` and treated everything else as vanilla — so an altered-vanilla
+      sheet displayed **"Vanilla — rules-legal only"**, a flat denial of the fact, on the one control whose
+      whole job is to say which build this is. (Running tally of this trap: the gates in S8a, IG's
+      `powerReason` in S6c, this, and the `/variant` route below.)
+      **The kind can no longer be hand-set into a lie.** `POST /variant` asking for plain `vanilla` on a
+      sheet that still holds exceptions now resolves to `altered-vanilla` and says why. The badge is derived
+      from the ledger everywhere else; this endpoint was the one place a human could have stamped a label
+      the sheet disproves. Going `custom` is untouched — that is a real choice, not a claim data can refute.
+      **Not done here:** the DM review surface (`SheetApprovalPanel`) still works purely on the orthogonal
+      *content* axis (`summarizeCharacterProvenance`) and shows nothing for a book-legal feat taken out of
+      slot. Adding entitlement to it is a genuine follow-up, listed below.
+- [ ] **S8c — the DM's review names exceptions too.** `SheetApprovalPanel` lists custom/DM-granted content
+      by PROVENANCE ("is this in the book?"), so a cross-class feat that is straight out of the book shows
+      nothing at all — the exact case S6's hatch creates. It needs the entitlement axis alongside, fed the
+      same way `page.tsx` now feeds `VariantToggleView`.
 - [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
       A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
       **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure

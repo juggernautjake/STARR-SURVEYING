@@ -16,26 +16,44 @@
 // write access and the character's own system, so the button can only ever change the KIND.
 import { useState } from 'react'
 import { useChar } from '../state/store'
+import { exceptionsIn, describeException } from '@/lib/dnd/slots/entitlement'
 
 export function VariantToggleView({
   characterId,
   variantKind,
   canWrite,
+  exceptions = [],
 }: {
   characterId?: string
   variantKind?: string
   canWrite?: boolean
+  /** Already-worded departures from the rules — e.g. ["Magic Initiate (DM-granted, level 4)"] (S8b). */
+  exceptions?: string[]
 }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const isCustom = variantKind === 'custom'
+  // The THIRD kind. This control read `variantKind === 'custom'` and treated everything else as vanilla,
+  // so an altered-vanilla sheet displayed "Vanilla — rules-legal only" — a plain false statement about a
+  // character deliberately holding picks its class and level do not grant, on the one control whose whole
+  // job is to say which build this is. Fourth instance of the same union-widening trap (the gates in S8a,
+  // IG's `powerReason` in S6c, this).
+  const isAltered = variantKind === 'altered-vanilla'
+
+  // What this build is, in one line. Named exceptions rather than a count: a badge that reports a departure
+  // without saying what departed is the thing the owner asked us not to build.
+  const stateLine = isCustom
+    ? 'Custom — homebrew allowed'
+    : isAltered
+      ? `Altered vanilla — rules-legal except: ${exceptions.length ? exceptions.join('; ') : 'recorded exceptions'}`
+      : 'Vanilla — rules-legal only'
 
   // A plain viewer just sees which kind the sheet is — no control.
   if (!canWrite) {
     return (
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 12 }}>
         <span className="sec-num">BUILD {'//'}</span>
-        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{isCustom ? 'Custom — homebrew allowed' : 'Vanilla — rules-legal only'}</span>
+        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>{stateLine}</span>
       </div>
     )
   }
@@ -95,8 +113,17 @@ export function VariantToggleView({
       <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto', maxWidth: 380 }}>
         {isCustom
           ? 'Custom: add any feat, spell, weapon or homebrew — each is flagged ⚑, not blocked. Switch back to Vanilla anytime; nothing is lost.'
-          : 'Vanilla: only rules-legal picks for your class and level. Switch to Custom to add homebrew and off-rules content.'}
+          : isAltered
+            ? 'Altered vanilla: still held to your class and level, apart from the exceptions named below. Remove them to go back to plain Vanilla.'
+            : 'Vanilla: only rules-legal picks for your class and level. Switch to Custom to add homebrew and off-rules content.'}
       </span>
+      {/* NAMED, on the sheet itself. This is the whole point of the third kind: the player and the DM can
+          both see exactly which picks are not the usual, and why, without opening the builder. */}
+      {isAltered && exceptions.length > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--gold, #c8aa6e)', width: '100%', lineHeight: 1.5 }}>
+          <strong style={{ fontWeight: 700 }}>Exceptions:</strong> {exceptions.join('; ')}
+        </div>
+      )}
       {err && <span role="alert" style={{ fontSize: 12, color: 'var(--danger, #e0533a)', width: '100%' }}>{err}</span>}
     </div>
   )
@@ -104,6 +131,18 @@ export function VariantToggleView({
 
 /** The 5e-sheet wrapper: pulls id/kind/write from the store context. */
 export default function VariantToggle() {
-  const { characterId, variantKind, canWrite } = useChar()
-  return <VariantToggleView characterId={characterId ?? undefined} variantKind={variantKind} canWrite={canWrite} />
+  const { characterId, variantKind, canWrite, char } = useChar()
+  // Read straight off `build.choices` rather than through `sheetExceptions`: this wrapper only ever mounts
+  // inside the shared 5e engine (a built PF2/IG character renders its bespoke sheet and gets the view
+  // mounted from the page instead, with the system known there), and the store carries no `system` to
+  // dispatch on. `exceptionsIn` is shape-only, so it needs none.
+  const exceptions = exceptionsIn(char?.build?.choices as { level?: number; exception?: unknown }[] | undefined)
+  return (
+    <VariantToggleView
+      characterId={characterId ?? undefined}
+      variantKind={variantKind}
+      canWrite={canWrite}
+      exceptions={exceptions.map(describeException)}
+    />
+  )
 }

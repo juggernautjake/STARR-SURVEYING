@@ -18,6 +18,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { readVariants, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet, type SheetVariantKind } from '@/lib/dnd/system-variants';
+import { sheetExceptions } from '@/lib/dnd/slots/sheet-exceptions';
+import { describeException } from '@/lib/dnd/slots/entitlement';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCharacterWrite(params.id);
@@ -48,12 +50,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // re-point the character at another system.
   const variants = readVariants(row.system_variants);
   const meta = readActiveSlotMeta(row.system_variants);
+
+  // "Plain vanilla" is a CLAIM, and the sheet can contradict it. A character holding recorded exceptions —
+  // picks its class and level do not grant, taken deliberately through the escape hatch — is altered
+  // vanilla whatever this request asks for, so asking for `vanilla` here resolves to that instead of
+  // stamping a label the ledger disproves. The badge stays derived from the sheet everywhere (S6/S8b);
+  // this endpoint is the one place a human could otherwise have overridden it into a falsehood.
+  //
+  // Going to `custom` is untouched: that is a real, meaningful choice (stop claiming to follow the rules),
+  // and it is reversible — nothing on the sheet is deleted either way.
+  const exceptions = sheetExceptions(row.data, normalizeSystem(row.system));
+  const effectiveKind: SheetVariantKind = kind === 'vanilla' && exceptions.length ? 'altered-vanilla' : kind;
+
   const active: ActiveSheet = {
     system: normalizeSystem(row.system),
     data: row.data,
     sheet_type: row.sheet_type ?? '',
     slotId: meta.slotId,
-    kind,
+    kind: effectiveKind,
     name: meta.name,
   };
   const nextVariants = withActiveSlotMeta(variants, active);
@@ -64,5 +78,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq('id', row.id);
   if (error) return NextResponse.json({ error: 'Could not update the character.' }, { status: 500 });
 
-  return NextResponse.json({ ok: true, kind });
+  return NextResponse.json({
+    ok: true,
+    kind: effectiveKind,
+    ...(effectiveKind !== kind
+      ? { note: `This character still holds ${exceptions.length} recorded exception${exceptions.length === 1 ? '' : 's'}, so it stays altered vanilla until ${exceptions.length === 1 ? 'it is' : 'they are'} removed.`, exceptions: exceptions.map(describeException) }
+      : {}),
+  });
 }

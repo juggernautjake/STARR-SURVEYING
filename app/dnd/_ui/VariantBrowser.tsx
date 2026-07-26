@@ -252,6 +252,18 @@ export default function VariantBrowser({
                 {c.tags.map(tagChip)}
               </div>
 
+              {/* WHAT makes it "Altered vanilla" (S8b). The tag alone reports that something departed from
+                  the rules without saying what — the owner asked for the opposite ("it needs to be clear
+                  that something is not the usual"), and a card that says "Altered vanilla" and leaves the
+                  player to hunt for the reason is the same problem in a nicer font. Two named, then a
+                  count: the full list belongs on the sheet, not on a 210px card. */}
+              {c.exceptions.length > 0 && (
+                <div style={{ fontSize: 10, lineHeight: 1.4, color: 'var(--hx-gold-2, #c8aa6e)', textAlign: 'center' }}>
+                  {c.exceptions.slice(0, 2).join(' · ')}
+                  {c.exceptions.length > 2 && ` · +${c.exceptions.length - 2} more`}
+                </div>
+              )}
+
               {/* Actions row */}
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
                 <button type="button" title="Show summary" onClick={(e) => { e.stopPropagation(); setOpenSummary(showSummary ? null : c.slotId); }}
