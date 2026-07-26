@@ -2307,14 +2307,28 @@ costs more than having no marker at all.
       `ON DELETE SET NULL`, so "Unknown" would read as though it were someone — and the panel falls back to
       its old wording there. 9 tests.
 
+      **2026-07-26 — the DIFF now shows on the marker itself.** Hovering ✎ leads with the specific change,
+      who made it and when — *"spell.Fireball.damage: 8d6 → 10d6 — Jacob (DM), 26/07/2026"* — with the
+      general "what ✎ means" text kept underneath, since that is still what the mark means.
+      `use-element-edits.ts` fetches the recent rows **once per sheet** (an in-flight promise shared by
+      every marker — a per-marker fetch would issue twenty requests for one page), keeps only the NEWEST
+      change per element, skips revert bookkeeping rows, and never throws at the sheet. Every call site now
+      passes its element name, asserted per site rather than assumed — a marker without one silently gets
+      the generic tooltip forever.
+      It also **wires `editedElementName`**, which I added for exactly this matching in the previous slice
+      and then left with no consumer: the "authored but not wired" defect this codebase produces most,
+      committed by me while auditing others for it. 16 tests.
+
       **STILL REMAINING, with the blockers known rather than assumed:**
       · **A Revert inside the ✎ hover** needs `Tip` changed or replaced — it sets `pointerEvents: 'none'`
-        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written. The
-        Revert itself already exists in `EditReviewPanel`; this is only about reaching it from the marker.
-      · **A rename breaks the row↔element link**: manual rows are keyed by the element's PRE-edit name.
-        `editedElementName` reads both path vocabularies, but neither survives a rename, so the hover would
-        silently show nothing on a renamed element. Fixing that means recording an element id on the audit
-        row — a schema change, not a UI one.
+        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written. Building
+        a second interactive popover for this alone was not worth it, since the Revert already exists
+        per-edit in `EditReviewPanel`; the blocker is now asserted by test so a future slice knows it is
+        real rather than an oversight.
+      · **A rename breaks the row↔element link**: manual rows are keyed by the element's PRE-edit name, so
+        after a rename nothing matches and the marker falls back to its general text — which is the right
+        failure (it never shows someone else's edit) but is still a miss. Fixing it means recording an
+        element id on the audit row: a schema change, not a UI one.
 - [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
       + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
       `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.

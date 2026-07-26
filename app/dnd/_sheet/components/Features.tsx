@@ -92,7 +92,7 @@ export default function Features() {
                 <img src={f.image} alt="" className="inv-thumb" />
               )}
               {f.name}
-              <EditMark on={f.customized} />
+              <EditMark on={f.customized} name={f.name} />
               <OffRulesMark reason={f.offRules} />
               {canWrite && (
                 <ElementMenu

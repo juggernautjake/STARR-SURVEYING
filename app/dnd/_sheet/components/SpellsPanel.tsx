@@ -168,7 +168,7 @@ export default function SpellsPanel() {
                       >
                         {s.name}
                       </button>
-                      <EditMark on={s.customized} />
+                      <EditMark on={s.customized} name={s.name} />
                       <OffRulesMark reason={s.offRules} />
                       {s.alias && <span style={{ fontSize: 12, color: 'var(--violet)', marginLeft: 6 }}>“{s.alias}”</span>}
                       {canWrite && (

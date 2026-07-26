@@ -292,7 +292,7 @@ export default function Inventory() {
                   <span className="inv-thumb inv-thumb-icon" aria-hidden>{KIND_ICON[it.kind ?? 'gear'] ?? KIND_ICON.gear}</span>
                 )}
                 {it.name}
-                <EditMark on={it.customized} />
+                <EditMark on={it.customized} name={it.name} />
                 {canWrite && (
                   <ElementMenu
                     label={it.name}
