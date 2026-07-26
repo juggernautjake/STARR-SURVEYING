@@ -209,11 +209,27 @@ export default function SpellsPanel() {
                     >
                       ✨ Cast{s.level > 0 ? ` (L${s.level})` : ''}
                     </button>
-                    {editMode && s.level > 0 && !s.alwaysPrepared && (
-                      <button className={`btn tiny ${s.prepared ? 'active' : ''}`} onClick={() => togglePrepared(s.id)}>
-                        {s.prepared ? '✓ Prepared' : 'Prepare'}
-                      </button>
-                    )}
+                    {editMode && s.level > 0 && !s.alwaysPrepared && (() => {
+                      // Say NO out loud. Found in the browser: at 6/6 the button was still live, clicking it
+                      // did nothing, and nothing explained why — a control that silently ignores a click
+                      // reads as broken, not as a rule. The picker already greys an over-count spell and
+                      // says "no room"; this is the same treatment for the same reason. Un-preparing is
+                      // never disabled, or a character already over the cap could never get back under it.
+                      const noRoom = !s.prepared && preparedCap != null && preparedCount >= preparedCap;
+                      return (
+                        <button
+                          className={`btn tiny ${s.prepared ? 'active' : ''}`}
+                          onClick={() => togglePrepared(s.id)}
+                          disabled={noRoom}
+                          title={noRoom
+                            ? `No room: your class prepares ${preparedCap} spell${preparedCap === 1 ? '' : 's'} at this level — un-prepare one first.`
+                            : s.prepared ? 'Un-prepare this spell' : 'Prepare this spell'}
+                          style={noRoom ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                        >
+                          {s.prepared ? '✓ Prepared' : noRoom ? 'No room' : 'Prepare'}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

@@ -131,6 +131,35 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### 2026-07-26 — browser pass over the spell-count work (slot plan S7/S7b)
+
+Driven on a live dev server with a minted `dnd_session`, against **Donata Dime** — a 2024 Cleric 3 holding
+**6 cantrips (class grants 3)** and **6 prepared (grants 6)**. Chosen deliberately: an already-over-cap
+character is the case a new cap is most likely to break.
+
+| Check | Result |
+|---|---|
+| Sheet renders after the cap change | ✅ no console errors |
+| `PREPARED 6 / 6` on the caster header | ✅ **derived**, where before it showed a bare count (only a demo character ever had a stored cap) |
+| Spell picker budget line | ✅ `Cantrips 6/3 · this class PREPARES from its list, so the number it prepares is capped on the sheet, not here` |
+| Cantrips refused | ✅ **9 of 9**, all disabled, all genuinely cantrips |
+| Levelled spells still addable | ✅ **24** — a preparer's LIST is correctly not capped by its PREPARED count |
+| Over-cap character grandfathered | ✅ keeps all 6 cantrips; only blocked from adding a 7th |
+| Prepare at 6/6 | refused ✅ |
+| Un-prepare at 6/6 | ✅ always allowed (5/6) |
+| Prepare once under cap | ✅ allowed again (6/6) |
+
+**One defect found and fixed, invisible to the whole suite.** The prepared refusal was **silent**: at 6/6
+the Prepare button stayed live, clicking it did nothing, and nothing said why. The logic was right and the
+markup was fine, so no source-grep or render test was ever going to catch it — a control that ignores a
+click reads as broken, not as a rule. It now disables at the cap, reads **"No room"**, and its tooltip says
+*"your class prepares 6 spells at this level — un-prepare one first."* — the same treatment the picker
+already gave. Pinned by four tests in `spell-count-enforcement.test.ts`.
+
+**Live data touched and restored.** Toggling prepared spells persists, so this pass moved Donata Dime's
+prepared count and put it back: the row ends at 18 spells / 12 prepared / 6 counting against the cap, byte
+for byte what it was found at (verified against the DB, not assumed).
+
 ## Known gaps / notes for the walkthrough
 
 - **`VOYAGE_API_KEY` is absent**, so semantic search returns nothing; keyword search

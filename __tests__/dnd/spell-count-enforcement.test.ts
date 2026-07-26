@@ -95,6 +95,30 @@ describe('who the cap applies to', () => {
   });
 });
 
+describe('the prepared refusal says NO out loud — found in the browser', () => {
+  // The unit tests all passed while the toggle refused SILENTLY: at 6/6 the Prepare button was still live,
+  // clicking it did nothing, and nothing said why. A control that ignores a click reads as broken, not as a
+  // rule — and no source-grep or render test was ever going to notice, because the markup was fine and the
+  // logic was correct. Only clicking it in a real browser showed it.
+  it('disables the control at the cap instead of silently ignoring the click', () => {
+    expect(PANEL).toContain('const noRoom = !s.prepared && preparedCap != null && preparedCount >= preparedCap');
+    expect(PANEL).toContain('disabled={noRoom}');
+  });
+
+  it('labels and explains it, the same treatment the picker gives', () => {
+    expect(PANEL).toMatch(/noRoom \? 'No room' : 'Prepare'/);
+    expect(PANEL).toContain('un-prepare one first');
+  });
+
+  it('never disables UN-preparing, or an over-cap character is stuck forever', () => {
+    expect(PANEL).toContain('!s.prepared && preparedCap != null');
+  });
+
+  it('keeps the handler guard too — the disabled attribute is not the rule', () => {
+    expect(PANEL).toContain('if (held >= preparedCap) return c');
+  });
+});
+
 describe('the player is told the number before they hit it', () => {
   it('shows a running budget in the picker', () => {
     // A cap discovered only by being refused reads as a bug; the same number shown while choosing reads
