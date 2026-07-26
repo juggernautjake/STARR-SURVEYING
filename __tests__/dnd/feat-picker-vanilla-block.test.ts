@@ -42,8 +42,10 @@ describe('the eligibility core still decides (unchanged by this slice)', () => {
 });
 
 describe('the picker now gates on it instead of only narrating it', () => {
-  it('blocks a vanilla, non-DM character', () => {
-    expect(src).toContain('const isVanilla = variantKind === ');
+  it('blocks a rules-bound, non-DM character', () => {
+    // S8: `variantKind === 'vanilla'` became `isRulesEnforcedKind(...)`, because an ALTERED-VANILLA
+    // character is still held to the rules for its next pick and the equality test would have exempted it.
+    expect(src).toContain('const isVanilla = isRulesEnforcedKind(');
     expect(src).toContain('const blocked = isVanilla && !elig.ok && !isDM');
     expect(src).toContain('disabled={blocked}');
   });

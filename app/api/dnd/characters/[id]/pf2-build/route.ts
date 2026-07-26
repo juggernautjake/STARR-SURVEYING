@@ -12,7 +12,7 @@ import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/proven
 import { gatePf2Picks } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
 import { PF2_ALL_FEATS, PF2_ALL_SPELLS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
-import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind, unboundReasonFor } from '@/lib/dnd/system-variants';
 import { pf2BuilderChoicesFor, mergePf2BuilderChoices } from '@/lib/dnd/systems/pathfinder2e/builder-choices';
 import type { PF2RecordedChoice } from '@/lib/dnd/systems/pathfinder2e/levelup';
 
@@ -34,8 +34,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
   const tradition = pf2Class(picks.className ?? '')?.spellcasting?.tradition;
   const buildGate = gatePf2Picks(picks, {
-    enforce: !access.access.isDM && buildVariant === 'vanilla',
-    unboundReason: access.access.isDM ? 'dm-grant' : buildVariant === 'custom' ? 'custom-character' : undefined,
+    // Enforced for ALTERED-VANILLA too — see `isRulesEnforcedKind`. Only a custom build opts out.
+    enforce: !access.access.isDM && isRulesEnforcedKind(buildVariant),
+    unboundReason: unboundReasonFor(buildVariant, access.access.isDM),
   }, { feats: PF2_ALL_FEATS, spells: PF2_ALL_SPELLS }, tradition);
   if (buildGate.refused.length) {
     return NextResponse.json({

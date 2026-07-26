@@ -35,6 +35,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 import '@/app/dnd/_sheet/styles/bespokeButtons.css';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 // Interactivity + motion (req 3), kept in ONE injected <style> so the whole IG restyle stays local: the
 // shared hextech.module.css holds a sibling PF2 pass, and touching it would collide. Every hover cue is
@@ -67,7 +68,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
    *  this sheet's root so the skin picker actually restyles the bespoke IG sheet (default → no change). */
   sheetType?: string;

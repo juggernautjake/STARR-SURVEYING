@@ -47,6 +47,7 @@ import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 import type { SheetPanel } from '../../_sheet/panels/fivePanels';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 const effectMap = (() => {
   const m = new Map<string, string>();
@@ -120,7 +121,7 @@ export interface UseIgPanelsArgs {
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** The chosen roller template (`data.rollerTemplate`) + animation pref (`data.rollerAnim`) + the sheet
    *  layout, so IG mounts the SAME animated dice roller the 5e sheet does (RO-5). */
   rollerTemplate?: string;

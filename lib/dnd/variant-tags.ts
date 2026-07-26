@@ -60,8 +60,16 @@ export function variantTags(input: VariantTagInput): VariantTag[] {
   // System — always, so a version's game system is legible at a glance.
   tags.push({ label: systemLabel(input.system), tone: 'system' });
 
-  // Provenance — vanilla vs custom for the system it's listed in, plus DM-granted content.
-  tags.push(input.kind === 'custom' ? { label: 'Custom', tone: 'custom' } : { label: 'Vanilla', tone: 'vanilla' });
+  // Provenance for the system it's listed in, plus DM-granted content. Three states since 2026-07-26:
+  // ALTERED VANILLA is a rules-legal build with named exceptions (a DM-approved cross-class feat, say) and
+  // must read as neither of the other two — the owner's point being that it has to be obvious something is
+  // not the usual. It carries the `custom` tone so it reads as a flag rather than a clean bill of health,
+  // while the LABEL keeps it distinct from a homebrew build.
+  tags.push(
+    input.kind === 'custom' ? { label: 'Custom', tone: 'custom' }
+      : input.kind === 'altered-vanilla' ? { label: 'Altered vanilla', tone: 'custom' }
+      : { label: 'Vanilla', tone: 'vanilla' },
+  );
   if (input.hasDmGranted) tags.push({ label: 'DM-granted', tone: 'dm' });
 
   // Shape.

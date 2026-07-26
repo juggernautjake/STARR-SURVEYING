@@ -4,7 +4,8 @@
 // computed — so the client component renders without fetching or re-deriving.
 import { normalizeSystem, systemLabel } from './systems';
 import {
-  readVariants, variantKind, variantSystemOf, resolveOriginSlotId, type ActiveSheet, type SystemVariants,
+  readVariants, variantKind, variantKindLabel, variantSystemOf, resolveOriginSlotId,
+  type ActiveSheet, type SystemVariants, type SheetVariantKind,
 } from './system-variants';
 import { sheetClassBreakdown, breakdownLabel, type ClassBreakdownEntry } from './variant-breakdown';
 import { sheetSummaryHash } from './variant-summary';
@@ -81,12 +82,13 @@ function characterNameOf(data: unknown, system: string, fallback: string): strin
 }
 
 /** Default slot label when the user hasn't named the slot: "D&D 5e (2024) · Vanilla". */
-function defaultSlotLabel(system: string, kind: 'vanilla' | 'custom'): string {
-  return `${systemLabel(system)} · ${kind === 'custom' ? 'Custom-built' : 'Vanilla'}`;
+function defaultSlotLabel(system: string, kind: SheetVariantKind): string {
+  // One source for the wording, so a third kind can't render as "Vanilla" here and "Altered vanilla" there.
+  return `${systemLabel(system)} · ${variantKindLabel(kind)}`;
 }
 
 interface SheetRef {
-  slotId: string; active: boolean; data: unknown; system: string; kind: 'vanilla' | 'custom';
+  slotId: string; active: boolean; data: unknown; system: string; kind: SheetVariantKind;
   name?: string; artUrl: string | null; parentSlotId: string | null; campaignId: string | null;
   summary: string | null; summaryUpdatedAt: string | null; summaryHash: string | null;
 }

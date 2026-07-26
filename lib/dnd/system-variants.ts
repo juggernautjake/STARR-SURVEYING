@@ -8,19 +8,59 @@
 // helpers are pure so the switch/transpose logic is unit-tested; the route just persists.
 import { normalizeSystem } from './systems';
 
-/** Whether a stored sheet was built with only the system's VANILLA content, or includes CUSTOM (invented /
- *  homebrew) content — the label the owner wants so a character can hold both a vanilla and a custom build of
- *  the same system (Area MV). */
-export type SheetVariantKind = 'vanilla' | 'custom';
+/**
+ * How a stored sheet relates to its system's published rules — the label the owner wants so a character can
+ * hold both a vanilla and a custom build of the same system (Area MV).
+ *
+ * `'altered-vanilla'` was added 2026-07-26 on the owner's call:
+ *
+ *   "If a vanilla character takes an outside of class feat or something like that, they become a custom
+ *    character. Or we need a tag that is like 'altered vanilla' or something like that. We need it to be
+ *    clear that something is not the usual."
+ *
+ * It is the state the old binary could not express, and the distinction is worth the third value: a
+ * character with ONE DM-approved cross-class feat is not the same thing as a homebrew build, and collapsing
+ * them means a vanilla-only table has to refuse both or accept both.
+ *
+ * **It is still ENFORCED.** Altered vanilla means "built to the rules except for these named exceptions", so
+ * the rules gates keep binding — see `isRulesEnforcedKind`. Only `'custom'` turns enforcement off, which is
+ * why every gate must ask "is this custom?" and never "is this vanilla?".
+ */
+export type SheetVariantKind = 'vanilla' | 'altered-vanilla' | 'custom';
 
 /** A sheet's kind, defaulting to 'vanilla' for legacy/unlabelled variants (back-compat). */
 export function variantKind(v: { kind?: unknown } | null | undefined): SheetVariantKind {
-  return v && (v as { kind?: unknown }).kind === 'custom' ? 'custom' : 'vanilla';
+  const k = v && (v as { kind?: unknown }).kind;
+  if (k === 'custom') return 'custom';
+  if (k === 'altered-vanilla') return 'altered-vanilla';
+  return 'vanilla';
 }
 
 /** The human label for a variant kind, shown on the sheet + switcher. */
 export function variantKindLabel(kind: SheetVariantKind): string {
-  return kind === 'custom' ? 'Custom-built' : 'Vanilla';
+  if (kind === 'custom') return 'Custom-built';
+  if (kind === 'altered-vanilla') return 'Altered vanilla';
+  return 'Vanilla';
+}
+
+/**
+ * Do the system's rules BIND for this kind of sheet?
+ *
+ * True for `vanilla` AND `altered-vanilla` — an altered-vanilla character is rules-legal apart from
+ * exceptions that were each recorded deliberately, so its NEXT pick is still held to the rules. Only a
+ * `custom` build opts out wholesale.
+ *
+ * Exists so no call site writes `kind === 'vanilla'` again: that test silently stopped enforcing the moment
+ * a third value existed, which is the exact failure mode adding one usually causes.
+ */
+export function isRulesEnforcedKind(kind: SheetVariantKind): boolean {
+  return kind !== 'custom';
+}
+
+/** Why an off-rules element was allowed through, for the gates' `unboundReason`. */
+export function unboundReasonFor(kind: SheetVariantKind, isDM: boolean): 'dm-grant' | 'custom-character' | undefined {
+  if (isDM) return 'dm-grant';
+  return kind === 'custom' ? 'custom-character' : undefined;
 }
 
 /** One system's stored sheet (mirrors the character's live sheet columns). */

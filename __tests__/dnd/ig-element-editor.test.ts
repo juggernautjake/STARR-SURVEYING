@@ -177,7 +177,10 @@ describe('authoring a power is predicted, not merely refused', () => {
 describe('the hint cannot disagree with the gate that decides', () => {
   it('the sheet takes isDM and the variant as props rather than guessing them', () => {
     expect(sheet).toContain('isDM?: boolean');
-    expect(sheet).toContain("variantKind?: 'vanilla' | 'custom'");
+    // S8 widened the prop from the `'vanilla' | 'custom'` literal to the shared `SheetVariantKind`, which
+    // now has three members — the point being that a sheet must be able to RECEIVE 'altered-vanilla'
+    // rather than have it flattened to one of the other two on the way in.
+    expect(sheet).toContain('variantKind?: SheetVariantKind');
     // Defaulting to vanilla is the SAFE direction: it under-promises, matching the server.
     expect(sheet).toContain("variantKind = 'vanilla'");
   });

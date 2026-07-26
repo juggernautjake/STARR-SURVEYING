@@ -12,7 +12,7 @@ import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank'
 import type { Character } from '@/app/dnd/_sheet/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { gateDnd5eBuildFeats } from '@/lib/dnd/rules-gate';
-import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind } from '@/lib/dnd/system-variants';
 import { builderChoicesFor, mergeBuilderChoices, type BuilderChoice } from '@/lib/dnd/statgen/builder-choices';
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
@@ -61,7 +61,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
   const { refused } = gateDnd5eBuildFeats(requestedFeats, {
     system,
-    enforce: !access.access.isDM && buildVariant === 'vanilla',
+    // `isRulesEnforcedKind`, NOT `=== 'vanilla'`: an ALTERED-VANILLA character is still held to the rules
+    // (its exceptions were each recorded deliberately), so the old equality test would have quietly stopped
+    // enforcing the moment that third kind existed.
+    enforce: !access.access.isDM && isRulesEnforcedKind(buildVariant),
     level,
     ...(typeof body.className === 'string' ? { className: body.className } : {}),
     abilities: readAbilities(body.abilities),

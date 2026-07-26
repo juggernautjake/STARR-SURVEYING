@@ -149,12 +149,23 @@ slices are driven in the browser before being called done — this repo's standi
       component so the tiers cannot drift apart per system.
 - [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
       spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
-- [ ] **S8 — the character badge, and what it names.** Introduce **altered vanilla** as a real state beside
-      `vanilla`/`custom` (today `variantKind` is a binary in `system-variants.ts` and every gate reads it as
-      one, so this touches the gates too: an altered-vanilla character is *not* refused like a custom one, but
-      it is not silently equal to vanilla either). The badge must NAME its exceptions — "Altered vanilla:
-      Magic Initiate (DM-granted, level 4)" — on the sheet and in the DM's review. `provenance.ts` and the
-      requests board already carry most of the plumbing.
+- [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
+      `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
+      each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
+      **The dangerous part was the gates, not the type.** Every one of them asked `kind === 'vanilla'` to
+      decide whether the rules bind — and adding a third value silently makes that test FALSE for the new
+      kind, so an altered-vanilla character would have stopped being gated at all. That is the exact opposite
+      of "make it clear something is not the usual", and it is the standard cost of widening a union.
+      So enforcement is now asked as `isRulesEnforcedKind(kind)` — *is this custom?* — at all six deciding
+      sites (the three build routes, `FeatPicker`, `SpellPicker`, `PF2ContentPicker`), with a test that fails
+      if any of them regresses to the equality check. `unboundReasonFor` centralises the DM-grant /
+      custom-character distinction, and altered vanilla is deliberately NOT "unbound": its exceptions are
+      named individually rather than blanket-allowed. The seven bespoke-sheet props that hard-coded
+      `'vanilla' | 'custom'` now take the shared type, so the new kind cannot be flattened on the way in.
+      15 new tests; `variantKind` still fails SAFE (an unknown value reads as vanilla).
+- [ ] **S8b — the badge NAMES its exceptions.** "Altered vanilla: Magic Initiate (DM-granted, level 4)" on
+      the sheet and in the DM's review — a badge that says something changed without saying what is the same
+      problem in a nicer font. Needs the per-slot provenance S6 records, so it follows S6.
 - [ ] **S11 — take a character into and out of a campaign, clearly.** Owner-flagged 2026-07-26: joining and
       leaving must be obvious and reversible from the character's own page, not only from the campaign side.
       Today the join path exists (`dnd_campaign_characters`, and `campaignsForCharacter` already treats

@@ -17,15 +17,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireCharacterWrite } from '@/lib/dnd/characters';
 import { normalizeSystem } from '@/lib/dnd/systems';
-import { readVariants, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet } from '@/lib/dnd/system-variants';
+import { readVariants, readActiveSlotMeta, withActiveSlotMeta, type ActiveSheet, type SheetVariantKind } from '@/lib/dnd/system-variants';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const access = await requireCharacterWrite(params.id);
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const body = (await req.json().catch(() => ({}))) as { kind?: string };
-  const kind = body.kind === 'custom' ? 'custom' : body.kind === 'vanilla' ? 'vanilla' : null;
-  if (!kind) return NextResponse.json({ error: "Body must be { kind: 'vanilla' | 'custom' }." }, { status: 400 });
+  // 'altered-vanilla' joined the union 2026-07-26 (a rules-legal build with named exceptions). Validated
+  // against the list rather than a pair of ternaries so a fourth kind can't be silently rejected here.
+  const KINDS: SheetVariantKind[] = ['vanilla', 'altered-vanilla', 'custom'];
+  const kind = KINDS.find((k) => k === body.kind) ?? null;
+  if (!kind) {
+    return NextResponse.json({ error: `Body must be { kind: ${KINDS.map((k) => `'${k}'`).join(' | ')} }.` }, { status: 400 });
+  }
 
   const row = access.access.character as unknown as {
     id: string;

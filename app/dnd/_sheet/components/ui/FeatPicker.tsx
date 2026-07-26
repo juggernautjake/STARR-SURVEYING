@@ -26,6 +26,7 @@ import { useChar } from '../../state/store'
 import { useSheetSystem } from '../../state/sheetConfig'
 import { featCatalogForSystem, featCatalogNote, featSlotsForSystem, type PickerFeat } from '@/lib/dnd/feats/catalog'
 import { featEligibilityForSystem, type FeatSlot } from '@/lib/dnd/feats/eligibility'
+import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants'
 import type { AbilityKey } from '../../rules/dnd'
 
 export default function FeatPicker({ onClose }: { onClose: () => void }) {
@@ -33,7 +34,10 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
   // A VANILLA character is hard-blocked from an ineligible feat; a custom one may take it and is
   // told what it is doing (owner 2026-07-20). This picker previously offered "＋ Anyway" to
   // everyone, which made "rules-legal by default" a suggestion rather than a rule.
-  const isVanilla = variantKind === 'vanilla'
+  // ENFORCED, not "is it literally vanilla": an altered-vanilla character is still held to the rules for
+  // its next pick — its exceptions were each recorded deliberately. `=== 'vanilla'` would have stopped
+  // gating the moment that third kind existed, which is the usual cost of adding one.
+  const isVanilla = isRulesEnforcedKind(variantKind as SheetVariantKind)
   const system = useSheetSystem()
   const [q, setQ] = useState('')
 

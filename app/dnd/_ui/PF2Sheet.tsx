@@ -29,13 +29,14 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
 import '@/app/dnd/_sheet/styles/bespokeButtons.css';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
    *  to vanilla — the safe direction, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** The character's chosen skin (`character.sheet_type`). Overrides the inherited `--hx-*` tokens on
    *  this sheet's root so the skin picker actually restyles the bespoke PF2 sheet (default → no change). */
   sheetType?: string;

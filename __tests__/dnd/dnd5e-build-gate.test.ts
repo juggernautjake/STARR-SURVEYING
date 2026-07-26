@@ -116,8 +116,11 @@ describe('the route is wired to the gate', () => {
     expect(SRC).toContain('refused,');
   });
 
-  it('enforces on a vanilla character and not on a DM', () => {
-    expect(SRC).toMatch(/enforce: !access\.access\.isDM && buildVariant === 'vanilla'/);
+  it('enforces on a rules-bound character and not on a DM', () => {
+    // Was pinned as `buildVariant === 'vanilla'`. S8 added the ALTERED-VANILLA kind, for which the rules
+    // still bind — that equality test would have silently stopped gating it, so the check now goes through
+    // `isRulesEnforcedKind` ("is this custom?").
+    expect(SRC).toMatch(/enforce: !access\.access\.isDM && isRulesEnforcedKind\(buildVariant\)/);
     expect(SRC).toContain('readActiveSlotMeta');
   });
 

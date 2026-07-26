@@ -14,6 +14,7 @@ import { useChar } from '../../state/store'
 import { useSheetSystem } from '../../state/sheetConfig'
 import { spellsForSystem, spellCatalog, type SpellDef, type SpellClass } from '@/lib/dnd/spells'
 import { spellEligibility } from '@/lib/dnd/spells/eligibility'
+import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants'
 import type { Spell, SpellLevel } from '../../types'
 
 /** Turn a catalog entry into a sheet spell. The catalog holds the MECHANICS; the sheet copy is
@@ -96,7 +97,8 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
     ...(maxCastable > 0 ? { maxSpellLevel: maxCastable } : {}),
   }), [system, char.meta.className, char.meta.level, char.spells, maxCastable])
 
-  const isVanilla = variantKind === 'vanilla'
+  // Enforced for altered-vanilla too — see `isRulesEnforcedKind` and the note in FeatPicker.
+  const isVanilla = isRulesEnforcedKind(variantKind as SheetVariantKind)
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase()

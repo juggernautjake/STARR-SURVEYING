@@ -51,6 +51,7 @@ import { effectiveRollerChoice, rememberRollerChoice } from '@/lib/dnd/rollerCho
 // The 5e panel set's shape, reused so all four systems speak one `SheetPanel` vocabulary. Type-only,
 // so nothing from the store-coupled 5e module is pulled into this prop-driven PF2 code at runtime.
 import type { SheetPanel } from '@/app/dnd/_sheet/panels/fivePanels';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 export type { SheetPanel };
 
@@ -132,7 +133,7 @@ export interface UsePf2PanelsArgs {
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
    *  to vanilla — the safe direction, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** The chosen roller template + animation pref + layout, so PF2 mounts the SAME animated dice roller
    *  the 5e sheet does (RO-5). */
   rollerTemplate?: string;

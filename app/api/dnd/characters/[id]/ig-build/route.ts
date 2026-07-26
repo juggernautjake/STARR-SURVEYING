@@ -11,7 +11,7 @@ import { assembleIGVanillaCharacter, type IGPicks } from '@/lib/dnd/systems/intu
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { gateIgPicks, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind, unboundReasonFor } from '@/lib/dnd/system-variants';
 import { igBuilderChoicesFor, mergeIgBuilderChoices } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import type { IGRecordedChoice } from '@/lib/dnd/systems/intuitive-games/levelup';
 
@@ -54,8 +54,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // this asks "may this character have it".
   const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
   const buildGate = gateIgPicks(picks, {
-    enforce: !access.access.isDM && buildVariant === 'vanilla',
-    unboundReason: access.access.isDM ? 'dm-grant' : buildVariant === 'custom' ? 'custom-character' : undefined,
+    // Enforced for ALTERED-VANILLA too — see `isRulesEnforcedKind`. Only a custom build opts out.
+    enforce: !access.access.isDM && isRulesEnforcedKind(buildVariant),
+    unboundReason: unboundReasonFor(buildVariant, access.access.isDM),
   });
   if (buildGate.refused.length) {
     return NextResponse.json({

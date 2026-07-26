@@ -18,6 +18,7 @@ import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { PF2_ALL_FEATS, PF2_ALL_SPELLS, PF2_CATALOG_STATUS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { pf2FeatEligibility, pf2SpellEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 import { pf2ContextFor } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
+import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants';
 
 type Kind = 'feat' | 'spell';
 
@@ -28,13 +29,14 @@ export default function PF2ContentPicker({
   kind: Kind;
   isDM?: boolean;
   /** Vanilla characters are held to their class and level; custom ones are flagged, not blocked. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   onAdd: (edit: Record<string, unknown>) => void;
   onClose: () => void;
 }) {
   const [q, setQ] = useState('');
   const ctx = useMemo(() => pf2ContextFor(pf2), [pf2]);
-  const isVanilla = variantKind === 'vanilla';
+  // Enforced for altered-vanilla too — see `isRulesEnforcedKind` and the note in FeatPicker.
+  const isVanilla = isRulesEnforcedKind(variantKind as SheetVariantKind);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();

@@ -35,6 +35,7 @@ import { IG_GENERAL_FEATS, IG_COMBAT_FEATS, type IGFeat } from '@/lib/dnd/system
 import { igPowerEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
 import { igContextFor } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 export type IGPickerKind = 'power' | 'feat';
 
@@ -133,7 +134,7 @@ export default function IGContentPicker({
   kind: IGPickerKind;
   isDM?: boolean;
   /** Defaults to vanilla — the safe direction, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** Emits ONE op. The sheet's `postEdits` takes an array, so the caller wraps it. */
   onAdd: (edit: Record<string, unknown>) => void;
   onClose: () => void;

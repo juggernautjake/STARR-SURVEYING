@@ -17,6 +17,7 @@ import { igLevelBreakdown } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { igFeatBudget, igPowerBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
@@ -53,7 +54,7 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
 export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
   /** Vanilla builds are held to the class rules; custom ones may take anything (Area MV). Defaults
    *  to vanilla — the safe direction for an unlabelled sheet, matching the server. */
-  variantKind?: 'vanilla' | 'custom';
+  variantKind?: SheetVariantKind;
   /** Open the builder expanded — the dedicated /builder wizard sets this since the build controls are the
    *  page's whole purpose there, while on the sheet the panel stays collapsed (secondary). */
   startOpen?: boolean;
