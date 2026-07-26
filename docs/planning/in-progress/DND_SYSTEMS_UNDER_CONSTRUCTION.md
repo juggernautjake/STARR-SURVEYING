@@ -1,6 +1,46 @@
 # D&D platform — game systems still to build out (under construction)
 
-**Status:** PENDING · parked 2026-07-16 · pick up after the four focus systems are complete
+**Status:** IN PROGRESS (reopened 2026-07-25) · **but the six builds are genuinely blocked — see below**
+
+> ## 2026-07-25 — reopened, assessed, and what actually shipped
+>
+> Reopened with the other four docs ("put everything into the in progress folder"). Assessed honestly:
+> **the six system builds cannot be started yet, for two independent reasons.**
+>
+> **1. Ground Rule 3 — never invent a rule.** The bar below demands classes/playbooks/occupations authored
+> L1→max and *source-verified*, for Pathfinder 1e, Starfinder 1e, Cyberpunk RED, Shadowrun 6e, Call of
+> Cthulhu 7e and Blades in the Dark. That means BAB and save progressions, EAC/KAC and Resolve, Role Ability
+> ranks, priority/Karma tables, occupation skill-point formulas, playbook ability lists — six different
+> rulebooks' worth of numbers, none of which are in this repo. Authoring them from memory is exactly the
+> failure mode Ground Rule 3 exists to prevent, and it is worse here than a gap: a player would trust a
+> character sheet that is quietly wrong. **This needs the owner to supply or point at the source material,
+> one system at a time** — the same way the Intuitive Games schedule was scraped from
+> intuitivegames.net/character-building rather than guessed.
+>
+> **2. Its own precondition is unmet.** This doc says "pick up after the four focus systems are complete."
+> They are not: `DND_RULES_PLATFORM` still has Slice 5 (custom class builder UI), Slice 6, Slice 7 and
+> Slice 8b open, and PF2's own settings work only just landed.
+>
+> ### What DID ship (the part that needed no rulebooks)
+>
+> The one thing genuinely owed *during* the under-construction period: that the six are presented **honestly**
+> — visible as coming later, but impossible to start building and discover halfway that they don't work.
+> That gate existed but was only partly guarded. `__tests__/dnd/under-construction-gating.test.ts` (7) now
+> pins it at every surface: the **server** route rejects a switch onto an unbuilt system with a 400 (the one
+> that matters, since every UI below it can be bypassed by a direct POST), the create-character picker and
+> the versions/system switcher offer only built systems, the public library 404s an unbuilt system's page and
+> does not pre-render it, and each unbuilt system still carries real name/publisher/notes so its row never
+> reads as a bug.
+>
+> Crucially the guard **derives from the `status` flag** and asserts that no surface hard-codes the six keys —
+> so when a system is genuinely finished, flipping `status` to `'available'` is the *only* change needed and
+> these tests keep passing on their own.
+>
+> ### To unblock
+> Pick ONE system and provide its source (book, SRD, or a scrapeable site). Each is then a dedicated build —
+> model → content → editors → library → tagging — on the pattern `lib/dnd/systems/intuitive-games/` set.
+
+**Original status:** PENDING · parked 2026-07-16 · pick up after the four focus systems are complete
 **Scope:** the six game systems the platform seeds but has **not** fully built out. They are offered
 in the UI, labelled **🚧 under construction**, and NOT selectable for a real build yet
 (`GameSystem.status === 'under-construction'` in `lib/dnd/systems.ts`; the SystemSwitcher disables
