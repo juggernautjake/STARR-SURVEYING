@@ -102,12 +102,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const gated = isRulesEnforcedKind(buildVariant) && !access.access.isDM;
 
     if (gated && choice.value && (choice.kind === 'subclass-power' || choice.kind === 'specialization')) {
+      // THE PICK UNDER REVIEW MUST NOT JUSTIFY ITSELF.
+      //
+      // `igPowerEligibility` treats already-known powers as legitimate — right, because whatever granted
+      // them was. But `igRecordChoice` REPLACES the entry at this (level, kind), so the choice being
+      // replaced is not "already known": it is the thing being judged. Without this filter a player could
+      // take an illegal power through the hatch, save the SAME choice again, and have it pass clean the
+      // second time — removing the exception and returning the badge to "Vanilla" while keeping the power.
+      // Verified against a live character before the fix: the flag vanished on the second save.
+      //
+      // The same value at ANOTHER level is excluded too. Holding one power twice is its own problem, but
+      // it must not become a way to launder the first copy.
+      //
+      // `gateIgPicks` and `gatePf2Picks` have always said this ("every power in this build is under review,
+      // so treating them as already-known would make the whole set vacuously legal") — this is that rule,
+      // applied where I had missed it.
+      const selfJustifying = (c: IGRecordedChoice) =>
+        (c.level === choice.level && c.kind === choice.kind)
+        || (c.value ?? '').trim().toLowerCase() === choice.value!.trim().toLowerCase();
       const ctx = {
         className: data.meta?.className ?? '',
         subclass: data.meta?.subclass ?? '',
         level: choice.level,
-        specializations: choices.filter((c) => c.kind === 'specialization' && c.value).map((c) => c.value as string),
-        knownPowers: choices.filter((c) => c.kind === 'subclass-power' && c.value).map((c) => c.value as string),
+        specializations: choices
+          .filter((c) => c.kind === 'specialization' && c.value && !selfJustifying(c))
+          .map((c) => c.value as string),
+        knownPowers: choices
+          .filter((c) => c.kind === 'subclass-power' && c.value && !selfJustifying(c))
+          .map((c) => c.value as string),
       };
       const elig = choice.kind === 'specialization'
         ? igSpecializationEligibility(choice.value, ctx)

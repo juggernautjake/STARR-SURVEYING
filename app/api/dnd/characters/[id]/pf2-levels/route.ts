@@ -116,10 +116,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (choice.kind === 'feat' && choice.value && isRulesEnforcedKind(buildVariant) && !access.access.isDM) {
       const def = PF2_ALL_FEATS.find((f) => f.name.toLowerCase() === choice.value!.trim().toLowerCase());
       if (def) {
+        // THE FEAT UNDER REVIEW MUST NOT JUSTIFY ITSELF. `pf2ContextFor` reads `featNames` off the sheet,
+        // and a feat recorded through this walker is PROJECTED into that sidecar — so re-saving the same
+        // choice would find it already present, pass clean, and quietly drop the exception that flagged
+        // it. Proven on the IG route against a live character: the flag vanished on the second save.
+        // Same rule `gatePf2Picks` states for the build path ("every feat in this build is under review").
         const sidecar = (data as PF2Data & { pf2e?: PF2Character }).pf2e;
-        const elig = pf2FeatEligibility(def, sidecar
+        const base = sidecar
           ? pf2ContextFor(sidecar)
-          : { className, ancestry: '', level: choice.level, featNames: [] });
+          : { className, ancestry: '', level: choice.level, featNames: [] };
+        const under = choice.value.trim().toLowerCase();
+        const elig = pf2FeatEligibility(def, {
+          ...base,
+          featNames: (base.featNames ?? []).filter((n) => n.trim().toLowerCase() !== under),
+        });
         if (!elig.ok) {
           const accepted = body.acceptException === true && offer.offered;
           if (!accepted) {

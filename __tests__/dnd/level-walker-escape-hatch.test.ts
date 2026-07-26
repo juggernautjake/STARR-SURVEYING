@@ -165,9 +165,10 @@ describe('IG level walker: the value is gated, then exceptable', () => {
   });
 
   it('builds the context from what the character already holds', () => {
-    // Powers already recorded must not start refusing each other, and Dabbler widens the legal set.
-    expect(IG).toContain('knownPowers: choices.filter');
-    expect(IG).toContain('specializations: choices.filter');
+    // Powers already recorded must not start refusing each other, and Dabbler widens the legal set —
+    // EXCEPT the pick under review, which is filtered out below (the laundering hole).
+    expect(IG).toContain('knownPowers: choices');
+    expect(IG).toContain('specializations: choices');
   });
 
   it('does not gate a DM or a custom character', () => {
@@ -208,5 +209,55 @@ describe('all three walkers now behave alike', () => {
 
   it('and every one derives the badge rather than trusting the request', () => {
     for (const r of ROUTES) expect(read(r), r).toContain('variantKindWithExceptions(');
+  });
+});
+
+// ── The LAUNDERING hole, found by driving the live route ──────────────────────────────────────────────
+//
+// Found 2026-07-26 against a real character, and invisible to every test above — they assert the route
+// SOURCE contains the gate and the stamp, which it did. The defect was in what the gate SAW.
+//
+// Sequence that broke it:
+//   1. take an illegal power through the hatch → recorded, flagged, badge moves to "Altered vanilla";
+//   2. save the SAME choice again without acknowledging → **accepted**, exception gone, badge back to
+//      "Vanilla" — and the illegal power still on the sheet.
+//
+// Cause: eligibility treats already-known powers as legitimate (right — whatever granted them was), and
+// the context was built from the recorded choices, so the pick justified ITSELF. `recordChoice` replaces
+// the entry at that (level, kind), so the thing being replaced is precisely the thing under review.
+//
+// `gateIgPicks` and `gatePf2Picks` have always documented this rule for the build path — "every feat in
+// this build is under review, so treating them as already-held would make the whole set vacuously legal".
+// The level routes are where I failed to apply it.
+describe('a pick cannot justify itself (the laundering hole)', () => {
+  const IG = read('app/api/dnd/characters/[id]/ig-levels/route.ts');
+  const PF2 = read('app/api/dnd/characters/[id]/pf2-levels/route.ts');
+
+  it('IG excludes the slot being replaced from the known set', () => {
+    expect(IG).toContain('c.level === choice.level && c.kind === choice.kind');
+    expect(IG).toContain('selfJustifying');
+  });
+
+  it('IG also excludes the same VALUE recorded at another level', () => {
+    // Holding one power twice is its own problem, but it must not become a way to launder the first copy.
+    expect(IG).toMatch(/\(c\.value \?\? ''\)\.trim\(\)\.toLowerCase\(\) === choice\.value!\.trim\(\)\.toLowerCase\(\)/);
+  });
+
+  it('and applies it to specializations as well as powers', () => {
+    expect(IG).toContain("c.kind === 'specialization' && c.value && !selfJustifying(c)");
+    expect(IG).toContain("c.kind === 'subclass-power' && c.value && !selfJustifying(c)");
+  });
+
+  it('PF2 strips the feat under review from the sheet-derived featNames', () => {
+    // `pf2ContextFor` reads featNames off the sidecar, and a walker feat is PROJECTED there — so the
+    // identical hole existed by a different route.
+    expect(PF2).toContain("featNames: (base.featNames ?? []).filter((n) => n.trim().toLowerCase() !== under)");
+  });
+
+  it('both record WHY the filter exists, since removing it looks harmless', () => {
+    // A future reader sees a filter dropping entries from an eligibility context and could easily take it
+    // for redundancy. It is the whole reason the flag survives a second save.
+    expect(IG).toContain('MUST NOT JUSTIFY ITSELF');
+    expect(PF2).toContain('MUST NOT JUSTIFY ITSELF');
   });
 });
