@@ -75,17 +75,28 @@ describe('what the player sets now reaches the maths', () => {
   });
 });
 
-describe('what was deliberately left out, and why', () => {
-  it('mastery is not offered, because the live model has no field for it', () => {
+describe('what was left out then, and has since been built', () => {
+  // This block used to assert the ABSENCE of both, on the reasoning that "each needs a model field AND a
+  // consumer, which is a slice, not a control". That was the right call at the time and both slices have
+  // now been taken — so the assertions are inverted rather than deleted, because the rule they were really
+  // protecting is unchanged: a field is only worth adding once something reads it.
+  it('mastery is offered now, and something reads it', () => {
     const types = read('app/dnd/_sheet/types.ts');
     const weaponStats = types.slice(types.indexOf('export interface WeaponStats'), types.indexOf('export interface ArmorStats'));
-    expect(weaponStats).not.toContain('mastery');
-    expect(SRC).not.toContain('mastery');
+    expect(weaponStats).toContain('mastery');
+    expect(SRC).toContain('MASTERY_PROPERTIES');
+    // The consumer: it reaches the attack row rather than sitting in the model unseen.
+    expect(read('app/dnd/_sheet/engine/weapon-items.ts')).toContain('mastery: ${mastery}');
   });
 
-  it('the armour STR requirement is not offered, for the same reason', () => {
+  it('the armour STR requirement is offered now, and drives a real number', () => {
+    // Sliced to the NEXT interface rather than a fixed character count: the old `+ 700` window stopped
+    // short the moment the interface grew, which is a brittle way to scope a source assertion.
     const types = read('app/dnd/_sheet/types.ts');
-    const armorStats = types.slice(types.indexOf('export interface ArmorStats'), types.indexOf('export interface ArmorStats') + 700);
-    expect(armorStats).not.toMatch(/strReq|strengthRequirement/);
+    const from = types.indexOf('export interface ArmorStats');
+    const armorStats = types.slice(from, types.indexOf('export interface', from + 10));
+    expect(armorStats).toContain('strengthReq');
+    // The consumer: a speed penalty in the ledger, not just a stored number.
+    expect(read('lib/dnd/effects/ledger.ts')).toContain("id: 'armor-str-req'");
   });
 });

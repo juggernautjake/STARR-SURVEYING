@@ -17,6 +17,7 @@ import { cleanTriggers } from '@/lib/dnd/effects/triggers'
 import { armorModBonus } from '../lib/derive-ac'
 import { abilityMod } from '../rules/dnd'
 import { useChar } from '../state/store'
+import { MASTERY_PROPERTIES } from '@/lib/dnd/equipment/dnd5e-2024'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -250,6 +251,29 @@ export default function ItemBuilder({
                 );
               })}
             </div>
+          </div>
+          {/* 2024 MASTERY. The eight properties and what each does are already authored in
+              `equipment/dnd5e-2024.ts`; nothing let a player put one on their own weapon, so a homebrew
+              greataxe could not have Cleave. Offered from that list rather than as free text, for the same
+              reason as the properties above — and the chosen one's effect is shown on the attack row, since
+              a mastery stored and never displayed would be the "authored but not wired" failure again.
+              It is a REMINDER, not an automation: every mastery is an on-hit/on-miss rider and this roll
+              pipeline has no rider stage to run them in. */}
+          <div>
+            <label style={lab}>Mastery (2024)</label>
+            <select
+              style={fieldStyle}
+              value={w?.mastery ?? ''}
+              onChange={(e) => patchWeapon({ mastery: e.target.value || undefined })}
+            >
+              <option value="">none</option>
+              {MASTERY_PROPERTIES.map((m) => <option key={m.key} value={m.key}>{m.key}</option>)}
+            </select>
+            {w?.mastery && (
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.4 }}>
+                {MASTERY_PROPERTIES.find((m) => m.key === w.mastery)?.effect ?? 'A homebrew mastery — describe it in the item text.'}
+              </div>
+            )}
           </div>
           <div>
             <label style={lab}>Bonus damage dice (e.g. +1d6 poison)</label>

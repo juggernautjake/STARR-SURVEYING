@@ -1854,7 +1854,24 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       attacks; "＋ Add attack" creates one, "Edit attack" edits, "Duplicate"/"Delete" round it out. (Crit
       range/dice is intentionally NOT a per-attack field — it's the effect-derived `crit_range` target, so
       an item/feature grants it and the store derives the widest range, cf. `crit-range.test.ts`.)
-- [~] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
+- [x] **⚑ 2024 MASTERY SHIPPED 2026-07-26 — the last unauthorable field on this item.** Third instance of
+      the same shape here, after `properties` and the armour STR requirement: the data was fully authored
+      and nothing let a player use it. `equipment/dnd5e-2024.ts` has carried `MasteryProperty` and all
+      eight `MASTERY_PROPERTIES` **with their effect text** since the 2024 tables landed — its own header
+      says *"THE 2024 HEADLINE IS WEAPON MASTERY"* — while `WeaponStats` had no field, so a homebrew
+      greataxe could not have Cleave. Now: `WeaponStats.mastery`, a select in the ItemBuilder fed from that
+      catalog (never free text) that prints the chosen mastery's effect, and the name carried onto the
+      **attack row's notes** beside any bonus dice.
+      **A REMINDER, not an automation, and that distinction is deliberate.** Every mastery is an on-hit or
+      on-miss rider — Graze deals damage on a miss, Topple forces a save, Vex grants advantage on the next
+      attack — and this roll pipeline has no rider stage to run them in. Claiming to apply them would be
+      worse than not applying them, because a player would trust it. So the name reaches the player at the
+      moment they roll and the mechanic stays in their hands. Tested that it changes no number, with a
+      pointer saying that test should be REPLACED rather than deleted if a rider stage ever lands. 11 tests.
+      Also inverted the two assertions in `weapon-properties-control.test.ts` that pinned the ABSENCE of
+      mastery and the armour STR requirement — both were correct when written ("each needs a model field
+      AND a consumer, which is a slice, not a control") and both slices have now been taken.
+      **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
       bands, on-hit riders) so its derived attack row follows the weapon.
       **⚑ Partly authorable already (checked 2026-07-26).** `ItemBuilder`'s weapon block has **damage dice**,
       **damage type**, **ability**, **range** (free text, e.g. `5 ft` or `80/320`), **proficient**, and

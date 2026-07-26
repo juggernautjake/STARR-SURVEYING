@@ -173,6 +173,15 @@ export interface WeaponStats {
   damage: TypedDamage // primary damage
   bonus?: TypedDamage[] // extra typed dice, e.g. [{ dice: '1d6', type: 'poison' }]
   properties?: string[] // finesse, versatile, thrown, two-handed, …
+  /** The 2024 mastery property (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex).
+   *
+   *  A REMINDER, not an automation. Every mastery is an on-hit or on-miss rider — Graze deals damage on a
+   *  miss, Topple forces a save, Vex grants advantage on the next attack — and this sheet's roll pipeline
+   *  has no on-hit rider stage to run them in. So the name and its effect are carried and SHOWN on the
+   *  attack, where a player will actually see them at the moment they roll, and the mechanic stays
+   *  manual. Storing it without showing it would be the "authored but not wired" failure; claiming to
+   *  apply it without a rider stage would be worse. 2014 has no mastery — see `dnd5e-2014.ts`. */
+  mastery?: string
 }
 
 export interface ArmorStats {

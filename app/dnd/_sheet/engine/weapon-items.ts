@@ -94,6 +94,13 @@ export function attacksFromWeaponItems(
       // string plus a flat modifier. They go in `notes`, which the row already renders — dropping
       // them silently would understate the weapon the player authored.
       const extra = (w.bonus ?? []).filter((b) => b.dice?.trim()).map((b) => `+${b.dice} ${b.type}`.trim());
+      // The 2024 MASTERY rides along in the same notes line. It changes no number here — every mastery is
+      // an on-hit/on-miss rider and there is no rider stage in the roll pipeline — so carrying it without
+      // showing it would leave the player authoring a property they never see again. The name alone is
+      // enough at the table: "Graze" next to the attack is the reminder; the full effect text lives in the
+      // item builder where it was chosen.
+      const mastery = w.mastery?.trim();
+      const noteBits = [...extra, ...(mastery ? [`mastery: ${mastery}`] : [])];
       const atk: Attack = {
         // Namespaced so it can never collide with a stored attack's id (and so the row key is stable).
         id: `witem-${it.id}`,
@@ -106,7 +113,7 @@ export function attacksFromWeaponItems(
         ...(w.toHitBonus ? { bonusToHit: w.toHitBonus } : {}),
         // STR melee is what Reckless Attack's advantage keys off, so a greataxe qualifies and a bow doesn't.
         ...(ability === 'str' && !ranged ? { strMelee: true } : {}),
-        ...(extra.length ? { notes: extra.join(', ') } : {}),
+        ...(noteBits.length ? { notes: noteBits.join(', ') } : {}),
       };
       return { atk, source: it.name };
     });
