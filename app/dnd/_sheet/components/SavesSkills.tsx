@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useChar } from '../state/store'
+import { useSheetSystem } from '../state/sheetConfig'
+import { systemSkills } from '@/lib/dnd/system-rules'
+import { normalizeSystem } from '@/lib/dnd/systems'
+import { systemLabel } from '@/lib/dnd/systems'
 import { ABILITIES, SKILLS, abilityMod, signed, profContribution, type ProfLevel, type AbilityKey } from '../rules/dnd'
 import { rollEffectSources } from '../lib/roll-effects'
 import type { CustomSkill } from '../types'
@@ -14,6 +18,20 @@ export default function SavesSkills() {
   // proficiency, a boon that grants a language. The ledger collects them with their source; this is
   // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
   const grantedProfs = ledger.collected('grant_proficiency')
+
+  // Does this character's system have a DIFFERENT skill list from the 5e one rendered below? Derived from
+  // the shared rules catalog rather than a hardcoded list of systems, so a fifth system is covered the day
+  // its skills are authored. Compared by NAME, case-insensitively: 5e's own entries must not trip it.
+  const sheetSystem = useSheetSystem()
+  const foreignSkillList = useMemo(() => {
+    const key = normalizeSystem(sheetSystem)
+    const own = systemSkills(key)
+    if (!own.length) return null                                   // untracked system → nothing to claim
+    const mine = new Set(SKILLS.map((s) => s.label.toLowerCase()))
+    const missing = own.filter((s) => !mine.has(s.name.toLowerCase()))
+    if (!missing.length) return null                               // 5e (both editions) → identical, no note
+    return { label: systemLabel(key), sample: missing.slice(0, 3).map((s) => s.name).join(', ') }
+  }, [sheetSystem])
   const [newName, setNewName] = useState('')
   const [newAbil, setNewAbil] = useState<AbilityKey>('int')
   const [newProf, setNewProf] = useState<ProfLevel>('proficient')
@@ -129,6 +147,23 @@ export default function SavesSkills() {
         {/* SKILLS */}
         <div className="card">
           <h3>Skills</h3>
+          {/* SAY when this list is not this system's list.
+              This card renders the hardcoded 5e `SKILLS` against `char.skills`, a 5e-keyed store. That is
+              right for both 5e editions (identical lists) and for an ambiguous character, and WRONG for a
+              system with its own skills — Intuitive Games has Arcane/Appraise/Bluff where 5e has
+              Arcana/Athletics/Deception.
+              Reachable, despite PF2 and IG having bespoke sheets: those only render once the character has
+              been BUILT (the page gates on `isIGCharacter(data.ig)`), so an IG character created but not yet
+              built falls through to this shared engine and is shown 5e's skills as if they were its own.
+              The real fix is a system-keyed skill store, which is a data-model change that risks the primary
+              5e path and is deferred deliberately. Until then this says so rather than quietly asserting the
+              wrong list — a sheet that is wrong and silent is worse than one that is wrong and admits it. */}
+          {foreignSkillList && (
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.45 }}>
+              These are <strong>D&amp;D 5e</strong> skills. {foreignSkillList.label} uses its own list
+              ({foreignSkillList.sample}) — build this character in its own builder to get them.
+            </div>
+          )}
           <div className="rowlist">
             {SKILLS.map((sk) => {
               const st = char.skills[sk.key]

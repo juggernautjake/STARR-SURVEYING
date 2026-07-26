@@ -880,6 +880,16 @@ now audited and guarded:
       wrong for **intuitive-games**, whose skills differ (Arcane/Appraise/Bluff…). System-scoping it needs
       a system-keyed skill-proficiency store (today `char.skills` is a fixed 5e-keyed shape), which is
       larger than a drop-in and risks the primary 5e path — so it's deferred rather than rushed.
+      **⚑ The SILENCE is fixed, 2026-07-26 (the model change stays deferred).** Two things the deferral had
+      not weighed: the wrong list rendered with no indication, and it is **reachable** — PF2/IG bespoke
+      sheets only render once the character is BUILT (the page gates on `isIGCharacter(data.ig)`), so an IG
+      character created and not yet built falls through to this shared engine and is shown Arcana /
+      Athletics / Deception as though they were its skills. The card now says so, naming the system and
+      three of its real skills and pointing at its builder. Derived from the shared rules catalog
+      (`systemSkills`) rather than a hardcoded system list, so a fifth system is covered the day its skills
+      are authored, and compared case-insensitively by name so 5e never trips its own note. The rendered
+      rows and the 5e-keyed store are untouched — swapping the list without the store would break the
+      proficiency toggles, which is exactly why the real fix is deferred. 10 tests.
       **Correctness fix shipped in passing** (`0295bdf2`): Passive Perception + Save DC on that card were
       reading base abilities, not the ledger-effective ones — now fixed (see Slice 10). `saves-skills-effective.test.ts` (2).
 - [x] `system-validate.ts` runs against the class data (not just the catalog). **✅ SHIPPED** (`67f40793`,
