@@ -211,6 +211,30 @@ slices are driven in the browser before being called done — this repo's standi
       it. Now gated on the filtered list, computed once so the heading and the rows cannot disagree.
       **This does not close the browser pass**, which is still owed for S11/S12: no effects run here, no CSS
       is applied, and nothing proves the panel sits sensibly on the page.
+- [x] **S14 — the browser pass, run 2026-07-26.** Driven against a real dev server on a **free** port (3456 —
+      the 3000–3009 zombie sockets are a known trap) with a locally-minted `dnd_session` cookie for a REAL
+      fixture found in the live DB: user `…a7` owns **Jack** (`…c6`) *and* is a player in **Neon Odyssey**
+      (`…c1`), which Jack is already on the roster of. No test data was created, and nothing was mutated.
+
+      | check | result |
+      |---|---|
+      | `GET /characters/[id]/campaigns` authed | `{"member":[{"name":"Neon Odyssey","role":"player"}],"joinable":[],"isOwner":true}` — correct against live data |
+      | …anonymous | **401** |
+      | Campaigns panel on the sheet | renders: *"CAMPAIGNS · In Neon Odyssey. · Neon Odyssey · Take out"*, one button |
+      | Console | **0 errors, 0 warnings** across every page visited |
+      | 390px phone width | panel 375px, **no horizontal overflow**, the button visible and inside the viewport |
+      | All three homebrew designers | *Draft with AI* + *Write it myself* both present; the form appears on click (8 / 5 / 14 fields for feat / subclass / class); the engine's refusal shows; **Save is disabled on a blank draft** — the class guard found in the previous slice, confirmed live |
+
+      **Deliberately NOT clicked:** *Take out* (would remove a real character from a real campaign) and *Save
+      to my character* (would write homebrew onto a real sheet). Render-and-read only, per the standing rule
+      about mutating live data during an audit.
+      **Not covered:** the *joinable* path and both S12 buttons, because the fixture has exactly one campaign
+      and the character is already in it — exercising them needs a second campaign, which would mean creating
+      live data. The render test covers those states; a live click still isn't proven.
+      **A methodology note worth keeping:** three of my first assertions failed on `formAppeared` and the AI
+      button, and the pages were fine — those labels are `text-transform: uppercase`, and `innerText` returns
+      the *transformed* text, so `"Rules text"` never matches `"RULES TEXT"`. Case-insensitive matching is the
+      fix; believing the first red result would have been a fabricated bug report.
 - [ ] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker
