@@ -182,6 +182,28 @@ its own until the owner names them (S-4c). Padding it with eight inert controls 
 **Bar:** 14 new guards (`pref-scoping-shared-engine.test.ts`), 4796/4796 D&D tests, typecheck exit-0, lint
 clean.
 
+### 2026-07-26 — S-6 browser-verified: the modal really does scope per system
+
+S-6 shipped on unit tests alone, and its whole point is what a player SEES. Driven on three live characters
+with a minted session, opening the real gear modal:
+
+| sheet | expected | rendered | controls |
+|---|---|---|---|
+| 5e (Jack) | 9 | **9** | dice style · record mode · auto-mechanics · auto-attune · feat bonuses · exhaustion · long rest · equipment limits · shape-shift |
+| PF2 (Orin) | 5 | **5** | equipment limits + dying model · proficiency-without-level · free archetype · starting hero points |
+| IG (Vashti) | 1 | **1** | equipment limits |
+
+Exactly the sets `enumPrefsForSystem` / `boolPrefsForSystem` compute, so the catalog, the scoping and the
+render agree — no drift between the tested pure functions and the screen. **A PF2 player is no longer offered
+exhaustion or long-rest models their sheet has no mechanic for, and an IG player is no longer offered eight
+settings that did nothing.**
+
+The thin IG modal is the honest picture, not a regression: IG has no rules variants of its own until the owner
+names them (S-4c), and padding it with inert controls is what hid that.
+
+**Bar:** no code change — a verification slice. 5000/5000 D&D tests, typecheck exit-0. Dev server stopped,
+port released.
+
 ### S-4c — IG rules variants: still blocked (not deferred)
 
 The one item that cannot be built. The owner said the IG-specific toggles are "owner to specify", and no IG
