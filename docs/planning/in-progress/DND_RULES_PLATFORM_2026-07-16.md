@@ -3058,6 +3058,18 @@ regression to *reach*, not the drawing:
       `renderHandles` keys off `kind` (only `text` bails), never the art DOM, so these variants still get
       handles; a future early-return that stripped a spin/3D object's handles fails in CI. The remaining
       corner-drag/stem-rotate/persist confirmation is genuinely interactive → browser QA.
+
+      **Attempted headlessly 2026-07-26 and NOT completed — recorded rather than quietly skipped.**
+      What the pass did confirm: the studio loads clean (**0 console errors**), `#handleLayer` is present,
+      and `renderHandles` / `onInstScaleDown` / `onInstRotateDown` are all live functions on the page.
+      What it could not do: place a body to drag. The studio opens on an empty map (the toolbar's
+      "Planets 3 / Stars 1" are the PALETTE, not placed instances), placement is *"Drag a thumbnail onto the
+      map to place"*, and the palette exposes no `[draggable]` node to grab — four approaches were tried
+      (direct state injection: the map state is module-scoped, not on `window`; `dragTo`; a synthetic mouse
+      drag; palette-then-click) before stopping rather than exploring further.
+      **So this stays open, and it needs a human at a real map** — ideally one that already has an image on
+      it, since the original report was specifically about images. The thing to check is unchanged: scale
+      from each of the four corners, rotate from the stem, then reload and confirm both persisted.
 - [x] **A guard/regression note so the handles can't silently disappear again. ✅ SHIPPED** (`b808a9b8`).
       `map-studio-handles.test.ts` (5) locks `renderHandles`'s invariants against the file the browser
       loads: it skips only `kind==="text"` (not `image`), draws the rotate + 4 corner scale handles,
@@ -3330,12 +3342,21 @@ the console out of its page. Deferred as its own follow-up; the affordance above
       already uses, so the console runs its engine unchanged rather than being rebuilt. Verified live against
       the Neon Odyssey map: the galaxy view, systems list, HELM knobs, thrust, navigation and the AWAITING
       INPUT screen all render inside the drawer.
-- [~] **Visible in Player view**, including for the DM previewing Player mode (the reported gap). **Entry
+- [x] **Visible in Player view**, including for the DM previewing Player mode (the reported gap). **Entry
       point SHIPPED + guarded** — the "🖥 Open player console ↗" link appears ONLY in Player mode (and only when
       opened from a campaign), deep-linking to the real console with the current map; `map-player-console.test.ts`
-      pins its URL shape + Player-mode-only gating. The FULLER ask — embedding the console drawer *inside* the
-      studio's Player preview (vs opening the real console in a new tab) — is the deferred follow-up noted above
-      (iframe/factor-out `console.html`), and confirming the in-place drawer is browser QA.
+      pins its URL shape + Player-mode-only gating.
+
+      **→ CLOSED 2026-07-26. The "fuller ask" this deferred had already shipped — the two items directly
+      above it say so.** This line called embedding the drawer inside the Player preview "the deferred
+      follow-up", while its own siblings record it as done and browser-verified (34px peeking closed, 561px
+      open; the galaxy view, HELM knobs and AWAITING INPUT screen all rendering inside it). Re-checked
+      against the source rather than the note: `map-studio.html` has `.pconsole` absolutely positioned in
+      the canvas wrap, gated by `body.playmode .pconsole.avail` (so the DM previewing Player mode gets it —
+      exactly the reported gap), iframing `console.html?campaign=…&map=…`, lazy-loaded on first open,
+      slide-transitioned rather than mounted/unmounted, and remembered in `sessionStorage`. All nine of
+      those properties are already pinned by `map-player-console.test.ts`'s second describe block.
+      Nothing was outstanding; the checkbox simply never caught up with the two lines above it.
 - [x] ✅ SHIPPED (browser-verified 2026-07-25) Remembered per session in `sessionStorage`
       (`stardust-map-studio:console-open`), matching the chat-resize idiom. Verified surviving a
       Player → DM → Player round trip. The iframe `src` is set on FIRST OPEN, not at page load: the console
