@@ -170,11 +170,31 @@ export default function Dnd5eManualBuilder({
       </select>
     </Field>
   );
+  // A homebrew class/subclass must READ as homebrew here. `classesForSystem('dnd5e-2024')` deliberately
+  // includes the authored-but-custom Pugilist, and both the registry and the class file say it is "flagged
+  // `custom` so the picker badges it" — but the option rendered its bare name, so in the VANILLA builder,
+  // whose own copy promises "everything offered is vanilla and rules-legal", it sat in the list looking
+  // exactly like the twelve PHB classes. An <option> can't carry markup, so the marker goes in the text.
+  const optionLabel = (o: { name: string; custom?: { authorName?: string } | undefined }) =>
+    o.custom ? `${o.name} — homebrew${o.custom.authorName ? ` (${o.custom.authorName})` : ''}` : o.name;
+  const pickedClassCustom = classList.find((c) => c.key === className)?.custom;
+  const pickedSubCustom = subOptions.find((s) => s.key === subclass)?.custom;
+  // A suffix in a closed <select> is easy to skim past, and the consequence — a character that is not
+  // rules-legal for organised/vanilla play — outlives the moment of picking. So a selected homebrew choice
+  // also says so standing, next to the control, the way the rest of the platform marks provenance.
+  const homebrewNotice = (pickedClassCustom || pickedSubCustom) ? (
+    <div role="note" style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12, lineHeight: 1.5, padding: '7px 10px', borderRadius: 8, border: '1px solid var(--hx-gold-1, #c8aa6e)', background: 'rgba(200,170,110,0.10)', color: 'var(--hx-text)' }}>
+      <span aria-hidden>⚗</span>
+      <span>
+        This build uses <strong>homebrew</strong>{pickedClassCustom?.authorName ? ` by ${pickedClassCustom.authorName}` : ''} — it is authored to the full 1–20 table and plays like any other class, but it is <strong>not</strong> official {is2024 ? '2024' : '2014'} content. A DM running a vanilla-only table may not allow it.
+      </span>
+    </div>
+  ) : null;
   const classField = (
     <Field label="Class">
       <select value={className} onChange={(e) => { setClassName(e.target.value); setSubclass(''); }} style={selectStyle}>
         <option value="">—</option>
-        {classList.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+        {classList.map((c) => <option key={c.key} value={c.key}>{optionLabel(c)}</option>)}
       </select>
     </Field>
   );
@@ -182,7 +202,7 @@ export default function Dnd5eManualBuilder({
     <Field label="Subclass">
       <select value={subclass} onChange={(e) => setSubclass(e.target.value)} style={selectStyle}>
         <option value="">—</option>
-        {subOptions.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
+        {subOptions.map((s) => <option key={s.key} value={s.key}>{optionLabel(s)}</option>)}
       </select>
     </Field>
   ) : null;
@@ -262,7 +282,7 @@ export default function Dnd5eManualBuilder({
   if (layout === 'steps') {
     const navBtn: React.CSSProperties = { fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${LINE}`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' };
     const stepDefs: { title: string; help: string; body: React.ReactNode }[] = [
-      { title: 'Class & level', help: 'Choose your class (and subclass, once your level unlocks it) and the level you are building to.', body: <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>{levelField}{classField}{subclassField}</div> },
+      { title: 'Class & level', help: 'Choose your class (and subclass, once your level unlocks it) and the level you are building to.', body: <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>{levelField}{classField}{subclassField}{homebrewNotice}</div> },
       { title: is2024 ? 'Species' : 'Race', help: is2024 ? 'Your species sets traits; 2024 puts ability increases on your background, not here.' : 'Your race sets traits and its ability score increases (folded into the scores step).', body: <div style={{ display: 'grid', gap: 10, maxWidth: 340 }}>{speciesField}</div> },
       { title: 'Background', help: is2024 ? 'Your background grants an origin feat and a +2/+1 (or +1/+1/+1) ability increase you assign below.' : 'Your background grants skills, tools, and a feature.', body: <div style={{ display: 'grid', gap: 12 }}><div style={{ maxWidth: 340 }}>{backgroundField}</div>{bgSpreadNode}</div> },
       { title: 'Ability scores', help: 'Set your six ability scores — standard array, point buy, or roll (use the docked roller for 4d6-drop-lowest). Increases are folded in.', body: abilitiesNode },
@@ -301,7 +321,7 @@ export default function Dnd5eManualBuilder({
       {aiBlock}
       <div style={{ fontSize: 16, fontWeight: 800 }}>Manual build{is2024 ? ' — D&D 2024' : ' — D&D 2014'}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-        {levelField}{speciesField}{classField}{subclassField}{backgroundField}
+        {levelField}{speciesField}{classField}{subclassField}{backgroundField}{homebrewNotice}
       </div>
       {bgSpreadNode}
       {abilitiesNode}

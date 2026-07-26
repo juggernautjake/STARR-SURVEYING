@@ -54,11 +54,17 @@ export function dnd5eFeatSlotsAtLevel(system: string, classKeyOrName: string | u
 }
 
 /** The subclass options for a class, as {key,name}. Empty if the class isn't found. */
-export function dnd5eSubclassOptions(system: string, classKeyOrName?: string): { key: string; name: string }[] {
+/** Subclass choices for a class, carrying each one's PROVENANCE.
+ *
+ *  `custom` is passed through deliberately: this list feeds the vanilla builder's picker, whose whole
+ *  promise is that what it offers is rules-legal, and dropping the flag here made a homebrew subclass
+ *  indistinguishable from an official one by the time it reached the <option>. Provenance has to survive
+ *  the mapping or the UI cannot mark it. */
+export function dnd5eSubclassOptions(system: string, classKeyOrName?: string): { key: string; name: string; custom?: { authorName?: string } }[] {
   if (!classKeyOrName) return [];
   const cls = findClass(system, classKeyOrName);
   if (!cls) return [];
-  return subclassesFor(system, cls.key).map((s) => ({ key: s.key, name: s.name }));
+  return subclassesFor(system, cls.key).map((s) => ({ key: s.key, name: s.name, custom: s.custom }));
 }
 
 export interface PicksValidation {
