@@ -732,3 +732,35 @@ The remaining sub-AA samples are roller-template tab labels (2.78–3.98) — sm
 noted rather than churned, since raising them touches the shared roller chrome on every system.
 
 **Bar:** 6 new guards, 4692/4692 D&D tests, typecheck + lint clean.
+
+### 2026-07-26 — slice 19: finishing the skin sweep, and correcting my own measurement
+
+Slice 18 measured one skin. This finishes the light ones, which `skin-tokens.ts` singles out —
+*"CONTRAST IS NON-NEGOTIABLE (the crucial correctness point): the LIGHT skins (streamer/donata/jack)"*.
+
+**First result was wrong, and worth recording as a method note.** My initial pass reported the Streamer
+skin at **1.62:1 with 42 samples below AA** — alarming, and false. The background walk returned the first
+*non-transparent* colour it met, and my luminance function read `rgba(0,0,0,0.08)` as **pure black**,
+ignoring alpha. Purple text on a light pink page was being scored against a background that wasn't there.
+Fixed by compositing every translucent layer onto the first opaque one beneath before comparing. **A
+measurement is only evidence once you have checked the measurement.**
+
+**Corrected result: the light skins are fine.** Streamer measures a median of **5.55:1** with no collapse —
+the "light-skin base fix" recorded in `PF2Sheet.tsx` is holding.
+
+**The real finding is skin-independent.** The roller template tabs (Dice Core / Sigil Stack / Roll Board /
+Impact) and the animation toggle are 11px and coloured `--hx-muted`, measuring **2.78:1 on dark skins and
+2.83:1 on light** — consistently sub-AA everywhere, which is the signal that a de-emphasised token was
+doing a job it isn't for, rather than one theme being off. Slice 18 deferred these as "small and
+secondary"; the cross-skin consistency is what changed the call.
+
+Both now use `--hx-text`. Selection was already carried by the border and background fill, so the label
+never had to be the thing that dimmed — **paying for state with legibility is paying in the wrong
+currency**, and `aria-pressed` carries it for assistive tech regardless.
+
+**Verification is honest but partial.** The before-values are browser measurements; the after-value is
+computed from the same token measured at **16.08:1** elsewhere on that page in slice 18. The Playwright
+context wedged before I could re-measure in place (the app itself was fine — the route served in 1.2s via
+curl throughout). Re-measuring the two labels is a small, specific thing owed to the next browser pass.
+
+**Bar:** 3 new guards, 4695/4695 D&D tests, typecheck + lint clean.
