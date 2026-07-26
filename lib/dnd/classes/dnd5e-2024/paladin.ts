@@ -32,6 +32,10 @@ export const PALADIN_2024: ClassDefinition = {
     kind: 'half',
     ability: 'cha',
     slots: HALF_CASTER_SLOTS,
+    // Transcribed from `preparedRule` below and pinned against it by test — see the cleric file's note.
+    // Level 1 is a real 2 even though there are no SLOTS until level 2: the prepared list exists from the
+    // start, it just cannot be cast from yet.
+    spellsKnown: [0, 2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15],
     preparedRule:
       'Prepared spells are a fixed count from the Paladin table: 2/3/4/5/6/6/7/7/9/9/10/10/11/11/12/12/14/14/15/15 at levels 1–20. Note that you have Spellcasting from level 1 but no slots until level 2 — until then the feature only carries your oath and class-granted always-prepared spells. Choose from the whole Paladin list, up to the highest rank you have slots for; you may swap ONE prepared spell after each Long Rest (not the whole list). Oath spells, Divine Smite and Find Steed are always prepared and do not count against this number.',
   },

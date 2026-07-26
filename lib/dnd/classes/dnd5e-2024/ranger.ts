@@ -35,6 +35,9 @@ export const RANGER_2024: ClassDefinition = {
     kind: 'half',
     ability: 'wis',
     slots: HALF_CASTER_SLOTS,
+    // Transcribed from `preparedRule` below and pinned against it by test — see the cleric and paladin notes
+    // (same "list from level 1, slots from level 2" wrinkle).
+    spellsKnown: [0, 2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15],
     preparedRule:
       'Prepared spells are a fixed count from the Ranger table: 2/3/4/5/6/6/7/7/9/9/10/10/11/11/12/12/14/14/15/15 at levels 1–20. You have Spellcasting from level 1 but no slots until level 2. Choose from the whole Ranger list, up to the highest rank you have slots for; you may swap ONE prepared spell after each Long Rest. Hunter\'s Mark (from Favored Enemy) and any subclass spells are always prepared and do not count against this number.',
   },

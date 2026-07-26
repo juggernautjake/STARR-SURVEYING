@@ -16,6 +16,7 @@ import SpellEditor from './ui/SpellEditor'
 import SpellPicker from './ui/SpellPicker'
 import SpellDetail from './ui/SpellDetail'
 import type { Spell, SpellLevel } from '../types'
+import { preparedCapFor } from '@/lib/dnd/spells/counts'
 
 const ORDINAL = ['Cantrips', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level', '9th Level']
 const lab: React.CSSProperties = { fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }
@@ -28,7 +29,7 @@ function damageLine(s: Spell): string {
 }
 
 export default function SpellsPanel() {
-  const { char, abilities, pb, setChar, editMode, canWrite, isDM, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences } = useChar()
+  const { char, abilities, pb, setChar, editMode, canWrite, isDM, ledger, castSpell, setSpellSlot, restoreSpellSlots, spellSaveDc, preferences, edition } = useChar()
   const [editing, setEditing] = useState<Spell | null>(null)
   const [picking, setPicking] = useState(false)
   const [viewing, setViewing] = useState<Spell | null>(null)
@@ -68,6 +69,18 @@ export default function SpellsPanel() {
   const saveDC = spellSaveDc // single source — matches castSpell exactly (see the store's spellSaveDc)
   const attackBonus = ledger.value('spell_attack', pb + mod)
   const preparedCount = spells.filter((s) => s.prepared && !s.alwaysPrepared && s.level > 0).length
+  // The cap the class actually grants (slot plan S7). `sc.preparedCap` has been rendered here since the
+  // panel was written, but the only place in the whole repo that ever SET it is a hand-authored demo
+  // character — so every real caster showed a bare count against nothing. The stored value still wins when
+  // present, since a DM or homebrew class may legitimately override it; otherwise it is derived from the
+  // class's own per-level table. Null for a 2014 preparer, whose count needs an ability score (see
+  // `preparedCapFor`) — the display then falls back to the bare count exactly as before.
+  //
+  // The system comes from the store's `edition`, not from `meta` — `meta` carries no system key, and
+  // `edition` is derived from the very system prop the page passes in, so this is that value round-tripped
+  // rather than a second guess at it.
+  const preparedCap = sc?.preparedCap
+    ?? preparedCapFor(edition === '2014' ? 'dnd5e-2014' : 'dnd5e-2024', char.meta?.className, char.meta?.level ?? 1)
 
   // Levels present = any spell level OR any level with slots defined.
   const levels = sc ? [...new Set([...spells.map((s) => s.level), ...(sc.slots ? Object.keys(sc.slots).map(Number) as SpellLevel[] : [])])].sort((a, b) => a - b) : []
@@ -85,7 +98,7 @@ export default function SpellsPanel() {
             ['Ability', sc.ability.toUpperCase()],
             ['Spell Save DC', String(saveDC)],
             ['Spell Attack', signed(attackBonus)],
-            ['Prepared', sc.preparedCap ? `${preparedCount} / ${sc.preparedCap}` : String(preparedCount)],
+            ['Prepared', preparedCap ? `${preparedCount} / ${preparedCap}` : String(preparedCount)],
           ].map(([k, v]) => (
             <div key={k} style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
               <div style={lab}>{k}</div>

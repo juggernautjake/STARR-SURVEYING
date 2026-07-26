@@ -36,6 +36,8 @@ export const DRUID_2024: ClassDefinition = {
     ability: 'wis',
     slots: FULL_CASTER_SLOTS,
     cantripsKnown: [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+    // Transcribed from `preparedRule` below and pinned against it by test — see the cleric file's note.
+    spellsKnown: [0, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22],
     preparedRule:
       'Prepared spells are a fixed count from the Druid table, NOT level + Wisdom modifier: 4/5/6/7/9/10/11/12/14/15/16/16/17/17/18/18/19/20/21/22 at levels 1–20. Choose them from the whole Druid list, up to the highest rank you have slots for, and rebuild the list after a Long Rest. Circle spells are always prepared and never count against this number.',
   },

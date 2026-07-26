@@ -1,9 +1,21 @@
 # Settings: per-system (PF2/IG) rules variants (parked from the Settings Overhaul)
 
-**Status:** IN PROGRESS · reactivated 2026-07-25 · split out of `completed/SHEET_SETTINGS_OVERHAUL_2026-07-22.md`
+**Status:** PENDING · parked 2026-07-26 · split out of `completed/SHEET_SETTINGS_OVERHAUL_2026-07-22.md`
 
-> **2026-07-25 — S-4a and S-4b shipped** (commit `e15ebf1d`). S-4c remains genuinely blocked on the owner
-> naming the IG house rules. See the slice log at the bottom of this doc.
+> **2026-07-25 — S-4a and S-4b shipped** (commit `e15ebf1d`); **S-6 + its browser pass shipped 2026-07-26.**
+> S-4c remains genuinely blocked on the owner naming the IG house rules. See the slice log at the bottom.
+>
+> **Moved to `pending/` 2026-07-26.** Everything buildable here is built: preferences reach the bespoke
+> sheets, the three PF2 variants ship with their maths, and every preference is scoped per system and
+> browser-verified. What is left is **one item that no amount of engineering can start** — S-4c cannot be
+> modelled, catalogued or wired until the IG house rules are *named*, and inventing them would break
+> Ground Rule 3 on someone else's game.
+>
+> Not `completed/`, because the feature it describes has not shipped: IG still has no rules variants. Not
+> `in-progress/`, because nothing here is being worked and nothing can be. `pending/` is the folder the
+> rubric defines for exactly this — "scoped and parked deliberately". **Move it back to `in-progress/` the
+> day the IG rules are named**; each one is then a model entry, a catalog entry, and a wire-up, with the
+> whole channel already in place.
 
 ## Why this is parked (not abandoned)
 
@@ -211,4 +223,5 @@ house rules have been named. Everything downstream is ready: the preference chan
 `PREF_SYSTEMS` will scope them to `intuitive-games`, and the catalog + modal need no further work. Naming
 the rules is the whole remaining task; each one is then a model entry, a catalog entry, and a wire-up.
 
-**This doc stays in `in-progress/` until the owner names the IG rules.**
+**This doc sits in `pending/` until the owner names the IG rules** (moved there 2026-07-26 — see the status
+note at the top for why `pending/` and not `completed/`).

@@ -32,6 +32,10 @@ export const CLERIC_2024: ClassDefinition = {
     ability: 'wis',
     slots: FULL_CASTER_SLOTS,
     cantripsKnown: [0, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+    // Transcribed from `preparedRule` below, which is the source and stays the source: a test extracts the
+    // digits from that sentence and compares them to this array, so the two cannot drift. For 2024 classes
+    // `spellsKnown` carries the PREPARED count (see the wizard file's note) — these are preparers.
+    spellsKnown: [0, 4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22],
     preparedRule:
       'Prepared spells are a fixed count from the Cleric table, NOT level + Wisdom modifier: 4/5/6/7/9/10/11/12/14/15/16/16/17/17/18/18/19/20/21/22 at levels 1–20. Choose them from the whole Cleric list (you always have access to every Cleric spell), up to the highest rank you have slots for. You can swap the whole list after a Long Rest. Domain spells are always prepared and never count against this number.',
   },

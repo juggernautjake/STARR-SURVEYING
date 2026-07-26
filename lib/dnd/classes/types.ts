@@ -66,7 +66,19 @@ export interface ClassSpellcasting {
   pactSlots?: number[];
   /** Warlock only: the rank those slots are cast at, by level (index 1..20). */
   pactRank?: number[];
-  /** Spells known by level, for classes with a fixed known list (index 1..20). Omit for preparers. */
+  /**
+   * The class's per-level spell count (index 1..20) — and WHICH count it is depends on the edition.
+   *
+   * · **2014** — spells KNOWN, for the classes with a fixed known list (Bard, Sorcerer, Warlock, Ranger).
+   *   2014 preparers omit it, because their number is `level + ability modifier` and so cannot be tabled
+   *   without the character's ability scores.
+   * · **2024** — spells PREPARED. The edition has no known-spells casters at all, and every caster's count
+   *   is a fixed per-level number, so every 2024 caster carries this array (see the note in `wizard.ts`).
+   *
+   * The doc used to read "Omit for preparers", which was true of 2014 and had already been overtaken by
+   * the 2024 files it describes. Use `spellCountsFor` in `lib/dnd/spells/counts.ts` rather than reading
+   * this directly — it reports which of the two meanings applies.
+   */
   spellsKnown?: number[];
 }
 

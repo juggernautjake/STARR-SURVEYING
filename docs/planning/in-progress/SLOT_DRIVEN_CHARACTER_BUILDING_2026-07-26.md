@@ -214,8 +214,37 @@ slices are driven in the browser before being called done — this repo's standi
       disagreeing about what is legal, which is exactly what that function's own comment promises cannot
       happen. Now `isRulesEnforcedKind`. **The test suite had pinned the buggy line as if it were the rule**,
       which is how it survived; it now pins the rule and asserts the two bound kinds behave identically.
-- [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
-      spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
+- [~] **S7 — spells. The COUNT SOURCE shipped 2026-07-26; enforcement is still open.** 23 tests.
+      `lib/dnd/spells/counts.ts` — `spellCountsFor` / `preparedCapFor`, the missing counterpart to
+      `maxSpellLevelFor` (that answers "how HIGH can they cast?", this answers "how MANY do they get?").
+      **The counts were already authored and already unused**, the same shape as the feat defect S1–S5 fixed:
+      thirteen class files carry `cantripsKnown`/`spellsKnown`, `snapshotAtLevel` carries them onto every
+      snapshot, and exactly one consumer read them — a progression *display* table that prints cantrips and
+      never prints `spellsKnown` at all.
+      **Four 2024 classes had their table trapped in prose.** Cleric, Druid, Paladin and Ranger carried
+      "a fixed count from the X table: 4/5/6/…" in `preparedRule` and no array. Transcribed — and a test
+      extracts the digits from each class's OWN sentence and compares, so the prose stays the source and a
+      transcription slip cannot pass quietly.
+      **Two modelling traps, both hit and corrected:**
+      · `prepares: !!preparedRule` is wrong — the 2014 Bard's rule string literally reads *"Spells KNOWN
+        (a Bard does not prepare)"*. The real rule is an edition difference (2024 has no known-spells
+        casters at all), now stated in one function instead of guessed at each call site.
+      · The `spellsKnown` type doc read "Omit for preparers", which was true of 2014 and had already been
+        overtaken by the 2024 files it describes. Fixed the doc, not the data.
+      **`preparedCap` is now a real number.** It has been rendered on the sheet since the panel was written
+      and the only place in the repo that ever SET it was a hand-authored demo character — every real caster
+      showed a bare count against nothing. A stored value still wins (DM override, homebrew class). Null for
+      a 2014 preparer on purpose: that count is `level + ability modifier`, which class and level cannot
+      know, and a wrong cap is worse than none.
+      **Found by the orphan-module guard**, which failed the first version of this slice: the count source
+      landed with no consumer. Exactly what that guard is for.
+- [ ] **S7b — enforce the counts in the pickers.** The remaining half, and a genuine behaviour change:
+      `SpellPicker` currently lets a level-1 Bard add all four cantrips and thirty more, and PF2's spell
+      picker is deliberately uncapped (`PF2BuildPicks`'s own comment says so, citing S7). Capping starts
+      refusing picks players have already made — several demo characters hold more spells than their class
+      grants — so it needs the same `TakeAnyway` escape hatch feats got, and a decision about existing
+      over-count sheets (Q5's "grandfather and mark" assumption applies here too). PF2 additionally has no
+      per-class/per-tradition count at all: `pf2SpellSlots` is one derived full-caster table keyed on level.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
