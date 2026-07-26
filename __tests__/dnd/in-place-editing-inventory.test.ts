@@ -153,31 +153,55 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
   });
 });
 
-// ── The remaining unaudited BUILD paths, listed rather than left to be rediscovered ────────────────────
+// ── The work list, now empty ──────────────────────────────────────────────────────────────────────────
 //
-// Three defects in two slices came from the same root: `log-edit.ts` calls itself "the ONE client path…
+// Six defects across four slices came from one root: `log-edit.ts` calls itself "the ONE client path…
 // one audit vocabulary, not a parallel path", and nothing enforced it, so call sites quietly grew their
-// own behaviour. Rather than keep finding these one at a time, this records where the boundary currently
-// sits. Each entry is a real gap — a build change the DM's queue cannot see — not a deferral.
-describe('KNOWN unaudited build paths (a work list, not a pass)', () => {
-  const GAPS: Record<string, string> = {
-    'Hero.tsx': 'name and species changes (species goes through SpeciesPicker, which does not log)',
-    'Bio.tsx': 'bio/backstory text — prose rather than mechanics, so the lowest-value of the set',
-  };
+// own behaviour while the plan doc recorded "every edit audits" as settled.
+//
+// This started as a list of five known gaps that asserted their own CURRENT state — so fixing one FAILED
+// the test and forced the list to shrink rather than rot. It went 5 → 4 → 2 → 0. What replaces it is the
+// completed picture, kept for the same reason: a new unaudited build path should fail here.
+describe('every mechanical build path audits', () => {
+  const MECHANICAL: [string, string][] = [
+    ['Hero.tsx', 'meta.species'],       // carries size, speed, senses, traits
+    ['Bio.tsx', 'meta.background'],     // 2024: carries the ability spread
+    ['Features.tsx', 'feature.'],
+    ['Attacks.tsx', 'attack.'],
+    ['Inventory.tsx', 'item.'],
+    ['SavesSkills.tsx', 'skill.'],
+  ];
 
-  it('is honest about how many remain', () => {
-    // If this number changes, someone either fixed one (good — remove it here) or added a new unaudited
-    // path (the thing to catch). It has gone 5 → 4 → 2, and each time the FAILURE is what forced this
-    // list to be updated — which is the whole point of asserting the current state rather than the goal.
-    expect(Object.keys(GAPS)).toHaveLength(2);
-  });
-
-  for (const [file, why] of Object.entries(GAPS)) {
-    it(`${file} — ${why}`, () => {
-      // Asserting the CURRENT state, so fixing one of these fails here and forces the list to be updated.
-      expect(read(file), `${file} now audits — remove it from GAPS`).not.toContain('logManualEdit');
+  for (const [file, path] of MECHANICAL) {
+    it(`${file} logs ${path}`, () => {
+      // Accepts either quoting: a fixed path is a plain string ('meta.species'), an element path is a
+      // template (`feature.${f.name}`). Pinning one form would fail on the other for no reason.
+      expect(read(file), `${file} should audit its build changes`)
+        .toMatch(new RegExp(`logManualEdit\\(characterId, [\`']${path.replace('.', '\\.')}`));
     });
   }
+
+  it('the character NAME audits on blur, not per keystroke', () => {
+    // `onChange` fires per letter, so logging there would bury the queue under "Ana / Anak / Anakin".
+    // Capturing on focus and comparing on blur records the one edit the player actually made, and
+    // `logManualEdit` no-ops when nothing moved — so tabbing through the field logs nothing.
+    const hero = read('Hero.tsx');
+    expect(hero).toContain("onFocus={() => { nameAtFocus.current = char.meta.name }}");
+    expect(hero).toContain("onBlur={() => logManualEdit(characterId, 'meta.name'");
+  });
+
+  it('BACKSTORY PROSE stays out, deliberately', () => {
+    // Appearance, personality, ideals, bonds and notes are typed character by character and carry no
+    // mechanics. Burying a stolen feat under three hundred rows of someone writing their backstory would
+    // defeat the queue rather than complete it. Only `background` — which moves ability scores — audits.
+    // Anchored on the DECLARATION and read to the end of that one statement. A proximity regex on the
+    // bare word `setBio` matched `setBackground`'s comment, which refers to it by name — the same
+    // "grep found the prose, not the code" trap as the jump-nav and TakeAnyway guards.
+    const bio = read('Bio.tsx');
+    const decl = bio.indexOf('const setBio = ');
+    expect(decl, 'setBio should exist').toBeGreaterThan(-1);
+    expect(bio.slice(decl, bio.indexOf('\n', decl))).not.toContain('logManualEdit');
+  });
 });
 
 describe('GROUP 3 — deliberately NOT inline-editable, and why', () => {

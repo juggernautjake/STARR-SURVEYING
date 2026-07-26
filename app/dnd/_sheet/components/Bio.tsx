@@ -9,6 +9,7 @@ import { SKILLS, ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd'
 import { md } from '../lib/inline'
 import SectionHead from './ui/SectionHead'
 import EffectStar from './ui/EffectStar'
+import { logManualEdit } from '../lib/log-edit'
 
 const SKILL_LABEL: Record<string, string> = Object.fromEntries(SKILLS.map((s) => [s.key, s.label]))
 const ABILITY_LABEL: Record<string, string> = Object.fromEntries(ABILITIES.map((a) => [a.key, a.label]))
@@ -90,8 +91,13 @@ function StoryCard({
 }
 
 export default function Bio() {
-  const { char, setChar, canWrite, ledger } = useChar()
+  const { char, setChar, canWrite, ledger, characterId } = useChar()
   const { bio } = char
+  // NOT audited, and deliberately so. These are backstory prose fields (appearance, personality, ideals,
+  // bonds, notes) typed character by character — auditing them would file a row per keystroke, and the
+  // DM's review queue exists to surface MECHANICAL changes. Burying a stolen feat under three hundred rows
+  // of someone writing their backstory would defeat the queue rather than complete it. The one field in
+  // this panel that IS mechanical, `background`, audits below.
   const setBio = (patch: Partial<typeof bio>) => setChar((c) => ({ ...c, bio: { ...c.bio, ...patch } }))
   // Use the imposed name (Slice 11) in the card titles too, so a transformed character's story
   // reads as who they currently are — consistent with the Hero header. Base stands when nothing
@@ -122,6 +128,10 @@ export default function Bio() {
   // old one — abilities are running totals, so a stale +2/+1 would otherwise be left baked in. The
   // reconcile undoes the applied spread (prev → {}) and we clear the stored spread in the same edit.
   const setBackground = (key: string) => {
+    // Audited: background is the one BUILD field here, not prose — in 2024 it carries the ability spread,
+    // and changing it re-reconciles the character's scores (the very next line). The rest of this panel is
+    // backstory text, deliberately left out of the log; see the note on `setBio`.
+    logManualEdit(characterId, 'meta.background', char.meta.background ?? null, key)
     setDraft({}) // a new background starts with no spread assigned
     setChar((c) => ({
       ...c,

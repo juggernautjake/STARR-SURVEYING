@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
+import { logManualEdit } from '../lib/log-edit'
 import { SYSTEM_AMBIGUOUS, systemLabel } from '@/lib/dnd/systems'
 import { SPECIES_2024 } from '@/lib/dnd/species/dnd5e-2024'
 import { classDisplayFor } from '@/lib/dnd/classes/multiclass-resolve'
@@ -9,18 +10,24 @@ import EffectStar from './ui/EffectStar'
 import SpeciesTraits from './SpeciesTraits'
 
 export default function Hero() {
-  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM, ledger } = useChar()
+  const { char, setChar, editMode, setEditMode, tempMode, setTempMode, clearAllOverrides, reset, importChar, isDM, ledger, characterId } = useChar()
   const system = useSheetSystem()
   const systemName = systemLabel(system)
   const fileRef = useRef<HTMLInputElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
+  const nameAtFocus = useRef('')
 
   // Creation help (Slice 4): for a 2024 sheet, species is a pick from the real list, not free text —
   // and once matched, the sheet shows what that species grants (size/speed/darkvision + traits) so a
   // player building vanilla can see their species is real. Custom species stay possible (the escape
   // hatch), matching the rules-legal-unless-explicitly-custom rule.
   const is2024 = system === 'dnd5e-2024'
-  const setSpecies = (name: string) => setChar((c) => ({ ...c, meta: { ...c.meta, species: name } }))
+  // Species is a discrete pick and a real build change — it carries size, speed, senses and traits — so it
+  // logs on the change itself.
+  const setSpecies = (name: string) => {
+    logManualEdit(characterId, 'meta.species', char.meta.species ?? null, name)
+    setChar((c) => ({ ...c, meta: { ...c.meta, species: name } }))
+  }
 
   // Identity OVERLAY (Slice 11): an effect can impose a different name/species/class while active —
   // a pendant that makes you "Zul the Barbarian". Like every effect it's an overlay: the DISPLAY
@@ -103,6 +110,12 @@ export default function Hero() {
               className="mono"
               style={{ fontSize: 26, width: 'min(420px, 80vw)' }}
               value={char.meta.name}
+              // Audited on FOCUS/BLUR, not on change. `onChange` fires per keystroke, so logging there
+              // would file a row per letter and bury the DM's queue under "Ana / Anak / Anakin". Capturing
+              // the value on focus and comparing on blur records the one edit the player actually made.
+              // `logManualEdit` no-ops when nothing moved, so tabbing through the field logs nothing.
+              onFocus={() => { nameAtFocus.current = char.meta.name }}
+              onBlur={() => logManualEdit(characterId, 'meta.name', nameAtFocus.current, char.meta.name)}
               onChange={(e) => setChar((c) => ({ ...c, meta: { ...c.meta, name: e.target.value } }))}
             />
           ) : (

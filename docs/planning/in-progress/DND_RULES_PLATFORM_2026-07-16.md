@@ -2588,11 +2588,16 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       **Then the two DELETIONS** — a feature and an attack. Both confirms said *"cannot be undone"*, again
       true only because nothing recorded them; a feature is often a whole feat or class ability, and an
       attack is a build element with its own maths. Duplicating either audits as an arrival.
-      **Two unaudited build paths REMAIN, as a listed work list rather than a discovery exercise:**
-      name + species on `Hero`, and bio text (prose rather than mechanics — the lowest-value of the set).
-      `in-place-editing-inventory.test.ts` asserts the CURRENT state of each, so fixing one FAILS the test
-      and forces the list to be updated — the only way this stops drifting. It has done that twice now:
-      the count went **5 → 4 → 2**, and each time the failure is what prompted the update.
+      **And the last two: `Hero` and `Bio`.** Species logs on the pick (it carries size, speed, senses and
+      traits); background logs on the pick (in 2024 it carries the ability spread, and changing it
+      re-reconciles the scores); the character NAME logs on **blur**, capturing the value on focus —
+      `onChange` fires per keystroke, so logging there would bury the queue under "Ana / Anak / Anakin".
+      **Backstory prose is deliberately excluded**, and that is the boundary rather than a gap: appearance,
+      personality, ideals, bonds and notes carry no mechanics, and burying a stolen feat under three hundred
+      rows of someone writing their backstory would defeat the queue rather than complete it.
+      **THE WORK LIST IS EMPTY: 5 → 4 → 2 → 0.** Every mechanical build path on the shared sheet now
+      audits. `in-place-editing-inventory.test.ts` (39) has been rewritten from a list of known gaps into
+      the completed picture, and still fails on a NEW unaudited path — which is what the list was for.
       **Root cause, worth stating once:** `log-edit.ts` calls itself *"the ONE client path … one audit
       vocabulary, not a parallel path"* and **nothing enforced that**, so five call sites quietly grew their
       own behaviour while two `[x]` items below recorded "every edit audits" as settled.
