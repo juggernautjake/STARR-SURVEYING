@@ -78,7 +78,8 @@ provenance = 'vanilla' | 'expanded' | 'homebrew' | 'dm-granted'
 - **`vanilla`** — chosen from that slot's legal set. The default path, and the only one a vanilla character
   can use (`vanilla = hard block` is this repo's existing rule).
 - **`expanded`** — a real, catalogued option from the same system that this slot would not normally offer
-  (the cross-class feat the DM allowed). Flagged, never silent.
+  (the cross-class feat the DM allowed). Flagged, never silent — **and it changes the CHARACTER's badge, not
+  just the element's** (owner, 2026-07-26; see below).
 - **`homebrew`** — authored content (the existing `/build/feat` + `/build/class` + `/build/subclass` designers
   already produce this and already persist + resolve).
 - **`dm-granted`** — the DM put it there; marked as such, following `unboundReason: 'dm-grant'`.
@@ -97,10 +98,14 @@ slices are driven in the browser before being called done — this repo's standi
       (`builderChoicesFor` + `mergeBuilderChoices`), wired into `dnd5e-build`. Kills the double-ask, makes a
       feat pick level-attributed, and dissolves the "ASI slot ownership" question. 20 tests. **Shipped
       2026-07-26** (`66c17799`).
-- [ ] **S2 — 5e: the ladder drives the prompts, not the annotations.** Make `planLevelUp` derive its ASI
-      prompts from `def.asiLevels` (falling back to annotations for anything else), so all 13 classes prompt
-      every ladder level. Fixes the measured 8-of-13 gap and makes "a class with a ladder but no prompt"
-      unrepresentable. Rewrite the baseline guard's expectations to "every class, every level".
+- [x] **S2 — 5e: the ladder drives the prompts, not the annotations. Shipped 2026-07-26.**
+      `snapshotAtLevel` now derives an `asi` pending choice from `def.asiLevels` for any level not already
+      annotated. All 13 classes in both editions now prompt exactly their authored ladder: Fighter goes from
+      **no ASI prompt at any level** to 4/6/8/12/14/16, Wizard from *only 4* to 4/8/12/16, and the five
+      already-correct classes are untouched (the annotation still wins, so no double prompt). The measured
+      8-of-13 gap is closed, and "a class with a ladder but no prompt" is now unrepresentable — which is the
+      part that stops it coming back with the next class someone authors. The whole suite stayed green
+      (4818), which is worth noting for a change that ADDS prompts: nothing was relying on the silence.
 - [ ] **S3 — the shared slot vocabulary.** `lib/dnd/slots/` — `SlotSpec`/`SlotFill`/provenance + a pure
       `fillSlot`/`clearSlot`/`unfilled` core, with the 5e ladder as its first provider. No UI yet; a provider
       and its tests only.
@@ -114,9 +119,23 @@ slices are driven in the browser before being called done — this repo's standi
       component so the tiers cannot drift apart per system.
 - [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
       spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
-- [ ] **S8 — the sheet shows provenance.** Anything not `vanilla` carries its mark where the player and the
-      DM can see it, and the DM review surface lists it. (`provenance.ts` + the requests board already do most
-      of this — this slice is about the slot-filled path reaching them.)
+- [ ] **S8 — the character badge, and what it names.** Introduce **altered vanilla** as a real state beside
+      `vanilla`/`custom` (today `variantKind` is a binary in `system-variants.ts` and every gate reads it as
+      one, so this touches the gates too: an altered-vanilla character is *not* refused like a custom one, but
+      it is not silently equal to vanilla either). The badge must NAME its exceptions — "Altered vanilla:
+      Magic Initiate (DM-granted, level 4)" — on the sheet and in the DM's review. `provenance.ts` and the
+      requests board already carry most of the plumbing.
+- [ ] **S11 — take a character into and out of a campaign, clearly.** Owner-flagged 2026-07-26: joining and
+      leaving must be obvious and reversible from the character's own page, not only from the campaign side.
+      Today the join path exists (`dnd_campaign_characters`, and `campaignsForCharacter` already treats
+      membership as many-to-many) but there is no plain "leave this campaign" affordance, and no single place
+      that says which campaigns a character is in.
+- [ ] **S12 — join as THIS character, or as a variant.** Owner-flagged 2026-07-26: when taking a character
+      into a campaign, offer *"bring this exact character"* or *"make a variant for this campaign, kept
+      separate from the original build"*. The variant machinery already exists and is the right substrate —
+      the VERSIONS picker, git-like lineage and per-slot summaries from `project_dnd_variant_tracker`, plus
+      `ActiveSlotMeta.campaignId`, which is already a field on a variant slot and today goes mostly unused.
+      This is the natural home for "my home-game Ardyn is level 9, but this new table starts at 3".
 - [ ] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker
@@ -125,15 +144,30 @@ slices are driven in the browser before being called done — this repo's standi
 - [ ] **S10 — IG Champion.** Fill `IG_CLASS_DETAILS` for Champion when the owner supplies its
       powers/specializations, and the free-text fallback becomes a real picker. Blocked on Brendan's site.
 
-## Questions for the owner
+## Character-level status — ANSWERED by the owner 2026-07-26
 
-1. **Does an `expanded` pick cost the character its "vanilla" badge?** My assumption: no — the *character*
-   stays vanilla-with-exceptions and only the element is marked, because that is what `markIgOffRules` and
-   `dm_granted` already do. The alternative (any expansion flips the whole character to custom) is simpler to
-   explain but loses the distinction between "one DM-approved feat" and "a homebrew build".
-2. **Should `+ Add a different …` be available to a player without the DM, in a campaign?** Options: always
-   (marked), only outside a campaign, or gated behind a DM approval request (the requests board already
-   exists). My assumption: always available and marked, with the DM review surface showing it.
+> "If a vanilla character takes an outside of class feat or something like that, they become a custom
+> character. Or we need a tag that is like 'altered vanilla' or something like that. We need it to be clear
+> that something is not the usual."
+
+So the character's own badge moves — a marked element is not enough. Three states, and the middle one is new:
+
+| badge | meaning | how you get it |
+|---|---|---|
+| **Vanilla** | every slot filled from its legal set | the default path |
+| **Altered vanilla** | built to the rules *except* for specific, named exceptions | one or more `expanded` / `dm-granted` picks |
+| **Custom** | not claiming to be a rules-legal build | homebrew class/subclass, off-schedule content, a build that exceeds its slots |
+
+"Altered vanilla" is the state the current model cannot express: today `variantKind` is `vanilla | custom`
+(`system-variants.ts`), and every gate reads it as a binary. The badge must say **what** was altered, not just
+that something was — a sheet that reads "Altered vanilla" and doesn't name the two feats responsible is the
+same problem in a nicer font. Slice S8 carries that.
+
+## Questions still open for the owner
+
+1. **Should `+ Add a different …` be available to a player without the DM, in a campaign?** Options: always
+   (marked "altered vanilla"), only outside a campaign, or gated behind a DM approval request (the requests
+   board already exists). My assumption: always available and marked, with the DM review surface showing it.
 3. **5e has no class-specific feat lists** the way PF2 has class feats — 2024 sorts feats into origin /
    general / fighting-style / epic-boon tracks and gates them by prerequisite. Is "only the correct options"
    for 5e = *that slot's track + prerequisites met* (which is what slice 3 already enforces)? Or do you want

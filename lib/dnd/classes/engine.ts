@@ -96,6 +96,31 @@ export function snapshotAtLevel(def: ClassDefinition, level: number, sub?: Subcl
     .filter((f) => f.choice)
     .map((f) => ({ level: f.level, kind: f.choice!, label: `${CHOICE_LABEL[f.choice!]} (level ${f.level})` }));
 
+  // THE LADDER IS THE SOURCE OF TRUTH FOR ASI SLOTS, not the feature annotations.
+  //
+  // Two things describe the same rule and they disagreed. `def.asiLevels` is authored for every class; a
+  // `choice: 'asi'` annotation on a feature is authored by hand, per class, per edition — and measuring the
+  // result on 2026-07-26 showed 2024 was annotated three different ways:
+  //
+  //   · cleric, druid, paladin, ranger, pugilist  → every ladder level annotated (correct)
+  //   · bard, sorcerer, warlock, wizard           → ONLY level 4, so 8/12/16 were never asked for
+  //   · barbarian, fighter, monk, rogue           → nothing, so a Fighter could walk 1 → 20 and never be
+  //                                                 offered a single ASI or feat
+  //
+  // That is the "blocks 8 of 13 2024 classes" line in the plan docs. 2014 happened to be annotated
+  // completely for all 13, which is what kept the gap invisible — the edition people tested was fine.
+  //
+  // Deriving from the ladder makes "a class with an ASI ladder but no prompt" unrepresentable, so the same
+  // gap cannot come back with the next class someone authors. Annotations still work and still win: a level
+  // already annotated is skipped here, so the five correct classes are untouched and a homebrew class that
+  // annotates an ASI at an off-ladder level keeps it.
+  const annotated = new Set(pendingChoices.filter((p) => p.kind === 'asi').map((p) => p.level));
+  for (const l of def.asiLevels ?? []) {
+    if (l > lv || annotated.has(l)) continue;
+    pendingChoices.push({ level: l, kind: 'asi', label: `${CHOICE_LABEL.asi} (level ${l})` });
+  }
+  pendingChoices.sort((a, b) => a.level - b.level);
+
   const resources = (def.resources ?? [])
     .map((r) => ({ id: r.id, name: r.name, max: r.perLevel[lv] ?? 0, resetOn: r.resetOn }))
     .filter((r) => r.max !== 0); // 0 = the class doesn't have it yet at this level

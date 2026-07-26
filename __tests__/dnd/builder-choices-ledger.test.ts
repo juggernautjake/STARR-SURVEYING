@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { builderChoicesFor, mergeBuilderChoices, type BuilderChoice } from '@/lib/dnd/statgen/builder-choices';
 import { planLevelUp, type RecordedChoice } from '@/lib/dnd/classes/levelup';
-import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
+import { findClass, subclassesFor, classesForSystem } from '@/lib/dnd/classes/registry';
 
 const S = 'dnd5e-2024';
 
@@ -137,19 +137,22 @@ describe('THE PROOF: the walker no longer asks for a choice Foundations already 
   });
 });
 
-describe('the OTHER half of the same problem: the 2024 ladder is not what gets prompted', () => {
-  // MEASURED, not assumed (this replaced a guess of mine that was wrong). `planLevelUp` prompts from
-  // `choice` ANNOTATIONS on the class data, while `asiLevels` is authored for every class — so the two
-  // disagree, and they disagree three different ways in 2024:
+describe('the authored ASI ladder is what gets prompted, for every class in both editions (S2)', () => {
+  // WHAT THIS REPLACED, and why it hid so long. Until 2026-07-26 prompts came only from `choice: 'asi'`
+  // ANNOTATIONS on class features, while `asiLevels` was authored separately. Measuring 2024 found three
+  // different behaviours:
   //
-  //   · complete   — cleric, druid, paladin, ranger, pugilist  → every ladder level prompts
-  //   · partial    — bard, sorcerer, warlock, wizard           → ONLY level 4 prompts, 8/12/16 are silent
-  //   · none       — barbarian, fighter, monk, rogue           → no ASI prompt at any level
+  //   · complete — cleric, druid, paladin, ranger, pugilist → every ladder level prompted
+  //   · partial  — bard, sorcerer, warlock, wizard          → ONLY level 4; 8/12/16 silent
+  //   · none     — barbarian, fighter, monk, rogue          → no ASI prompt at any level, so a Fighter could
+  //                                                           walk 1 → 20 and never be offered one
   //
-  // 4 + 4 = the "blocks 8 of 13 2024 classes" line in the plan docs, which never said which 8 or how.
-  // 2014 is COMPLETE for all 13, which is the proof that this is an authoring gap and not architecture.
-  // This guard is the baseline the new plan doc's slice measures itself against; when the ladder starts
-  // driving the prompts, the expectations here should be rewritten to "every class, every ladder level".
+  // 4 + 4 is the "blocks 8 of 13 2024 classes" line in the plan docs, which never said which 8. **2014 was
+  // annotated completely for all 13** — which is exactly why this stayed invisible: the edition anyone
+  // tested was the one that worked.
+  //
+  // `snapshotAtLevel` now derives an `asi` pending choice from the ladder for any level not already
+  // annotated, so the two cannot disagree and the next class someone authors cannot reintroduce the gap.
   const promptedLevels = (system: string, key: string): number[] => {
     const def = findClass(system, key);
     if (!def) return [];
@@ -157,31 +160,42 @@ describe('the OTHER half of the same problem: the 2024 ladder is not what gets p
       .outstanding.filter((o) => o.kind === 'asi').map((o) => o.level);
   };
 
-  it('2014 prompts every level of every class\'s ladder', () => {
-    for (const key of ['fighter', 'barbarian', 'rogue', 'monk', 'wizard', 'cleric', 'bard']) {
-      const def = findClass('dnd5e-2014', key)!;
-      expect(promptedLevels('dnd5e-2014', key), key).toEqual(def.asiLevels);
-    }
+  for (const system of ['dnd5e-2024', 'dnd5e-2014']) {
+    it(`${system}: every class prompts exactly its authored ladder`, () => {
+      const classes = classesForSystem(system);
+      expect(classes.length, 'the edition has classes').toBeGreaterThan(10);
+      for (const c of classes) {
+        const def = findClass(system, c.key)!;
+        if (!def.asiLevels?.length) continue; // a class with no ladder owes no ASI
+        expect(promptedLevels(system, c.key), `${system}/${c.key}`).toEqual(def.asiLevels);
+      }
+    });
+  }
+
+  it('the four classes that prompted NOTHING now prompt their whole ladder', () => {
+    expect(promptedLevels(S, 'fighter')).toEqual([4, 6, 8, 12, 14, 16]);
+    for (const key of ['barbarian', 'monk']) expect(promptedLevels(S, key), key).toEqual([4, 8, 12, 16]);
+    expect(promptedLevels(S, 'rogue')).toEqual([4, 8, 10, 12, 16]);
   });
 
-  it('2024 does not — four classes prompt nothing at all', () => {
-    for (const key of ['barbarian', 'fighter', 'monk', 'rogue']) {
-      expect(findClass(S, key)?.asiLevels?.length, `${key} has a ladder`).toBeGreaterThan(0);
-      expect(promptedLevels(S, key), `${key} prompts nothing`).toEqual([]);
-    }
-  });
-
-  it('2024 does not — four more prompt only level 4', () => {
+  it('the four that prompted only level 4 now prompt all four', () => {
     for (const key of ['bard', 'sorcerer', 'warlock', 'wizard']) {
-      expect(promptedLevels(S, key), `${key}`).toEqual([4]);
-      expect(findClass(S, key)?.asiLevels).toEqual([4, 8, 12, 16]); // …but the ladder says four slots
+      expect(promptedLevels(S, key), key).toEqual([4, 8, 12, 16]);
     }
   });
 
-  it('and five 2024 classes are already right, so the fix is authoring/derivation', () => {
+  it('the five already-correct classes are unchanged — no DOUBLE prompt', () => {
+    // The annotation still wins where it exists; deriving must not add a second ASI at the same level.
     for (const key of ['cleric', 'druid', 'paladin', 'ranger']) {
       expect(promptedLevels(S, key), key).toEqual([4, 8, 12, 16]);
     }
+  });
+
+  it('a ladder level above the target is not prompted early', () => {
+    const def = findClass(S, 'fighter')!;
+    const at5 = planLevelUp(def, { from: 1, to: 5, recorded: [], subclasses: subclassesFor(S, 'fighter') })
+      .outstanding.filter((o) => o.kind === 'asi').map((o) => o.level);
+    expect(at5).toEqual([4]); // 6/8/12/14/16 are still in the future
   });
 });
 
