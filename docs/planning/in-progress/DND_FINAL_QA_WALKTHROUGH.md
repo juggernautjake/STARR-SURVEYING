@@ -1,18 +1,50 @@
 # D&D — Final full-system QA walkthrough (Playwright, browser, manual)
 
-**STATUS: IN PROGRESS — the run has STARTED (2026-07-25).** This is the LAST D&D item, extracted from
+**STATUS: IN PROGRESS — 33 slices run (2026-07-25 → 26).** This is the LAST D&D item, extracted from
 `DND_RULES_PLATFORM_2026-07-16.md` (originally "Slice 40").
 
-> **The blocker is gone.** This doc was parked because the pass needs an interactive, DB-backed session on
-> live Supabase. Both obstacles are now solved and written down:
-> - The "dev server is up but not serving" problem was **orphaned processes holding ports 3000–3009 as dead
->   sockets** (some days old, burning 50+ hours of CPU). Start on a genuinely free port; don't debug those.
-> - The owner gate no longer needs a throwaway account: **mint the `dnd_session` cookie locally** from the
->   repo's own `AUTH_SECRET` (same token format as `lib/dnd/auth.ts`), so a pass can run as the real owner
->   without leaving test data in the live database.
+> ## Where this actually stands — read this before the sections below
 >
-> **First slice run 2026-07-25 — see "Run log" at the bottom.** One real correctness defect found and fixed
-> on the very first step.
+> **This header used to describe the state at slice 1.** Everything from "What's ALREADY been verified" down
+> is a RUNNING LOG, and several of its earlier entries were later corrected or retracted by measurement. That
+> matters because stale text in these docs cost real time three separate times in this run — slice 21's
+> "the roller is dark on every skin" (false), the equip-validation partials in `DND_RULES_PLATFORM` (fixed
+> a day before the doc still said they weren't), and "`attacksFromInventory` is UNCALLED" (true, but it
+> implied a one-line wiring job for what was actually a second data model). **Trust the newest slice on any
+> topic, not the first.**
+>
+> ### Done, and browser-verified
+> - **The per-system build pass** for all four systems (slices 1–7): every class of 5e 2024/2014 and PF2, and
+>   every IG subclass, probed through its own planner. Defects found and fixed along the way.
+> - **Numbers on the built sheet** (10–12) — a level-8 Fighter rendering with 1 HP was real and is fixed;
+>   PF2 and IG were checked and were healthy.
+> - **The gates** (3, 14, 22): every ASI/feat picker AND the server routes behind them refuse an illegal
+>   vanilla pick. The 5e build route had no gate at all until slice 22.
+> - **Dead controls** (23): swept every `app/dnd` `.tsx`; nothing handler-less outside a style demo, and
+>   nothing collected-then-dropped in any of the three builders' UI → POST → parse → assemble chains.
+> - **Contrast** (18–21, 24–28, 30–33): five real defects fixed, three of my own measurement bugs found and
+>   corrected, and a verified baseline of **39 remaining items, all colour decisions**, in
+>   `qa-evidence/contrast-sweep.md` with a recommended order.
+> - **The campaign panel, the three homebrew designers, and the per-system settings modal** — each driven in
+>   a browser after shipping (S14, slice 30, and the S-6 note in `SETTINGS_PER_SYSTEM_RULES_VARIANTS`).
+>
+> ### Genuinely open, and why
+> - **The 39 contrast items** — brand fills, section numbers, the gold family. Each is a trade between a
+>   skin's identity and legibility. Measured; needs an owner's eye, not a rule.
+> - **ASI-slot ownership is no longer open** — `SLOT_DRIVEN_CHARACTER_BUILDING` S1/S2 dissolved it: both
+>   surfaces now write the same ledger, and the authored ladder drives the prompts for all 13 classes.
+> - **Everything else** lives in `SLOT_DRIVEN_CHARACTER_BUILDING` (the escape hatch, spell slots, the
+>   exceptions badge, dice rollers, IG's Champion data and level-1 feat count) and is blocked on an owner
+>   decision, not on effort.
+>
+> ### How to run a pass (both original blockers are solved)
+> - Ports 3000–3009 hold **orphaned dead sockets**; start on a genuinely free one (this run used 3456–3466,
+>   each stopped and confirmed released afterwards).
+> - **Mint the `dnd_session` cookie** from the repo's own `AUTH_SECRET` (token format in `lib/dnd/auth.ts`)
+>   rather than registering an account — no test data is left behind. Live fixtures exist for every skin and
+>   system; find them with PostgREST rather than creating any.
+> - **Never click a mutating control during an audit** (Take out, Save to my character, role changes). Render
+>   and read.
 
 > User directive (2026-07-16): "When everything is finally built, do a final run-through of all the
 > features with Playwright. Manually use the browser to create a new user, create a character, then go
@@ -27,6 +59,11 @@ It is a manual, browser-driven acceptance pass, not an automated test suite (tho
 Playwright specs behind). Do it with the Playwright MCP tools against a real running app.
 
 ## What's ALREADY been verified (read-only sweep, 2026-07-17)
+
+> ⚠ **Superseded in one place.** This section states the library "renders ALL systems … each with a
+> substantial rules page". That was true on 2026-07-17 and stopped being true on 2026-07-18, when the owner
+> hid the six under-construction systems site-wide. Search kept indexing them until 2026-07-26, which made
+> every hit a link to a 404 — see `DND_SYSTEMS_UNDER_CONSTRUCTION` (now in `pending/`).
 
 **Preliminary runtime smoke check ✅.** The app builds + serves after the ~40-commit audit run: `next dev`
 came up clean, and via Playwright every public page + backing tool loaded with **0 console errors**:
