@@ -151,7 +151,11 @@ export default function NewVariantFlow({
   const pick = (p: Purpose, suggested: string) => { setPurpose(p); setName(suggested); setStep('name'); };
 
   return (
-    <div style={overlay} onClick={closeFlow}>
+    // This is a full-screen modal (fixed, z-1000, click-outside-to-close) but was rendering as a bare
+    // <div>: no role, no label. Assistive tech announced an unlabelled group rather than a dialog, and it
+    // was the only modal in this feature area without them — the settings modal and both remove-confirms
+    // already carry role="dialog". Found by driving the browser; no test would have caught it.
+    <div role="dialog" aria-modal="true" aria-label={`New version of ${sourceName}`} style={overlay} onClick={closeFlow}>
       <div className={styles.framedPanel} style={panel} onClick={(e) => e.stopPropagation()}>
         <div style={scroller}>
           {step === 'purpose' && (<>

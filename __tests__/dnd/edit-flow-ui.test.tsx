@@ -234,7 +234,11 @@ describe('VERSIONS picker — Edit/Branch on every version', () => {
       <VariantBrowser characterId="c1" cards={cards} aiConfigured canWrite transposeSystems={SYSTEMS} startOpen />,
     );
     expect(html.match(/✎ Name/g) ?? []).toHaveLength(2);
-    expect(html).toContain('Rename this version');
+    // Both of these cards are UNNAMED versions, so the control invites a name rather than claiming to
+    // rename one. (A version the player HAS named says «Rename this version (currently “…”)» — asserted in
+    // variant-browser.test.tsx, along with why the two wordings have to differ: the control writes the
+    // SLOT's name, and seeding it from the character name silently overwrote the version's own.)
+    expect(html.match(/Give this version a name/g) ?? []).toHaveLength(2);
   });
 
   it('names the system ONCE, as a tag — not also as a line under the character', () => {

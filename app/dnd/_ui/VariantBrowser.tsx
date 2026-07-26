@@ -41,7 +41,9 @@ export default function VariantBrowser({
   const [creating, setCreating] = useState<{ slotId: string; name: string; system: string; level: number } | null>(null);
   // The version pending a delete confirmation. Deleting a version is irreversible and the button sits
   // between "+ Variant" and the card body, so it asks first — in-app, not the browser's confirm().
-  const [confirmDelete, setConfirmDelete] = useState<{ slotId: string; name: string } | null>(null);
+  // `name` is what the player calls this VERSION; `subtitle` is the disambiguating second line (the
+  // character's name when the version has its own, otherwise the generated "System · Vanilla" label).
+  const [confirmDelete, setConfirmDelete] = useState<{ slotId: string; name: string | null; subtitle: string } | null>(null);
   // Locally-updated summaries (from refresh/auto-generate) so we can show them without a full reload.
   const [summaries, setSummaries] = useState<Record<string, { summary: string; updatedAt: string | null; stale: boolean }>>({});
   const autoFired = useRef(false);
@@ -214,7 +216,10 @@ export default function VariantBrowser({
                         if (e.key === 'Enter') renameVariant(c.slotId, renaming.value);
                         if (e.key === 'Escape') setRenaming(null);
                       }}
-                      aria-label={`Rename ${c.name}`}
+                      // `slotLabel` IS the generated default whenever there's no custom name, and the box is
+                      // only ever empty in that case — so it shows the player exactly what the card says now.
+                      placeholder={c.slotLabel}
+                      aria-label={c.customName ? `Rename the version “${c.customName}”` : `Name this version of ${c.name}`}
                       style={{ width: '100%', minWidth: 0, fontSize: 12.5, padding: '3px 6px', borderRadius: 5, background: 'rgba(1,10,19,0.7)', border: '1px solid var(--hx-gold-1, #c8aa6e)', color: 'var(--hx-text, #e8e0cf)' }}
                     />
                     <button type="button" title="Save name" onClick={() => renameVariant(c.slotId, renaming.value)} disabled={!!busy}
@@ -224,6 +229,17 @@ export default function VariantBrowser({
                   </span>
                 ) : (
                   <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 14.5, color: 'var(--hx-gold-2)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
+                )}
+                {/* The version's OWN name, when the player gave it one. The naming step promises this in so
+                    many words — "Every version shows its name on the shelf" — but `slotLabel` was computed
+                    in the card model and read by nothing, so a named version was indistinguishable from an
+                    unnamed one and the name only existed in the database. Suppressed when it would merely
+                    repeat the character name, and when it is the generated "System · Vanilla" default,
+                    which the tags below already say. */}
+                {c.customName && c.customName !== c.name && (
+                  <span title={`This version is called “${c.customName}”`} style={{ fontSize: 11, color: 'var(--hx-gold-1, var(--hx-gold-2))', wordBreak: 'break-word', lineHeight: 1.25 }}>
+                    “{c.customName}”
+                  </span>
                 )}
                 {/* The system is NOT repeated here — it's already a tag below, and printing it twice on a
                     210px card cost a line for nothing. Tags are the one place system/kind/lineage live. */}
@@ -243,9 +259,16 @@ export default function VariantBrowser({
                   {sum.stale ? 'ⓘ Summary ·' : 'ⓘ Summary'}{sum.stale ? <span style={{ color: '#f0dd8a' }}> stale</span> : null}
                 </button>
                 {canWrite && iconBtn('✎ Edit', () => setEditing({ slotId: c.slotId, name: c.name, system: c.system, level: c.level }), { title: `Edit ${c.name} — directly, or transpose to another system` })}
-                {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.name }), { title: `Rename this version (currently “${c.name}”)` })}
+                {/* Seeded with the VERSION's own name, not the character's. `rename` posts to the slot, so
+                    seeding the box with the character name meant opening this control and pressing ✓ quietly
+                    replaced a version's name with the character's — destroying the label the naming step had
+                    just asked the player to choose. An unnamed version opens empty, on its generated label. */}
+                {canWrite && iconBtn(busy === `${c.slotId}:rename` ? '…' : '✎ Name', () => setRenaming({ slotId: c.slotId, value: c.customName ?? '' }), { title: c.customName ? `Rename this version (currently “${c.customName}”)` : 'Give this version a name' })}
                 {canWrite && iconBtn('+ Variant', () => createVariant(c), { title: atCap ? 'Version limit reached — delete one first' : `Create a new version from ${c.name}`, disabled: atCap })}
-                {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => setConfirmDelete({ slotId: c.slotId, name: c.name }), { title: `Delete ${c.name}`, danger: true })}
+                {/* Names the VERSION, not the character. Every version of a character shares its name, so a
+                    confirmation reading “Delete “dddddd”?” named the thing being kept as well as the thing
+                    being destroyed — on the one action here that cannot be undone. */}
+                {canWrite && canDelete && iconBtn(busy === `${c.slotId}:delete` ? '…' : '✕', () => setConfirmDelete({ slotId: c.slotId, name: c.customName, subtitle: c.customName ? c.name : c.slotLabel }), { title: c.customName ? `Delete the version “${c.customName}”` : 'Delete this version', danger: true })}
               </div>
 
               {/* Summary tooltip — FLOATS over the grid rather than expanding the card. Growing the card
@@ -300,15 +323,19 @@ export default function VariantBrowser({
           so it asks first. A themed in-app dialog rather than the browser's confirm(), matching the idiom
           the retired switcher used. */}
       {confirmDelete && (
-        <div role="dialog" aria-label={`Delete ${confirmDelete.name}?`} onClick={(e) => e.stopPropagation()} style={{
+        <div role="dialog" aria-label={confirmDelete.name ? `Delete the version “${confirmDelete.name}”?` : 'Delete this version?'} onClick={(e) => e.stopPropagation()} style={{
           position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }}>
           <div className={styles.framedPanel} style={{ width: 'min(440px, 96vw)', padding: '16px 18px', display: 'grid', gap: 12, borderColor: 'var(--hx-danger, #ff6b6b)' }}>
             <div>
               <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-danger, #ff6b6b)', fontSize: 15 }}>
-                Delete “{confirmDelete.name}”?
+                {confirmDelete.name ? <>Delete the version “{confirmDelete.name}”?</> : <>Delete this version?</>}
               </strong>
+              {/* WHICH version, spelled out on its own line — the character's name when the version has one
+                  of its own, otherwise the generated "System · Vanilla" label. Sibling versions all share
+                  the character's name, so the heading alone cannot identify the one about to be destroyed. */}
+              <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>{confirmDelete.subtitle}</p>
               <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>
                 This permanently removes that version of this character — its sheet, its art and its summary.
                 It <strong style={{ color: 'var(--hx-text)' }}>can’t be undone</strong>. Your other versions are kept.

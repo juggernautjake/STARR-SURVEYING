@@ -18,6 +18,12 @@ export interface VariantCard {
   name: string;
   /** The slot's secondary label (custom name or "D&D 5e (2024) · Vanilla"). */
   slotLabel: string;
+  /** The name the PLAYER gave this version, or null when they never named it (so `slotLabel` is the
+   *  generated fallback). The card needs the distinction: the naming step promises "every version shows
+   *  its name on the shelf", and printing the generated "Intuitive Games · Vanilla" fallback in the name's
+   *  place would both break that promise and duplicate the tags. Kept separate from `slotLabel` rather than
+   *  having the UI re-derive the default, which would put the fallback rule in two places. */
+  customName: string | null;
   system: string;
   systemLabel: string;
   artUrl: string | null;
@@ -154,6 +160,7 @@ export function buildVariantCards(active: ActiveSheet, variants: SystemVariants,
       origin,
       name: nameOf(r),
       slotLabel: (r.name && r.name.trim()) || defaultSlotLabel(r.system, r.kind),
+      customName: (r.name && r.name.trim()) || null,
       system: r.system,
       systemLabel: systemLabel(r.system),
       artUrl: r.artUrl,
