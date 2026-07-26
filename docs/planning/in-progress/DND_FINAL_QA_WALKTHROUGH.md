@@ -346,5 +346,43 @@ afterwards.
 
 **Bar:** 7 new guards, 4616/4616 D&D tests, typecheck + lint clean.
 
-**Next slice:** the PF2 and IG builders. Their level flows are separate implementations
-(`pf2-levels-route`, `ig-levels-route`), so none of the above transfers and each needs its own probe.
+### 2026-07-26 — slice 7: PF2 and IG
+
+Probed both, using each system's own planner (`pf2LevelBreakdown`, `igPlanLevelUp`) rather than assuming
+anything from the 5e work transferred — they are separate implementations.
+
+**Pathfinder 2e — clean. No defects found.** All 20 classes produce a complete 20-level ladder with no
+empty levels, ability boosts at **5/10/15/20**, and feat budgets at level 20 of ancestry **5** (1/5/9/13/17),
+skill **10** (even levels), general **5** (3/7/11/15/19), and class **11** for the martials that get a
+level-1 class feat versus **10** for the casters. That is correct PF2 throughout, and it is the first
+system in this walkthrough to come back with nothing wrong.
+
+**Intuitive Games — mostly correct by design, with one real dead end.**
+
+IG is largely immune to the "demands a choice it cannot offer" bug on purpose: `igPlanLevelUp` deliberately
+omits the big lists, and `IGLevelBuilder.optionsFor` sources feats / skills / traits from the IG catalogs
+client-side instead. But that fallback covers **four** kinds while the planner can emit **seven** without
+options, so `subclass-power`, `specialization` and `greater-specialization` fell through to an empty
+`<select>`.
+
+In practice that is exactly one subclass. **Champion is listed in the taxonomy as a Fighter subclass but has
+no entry in `IG_CLASS_DETAILS`** — Freebooter, Marksman and Sohei all carry `powers` and `specializations`;
+Champion carries nothing. So a Champion hit a dropdown with no contents at levels **3, 4, 5, 7, 8 and 9** —
+six dead ends on one character.
+
+**Not fixed by inventing the list.** The IG catalog is transcribed from intuitivegames.net; making up
+Champion's powers would be the Ground Rule 3 failure, and worse than the gap because a player would trust
+it. Same remedy as the map studio's 2D-only SVG: **say so.** A choice with nothing to offer now renders an
+explanation plus a free-text input — "we don't have a catalogued list for this yet … type what your table
+uses" — and a typed value records exactly like a picked one, so the walker advances.
+
+The guard is written as documentation-as-test: it asserts the known gap is **exactly** `['Champion']`. Add
+Champion's real data from the site and the test fails and gets deleted; add a new subclass to the taxonomy
+without catalog data and it fails too, which is the point.
+
+**Bar:** 4 new guards, 4620/4620 D&D tests, typecheck + lint clean.
+
+**Next slice:** the remaining walkthrough items are the cross-cutting ones — styling/readability on the
+screens touched, and evidence capture. The per-system build pass is now done for the four focus systems
+(5e 2024, 5e 2014, PF2, IG); the other six are the separate, source-blocked
+`DND_SYSTEMS_UNDER_CONSTRUCTION` doc.

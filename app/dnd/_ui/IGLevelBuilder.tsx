@@ -124,7 +124,7 @@ function ChoicePrompt({ choice, subclass, count, busy, onRecord }: { choice: Out
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       {choice.kind === 'ability-boosts'
         ? <BoostsInput count={choice.count ?? 2} busy={busy} onPick={(attributes) => onRecord({ level: choice.level, kind: choice.kind, attributes })} />
-        : <PickOne options={optionsFor(choice, subclass)} placeholder={placeholderFor(choice.kind)} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: choice.kind, value })} />}
+        : <PickOne options={optionsFor(choice, subclass)} placeholder={placeholderFor(choice.kind)} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: choice.kind, value })} kindLabel={choice.label} />}
     </div>
   );
 }
@@ -149,9 +149,33 @@ function placeholderFor(kind: Kind): string {
   return '— choose —';
 }
 
-function PickOne({ options, placeholder, busy, onPick }: { options: string[]; placeholder: string; busy: boolean; onPick: (v: string) => void }) {
+function PickOne({ options, placeholder, busy, onPick, kindLabel }: { options: string[]; placeholder: string; busy: boolean; onPick: (v: string) => void; kindLabel?: string }) {
   const opts = useMemo(() => [...new Set(options)].sort(), [options]);
   const [value, setValue] = useState('');
+  // A choice with NOTHING to choose from. It happens when a subclass in the taxonomy has no entry in
+  // IG_CLASS_DETAILS — Champion today — so `igEntry` finds no powers/specializations and the catalog
+  // fallback has none either. The level walker still (correctly) demands the choice, so an empty dropdown
+  // was a dead end at levels 3/4/5/7/8/9.
+  //
+  // The IG catalog was SCRAPED from intuitivegames.net, so the honest response is not to invent the
+  // missing list: it is to say the list isn't here and let the player type what their table uses. A typed
+  // value records exactly like a picked one — the walker only needs a non-empty value.
+  if (!opts.length) {
+    return (
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div role="note" style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--hx-muted)', border: '1px solid var(--hx-gold-1, #c8aa6e)', background: 'rgba(200,170,110,0.08)', borderRadius: 6, padding: '6px 9px' }}>
+          ⚗ We don’t have a catalogued list for {kindLabel ? <strong>{kindLabel.toLowerCase()}</strong> : 'this choice'} on this
+          subclass yet — the Intuitive Games content here is transcribed from the published site, and this one isn’t in it.
+          Type what your table uses and it records the same way a picked option would.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} placeholder="Type your choice…"
+            style={{ ...selStyle, minWidth: 220 }} />
+          <button className={styles.hexBtn} disabled={busy || !value.trim()} onClick={() => onPick(value.trim())}>Record</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <select value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} style={{ ...selStyle, minWidth: 220 }}>
