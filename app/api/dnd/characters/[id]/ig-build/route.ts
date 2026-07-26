@@ -11,7 +11,8 @@ import { assembleIGVanillaCharacter, type IGPicks } from '@/lib/dnd/systems/intu
 import { summarizeCharacterProvenance, type ElementKind } from '@/lib/dnd/provenance';
 import { gateIgPicks, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { readActiveSlotMeta, isRulesEnforcedKind, unboundReasonFor } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind, unboundReasonFor, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { unlockOffer, splitAcknowledged, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 import { igBuilderChoicesFor, mergeIgBuilderChoices } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import type { IGRecordedChoice } from '@/lib/dnd/systems/intuitive-games/levelup';
 
@@ -52,18 +53,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // not cover this: `igIsVanilla` is name-in-catalog only, so a Druid power on an Arcanist reads
   // as vanilla book content and passes submission untouched. That asks "is this from the book";
   // this asks "may this character have it".
-  const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const rawVariants = (character as { system_variants?: unknown }).system_variants;
+  const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
   const buildGate = gateIgPicks(picks, {
     // Enforced for ALTERED-VANILLA too — see `isRulesEnforcedKind`. Only a custom build opts out.
     enforce: !access.access.isDM && isRulesEnforcedKind(buildVariant),
     unboundReason: unboundReasonFor(buildVariant, access.access.isDM),
   });
-  if (buildGate.refused.length) {
+  // The ESCAPE HATCH (slot plan S6c) — the third system on the shared decision core. Client names picks it
+  // is knowingly taking; the reason recorded is this gate's own. Anything not named is still refused.
+  //
+  // IG's gate covers POWERS and the SPECIALIZATION, not feats — `igPowerEligibility` has no feat equivalent,
+  // and IG's feat constraint is the per-level BUDGET rather than an eligibility rule. So the hatch offers
+  // exactly those two, which is what the build can honour; a hatch over the feat budget would show an
+  // exception this route never records.
+  const offer = unlockOffer({ isDM: access.access.isDM, kind: buildVariant });
+  const acknowledged = Array.isArray(body?.exceptions)
+    ? (body.exceptions as unknown[]).filter((f): f is string => typeof f === 'string')
+    : [];
+  const { accepted, stillRefused } = splitAcknowledged(
+    buildGate.refused,
+    offer.offered ? acknowledged : [],
+    offer.stamps,
+    picks.level ?? 1,
+  );
+  if (stillRefused.length) {
     return NextResponse.json({
       error: `This is a vanilla character, so it can only take what its class and level grant. Remove or change: ${
-        buildGate.refused.map((r) => `${r.name} (${r.reason})`).join('; ')
-      } — or build a custom character instead.`,
-      refused: buildGate.refused,
+        stillRefused.map((r) => `${r.name} (${r.reason})`).join('; ')
+      } — or take it anyway as a recorded exception.`,
+      refused: stillRefused,
     }, { status: 400 });
   }
 
@@ -82,8 +101,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       feats: picks.feats,
       powers: picks.powers,
       specialization: picks.specialization,
+      exceptions: accepted,
     }), picks.level ?? 1),
   };
+
+  // The badge, derived from the MERGED ledger rather than this request — so a rebuild cannot demote a
+  // character whose exception the level walker recorded, and removing the off-rules pick returns it to
+  // plain vanilla. Same rule as the 5e and PF2 routes.
+  const exceptions = exceptionsIn(built.igBuild.choices);
+  const nextKind = variantKindWithExceptions(buildVariant, exceptions);
   // Carry the off-rules reasons onto the built sheet (IG S3). Only reachable for a custom
   // character or a DM build — a vanilla one was refused above, so it never accumulates any.
   if (Object.keys(buildGate.offRules).length && (assembled as { ig?: unknown }).ig) {
@@ -95,14 +121,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
   const summary = summarizeCharacterProvenance(assembled, 'intuitive-games', dmGranted);
 
+  const patch: Record<string, unknown> = { data: assembled, name: assembled.meta.name || character.name };
+  if (nextKind !== buildVariant) {
+    // Only the active slot's `kind` moves; the rest of the column carries through untouched so a build never
+    // rewrites lineage, art or summaries.
+    const raw = rawVariants && typeof rawVariants === 'object' ? (rawVariants as Record<string, unknown>) : {};
+    patch.system_variants = { ...raw, [ACTIVE_SLOT_META_KEY]: { ...readActiveSlotMeta(rawVariants), kind: nextKind } };
+  }
+
   const { error } = await supabaseAdmin
     .from('dnd_characters')
-    .update({ data: assembled, name: assembled.meta.name || character.name })
+    .update(patch)
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({
     ok: true,
+    variantKind: nextKind,
+    ...(exceptions.length ? { exceptions: exceptions.map(describeException) } : {}),
     summary: { vanilla: summary.vanilla.length, custom: summary.custom.length, dmGranted: summary.dmGranted.length, hasBlockingCustom: summary.hasBlockingCustom },
     elements: summary.elements,
   });

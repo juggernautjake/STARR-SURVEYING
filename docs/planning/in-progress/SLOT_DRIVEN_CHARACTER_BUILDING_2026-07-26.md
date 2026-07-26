@@ -196,10 +196,24 @@ slices are driven in the browser before being called done — this repo's standi
       **The hatch offers what the SEARCH surfaced**, not the whole catalog — with thousands of entries a
       complete "everything you can't have" list would be unusable, and the player is already looking at the
       thing they want.
-- [ ] **S6c — the same hatch on IG.** The remaining system. Needs `IGRecordedChoice.exception` (additive, as
-      the other two were), `igBuilderChoicesFor` stamping, `ig-build` splitting its gate's refusals, and the
-      chips in `IGCharacterBuilder` feeding `TakeAnyway`. IG's `Chips` is shared by stances and weapon types,
-      which are deliberately UNCAPPED — so the hatch must be opt-in per block, not added inside `Chips`.
+- [x] **S6c — the same hatch on IG. Shipped 2026-07-26.** 19 tests. **All three systems now share one core**
+      — pinned by a test that reads all three routes and all three ledger types, so a fourth system cannot
+      quietly grow a fourth definition.
+      **Scoped to POWERS**, because that plus the specialization is all `gateIgPicks` refuses.
+      `igPowerEligibility` has no feat equivalent (IG feat prerequisites are unstructured prose) and IG's
+      feat constraint is the per-level BUDGET, which the gate records nothing about — so a hatch over feats
+      would promise an exception `ig-build` never stores. Mounted on the powers block specifically and NOT
+      inside `Chips`, which stances and weapon types also use: both are deliberately uncapped, and a hatch
+      there would offer escape from a constraint that does not exist.
+      **The off-slot path is the COMMON case in IG**, not an edge — IG's level-1 picks have no schedule row
+      (the scraped schedule starts at level 2) and are deliberately left unrecorded, so a level-1 exception
+      would otherwise vanish and the character would still read "Vanilla".
+      **A live bug fell out of this slice.** `powerReason` read `variantKind !== 'vanilla'` to decide whether
+      to grey anything. When S8a added the third kind that became true for `altered-vanilla`, so the picker
+      greyed NOTHING while `ig-build` went on refusing the same picks with a 400 — the builder and the save
+      disagreeing about what is legal, which is exactly what that function's own comment promises cannot
+      happen. Now `isRulesEnforcedKind`. **The test suite had pinned the buggy line as if it were the rule**,
+      which is how it survived; it now pins the rule and asserts the two bound kinds behave identically.
 - [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
       spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**

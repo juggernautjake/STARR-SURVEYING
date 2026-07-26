@@ -86,7 +86,7 @@ describe('rebuilding does not corrupt the PF2 record', () => {
 });
 
 describe('the PF2 picker mounts the shared control', () => {
-  const props = { className: 'Fighter', ancestry: 'Human', level: 1, selected: [], onToggle: () => {} } as const;
+  const props = { className: 'Fighter', ancestry: 'Human', level: 1, selected: [] as string[], onToggle: () => {} };
 
   it('offers the hatch over the refusals the SEARCH surfaced', () => {
     // Scoped to the search, not the whole catalog: PF2 has thousands of entries, so a complete

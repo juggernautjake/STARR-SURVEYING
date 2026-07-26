@@ -17,7 +17,9 @@ import { igLevelBreakdown } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { igParentClasses, igSubclassesOf } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { igFeatBudget, igPowerBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { classifyElement, type ElementKind } from '@/lib/dnd/provenance';
-import type { SheetVariantKind } from '@/lib/dnd/system-variants';
+import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants';
+import { unlockOffer } from '@/lib/dnd/slots/entitlement';
+import TakeAnyway from './builder/TakeAnyway';
 
 const ABILITY_KEYS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 
@@ -51,7 +53,9 @@ function names(groups: ReturnType<typeof igCatalog>, kind: ElementKind): string[
   );
 }
 
-export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
+export default function IGCharacterBuilder({ characterId, initialName, aiConfigured, variantKind = 'vanilla', isDM = false, startOpen = false, layout = 'panel' }: { characterId: string; initialName: string; aiConfigured?: boolean;
+  /** A DM's pick is recorded as `dm-granted` rather than as the player's own exception (S6c). */
+  isDM?: boolean;
   /** Vanilla builds are held to the class rules; custom ones may take anything (Area MV). Defaults
    *  to vanilla — the safe direction for an unlabelled sheet, matching the server. */
   variantKind?: SheetVariantKind;
@@ -98,8 +102,27 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
 
-  const toggle = (set: React.Dispatch<React.SetStateAction<string[]>>, v: string) =>
+  const toggle = (set: React.Dispatch<React.SetStateAction<string[]>>, v: string) => {
     set((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
+    // Deselecting a hatch pick from its own chip must drop the exception too, or the POST would acknowledge
+    // a refusal for something it is no longer sending.
+    setExceptions((prev) => prev.filter((x) => x !== v));
+  };
+
+  // Picks taken THROUGH THE HATCH (slot plan S6c) — a subset of `powers`/`specialization`, which are the
+  // only two things `gateIgPicks` refuses. IG feats are bounded by a per-level BUDGET rather than an
+  // eligibility rule, and the gate records nothing about them, so offering a hatch there would promise an
+  // exception the build never stores.
+  const [exceptions, setExceptions] = useState<string[]>([]);
+  const offer = useMemo(() => unlockOffer({ isDM, kind: variantKind }), [isDM, variantKind]);
+  const takeAnyway = (set: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) => {
+    set((prev) => prev.includes(v) ? prev : [...prev, v]);
+    setExceptions((prev) => prev.includes(v) ? prev : [...prev, v]);
+  };
+  const undoException = (set: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) => {
+    set((prev) => prev.filter((x) => x !== v));
+    setExceptions((prev) => prev.filter((x) => x !== v));
+  };
 
   // Live provenance count (pure classifier — matches what the server will compute).
   const preview = useMemo(() => {
@@ -124,7 +147,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
       const weapons = weaponsText.split(',').map((s) => s.trim()).filter(Boolean);
       const r = await fetch(`/api/dnd/characters/${characterId}/ig-build`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ picks: { name, ancestry, className, subclass, specialization, background, level, abilities, stances, powers, feats, defensivePower, weaponTypes, weapons, companionType, companionName } }),
+        body: JSON.stringify({ picks: { name, ancestry, className, subclass, specialization, background, level, abilities, stances, powers, feats, defensivePower, weaponTypes, weapons, companionType, companionName }, exceptions }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error ?? 'Could not build.'); return; }
@@ -202,9 +225,15 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
   // Note this deliberately does NOT gate stances or feats — a level-1 trait may be taken as "a new
   // stance", and IG feat prerequisites are unstructured prose (see eligibility.ts).
   const powerReason = (name: string): string | undefined => {
-    // A custom character may take anything, so nothing is greyed for them — matching the server,
-    // which only enforces when the build is vanilla.
-    if (variantKind !== 'vanilla') return undefined;
+    // A custom character may take anything, so nothing is greyed for them — matching the server, which
+    // only enforces when the rules BIND.
+    //
+    // `isRulesEnforcedKind`, NOT `!== 'vanilla'`. This was the equality test, and adding the third
+    // `altered-vanilla` kind silently made it true for that kind — so an altered-vanilla character saw
+    // NOTHING greyed while `ig-build` went on refusing the same picks with a 400. The picker and the save
+    // disagreeing is precisely what this function's own comment promises cannot happen. Same trap the S8a
+    // note flagged in the gates; this call site was missed because it reads the kind from the other side.
+    if (!isRulesEnforcedKind(variantKind)) return undefined;
     const v = igPowerEligibility(name, { className, subclass, level, specializations: specialization ? [specialization] : [], knownPowers: [] });
     return v.ok ? undefined : v.reason;
   };
@@ -307,7 +336,17 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             the whole catalog at once: a level-2 character gets what level 2 grants. Powers are exact (the
             site states one class power at level 1, plus the schedule's later gains); feats allow one extra
             for the level-1 "starting feats" the site names but our scrape doesn't quantify. */}
-        const powersBlock = (<><div style={sectionLabel}>POWERS <span style={{ fontWeight: 400, opacity: 0.65 }}>({powers.length}/{igPowerBudget(subclass || className, level)})</span></div><Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} budget={igPowerBudget(subclass || className, level)} /></>);
+        // The hatch sits on the POWERS block specifically, not inside `Chips`. `Chips` is shared with
+        // stances and weapon types, which are deliberately UNCAPPED and have no eligibility rule — putting
+        // it there would offer an escape from constraints that do not exist. Powers are the list IG's gate
+        // actually refuses.
+        const powersBlock = (<><div style={sectionLabel}>POWERS <span style={{ fontWeight: 400, opacity: 0.65 }}>({powers.length}/{igPowerBudget(subclass || className, level)})</span></div><Chips opts={powerOpts} sel={powers} on={(v) => toggle(setPowers, v)} reasonFor={powerReason} budget={igPowerBudget(subclass || className, level)} />
+          <TakeAnyway
+            offer={offer} noun="power"
+            blocked={powerOpts.filter((o) => !powers.includes(o) && powerReason(o)).map((o) => ({ name: o, reason: powerReason(o)! }))}
+            taken={exceptions.filter((e) => powers.includes(e))}
+            onTake={takeAnyway(setPowers)} onUntake={undoException(setPowers)}
+          /></>);
         const featsBlock = (<><div style={sectionLabel}>FEATS <span style={{ fontWeight: 400, opacity: 0.65 }}>({feats.length}/{igFeatBudget(subclass || className, level)})</span></div><Chips opts={featOpts} sel={feats} on={(v) => toggle(setFeats, v)} budget={igFeatBudget(subclass || className, level)} /></>);
         const weaponsBlock = (
           <>

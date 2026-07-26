@@ -10,6 +10,7 @@
 // 4, greater specialization at 8, unique power at 6, capstone + manifestation at 10. Cumulative Solidas
 // (starting wealth by level) is the site's table.
 import { IG_CLASS_DETAILS } from './content';
+import type { SlotException } from '../../slots/entitlement';
 
 export type IGGainKind =
   | 'trait'
@@ -24,7 +25,13 @@ export type IGGainKind =
   | 'improved-stances'
   | 'unique-power'
   | 'capstone'
-  | 'manifestation';
+  | 'manifestation'
+  // Never PROMPTED for — `igPlanLevelUp` only emits the scheduled kinds above. It exists so a pick taken
+  // through the escape hatch that occupies no schedule slot still has somewhere to be recorded (slot plan
+  // S6c), which matters more in IG than elsewhere because the level-1 picks have no schedule row at all.
+  // Inert by construction: the planner looks choices up by (level, kind) and never asks for this one, and
+  // the level route's `CHOICE_KINDS` whitelist excludes it, so the walker cannot create or overwrite one.
+  | 'other';
 
 export interface IGLevelGain {
   kind: IGGainKind;
@@ -74,6 +81,7 @@ const LABEL: Record<IGGainKind, string> = {
   'unique-power': 'Unique Power',
   capstone: 'Capstone',
   manifestation: 'Manifestation',
+  other: 'Recorded outside the schedule',
 };
 
 /** Kinds the player actively CHOOSES (vs automatic grants). */
@@ -160,6 +168,9 @@ export interface IGRecordedChoice {
   value?: string;
   /** ability-boosts → the (up to `count`) attributes raised. */
   attributes?: string[];
+  /** Set when this pick came through the escape hatch — the rules refused it and the player (or DM) took it
+   *  anyway. Carries the gate's own objection so the sheet can name WHY (slot plan S6c). */
+  exception?: SlotException;
 }
 
 export interface IGOutstandingChoice {

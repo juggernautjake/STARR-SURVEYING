@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isRulesEnforcedKind } from '@/lib/dnd/system-variants';
 
 const src = fs.readFileSync(path.join(process.cwd(), 'app/dnd/_ui/IGCharacterBuilder.tsx'), 'utf8');
 
@@ -23,9 +24,23 @@ describe('the builder consults the same eligibility core as the server', () => {
     expect(src).toContain('title={blocked ?');
   });
 
-  it('only enforces for a vanilla build, matching the server', () => {
-    expect(src).toContain("if (variantKind !== 'vanilla') return undefined");
+  it('enforces whenever the rules BIND, matching the server', () => {
+    // This test used to pin the literal `variantKind !== 'vanilla'`, which is how the bug survived: when
+    // S8a added the third `altered-vanilla` kind, that expression became true for it, so the picker greyed
+    // nothing while `ig-build` went on refusing the same picks with a 400 — and the test kept passing,
+    // because it was asserting the implementation rather than the rule.
+    //
+    // Pinned as the RULE now: the question is "do the rules bind?", which is what the server asks.
+    expect(src).toContain('if (!isRulesEnforcedKind(variantKind)) return undefined;');
     expect(src).toContain("variantKind = 'vanilla'"); // safe default
+  });
+
+  it('and an ALTERED-VANILLA character is greyed exactly like a vanilla one', () => {
+    // The behavioural half of the above: the two rules-bound kinds must be indistinguishable here, since
+    // the server holds both to the same gate via `isRulesEnforcedKind`.
+    expect(isRulesEnforcedKind('vanilla')).toBe(true);
+    expect(isRulesEnforcedKind('altered-vanilla')).toBe(true);
+    expect(isRulesEnforcedKind('custom')).toBe(false);
   });
 
   it('never blocks an already-selected chip', () => {

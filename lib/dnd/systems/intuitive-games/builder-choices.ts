@@ -22,6 +22,9 @@
 //     a legal build, and blocking a legal pick is the worse failure. Confirming the real number with the
 //     owner is tracked in the slot plan (S5's open question).
 import { igLevelBreakdown, type IGGainKind, type IGRecordedChoice } from './levelup';
+import type { SlotException } from '../../slots/entitlement';
+
+const norm = (s: unknown) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** One choice the schedule owes: the level that grants it and what kind of thing it is. */
 export interface IGSlot {
@@ -55,6 +58,8 @@ export interface IGBuilderChoiceInput {
   feats?: string[];
   powers?: string[];
   specialization?: string;
+  /** Picks taken through the escape hatch (slot plan S6c), stamped onto the slot each one occupies. */
+  exceptions?: SlotException[];
 }
 
 /**
@@ -73,6 +78,15 @@ export function igBuilderChoicesFor(input: IGBuilderChoiceInput): IGRecordedChoi
   const slots = igSlots(input.subclass, level);
   const out: IGRecordedChoice[] = [];
 
+  const byName = new Map((input.exceptions ?? []).map((e) => [norm(e.name), e]));
+  const stamped = new Set<string>();
+  const stamp = (value: string) => {
+    const e = byName.get(norm(value));
+    if (!e) return {};
+    stamped.add(norm(value));
+    return { exception: e };
+  };
+
   const fill = (kinds: IGGainKind[], picks: string[] | undefined) => {
     const values = (picks ?? []).map((p) => (p ?? '').trim()).filter(Boolean);
     if (values.length < 2) return; // only the level-1 pick, which has no slot — see below
@@ -83,7 +97,7 @@ export function igBuilderChoicesFor(input: IGBuilderChoiceInput): IGRecordedChoi
     // this wrong in my first cut is exactly what the "leaves the level-1 pick UNRECORDED" test now pins.
     const forSchedule = values.slice(1);
     mine.slice(0, forSchedule.length).forEach((s, i) => {
-      out.push({ level: s.level, kind: s.kind, value: forSchedule[i] });
+      out.push({ level: s.level, kind: s.kind, value: forSchedule[i], ...stamp(forSchedule[i]) });
     });
   };
 
@@ -93,7 +107,15 @@ export function igBuilderChoicesFor(input: IGBuilderChoiceInput): IGRecordedChoi
   const spec = (input.specialization ?? '').trim();
   if (spec) {
     const slot = slots.find((s) => s.kind === 'specialization');
-    if (slot) out.push({ level: slot.level, kind: 'specialization', value: spec });
+    if (slot) out.push({ level: slot.level, kind: 'specialization', value: spec, ...stamp(spec) });
+  }
+
+  // Every exception that found no slot, recorded so the character cannot hold off-rules content and still
+  // read "Vanilla". This path is the COMMON case in IG rather than an edge, because the level-1 picks have
+  // no schedule row at all (the scraped schedule starts at level 2) and are deliberately left unrecorded
+  // above — so an exception taken at level 1 would otherwise vanish entirely.
+  for (const [key, e] of byName) {
+    if (!stamped.has(key)) out.push({ level: e.level ?? level, kind: 'other', value: e.name, exception: e });
   }
 
   return out.sort((a, b) => a.level - b.level);
@@ -105,7 +127,14 @@ export function mergeIgBuilderChoices(
   builder: IGRecordedChoice[],
   builtLevel: number,
 ): IGRecordedChoice[] {
-  const owned = new Set(builder.map((c) => c.kind));
-  const kept = (existing ?? []).filter((c) => !(owned.has(c.kind) && c.level <= builtLevel));
+  // `other` is excluded from the owned set for the same reason as the 5e and PF2 modules: the builder only
+  // emits it for an off-schedule EXCEPTION, so treating it as owned would delete anything else at that kind.
+  // Its own exception entries are dropped by the second clause, so a rebuild replaces rather than stacks.
+  const owned = new Set(builder.map((c) => c.kind).filter((k) => k !== 'other'));
+  const kept = (existing ?? []).filter((c) => {
+    if (owned.has(c.kind) && c.level <= builtLevel) return false;
+    if (c.kind === 'other' && c.exception && c.level <= builtLevel) return false;
+    return true;
+  });
   return [...kept, ...builder].sort((a, b) => a.level - b.level);
 }
