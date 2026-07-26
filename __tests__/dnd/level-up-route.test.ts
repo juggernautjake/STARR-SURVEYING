@@ -37,3 +37,30 @@ describe('AI level-up route', () => {
     expect(SRC).toMatch(/def\s*\?[\s\S]*standardLevelUpOptions/); // standard only when a def resolves
   });
 });
+
+// ── The route must SUPPLY the Fighting Style options (final-QA walkthrough, slice 4) ────────────────
+// planLevelUp takes them from its caller (like subclasses) so homebrew is offered alike. This is the
+// caller. Without it the level walker demands a Fighting Style and renders nothing to pick.
+describe('the levels route supplies Fighting Style options', () => {
+  const SRC = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/levels/route.ts'), 'utf8');
+
+  it('builds the list from the edition catalog PLUS homebrew, and passes it in', () => {
+    expect(SRC).toContain('featCatalogForSystem');
+    expect(SRC).toMatch(/\[\.\.\.featCatalogForSystem\(def\.system\), \.\.\.homebrewFeats\]/);
+    expect(SRC).toMatch(/\.filter\(\(f\) => f\.category === 'fighting-style'\)/);
+    expect(SRC).toMatch(/planLevelUp\(def, \{[^}]*fightingStyles[^}]*\}\)/s);
+  });
+});
+
+// ── A decorative overlay must not eat clicks (same walkthrough) ─────────────────────────────────────
+// The docked dice roller's `.stage-wires` SVG is aria-hidden decoration, but it is absolutely positioned
+// with a stretched viewBox — measured at 260x674px, most of it over the page behind — and had
+// pointer-events:auto. It swallowed clicks on the guided builder's own phase navigation, which is how it
+// was found (Playwright reported the SVG "intercepts pointer events").
+describe('the roller stage decoration is inert to the pointer', () => {
+  it('.stage-wires sets pointer-events:none', () => {
+    const css = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/rollStage.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.dnd-sheet .stage-wires {'));
+    expect(rule.slice(0, rule.indexOf('}'))).toMatch(/pointer-events:\s*none/);
+  });
+});

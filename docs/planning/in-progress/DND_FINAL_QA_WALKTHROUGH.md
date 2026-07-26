@@ -219,3 +219,48 @@ granted features, then the same pass for 5e 2014 / PF2 / IG.
 (a level-1 class-feature choice) has no slot in this builder, which is why those feats are correctly greyed
 here but have nowhere else to be chosen from. Worth confirming the Levels phase offers it before calling
 the 5e 2024 path complete.
+
+### 2026-07-25 — slice 4: the Levels phase, and the gap above resolved
+
+**The slice-3 question is answered: it is by design, and it works.** Foundations owns ASI slots; the Levels
+phase owns per-level class-feature choices. Walking a real level-1 Fighter through it, the phase correctly
+presented **"CHOICE 1 OF 1 · LEVEL 1 — FIGHTING STYLE"** and refused to advance ("1 choice left before
+level 2").
+
+**Also verified end to end** (this is the first slice where a character was actually *built*): class /
+species / background / ability spread all persisted correctly — `meta.backgroundAbilities {con:1, str:2}`
+with `abilities.str 17`, matching the FINAL column on screen. Soldier correctly offered only its own three
+abilities (STR/DEX/CON) for the +2/+1 spread.
+
+**Defect 1 — Fighting Style demanded a choice it could not offer.**
+
+The level walker announced the choice, blocked progress on it, and then rendered **nothing to pick**: no
+select, no radios, no buttons — while "Save this choice" sat enabled. `planLevelUp` attached `options` for
+`subclass` only; the field's own comment said as much ("For subclass choices: the legal options"), so every
+other option-bearing kind arrived empty. Nothing could be corrupted (`validateChoice`'s default branch
+already refuses a blank `value`), but a player was **stuck on level 1 of the first class of the first
+system** — the single most-travelled path in the app.
+
+Fixed by supplying them the way subclasses already are — from the caller, so homebrew is offered exactly
+like official content. The route builds the list from `featCatalogForSystem(def.system)` **plus the sheet's
+own homebrew feats**, filtered to `category: 'fighting-style'`. Verified live: all **10** official 2024
+styles with their real descriptions, selecting Defense and saving records `fs-defense`, clears the
+outstanding list and flips `ready: true`.
+
+**Defect 2 — a decorative overlay was eating clicks.**
+
+Found because Playwright could not click the Levels phase button: *"`<svg class="stage-wires">` intercepts
+pointer events"*. The docked roller's `.stage-wires` is `aria-hidden` decoration, but it is absolutely
+positioned with a stretched `preserveAspectRatio="none"` viewBox — measured at **260×674px**, most of it
+overlapping the page behind — and it had `pointer-events: auto`. Anything beneath it in that region was
+simply unclickable, the guided builder's own phase navigation included. An aria-hidden decoration should
+never be a click target; it is now `pointer-events: none`. A browser sweep confirms **no other
+aria-hidden element** on the page intercepts a control.
+
+That second one is worth remembering as a technique: *a test runner refusing to click something is itself a
+bug report.* It would never have shown up in a unit test, and a human might have blamed the mouse.
+
+**Bar:** 8 new guards, 4605/4605 D&D tests, typecheck + lint clean. QA character deleted.
+
+**Next slice:** walk levels 2 → 20 on this Fighter (subclass at 3, the six ASIs, the level-19 Epic Boon as
+a class feature), then repeat for 5e 2014 / PF2 / IG.

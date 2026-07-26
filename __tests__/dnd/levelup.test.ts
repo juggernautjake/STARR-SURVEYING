@@ -16,6 +16,7 @@ import {
   type RecordedChoice,
 } from '@/lib/dnd/classes/levelup';
 import { buildCustomClass, type CustomClassDraft } from '@/lib/dnd/classes/custom';
+import { findClass } from '@/lib/dnd/classes/registry';
 import type { SubclassDefinition } from '@/lib/dnd/classes/types';
 
 const DRAFT: CustomClassDraft = {
@@ -249,5 +250,48 @@ describe('validateChoice', () => {
   it('refuses an option that is not on the list', () => {
     const r = validateChoice({ level: 3, kind: 'subclass', value: 'not-real' }, { ...D2024, legalOptions: ['path-a', 'path-b'] });
     expect(r.ok).toBe(false);
+  });
+});
+
+// ── Fighting Style needs OPTIONS, not just a demand (final-QA walkthrough, slice 4) ────────────────
+// Found by walking a vanilla level-1 Fighter through the guided builder's Levels phase: it announced
+// "Fighting Style — level 1", refused to advance until the choice was made, and then rendered nothing to
+// choose from. `options` was attached for `subclass` only — the field's own comment even said so — so
+// every other option-bearing kind arrived empty.
+//
+// Nothing could be corrupted (validateChoice's default branch already refuses a blank `value`), but the
+// player was simply stuck on the first level of the first class of the first system.
+describe('planLevelUp attaches Fighting Style options', () => {
+  const styles = [
+    { key: 'fs-archery', name: 'Archery', description: '+2 to ranged attack rolls.' },
+    { key: 'fs-defense', name: 'Defense', description: '+1 AC while wearing armor.' },
+  ];
+  const fighter = findClass('dnd5e-2024', 'fighter')!;
+
+  it('offers the styles the caller supplies', () => {
+    const plan = planLevelUp(fighter, { from: 0, to: 1, recorded: [], fightingStyles: styles });
+    const fs = plan.outstanding.find((o) => o.kind === 'fighting-style');
+    expect(fs, 'a level-1 Fighter owes a Fighting Style').toBeTruthy();
+    expect(fs!.options?.map((o) => o.key)).toEqual(['fs-archery', 'fs-defense']);
+    // The description is what the picker prints under each option — an empty one is a blank card.
+    for (const o of fs!.options!) expect(o.description.length).toBeGreaterThan(0);
+  });
+
+  it('does not silently demand a choice it cannot offer', () => {
+    // The regression itself: a fighting-style choice with an EMPTY options list is the stuck state. A
+    // caller that supplies none still gets the choice (the class really does grant it) — this test pins
+    // that the route-level caller is the one responsible, and `levels-route` covers that it does.
+    const plan = planLevelUp(fighter, { from: 0, to: 1, recorded: [] });
+    const fs = plan.outstanding.find((o) => o.kind === 'fighting-style');
+    expect(fs?.options ?? []).toHaveLength(0);
+  });
+
+  it('clears once recorded, and the recorded value is one of the offered keys', () => {
+    const plan = planLevelUp(fighter, {
+      from: 0, to: 1, fightingStyles: styles,
+      recorded: [{ kind: 'fighting-style', level: 1, value: 'fs-defense' }],
+    });
+    expect(plan.outstanding.some((o) => o.kind === 'fighting-style')).toBe(false);
+    expect(styles.map((s) => s.key)).toContain('fs-defense');
   });
 });

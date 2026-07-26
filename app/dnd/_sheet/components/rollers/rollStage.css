@@ -21,6 +21,12 @@
   width: 100%;
   height: 100%;
   opacity: 0.75;
+  /* Decorative only — it is `aria-hidden` in the markup, and it must be inert to the pointer for the same
+     reason. Being `position:absolute` with a `preserveAspectRatio="none"` viewBox, this SVG stretches well
+     past the roller's visible box (measured at 260×674px, most of it overlapping the page behind), and
+     without this it SWALLOWED CLICKS on whatever sat underneath — the guided builder's own phase navigation
+     among them, which is how it was found. An aria-hidden decoration should never be a click target. */
+  pointer-events: none;
 }
 .dnd-sheet .stage-wires .wire {
   fill: none;

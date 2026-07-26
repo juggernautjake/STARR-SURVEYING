@@ -15,6 +15,7 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
 import { readHomebrewClasses, readHomebrewFeats, readHomebrewSubclasses } from '@/lib/dnd/classes/homebrew-store';
 import { customFeatToFeat } from '@/lib/dnd/feats/homebrew-adapter';
+import { featCatalogForSystem } from '@/lib/dnd/feats/catalog';
 import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
@@ -62,7 +63,14 @@ function planFor(data: Character, system: string, to: number) {
     .filter(([, v]) => v?.prof === 'proficient' || v?.prof === 'expertise')
     .map(([k]) => k);
 
-  const plan = planLevelUp(def, { from: level, to, recorded: choices, subclasses: subs, subclass: sub, proficientSkills });
+  // The legal Fighting Styles for this character's EDITION, plus any homebrew ones already on the sheet —
+  // the same "official + homebrew, offered alike" rule the subclass list follows. Without this the level
+  // walker demanded a Fighting Style and then rendered no options to pick from.
+  const fightingStyles = [...featCatalogForSystem(def.system), ...homebrewFeats]
+    .filter((f) => f.category === 'fighting-style')
+    .map((f) => ({ key: f.key, name: f.name, description: f.benefit ?? f.summary ?? '' }));
+
+  const plan = planLevelUp(def, { from: level, to, recorded: choices, subclasses: subs, subclass: sub, proficientSkills, fightingStyles });
   return {
     level,
     maxLevel: 20,

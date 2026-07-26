@@ -109,6 +109,11 @@ export function planLevelUp(
     proficientSkills?: string[];
     /** The chosen subclass, so its own later choices are included. */
     subclass?: SubclassDefinition | null;
+    /** The legal Fighting Styles for this character's edition. Supplied by the caller — like
+     *  `subclasses` — so a homebrew style is offered exactly like an official one, and so this module
+     *  stays free of the feat catalog. Absent → the choice renders with no options, which is the bug
+     *  this parameter exists to prevent, so callers that can supply it should. */
+    fightingStyles?: { key: string; name: string; description: string }[];
   },
 ): LevelUpPlan {
   const from = clampLevel(opts.from);
@@ -134,6 +139,15 @@ export function planLevelUp(
 
     if (pc.kind === 'subclass') {
       choice.options = (opts.subclasses ?? []).map((s) => ({ key: s.key, name: s.name, description: s.description }));
+    }
+
+    // Fighting Style had NO options attached — so the level walker announced "Fighting Style — level 1",
+    // refused to advance until it was chosen, and then rendered nothing to choose from. (The validator
+    // below already refuses a blank `value`, so nothing could be corrupted; the player was simply stuck.)
+    // Passed in by the caller for the same reason subclasses are: a homebrew style must be offered exactly
+    // like an official one, and this module deliberately doesn't reach into a feat catalog.
+    if (pc.kind === 'fighting-style') {
+      choice.options = (opts.fightingStyles ?? []).map((f) => ({ key: f.key, name: f.name, description: f.description }));
     }
 
     if (pc.kind === 'expertise') {
