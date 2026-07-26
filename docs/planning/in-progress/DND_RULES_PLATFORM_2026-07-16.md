@@ -2233,13 +2233,25 @@ costs more than having no marker at all.
       `editedElementName`, which reads BOTH vocabularies (`spell.Fireball.damage` and `spells[fireball]`),
       since matching a row to a sheet element is the actual hard part of the hover. 17 tests.
 
-      **STILL REMAINING, with the blockers now known rather than assumed:**
-      · **"by Jacob"** has no data source. `GET /edits` returns `editor_user_id` (a uuid) and `is_dm`; there
-        is no join to `dnd_users.display_name` anywhere in the repo, and the panel renders `'DM' | 'player'`
-        for exactly that reason. Needs a join in the route.
+      **2026-07-26 — the "by Jacob" half is SHIPPED too.** It had no data source at all: `dnd_sheet_edits`
+      stores `editor_user_id` (a uuid) and `is_dm`, and nothing in the repo ever resolved either to a
+      person, which is why the queue could only render `DM` / `player`. At a table with three players that
+      answers the wrong question — a DM reviewing a change wants to know WHICH one made it.
+      `GET /edits` now resolves the distinct editors in ONE `in` lookup on `dnd_users` (rows are capped at
+      200 and the distinct editors on a character are a handful, so that beats a per-row embed) and adds
+      `editor_name` **additively**, so every existing consumer is untouched. The panel reads
+      **"Jacob (DM)"**. A deleted account gets no name rather than a placeholder — the column is
+      `ON DELETE SET NULL`, so "Unknown" would read as though it were someone — and the panel falls back to
+      its old wording there. 9 tests.
+
+      **STILL REMAINING, with the blockers known rather than assumed:**
       · **A Revert inside the ✎ hover** needs `Tip` changed or replaced — it sets `pointerEvents: 'none'`
-        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written.
+        on the tooltip and takes `tip: string`, not a node, so it cannot host a button as written. The
+        Revert itself already exists in `EditReviewPanel`; this is only about reaching it from the marker.
       · **A rename breaks the row↔element link**: manual rows are keyed by the element's PRE-edit name.
+        `editedElementName` reads both path vocabularies, but neither survives a rename, so the hover would
+        silently show nothing on a renamed element. Fixing that means recording an element id on the audit
+        row — a schema change, not a UI one.
 - [x] ✅ SHIPPED: **the DM's approval surface reads the same provenance** — `SheetApprovalPanel` (custom content)
       + `EditReviewPanel` (the campaign review queue) both read `summarizeCharacterProvenance` / the
       `dnd_sheet_edits` audit, so a player quietly editing Fireball is visible in the DM's queue with its author.

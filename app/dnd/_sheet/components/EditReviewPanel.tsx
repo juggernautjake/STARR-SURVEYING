@@ -24,6 +24,9 @@ interface EditRow {
   batch_id?: string | null
   source?: string | null
   summary?: string | null
+  /** Resolved by the GET route from `editor_user_id`. Absent when the account is gone (the column is
+   *  ON DELETE SET NULL), which is why the render below falls back rather than printing a placeholder. */
+  editor_name?: string | null
 }
 
 // `describeEdit` now lives in `lib/dnd/edit-describe.ts`. It was local here and understood only AI-shaped
@@ -159,8 +162,12 @@ export default function EditReviewPanel() {
               <div key={row.id} className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: 'var(--ink)', wordBreak: 'break-word' }}>{describeEdit(row)}</div>
+                  {/* The person, THEN their role — "Jacob (DM)" rather than a bare "DM". At a table with
+                      three players "player" answers the wrong question: a DM reviewing a change wants to
+                      know which one made it. Falls back to the old wording when the account is gone. */}
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {row.is_dm ? 'DM' : 'player'} · {new Date(row.created_at).toLocaleString()}
+                    {row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'DM' : 'player')}
+                    {' · '}{new Date(row.created_at).toLocaleString()}
                   </div>
                 </div>
                 <button className="btn tiny danger" disabled={busy === row.id} onClick={() => revert(row.id)} title="Undo this edit, restoring the prior value">

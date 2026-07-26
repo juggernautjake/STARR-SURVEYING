@@ -58,5 +58,33 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ edits: data ?? [] });
+
+  // WHO made the edit, by name. The rows carry `editor_user_id` (a uuid) and `is_dm`, and nothing in the
+  // repo ever resolved either to a person — so the review queue could only say "DM" or "player". On a
+  // campaign with three players that answers the wrong question: a DM reviewing a change wants to know
+  // WHICH player made it, and the plan doc's "8d6 → 10d6, by Jacob" was blocked on exactly this.
+  //
+  // Resolved here rather than by a PostgREST embed: `dnd_sheet_edits.editor_user_id` has an FK to
+  // `dnd_users`, but the rows are already capped at 200 and the distinct editors on one character are a
+  // handful, so one `in` lookup is cheaper than an embed on every row — and it leaves the row shape
+  // additive, so every existing consumer is untouched.
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const ids = [...new Set(rows.map((r) => r.editor_user_id).filter((v): v is string => typeof v === 'string' && !!v))];
+  const names = new Map<string, string>();
+  if (ids.length) {
+    const { data: users } = await supabaseAdmin.from('dnd_users').select('id, display_name').in('id', ids);
+    for (const u of users ?? []) {
+      const { id, display_name: name } = u as { id: string; display_name?: string | null };
+      if (name && name.trim()) names.set(id, name.trim());
+    }
+  }
+  return NextResponse.json({
+    edits: rows.map((r) => {
+      const uid = typeof r.editor_user_id === 'string' ? r.editor_user_id : null;
+      // `editor_name` is absent, never a placeholder, when the user is gone — the column is
+      // `ON DELETE SET NULL`, so a deleted account legitimately has no name to show and the UI falls
+      // back to its DM/player wording rather than printing "Unknown" as though it were someone.
+      return uid && names.has(uid) ? { ...r, editor_name: names.get(uid) } : r;
+    }),
+  });
 }
