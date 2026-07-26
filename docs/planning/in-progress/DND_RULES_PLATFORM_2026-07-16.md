@@ -2577,6 +2577,18 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       **Where the line is drawn, and why:** BUILD changes audit; PLAY does not. HP spent, slots used,
       conditions and prepared toggles are how a character is played, not how it is built, and logging them
       would bury the build changes the queue exists to surface. That boundary is now asserted, not assumed.
+      **And two more after that:** `FeatPicker` and `SpellPicker` added content with no audit row — a
+      player granting themselves a feat, or learning a spell, was invisible to the DM's queue. Both now log
+      with the same `feature.<name>` / `spell.<name>` vocabulary the element editors use, so a gained feat
+      and a later edit to it read as one element rather than two unrelated things.
+      **Five unaudited build paths REMAIN, and are now a listed work list rather than a discovery
+      exercise:** adding/removing inventory items (ItemBuilder audits edits to an existing item but not
+      arrival or deletion), name + species on `Hero`, deleting a feature, deleting an attack, and bio text.
+      `in-place-editing-inventory.test.ts` asserts the CURRENT state of each, so fixing one FAILS the test
+      and forces the list to be updated — the only way this stops drifting.
+      **Root cause, worth stating once:** `log-edit.ts` calls itself *"the ONE client path … one audit
+      vocabulary, not a parallel path"* and **nothing enforced that**, so five call sites quietly grew their
+      own behaviour while two `[x]` items below recorded "every edit audits" as settled.
 - [x] ✅ SHIPPED (verified 2026-07-18): **every change is visible to the DM, and reversible by them** — the
       `EditReviewPanel` is a campaign review queue, newest-first, with **Approve all** (blesses/clears the ✎
       marks) and per-batch/per-edit **Revert** (reverses exactly through the tested `revertBatch`/`revertSheetEdit`);

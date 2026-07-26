@@ -112,6 +112,49 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
     expect(read('SpellsPanel.tsx')).not.toContain('logManualEdit');
     expect(saves).not.toMatch(/logManualEdit\([^)]*currentHp/);
   });
+
+  it('ADDING content audits — a feat or a spell arriving is what a DM reviews', () => {
+    const featPicker = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/ui/FeatPicker.tsx'), 'utf8');
+    const spellPicker = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/ui/SpellPicker.tsx'), 'utf8');
+    expect(featPicker).toContain('logManualEdit(characterId, `feature.${f.name}`');
+    expect(spellPicker).toContain('logManualEdit(characterId, `spell.${def.name}`');
+  });
+
+  it('and uses the SAME path vocabulary the element editors use', () => {
+    // `feature.<name>` / `spell.<name>` are what FeatureEditor and SpellEditor write, so a gained feat and
+    // a later edit to it read as the same element in the queue rather than as two unrelated things.
+    const featureEditor = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/ui/FeatureEditor.tsx'), 'utf8');
+    expect(featureEditor).toContain('feature.');
+  });
+});
+
+// ── The remaining unaudited BUILD paths, listed rather than left to be rediscovered ────────────────────
+//
+// Three defects in two slices came from the same root: `log-edit.ts` calls itself "the ONE client path…
+// one audit vocabulary, not a parallel path", and nothing enforced it, so call sites quietly grew their
+// own behaviour. Rather than keep finding these one at a time, this records where the boundary currently
+// sits. Each entry is a real gap — a build change the DM's queue cannot see — not a deferral.
+describe('KNOWN unaudited build paths (a work list, not a pass)', () => {
+  const GAPS: Record<string, string> = {
+    'Inventory.tsx': 'adding and removing items — ItemBuilder audits EDITS to an existing item, but not arrival or deletion',
+    'Hero.tsx': 'name and species changes (species goes through SpeciesPicker, which does not log)',
+    'Features.tsx': 'deleting a feature',
+    'Attacks.tsx': 'deleting an attack',
+    'Bio.tsx': 'bio/backstory text',
+  };
+
+  it('is honest about how many remain', () => {
+    // If this number changes, someone either fixed one (good — remove it here) or added a new unaudited
+    // path (the thing to catch).
+    expect(Object.keys(GAPS)).toHaveLength(5);
+  });
+
+  for (const [file, why] of Object.entries(GAPS)) {
+    it(`${file} — ${why}`, () => {
+      // Asserting the CURRENT state, so fixing one of these fails here and forces the list to be updated.
+      expect(read(file), `${file} now audits — remove it from GAPS`).not.toContain('logManualEdit');
+    });
+  }
 });
 
 describe('GROUP 3 — deliberately NOT inline-editable, and why', () => {

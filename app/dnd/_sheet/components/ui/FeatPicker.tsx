@@ -28,9 +28,10 @@ import { featCatalogForSystem, featCatalogNote, featSlotsForSystem, type PickerF
 import { featEligibilityForSystem, type FeatSlot } from '@/lib/dnd/feats/eligibility'
 import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants'
 import type { AbilityKey } from '../../rules/dnd'
+import { logManualEdit } from '../../lib/log-edit'
 
 export default function FeatPicker({ onClose }: { onClose: () => void }) {
-  const { char, setChar, isDM, variantKind } = useChar()
+  const { char, setChar, isDM, variantKind, characterId } = useChar()
   // A VANILLA character is hard-blocked from an ineligible feat; a custom one may take it and is
   // told what it is doing (owner 2026-07-20). This picker previously offered "＋ Anyway" to
   // everyone, which made "rules-legal by default" a suggestion rather than a rule.
@@ -79,6 +80,11 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
     // point.
     if (isVanilla && !elig.ok && !isDM) return
     const offRules = elig.ok ? undefined : (isDM ? `granted by the DM — ${elig.reason}` : elig.reason)
+    // AUDIT: gaining a feat is a build change, and one of the most consequential a sheet can make. It was
+    // a direct `setChar` reaching no element editor, so it never reached `dnd_sheet_edits` — the DM's
+    // review queue could not see a player granting themselves a feat. Logged with the same `feature.<name>`
+    // vocabulary `FeatureEditor` uses, so the two read alike in the queue.
+    logManualEdit(characterId, `feature.${f.name}`, null, f.name)
     setChar((c) => ({
       ...c,
       features: [...(c.features ?? []), {

@@ -15,6 +15,7 @@ import { useSheetSystem } from '../../state/sheetConfig'
 import { spellsForSystem, spellCatalog, type SpellDef, type SpellClass } from '@/lib/dnd/spells'
 import { spellEligibility } from '@/lib/dnd/spells/eligibility'
 import { spellCountsFor } from '@/lib/dnd/spells/counts'
+import { logManualEdit } from '../../lib/log-edit'
 import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants'
 import type { Spell, SpellLevel } from '../../types'
 
@@ -52,7 +53,7 @@ export function spellFromCatalog(def: SpellDef, existingCount: number, offRules?
 }
 
 export default function SpellPicker({ onClose }: { onClose: () => void }) {
-  const { char, setChar, isDM, variantKind } = useChar()
+  const { char, setChar, isDM, variantKind, characterId } = useChar()
   const system = useSheetSystem()
   const [q, setQ] = useState('')
   const [level, setLevel] = useState<number | 'all'>('all')
@@ -152,6 +153,10 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
     if (isVanilla && !elig.ok && !isDM) return
     if (isVanilla && !isDM && overCount(def)) return
     const reason = elig.ok ? undefined : (isDM ? `granted by the DM — ${elig.reason}` : elig.reason)
+    // AUDIT: learning a spell is a build change. Same gap the feat picker had — a direct `setChar` reaching
+    // no element editor, so the DM's review queue never saw a spell arrive. `spell.<name>` matches
+    // `SpellEditor`'s vocabulary so both read alike in the queue.
+    logManualEdit(characterId, `spell.${def.name}`, null, def.name)
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), spellFromCatalog(def, (c.spells ?? []).length, reason)] }))
   }
 
