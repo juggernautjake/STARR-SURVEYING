@@ -1,6 +1,9 @@
 # Settings: per-system (PF2/IG) rules variants (parked from the Settings Overhaul)
 
-**Status:** PENDING · parked 2026-07-22 · split out of `completed/SHEET_SETTINGS_OVERHAUL_2026-07-22.md`
+**Status:** IN PROGRESS · reactivated 2026-07-25 · split out of `completed/SHEET_SETTINGS_OVERHAUL_2026-07-22.md`
+
+> **2026-07-25 — S-4a and S-4b shipped** (commit `e15ebf1d`). S-4c remains genuinely blocked on the owner
+> naming the IG house rules. See the slice log at the bottom of this doc.
 
 ## Why this is parked (not abandoned)
 
@@ -45,3 +48,95 @@ slices deliver no standalone value.
 ## Done means
 - The per-character gear modal shows each system's OWN rules variants (only for that system), and every one
   drives its mechanic on the bespoke sheet, with the DM lock honoured. Standing bar green per slice.
+
+---
+
+## Slice log
+
+### 2026-07-25 — S-4a shipped: preferences reach the bespoke sheets
+
+`page.tsx` now resolves `resolvedPreferences` (the always-present form — `effectivePreferences` is
+deliberately left `undefined` when there is nothing to say, because several panels use its presence as
+"is this character governed by settings at all") and passes it into `PF2Sheet` and `IGSheet`, which
+forward it to `usePf2Panels` / `useIgPanels`. Zero behaviour change on its own, exactly as planned.
+
+**Correction to this doc's premise:** it claimed `downedDamageModel` was "inert on that sheet". It is not —
+it has been consumed server-side at `pf2-edit/route.ts` and `ai-edit/route.ts` since the overhaul, which
+read it from the campaign and pass it to `applyPf2Edit`. The doc was stale, not the code.
+
+IG reads nothing from the new prop yet (destructured as `_preferences`) because IG has no rules variants
+to read — that is S-4c, below.
+
+### 2026-07-25 — S-4b shipped: the PF2 rules variants
+
+New pure module `lib/dnd/systems/pathfinder2e/variants.ts` — the model, the maths, and the bridge from the
+preference layer. Three variants, all off/RAW by default:
+
+- **Proficiency without level** (GM Core). Implemented at `pf2ProficiencyTerm`, the single choke point every
+  check, save, AC, DC and Strike already went through, then threaded as an optional trailing argument
+  through `rules.ts` and the whole of `resolve.ts`. Optional-and-trailing is what makes it back-compatible:
+  every existing caller keeps its exact vanilla numbers. Untrained becomes **−2** (not 0), the level term
+  disappears, and `pf2LevelBasedDc` subtracts the level so tasks stay reachable. HP is untouched.
+- **Free archetype** (GM Core). `pf2FeatBudget` gains the variant and raises the **archetype** budget only —
+  the normal class-feat count is deliberately unchanged, since the variant grants a feat rather than
+  redirecting one.
+- **Starting Hero Points.** Applied in `buildPF2Character`, not at resolve time: hero points are stored
+  state a player spends down, so they cannot be recomputed from preferences after the fact.
+
+The sheet grows a standing **"variant rules in force"** notice (stacked with, not replacing, the transient
+refusal banner). Without it, a 12th-level character under proficiency-without-level simply looks broken.
+
+**Per-system scoping** — not in the original plan, but the thing that made the modal wrong today.
+`PREF_SYSTEMS` in `preference-options.ts` tags a setting with the systems it applies to; absent = all
+systems. `enumPrefsForSystem` / `boolPrefsForSystem` filter the per-character modal, which now takes the
+character's `system`. It fails *closed* for a system-specific setting on an unknown system and *open* for a
+cross-system one. The DM's campaign panel still lists everything with the system in the title, because a
+campaign is not pinned to one system — the per-character modal is the surface where a wrong-system setting
+actually misleads someone.
+
+**Deliberately deferred, with reason** (recorded in `variants.ts` itself, not just here):
+- **Automatic Bonus Progression** — replaces item bonuses with a per-level table of inherent bonuses. The
+  table has to be transcribed from GM Core, and one wrong row silently misprices every number on the sheet.
+- **Stamina** — restructures HP itself (split HP/Stamina pools plus Resolve Points), so it changes
+  `pf2MaxHp` and the whole damage path rather than adding a modifier.
+
+Both are real and worth building; both need the published tables in hand. Ground Rule 3 — a toggle that
+computes approximately-right numbers is worse than no toggle, because a player will trust it.
+
+**Guards touched.** `preferences-consumed.test.ts` gained the three keys (the bridge reads them as literal
+`prefs.<key>.value` precisely so that grep-based guard still works — a dynamic lookup would have defeated a
+test that exists to catch dead settings). `pf2-bonuses.test.ts` no longer pins the resolver's full argument
+list, which its own comment says was never the intent.
+
+**Bar:** 23 new tests in `__tests__/dnd/pf2-rules-variants.test.ts`; 4559/4559 D&D tests pass; typecheck and
+lint clean.
+
+### 2026-07-25 — S-5 (QA) done for PF2 + 5e; browser-verified
+
+Driven in a real browser against a live dev server (this repo's rule: a render test is not eyes-on), on
+**Orin Sallowmere**, a level-9 PF2 Seer Elf Wizard:
+
+| Check | Result |
+|---|---|
+| PF2 modal offers all three variants + the dying model | ✅ 13 controls |
+| Turning proficiency-without-level ON | AC **24 → 15**, Perception **+12 → +3**, Class DC **25 → 16** — every headline number down by exactly 9 (the level) |
+| HP under the variant | **78/78 unchanged** — correct, it is a proficiency variant |
+| "Variant rules in force" notice | ✅ appears, naming the rule; absent on vanilla |
+| Reverting to "Follow campaign" | ✅ all numbers restored; `playerPreferences` back to `{}` |
+| **5e (2014) character's modal** | **9 controls — none of the four PF2-only rows**, cross-system settings all intact |
+| IG sheet after the prop change | renders normally, 0 console errors |
+
+Note on getting there: the sheet is owner-gated and the sign-in is name+password, so the pass used a
+locally-minted `dnd_session` cookie (repo's own `AUTH_SECRET`, same token format as `lib/dnd/auth.ts`)
+rather than creating a QA account and character in the live database. Worth reusing — it is the cheapest
+way to run an authenticated browser pass without leaving test data behind, and it unblocks the other docs
+parked on "needs an authenticated session".
+
+### S-4c — IG rules variants: still blocked (not deferred)
+
+The one item that cannot be built. The owner said the IG-specific toggles are "owner to specify", and no IG
+house rules have been named. Everything downstream is ready: the preference channel reaches `useIgPanels`,
+`PREF_SYSTEMS` will scope them to `intuitive-games`, and the catalog + modal need no further work. Naming
+the rules is the whole remaining task; each one is then a model entry, a catalog entry, and a wire-up.
+
+**This doc stays in `in-progress/` until the owner names the IG rules.**
