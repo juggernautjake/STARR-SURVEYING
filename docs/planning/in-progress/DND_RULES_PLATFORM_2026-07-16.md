@@ -1615,7 +1615,7 @@ no-op. Full suite 1655 green.
 - [x] A **Use** control on any consumable in Inventory runs the above. ✅ SHIPPED — the "⚗ Use" button in
       Inventory is the single path that consumes, routing through the pure `planConsume` then executing
       (roll instant / push the snapshotted ActiveEffect / decrement qty).
-- [~] Tests: an item with effects always appears; a pure-heal potion leaves NO panel entry; a buff potion
+- [x] Tests: an item with effects always appears; a pure-heal potion leaves NO panel entry; a buff potion
       still shows with its label + duration; **a heal+buff potion does both**; editing the item afterwards
       doesn't mutate the running effect; ending a worn effect unequips, a consumed effect doesn't resurrect
       the item; the panel's numbers equal the ledger's.
@@ -1893,7 +1893,7 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
 - [x] The AI can author all of it. ✅ SHIPPED — `add_item`/`update_item` accept a `triggers` array
       (tool-schema-documented), validated by `cleanTriggers` (bogus event/label dropped, bad action → DM
       prompt, never coerced). "spiked armour that hits back for 1d6 in melee" produces a real trigger.
-- [~] Tests: a trigger fires only on its event and within its limit; a no-limit trigger is flagged;
+- [x] Tests: a trigger fires only on its event and within its limit; a no-limit trigger is flagged;
       retaliation never mutates another character's sheet — ✅ all in `triggers.test.ts` (12). **Armour DEX
       cap respected by the ledger's AC ✅** (`derive-ac.test.ts`, incl. the custom-cap pin above). The one
       part still open is **"a weapon's edits flow to its attack row"** — the weapon-builder UI + live
@@ -2668,14 +2668,26 @@ this is the remaining half.
       symptom). Discrete controls (selects/checkboxes) correctly use `.onchange`. Guarded by
       `map-studio-config.test.ts` (+4): the reported controls bind `.oninput`→`edPreview()` and never
       `.onchange`, so a regression to release-only firing fails in CI.
-- [~] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
+- [x] Test: a fixture asserting every editable field of every kind reaches the 3D config — so a new
       *(Regression guard shipped for the fixed cloud-field translation: `map-studio-config.test.ts` (4)
       source-anchors `_genericPlanetCfg` and asserts it translates the editor's cloudAmount/cloudColor into
       the model's cloudCov/cloudTint, maps cloudStyle "none"→0 cover + banded/storm→shape knobs, and keeps the
-      rich pass-through allowlist — so the "slider silently does nothing" bug can't regress. The FULL
-      every-field-of-every-kind audit still needs the per-field 2D-only-vs-3D classification, which is
-      judgment work best paired with the visual pass.)*
+      rich pass-through allowlist — so the "slider silently does nothing" bug can't regress.)*
       slider cannot be added without wiring it.
+
+      **→ CLOSED 2026-07-26.** The full audit is done, and mechanised rather than performed once:
+      `map-studio-field-audit.test.ts` (70) reads the field list from `snapshotLook` — what the editor
+      actually persists — and asserts each field is EITHER consumed by `_genericPlanetCfg` OR listed in
+      `NOT_PLANET_3D` with the reason it does not belong there (another body kind, an image/sprite field,
+      or structural). The per-field 2D-vs-3D judgement this was waiting on is now written down once, in
+      that list, grouped by *why* rather than alphabetically so a misclassification is visible.
+      **Result: all 63 persisted fields classified, and no third unwired slider found** — `cloudAmount` and
+      `atmoThick` remain the only two that were ever dropped, and both are separately pinned.
+      A dead-entry check guards the guard (a field removed from the editor must leave the list, or it rots
+      into fiction) — and it immediately earned its place by catching a bug in the fixture's own parser:
+      slicing from the function's opening brace swept in the `const {` prefix, so the FIRST field parsed as
+      `const {kind` and was silently dropped. A parser that quietly loses a field is exactly the hole this
+      fixture exists to close.
 
 **Shipped 2026-07-16 — the 3D clipping half.** The preview camera sat at a fixed `z=4.6` with a 34°
 FOV: a half-height of `tan(17°)×4.6 ≈ 1.41` at the origin, while a planet is radius **1.3 before its
