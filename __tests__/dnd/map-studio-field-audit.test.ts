@@ -116,6 +116,33 @@ describe('map studio: every persisted look field is classified', () => {
   });
 });
 
+// ── The next layer of the same bug ────────────────────────────────────────────────────────────────────
+// Reaching the config is necessary and not sufficient. `city` and `lava` both reached the model and were
+// still invisible in the preview, because the editor's sun sits nearly behind the camera (`SUN = (3,2,4)`)
+// so there is almost no night side — and both effects were night-side-only. The doc deferred this as
+// "needs the sun/terminator angle sorted, visually". It was solved a different way and the doc never caught
+// up: rather than move the sun, both effects were made visible on the LIT face, matching what the 2D art
+// already drew. These two properties are what make the controls visible at all, so they are pinned.
+describe('a control that reaches the model is also VISIBLE in the preview', () => {
+  const MODEL = read('public/dnd/maps/planet3d-model.js');
+
+  it('city lights keep a floor, so they are not hard-masked to a night side that is barely on screen', () => {
+    // Was `min 0.0` — "I still cannot see the lights on the 3d planet's face". The floor is the fix.
+    expect(MODEL).toMatch(/clamp\(-dot\(normalize\(vWN\),normalize\(sunDir\)\)\*0\.9\+0\.6,0\.42,1\.0\)/);
+  });
+
+  it('and are still brightest on the night side — a floor, not a flat wash', () => {
+    // If the mask became a constant the lights would stop reading as lights. The `-dot(...)` term is what
+    // keeps them directional; the floor only stops it reaching zero.
+    const shader = MODEL.slice(MODEL.indexOf('night-side city lights'), MODEL.indexOf('// clouds'));
+    expect(shader).toContain('-dot(normalize(vWN),normalize(sunDir))');
+  });
+
+  it('lava is SELF-LIT, so it does not depend on the sun angle at all', () => {
+    expect(MODEL).toMatch(/self-lit lava cracks \(glow even on the dark side\)/);
+  });
+});
+
 describe('the two translations this fixture exists to protect', () => {
   it('cloudAmount still reaches the model as cloudCov', () => {
     expect(CFG).toMatch(/rich\.cloudCov\s*=\s*\+L\.cloudAmount/);

@@ -2596,16 +2596,29 @@ this is the remaining half.
       of the viewer with halos fully visible (2D 78.0%, 3D 1/1.28 = 78.1%; the constants
       cross-reference each other). **Guarded** (`map-viewer-handles.test.ts`): a test asserts both the 2D
       `.pv2d{width:78%}` and the 3D `1/1.28` constant are present, so one can't drift without the other.
-- [~] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
+- [x] **City lights and lava are invisible in the 3D preview — but they are NOT missing.** Checked
       rather than assumed: `_genericPlanetCfg` forwards `city`/`lava`/`lightColor`, and
       `planet3d-model.js` consumes all three (`cfg.city` at :244, `cfg.lava` at :86/:147/:194).
       **Plumbing now GUARDED (2026-07-17):** `map-studio-config.test.ts` +1 asserts `_genericPlanetCfg`
       forwards `lava`/`city`/`lightColor` onto the assembled config AND that `planet3d-model.js` reads
       `cfg.lava`/`cfg.city`/`cfg.lightColor`, so a future edit can't silently drop them and recreate the
-      clouds/water "slider does nothing" bug for these controls. **Still deferred (visual, device-verified):**
-      the sun/terminator angle so the night-side glow is actually visible in the preview — the doc's own
-      note warns not to eyeball the sun vector without first reading the shader's light convention, and the
-      day/night-mask agreement between 2D and 3D is a rendering decision that needs eyes on the preview.
+      clouds/water "slider does nothing" bug for these controls.
+
+      **→ CLOSED 2026-07-26 — the deferral was STALE, and the fix had already shipped by another route.**
+      This item deferred "the sun/terminator angle so the night-side glow is actually visible", on the
+      reasoning quoted below: both effects were night-side-only and the editor's sun sits nearly behind the
+      camera (`SUN = (3,2,4)`), so there was no night side to see them on. Reading the shader rather than
+      the doc — which this item's own note rightly insisted on — the problem was solved by making both
+      effects visible on the LIT face instead of by moving the sun:
+      · **city lights** carry a FLOOR of `0.42` in their night mask, added with the comment *"I still cannot
+        see the lights on the 3d planet's face"* — always visible, still brightest on the night side;
+      · **lava** is emissive, commented *"self-lit lava cracks (glow even on the dark side)"*, so it never
+        depended on the sun angle at all.
+      Both match what the 2D art already draws, which was the actual requirement. Now pinned by
+      `map-studio-field-audit.test.ts`: the floor's exact clamp, that the mask is still DIRECTIONAL (a
+      constant would stop the lights reading as lights), and lava's self-lit comment. The paragraph below is
+      kept as the historical diagnosis — it explains why the floor exists — but it no longer describes
+      current behaviour.
       They are **self-lit and only glow on the NIGHT side** — and the editor's sun sits nearly
       behind the camera (`SUN = (3,2,4)`), so the planet renders almost fully lit and there is no
       night side to see them on. 2D draws city dots across the whole disc with no day/night mask,
@@ -2641,7 +2654,7 @@ this is the remaining half.
       - **`svgData`** is genuinely 2D-only — see the item below.
 
       Guarded by 4 new cases in `map-studio-config.test.ts` (14 total).
-- [~] The likely cause, worth checking first: `edPreview()` hands `edWork` to
+- [x] The likely cause, worth checking first: `edPreview()` hands `edWork` to
       `EditorPreview3D.update()`, which rebuilds via `cfgFor(look)` →
       `Map3D._genericPlanetCfg({kind, look})`. Any field that mapping drops never reaches the model,
       so the slider moves, the value saves, and the preview is simply never told. A control that
@@ -2650,9 +2663,13 @@ this is the remaining half.
       `_genericPlanetCfg` forwards clouds (translated), storms/rings/tilt/atmosphere, city/lava/lightColor, AND
       (added 2026-07-18) the terrain fields sea/cscale/coast/ice — and that `planet3d-model.js` reads each — so
       a regression that drops one of these from the 3D config (the exact clouds/water bug class) fails in CI. No
-      visual judgment needed for these; they demonstrably reach + drive the model. The exhaustive per-field
-      audit of the AMBIGUOUS fields (which may be genuinely 2D-only) continues under the item above and needs
-      eyes on the render.
+      visual judgment needed for these; they demonstrably reach + drive the model.
+
+      **→ CLOSED 2026-07-26.** The exhaustive per-field audit of the AMBIGUOUS fields — the one dependency
+      this item was still waiting on — is done and mechanised in `map-studio-field-audit.test.ts`: all 63
+      fields `snapshotLook` persists are now either consumed by this chokepoint or classified as belonging
+      to another body kind / an image-sprite field / structural, each with its reason. No third dropped
+      field was found, so `cloudAmount` and `atmoThick` remain the only two that ever were.
 - [x] ✅ DONE 2026-07-25 Both renderers now honour the same field, with exactly ONE labelled exception.
       The audit above turned up a single field that genuinely cannot exist in both: **an imported SVG**
       (`svgData`). It is inlined as markup and drawn by the browser, which the WebGL scene has no way to do —
