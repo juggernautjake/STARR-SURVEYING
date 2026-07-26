@@ -302,6 +302,20 @@ export default function ItemBuilder({
                   onChange={(e) => patchArmor({ modCap: e.target.value === '' ? null : Number(e.target.value) })}
                 />
               </div>
+              {/* The one armour stat that MOVES A NUMBER and had no control. The catalogs carry
+                  `strengthReq` and the library prints "Requires: Strength N (or lose 10 feet of speed)",
+                  so a homebrew plate could state the rule in its text and never apply it. Now it drives
+                  the ledger like the real thing. */}
+              <div style={{ width: 110 }}>
+                <label style={lab}>Min Strength</label>
+                <input
+                  style={fieldStyle} type="number"
+                  value={it.armor?.strengthReq ?? ''}
+                  placeholder="none"
+                  title="Below this Strength score, wearing it costs 10 feet of walking speed."
+                  onChange={(e) => patchArmor({ strengthReq: e.target.value === '' ? null : Number(e.target.value) })}
+                />
+              </div>
               <label className="flex" style={{ gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--ink)', alignSelf: 'flex-end' }}>
                 <input type="checkbox" checked={!!it.armor?.stealthDisadvantage} onChange={(e) => patchArmor({ stealthDisadvantage: e.target.checked })} /> Stealth disadvantage
               </label>

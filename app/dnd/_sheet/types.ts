@@ -186,6 +186,10 @@ export interface ArmorStats {
   // wisdom-scaling robe, a heavy plate that still allows +1, and so on.
   modAbility?: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha' | 'none'
   modCap?: number | null // null/undefined = uncapped
+  /** Minimum Strength score to wear this without penalty. Below it, walking speed drops by 10 ft — the
+   *  rule the catalogs already state ("Requires: Strength N (or lose 10 feet of speed)") and that the
+   *  armour catalogs already carry as `strengthReq`. Null/undefined = no requirement. */
+  strengthReq?: number | null
 }
 
 export interface ConsumableStats {

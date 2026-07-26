@@ -306,6 +306,38 @@ export function collectSources(char: Character, ctx: LedgerContext = {}): Ledger
     }
   }
 
+  // ARMOUR STRENGTH REQUIREMENT — heavy armour you are not strong enough for costs 10 feet of speed.
+  //
+  // The rule was already in the repo twice over: `ARMOR_2014`/`ARMOR_2024` carry `strengthReq`, and the
+  // library prints it verbatim — *"Requires: Strength N (or lose 10 feet of speed)"*. Nothing applied it.
+  // `strengthRequirement` even existed as a field on the equipment engine's type with no writer and no
+  // reader. So the sheet told a player the requirement and then quietly ignored it.
+  //
+  // Modelled as a SOURCE rather than folded into the speed number, exactly like Exhaustion above, so the
+  // Combat panel's ★ can name it: a player whose speed silently dropped 10 feet has a bug, not a rule.
+  //
+  // KNOWN LIMIT, stated rather than hidden: this compares the RAW Strength score, not the ledger-effective
+  // one, because sources are collected BEFORE any target is resolved — there is no effective value to read
+  // here yet. So a belt of giant strength that sets STR 21 does not lift the penalty, though by the rules it
+  // should. Fixing it means resolving `ability_str` before assembling the rest of the sources, which
+  // reorders the ledger build for every target; that is a bigger change than this rule is worth, and
+  // getting the common case right while saying where it stops beats not applying the rule at all.
+  const heavyForYou = (char.inventory ?? []).filter((i) => {
+    const req = i.armor?.strengthReq;
+    return typeof req === 'number' && req > 0 && req > (char.abilities?.str ?? 10) && isItemActive(i, ctx.autoAttune ?? true);
+  });
+  if (heavyForYou.length) {
+    // ONE source, not one per piece: the penalty does not stack in the rules, and two entries would read
+    // as −20 on the ★ explanation. Wearing two body armours is not a case worth modelling.
+    const worst = heavyForYou[0];
+    base = [...base, {
+      id: 'armor-str-req',
+      kind: 'item',
+      name: `${worst.name} — needs Strength ${worst.armor?.strengthReq}`,
+      effects: [{ target: 'speed_walk', operation: 'add', value: -10 }],
+    }];
+  }
+
   // Active 5e conditions as their own effect sources (opt-in via `foldConditions` = the auto-mechanics toggle).
   // One source PER condition so `explain('attack_roll')` reads "Poisoned", "Frightened" separately — the player
   // sees exactly which condition moved the roll. Only for 5e; IG/PF2 carry their own condition penalty models.

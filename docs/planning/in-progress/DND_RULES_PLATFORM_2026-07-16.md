@@ -1880,7 +1880,23 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       by-NAME weapon proficiency adds PB where the category alone wouldn't. Only the authoring UI in
       `ItemBuilder` (+ wiring the live derivation into the rendered Attacks table) remains — browser-verified
       build/QA work; today a weapon item can already be a rollable attack via Slice-11 `grantsAttack`.
-- [~] **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
+- [~] **⚑ STR REQUIREMENT SHIPPED 2026-07-26** — and it was worse than "no control": the rule was already
+      in the repo twice and applied nowhere. `ARMOR_2014`/`ARMOR_2024` carry `strengthReq` on every row,
+      `library.ts` prints it verbatim (*"Requires: Strength N (or lose 10 feet of speed)"*), and
+      `engine/equipment.ts` even declared `strengthRequirement?: number` with **no writer and no reader**.
+      So the sheet stated the requirement and then ignored it — the same "authored but not wired" shape as
+      the weapon `properties` gap. Now: `ArmorStats.strengthReq`, a **Min Strength** control in the
+      ItemBuilder, and a real `speed_walk −10` in the ledger, modelled as a NAMED SOURCE like Exhaustion so
+      the ★ says *"Plate Armor — needs Strength 15"* (a speed that silently drops 10 feet reads as a bug,
+      not a rule). Meeting the score exactly is enough, carrying-but-not-wearing does nothing, and it does
+      not stack across pieces. 11 tests.
+      **Known limit, recorded in the code:** it compares the RAW Strength score, because sources are
+      collected before any target resolves — so a belt of giant strength does not lift the penalty. Fixing
+      that reorders the ledger build for every target, which is a bigger change than this rule is worth.
+      Remaining on this item: base AC / category / DEX cap / stealth disadvantage were already authorable;
+      what is left is the per-piece don/doff time and armour-training gating, neither of which has a
+      consumer on the sheet yet.
+      **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
       resistances, arbitrary `effects`.
       **⚑ "builder UI not" is WRONG (checked 2026-07-26).** `ItemBuilder` renders an armour/shield block with
       **category**, **base AC / AC bonus**, **modifier ability**, **max modifier** (the DEX cap), and a
