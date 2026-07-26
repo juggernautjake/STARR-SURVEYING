@@ -676,3 +676,30 @@ options; the PF2 **Fighter has none** — no Research Field, no Doctrine, no Ord
 real rule (Fighter empty, Alchemist non-empty) rather than a rule I had invented.
 
 **Bar:** 5 new guards, 4681/4681 D&D tests, typecheck clean. QA character deleted.
+
+### 2026-07-26 — slice 17: driving the IG Foundations builder — clean
+
+The last undriven builder UI. **No defects found**, which after slices 15–16 is worth stating plainly
+rather than glossing.
+
+All five steps render IG's own mechanics rather than 5e's in disguise: 10 ancestries (including Leshonki,
+Migoi, Naga, Sprite), the four parent classes, specialization + background + **defensive power** as its own
+choice, the IG ability method stated exactly (*"start 10 · spend 8 boosts of +2 · max two per ability
+(cap 14)"*), stances and powers with ineligible ones greyed, then feats / weapon groups / an optional
+companion.
+
+**The class → subclass dependency works.** Picking Fighter narrows the subclass list from all fourteen to
+its own four (Champion, Freebooter, Marksman, Sohei). Pinned, because an ungated list would offer a Wizard
+"Sohei" — a rules error the sheet would then carry — and because the guard also proves **every subclass
+belongs to exactly one parent** and an unknown parent yields *nothing* rather than everything.
+
+That last check matters for a reason beyond tidiness: it confirms **Champion is genuinely reachable**
+through the real builder (Fighter → Champion), which is what makes slice 7's free-text fallback a fix for a
+path players actually take rather than a defensive nicety.
+
+**Bar:** 5 new guards, 4686/4686 D&D tests, typecheck clean. QA character deleted.
+
+**Dev-server note (third occurrence):** the long-running `next dev` degrades after enough hot reloads —
+this time persistent 404s on a valid route with `EPERM` webpack-cache errors in its log. Deleting the whole
+`.next` and restarting on a fresh port fixes it; deleting *part* of `.next` corrupts a manifest instead
+(see slice 8). Worth knowing before debugging a phantom routing bug.
