@@ -143,3 +143,70 @@ describe('PF2 level walker: the value is gated, then exceptable', () => {
     expect(PF2UI).toContain('void record(refused, true)');
   });
 });
+
+// ── IG: the same missing check, third system ──────────────────────────────────────────────────────────
+//
+// `igPlanLevelUp` scoped the slots from the scraped schedule; `readChoice` checked the shape of the answer
+// and nothing else. A Beastmaster could record an Arcanist's power at level 3 and the level read complete.
+describe('IG level walker: the value is gated, then exceptable', () => {
+  const IG = read('app/api/dnd/characters/[id]/ig-levels/route.ts');
+  const IGUI = read('app/dnd/_ui/IGLevelBuilder.tsx');
+
+  it('gates POWERS and the SPECIALIZATION — what IG can actually judge', () => {
+    expect(IG).toContain("choice.kind === 'subclass-power' || choice.kind === 'specialization'");
+    expect(IG).toContain('igPowerEligibility(choice.value, ctx)');
+    expect(IG).toContain('igSpecializationEligibility(choice.value, ctx)');
+  });
+
+  it('leaves FEATS to the budget, matching the Foundations builder', () => {
+    // `igPowerEligibility` has no feat equivalent — IG feat prerequisites are unstructured prose — so a
+    // feat gate here would be inventing a rule the system does not state.
+    expect(IG).not.toMatch(/igFeatEligibility/);
+  });
+
+  it('builds the context from what the character already holds', () => {
+    // Powers already recorded must not start refusing each other, and Dabbler widens the legal set.
+    expect(IG).toContain('knownPowers: choices.filter');
+    expect(IG).toContain('specializations: choices.filter');
+  });
+
+  it('does not gate a DM or a custom character', () => {
+    expect(IG).toContain('isRulesEnforcedKind(buildVariant) && !access.access.isDM');
+  });
+
+  it('accepts an acknowledged exception with the gate\'s own reason', () => {
+    expect(IG).toContain('body.acceptException === true && offer.offered');
+    expect(IG).toContain("reason: elig.reason ?? 'not available to this character'");
+  });
+
+  it('moves the badge from the merged ledger', () => {
+    expect(IG).toContain('exceptionsIn(choices)');
+    expect(IG).toContain('variantKindWithExceptions(priorKind, exceptions)');
+  });
+
+  it('and the walker offers the door only when the route allows it', () => {
+    expect(IGUI).toContain('setRefused(j?.canTakeAnyway ? choice : null)');
+    expect(IGUI).toContain('void record(refused, true)');
+  });
+});
+
+describe('all three walkers now behave alike', () => {
+  const ROUTES = [
+    'app/api/dnd/characters/[id]/levels/route.ts',
+    'app/api/dnd/characters/[id]/pf2-levels/route.ts',
+    'app/api/dnd/characters/[id]/ig-levels/route.ts',
+  ];
+
+  it('every level route shares the one entitlement core', () => {
+    // Three systems drifting into three ideas of what an exception is, is the failure this prevents.
+    for (const r of ROUTES) expect(read(r), r).toContain("from '@/lib/dnd/slots/entitlement'");
+  });
+
+  it('every level route tells the client whether a refusal is overridable', () => {
+    for (const r of ROUTES) expect(read(r), r).toContain('canTakeAnyway: offer.offered');
+  });
+
+  it('and every one derives the badge rather than trusting the request', () => {
+    for (const r of ROUTES) expect(read(r), r).toContain('variantKindWithExceptions(');
+  });
+});

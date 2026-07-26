@@ -30,6 +30,8 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The last refusal the route flagged as overridable (slot plan S6d).
+  const [refused, setRefused] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async (to: number) => {
     setError(null);
@@ -49,12 +51,18 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
 
   const current = plan?.outstanding?.[0] ?? null;
 
-  const record = useCallback(async (choice: Record<string, unknown>) => {
+  const record = useCallback(async (choice: Record<string, unknown>, acceptException = false) => {
     setBusy(true); setError(null);
     try {
-      const r = await fetch(`/api/dnd/characters/${characterId}/ig-levels`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ choice }) });
+      const r = await fetch(`/api/dnd/characters/${characterId}/ig-levels`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ choice, acceptException }) });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? 'Could not record that choice.');
+      if (!r.ok) {
+        // The route says whether THIS refusal may be overridden; hold the exact choice so the retry sends
+        // what was judged rather than something rebuilt from the form.
+        setRefused(j?.canTakeAnyway ? choice : null);
+        throw new Error(j?.error ?? 'Could not record that choice.');
+      }
+      setRefused(null);
       setPlan(j.plan as Plan);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record that choice.');
@@ -95,6 +103,22 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
       </label>
 
       {error && <div style={{ color: 'var(--hx-bad, #e46)', fontSize: 13 }} role="alert">{error}</div>}
+      {/* The escape hatch (slot plan S6d). IG's walker now gates the POWER and the SPECIALIZATION as well
+          as the slot, so a refusal is real — this is what keeps it a decision rather than a wall. */}
+      {refused && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+          <span style={{ flex: 1, minWidth: 200, color: 'var(--hx-muted)' }}>
+            You can take it anyway — it is recorded as an exception, and this character will read{' '}
+            <strong>Altered vanilla</strong> and name it for your DM.
+          </span>
+          <button className={styles.hexBtn} disabled={busy} onClick={() => void record(refused, true)}>
+            + Take it anyway
+          </button>
+          <button className={styles.hexBtn} disabled={busy} onClick={() => { setRefused(null); setError(null); }}>
+            Pick something else
+          </button>
+        </div>
+      )}
 
       {plan && plan.outstanding.length > 0 && current ? (
         <ChoicePrompt key={`${current.level}-${current.kind}`} choice={current} subclass={subclass} count={plan.outstanding.length} busy={busy} onRecord={record} />

@@ -19,6 +19,9 @@ import {
   type IGRecordedChoice,
   type IGGainKind,
 } from '@/lib/dnd/systems/intuitive-games/levelup';
+import { igPowerEligibility, igSpecializationEligibility } from '@/lib/dnd/systems/intuitive-games/eligibility';
+import { readActiveSlotMeta, isRulesEnforcedKind, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { unlockOffer, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 
 const clampLevel = (n: unknown) => Math.max(1, Math.min(10, Math.floor(Number(n) || 1)));
 
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'This is the Intuitive Games level route.' }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { choice?: unknown; commitTo?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { choice?: unknown; commitTo?: unknown; acceptException?: boolean };
   const data = normalizeCharacter((row.data as unknown) ?? blankCharacter(row.name)) as IGData;
   const { subclass, level } = buildState(data);
   let choices = (data.igBuild?.choices ?? []) as IGRecordedChoice[];
@@ -83,6 +86,45 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (body.choice != null) {
     const choice = readChoice(body.choice);
     if (!choice) return NextResponse.json({ error: 'That choice is malformed.' }, { status: 400 });
+
+    // ── THE VALUE IS GATED HERE, not just the slot (slot plan S6d) ─────────────────────────────────
+    //
+    // `igPlanLevelUp` scopes which slots a level grants, from the scraped schedule — but `readChoice`
+    // only checked the shape of the answer, so the walker recorded whatever name it was handed. A
+    // Beastmaster could take an Arcanist's power at level 3 and the level would read as complete.
+    //
+    // IG's gate covers POWERS and the SPECIALIZATION, matching `gateIgPicks`: `igPowerEligibility` has no
+    // feat equivalent (IG feat prerequisites are unstructured prose), so feats stay bounded by the
+    // per-level BUDGET rather than by eligibility, exactly as they are in the Foundations builder.
+    const rawVariants = (row as { system_variants?: unknown }).system_variants;
+    const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
+    const offer = unlockOffer({ isDM: access.access.isDM, kind: buildVariant });
+    const gated = isRulesEnforcedKind(buildVariant) && !access.access.isDM;
+
+    if (gated && choice.value && (choice.kind === 'subclass-power' || choice.kind === 'specialization')) {
+      const ctx = {
+        className: data.meta?.className ?? '',
+        subclass: data.meta?.subclass ?? '',
+        level: choice.level,
+        specializations: choices.filter((c) => c.kind === 'specialization' && c.value).map((c) => c.value as string),
+        knownPowers: choices.filter((c) => c.kind === 'subclass-power' && c.value).map((c) => c.value as string),
+      };
+      const elig = choice.kind === 'specialization'
+        ? igSpecializationEligibility(choice.value, ctx)
+        : igPowerEligibility(choice.value, ctx);
+      if (!elig.ok) {
+        const accepted = body.acceptException === true && offer.offered;
+        if (!accepted) {
+          return NextResponse.json({ error: elig.reason, canTakeAnyway: offer.offered }, { status: 400 });
+        }
+        choice.exception = {
+          name: choice.value,
+          reason: elig.reason ?? 'not available to this character',
+          entitlement: offer.stamps,
+          level: choice.level,
+        };
+      }
+    }
     choices = igRecordChoice(choices, choice);
   }
 
@@ -107,9 +149,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Keep the IG sidecar's own level in step with meta.level.
     ...(data.ig ? { ig: { ...data.ig, identity: { ...(data.ig.identity ?? {}), level: newLevel } } } : {}),
   };
-  const { error } = await supabaseAdmin.from('dnd_characters').update({ data: nextData }).eq('id', row.id);
+  // The badge, derived from the merged ledger — the same rule every other write path uses.
+  const rawVariantsOut = (row as { system_variants?: unknown }).system_variants;
+  const priorKind = readActiveSlotMeta(rawVariantsOut).kind ?? 'vanilla';
+  const exceptions = exceptionsIn(choices);
+  const nextKind = variantKindWithExceptions(priorKind, exceptions);
+
+  const patch: Record<string, unknown> = { data: nextData };
+  if (nextKind !== priorKind) {
+    const raw = rawVariantsOut && typeof rawVariantsOut === 'object' ? (rawVariantsOut as Record<string, unknown>) : {};
+    patch.system_variants = { ...raw, [ACTIVE_SLOT_META_KEY]: { ...readActiveSlotMeta(rawVariantsOut), kind: nextKind } };
+  }
+
+  const { error } = await supabaseAdmin.from('dnd_characters').update(patch).eq('id', row.id);
   if (error) return NextResponse.json({ error: 'Could not save the level choices.' }, { status: 500 });
 
   const plan = igPlanLevelUp({ subclass, to: Math.max(newLevel, commitTo ?? newLevel), recorded: choices, from: newLevel });
-  return NextResponse.json({ ok: true, level: newLevel, choices, plan });
+  return NextResponse.json({
+    ok: true, level: newLevel, choices, plan,
+    variantKind: nextKind,
+    ...(exceptions.length ? { exceptions: exceptions.map(describeException) } : {}),
+  });
 }

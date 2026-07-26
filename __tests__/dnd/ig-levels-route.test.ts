@@ -25,7 +25,10 @@ describe('IG levels route (IG-3)', () => {
     expect(SRC).toContain('igRecordChoice(choices, choice)');
     expect(SRC).toContain('igBuild: { ...(data.igBuild ?? {}), choices }');
     expect(SRC).toContain(".from('dnd_characters')");
-    expect(SRC).toContain('.update({ data: nextData })');
+    // Writes through a `patch` since S6d — `data` always, plus `system_variants` only when an exception
+    // moved the badge. A bare update could not record that the character became altered-vanilla.
+    expect(SRC).toContain('.update(patch)');
+    expect(SRC).toContain('const patch: Record<string, unknown> = { data: nextData }');
   });
 
   it('refuses to commit a level while the plan still owes choices (409)', () => {

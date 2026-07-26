@@ -10,7 +10,9 @@ const PAGE = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/levels/pa
 describe('IGLevelBuilder (IG-4)', () => {
   it('fetches the plan and records/commits through /ig-levels', () => {
     expect(UI).toContain('/ig-levels');
-    expect(UI).toContain('JSON.stringify({ choice })');
+    // Carries `acceptException` since S6d: the walker gates the POWER and SPECIALIZATION now, so a
+    // refusal needs a deliberate override rather than being a dead end.
+    expect(UI).toContain('JSON.stringify({ choice, acceptException })');
     expect(UI).toContain('JSON.stringify({ commitTo: target })');
   });
 
