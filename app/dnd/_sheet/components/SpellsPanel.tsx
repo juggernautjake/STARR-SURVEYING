@@ -49,7 +49,22 @@ export default function SpellsPanel() {
     .map((i) => ({ sp: i.grantsSpell as Spell, source: i.name }))
 
   function togglePrepared(id: string) {
-    setChar((c) => ({ ...c, spells: (c.spells ?? []).map((s) => (s.id === id ? { ...s, prepared: !s.prepared } : s)) }))
+    setChar((c) => {
+      const list = c.spells ?? []
+      const target = list.find((s) => s.id === id)
+      // PREPARING is what the cap actually limits for a preparer — not what is on the sheet. A Wizard's
+      // spellbook and a Cleric's access to the whole Cleric list are both far larger than the number they
+      // prepare, so the picker deliberately does not cap their list (see `SpellPicker`'s note); this is
+      // where the number bites. Un-preparing is never blocked, and cantrips and always-prepared spells
+      // don't count, matching every class's own rule text.
+      if (target && !target.prepared && preparedCap != null && target.level > 0 && !target.alwaysPrepared) {
+        const held = list.filter((s) => s.prepared && !s.alwaysPrepared && s.level > 0).length
+        // `>=` grandfathers a character already over the cap: they simply cannot prepare MORE. Nothing is
+        // ever un-prepared for them, because silently editing a player's choices is the worse failure.
+        if (held >= preparedCap) return c
+      }
+      return { ...c, spells: list.map((s) => (s.id === id ? { ...s, prepared: !s.prepared } : s)) }
+    })
   }
 
   // Show the panel if the character casts, an item grants them a spell, OR the viewer can edit.

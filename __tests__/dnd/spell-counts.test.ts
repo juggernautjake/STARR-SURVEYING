@@ -170,14 +170,13 @@ describe('the sheet actually shows it', () => {
   });
 });
 
-describe('what this deliberately does NOT do yet', () => {
-  it('caps nothing — enforcement is the second half of S7', () => {
-    // Landing a count source that only REPORTS is safe on live characters; turning it into a cap is a
-    // behaviour change that would start refusing picks players already made, and several demo characters
-    // hold more spells than their class grants. Recorded so the gap is a decision on the record rather
-    // than something half-built.
+describe('the counts are now enforced, not just reported', () => {
+  it('the picker consults this module', () => {
+    // Shipped as S7b immediately after this one. The behaviour — which list each count applies to, who is
+    // exempt, and how an already-over-cap character is grandfathered — is covered by
+    // `spell-count-enforcement.test.ts`; this only pins that the source and the enforcement are the same
+    // module, so a second, drifting copy of the numbers cannot appear.
     const picker = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/ui/SpellPicker.tsx'), 'utf8');
-    expect(picker).not.toContain('spellCountsFor');
-    expect(picker).not.toContain('preparedCapFor');
+    expect(picker).toContain("from '@/lib/dnd/spells/counts'");
   });
 });

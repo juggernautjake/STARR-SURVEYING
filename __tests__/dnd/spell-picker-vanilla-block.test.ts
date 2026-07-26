@@ -54,7 +54,11 @@ describe('the picker consults that decision and obeys it', () => {
   });
 
   it('blocks only a vanilla, non-DM character', () => {
-    expect(src).toContain('const blocked = isVanilla && !elig.ok && !isDM');
+    // S7b added a SECOND reason to block — the class's spell count — so `blocked` is now the union of the
+    // two. The rule this test guards is unchanged: both halves are gated on `isVanilla && !isDM`, so a DM
+    // and a custom character are still never blocked by either.
+    expect(src).toContain('const blocked = (isVanilla && !elig.ok && !isDM) || !!full');
+    expect(src).toContain('const full = isVanilla && !isDM ? overCount(s) : null');
     expect(src).toContain('disabled={blocked}');
   });
 

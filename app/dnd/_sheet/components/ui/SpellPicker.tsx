@@ -14,6 +14,7 @@ import { useChar } from '../../state/store'
 import { useSheetSystem } from '../../state/sheetConfig'
 import { spellsForSystem, spellCatalog, type SpellDef, type SpellClass } from '@/lib/dnd/spells'
 import { spellEligibility } from '@/lib/dnd/spells/eligibility'
+import { spellCountsFor } from '@/lib/dnd/spells/counts'
 import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants'
 import type { Spell, SpellLevel } from '../../types'
 
@@ -109,11 +110,47 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
       .slice(0, 80)
   }, [catalog, q, level, onlyMyClass, charClass])
 
+  // ── How many this class actually grants (slot plan S7b) ──────────────────────────────────────────
+  //
+  // WHICH count applies to THIS list is the whole subtlety, and getting it wrong breaks every preparer:
+  //
+  //  · CANTRIPS are a known list in both editions and for every class, so `cantripsKnown` caps the sheet
+  //    list directly. A level-1 Bard gets two, not the whole cantrip catalog.
+  //  · LEVELLED spells are a known list only for a KNOWING class (2014 Bard/Sorcerer/Warlock/Ranger).
+  //    For a PREPARER, `spellsKnown` is the PREPARED count — and this list is not the prepared list. A
+  //    Wizard's spellbook and a Cleric's access to the entire Cleric list are both far larger than the
+  //    number they prepare. Capping this list by that number would refuse spells the class plainly has.
+  //    A preparer's cap belongs on the prepared TOGGLE instead, which is where SpellsPanel applies it.
+  //
+  // Always-prepared spells (domain, oath, subclass grants) are excluded because every class's own rule
+  // text says they "never count against this number".
+  const counts = useMemo(
+    () => spellCountsFor(system, char.meta.className, char.meta.level),
+    [system, char.meta.className, char.meta.level],
+  )
+  const onSheet = char.spells ?? []
+  const cantripsHeld = onSheet.filter((s) => s.level === 0 && !s.alwaysPrepared).length
+  const knownHeld = onSheet.filter((s) => s.level > 0 && !s.alwaysPrepared).length
+
+  /** Is this specific pick over the class's count? Never true for a preparer's levelled spells. */
+  const overCount = (def: SpellDef): string | null => {
+    if (def.level === 0) {
+      return counts.cantripsKnown != null && cantripsHeld >= counts.cantripsKnown
+        ? `your class grants ${counts.cantripsKnown} cantrip${counts.cantripsKnown === 1 ? '' : 's'} at level ${char.meta.level}`
+        : null
+    }
+    if (counts.prepares || counts.spellsKnown == null) return null
+    return knownHeld >= counts.spellsKnown
+      ? `your class knows ${counts.spellsKnown} spell${counts.spellsKnown === 1 ? '' : 's'} at level ${char.meta.level}`
+      : null
+  }
+
   const add = (def: SpellDef) => {
     const elig = spellEligibility(def, eligCtx)
     // Belt and braces: the button is already disabled, but a blocked spell must not be addable
     // by any path through this component — a disabled attribute is a UI affordance, not a rule.
     if (isVanilla && !elig.ok && !isDM) return
+    if (isVanilla && !isDM && overCount(def)) return
     const reason = elig.ok ? undefined : (isDM ? `granted by the DM — ${elig.reason}` : elig.reason)
     setChar((c) => ({ ...c, spells: [...(c.spells ?? []), spellFromCatalog(def, (c.spells ?? []).length, reason)] }))
   }
@@ -136,6 +173,16 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
           <div style={{ padding: '6px 14px', fontSize: 11.5, color: 'var(--muted)', borderBottom: '1px solid var(--line)' }}>
             Anything you add lands on their sheet immediately — off-list and above-slot spells are
             allowed on purpose, so you can hand out something they could not normally learn.
+          </div>
+        )}
+        {/* The budget, stated up front. A cap the player only discovers by being refused reads as a bug;
+            the same number shown while they choose reads as a rule. */}
+        {!isDM && (counts.cantripsKnown != null || (!counts.prepares && counts.spellsKnown != null)) && (
+          <div style={{ padding: '6px 14px', fontSize: 11.5, color: 'var(--muted)', borderBottom: '1px solid var(--line)' }}>
+            {counts.cantripsKnown != null && <>Cantrips {cantripsHeld}/{counts.cantripsKnown}</>}
+            {counts.cantripsKnown != null && !counts.prepares && counts.spellsKnown != null && ' · '}
+            {!counts.prepares && counts.spellsKnown != null && <>Spells known {knownHeld}/{counts.spellsKnown}</>}
+            {counts.prepares && <> · this class PREPARES from its list, so the number it prepares is capped on the sheet, not here</>}
           </div>
         )}
 
@@ -186,7 +233,8 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                 const elig = spellEligibility(s, eligCtx)
                 // The DM is never blocked: granting a spell a character could not normally take
                 // is a legitimate DM act, and blocking it would make their job impossible.
-                const blocked = isVanilla && !elig.ok && !isDM
+                const full = isVanilla && !isDM ? overCount(s) : null
+                const blocked = (isVanilla && !elig.ok && !isDM) || !!full
                 return (
                   <div key={s.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -199,6 +247,14 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                         {!elig.ok && (
                           <span className="tag" style={{ marginLeft: 6, color: blocked ? 'var(--danger)' : '#e0a020' }} title={elig.reason}>
                             {blocked ? 'not available' : 'off-rules'}
+                          </span>
+                        )}
+                        {/* Separate word from "not available": this spell IS legal for the character, they
+                            have simply used the number their class grants. Saying the same thing for both
+                            would send a player hunting for a prerequisite that is not the problem. */}
+                        {elig.ok && full && (
+                          <span className="tag" style={{ marginLeft: 6, color: '#e0a020' }} title={full}>
+                            no room
                           </span>
                         )}
                       </div>
@@ -215,14 +271,15 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                       // answer, and hiding the spell just makes the list look arbitrary.
                       disabled={blocked}
                       title={
-                        blocked ? `Not available: ${elig.reason} (this is a vanilla character — build a custom one to take it anyway)`
-                          : already ? `${s.name} is already on this sheet — adding again makes a second copy`
-                            : !elig.ok ? `Off-rules: ${elig.reason} — allowed because this character is custom`
-                              : `Add ${s.name}`
+                        full ? `No room: ${full}. Remove one first, or switch this character to Custom.`
+                          : blocked ? `Not available: ${elig.reason} (this is a vanilla character — build a custom one to take it anyway)`
+                            : already ? `${s.name} is already on this sheet — adding again makes a second copy`
+                              : !elig.ok ? `Off-rules: ${elig.reason} — allowed because this character is custom`
+                                : `Add ${s.name}`
                       }
                       style={blocked ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     >
-                      {blocked ? '✕ Blocked' : already ? '＋ again' : !elig.ok ? '＋ Anyway' : '＋ Add'}
+                      {full ? '✕ No room' : blocked ? '✕ Blocked' : already ? '＋ again' : !elig.ok ? '＋ Anyway' : '＋ Add'}
                     </button>
                   </div>
                 )

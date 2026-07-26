@@ -238,13 +238,32 @@ slices are driven in the browser before being called done — this repo's standi
       know, and a wrong cap is worse than none.
       **Found by the orphan-module guard**, which failed the first version of this slice: the count source
       landed with no consumer. Exactly what that guard is for.
-- [ ] **S7b — enforce the counts in the pickers.** The remaining half, and a genuine behaviour change:
-      `SpellPicker` currently lets a level-1 Bard add all four cantrips and thirty more, and PF2's spell
-      picker is deliberately uncapped (`PF2BuildPicks`'s own comment says so, citing S7). Capping starts
-      refusing picks players have already made — several demo characters hold more spells than their class
-      grants — so it needs the same `TakeAnyway` escape hatch feats got, and a decision about existing
-      over-count sheets (Q5's "grandfather and mark" assumption applies here too). PF2 additionally has no
-      per-class/per-tradition count at all: `pf2SpellSlots` is one derived full-caster table keyed on level.
+- [~] **S7b — enforce the counts. 5e shipped 2026-07-26; PF2 still open.** 13 tests.
+      **Aiming the cap was the whole risk, and the obvious aim is wrong.** `spellsKnown` means two things:
+      for a 2014 KNOWING class it is the size of its known list (so the sheet list IS that list, and capping
+      the picker is right); for a 2024 PREPARER it is the number PREPARED — and the sheet list is not that.
+      A Wizard's spellbook and a Cleric's access to the whole Cleric list are both far larger than the
+      number prepared, so a picker cap there would have refused spells the class plainly has. Split
+      accordingly:
+      · **cantrips** — capped in the picker for everyone (a known list in both editions);
+      · **levelled spells, knowing class** — capped in the picker;
+      · **levelled spells, preparer** — capped on the prepared TOGGLE in `SpellsPanel`, which is where the
+        number actually bites.
+      **Nobody already over the cap is broken.** Both guards use `>=`, so an over-count character simply
+      cannot add MORE; nothing is ever removed or un-prepared. That is Q5's recorded assumption
+      ("grandfather and mark, never silently delete a player's content"), and it matters concretely —
+      several demo characters hold more spells than their class grants.
+      Always-prepared spells (domain, oath, subclass) are excluded throughout, quoting each class's own
+      "never count against this number". A DM is never blocked; a custom character is never capped.
+      **"No room" is a different word from "not available"** — the spell IS legal, the player is just full,
+      and saying the same thing for both would send them hunting for a prerequisite that is not the problem.
+      The picker shows a running `Cantrips 2/2 · Spells known 4/4` budget, because a cap discovered only by
+      being refused reads as a bug while the same number shown up front reads as a rule.
+- [ ] **S7c — PF2 spell counts.** Still uncapped, and unlike 5e the count does not exist to enforce:
+      `pf2SpellSlots` is a single derived full-caster table keyed on level alone, not per class and not per
+      tradition, and the class-feature extras (Wizard school slot, Cleric font) are documented as "tracked
+      separately" i.e. unmodelled. So this needs the published per-class tables in hand first — Ground Rule
+      3, the same bar that deferred Automatic Bonus Progression.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
