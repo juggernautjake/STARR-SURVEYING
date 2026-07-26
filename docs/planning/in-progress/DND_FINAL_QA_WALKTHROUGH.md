@@ -845,3 +845,67 @@ identically, so client and server agree — and per-slot attribution is exactly 
 question already blocked on the owner (slices 5–6). Guessing it here would pre-empt that decision.
 
 **Bar:** 19 tests (`dnd5e-build-gate.test.ts`), 4739/4739 D&D tests, typecheck exit-0, lint clean.
+
+### 2026-07-26 — slice 23: dead controls (clean), and the roller labels were never a token problem
+
+Two hunts, one of the doc's named defect classes each.
+
+**1. Dead controls — a clean negative, twice.** The class the doc names and no slice had swept
+systematically. Wrote a small auditor (balances braces/angle brackets, and blanks comments in place after
+the first run matched `<select>` inside this repo's own prose) over all 228 `app/dnd` `.tsx` files:
+
+- **Controls with no handler at all:** 8 hits, all in `hextech-demo/page.tsx`, a style gallery whose buttons
+  are inert by design. **Zero in the real UI.**
+- **Controls whose value is collected and then dropped** — the shape slice 7 actually found. Walked the
+  whole chain for all three builders: every field the UI holds in state is POSTed, survives parsing
+  (`parsePF2Picks` keeps all 15), and is read by the assembler (checked field-by-field against
+  `builder.ts` for IG and PF2). **Nothing dropped.** The per-class option lists that *could* come back
+  empty are already guarded (`ig-builder-options`, `ig-builder-subclass-gate`,
+  `pf2-progressions-cover-builder`).
+
+**2. The roller tab labels — and slices 18–21 were chasing the wrong noun.** The recorded debt said: pick a
+colour clamped against the roller's own surface, and measure the real composited background in a browser.
+Following it turned up the actual cause, which is not a colour at all.
+
+`.fld`'s background is `rgba(var(--panel-rgb), .98) → rgba(var(--void-rgb), .98)`, and **those triplets are
+not one thing:**
+
+| scope | where the dock's surface comes from | result |
+|---|---|---|
+| bespoke PF2/IG shells (`.sheet-shell`) | `shellVarsFromHx` → **derived from the skin** | dock is light on a light skin; panel-clamped ink on it is correct. Never had the defect. |
+| 5e engine (`.dnd-sheet`) | `theme.css` → **a fixed dark purple, every skin** | on the 3 light skins, that skin's near-black ink sat on a near-black window |
+
+So slice 21's conclusion — *"it sits on the roller, which is dark on every skin"* — was **half wrong**, and
+that half is why two attempts missed: the roller is dark in *one* scope, and that scope's ink assumed
+otherwise. Both candidate tokens were doomed, because `--hx-muted` **and** `--hx-text` are clamped against
+the panel; swapping between them could only ever trade one wrong answer for another.
+
+**The fix is structural, not a chosen colour.** `skinHxVars`/`themeToHxVars` now emit `--hx-panel-rgb` /
+`--hx-void-rgb`, and `.fld` prefers them (`rgba(var(--hx-panel-rgb, var(--panel-rgb, …)), .98)`) — so the
+dock is panel-derived in *both* scopes and the clamp's own precondition holds: the ink is clamped against
+the colour actually behind it. The raw triplets remain the fallback, so an **unskinned sheet is
+pixel-identical**. Because the fix is a precondition rather than a hand-picked value, it needed no browser
+to be trustworthy — which is the part the recorded debt had backwards.
+
+`--hx-muted` on the tab pill (dock stop at 98% + the pill's own 3% white), by this repo's own maths:
+
+| skin | before | after |
+|---|---|---|
+| lazzuh (dark) | 6.15 | 5.75 ✅ |
+| streamer (light) | **3.22** ❌ | 4.73 ✅ |
+| donata (light) | **3.72** ❌ | 4.63 ✅ |
+| jack (light) | **3.54** ❌ | 4.57 ✅ |
+
+**Honest about the gap between model and page:** these before-values (3.2–3.7) are *higher* than the
+2.78/2.83 measured in place, so the live page stacks at least one more darkening layer than the model.
+Direction, cause and which-skins-fail all agree, and the fix doesn't rest on the absolute number — but the
+after-values clear AA only just (4.57 on `jack`), so what is now owed to a browser is a look check on the
+dock's new light appearance on those three skins, **not** a ratio check on a colour. Recorded in
+`contrast-sweep.md`, replacing the old debt.
+
+An existing guard (`shell-light-skin.test.ts`) failed on the nested `var()` — its intent (the window stays
+effectively opaque) is unchanged, so it now reads the extracted `.fld` block instead of pattern-matching
+across a nest a `[^)]*` can't span.
+
+**Bar:** 22 new guards (`roller-dock-surface.test.ts`) incl. that the dark skin passes *either* way — which
+is why this hid for three slices — 4761/4761 D&D tests, typecheck exit-0, lint clean.

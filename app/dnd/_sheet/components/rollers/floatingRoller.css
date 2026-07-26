@@ -16,7 +16,19 @@
   box-sizing: border-box;
   border: 1px solid var(--line-strong, var(--line, rgba(255, 255, 255, 0.16)));
   border-radius: 14px;
-  background: linear-gradient(160deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.98));
+  /* SURFACE AND INK FROM ONE SOURCE. Every label in this window is a contrast-clamped token, and the clamp
+     is computed against the SKIN'S PANEL. So this surface has to be panel-derived too, or the clamp is
+     guaranteeing contrast against a colour that isn't behind the text. `theme.css` pins the 5e sheet's
+     `--panel-rgb`/`--void-rgb` to a fixed dark purple regardless of skin — which on the three light skins
+     put that skin's near-black ink on this near-black window (the tab labels measured 2.78:1). The bespoke
+     shells never had it, because `shellVarsFromHx` derives their triplets from the skin.
+     `--hx-panel-rgb`/`--hx-void-rgb` are the skin's own, so they win where a skin is applied; the raw
+     triplets stay as the fallback, which keeps an UNSKINNED sheet pixel-identical to before. */
+  background: linear-gradient(
+    160deg,
+    rgba(var(--hx-panel-rgb, var(--panel-rgb, 20, 18, 28)), 0.98),
+    rgba(var(--hx-void-rgb, var(--void-rgb, 6, 5, 12)), 0.98)
+  );
   box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.9), 0 0 40px -22px var(--hotpink, var(--gold, #c8aa6e));
   backdrop-filter: blur(6px);
   overflow: hidden;
@@ -39,7 +51,8 @@
   touch-action: none;
   user-select: none;
   border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.1));
-  background: rgba(var(--void-rgb, 6, 5, 12), 0.55);
+  /* The header carries `--muted` grip text and `--ink` buttons, so it follows the window's own surface. */
+  background: rgba(var(--hx-void-rgb, var(--void-rgb, 6, 5, 12)), 0.55);
 }
 .fld-head:active {
   cursor: grabbing;
@@ -147,7 +160,12 @@
   border-radius: 50%;
   cursor: pointer;
   border: 1px solid var(--line-strong, var(--line, rgba(255, 255, 255, 0.18)));
-  background: linear-gradient(160deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.98));
+  /* The collapsed FAB is the same window in miniature, with an `--ink` glyph on it — same rule. */
+  background: linear-gradient(
+    160deg,
+    rgba(var(--hx-panel-rgb, var(--panel-rgb, 20, 18, 28)), 0.98),
+    rgba(var(--hx-void-rgb, var(--void-rgb, 6, 5, 12)), 0.98)
+  );
   box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.9), 0 0 26px -14px var(--hotpink, var(--gold, #c8aa6e));
   color: var(--ink, #e8e6f0);
   transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;

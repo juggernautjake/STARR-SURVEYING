@@ -21,9 +21,16 @@ describe('bespoke shell wrappers carry an opaque skin-base background (light-ski
   }
 
   it('the floating roller window is effectively opaque so it reads on any skin', () => {
-    // The window floats over the (dark) page, so a translucent light window would be muddy on a light
-    // skin — its panel/void fills are 0.98 opacity, i.e. opaque enough, and it inherits skin tokens.
+    // The window floats over the page, so a translucent window would be muddy on a light skin — its
+    // panel/void fills are 0.98 opacity, i.e. opaque enough, and it inherits skin tokens.
+    //
+    // Asserted on the extracted `.fld` BLOCK rather than by one regex over the whole file: slice 23 nested
+    // the fill as `rgba(var(--hx-panel-rgb, var(--panel-rgb, …)), 0.98)` so the dock follows the SKIN's
+    // panel (see roller-dock-surface.test.ts), and a `[^)]*` pattern can't span a nested var().
     const css = read('app/dnd/_sheet/components/rollers/floatingRoller.css');
-    expect(css).toMatch(/\.fld\s*\{[\s\S]*?rgba\(var\(--panel-rgb[^)]*\),\s*0\.9\d\)/);
+    const block = css.slice(css.indexOf('.fld {'), css.indexOf('}', css.indexOf('.fld {')));
+    expect(block).toContain('--hx-panel-rgb');   // the skin's own panel wins…
+    expect(block).toContain('--panel-rgb');      // …with the sheet's fixed triplet as the fallback
+    expect(block).toMatch(/0\.9\d\)/);           // still effectively opaque
   });
 });

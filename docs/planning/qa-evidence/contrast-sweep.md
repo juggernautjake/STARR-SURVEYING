@@ -76,7 +76,28 @@ text (≥24px, or ≥18.66px bold) — so a 23px headline at 3.85 is a genuine m
 
 ## Outstanding
 
-The roller template tabs and animation toggle were changed from `--hx-muted` to `--hx-text` in slice 19
-based on their measured before-values (2.78 dark / 2.83 light). **Those two labels have not been
-re-measured in place** — the Playwright context wedged before it could be done. Re-running this snippet on
-a PF2 sheet and confirming they now clear 4.5 is a small, specific debt.
+**Resolved in slice 23 — and the debt was pointing at the wrong thing.** Slices 18–21 treated the roller
+tab labels as a *token* choice (`--hx-muted` vs `--hx-text`) and recorded a debt to re-measure them in a
+browser. Both tokens are clamped against the skin's **panel**, so neither could be right on a surface that
+isn't panel-coloured — and `.fld`'s surface wasn't: `theme.css` pinned the 5e sheet's `--panel-rgb` to a
+fixed dark purple on every skin, while the bespoke shells derived theirs from the skin. The dock is now
+panel-derived in both scopes, so the clamp guarantees contrast against the colour actually behind the text.
+
+Computed with this file's own maths, `--hx-muted` on the tab pill (dock stop at 98% + the pill's 3% white):
+
+| skin | fixed dark dock (before) | panel-derived dock (after) |
+|---|---|---|
+| lazzuh (dark) | 6.15 | 5.75 ✅ |
+| streamer (light) | **3.22** ❌ | 4.73 ✅ |
+| donata (light) | **3.72** ❌ | 4.63 ✅ |
+| jack (light) | **3.54** ❌ | 4.57 ✅ |
+
+Pinned per skin in `__tests__/dnd/roller-dock-surface.test.ts`, including that the dark skin passed *either*
+way — which is why this hid for three slices.
+
+**Still worth a browser pass, for a different reason than before.** These computed before-values (3.2–3.7)
+are higher than the 2.78/2.83 measured in place, so the real page stacks at least one more darkening layer
+than the model. The *diagnosis* is unaffected (direction, cause and which skins fail all agree) and the fix
+is structural rather than a chosen colour, so it doesn't rest on the absolute number. But the after-values
+sit only just over AA (4.57 on `jack`), so the eyes-on check now owed is **whether the dock's new light
+appearance on the three light skins looks right**, not whether a hand-picked colour cleared a ratio.

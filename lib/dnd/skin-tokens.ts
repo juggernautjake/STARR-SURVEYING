@@ -99,6 +99,10 @@ function contrast(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+/** A hex as the bare `r, g, b` triplet the `rgba(var(--x-rgb), α)` surfaces need — pure CSS can't derive
+ *  one from a hex var, which is why these are emitted rather than computed in the stylesheet. */
+const trip = (hex: string) => toRgb(hex).join(', ');
+
 /**
  * Return `fg`, or a nudged version of it, that meets `ratio` against `bg`. The push direction is chosen
  * by the BACKGROUND's luminance: on a light panel we darken the foreground toward black; on a dark panel
@@ -188,6 +192,14 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
     '--hx-teal-2': teal2,
     '--hx-text': text,
     '--hx-muted': muted,
+    // The PANEL/VOID TRIPLETS, for the surfaces painted `rgba(var(--…-rgb), α)` — the floating roller dock
+    // above all. These exist because the ink tokens above are contrast-clamped **against `panel`**, so a
+    // surface that ISN'T panel-coloured breaks the clamp's own precondition. `theme.css` pins the sheet's
+    // triplets to a fixed dark purple, which on the three LIGHT skins put near-black ink on a near-black
+    // dock (the roller tab labels measured 2.78:1). The shells' `shellVarsFromHx` already derives them from
+    // the skin, which is why only the 5e engine had the defect. Emitting them here makes the sheet agree.
+    '--hx-panel-rgb': trip(panel),
+    '--hx-void-rgb': trip(navy0),
     // --hx-danger is intentionally left to inherit the default red: it reads on both dark and light panels,
     // and skins don't ship a "danger" swatch to derive one from.
   };
@@ -263,6 +275,10 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
     '--hx-teal-2': teal2,
     '--hx-text': text,
     '--hx-muted': muted,
+    // Same reason as `skinHxVars` — the ink is clamped against `panel`, so every surface that paints from a
+    // triplet has to be panel-derived too, or the clamp is guaranteeing contrast against the wrong colour.
+    '--hx-panel-rgb': trip(panel),
+    '--hx-void-rgb': trip(navy0),
   };
   if (light) {
     vars['--hx-inset-soft'] = 'rgba(0, 0, 0, 0.03)';
@@ -327,7 +343,6 @@ function shellVarsFromHx(hx: Record<string, string>): CSSProperties {
   const teal1 = hx['--hx-teal-1'] ?? HX_DEFAULTS.teal1;
   const panel = hx['--hx-panel'] ?? HX_DEFAULTS.panel;
   const navy0 = hx['--hx-navy-0'] ?? HX_DEFAULTS.navy0;
-  const trip = (hex: string) => toRgb(hex).join(', ');
 
   const vars: Record<string, string> = {
     '--gold': gold3,

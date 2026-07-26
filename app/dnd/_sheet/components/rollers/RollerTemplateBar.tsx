@@ -95,18 +95,19 @@ export default function RollerTemplateBar({
               fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
               border: on ? '1px solid var(--hx-teal-1, #0ac8b9)' : '1px solid var(--hx-line, rgba(255,255,255,0.14))',
               background: on ? 'rgba(10,200,185,0.14)' : 'rgba(255,255,255,0.03)',
-              // These 11px labels measured 2.78:1 (dark skins) / 2.83:1 (light) — sub-AA, and worth fixing.
-              // But NOT by swapping to a body-text token, which is what a previous attempt here did:
-              // `--hx-text` and the shell's `--ink` are both contrast-clamped against the SKIN'S PANEL,
-              // and on the three light skins (streamer/donata/jack) that makes them near-black
-              // (#242223 / #232220 / #21201e). This bar sits on the ROLLER, which is dark on every skin —
-              // so that "fix" computed to **1.13–1.17:1** there, i.e. strictly worse than what it replaced.
+              // `--hx-muted` is CORRECT here, and it took three tries to see why. These 11px labels
+              // measured 2.78:1 — but the token was never the bug. Both `--hx-muted` and `--hx-text` are
+              // clamped against the SKIN'S PANEL, so either is right on a panel-coloured surface and wrong
+              // on any other. Swapping between them (slice 19) just picked a different wrong answer:
+              // `--hx-text` computed to 1.13–1.17:1 on the light skins.
               //
-              // Left on `--hx-muted` deliberately. A correct fix needs a colour clamped against the
-              // ROLLER's own surface rather than the skin's panel, and choosing it needs the real
-              // composited background measured in a browser — see docs/planning/qa-evidence/
-              // contrast-sweep.md. Shipping the wrong token to look busy would trade a legible-but-dim
-              // label for an invisible one.
+              // The real defect was the SURFACE. `.fld`'s gradient reads `--panel-rgb`/`--void-rgb`, which
+              // the bespoke shells derive from the skin but `theme.css` pinned to a fixed dark purple for
+              // the 5e sheet — so on a light skin this dock stayed near-black under near-black ink. Slice
+              // 23 made the dock panel-derived in both scopes (`--hx-panel-rgb`), which restores the
+              // clamp's own precondition: the ink is now clamped against the colour actually behind it.
+              // Pinned per skin in `roller-dock-surface.test.ts`. Do not "fix" this by hard-coding a light
+              // colour — that breaks the shells, whose dock is legitimately light on a light skin.
               color: on ? 'var(--hx-teal-1, #0ac8b9)' : 'var(--hx-muted, #93a1b5)',
               opacity: !canWrite && !on ? 0.5 : 1,
             }}
@@ -131,8 +132,8 @@ export default function RollerTemplateBar({
             borderRadius: 999, fontSize: 11, lineHeight: 1.2, cursor: canWrite ? 'pointer' : 'default',
             fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
             border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
-            // Same bar, same 11px, same open question as the template tabs above — kept in step with them
-            // rather than fixed independently.
+            // Same bar, same 11px, same token as the template tabs above — and correct for the same reason
+            // (slice 23: the dock's surface is panel-derived, so the panel-clamped ink holds).
             background: 'rgba(255,255,255,0.03)', color: 'var(--hx-muted, #93a1b5)',
             opacity: canWrite ? 1 : 0.5,
           }}
