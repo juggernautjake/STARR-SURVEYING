@@ -40,10 +40,24 @@ export default function TakeAnyway({
   noun?: string;
 }) {
   const [choice, setChoice] = React.useState('');
+
+  // REMEMBER why each pick was refused, because the moment it is taken it stops being refused.
+  //
+  // Found in the browser: the dropdown offered "Ancestor's Rage — Ancestor's Rage is a level-13 feat; this
+  // character is level 1", and the instant it was taken the list underneath read "Ancestor's Rage — not
+  // normally available". Every picker computes `blocked` by excluding what is already selected — correctly,
+  // since a taken pick is no longer on offer — so looking the reason up there finds nothing once it matters
+  // most. The generic fallback is exactly the failure this whole feature exists to avoid: a badge that says
+  // something changed without saying what.
+  //
+  // A ref, not state: this is a cache of something already rendered, so writing it must not cause a render.
+  const seen = React.useRef(new Map<string, string>());
+  for (const b of blocked) if (b.reason) seen.current.set(b.name, b.reason);
+
   // Nothing to escape: a custom character was never bound, and a list with no refusals has no dead end.
   if (!offer.offered || (blocked.length === 0 && taken.length === 0)) return null;
 
-  const reasonOf = (name: string) => blocked.find((b) => b.name === name)?.reason;
+  const reasonOf = (name: string) => blocked.find((b) => b.name === name)?.reason ?? seen.current.get(name);
 
   return (
     <div style={{ display: 'grid', gap: 6, border: `1px dashed ${LINE}`, borderRadius: 8, padding: '8px 10px' }}>

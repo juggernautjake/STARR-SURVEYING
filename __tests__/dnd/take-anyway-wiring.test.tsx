@@ -108,6 +108,32 @@ describe('the control itself', () => {
     expect(html).toContain('Alert');
   });
 
+  it('KEEPS the reason after the pick stops being blocked — found in the browser', () => {
+    // The defect: every picker computes `blocked` by excluding what is already selected — correctly, since
+    // a taken pick is no longer on offer. So the reason lookup found nothing the moment it mattered most.
+    // The dropdown read "Ancestor's Rage — Ancestor's Rage is a level-13 feat; this character is level 1",
+    // and one click later the list underneath read "not normally available". A generic fallback is exactly
+    // the failure this feature exists to prevent.
+    //
+    // ASSERTED ON THE SOURCE, deliberately, and this is a real limit rather than laziness: the fix is a
+    // cross-RENDER cache, and `renderToStaticMarkup` mounts a fresh component every call, so there is no
+    // second render for it to survive. A DOM-level test could drive it; this suite has no DOM renderer.
+    // The behaviour itself was verified in a browser (see DND_FINAL_QA_WALKTHROUGH, 2026-07-26) — which is
+    // also the only reason the bug was found, since every unit test here passed while it was broken.
+    const src = readFileSync(join(process.cwd(), 'app/dnd/_ui/builder/TakeAnyway.tsx'), 'utf8');
+    expect(src).toContain('seen.current.set(b.name, b.reason)');
+    expect(src).toContain('?? seen.current.get(name)');
+    // A ref and not state: caching something already rendered must not itself cause a render.
+    expect(src).toContain('React.useRef(new Map<string, string>())');
+  });
+
+  it('falls back to plain wording only when the reason was never supplied', () => {
+    const html = renderToStaticMarkup(
+      <TakeAnyway offer={offer} blocked={[]} taken={['Mystery Feat']} onTake={() => {}} onUntake={() => {}} />,
+    );
+    expect(html).toContain('not normally available');
+  });
+
   it('takes a plain {name, reason} row, so every system\'s picker can feed it', () => {
     // The tiers and wording are the part most likely to drift if each system grew its own hatch.
     //

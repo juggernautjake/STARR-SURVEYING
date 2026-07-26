@@ -160,6 +160,38 @@ already gave. Pinned by four tests in `spell-count-enforcement.test.ts`.
 prepared count and put it back: the row ends at 18 spells / 12 prepared / 6 counting against the cap, byte
 for byte what it was found at (verified against the DB, not assumed).
 
+### 2026-07-26 — browser pass over the escape hatch (slot plan S6b), PF2
+
+The hatch shipped on unit tests alone across all three systems. Driven on the **PF2 guided builder** for
+Orin Sallowmere: ancestry → four steps → feat search "rage".
+
+| Check | Result |
+|---|---|
+| Hatch renders once a search surfaces refusals | ✅ `Add a different feat…` |
+| Ineligible chips greyed with their reason | ✅ Ancestor's Rage (L13), Aura of Courage (Champion), Share Rage (Barbarian) — all correct for a level-1 non-Barbarian |
+| Button wording for a player | ✅ `+ Take it anyway` |
+| The blurb states the cost | ✅ *"Recorded as an exception — this character will read \"Altered vanilla\" and name it."* |
+| Taking one moves it to the exceptions list | ✅ `Taken outside the rules — 1 exception`, with **Undo** |
+| Console errors | ✅ none |
+
+**One defect found and fixed, and it was the exact thing this feature exists to do.** The dropdown offered
+*"Ancestor's Rage — Ancestor's Rage is a level-13 feat; this character is level 1."* One click later the
+exceptions list read **"Ancestor's Rage — not normally available"**. The reason was gone.
+
+Cause: every picker computes `blocked` by excluding what is already selected — correct, since a taken pick
+is no longer on offer — so `TakeAnyway`'s reason lookup found nothing the moment it mattered most, and fell
+back to generic wording. A badge that says something changed without saying what is the failure this whole
+strand was built to prevent, and it was live in all three systems.
+
+`TakeAnyway` now remembers each reason it has been shown (a ref, since caching something already rendered
+must not cause a render). Re-verified in the browser: the taken row reads the full objection.
+
+**Why no unit test caught it:** the fix is a cross-RENDER cache and `renderToStaticMarkup` mounts fresh
+every call, so there is no second render for the bug to appear in. That limit is recorded inline in
+`take-anyway-wiring.test.ts` rather than papered over with a test that only looks behavioural.
+
+**No live data changed** — the builder was driven up to the pick and never saved.
+
 ## Known gaps / notes for the walkthrough
 
 - **`VOYAGE_API_KEY` is absent**, so semantic search returns nothing; keyword search
