@@ -137,11 +137,30 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
     }).catch(() => {})
   }
 
-  // Remove a character from THIS campaign (it stays with its owner; ownership untouched).
-  async function removeFromCampaign(id: string, name: string) {
-    if (!data || !window.confirm(`Remove "${name}" from this campaign? The owner keeps the character — it just leaves this table.`)) return
-    const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/characters/${id}`, { method: 'DELETE' })
-    if (res.ok) setData((d) => (d ? { ...d, characters: d.characters.filter((c) => c.id !== id) } : d))
+  // Remove a character from THIS campaign (it stays with its owner; ownership untouched). The confirm is
+  // an in-app dialog rather than window.confirm — it matches the rest of the app's chrome, and it has room
+  // to say what removal actually does, which "OK / Cancel" does not. A failure is now SHOWN: the old
+  // version dropped the row from the list only when the request succeeded and said nothing when it didn't,
+  // so a failed removal looked identical to nothing happening.
+  const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [removeErr, setRemoveErr] = useState<string | null>(null)
+
+  async function removeFromCampaign(id: string) {
+    if (!data) return
+    setRemoving(id); setRemoveErr(null)
+    try {
+      const res = await fetch(`/api/dnd/campaigns/${data.campaign.id}/characters/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setRemoveErr(j.error || 'Could not remove that character from the campaign.')
+        setRemoving(null)
+        return
+      }
+      setData((d) => (d ? { ...d, characters: d.characters.filter((c) => c.id !== id) } : d))
+      setConfirmRemove(null)
+      setRemoving(null)
+    } catch { setRemoveErr('Could not remove that character from the campaign.'); setRemoving(null) }
   }
 
   // Add one of the DM's own existing characters into this campaign (multi-campaign).
@@ -285,6 +304,38 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
 
               <section className={styles.framedPanel}>
                 <div className={styles.framedPanelTop} />
+                {/* Removal confirmation — in-app, with room to say what removal does and does not do. */}
+                {confirmRemove && (
+                  <div role="dialog" aria-label={`Remove ${confirmRemove.name} from this campaign?`} style={{
+                    position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                  }}>
+                    <div className={styles.framedPanel} style={{ width: 'min(460px, 96vw)', padding: '16px 18px', display: 'grid', gap: 12 }}>
+                      <div>
+                        <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', fontSize: 15 }}>
+                          Remove “{confirmRemove.name}” from this campaign?
+                        </strong>
+                        <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>
+                          The owner <strong style={{ color: 'var(--hx-text)' }}>keeps the character</strong> — sheet, art and
+                          history are untouched. It leaves this table only, and can be added back at any time. A character
+                          can belong to several campaigns.
+                        </p>
+                      </div>
+                      {removeErr && <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-danger, #ff6b6b)' }}>{removeErr}</p>}
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className={styles.hexBtn} disabled={!!removing}
+                          onClick={() => removeFromCampaign(confirmRemove.id)}
+                          style={{ padding: '7px 15px', borderColor: 'var(--hx-danger, #ff6b6b)', color: '#ff9d9d' }}>
+                          {removing ? 'Removing…' : 'Remove from campaign'}
+                        </button>
+                        <button type="button" className={styles.hexBtn} disabled={!!removing}
+                          onClick={() => { setConfirmRemove(null); setRemoveErr(null) }} style={{ padding: '7px 15px' }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <h2 className={styles.panelTitle} style={{ margin: 0, flex: 1 }}>Characters</h2>
                   {/* Build a new character. This is the CREATE entry (the search box below does not
@@ -429,11 +480,12 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                             <CampaignApprovalControl campaignId={data.campaign.id} characterId={c.id} approval={c.approval ?? null} onChange={(a) => setApproval(c.id, a)} />
                           )}
                           <button
-                            onClick={() => removeFromCampaign(c.id, c.name)}
+                            onClick={() => { setRemoveErr(null); setConfirmRemove({ id: c.id, name: c.name }) }}
+                            disabled={!!removing}
                             title="Remove this character from THIS campaign only. The owner keeps it — it just leaves this table. (A character can be in several campaigns.)"
-                            style={{ fontSize: 10, letterSpacing: '0.06em', padding: '2px 8px', cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                            style={{ fontSize: 10, letterSpacing: '0.06em', padding: '2px 8px', cursor: removing ? 'default' : 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4, opacity: removing ? 0.5 : 1 }}
                           >
-                            ✕ remove from campaign
+                            {removing === c.id ? 'Removing…' : '✕ remove from campaign'}
                           </button>
                         </div>
                       )

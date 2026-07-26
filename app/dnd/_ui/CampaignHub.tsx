@@ -69,6 +69,27 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
     } catch { setAddErr('Could not add that character.') } finally { setAdding(false) }
   }
 
+  // Take one of MY characters back out of this campaign. The add control has always promised "you can
+  // remove it again anytime" — until now there was no way to, on the player side, so the only route out
+  // was asking the DM. The DELETE route already authorises the character's owner, so this needed no new
+  // permission; it also repoints the character's `campaign_id` home, which matters because membership
+  // lives in TWO places and clearing only the join row would leave the character still listed.
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [removeErr, setRemoveErr] = useState<string | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string } | null>(null)
+
+  async function removeMyCharacter(id: string) {
+    setRemoving(id); setRemoveErr(null)
+    try {
+      const r = await fetch(`/api/dnd/campaigns/${data.id}/characters/${id}`, { method: 'DELETE' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setRemoveErr(j.error || 'Could not remove that character.'); setRemoving(null); return }
+      setConfirmRemove(null)
+      setRemoving(null)
+      router.refresh()
+    } catch { setRemoveErr('Could not remove that character.'); setRemoving(null) }
+  }
+
   // Cross-system port (38d): the campaign's own characters of MINE that are built for a different
   // system than this campaign runs. The transpose endpoint already exists (non-destructive — it
   // installs a new system-variant and keeps the source), so this just offers to call it.
@@ -274,24 +295,44 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
                     : watchStream
                       ? `Watch ${c.name}'s live stream`
                       : `${c.name} — owned by ${c.ownerName ?? 'someone'}${playedBy ? `, played by ${playedBy}` : ''}. Open to view.`
+                  // The remove control is a SIBLING of the card, not a child: the card is itself a
+                  // <button>, and a button inside a button is invalid markup that browsers silently
+                  // restructure. Only shown on your own characters — removing someone else's is the DM's
+                  // call, and they have it on the manage page.
                   return (
-                    <button
-                      key={c.id}
-                      onClick={() => (watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
-                      title={tip}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
-                        padding: '14px 8px', cursor: 'pointer', color: 'inherit',
-                        background: c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
-                        border: `1px solid ${c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
-                      }}
-                    >
-                      <Portrait url={c.portrait} name={c.name} size={64} />
-                      <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
-                      <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : c.mine ? 'var(--hx-teal-1)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>
-                        {label}
-                      </span>
-                    </button>
+                    <div key={c.id} style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
+                      <button
+                        onClick={() => (watchStream ? router.push(`/dnd/stream/${c.id}`) : router.push(`/dnd/characters/${c.id}`))}
+                        title={tip}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6,
+                          padding: '14px 8px', cursor: 'pointer', color: 'inherit',
+                          background: c.mine ? 'rgba(45,193,167,0.08)' : 'rgba(1,10,19,0.4)',
+                          border: `1px solid ${c.mine ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+                        }}
+                      >
+                        <Portrait url={c.portrait} name={c.name} size={64} />
+                        <span style={{ fontSize: 13.5, color: 'var(--hx-text)', wordBreak: 'break-word' }}>{c.name}</span>
+                        <span style={{ fontSize: 9.5, letterSpacing: '0.1em', color: watchStream ? '#ff4d4d' : c.mine ? 'var(--hx-teal-1)' : c.isNpc ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>
+                          {label}
+                        </span>
+                      </button>
+                      {c.mine && (
+                        <button
+                          type="button"
+                          onClick={() => { setRemoveErr(null); setConfirmRemove({ id: c.id, name: c.name }) }}
+                          disabled={!!removing}
+                          title={`Take ${c.name} out of this campaign. You keep the character — it just leaves this table.`}
+                          style={{
+                            fontSize: 10.5, padding: '3px 8px', cursor: removing ? 'default' : 'pointer',
+                            background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4,
+                            color: '#ff6b6b', opacity: removing ? 0.5 : 1,
+                          }}
+                        >
+                          {removing === c.id ? 'Removing…' : '✕ leave this table'}
+                        </button>
+                      )}
+                    </div>
                   )
                 }
                 const groups: { key: string; title: string; chars: typeof data.characters }[] = [
@@ -316,6 +357,41 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
                   </div>
                 )
               })()
+            )}
+
+            {removeErr && <p style={{ margin: '10px 0 0', fontSize: 12.5, color: 'var(--hx-danger, #ff6b6b)' }}>{removeErr}</p>}
+
+            {/* Leaving a table is reversible (you can add the character back) but not obviously so, and it
+                changes what the DM sees — so it asks first, in-app rather than via the browser's confirm. */}
+            {confirmRemove && (
+              <div role="dialog" aria-label={`Remove ${confirmRemove.name} from this campaign?`} style={{
+                position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,8,15,0.72)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+              }}>
+                <div className={styles.framedPanel} style={{ width: 'min(440px, 96vw)', padding: '16px 18px', display: 'grid', gap: 12 }}>
+                  <div>
+                    <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)', fontSize: 15 }}>
+                      Take “{confirmRemove.name}” out of this campaign?
+                    </strong>
+                    <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.55 }}>
+                      You <strong style={{ color: 'var(--hx-text)' }}>keep the character</strong> — sheet, art and history
+                      are untouched. It simply leaves this table, and stops appearing on the roster. You can bring it
+                      back at any time.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" className={styles.hexBtn} disabled={!!removing}
+                      onClick={() => removeMyCharacter(confirmRemove.id)}
+                      style={{ padding: '7px 15px', borderColor: 'var(--hx-danger, #ff6b6b)', color: '#ff9d9d' }}>
+                      {removing ? 'Removing…' : 'Remove from campaign'}
+                    </button>
+                    <button type="button" className={styles.hexBtn} disabled={!!removing}
+                      onClick={() => setConfirmRemove(null)} style={{ padding: '7px 15px' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Bring one of your own characters into this campaign — you keep ownership,
