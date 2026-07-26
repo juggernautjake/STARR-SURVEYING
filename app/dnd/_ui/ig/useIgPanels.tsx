@@ -465,7 +465,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                 const e = igStanceInPlay(activeStance, derived.level);
                 return (
                   <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(10,200,185,0.12), rgba(10,200,185,0.04))', borderRadius: 9, padding: '9px 13px', cursor: 'help' }}>
-                    <span aria-hidden style={{ fontSize: 21, lineHeight: 1 }}>🜲</span>
+                    {/* The one child of this card that named no colour, so it inherited the page's base
+                        `#0f1419` — a near-black meant for light surfaces — onto the card's teal-tinted dark
+                        fill: measured 1.39:1. Takes the card's own accent, which its sibling below already
+                        uses on this exact background and which measures fine there. */}
+                    <span aria-hidden style={{ fontSize: 21, lineHeight: 1, color: 'var(--hx-teal-1)' }}>🜲</span>
                     <div style={{ display: 'grid', gap: 2 }}>
                       <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
                       <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>

@@ -1243,3 +1243,22 @@ than exercise taste on someone else's brand.
 inherit-the-page-ink cause as the custom-sections block, in a panel slice 30's fix did not cover.
 
 **Bar:** no app change, 5000/5000 D&D tests, typecheck exit-0. Dev server stopped, port released.
+
+### 2026-07-26 — slice 33: the last plain bug in the contrast list
+
+Slice 32 called one of the 40 remaining items a probable bug rather than a colour decision. It was.
+
+The IG stance card names a colour for **every** child — the "CURRENTLY IN" label, the stance name, the
+summary — except the `🜲` emblem, which named none and so inherited the page's base `#0f1419` onto the card's
+teal-tinted dark fill: **1.39:1**. A plain omission, not a palette question. It now takes the card's own
+accent, which the sibling directly beneath it already uses on that exact background: measured **6.34:1**.
+
+**The IG sheet is down to a single failure**, and that one is the danger red at 3.33 on `COMBAT SKILLS` — a
+site the `--hx-danger-2` fix did not reach, and a colour call rather than an omission.
+
+That closes every item in this arc I can settle without deciding on someone else's palette. The verified
+baseline in `qa-evidence/contrast-sweep.md` now stands at **39 remaining across six sheets, all of them
+decisions**, grouped with measurements and a recommended order.
+
+**Bar:** 5000/5000 D&D tests, typecheck exit-0, lint clean. Dev server stopped; all nine ports used during
+this arc confirmed released (the 3000–3009 zombie sockets in this repo's history are why that gets checked).
