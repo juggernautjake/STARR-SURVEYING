@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { useChar } from '../state/store'
 import { useSheetSystem } from '../state/sheetConfig'
 import { systemSkills } from '@/lib/dnd/system-rules'
-import { normalizeSystem } from '@/lib/dnd/systems'
-import { systemLabel } from '@/lib/dnd/systems'
+import { normalizeSystem, systemLabel } from '@/lib/dnd/systems'
+import { logManualEdit } from '../lib/log-edit'
 import { ABILITIES, SKILLS, abilityMod, signed, profContribution, type ProfLevel, type AbilityKey } from '../rules/dnd'
 import { rollEffectSources } from '../lib/roll-effects'
 import type { CustomSkill } from '../types'
@@ -13,7 +13,7 @@ import EffectStar from './ui/EffectStar'
 const PROF_ORDER: ProfLevel[] = ['none', 'proficient', 'expertise']
 
 export default function SavesSkills() {
-  const { char, abilities, pb, saveDc, setChar, rollCheck, ledger, activeFormId } = useChar()
+  const { char, abilities, pb, saveDc, setChar, rollCheck, ledger, activeFormId, characterId } = useChar()
   // Proficiencies granted by an active effect (Slice 11 grant-half): a pendant that grants longsword
   // proficiency, a boon that grants a language. The ledger collects them with their source; this is
   // their home on the sheet — a granted target that renders nowhere is a lie the engine tells.
@@ -76,20 +76,28 @@ export default function SavesSkills() {
     char.skills.perception.misc
   const saveDC = saveDc // single source (store) — honors the manual override, like the StatRail does
 
+  // AUDITED, because these are BUILD changes, not play state.
+  //
+  // Both were direct `setChar` calls reaching none of the element editors, so clicking a proficiency dot
+  // silently changed the character and the DM's review queue never heard about it — the same gap
+  // `InlineNumber` had. Proficiency and expertise are exactly the kind of thing a DM reviews: they move
+  // every roll with that skill, and expertise is a class feature's worth of value.
+  //
+  // Deliberately NOT audited elsewhere on this sheet: HP spent, slots used, conditions and prepared
+  // toggles are how a character is PLAYED, not how it is built, and logging them would bury the build
+  // changes the queue exists to surface.
   function cycleSkill(key: string) {
-    setChar((c) => {
-      const order: ProfLevel[] = ['none', 'proficient', 'expertise']
-      const cur = c.skills[key].prof
-      const next = order[(order.indexOf(cur) + 1) % order.length]
-      return { ...c, skills: { ...c.skills, [key]: { ...c.skills[key], prof: next } } }
-    })
+    const order: ProfLevel[] = ['none', 'proficient', 'expertise']
+    const cur = char.skills[key].prof
+    const next = order[(order.indexOf(cur) + 1) % order.length]
+    logManualEdit(characterId, `skill.${key}.prof`, cur, next)
+    setChar((c) => ({ ...c, skills: { ...c.skills, [key]: { ...c.skills[key], prof: next } } }))
   }
 
   function toggleSave(key: (typeof ABILITIES)[number]['key']) {
-    setChar((c) => ({
-      ...c,
-      saves: { ...c.saves, [key]: { ...c.saves[key], proficient: !c.saves[key].proficient } },
-    }))
+    const next = !char.saves[key].proficient
+    logManualEdit(characterId, `save.${key}.proficient`, char.saves[key].proficient, next)
+    setChar((c) => ({ ...c, saves: { ...c.saves, [key]: { ...c.saves[key], proficient: next } } }))
   }
 
   return (

@@ -2568,6 +2568,15 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       (`log-edit.ts`'s own rule: *"one audit vocabulary, not a parallel path"* — the absence of which is
       exactly how two callers diverged), with `DmOverridePanel`'s per-caller logging removed so one
       double-click files one row. Level still logs explicitly because its control has no `path`.
+      **The same sweep found two more.** `cycleSkill` and `toggleSave` were direct `setChar` calls reaching
+      no element editor, so clicking a proficiency dot changed the character with no audit row — and
+      **expertise** is a class feature's worth of value moving every roll with that skill, squarely what a
+      review pass looks for. Both now audit as `skill.<key>.prof` / `save.<key>.proficient`, reading the
+      current value BEFORE the update (logging inside the `setChar` updater would have recorded a row whose
+      before equals its after, which is worse than no row).
+      **Where the line is drawn, and why:** BUILD changes audit; PLAY does not. HP spent, slots used,
+      conditions and prepared toggles are how a character is played, not how it is built, and logging them
+      would bury the build changes the queue exists to surface. That boundary is now asserted, not assumed.
 - [x] ✅ SHIPPED (verified 2026-07-18): **every change is visible to the DM, and reversible by them** — the
       `EditReviewPanel` is a campaign review queue, newest-first, with **Approve all** (blesses/clears the ✎
       marks) and per-batch/per-edit **Revert** (reverses exactly through the tested `revertBatch`/`revertSheetEdit`);

@@ -85,6 +85,35 @@ describe('GROUP 2 — elements with their own editor', () => {
   });
 });
 
+describe('BUILD changes audit; PLAY does not — and the line is drawn deliberately', () => {
+  const saves = read('SavesSkills.tsx');
+
+  it('skill proficiency audits', () => {
+    // Found by the same sweep as the InlineNumber gap: a direct `setChar` reaching no element editor, so
+    // clicking a proficiency dot changed the character and the DM's queue never heard. Proficiency and
+    // especially EXPERTISE move every roll with that skill — squarely what a review pass looks for.
+    expect(saves).toContain('logManualEdit(characterId, `skill.${key}.prof`');
+  });
+
+  it('save proficiency audits', () => {
+    expect(saves).toContain('logManualEdit(characterId, `save.${key}.proficient`');
+  });
+
+  it('both read the CURRENT value before writing, so the row records a real before/after', () => {
+    // Logging inside the `setChar` updater would have been the easy mistake: the old value is only
+    // available outside it, and a row whose "before" equals its "after" is worse than no row.
+    expect(saves).toContain('const cur = char.skills[key].prof');
+    expect(saves).toContain('char.saves[key].proficient, next');
+  });
+
+  it('PLAY state stays out of the log', () => {
+    // HP spent, slots used, conditions and prepared toggles are how a character is played, not how it is
+    // built. Logging them would bury the build changes the queue exists to surface.
+    expect(read('SpellsPanel.tsx')).not.toContain('logManualEdit');
+    expect(saves).not.toMatch(/logManualEdit\([^)]*currentHp/);
+  });
+});
+
 describe('GROUP 3 — deliberately NOT inline-editable, and why', () => {
   it('class and subclass are builder-owned, not text fields', () => {
     // `build.classKey` / `build.subclassKey` drive the level walker, the progression table and every
