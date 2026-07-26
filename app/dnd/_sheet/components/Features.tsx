@@ -9,6 +9,7 @@ import OffRulesMark from './ui/OffRulesMark'
 import FeatureEditor from './ui/FeatureEditor'
 import FeatPicker from './ui/FeatPicker'
 import type { FeatureBlock } from '../types'
+import { logManualEdit } from '../lib/log-edit'
 
 const SOURCE_TONE: Record<string, string> = {
   Signature: 'pink',
@@ -22,7 +23,7 @@ function sourceColor(source: string) {
 }
 
 export default function Features() {
-  const { char, activateFeature, canWrite, setChar, ledger } = useChar()
+  const { char, activateFeature, canWrite, setChar, ledger, characterId } = useChar()
   const [editing, setEditing] = useState<FeatureBlock | null>(null)
   const [pickingFeat, setPickingFeat] = useState(false)
   const level = char.meta.level
@@ -36,13 +37,20 @@ export default function Features() {
     .filter((c) => !c.suppressed && typeof c.effect.value === 'string' && c.effect.value.trim())
     .map((c) => ({ name: String(c.effect.value), source: c.source, sourceId: c.sourceId }))
 
-  const duplicate = (f: FeatureBlock) =>
+  // Both audit: a feature arriving or leaving is a BUILD change, and a feature is often a whole feat or
+  // class ability. The delete is the important one — its own confirm says "cannot be undone", which was
+  // true because nothing recorded it; the row's `old_value` is what a revert would need. Logged BEFORE the
+  // update, since inside the updater the deleted feature is already gone.
+  const duplicate = (f: FeatureBlock) => {
+    logManualEdit(characterId, `feature.${f.name} (copy)`, null, `${f.name} (copy)`)
     setChar((c) => ({
       ...c,
       features: [...(c.features ?? []), { ...f, id: `${f.id}-copy-${(c.features ?? []).length}`, name: `${f.name} (copy)` }],
     }))
+  }
   const remove = (f: FeatureBlock) => {
     if (!confirm(`Delete “${f.name}”? This cannot be undone.`)) return
+    logManualEdit(characterId, `feature.${f.name}`, f.name, null)
     setChar((c) => ({ ...c, features: (c.features ?? []).filter((x) => x.id !== f.id) }))
   }
   const resourceLeft = (id?: string) => (id ? (char.resources.find((r) => r.id === id)?.current ?? 0) : 1)

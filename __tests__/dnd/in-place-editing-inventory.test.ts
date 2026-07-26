@@ -133,6 +133,18 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
     expect(read('Inventory.tsx')).toContain('const gone = char.inventory.find((it) => it.id === id)');
   });
 
+  it('DELETING a feature or an attack audits — the least recoverable actions on the sheet', () => {
+    // Both confirms say "cannot be undone", which was true because nothing recorded them. A feature is
+    // often a whole feat or class ability, and an attack is a build element with its own maths.
+    expect(read('Features.tsx')).toContain('logManualEdit(characterId, `feature.${f.name}`, f.name, null)');
+    expect(read('Attacks.tsx')).toContain('logManualEdit(characterId, `attack.${a.name}`, a.name, null)');
+  });
+
+  it('and duplicating one audits as an arrival', () => {
+    expect(read('Features.tsx')).toContain('(copy)`, null,');
+    expect(read('Attacks.tsx')).toContain('(copy)`, null,');
+  });
+
   it('and uses the SAME path vocabulary the element editors use', () => {
     // `feature.<name>` / `spell.<name>` are what FeatureEditor and SpellEditor write, so a gained feat and
     // a later edit to it read as the same element in the queue rather than as two unrelated things.
@@ -150,16 +162,14 @@ describe('BUILD changes audit; PLAY does not — and the line is drawn deliberat
 describe('KNOWN unaudited build paths (a work list, not a pass)', () => {
   const GAPS: Record<string, string> = {
     'Hero.tsx': 'name and species changes (species goes through SpeciesPicker, which does not log)',
-    'Features.tsx': 'deleting a feature',
-    'Attacks.tsx': 'deleting an attack',
-    'Bio.tsx': 'bio/backstory text',
+    'Bio.tsx': 'bio/backstory text — prose rather than mechanics, so the lowest-value of the set',
   };
 
   it('is honest about how many remain', () => {
     // If this number changes, someone either fixed one (good — remove it here) or added a new unaudited
-    // path (the thing to catch). It went 5 → 4 when Inventory was fixed, and the test failing was what
-    // forced this list to be updated — which is the whole point of asserting the current state.
-    expect(Object.keys(GAPS)).toHaveLength(4);
+    // path (the thing to catch). It has gone 5 → 4 → 2, and each time the FAILURE is what forced this
+    // list to be updated — which is the whole point of asserting the current state rather than the goal.
+    expect(Object.keys(GAPS)).toHaveLength(2);
   });
 
   for (const [file, why] of Object.entries(GAPS)) {

@@ -11,18 +11,24 @@ import ElementMenu from './ui/ElementMenu'
 import AttackEditor from './ui/AttackEditor'
 import EffectStar from './ui/EffectStar'
 import EditMark from './ui/EditMark'
+import { logManualEdit } from '../lib/log-edit'
 
 export default function Attacks() {
-  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar, ledger, preferences } = useChar()
+  const { char, abilities, pb, critMin, activeFormId, rollCheck, rollDmg, transformActive, recklessActive, canWrite, setChar, ledger, preferences, characterId } = useChar()
   const [editing, setEditing] = useState<Attack | null>(null)
 
-  const duplicate = (a: Attack) =>
+  // Audited for the same reason as features and items — see the note in `Features.tsx`. `AttackEditor`
+  // already logs field-level diffs on an existing attack; these are the two cases it cannot see.
+  const duplicate = (a: Attack) => {
+    logManualEdit(characterId, `attack.${a.name} (copy)`, null, `${a.name} (copy)`)
     setChar((c) => ({
       ...c,
       attacks: [...c.attacks, { ...a, id: `${a.id}-copy-${c.attacks.length}`, name: `${a.name} (copy)` }],
     }))
+  }
   const remove = (a: Attack) => {
     if (!confirm(`Delete “${a.name}”? This cannot be undone.`)) return
+    logManualEdit(characterId, `attack.${a.name}`, a.name, null)
     setChar((c) => ({ ...c, attacks: c.attacks.filter((x) => x.id !== a.id) }))
   }
   const hasReckless = useSheetModule('reckless')

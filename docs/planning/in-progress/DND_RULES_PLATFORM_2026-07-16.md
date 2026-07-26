@@ -2585,11 +2585,14 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       audits. Deletion mattered most — the confirm dialog says outright that it *"cannot be undone"*, which
       was true precisely because nothing recorded it; the row's `old_value` is what a revert would need.
       Both read the item BEFORE the update, since afterwards there is nothing left to name.
-      **Four unaudited build paths REMAIN, as a listed work list rather than a discovery exercise:**
-      name + species on `Hero`, deleting a feature, deleting an attack, and bio text.
+      **Then the two DELETIONS** — a feature and an attack. Both confirms said *"cannot be undone"*, again
+      true only because nothing recorded them; a feature is often a whole feat or class ability, and an
+      attack is a build element with its own maths. Duplicating either audits as an arrival.
+      **Two unaudited build paths REMAIN, as a listed work list rather than a discovery exercise:**
+      name + species on `Hero`, and bio text (prose rather than mechanics — the lowest-value of the set).
       `in-place-editing-inventory.test.ts` asserts the CURRENT state of each, so fixing one FAILS the test
-      and forces the list to be updated — the only way this stops drifting. It has already done that once:
-      the count went 5 → 4 when Inventory was fixed, and the failure is what prompted the update.
+      and forces the list to be updated — the only way this stops drifting. It has done that twice now:
+      the count went **5 → 4 → 2**, and each time the failure is what prompted the update.
       **Root cause, worth stating once:** `log-edit.ts` calls itself *"the ONE client path … one audit
       vocabulary, not a parallel path"* and **nothing enforced that**, so five call sites quietly grew their
       own behaviour while two `[x]` items below recorded "every edit audits" as settled.
