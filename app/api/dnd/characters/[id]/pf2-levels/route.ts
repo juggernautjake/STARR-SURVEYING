@@ -24,6 +24,10 @@ import {
 } from '@/lib/dnd/systems/pathfinder2e/levelup';
 import { PF2_ALL_FEATS } from '@/lib/dnd/systems/pathfinder2e/data';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2FeatEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
+import { pf2ContextFor } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
+import { readActiveSlotMeta, isRulesEnforcedKind, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { unlockOffer, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 
 /** Resolve a feat name (within a track) to its catalog data, so a projected feat shows real traits/body. */
 function resolveFeat(name: string, track: string): PF2FeatResolution | null {
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'This is the Pathfinder 2e level route. (5e uses /levels.)' }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { choice?: unknown; commitTo?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { choice?: unknown; commitTo?: unknown; acceptException?: boolean };
   const data = normalizeCharacter((row.data as unknown) ?? blankCharacter(row.name)) as PF2Data;
   const { className, level } = buildState(data);
   let choices = (data.pf2Build?.choices ?? []) as PF2RecordedChoice[];
@@ -92,6 +96,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (body.choice != null) {
     const choice = readChoice(body.choice);
     if (!choice) return NextResponse.json({ error: 'That choice is malformed.' }, { status: 400 });
+
+    // ── THE VALUE IS GATED HERE, not just the slot (slot plan S6d) ─────────────────────────────────
+    //
+    // `pf2PlanLevelUp` has always scoped which SLOTS a level offers — one prompt per (level, track). What
+    // nothing checked was WHAT you put in one: `readChoice` validates the shape and nothing else, so the
+    // walker would happily record a level-13 feat into a level-2 class slot. The Foundations builder has
+    // gated this since S4; the level walker, which is where the owner's "build level by level with the
+    // appropriately scoped system mechanics" actually happens, did not.
+    //
+    // Judged against the CATALOG entry, never the choice's own claim, for the same reason `gatePf2Edit`
+    // gives: otherwise a crafted POST declares a level-20 feat to be level 1 and walks straight through.
+    // A feat the catalog does not know is homebrew and passes — it never claimed to be official content,
+    // and refusing it would block authoring rather than close a hole.
+    const rawVariants = (row as { system_variants?: unknown }).system_variants;
+    const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
+    const offer = unlockOffer({ isDM: access.access.isDM, kind: buildVariant });
+
+    if (choice.kind === 'feat' && choice.value && isRulesEnforcedKind(buildVariant) && !access.access.isDM) {
+      const def = PF2_ALL_FEATS.find((f) => f.name.toLowerCase() === choice.value!.trim().toLowerCase());
+      if (def) {
+        const sidecar = (data as PF2Data & { pf2e?: PF2Character }).pf2e;
+        const elig = pf2FeatEligibility(def, sidecar
+          ? pf2ContextFor(sidecar)
+          : { className, ancestry: '', level: choice.level, featNames: [] });
+        if (!elig.ok) {
+          const accepted = body.acceptException === true && offer.offered;
+          if (!accepted) {
+            return NextResponse.json({ error: elig.reason, canTakeAnyway: offer.offered }, { status: 400 });
+          }
+          choice.exception = {
+            name: def.name,
+            reason: elig.reason ?? 'not available to this character',
+            entitlement: offer.stamps,
+            level: choice.level,
+          };
+        }
+      }
+    }
     choices = pf2RecordChoice(choices, choice);
   }
 
@@ -128,9 +170,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     };
   }
 
-  const { error } = await supabaseAdmin.from('dnd_characters').update({ data: nextData }).eq('id', row.id);
+  // The badge, derived from the merged ledger — the same rule every other write path uses, so a PF2
+  // level-walker exception reads "Altered vanilla" and names itself just as a Foundations one does.
+  const rawVariantsOut = (row as { system_variants?: unknown }).system_variants;
+  const priorKind = readActiveSlotMeta(rawVariantsOut).kind ?? 'vanilla';
+  const exceptions = exceptionsIn(choices);
+  const nextKind = variantKindWithExceptions(priorKind, exceptions);
+
+  const patch: Record<string, unknown> = { data: nextData };
+  if (nextKind !== priorKind) {
+    const raw = rawVariantsOut && typeof rawVariantsOut === 'object' ? (rawVariantsOut as Record<string, unknown>) : {};
+    patch.system_variants = { ...raw, [ACTIVE_SLOT_META_KEY]: { ...readActiveSlotMeta(rawVariantsOut), kind: nextKind } };
+  }
+
+  const { error } = await supabaseAdmin.from('dnd_characters').update(patch).eq('id', row.id);
   if (error) return NextResponse.json({ error: 'Could not save the level choices.' }, { status: 500 });
 
   const plan = pf2PlanLevelUp({ className, to: Math.max(newLevel, commitTo ?? newLevel), recorded: choices, from: newLevel });
-  return NextResponse.json({ ok: true, level: newLevel, choices, plan });
+  return NextResponse.json({
+    ok: true, level: newLevel, choices, plan,
+    variantKind: nextKind,
+    ...(exceptions.length ? { exceptions: exceptions.map(describeException) } : {}),
+  });
 }

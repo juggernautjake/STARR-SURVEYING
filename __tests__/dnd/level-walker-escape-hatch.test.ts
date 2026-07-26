@@ -96,3 +96,50 @@ describe('the walker offers the door only when the route says so', () => {
     expect(UI).toContain('setRefused(null);');
   });
 });
+
+// ── PF2: the walker gated the SLOT but never the VALUE ────────────────────────────────────────────────
+//
+// The bigger half of this slice. `pf2PlanLevelUp` has always scoped which slots a level offers, so the
+// walker asked the right questions — but `readChoice` validated only the SHAPE of the answer. Nothing
+// checked whether the feat you named was one you could actually take, so the walker would record a
+// level-13 feat into a level-2 class slot. The Foundations builder has gated this since S4.
+describe('PF2 level walker: the value is gated, then exceptable', () => {
+  const PF2 = read('app/api/dnd/characters/[id]/pf2-levels/route.ts');
+  const PF2UI = read('app/dnd/_ui/PF2LevelBuilder.tsx');
+
+  it('runs the shared eligibility core rather than a second rule', () => {
+    expect(PF2).toContain('pf2FeatEligibility(def,');
+    expect(PF2).toContain('pf2ContextFor(sidecar)');
+  });
+
+  it('judges the CATALOG entry, not the choice\'s own claim', () => {
+    // Otherwise a crafted POST declares a level-20 feat to be level 1 and walks through — the exact
+    // reasoning `gatePf2Edit` already documents.
+    expect(PF2).toContain('PF2_ALL_FEATS.find((f) => f.name.toLowerCase() === choice.value!.trim().toLowerCase())');
+  });
+
+  it('lets HOMEBREW through — it never claimed to be official', () => {
+    // `if (def)` — an unknown feat is not refused, because refusing it would block authoring rather than
+    // close a hole.
+    expect(PF2).toMatch(/if \(def\) \{/);
+  });
+
+  it('does not gate a DM or a custom character', () => {
+    expect(PF2).toContain('isRulesEnforcedKind(buildVariant) && !access.access.isDM');
+  });
+
+  it('accepts an acknowledged exception, per pick, with the gate\'s own reason', () => {
+    expect(PF2).toContain('body.acceptException === true && offer.offered');
+    expect(PF2).toContain("reason: elig.reason ?? 'not available to this character'");
+  });
+
+  it('moves the badge from the merged ledger', () => {
+    expect(PF2).toContain('exceptionsIn(choices)');
+    expect(PF2).toContain('variantKindWithExceptions(priorKind, exceptions)');
+  });
+
+  it('and the walker offers the door only when the route allows it', () => {
+    expect(PF2UI).toContain('setRefused(j?.canTakeAnyway ? choice : null)');
+    expect(PF2UI).toContain('void record(refused, true)');
+  });
+});

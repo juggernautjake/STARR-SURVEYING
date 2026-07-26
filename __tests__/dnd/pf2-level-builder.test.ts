@@ -10,7 +10,9 @@ const PAGE = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/levels/pa
 describe('PF2LevelBuilder (B10)', () => {
   it('fetches the plan and records/commits through the /pf2-levels route', () => {
     expect(UI).toContain('/pf2-levels');
-    expect(UI).toContain("JSON.stringify({ choice })");
+    // Carries `acceptException` since S6d — the walker now gates the VALUE as well as the slot, so a
+    // refusal needs a way to be taken deliberately rather than being a dead end.
+    expect(UI).toContain('JSON.stringify({ choice, acceptException })');
     expect(UI).toContain("JSON.stringify({ commitTo: target })");
   });
 

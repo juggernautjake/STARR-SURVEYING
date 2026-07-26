@@ -47,6 +47,8 @@ export default function PF2LevelBuilder({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The last refusal the route flagged as overridable, held with its exact choice (slot plan S6d).
+  const [refused, setRefused] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(
     async (to: number) => {
@@ -72,17 +74,23 @@ export default function PF2LevelBuilder({
   const current = plan?.outstanding?.[0] ?? null;
 
   const record = useCallback(
-    async (choice: Record<string, unknown>) => {
+    async (choice: Record<string, unknown>, acceptException = false) => {
       setBusy(true);
       setError(null);
       try {
         const r = await fetch(`/api/dnd/characters/${characterId}/pf2-levels`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ choice }),
+          body: JSON.stringify({ choice, acceptException }),
         });
         const j = await r.json();
-        if (!r.ok) throw new Error(j?.error ?? 'Could not record that choice.');
+        if (!r.ok) {
+          // The route says whether THIS refusal may be overridden. Hold the exact choice so "Take it
+          // anyway" re-sends what was judged, rather than something rebuilt from the form.
+          setRefused(j?.canTakeAnyway ? choice : null);
+          throw new Error(j?.error ?? 'Could not record that choice.');
+        }
+        setRefused(null);
         setPlan(j.plan as Plan);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not record that choice.');
@@ -149,6 +157,23 @@ export default function PF2LevelBuilder({
       {error && (
         <div style={{ color: 'var(--hx-bad, #e46)', fontSize: 13 }} role="alert">
           {error}
+        </div>
+      )}
+      {/* The escape hatch (slot plan S6d). PF2's level walker now GATES the value as well as the slot, so a
+          refusal is real — and this is what stops it being a wall. Offered only when the route says this
+          particular refusal is overridable. */}
+      {refused && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+          <span style={{ flex: 1, minWidth: 200, color: 'var(--hx-muted)' }}>
+            You can take it anyway — it is recorded as an exception, and this character will read{' '}
+            <strong>Altered vanilla</strong> and name it for your DM.
+          </span>
+          <button className={styles.hexBtn} disabled={busy} onClick={() => void record(refused, true)}>
+            + Take it anyway
+          </button>
+          <button className={styles.hexBtn} disabled={busy} onClick={() => { setRefused(null); setError(null); }}>
+            Pick something else
+          </button>
         </div>
       )}
 

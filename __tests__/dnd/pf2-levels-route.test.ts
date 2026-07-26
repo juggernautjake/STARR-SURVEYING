@@ -26,7 +26,11 @@ describe('PF2 levels route (B9)', () => {
     expect(SRC).toContain('pf2RecordChoice(choices, choice)');
     expect(SRC).toContain('pf2Build: { ...(data.pf2Build ?? {}), choices }');
     expect(SRC).toContain(".from('dnd_characters')");
-    expect(SRC).toContain('.update({ data: nextData })');
+    // Writes through a `patch` object since S6d: the row carries `data`, plus `system_variants` ONLY when
+    // an exception moved the character's badge. A bare `.update({ data })` would have no way to record
+    // that the character became altered-vanilla.
+    expect(SRC).toContain('.update(patch)');
+    expect(SRC).toContain('const patch: Record<string, unknown> = { data: nextData }');
   });
 
   it('refuses to commit a level while the plan still owes choices (409)', () => {
