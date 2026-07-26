@@ -166,11 +166,27 @@ slices are driven in the browser before being called done — this repo's standi
 - [ ] **S8b — the badge NAMES its exceptions.** "Altered vanilla: Magic Initiate (DM-granted, level 4)" on
       the sheet and in the DM's review — a badge that says something changed without saying what is the same
       problem in a nicer font. Needs the per-slot provenance S6 records, so it follows S6.
-- [ ] **S11 — take a character into and out of a campaign, clearly.** Owner-flagged 2026-07-26: joining and
-      leaving must be obvious and reversible from the character's own page, not only from the campaign side.
-      Today the join path exists (`dnd_campaign_characters`, and `campaignsForCharacter` already treats
-      membership as many-to-many) but there is no plain "leave this campaign" affordance, and no single place
-      that says which campaigns a character is in.
+- [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
+      A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
+      **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure
+      decision core (`membershipView` / `canLeaveCampaign` / `canJoinCampaign` / `membershipSummary`), read by
+      BOTH the new read-only `GET /api/dnd/characters/[id]/campaigns` and the panel, so a button cannot appear
+      where the server refuses. 18 tests.
+      **The capability was already there; the affordance wasn't.** `DELETE .../characters/[characterId]` has
+      always allowed the character's OWNER as well as the DM — but its only caller was `CampaignHub`, the
+      DM's roster. And `campaignsForCharacter` was used for permission checks only, so nothing ever *told* a
+      player which campaigns their character was in.
+      **One real asymmetry had to be closed to make this honest.** `join-character` was hard-restricted to
+      `DEMO_CAMPAIGN_ID`, so "take out" worked for any campaign while "take in" worked for exactly one — the
+      panel's Join button would have 403'd everywhere else. The security property it was protecting is
+      unchanged and now stated directly: **a caller with no role in the target campaign is refused**, so
+      nobody can push a character into a stranger's game; you still may only add your OWN character; and the
+      demo stays self-joinable because it is open-access by design. The pre-existing gate test was rewritten
+      to assert the property rather than its old implementation.
+      **Deliberately no new mutation route:** the panel calls the two endpoints that already carry the
+      authorization, because a third copy of "may this caller do that" is how they drift.
+      **Not yet browser-driven** — this repo's rule is that a UI slice isn't done until it is, so that pass is
+      owed (alongside S12, which adds the as-is/variant choice to the same panel).
 - [ ] **S12 — join as THIS character, or as a variant.** Owner-flagged 2026-07-26: when taking a character
       into a campaign, offer *"bring this exact character"* or *"make a variant for this campaign, kept
       separate from the original build"*. The variant machinery already exists and is the right substrate —

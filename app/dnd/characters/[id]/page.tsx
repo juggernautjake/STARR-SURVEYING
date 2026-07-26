@@ -26,6 +26,7 @@ import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, readActiveSlotMeta, resolveOriginSlotId, type ActiveSheet } from '@/lib/dnd/system-variants';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
+import CharacterCampaigns from '@/app/dnd/_ui/CharacterCampaigns';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
 import { buildVariantCards, effectiveCampaignId } from '@/lib/dnd/variant-view';
 import type { SubmissionStatusLite } from '@/lib/dnd/variant-tags';
@@ -368,6 +369,11 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {/* Private/Public is the creator's call — only the owner sees this control (the DM always sees the
           character regardless; other players' view is governed by this flag). */}
       {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}
+      {/* Which campaigns this character is in, with a way in and out (S11 — owner: "make sure there is a
+          clear and easy way to take character into and out of a campaign"). Sits beside the visibility
+          toggle because both answer "who can see and use this character". It renders for anyone who can view
+          the sheet: the panel itself only offers the actions that caller may actually perform. */}
+      <CharacterCampaigns characterId={character.id} />
       {campaignOverridePending && character.campaign_id && (
         <PromoteCampaignVersionButton campaignId={character.campaign_id} characterId={character.id} />
       )}

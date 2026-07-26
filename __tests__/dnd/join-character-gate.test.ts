@@ -17,9 +17,15 @@ describe('join-character self-join gates', () => {
     expect(SRC).toMatch(/if \(!session\)[\s\S]{0,80}status: 401/);
   });
 
-  it('is restricted to the DEMO campaign — cannot self-join someone else’s campaign', () => {
-    expect(SRC).toMatch(/params\.id !== DEMO_CAMPAIGN_ID/);
-    expect(SRC).toMatch(/DEMO_CAMPAIGN_ID[\s\S]{0,120}status: 403/);
+  it('cannot self-join a campaign you do not belong to', () => {
+    // THE PROPERTY IS UNCHANGED; the implementation moved (2026-07-26, S11). This used to be enforced as
+    // "demo campaign only", which also made "take a character IN" demo-only while "take it out" already
+    // worked anywhere — the asymmetry the owner asked to close. The protection is now stated directly:
+    // a caller with no role in the target campaign is refused, so nobody can push a character into a
+    // stranger's game. The demo remains self-joinable because it is open-access by design.
+    expect(SRC).toContain('getCampaignRole(params.id)');
+    expect(SRC).toMatch(/role === null[\s\S]{0,220}status: 403/);
+    expect(SRC).toContain('DEMO_CAMPAIGN_ID'); // still special-cased, as the one open-access table
   });
 
   it('enforces OWNERSHIP — only the caller’s own character can be joined (403 otherwise)', () => {
