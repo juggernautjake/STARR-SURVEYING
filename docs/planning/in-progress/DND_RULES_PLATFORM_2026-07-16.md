@@ -1618,7 +1618,13 @@ no-op. Full suite 1655 green.
 - [~] Tests: an item with effects always appears; a pure-heal potion leaves NO panel entry; a buff potion
       still shows with its label + duration; **a heal+buff potion does both**; editing the item afterwards
       doesn't mutate the running effect; ending a worn effect unequips, a consumed effect doesn't resurrect
-      the item; the panel's numbers equal the ledger's. ✅ All shipped EXCEPT the heal+buff combo:
+      the item; the panel's numbers equal the ledger's.
+      **✅ NOW COMPLETE INCLUDING the heal+buff combo (re-checked 2026-07-26)** — `consume-plan.test.ts` has
+      *"the BOTH case: a heal that also carries `effects` heals now AND leaves a lasting buff"*, asserting an
+      instant `2d4+2` **and** a snapshotted hour-long buff from one drink with qty −1 once. The deferral note
+      below describes the model as single-`kind`; the shipped answer was to express the combo as a
+      heal/temp that ALSO carries `effects`, which the test spells out. **Original text follows:** ✅ All
+      shipped EXCEPT the heal+buff combo:
       `consume-plan.test.ts` (pure-heal → no ActiveEffect; buff → snapshot with label+duration; the
       snapshot-independence fix above) + `active-effects.test.ts` (source-anchored: item appears, ledger is
       the single source of truth, worn-ends-unequip vs consumed-drops, suppression shown).
@@ -1870,6 +1876,12 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       cap respected by the ledger's AC ✅** (`derive-ac.test.ts`, incl. the custom-cap pin above). The one
       part still open is **"a weapon's edits flow to its attack row"** — the weapon-builder UI + live
       weapon→attack derivation (the unbuilt item above), browser-verified.
+      **→ CLOSED 2026-07-26.** The attack row is now DERIVED from the item's own `WeaponStats` each render
+      (`engine/weapon-items.ts`), so an edit in the ItemBuilder flows to the row by construction rather than
+      by a sync step that could drift — change the damage dice, ability, proficiency, to-hit bonus or extra
+      typed dice and the row follows. `weapon-item-attacks.test.ts` (17) pins the mapping, including that the
+      row carries INTRINSIC facts rather than a pre-folded to-hit (a folded one would double-count against
+      the table's own ability + proficiency + ledger arithmetic).
 
 ## Slice 17 — The effect builder: "Add effect" by hand ✅ SHIPPED 2026-07-16
 
