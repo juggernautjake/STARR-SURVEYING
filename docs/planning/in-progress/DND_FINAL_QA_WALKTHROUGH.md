@@ -802,3 +802,46 @@ that merely looks busy would trade a legible-but-dim label for an invisible one.
 the correction's fix was itself wrong. Every step needed a *different* check than the one before. The
 useful generalisation: a contrast fix is not verified by the number going up on the skin you happened to
 be looking at.
+
+### 2026-07-26 — slice 22: the third build route had no gate, and my first fix broke the happy path
+
+**The defect.** `homebrew/policy.ts` says an uninvoked gate is "indistinguishable from no gate", so I
+checked which gates are actually *called*. `pf2-build` calls `gatePf2Picks`; `ig-build` calls
+`gateIgPicks`; **`dnd5e-build` validated nothing.** Slice 3 gated the Foundations *picker*, and
+`FeatPicker.tsx`'s own header claims `featEligibilityForSystem` was "wired into every WRITE path" — this
+route was the exception. So `POST /dnd5e-build { level: 4, feats: ['Boon of Truesight'] }` was accepted,
+and the sheet rendered a level-19 capstone on a 4th-level character as though it were legal. Same
+reasoning as `under-construction-gating.test.ts`: every UI can be bypassed with a direct POST.
+
+**The gate.** Now `gateDnd5eBuildFeats` in `lib/dnd/rules-gate.ts` — the same three-way rule as the other
+two systems (a DM may grant anything; a custom character is the escape hatch; only a vanilla character
+built by a non-DM is held to its class and level), the same refusal shape, and the same 400.
+
+**And then the part worth recording.** My first cut looped over `featEligibilityForSystem` inline in the
+route and passed the whole pick list as `takenFeatureNames`. That field means **already on the sheet** —
+`gateEdits` passes the sheet's own features for exactly that reason. Passing the batch made every pick see
+*itself* as taken, so each came back *"You already have Grappler, which can't be taken again."* **Every
+legal vanilla build with a feat would have 400'd** — the gate would have blocked the happy path and
+nothing else. My 9 tests passed anyway, because they asserted the route's *source text*: the wiring they
+checked was all genuinely there.
+
+Fixed by judging each pick against the *other* picks, never itself — which still refuses the same feat
+listed twice, because the other copy remains in the list. Two further false-refusal traps closed while I
+was in there:
+
+| trap | why it would fire | fix |
+|---|---|---|
+| Judged against itself | `takenFeatureNames` = the batch | judge against the others only |
+| A **rebuild** refuses its own feats | the build replaces its prior `source: 'Feat'` picks, but they were still on the sheet when the gate read it | pass only the features the build **preserves**, via the same `replacedByBuild` predicate the merge uses — one predicate, used twice, so they cannot drift |
+| Ability prereq the increase satisfies | server judging base scores while the picker judges final ones | confirmed the builder posts `finalAbilities`, so both judge the same scores |
+
+**Lesson (the same one as slices 18–21, in a different costume):** a source-grep test proves a call exists,
+not that it is *correct*. The rule moved out of the route into a pure module specifically so it could be
+called for real; 15 of the 19 tests now exercise behaviour, and 4 pin the route's wiring.
+
+**Known leniency, recorded not fixed:** every pick is judged at the character's FINAL level, so a level-8
+build could in principle claim a level-8-prereq feat for the slot it earned at level 4. The picker judges
+identically, so client and server agree — and per-slot attribution is exactly the **ASI-slot ownership**
+question already blocked on the owner (slices 5–6). Guessing it here would pre-empt that decision.
+
+**Bar:** 19 tests (`dnd5e-build-gate.test.ts`), 4739/4739 D&D tests, typecheck exit-0, lint clean.

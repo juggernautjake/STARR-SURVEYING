@@ -11,9 +11,16 @@ import { assembleDnd5e, type Dnd5eAssembleInput } from '@/lib/dnd/statgen/assemb
 import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
+import { gateDnd5eBuildFeats } from '@/lib/dnd/rules-gate';
+import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+/** The features THIS BUILD owns and will replace below: its own feat picks and the class features it
+ *  stamped. The gate and the merge must agree about this set — if the gate counted a feature the merge
+ *  is about to remove, rebuilding an unchanged character would refuse its own feats. */
+const replacedByBuild = (f: { id: string; source?: string }) => f.source === 'Feat' || f.id.startsWith('cls-');
 
 /** Coerce an untyped abilities blob into a full, sane score map (missing/invalid → 10). */
 function readAbilities(raw: unknown): Record<AbilityKey, number> {
@@ -34,9 +41,43 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = (await req.json().catch(() => ({}))) as Partial<Dnd5eAssembleInput> & { name?: string };
   const system = typeof body.system === 'string' ? body.system : character.system ?? 'dnd5e-2024';
 
+  const base: Character = ((character.data as Character | null) ?? blankCharacter(character.name));
+  const level = Number(body.level) || 1;
+  const requestedFeats = Array.isArray(body.feats) ? body.feats.filter((f): f is string => typeof f === 'string') : [];
+
+  // ── The VANILLA gate (parity with pf2-build / ig-build) ────────────────────────────────────────
+  // Both bespoke systems refuse an illegal build server-side; 5e refused nothing. The Foundations
+  // picker greys ineligible feats, but a picker is a courtesy, not a gate: a direct POST here could
+  // plant an Epic Boon on a level-4 character, and the sheet would render it as though it were legal.
+  //
+  // Same three-way rule the other two use, and for the same reason — a "custom" character is meant to
+  // hold off-rules content, and a DM may grant anything. Only a VANILLA character built by a non-DM is
+  // held to what its class and level allow.
+  //
+  // `body.abilities` is the FINAL spread (the builder posts `finalAbilities`, post background/racial
+  // increases), which is what the picker judges against too — so the two cannot disagree about an
+  // ability prerequisite that only the increase satisfies.
+  const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const { refused } = gateDnd5eBuildFeats(requestedFeats, {
+    system,
+    enforce: !access.access.isDM && buildVariant === 'vanilla',
+    level,
+    ...(typeof body.className === 'string' ? { className: body.className } : {}),
+    abilities: readAbilities(body.abilities),
+    featureNames: base.features.filter((f) => !replacedByBuild(f)).map((f) => f.name),
+  });
+  if (refused.length) {
+    return NextResponse.json({
+      error: `This is a vanilla character, so it can only take feats its class and level grant. Remove or change: ${
+        refused.map((r) => `${r.name} (${r.reason})`).join('; ')
+      } — or build a custom character instead.`,
+      refused,
+    }, { status: 400 });
+  }
+
   const assembly = assembleDnd5e({
     system,
-    level: Number(body.level) || 1,
+    level,
     name: body.name || character.name,
     species: body.species,
     className: body.className,
@@ -44,23 +85,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     background: body.background,
     abilities: readAbilities(body.abilities),
     backgroundAbilities: body.backgroundAbilities,
-    feats: Array.isArray(body.feats) ? body.feats.filter((f): f is string => typeof f === 'string') : [],
+    feats: requestedFeats,
   });
 
-  const base: Character = ((character.data as Character | null) ?? blankCharacter(character.name));
   const merged: Character = {
     ...base,
     meta: { ...base.meta, ...assembly.meta },
     abilities: assembly.abilities,
     primaryAbilities: assembly.primaryAbilities,
-    // Replace any prior BUILDER feats (source 'Feat') so re-building doesn't stack duplicates; keep other
-    // features (class/species/etc.) untouched — those derive from the class registry, not from here.
     // Replace any prior BUILDER feats (source 'Feat') and any prior CLASS features (ids prefixed `cls-`)
     // so rebuilding doesn't stack duplicates or strand the previous class's features on a re-classed
     // character. Everything else the player or DM added is left alone — the id prefix is what makes
     // "features this build owns" separable from "features someone put there".
     features: [
-      ...base.features.filter((f) => f.source !== 'Feat' && !f.id.startsWith('cls-')),
+      ...base.features.filter((f) => !replacedByBuild(f)),
       ...assembly.classFeatures,
       ...assembly.feats.map((f) => ({ id: `feat-${slug(f.name)}`, name: f.name, source: 'Feat', body: f.body ? [f.body] : [] })),
     ],

@@ -143,6 +143,58 @@ export function gateEdits(edits: SheetEdit[], ctx: RulesGateContext): RulesGateR
   return { edits: out, refused };
 }
 
+/** Gate a BATCH of feat picks arriving from the 5e manual builder (`/dnd5e-build`).
+ *
+ *  Why this exists rather than the route looping over `featEligibilityForSystem` itself: the batch
+ *  case has one non-obvious rule, and getting it wrong breaks the happy path rather than the attack.
+ *  `takenFeatureNames` means **already on the sheet** — `gateEdits` above passes the sheet's own
+ *  features for exactly that reason. Passing the batch instead makes every pick see ITSELF as taken,
+ *  and each one comes back "You already have Grappler, which can't be taken again." So each pick is
+ *  judged against the OTHER picks, never itself — which still refuses the same feat listed twice,
+ *  because the other copy remains in the list.
+ *
+ *  `featureNames` should be only the features the build PRESERVES. The build replaces its own prior
+ *  feats, so passing those would refuse every rebuild of an unchanged character.
+ *
+ *  Non-5e systems fall through ungated by construction (`featEligibilityForSystem` returns ok for a
+ *  system it doesn't own) — PF2 and IG gate their own builds in their own modules. */
+export function gateDnd5eBuildFeats(
+  picks: string[],
+  ctx: {
+    system: string;
+    /** Do the rules bind? False for a DM and for a custom character — the same three-way rule
+     *  `gatePf2Picks` / `gateIgPicks` apply, and for the same reasons. */
+    enforce: boolean;
+    level: number;
+    className?: string;
+    abilities?: Partial<Record<AbilityKey, number>>;
+    /** Features the build will KEEP (not the ones it is about to replace). */
+    featureNames?: string[];
+  },
+): { refused: { name: string; reason: string }[] } {
+  if (!ctx.enforce || !picks.length) return { refused: [] };
+
+  const refused: { name: string; reason: string }[] = [];
+  const alreadyReported = new Set<string>();
+  picks.forEach((ref, i) => {
+    const v = featEligibilityForSystem(ctx.system, ref, {
+      slot: 'asi',                // this builder's control spends ASI/feat slots; other slots have their own UI
+      level: ctx.level,
+      ...(ctx.className ? { className: ctx.className } : {}),
+      ...(ctx.abilities ? { abilities: ctx.abilities } : {}),
+      takenFeatureNames: [...(ctx.featureNames ?? []), ...picks.filter((_, j) => j !== i)],
+    });
+    if (v.ok) return;
+    // The catalogued name when it resolved, the raw ref when it didn't — same rule as `gateEdits`.
+    const shown = v.name ?? ref;
+    // A doubled pick would otherwise be reported twice, once per copy.
+    if (alreadyReported.has(shown.toLowerCase())) return;
+    alreadyReported.add(shown.toLowerCase());
+    refused.push({ name: shown, reason: v.reason ?? 'not available to this character' });
+  });
+  return { refused };
+}
+
 /** One line explaining what the gate refused, for the summary shown to the user. */
 export function refusalSummary(refused: { name: string; reason: string }[]): string | null {
   if (!refused.length) return null;
