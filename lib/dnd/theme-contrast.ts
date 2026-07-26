@@ -168,3 +168,85 @@ export function aaThresholdForSize(fontSizePx: number, bold = false): number {
 export function passesAAForSize(ratio: number, fontSizePx: number, bold = false): boolean {
   return ratio >= aaThresholdForSize(fontSizePx, bold);
 }
+
+// ── LIVE MEASUREMENT: what is actually painted behind an element ─────────────────────────────────────
+//
+// `flattenStack` above takes a list of background colours. Producing that list from real computed styles is
+// where every mistake in the 2026-07-26 contrast arc actually happened, twice, in code that only ever existed
+// as a snippet pasted into a browser console:
+//
+//   1. reading `backgroundColor` and ignoring `background-image` — so a gradient-painted surface (the roller
+//      dock) was skipped entirely and its labels were measured against the page behind it;
+//   2. reading the first colour of the first background LAYER — so `.dnd-sheet`'s 5%-pink pinstripe *over an
+//      opaque light base* looked translucent, the walk climbed to the dark site chrome, and ten legible
+//      headings were reported at 1.2–1.4:1.
+//
+// Both invented failures, and the second nearly produced a round of "fixes" to working code. That is why this
+// lives in the library with tests rather than in a snippet: the two bugs are now pinned.
+
+/** The minimum a caller must supply per element — the two properties that paint a background. */
+export interface BackgroundStyle {
+  backgroundColor?: string;
+  backgroundImage?: string;
+}
+
+/** Split a `background-image` value on TOP-LEVEL commas only; a gradient's own commas sit inside parens. */
+function splitLayers(value: string): string[] {
+  const out: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) { out.push(value.slice(start, i)); start = i + 1; }
+  }
+  out.push(value.slice(start));
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * One element's background layers, NEAREST-FIRST (topmost first) — the order `flattenStack` wants.
+ *
+ * Painting order in CSS: `background-color` is the bottom, and image layers paint with the FIRST declared on
+ * TOP. So the returned order is [image1, image2, …, imageN, color].
+ *
+ * A gradient is approximated by its first colour stop. That is a real limitation — a ramp is not one colour —
+ * so a measurement that matters near the threshold should be taken against the specific pixel region instead
+ * (which is how the roller's active tab was checked).
+ */
+export function backgroundLayers(style: BackgroundStyle): RGBA[] {
+  const layers: RGBA[] = [];
+  const img = (style.backgroundImage ?? 'none').trim();
+  if (img && img !== 'none') {
+    for (const layer of splitLayers(img)) {
+      const stops = [...layer.matchAll(/rgba?\([^)]*\)/g)].map((m) => parseColor(m[0])).filter(Boolean) as RGBA[];
+      if (stops.length) layers.push(stops[0]);
+    }
+  }
+  const bc = parseColor(style.backgroundColor ?? '');
+  if (bc && bc.a > 0) layers.push(bc);
+  return layers;
+}
+
+/**
+ * The colour actually behind text, given the element's style chain from the element OUTWARD.
+ *
+ * `chain[0]` is the element itself, then each ancestor. Walking stops naturally at the first opaque layer,
+ * so passing the whole chain to the document root is safe and correct.
+ */
+export function backdropOf(chain: BackgroundStyle[], base: RGBA = { r: 255, g: 255, b: 255, a: 1 }): RGBA {
+  return flattenStack(chain.flatMap(backgroundLayers), base);
+}
+
+/** One measured text node: its ratio against what is really behind it, and whether that clears AA. */
+export function measureText(
+  text: { color: string; fontSizePx: number; bold?: boolean },
+  chain: BackgroundStyle[],
+  base?: RGBA,
+): { ratio: number | null; need: number; pass: boolean; backdrop: RGBA } {
+  const backdrop = backdropOf(chain, base);
+  const rgb = `rgb(${Math.round(backdrop.r)}, ${Math.round(backdrop.g)}, ${Math.round(backdrop.b)})`;
+  const ratio = contrastRatio(text.color, rgb);
+  const need = aaThresholdForSize(text.fontSizePx, text.bold ?? false);
+  return { ratio, need, pass: ratio != null && ratio >= need, backdrop };
+}

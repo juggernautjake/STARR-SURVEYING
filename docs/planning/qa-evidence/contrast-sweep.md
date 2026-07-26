@@ -91,6 +91,13 @@ failures**, and both bit within a day of each other:
 as the surface it was computed against. Ignoring gradients invents failures; so does reading one layer of
 several. When a number looks alarming, **screenshot the element and look at it** before touching code.
 
+**The corrected logic now lives in the library, not in this snippet.** `lib/dnd/theme-contrast.ts` exports
+`backgroundLayers` / `backdropOf` / `measureText`, and `__tests__/dnd/contrast-backdrop.test.ts` pins both
+bugs using the real computed values from the two elements that produced them. Prefer importing those over
+re-deriving the maths here: a console one-liner has no tests and no reviewer, which is exactly how both
+mistakes survived. The snippet below is kept because a live page still needs something to paste, and it now
+mirrors the tested implementation.
+
 Corrected `bgOf`, which composites a whole element (colour first, then image layers back-to-front) and only
 walks up while the result is still translucent:
 

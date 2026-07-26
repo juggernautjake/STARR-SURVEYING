@@ -1118,3 +1118,30 @@ pattern — `variant-tags`' custom chip uses a light amber on its dark chip for 
   gradient approximation; recorded rather than chased.
 
 **Bar:** 4986/4986 D&D tests, typecheck exit-0, lint clean. Dev server stopped, port released.
+
+### 2026-07-26 — slice 29: the sweep's maths moves into the library, with its own bugs as the tests
+
+The contrast arc's two measurement bugs both lived in a snippet pasted into a browser console — which is
+precisely why they survived: **a console one-liner has no tests and no reviewer.** They cost two slices, one
+retraction, and nearly two rounds of "fixes" to working code.
+
+`lib/dnd/theme-contrast.ts` now exports the corrected measurement alongside the arithmetic it already had:
+
+- `backgroundLayers(style)` — an element's layers, topmost first, reading `background-image` as well as
+  `background-color`, splitting on **top-level commas only** so a gradient's internal commas are not layer
+  breaks, and returning `[image1 … imageN, color]` in true paint order.
+- `backdropOf(chain)` — the colour actually behind text, given the style chain from the element outward.
+  Reuses the existing `flattenStack`, which already stopped correctly at the first opaque layer.
+- `measureText(text, chain)` — ratio, the per-SIZE AA threshold, and the pass/fail.
+
+`__tests__/dnd/contrast-backdrop.test.ts` (14) pins **both bugs using the real computed values from the two
+elements that produced them**: the roller dock's gradient (bug 1 — gradient ignored → labels measured against
+the page behind) and `.dnd-sheet`'s pinstripe-over-opaque-base (bug 2 — first layer only → climbed to the dark
+chrome). The last test in that block reproduces the OLD reading and asserts it fails, so the artifact itself
+is documented rather than just absent.
+
+The gradient approximation (one stop stands in for a ramp) is stated as a limitation in the code, with the
+remedy: near the threshold, measure the pixel region rather than the model — which is how the roller's active
+tab was actually checked.
+
+**Bar:** 14 new guards, 5000/5000 D&D tests, typecheck exit-0, lint clean. No app behaviour changed.
