@@ -324,6 +324,62 @@ slices are driven in the browser before being called done — this repo's standi
       over an out-of-slot pick is a policy call for the campaign owner, and quietly making it one would
       start failing submissions that succeed today. Surfaced to the DM, who can already request changes.
       → **Q7 below.**
+- [x] **S6d — the LEVEL WALKERS: scoped mechanics per level, and customisable per level. Shipped
+      2026-07-26.** 31 tests. Owner directive, verbatim: *"build level by level with the appropriately
+      scoped system mechanics, and also be able to fully customize at each level … all of the
+      customizations should be flagged as such."*
+      **S6a–c had delivered half of it and I had not noticed.** The escape hatch went on the FOUNDATIONS
+      builders — where a character is assembled in one go — while the level walkers, the surface the
+      directive is actually about, had none: `LevelBuilder` contained zero references to it and no level
+      route recorded an exception. A refused pick mid-walk was a dead end.
+      **And the bigger half: two of the three walkers never gated the VALUE at all.** `pf2PlanLevelUp` and
+      `igPlanLevelUp` scoped which SLOTS a level offers, so the walkers asked the right questions — but
+      `readChoice` validated only the SHAPE of the answer. A PF2 character could record a level-13 feat
+      into a level-2 class slot; an IG Beastmaster could take an Arcanist's power. **The level then read as
+      complete.** Only 5e was checking values. Both now run the same eligibility cores the builders use,
+      judged against the CATALOG entry rather than the choice's own claim, with homebrew passing (it never
+      claimed to be official) and DMs/custom characters ungated.
+      IG **feats** are deliberately left to the per-level budget: `igPowerEligibility` has no feat
+      equivalent because IG feat prerequisites are unstructured prose, so gating them would invent a rule.
+      All three routes share one entitlement core, all three tell the client whether a refusal is
+      overridable, all three derive the badge from the merged ledger — asserted across the routes so a
+      fourth system cannot drift.
+- [x] **S8d — the DM rules on EACH facet. Shipped 2026-07-26.** 17 tests. S8c made the facets visible;
+      the only controls were approve-or-reject the WHOLE submission — all-or-nothing on a character with
+      one questionable feat and four fine ones. Each exception now carries its own ruling, stored ON the
+      exception so it travels through a rebuild, a fork, or a move to another campaign.
+      **A denial does not delete the pick.** It stays, marked, with the DM's note — silently removing a
+      player's content is the failure this codebase refuses everywhere, and a denial they never see
+      explains nothing. Four rules, each tested: DM-only (checked separately from write access, since
+      `requireCharacterWrite` grants the owner too); a denial without a reason is refused; **unreviewed is
+      not approved**; and the badge does NOT move on approval — an approved exception is still an
+      exception, and collapsing it back to vanilla would erase what the next DM needs to see.
+- [x] **S6e — "a pick must not sit in its own evidence". Shipped 2026-07-26.** THREE bugs of one shape,
+      two found by driving live routes and one by then auditing for the shape deliberately. None was
+      visible to the 5,400-test suite, because every test asserted the gate EXISTED — the defect was in
+      what the gate SAW.
+      · **IG level walker — a pick JUSTIFIED itself.** Take an illegal power through the hatch (flagged,
+        badge → Altered vanilla), save the same choice again unacknowledged: **accepted**, exception gone,
+        badge back to **Vanilla**, power still on the sheet. The flagging the whole feature exists for
+        could be removed by saving twice. Cause: eligibility treats known powers as legitimate (right —
+        whatever granted them was), but `recordChoice` REPLACES the entry at that slot, so the pick being
+        judged sat in its own evidence.
+      · **5e level walker — the mirror image: a pick CONVICTED itself.** `takenFeatKeys` included the feat
+        at the slot being replaced, so re-saving the same feat was refused as a duplicate it is not — and
+        with the hatch in place that spurious refusal would offer "take it anyway" and file an **exception
+        against a legal pick**. A wrong flag is worse than no flag.
+      · **AI edit — a flagged spell CLEARED ITS OWN FLAG.** `add_spell` upserts by name and the gate's
+        `extraSpells` came from the sheet, so re-adding an off-rules spell passed as "already granted" and
+        replaced the flagged copy with a clean one. The first fix was too blunt (it broke the legitimate
+        grant case, which a test caught); only spells ALREADY carrying `offRules` lose the bypass.
+      **The unifying rule was already written in this repo** — `gateIgPicks`/`gatePf2Picks` say "every pick
+      in this build is under review, so treating them as already-held would make the whole set vacuously
+      legal". It applies wherever an operation REPLACES what it is judged against. Every gate that reads
+      sheet state has now been checked; the grant path adds without replacing and is structurally safe.
+      **Worth recording about the mechanism, not just the bugs:** the escape hatch did not create these —
+      it converted them from silent to consequential. A self-justifying pick used to be invisible leniency
+      and a self-convicting one a confusing error; with flagging in place the first erases a flag and the
+      second invents one, and both corrupt the record the DM reviews.
 - [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
       A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
       **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure
