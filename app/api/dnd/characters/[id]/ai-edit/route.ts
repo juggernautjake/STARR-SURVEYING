@@ -479,6 +479,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     className: current?.meta?.className ?? '',
     level: current?.meta?.level ?? 1,
     knownSpells: (current?.spells ?? []).map((s) => s.name),
+    // Spells already marked off-rules. `add_spell` upserts BY NAME, so without this a re-add of a flagged
+    // spell would find itself in `knownSpells`, pass as "already granted", and replace the flagged copy
+    // with a clean one — quietly erasing the mark. Legitimately-granted spells (no flag) keep the bypass.
+    offRulesSpells: (current?.spells ?? []).filter((s) => s.offRules).map((s) => s.name),
     ...(gateMaxSpell > 0 ? { maxSpellLevel: gateMaxSpell } : {}),
     abilities: current?.abilities ?? {},
     featureNames: (current?.features ?? []).map((f) => f.name),

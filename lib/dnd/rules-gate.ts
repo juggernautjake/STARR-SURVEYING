@@ -32,6 +32,10 @@ export interface RulesGateContext {
   /** Spells already on the sheet — a subclass list or an earlier grant must not read as illegal
    *  the second time it is looked at. */
   knownSpells: string[];
+  /** Spells already on the sheet that carry an `offRules` mark — they were judged not-legal once, so they
+   *  do not get the "already granted" bypass when re-added. Omit and nothing changes; see the note at the
+   *  `add_spell` gate for why a blanket exclusion would be wrong. */
+  offRulesSpells?: string[];
   /** The character's real highest slot, when it differs from what the class alone would give. */
   maxSpellLevel?: number;
   /** Ability scores, for feat prerequisites (Grappler wants Strength 13). */
@@ -119,11 +123,36 @@ export function gateEdits(edits: SheetEdit[], ctx: RulesGateContext): RulesGateR
     const def = findSpellForSystem(ctx.system, e.name);
     if (!def) { out.push(e); continue; }
 
+    // AN ALREADY-FLAGGED SPELL CANNOT CLEAR ITS OWN FLAG.
+    //
+    // `extraSpells` exists so a spell the character legitimately holds by another route (a subclass list,
+    // a pact boon, a DM's gift) is not refused for being off the class list — `granted` short-circuits
+    // that check, and a test rightly pins that a granted spell "stays legal on the next look".
+    //
+    // But `add_spell` is an UPSERT BY NAME: it replaces any spell already called this. So an off-rules
+    // spell sat in its own evidence — re-adding it passed clean, and the upsert swapped the flagged copy
+    // for an unflagged one, erasing the `offRules` mark that recorded why it was unusual.
+    //
+    // The distinction is narrow and it is the whole fix: a spell already on the sheet WITHOUT a flag was
+    // legitimately granted and keeps its bypass; one carrying `offRules` was already judged not-legal and
+    // must not launder itself. Excluding every known spell (my first attempt) broke the legitimate case,
+    // which is the worse failure — blocking a legal choice cannot be worked around.
+    //
+    // Third instance of one shape this session, after the IG and PF2 level walkers: wherever an operation
+    // REPLACES what it is judged against, the thing under review must be kept out of its own evidence.
+    // Normalised the way every other name match in this repo is — trim, lowercase, AND collapse internal
+    // whitespace. Trimming alone let "Sacred  Flame" slip past its own flag, which a test caught.
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    const under = norm(e.name);
+    const alreadyFlagged = (ctx.offRulesSpells ?? []).some((n) => norm(n) === under);
+    const extraSpells = alreadyFlagged
+      ? (ctx.knownSpells ?? []).filter((n) => norm(n) !== under)
+      : ctx.knownSpells;
     const elig = spellEligibility(def, {
       system: ctx.system,
       className: ctx.className,
       level: ctx.level,
-      extraSpells: ctx.knownSpells,
+      extraSpells,
       ...(ctx.maxSpellLevel != null ? { maxSpellLevel: ctx.maxSpellLevel } : {}),
     });
 
