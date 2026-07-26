@@ -1,6 +1,28 @@
 # D&D platform — game systems still to build out (under construction)
 
-**Status:** IN PROGRESS (reopened 2026-07-25) · **but the six builds are genuinely blocked — see below**
+**Status:** PENDING — parked by owner directive 2026-07-26 · moved out of `in-progress/`
+
+> ## 2026-07-26 — parked on the owner's instruction
+>
+> Asked directly whether the other six systems were to be built: *"Are you planning to build the other
+> systems too? For now let's just focus on making the current 4 systems as awesome and flawless as possible.
+> I really want the character customization and editing and building/creation to be intuitive and top notch.
+> I want every choice and every mechanic to be meaningful and helpful to the user in crafting their character
+> exactly how they want."*
+>
+> So this is parked deliberately, not abandoned and not deferred for cost: it is **de-prioritised in favour of
+> depth on the four focus systems** (D&D 5e 2024, D&D 5e 2014, Pathfinder 2e, Intuitive Games). It moves to
+> `pending/` per `docs/planning/README.md` — *"planned work we intend to build later, scoped and parked
+> deliberately"*. It was only in `in-progress/` because of an earlier blanket "put everything into the
+> in-progress folder" instruction; this supersedes that for this doc.
+>
+> Nothing is lost by parking it: the six are gated honestly at every surface
+> (`under-construction-gating.test.ts`, 10 tests), their authored rules stay in `system-rules-extra.ts`, and
+> the gate derives from `GameSystem.status` — so flipping one to `'available'` remains the only change a
+> finished system needs. Move this doc back to `in-progress/` when the owner supplies source material for a
+> specific system.
+
+**Earlier status:** IN PROGRESS (reopened 2026-07-25) · **but the six builds are genuinely blocked — see below**
 
 > ## 2026-07-25 — reopened, assessed, and what actually shipped
 >

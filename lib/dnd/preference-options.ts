@@ -7,6 +7,7 @@
 // It mirrors `EffectivePreferences` in `preferences.ts`: each enum field lists its options, each boolean
 // its label, and a group tag ('rules' | 'display') lets a UI split them into sections. Adding a setting
 // is one entry in `preferences.ts` (the model) and one here (how it reads).
+import { isSharedEngineSystem } from './systems';
 
 export type EnumPrefField =
   | 'exhaustionModel' | 'longRestModel' | 'equipLimits' | 'diceRollerStyle'
@@ -145,6 +146,53 @@ export const PREF_SYSTEMS: Partial<Record<EnumPrefField | BoolPrefField, string[
 };
 
 /**
+ * Settings whose MECHANIC belongs to the shared 5e engine, so they are offered only on the systems that
+ * engine drives (5e 2014, 5e 2024, and system-ambiguous — `isSharedEngineSystem`).
+ *
+ * Found 2026-07-26. `PREF_SYSTEMS` above closed the mirror of this bug — a 5e player being shown PF2's
+ * "Damage while dying" — but only the PF2 rows ever got tagged, so the traffic in the other direction was
+ * still wide open: a Pathfinder or Intuitive Games character was offered all NINE untagged settings, and
+ * every one of them was inert. `preferences-consumed.test.ts` shows why: their only consumers are
+ * `_sheet/state/store.tsx`, `DiceTray.tsx` and `Inventory.tsx`, and the bespoke sheets use none of the
+ * three — `usePf2Panels`/`useIgPanels` import only a TYPE from the store, the bespoke rollers render
+ * `rollerStageFor` rather than `<DiceTray/>`, and `Inventory` is mounted solely by the 5e panel set.
+ *
+ * These five are listed because the RULE itself is 5e-shaped, not merely unwired elsewhere: exhaustion's
+ * tiered/flat table, the long-rest model, a shapeshift stat policy, attunement (PF2 "invests" instead) and
+ * a feat granting an ability increase (PF2's feats don't). Wiring them into PF2/IG would mean inventing
+ * those systems' versions of rules they don't have — Ground Rule 3.
+ *
+ * Kept SEPARATE from `PREF_SYSTEMS` and delegated to `isSharedEngineSystem` rather than spelled out as
+ * `['dnd5e-2014','dnd5e-2024','ambiguous']`, because that helper's own doc warns what happens when a
+ * second copy of its definition drifts. It also gets the ambiguous case right for free: those characters
+ * ARE driven by the shared engine, so they keep every one of these controls.
+ *
+ * Five are here because the RULE is 5e-shaped: exhaustion's tiered/flat table, the long-rest model, a
+ * shapeshift stat policy, attunement (PF2 "invests" instead) and a feat granting an ability increase
+ * (PF2's don't). Wiring those into PF2/IG would mean inventing those systems' versions of rules they do
+ * not have — Ground Rule 3.
+ *
+ * Three more are here because of where the ROLLER draws its line, which is the part that isn't obvious.
+ * `diceRollerStyle`, `recordMode` and `autoMechanics` look cross-system — every game rolls dice — and the
+ * bespoke sheets really do mount the shared rollers. But they mount `rollerStageFor`, whose components
+ * (`SigilStage`/`BoardStage`/`ImpactStage`/`RollStage`) read "only the `RollFeed`, with NONE of the 5e
+ * store-bound controls"; the full nodes that read these three (`DiceTray`, `SigilStack`, `RollBoard`,
+ * `ImpactRoller`) are mounted only by `rollerFor`, on the 5e sheet. Same animation, different owner of the
+ * controls — so on a PF2 or IG sheet these three had nothing to act on.
+ *
+ * `equipLimits` is the ONE genuinely cross-system setting and is deliberately absent: `ai-edit/route.ts`
+ * resolves it and passes it to `applySheetEdits` for every system's AI edits, whatever the sheet.
+ *
+ * If a system later grows its own version of one of these (an IG roll-recording model, say), the fix is to
+ * wire it and give it its own entry — not to widen this list, which would put back a control that does
+ * nothing.
+ */
+export const PREF_SHARED_ENGINE_ONLY: readonly (EnumPrefField | BoolPrefField)[] = [
+  'exhaustionModel', 'longRestModel', 'shapeshiftStats', 'autoAttune', 'featAutoApply',
+  'diceRollerStyle', 'recordMode', 'autoMechanics',
+];
+
+/**
  * Should this setting be offered for a character on `system`?
  *
  * Fails OPEN (`true`) when the system is unknown/undefined — a system-ambiguous character should see the
@@ -152,6 +200,9 @@ export const PREF_SYSTEMS: Partial<Record<EnumPrefField | BoolPrefField, string[
  * the worse failure of the two.
  */
 export function prefAppliesToSystem(field: EnumPrefField | BoolPrefField, system: string | undefined | null): boolean {
+  // Shared-engine settings first: `isSharedEngineSystem` normalizes an absent/unknown system to
+  // 'ambiguous' and answers TRUE for it, so this fails open the same way the rule below does.
+  if (PREF_SHARED_ENGINE_ONLY.includes(field)) return isSharedEngineSystem(system);
   const only = PREF_SYSTEMS[field];
   if (!only) return true;          // cross-system setting
   if (!system) return false;       // system-specific setting, but we don't know the system → don't offer it

@@ -697,13 +697,15 @@ One system per slice — depth-first, verified against sources. In priority orde
       **18 PF2 weapons' damage die + type pinned (2026-07-17):** a wrong die (Greataxe 1d10 vs 1d12?) or
       B/P/S type mis-rolls every Strike with that weapon; only Longsword was spot-checked. Verified all 18
       (8 simple + 10 martial) vs Player Core and pinned each. All correct. `pathfinder2e-builder.test.ts` +1.
-- [~] **6c–6h — the other six systems → MOVED to `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`**
-      (2026-07-16, per the user's scope call). The platform is focused on **four** systems first — D&D
-      5e 2024, D&D 5e 2014, Intuitive Games, Pathfinder 2e. PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun
-      6e, Call of Cthulhu 7e, and Blades in the Dark are now seeded as **🚧 under construction**
-      (`GameSystem.status === 'under-construction'`): offered but not selectable, listed in the campaign
-      picker's "Under construction" group and disabled in the SystemSwitcher. They will be built out
-      later — see the pending doc for what each needs.
+- [—] **6c–6h — the other six systems: DEFERRED by owner directive 2026-07-26** ("for now let's just focus
+      on making the current 4 systems as awesome and flawless as possible"), parked in
+      `docs/planning/pending/DND_SYSTEMS_UNDER_CONSTRUCTION.md`. Not a cost deferral — a priority one: depth
+      on the four focus systems' character creation/editing comes first.
+      PF1e, Starfinder 1e, Cyberpunk RED, Shadowrun 6e, Call of Cthulhu 7e and Blades in the Dark stay
+      seeded as **🚧 under construction** (`GameSystem.status`), now **hidden** at every player-facing
+      surface rather than listed-and-disabled (owner 2026-07-18; pinned by
+      `under-construction-gating.test.ts`, 10 tests). Flipping one `status` to `'available'` remains the only
+      change a finished system needs.
 
 For the level-less systems the model must NOT invent a level table — extend the builder to express
 "advancement by spend" (Karma/IP/skill checks) instead. `registry.ts` already reports

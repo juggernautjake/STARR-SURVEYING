@@ -132,6 +132,56 @@ rather than creating a QA account and character in the live database. Worth reus
 way to run an authenticated browser pass without leaving test data behind, and it unblocks the other docs
 parked on "needs an authenticated session".
 
+### 2026-07-26 — S-6: every preference is now per-system (owner-directed)
+
+**Owner, mid-slice:** *"make sure that all of the preferences are per system. So depending on which system
+the currently viewed character sheet is in will determine the preferences that are applied."* This closes the
+half of the scoping work S-4b left open.
+
+**The gap.** S-4b built `PREF_SYSTEMS` and used it to stop a 5e player being shown PF2's "Damage while
+dying". Only the PF2 rows were ever tagged — so the traffic in the *other* direction was untouched: a PF2 or
+IG character was offered all **nine** untagged settings, and **every one of them was inert on that sheet**.
+The modal looked richer than it was.
+
+**The evidence, not the assumption.** `preferences-consumed.test.ts` already records where each setting is
+consumed, and the bespoke sheets touch none of those places: `usePf2Panels`/`useIgPanels` import only a TYPE
+from `_sheet/state/store`, and `Inventory` is mounted solely by the 5e panel set. The subtle one is the
+roller. `diceRollerStyle`, `recordMode` and `autoMechanics` look obviously cross-system — every game rolls
+dice, and the bespoke sheets really do mount the shared rollers — but they mount **`rollerStageFor`**, whose
+stages read *"only the `RollFeed`, with NONE of the 5e store-bound controls"*. The full nodes that read those
+three (`DiceTray`, `SigilStack`, `RollBoard`, `ImpactRoller`) are mounted only by `rollerFor`, on the 5e
+sheet. Same animation, different owner of the controls.
+
+**What shipped.** `PREF_SHARED_ENGINE_ONLY` — 8 of the 13 settings, offered only where the shared 5e engine
+runs. Five because the RULE is 5e-shaped (exhaustion's table, long rest, shapeshift stats, attunement, a feat
+granting an ability increase — PF2 "invests" and its feats don't grant ASIs, so wiring them elsewhere would
+mean inventing rules those systems don't have); three because of the roller split above. `equipLimits` is the
+one genuinely cross-system setting and stays untagged: `ai-edit/route.ts` honours it for every system.
+
+| system | settings offered | before |
+|---|---|---|
+| 5e 2024 / 2014 / ambiguous | 9 | 9 (unchanged — nothing was taken off a 5e sheet) |
+| Pathfinder 2e | 5 (its own 4 + `equipLimits`) | 13 |
+| Intuitive Games | 1 (`equipLimits`) | 9 |
+
+**The trap in tagging these, and why it isn't a second list.** `PREF_SYSTEMS` deliberately fails **closed**
+for an unknown system, so declaring these as `['dnd5e-2014','dnd5e-2024']` would have silently stripped
+working controls from every **system-ambiguous** character — of which the live database has several (the
+`[~]` in `DND_RULES_PLATFORM` about setting the demo characters' system is still open). Delegating to
+`isSharedEngineSystem`, which counts `ambiguous` as shared, gets that right for free — and avoids the
+drifting duplicate that helper's own doc warns about.
+
+**Two older tests changed, with reasons inline.** `pf2-rules-variants.test.ts` used `longRestModel`,
+`diceRollerStyle` and `autoMechanics` as its examples of "cross-system", and asserted PF2 ⊇ 5e. Both encoded
+the mislabelling rather than a verified consumer; the sets now overlap without either containing the other,
+which is what this doc's title has been claiming all along.
+
+**IG's modal is now visibly thin (one control), and that is the honest picture:** IG has no rules variants of
+its own until the owner names them (S-4c). Padding it with eight inert controls hid that.
+
+**Bar:** 14 new guards (`pref-scoping-shared-engine.test.ts`), 4796/4796 D&D tests, typecheck exit-0, lint
+clean.
+
 ### S-4c — IG rules variants: still blocked (not deferred)
 
 The one item that cannot be built. The owner said the IG-specific toggles are "owner to specify", and no IG

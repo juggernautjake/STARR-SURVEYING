@@ -217,27 +217,40 @@ describe('per-system scoping of the settings catalog', () => {
     }
   });
 
-  it('keeps cross-system settings on every system', () => {
+  it('keeps the genuinely cross-system setting on every system', () => {
+    // `longRestModel`, `diceRollerStyle` and `autoMechanics` were all asserted here as cross-system
+    // examples. None of them is: each is read only by the 5e engine (the store, or the full roller nodes
+    // that `rollerFor` mounts — the bespoke sheets mount `rollerStageFor`, whose stages read only the roll
+    // feed). See PREF_SHARED_ENGINE_ONLY, 2026-07-26. `equipLimits` is the real one: `ai-edit/route.ts`
+    // honours it for every system's AI edits.
     for (const sys of ['dnd5e-2024', 'dnd5e-2014', 'pathfinder2e', 'intuitive-games']) {
-      expect(prefAppliesToSystem('longRestModel', sys)).toBe(true);
-      expect(prefAppliesToSystem('diceRollerStyle', sys)).toBe(true);
-      expect(prefAppliesToSystem('autoMechanics', sys)).toBe(true);
+      expect(prefAppliesToSystem('equipLimits', sys)).toBe(true);
     }
   });
 
   it('hides system-specific settings when the system is unknown, but keeps the shared ones', () => {
     expect(prefAppliesToSystem('proficiencyWithoutLevel', undefined)).toBe(false);
+    expect(prefAppliesToSystem('equipLimits', undefined)).toBe(true);
+    // A shared-ENGINE setting also survives an unknown system, because an ambiguous character is driven by
+    // that engine (`isSharedEngineSystem` normalizes undefined → 'ambiguous' → true).
     expect(prefAppliesToSystem('longRestModel', undefined)).toBe(true);
     expect(enumPrefsForSystem(undefined)).not.toContain('freeArchetype');
     expect(enumPrefsForSystem(undefined)).toContain('longRestModel');
   });
 
-  it('gives a PF2 character strictly more rules than a 5e one', () => {
+  it('gives each system its OWN rules, not a superset of 5e\'s', () => {
+    // This used to assert PF2 ⊇ 5e, which held only while the 5e-engine settings were mislabelled as
+    // cross-system. The two sets now overlap without either containing the other — which is the point of
+    // this whole doc: each system has its own rules variants.
     const pf2 = enumPrefsForSystem('pathfinder2e');
     const five = enumPrefsForSystem('dnd5e-2024');
     expect(pf2).toContain('proficiencyWithoutLevel');
     expect(five).not.toContain('proficiencyWithoutLevel');
-    expect(five.every((f) => pf2.includes(f))).toBe(true);
+    expect(five).toContain('longRestModel');
+    expect(pf2).not.toContain('longRestModel');
+    // …and both still share the one genuinely cross-system setting.
+    expect(pf2).toContain('equipLimits');
+    expect(five).toContain('equipLimits');
   });
 });
 
