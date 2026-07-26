@@ -614,3 +614,29 @@ cleanup.
 
 **Bar:** 6 new guards, 4672/4672 D&D tests, typecheck clean. One older assertion relaxed from pinning the
 full argument list to pinning the anchor, with the reason inline.
+
+### 2026-07-26 — slice 15: PF2 and IG had no Levels phase in the guided builder
+
+Slice 7 probed the PF2 and IG *planners*; this slice actually **drove their builder UIs**, which the
+directive asks for and no earlier slice had done. The difference mattered immediately.
+
+**The guided builder gave 5e three phases and the other two systems only two.** 5e:
+Foundations → Levels → Review. PF2 and IG: Foundations → Review. A Pathfinder or IG player walking this
+flow never reached a level walker at all — they went straight from picking an ancestry to "review and
+finish", with nineteen levels of choices skipped.
+
+And not because those walkers don't exist. **`PF2LevelBuilder` and `IGLevelBuilder` are both fully built**,
+each with its own route (`/pf2-levels`, `/ig-levels`) and its own test suite, and both were already mounted
+on the standalone `/levels` page. They were simply never wired into this flow. The repo's signature defect
+one more time: authored, tested, and not connected.
+
+**Wired.** Verified live: PF2 now shows *"LEVELS · STEP 2 OF 3 — ability boosts, feats and class features
+unlock as you go, from the Remaster progression"* with a 1→20 target picker; IG shows Freebooter advancing
+on its scraped schedule with the correct **2–10** range, not 1–20. Each system reaches its own walker —
+these are genuinely different implementations, and the guard asserts each gets the right one and the
+identity it keys off (PF2 by class, IG by **subclass**, since its schedule is per-subclass).
+
+**Bar:** 4 new guards, 4676/4676 D&D tests, typecheck + lint clean. QA character deleted.
+
+With this, all four built systems walk the same three phases, and the "one vanilla character each, step by
+step" directive is satisfiable for every one of them through the same flow.

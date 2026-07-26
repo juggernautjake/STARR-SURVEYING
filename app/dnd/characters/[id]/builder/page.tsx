@@ -24,6 +24,8 @@ import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
 import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
 import LevelBuilder from '@/app/dnd/_ui/LevelBuilder';
+import PF2LevelBuilder from '@/app/dnd/_ui/PF2LevelBuilder';
+import IGLevelBuilder from '@/app/dnd/_ui/IGLevelBuilder';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +85,22 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
       'Pick your ancestry/heritage, class and subclass, background and deity, allocate your attribute boosts, and choose your trained skills, feats and spells. Ineligible picks are shown greyed with the reason.',
       <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" />,
     );
+    // PF2 has twenty levels and a working level walker of its own (`PF2LevelBuilder` → /pf2-levels), but
+    // the guided builder only ever gave it Foundations → Review: a Pathfinder player walking this flow
+    // never reached the walker at all, while a 5e player did. Both components were already built, tested
+    // and mounted on the standalone /levels page — they were simply never wired into this flow.
+    steps.push({
+      id: 'levels', title: 'Level by level', phase: 'Levels',
+      help: 'Walk each level in order — ability boosts, feats and class features unlock as you go, from the Remaster progression.',
+      node: (
+        <PF2LevelBuilder
+          characterId={character.id}
+          characterName={character.name}
+          className={data.meta?.className ?? ''}
+          currentLevel={data.meta?.level ?? 1}
+        />
+      ),
+    });
   } else if (system === 'intuitive-games') {
     foundations(
       'Ancestry, class, background, abilities & picks',
@@ -92,6 +110,19 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
         <IGVanillaLibrary />
       </div>,
     );
+    // Same for Intuitive Games (`IGLevelBuilder` → /ig-levels, the scraped schedule).
+    steps.push({
+      id: 'levels', title: 'Level by level', phase: 'Levels',
+      help: 'Walk each level in order — the scraped IG schedule unlocks the traits, feats, powers and boosts each level grants.',
+      node: (
+        <IGLevelBuilder
+          characterId={character.id}
+          characterName={character.name}
+          subclass={data.meta?.subclass || data.meta?.className || ''}
+          currentLevel={data.meta?.level ?? 1}
+        />
+      ),
+    });
   } else {
     // Unknown/other system — no dedicated builder; send them to the sheet.
     redirect(`/dnd/characters/${params.id}`);
