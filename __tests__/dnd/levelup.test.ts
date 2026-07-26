@@ -16,7 +16,7 @@ import {
   type RecordedChoice,
 } from '@/lib/dnd/classes/levelup';
 import { buildCustomClass, type CustomClassDraft } from '@/lib/dnd/classes/custom';
-import { findClass } from '@/lib/dnd/classes/registry';
+import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
 import type { SubclassDefinition } from '@/lib/dnd/classes/types';
 
 const DRAFT: CustomClassDraft = {
@@ -293,5 +293,47 @@ describe('planLevelUp attaches Fighting Style options', () => {
     });
     expect(plan.outstanding.some((o) => o.kind === 'fighting-style')).toBe(false);
     expect(styles.map((s) => s.key)).toContain('fs-defense');
+  });
+});
+
+// Epic Boon had the identical hole, on EVERY class — a level-19 character was told to choose a capstone
+// feat and shown nothing. Found by probing the whole 1..20 ladder after fixing Fighting Style.
+describe('planLevelUp attaches Epic Boon options', () => {
+  const boons = [
+    { key: 'boon-truesight', name: 'Boon of Truesight', description: 'You have Truesight 60 ft.' },
+    { key: 'boon-fate', name: 'Boon of Fate', description: 'Add 2d4 to a roll, once per long rest.' },
+  ];
+
+  it('offers them at the level-19 capstone', () => {
+    const fighter = findClass('dnd5e-2024', 'fighter')!;
+    const plan = planLevelUp(fighter, { from: 18, to: 19, recorded: [], epicBoons: boons });
+    const eb = plan.outstanding.find((o) => o.kind === 'epic-boon');
+    expect(eb, 'level 19 owes an Epic Boon').toBeTruthy();
+    expect(eb!.options?.map((o) => o.name)).toEqual(['Boon of Truesight', 'Boon of Fate']);
+  });
+
+  it('affects every class that has the capstone, not just the one it was found on', () => {
+    for (const key of ['fighter', 'rogue', 'wizard', 'cleric']) {
+      const def = findClass('dnd5e-2024', key)!;
+      const plan = planLevelUp(def, { from: 0, to: 20, recorded: [], epicBoons: boons });
+      const eb = plan.outstanding.find((o) => o.kind === 'epic-boon');
+      if (eb) expect(eb.options?.length, `${key} epic-boon options`).toBe(2);
+    }
+  });
+
+  it('no option-bearing choice kind is left with an empty list when the caller supplies one', () => {
+    // The regression this whole pair of fixes guards: a choice the walker DEMANDS but cannot present.
+    const fighter = findClass('dnd5e-2024', 'fighter')!;
+    const subs = subclassesFor('dnd5e-2024', 'fighter');
+    const plan = planLevelUp(fighter, {
+      from: 0, to: 20, recorded: [], subclasses: subs,
+      fightingStyles: [{ key: 'fs-defense', name: 'Defense', description: '+1 AC.' }],
+      epicBoons: boons,
+    });
+    for (const o of plan.outstanding) {
+      if (o.kind === 'subclass' || o.kind === 'fighting-style' || o.kind === 'epic-boon') {
+        expect(o.options?.length, `${o.kind}@${o.level} has no options to offer`).toBeGreaterThan(0);
+      }
+    }
   });
 });

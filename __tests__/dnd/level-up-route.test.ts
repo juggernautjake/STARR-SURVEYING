@@ -46,9 +46,15 @@ describe('the levels route supplies Fighting Style options', () => {
 
   it('builds the list from the edition catalog PLUS homebrew, and passes it in', () => {
     expect(SRC).toContain('featCatalogForSystem');
+    // The pool is official + homebrew, so a homebrew style/boon is offered like an official one.
     expect(SRC).toMatch(/\[\.\.\.featCatalogForSystem\(def\.system\), \.\.\.homebrewFeats\]/);
-    expect(SRC).toMatch(/\.filter\(\(f\) => f\.category === 'fighting-style'\)/);
+    expect(SRC).toMatch(/byCategory\('fighting-style'\)/);
     expect(SRC).toMatch(/planLevelUp\(def, \{[^}]*fightingStyles[^}]*\}\)/s);
+  });
+
+  it('supplies the Epic Boon list too — the same hole existed on every class', () => {
+    expect(SRC).toMatch(/byCategory\('epic-boon'\)/);
+    expect(SRC).toMatch(/planLevelUp\(def, \{[^}]*epicBoons[^}]*\}\)/s);
   });
 });
 

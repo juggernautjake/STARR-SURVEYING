@@ -66,11 +66,14 @@ function planFor(data: Character, system: string, to: number) {
   // The legal Fighting Styles for this character's EDITION, plus any homebrew ones already on the sheet —
   // the same "official + homebrew, offered alike" rule the subclass list follows. Without this the level
   // walker demanded a Fighting Style and then rendered no options to pick from.
-  const fightingStyles = [...featCatalogForSystem(def.system), ...homebrewFeats]
-    .filter((f) => f.category === 'fighting-style')
+  const featPool = [...featCatalogForSystem(def.system), ...homebrewFeats];
+  const byCategory = (cat: string) => featPool
+    .filter((f) => f.category === cat)
     .map((f) => ({ key: f.key, name: f.name, description: f.benefit ?? f.summary ?? '' }));
+  const fightingStyles = byCategory('fighting-style');
+  const epicBoons = byCategory('epic-boon');
 
-  const plan = planLevelUp(def, { from: level, to, recorded: choices, subclasses: subs, subclass: sub, proficientSkills, fightingStyles });
+  const plan = planLevelUp(def, { from: level, to, recorded: choices, subclasses: subs, subclass: sub, proficientSkills, fightingStyles, epicBoons });
   return {
     level,
     maxLevel: 20,

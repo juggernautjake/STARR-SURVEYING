@@ -262,5 +262,48 @@ bug report.* It would never have shown up in a unit test, and a human might have
 
 **Bar:** 8 new guards, 4605/4605 D&D tests, typecheck + lint clean. QA character deleted.
 
-**Next slice:** walk levels 2 → 20 on this Fighter (subclass at 3, the six ASIs, the level-19 Epic Boon as
-a class feature), then repeat for 5e 2014 / PF2 / IG.
+### 2026-07-25 — slice 5: the whole 1 → 20 ladder
+
+Rather than clicking twenty levels, probed `planLevelUp(def, {from: 0, to: 20})` across **four** classes
+(Fighter, Rogue, Wizard, Cleric) to see every choice the walker would demand and whether it could present
+each one. That found the remaining instance of slice 4's bug plus one genuine inconsistency.
+
+**Defect — Epic Boon had the identical hole, on EVERY class.** `epic-boon@19` came back with no options,
+so a level-19 character of any class was told to choose a capstone feat and shown nothing. Same remedy as
+Fighting Style, at the same seam. Verified on a real level-19 Fighter through the live route:
+`fighting-style@1(10) · subclass@3(4) · epic-boon@19(10)` — all ten official 2024 Boons with descriptions.
+
+A guard now asserts the general property rather than the two instances: **no option-bearing choice kind
+may come back with an empty list when the caller supplies one.** That is the actual invariant, and it
+would have caught both bugs at once.
+
+---
+
+#### Found, root-caused, and deliberately NOT fixed: ASI choices are inconsistent across classes
+
+The same probe showed the level walker demanding a wildly different number of ASI choices per class:
+
+| Class | ASI choices the walker demands, 1 → 20 |
+|---|---|
+| Fighter | **none** |
+| Wizard | 1 (level 4) |
+| Cleric | 4 (levels 4, 8, 12, 16) |
+
+**Root cause:** `snapshotAtLevel` builds `pendingChoices` purely from per-feature annotations
+(`features.filter(f => f.choice)`) and never consults the class's authoritative `asiLevels` array. So a
+class's ASIs appear in the walker only where someone happened to annotate `choice: 'asi'` on that class's
+feature rows. Fighter's `asiLevels` are `[4,6,8,12,14,16]` and **not one** of them surfaces.
+
+**Why I did not just fix it.** Deriving the choices from `asiLevels` is a two-line change, but ASI/feat
+slots are *also* collected in the Foundations step (`featSlots`), and the two write to **different stores**:
+Foundations' feats are assembled into `data.features` by `assemble5e`, while the walker reads
+`data.build.choices`. Making Fighter ASIs appear in the walker would therefore re-ask a player who had
+already spent those slots in Foundations — trading a silent gap for a visible double-ask.
+
+Reconciling the two stores is a design decision about which surface owns ASI slots, not a QA fix, and it
+should be made deliberately rather than as a side effect of this pass. Recorded here so it is not lost.
+
+**Bar:** 5 new guards, 4609/4609 D&D tests, typecheck + lint clean. QA character deleted.
+
+**Next slice:** the same 1 → 20 probe for **5e 2014**, then the PF2 and IG builders (their level flows are
+separate implementations, so none of the above transfers).

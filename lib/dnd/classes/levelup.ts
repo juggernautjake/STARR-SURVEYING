@@ -114,6 +114,8 @@ export function planLevelUp(
      *  stays free of the feat catalog. Absent → the choice renders with no options, which is the bug
      *  this parameter exists to prevent, so callers that can supply it should. */
     fightingStyles?: { key: string; name: string; description: string }[];
+    /** The legal Epic Boons (the level-19 capstone). Same contract as `fightingStyles`. */
+    epicBoons?: { key: string; name: string; description: string }[];
   },
 ): LevelUpPlan {
   const from = clampLevel(opts.from);
@@ -148,6 +150,13 @@ export function planLevelUp(
     // like an official one, and this module deliberately doesn't reach into a feat catalog.
     if (pc.kind === 'fighting-style') {
       choice.options = (opts.fightingStyles ?? []).map((f) => ({ key: f.key, name: f.name, description: f.description }));
+    }
+
+    // Epic Boon had the same hole as Fighting Style, and on EVERY class — a level-19 character was told to
+    // choose a capstone feat and shown nothing. Same remedy, same reason for taking the list from the
+    // caller rather than a catalog import.
+    if (pc.kind === 'epic-boon') {
+      choice.options = (opts.epicBoons ?? []).map((f) => ({ key: f.key, name: f.name, description: f.description }));
     }
 
     if (pc.kind === 'expertise') {
