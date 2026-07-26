@@ -65,6 +65,17 @@ export function describeEdit(row: DescribableEdit): string {
   const before = show(row.old_value);
   const after = show(row.new_value);
   if (before === after) return path;               // nothing to say; the row should not exist, but be quiet
+
+  // An ELEMENT arriving or leaving reads better as a verb than as a diff against nothing. Once the sheet
+  // began auditing adds and deletes, these became common rows, and "item.Rope: — → Rope" is a clumsy way
+  // to say "a rope appeared": it repeats the name and spends the arrow on an em-dash.
+  //
+  // Detected by the path ENDING in the value, not by counting dot-segments — an item legitimately named
+  // "Wand of Sparks v1.2" has as many segments as a field path, so counting would misread it.
+  const endsWithValue = (v: unknown) => typeof v === 'string' && !!v && path.endsWith(`.${v}`);
+  if (row.old_value == null && endsWithValue(row.new_value)) return `${path}: added`;
+  if (row.new_value == null && endsWithValue(row.old_value)) return `${path}: removed`;
+
   return `${path}: ${before} → ${after}`;
 }
 

@@ -2598,6 +2598,12 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
       **THE WORK LIST IS EMPTY: 5 → 4 → 2 → 0.** Every mechanical build path on the shared sheet now
       audits. `in-place-editing-inventory.test.ts` (39) has been rewritten from a list of known gaps into
       the completed picture, and still fails on a NEW unaudited path — which is what the list was for.
+      **Finally, how the new rows READ.** Auditing adds and deletes made arrival/removal the most common
+      row shape, and `describeEdit` rendered them as a diff against nothing — *"item.Rope: — → Rope"* is a
+      clumsy way to say a rope appeared. They now read **"item.Rope: added"** / **"feature.Alert: removed"**.
+      Detected by the path ENDING in the value rather than by counting dot-segments: an item legitimately
+      named "Wand of Sparks v1.2" has as many segments as a field path, so counting would misread it — and
+      a genuine unset→value field edit (`attack.Club.notes: — → silvered`) still reads as the diff it is.
       **Root cause, worth stating once:** `log-edit.ts` calls itself *"the ONE client path … one audit
       vocabulary, not a parallel path"* and **nothing enforced that**, so five call sites quietly grew their
       own behaviour while two `[x]` items below recorded "every edit audits" as settled.

@@ -41,6 +41,32 @@ describe('manual edits — the case that showed no diff at all', () => {
     expect(out).not.toContain('"');
   });
 
+  it('an element ARRIVING reads as a verb, not as a diff against nothing', () => {
+    // Once the sheet began auditing adds and deletes these became common rows, and
+    // "item.Rope: — → Rope" is a clumsy way to say a rope appeared.
+    expect(describeEdit({ field_path: 'item.Rope', old_value: null, new_value: 'Rope' }))
+      .toBe('item.Rope: added');
+  });
+
+  it('and an element LEAVING says so', () => {
+    expect(describeEdit({ field_path: 'feature.Alert', old_value: 'Alert', new_value: null }))
+      .toBe('feature.Alert: removed');
+  });
+
+  it('works for a name containing dots, which segment-counting would misread', () => {
+    // "Wand of Sparks v1.2" has as many dot-segments as a field path, so the check is that the path ENDS
+    // in the value rather than how many dots it has.
+    expect(describeEdit({ field_path: 'item.Wand of Sparks v1.2', old_value: null, new_value: 'Wand of Sparks v1.2' }))
+      .toBe('item.Wand of Sparks v1.2: added');
+  });
+
+  it('does NOT mistake a field going from unset to a value for an arrival', () => {
+    // `attack.Club.notes: — → silvered` is a real before/after and must keep reading as one — the path
+    // does not end in the value, which is exactly what distinguishes it.
+    expect(describeEdit({ field_path: 'attack.Club.notes', old_value: null, new_value: 'silvered' }))
+      .toBe('attack.Club.notes: — → silvered');
+  });
+
   it('stays quiet when nothing actually moved', () => {
     expect(describeEdit({ field_path: 'spell.Fireball.damage', old_value: '8d6', new_value: '8d6' }))
       .toBe('spell.Fireball.damage');
