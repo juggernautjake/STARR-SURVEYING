@@ -1,14 +1,24 @@
 # D&D Rules Platform — full buildout
 
-> **PARKED in `pending/` (owner 2026-07-18).** The owner deliberately deferred this doc ("let the stop hook run
-> on the other files, not the DND_RULES_PLATFORM file") while the other three tabletop planning docs were worked
-> to completion — those are now closed in `completed/`. This is genuinely-planned work parked on hold, not
-> abandoned: most slices shipped (1–3, 9–34, 38); the big remainders are Slice 5 (custom class/subclass/feat
-> builder UI), Slice 6 (rules-accurate class data for the other 8 systems L1–20 — huge, source-verify per Ground
-> Rule 3), Slice 7 (wiring), and Slice 40 (the final QA walkthrough). **Move back to `in-progress/` when the
-> owner reopens it.**
+> **REOPENED in `in-progress/` (owner 2026-07-25):** "put everything into the in progress folder to allow
+> the stop hook to work on it." Previously parked while the other three tabletop docs were closed.
+>
+> **State as of 2026-07-25 — 195 done · 31 partial · 1 open.** The map-studio slice (35a/35c/39) was worked to
+> completion this session: the player-console drawer, the exhaustive per-field renderer audit (which found and
+> fixed the atmosphere-thickness mapping gap), and the spiral backdrop. See those slices' logs.
+>
+> **The single remaining `[ ]` is an owner decision, not work:** whether Rangor/Pugilist become a real custom
+> class through the Slice-5 builder (line ~745). Nobody but Jack can answer it.
+>
+> **What actually keeps this doc open is the 31 `[~]` partials and Slice 8b**, not that one checkbox. The
+> partials are overwhelmingly of one kind: the mechanical half is shipped and guarded, and the remainder needs
+> *visual judgment on a live render* — e.g. the 3D sun/terminator angle, which the doc itself warns must not be
+> fixed by eyeballing the sun vector. Those belong with the final QA walkthrough, and several are the same
+> underlying question. The other big remainders are unchanged: Slice 5 (custom class/subclass/feat builder UI),
+> Slice 6 (rules-accurate class data for the other 8 systems L1–20 — huge, source-verify per Ground Rule 3),
+> Slice 7 (wiring), and Slice 8b (library buildout for the four focus systems).
 
-**Status:** PARKED (pending) · started 2026-07-16 · deferred by owner 2026-07-18
+**Status:** IN PROGRESS · started 2026-07-16 · parked 2026-07-18 · reopened 2026-07-25
 **Goal:** every supported game system fully written out, searchable, AI-explainable, and wired
 into the character sheets — so a player or DM can build a character to level 20 exactly as the
 system's designers intended, look any rule up instantly, and ask the AI how it applies in a
