@@ -94,4 +94,26 @@ describe('what each system is actually offered', () => {
       }
     }
   });
+
+  // ── The two ROLLER settings specifically ─────────────────────────────────────────────────────────
+  //
+  // Everything above tests the RULE for whatever happens to be in the list. That means removing a field
+  // from `PREF_SHARED_ENGINE_ONLY` just makes the loops shorter — it passes. These two need naming
+  // outright, because they are the ones somebody will untag by reasonable-sounding mistake: "every game
+  // rolls dice, why is the dice-roller style 5e-only?"
+  //
+  // The answer is not obvious from the setting's name and lives two layers down. The bespoke sheets DO
+  // mount the shared rollers — but via `rollerStageFor`, whose stages read only the `RollFeed`. The full
+  // nodes that consume `diceRollerStyle`/`recordMode` (`DiceTray`, `SigilStack`, `RollBoard`,
+  // `ImpactRoller`) are mounted only by `rollerFor`, on the 5e sheet. Same animation, different owner of
+  // the controls. Untagging them would offer a PF2 player two settings that do nothing — which is exactly
+  // the defect the scoping work removed.
+  it('the roller settings stay scoped to the shared engine, and here is why', () => {
+    for (const f of ['diceRollerStyle', 'recordMode'] as const) {
+      expect(PREF_SHARED_ENGINE_ONLY, `${f} must stay shared-engine-only`).toContain(f);
+      for (const s of BESPOKE) {
+        expect(prefAppliesToSystem(f, s), `${f} must not be offered on ${s} — its stages cannot read it`).toBe(false);
+      }
+    }
+  });
 });

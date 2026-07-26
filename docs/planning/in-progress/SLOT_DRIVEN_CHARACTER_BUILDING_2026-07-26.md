@@ -381,11 +381,24 @@ slices are driven in the browser before being called done — this repo's standi
       button, and the pages were fine — those labels are `text-transform: uppercase`, and `innerText` returns
       the *transformed* text, so `"Rules text"` never matches `"RULES TEXT"`. Case-insensitive matching is the
       fix; believing the first red result would have been a fabricated bug report.
-- [ ] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
+- [~] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker
       works everywhere but those two settings do nothing on PF2/IG. Either wire the stages to read them or
       give each system its own roller settings — decide with the owner (Q4 below).
+
+      **RE-DERIVED 2026-07-26 — the BUG half is already closed; only a feature question is left.**
+      The mechanism above is still exactly true (verified: `rollerStageFor` returns stages that take no
+      preferences at all). But the defect it describes — *"two settings that do nothing"* — was fixed by
+      S-6's per-system scoping: both are in `PREF_SHARED_ENGINE_ONLY`, so a PF2 or IG player is **no longer
+      offered them**. Nothing on those sheets now claims to do something it cannot.
+      So this is not an outstanding bug, and Q4 is not "how do we fix this?" but **"should PF2/IG get roller
+      settings of their own?"** — a feature, answerable at leisure, with nothing broken while it waits.
+      **Guarded, because the obvious mistake is untagging them.** The existing scoping test iterates
+      `PREF_SHARED_ENGINE_ONLY` generically, so removing a field from it just makes the loops shorter and
+      passes. These two are now named outright, with the reason inline: someone will reasonably think "every
+      game rolls dice, why is this 5e-only?", and the answer lives two layers down in which roller node
+      mounts which stage.
 - [ ] **S10 — IG Champion.** Fill `IG_CLASS_DETAILS` for Champion when the owner supplies its
       powers/specializations, and the free-text fallback becomes a real picker. Blocked on Brendan's site.
 
