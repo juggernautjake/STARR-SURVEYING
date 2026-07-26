@@ -1839,7 +1839,14 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       range/dice is intentionally NOT a per-attack field — it's the effect-derived `crit_range` target, so
       an item/feature grants it and the store derives the widest range, cf. `crit-range.test.ts`.)
 - [~] **Weapon builder**: author a weapon's mechanics (damage dice/type, properties, 2024 mastery, range
-      bands, on-hit riders) so its derived attack row follows the weapon. **Mechanic ✅ shipped + now
+      bands, on-hit riders) so its derived attack row follows the weapon.
+      **⚑ Partly authorable already (checked 2026-07-26).** `ItemBuilder`'s weapon block has **damage dice**,
+      **damage type**, **ability**, **range** (free text, e.g. `5 ft` or `80/320`), **proficient**, and
+      **extra typed bonus dice** — and since this session those all flow live to the attack row
+      (`engine/weapon-items.ts`). **Absent: `properties` (finesse/versatile/two-handed…) and 2024 `mastery`**,
+      which the shared engine understands but nothing lets a player set. That is the real remaining gap and it
+      is narrower than "builder UI" suggests — two controls over vocabularies the engine already defines.
+      **Original text follows:** **Mechanic ✅ shipped + now
       hardened (2026-07-18), builder UI browser-gated** (same disposition as the Armor builder below).
       `buildAttack` (`engine/weapons.ts`) already derives the attack from an authored weapon — ability
       (finesse = best of STR/DEX), category/by-name proficiency, `attackBonus`/`damageBonus` + effect bonuses,
@@ -1850,7 +1857,14 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       `ItemBuilder` (+ wiring the live derivation into the rendered Attacks table) remains — browser-verified
       build/QA work; today a weapon item can already be a rollable attack via Slice-11 `grantsAttack`.
 - [~] **Armor / clothing builder**: base AC, category, DEX cap, STR requirement, stealth disadvantage,
-      resistances, arbitrary `effects`. **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
+      resistances, arbitrary `effects`.
+      **⚑ "builder UI not" is WRONG (checked 2026-07-26).** `ItemBuilder` renders an armour/shield block with
+      **category**, **base AC / AC bonus**, **modifier ability**, **max modifier** (the DEX cap), and a
+      **stealth-disadvantage** checkbox — plus the shared Effects editor, whose operations include
+      `resistance`, covering "resistances" and "arbitrary effects". Of the seven fields listed, six are
+      authorable today; **only STR requirement is absent.** Left `[~]` for that one field rather than closed,
+      but the remaining work is one input, not a builder.
+      **Original text follows:** **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
       (`deriveAc`, used by CombatPanel) already honors category (light = base + DEX, medium = base +
       min(DEX, cap), heavy = flat) and an item's own `dexCap`, and arbitrary armour `effects` flow through
       the ledger like any item's. **⚑ CUSTOM DEX-CAP PINNED (2026-07-18):** the medium-armor test used
