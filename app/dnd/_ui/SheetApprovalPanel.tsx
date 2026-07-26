@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
+import type { SlotException } from '@/lib/dnd/slots/entitlement';
 
 type Status = 'draft' | 'submitted' | 'approved' | 'rejected';
 interface Tagged { kind: string; name: string; source: 'vanilla' | 'custom' | 'dm-granted'; grantedBy?: string | null }
@@ -27,8 +28,19 @@ function Badge({ source }: { source: Tagged['source'] }) {
   return <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: map.c, background: map.b, border: `1px solid ${map.c}`, borderRadius: 4, padding: '1px 5px' }}>{map.t}</span>;
 }
 
+/** The entitlement counterpart to `Badge` — deliberately its own chip, since these are different words for
+ *  a different question. `EXPANDED` is the player's own call; `DM-GRANTED` is one the DM already made. */
+function ExceptionBadge({ entitlement }: { entitlement: SlotException['entitlement'] }) {
+  const map = {
+    expanded: { t: 'OUT OF SLOT', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
+    'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
+  }[entitlement];
+  return <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: map.c, background: map.b, border: `1px solid ${map.c}`, borderRadius: 4, padding: '1px 5px' }}>{map.t}</span>;
+}
+
 export default function SheetApprovalPanel({
   characterId, status: initialStatus, reviewNotes, isDM, canWrite, elements, allowCustom, hasBlockingCustom,
+  exceptions = [],
 }: {
   characterId: string;
   status: Status;
@@ -38,6 +50,13 @@ export default function SheetApprovalPanel({
   elements: Tagged[];
   allowCustom: boolean;
   hasBlockingCustom: boolean;
+  /** Picks taken through the escape hatch (slot plan S8c) — a DIFFERENT axis from `elements`.
+   *
+   *  `elements` answers "is this content in the book?"; this answers "was this character entitled to it
+   *  here?". They cross, and the review needs both: a cross-class feat the DM approved is *vanilla content*
+   *  the character was *not entitled to*, so it classifies as plain `vanilla` above and shows the DM
+   *  NOTHING — which is precisely the case the escape hatch creates. */
+  exceptions?: SlotException[];
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>(initialStatus);
@@ -86,6 +105,29 @@ export default function SheetApprovalPanel({
         {vanillaCount} vanilla · <span style={{ color: 'var(--hx-danger-2, #ef8b85)' }}>{custom.length} custom</span> · <span style={{ color: 'var(--hx-gold-2)' }}>{dmGranted.length} DM-granted</span>
         {allowCustom ? '' : ' · this campaign is vanilla-only'}
       </div>
+      {/* The ENTITLEMENT axis, listed separately and labelled as such. Merging it into the list above would
+          be worse than omitting it: these picks may be entirely book-legal content, so a "CUSTOM" badge
+          would be wrong about them, and the DM's question here ("did they take something they shouldn't
+          have?") is a different question from "is any of this homebrew?". */}
+      {exceptions.length > 0 && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--hx-gold-2)', fontWeight: 700 }}>
+            {exceptions.length} taken outside the rules
+          </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
+            {exceptions.map((e, i) => (
+              <li key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 7, fontSize: 12.5, color: 'var(--hx-text)', flexWrap: 'wrap' }}>
+                <ExceptionBadge entitlement={e.entitlement} />
+                <span>{e.name}</span>
+                {typeof e.level === 'number' && e.level > 0 && <span style={{ fontSize: 10.5, color: 'var(--hx-muted)' }}>level {e.level}</span>}
+                {/* The RULES' own objection, verbatim. Without it the DM sees a name and has to go and work
+                    out for themselves what was wrong with it. */}
+                {e.reason && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>— {e.reason}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(custom.length > 0 || dmGranted.length > 0) && (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
           {[...custom, ...dmGranted].map((e, i) => (

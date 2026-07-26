@@ -25,7 +25,7 @@ import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import PF2Sheet from '@/app/dnd/_ui/PF2Sheet';
 import { isPF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { readVariants, readActiveSlotMeta, resolveOriginSlotId, type ActiveSheet } from '@/lib/dnd/system-variants';
-import { sheetExceptionLabels } from '@/lib/dnd/slots/sheet-exceptions';
+import { sheetExceptionLabels, sheetExceptions } from '@/lib/dnd/slots/sheet-exceptions';
 import VariantBrowser from '@/app/dnd/_ui/VariantBrowser';
 import CharacterCampaigns from '@/app/dnd/_ui/CharacterCampaigns';
 import DraftSaveBanner from '@/app/dnd/_ui/DraftSaveBanner';
@@ -147,6 +147,11 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
         elements={summary.elements}
         allowCustom={allowCustom}
         hasBlockingCustom={summary.hasBlockingCustom}
+        // The entitlement axis (S8c). Deliberately does NOT feed `hasBlockingCustom`: whether a
+        // vanilla-only campaign should REFUSE a submission over an out-of-slot pick is a policy call for
+        // the campaign owner, and quietly turning it into a blocker would start failing submissions that
+        // succeed today. This surfaces it to the DM, who can already request changes.
+        exceptions={sheetExceptions(character.data, sys)}
       />
     );
   }

@@ -251,10 +251,19 @@ slices are driven in the browser before being called done — this repo's standi
       **Not done here:** the DM review surface (`SheetApprovalPanel`) still works purely on the orthogonal
       *content* axis (`summarizeCharacterProvenance`) and shows nothing for a book-legal feat taken out of
       slot. Adding entitlement to it is a genuine follow-up, listed below.
-- [ ] **S8c — the DM's review names exceptions too.** `SheetApprovalPanel` lists custom/DM-granted content
-      by PROVENANCE ("is this in the book?"), so a cross-class feat that is straight out of the book shows
-      nothing at all — the exact case S6's hatch creates. It needs the entitlement axis alongside, fed the
-      same way `page.tsx` now feeds `VariantToggleView`.
+- [x] **S8c — the DM's review names exceptions too. Shipped 2026-07-26.** 10 tests.
+      The gap was invisible by construction: `SheetApprovalPanel` lists content by PROVENANCE, and a
+      cross-class feat taken through the hatch IS in the book — so it classified as plain `vanilla`, was
+      counted in the "N vanilla" figure, and appeared nowhere in the itemised list. The one surface whose
+      job is "show the DM what to look at" showed nothing about the exact thing S6 exists to record.
+      Rendered as its own section with its own words (`OUT OF SLOT` / `DM-GRANTED`), **not** merged into the
+      content list: these picks may be entirely book-legal, so a `CUSTOM` badge would be a false claim about
+      them, and "did they take something they shouldn't have?" is a different question from "is any of this
+      homebrew?". Each names the rules' own objection, not just the pick.
+      **Deliberately NOT a submission blocker.** Whether a vanilla-only campaign should REFUSE a submission
+      over an out-of-slot pick is a policy call for the campaign owner, and quietly making it one would
+      start failing submissions that succeed today. Surfaced to the DM, who can already request changes.
+      → **Q7 below.**
 - [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
       A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
       **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure
@@ -372,3 +381,7 @@ same problem in a nicer font. Slice S8 carries that.
    (one feat per level) and describes level 1 as including "starting feats" without a number, so S5 allows
    exactly one and errs permissive. If the real answer is zero, or two, it is a one-line change in
    `igFeatBudget` — and it is the only number in the slot work that isn't source-verified.
+7. **Should a vanilla-only campaign REFUSE a submission that holds out-of-slot picks?** S8c shows them to
+   the DM but does not block, because blocking would start failing submissions that succeed today and the
+   policy is the campaign owner's to set. Three plausible answers: never block (today), block unless every
+   exception is `dm-granted`, or block on any. The change is one predicate feeding `hasBlockingCustom`.
