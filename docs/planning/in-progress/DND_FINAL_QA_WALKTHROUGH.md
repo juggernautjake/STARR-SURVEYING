@@ -764,3 +764,41 @@ context wedged before I could re-measure in place (the app itself was fine — t
 curl throughout). Re-measuring the two labels is a small, specific thing owed to the next browser pass.
 
 **Bar:** 3 new guards, 4695/4695 D&D tests, typecheck + lint clean.
+
+### 2026-07-26 — slice 21: reverting slice 19, which was a regression
+
+Before doing anything new, I checked a risk in my own slice-19 change: it moved the roller tab labels to
+`--hx-text`, and `--hx-text` is **contrast-clamped against the SKIN'S PANEL**. That clamp is the entire
+reason `skin-tokens.ts` computes luminance at all — *"the LIGHT skins have a near-white background, and the
+default `--hx-text` is a near-white cream — invisible on them"*. But the roller bar does not sit on the
+skin's panel. **It sits on the roller, which is dark on every skin.**
+
+Computed with the maths consolidated in slice 20:
+
+| skin | `--hx-muted` (before) | `--hx-text` (slice 19) |
+|---|---|---|
+| lazzuh (dark) | 6.22 | 16.83 ✅ |
+| streamer | 3.42 | **1.17** ❌ |
+| donata | 3.95 | **1.16** ❌ |
+| jack | 3.74 | **1.13** ❌ |
+
+**Reverted.** I had fixed an invisible button in slice 18 and then, two slices later, nearly shipped an
+invisible label doing the "same" fix. The shell's `--ink` fails identically, so it is not an alternative —
+every body-text token in this app is clamped for the panel, and this control is the exception that isn't
+on one.
+
+**What makes this trap work is that checking one dark skin makes the swap look right** (16.83 vs 6.22).
+The guard now pins the arithmetic across all three light skins *and* asserts that the dark-skin comparison
+favours the wrong answer, so the next person to look at this from a Hextech sheet sees why not.
+
+The original 2.78/2.83 finding stands and is still worth fixing. Doing it correctly needs a colour clamped
+against the **roller's own surface** rather than the skin's panel, and picking one needs the real
+composited background from a browser — the debt already recorded in `contrast-sweep.md`. Shipping a token
+that merely looks busy would trade a legible-but-dim label for an invisible one.
+
+**Bar:** 14 guards (replacing 3), 4720/4720 D&D tests, typecheck + lint clean.
+
+**Method note:** slices 18–21 are one arc — measure, misread the measurement, correct it, then catch that
+the correction's fix was itself wrong. Every step needed a *different* check than the one before. The
+useful generalisation: a contrast fix is not verified by the number going up on the skin you happened to
+be looking at.

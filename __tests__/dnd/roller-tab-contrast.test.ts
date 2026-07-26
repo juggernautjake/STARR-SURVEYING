@@ -1,39 +1,72 @@
-// __tests__/dnd/roller-tab-contrast.test.ts — the roller template tabs are readable in both states.
+// __tests__/dnd/roller-tab-contrast.test.ts — why the roller bar's labels are NOT on a body-text token.
 //
-// Measured during the skin sweep (final-QA walkthrough, slices 18–19). The template tabs and the
-// animation toggle are **11px**, so WCAG AA asks 4.5:1 — and `--hx-muted`, a deliberately de-emphasised
-// token, measured **2.78:1 on the dark skins and 2.83:1 on the light ones**. Consistently sub-AA on every
-// skin, which is the signal that the token was doing a job it isn't for, rather than one theme being off.
+// The 11px labels in the roller template bar measure 2.78:1 (dark skins) / 2.83:1 (light) — sub-AA, and a
+// real if minor defect. Slice 19 "fixed" it by switching them to `--hx-text`. Slice 21 computed what that
+// actually did and reverted it.
 //
-// Selection is already carried by the border and the background fill, so the label never had to be the
-// thing that dimmed. Paying for state with legibility is paying in the wrong currency.
+// The trap: every text token in this app is contrast-clamped against the SKIN'S PANEL — that clamp is the
+// whole reason `skin-tokens.ts` computes luminance ("CONTRAST IS NON-NEGOTIABLE … the LIGHT skins have a
+// near-white background, and the default --hx-text is a near-white cream"). But this bar does not sit on
+// the skin's panel. It sits on the ROLLER, which is dark on every skin. So on the three light skins the
+// body-text token is near-black, and the "fix" was strictly worse than the thing it replaced.
+//
+// This file pins the ARITHMETIC behind that decision, so the swap cannot be made again by inspection.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { skinHxVars, shellThemeVars } from '@/lib/dnd/skin-tokens';
+import { composite, contrastRatio } from '@/lib/dnd/theme-contrast';
 
 const SRC = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/RollerTemplateBar.tsx'), 'utf8');
+const LIGHT_SKINS = ['streamer', 'donata', 'jack'];
 
-describe('roller template bar labels', () => {
-  it('uses the full text token for the inactive state, not the muted one', () => {
-    expect(SRC).toMatch(/color: on \? 'var\(--hx-teal-1, #0ac8b9\)' : 'var\(--hx-text, #f0e6d2\)'/);
-    // The muted token must not come back for a LABEL colour in this file.
-    expect(SRC).not.toMatch(/color: 'var\(--hx-muted/);
-    expect(SRC).not.toMatch(/: 'var\(--hx-muted, #93a1b5\)',\s*$/m);
+/** The tab's own 3%-white fill over the roller's dark surface. */
+const TAB_BG = (() => {
+  const c = composite({ r: 255, g: 255, b: 255, a: 0.03 }, { r: 12, g: 12, b: 22, a: 1 });
+  return `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`;
+})();
+
+describe('body-text tokens are the WRONG choice on the roller surface', () => {
+  it.each(LIGHT_SKINS)('%s: --hx-text is near-black, so it would be invisible there', (skin) => {
+    const text = (skinHxVars(skin) as Record<string, string>)['--hx-text'];
+    expect(text, `${skin} should define --hx-text`).toBeTruthy();
+    expect(contrastRatio(text, TAB_BG)!).toBeLessThan(1.5);
   });
 
-  it('still distinguishes the selected tab — by border and fill, which is where state belongs', () => {
-    expect(SRC).toMatch(/border: on \? '1px solid var\(--hx-teal-1/);
-    expect(SRC).toMatch(/background: on \? 'rgba\(10,200,185,0\.14\)'/);
-    // …and by an accessible state, not colour alone.
+  it.each(LIGHT_SKINS)('%s: the shell --ink fails the same way — it is not an alternative', (skin) => {
+    const ink = (shellThemeVars(skin) as Record<string, string>)['--ink'];
+    expect(ink).toBeTruthy();
+    expect(contrastRatio(ink, TAB_BG)!).toBeLessThan(1.5);
+  });
+
+  it.each(LIGHT_SKINS)('%s: --hx-muted, dim as it is, is several times better', (skin) => {
+    const v = skinHxVars(skin) as Record<string, string>;
+    const muted = contrastRatio(v['--hx-muted'], TAB_BG)!;
+    const text = contrastRatio(v['--hx-text'], TAB_BG)!;
+    expect(muted).toBeGreaterThan(text * 2);
+  });
+
+  it('on DARK skins the body token would indeed be better — which is how the trap is set', () => {
+    // Checking only a dark skin is exactly what made the swap look correct.
+    const v = skinHxVars('lazzuh') as Record<string, string>;
+    expect(contrastRatio(v['--hx-text'], TAB_BG)!).toBeGreaterThan(contrastRatio(v['--hx-muted'], TAB_BG)!);
+  });
+});
+
+describe('the component reflects that decision', () => {
+  it('keeps --hx-muted for the inactive label', () => {
+    expect(SRC).toMatch(/color: on \? 'var\(--hx-teal-1, #0ac8b9\)' : 'var\(--hx-muted, #93a1b5\)'/);
+  });
+  it('and does not use a panel-clamped body token here', () => {
+    expect(SRC).not.toMatch(/color:[^\n]*var\(--hx-text/);
+    expect(SRC).not.toMatch(/color:[^\n]*var\(--ink/);
+  });
+  it('records why, so the swap is not re-attempted from the dark-skin view alone', () => {
+    expect(SRC).toContain('clamped against the SKIN');
+    expect(SRC).toMatch(/1\.13–1\.17:1/);
+  });
+  it('still carries selection state accessibly, not by colour alone', () => {
     expect(SRC).toContain('aria-pressed={on}');
-  });
-
-  it('keeps every label token backed by a literal fallback', () => {
-    // A token that fails to resolve must not drop the label to the browser default on a dark panel — the
-    // exact failure mode behind the invisible `.btn` in slice 18.
-    for (const m of SRC.match(/var\(--hx-[a-z0-9-]+[^)]*\)/g) ?? []) {
-      if (/--hx-font/.test(m)) continue;              // font stacks legitimately fall back to `inherit`
-      expect(m, `${m} has no literal fallback`).toMatch(/var\(--hx-[a-z0-9-]+,\s*[^)]+\)/);
-    }
+    expect(SRC).toMatch(/border: on \?/);
   });
 });

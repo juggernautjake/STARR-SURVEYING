@@ -95,13 +95,19 @@ export default function RollerTemplateBar({
               fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
               border: on ? '1px solid var(--hx-teal-1, #0ac8b9)' : '1px solid var(--hx-line, rgba(255,255,255,0.14))',
               background: on ? 'rgba(10,200,185,0.14)' : 'rgba(255,255,255,0.03)',
-              // Full text colour for BOTH states. These labels are 11px, so WCAG AA asks 4.5:1, and
-              // `--hx-muted` — a deliberately de-emphasised token — measured **2.78:1 on the dark skins and
-              // 2.83:1 on the light ones**. Consistently sub-AA on every skin, i.e. the token was doing a
-              // job it isn't for. Selection is already carried by the border and the background fill, so
-              // the label never needed to be the thing that dimmed; dropping legibility to signal
-              // "inactive" was paying for state in the wrong currency.
-              color: on ? 'var(--hx-teal-1, #0ac8b9)' : 'var(--hx-text, #f0e6d2)',
+              // These 11px labels measured 2.78:1 (dark skins) / 2.83:1 (light) — sub-AA, and worth fixing.
+              // But NOT by swapping to a body-text token, which is what a previous attempt here did:
+              // `--hx-text` and the shell's `--ink` are both contrast-clamped against the SKIN'S PANEL,
+              // and on the three light skins (streamer/donata/jack) that makes them near-black
+              // (#242223 / #232220 / #21201e). This bar sits on the ROLLER, which is dark on every skin —
+              // so that "fix" computed to **1.13–1.17:1** there, i.e. strictly worse than what it replaced.
+              //
+              // Left on `--hx-muted` deliberately. A correct fix needs a colour clamped against the
+              // ROLLER's own surface rather than the skin's panel, and choosing it needs the real
+              // composited background measured in a browser — see docs/planning/qa-evidence/
+              // contrast-sweep.md. Shipping the wrong token to look busy would trade a legible-but-dim
+              // label for an invisible one.
+              color: on ? 'var(--hx-teal-1, #0ac8b9)' : 'var(--hx-muted, #93a1b5)',
               opacity: !canWrite && !on ? 0.5 : 1,
             }}
           >
@@ -125,9 +131,9 @@ export default function RollerTemplateBar({
             borderRadius: 999, fontSize: 11, lineHeight: 1.2, cursor: canWrite ? 'pointer' : 'default',
             fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.03em',
             border: '1px solid var(--hx-line, rgba(255,255,255,0.14))',
-            // Same 11px / same sub-AA problem as the template tabs above — this toggle sits in the same
-            // bar and was measured alongside them.
-            background: 'rgba(255,255,255,0.03)', color: 'var(--hx-text, #f0e6d2)',
+            // Same bar, same 11px, same open question as the template tabs above — kept in step with them
+            // rather than fixed independently.
+            background: 'rgba(255,255,255,0.03)', color: 'var(--hx-muted, #93a1b5)',
             opacity: canWrite ? 1 : 0.5,
           }}
         >
