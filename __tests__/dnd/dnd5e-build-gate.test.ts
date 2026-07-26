@@ -110,10 +110,25 @@ describe('the route is wired to the gate', () => {
 
   it('calls it, and refuses with 400 naming what was rejected', () => {
     // A silent drop would be worse than accepting: the player would think they had the feat.
+    //
+    // Reads `stillRefused` since S6: the escape hatch splits the gate's refusals into the ones the player
+    // knowingly accepted and the ones that stand, and only the latter produce the 400. The rule being
+    // pinned is unchanged — whatever is refused must be NAMED, not silently dropped.
     expect(SRC).toContain('gateDnd5eBuildFeats');
-    expect(SRC).toMatch(/refused\.map\(\(r\) => `\$\{r\.name\} \(\$\{r\.reason\}\)`\)/);
+    expect(SRC).toMatch(/stillRefused\.map\(\(r\) => `\$\{r\.name\} \(\$\{r\.reason\}\)`\)/);
     expect(SRC).toMatch(/\}, \{ status: 400 \}\)/);
-    expect(SRC).toContain('refused,');
+    expect(SRC).toContain('refused: stillRefused,');
+  });
+
+  it('an UNACKNOWLEDGED refusal still 400s — the hatch is opt-in per pick, not a switch', () => {
+    // The failure mode to guard against is a hatch that simply turns the gate off, which would undo S1–S5
+    // and hand back the "ten feats at level 2" build the whole plan exists to prevent.
+    expect(SRC).toContain('if (stillRefused.length) {');
+    expect(SRC).toMatch(/splitAcknowledged\(\s*refused,/);
+  });
+
+  it('ignores an acknowledgement when the hatch is not on offer', () => {
+    expect(SRC).toContain('offer.offered ? acknowledged : []');
   });
 
   it('enforces on a rules-bound character and not on a DM', () => {

@@ -42,7 +42,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
 
   const res = await getCharacterAccess(params.id);
   if (!res.access) redirect('/dnd');
-  const { character, canWrite } = res.access;
+  const { character, canWrite, isDM } = res.access;
   // Building changes the sheet, so this page is for people who can write to it.
   if (!canWrite) redirect(`/dnd/characters/${params.id}`);
 
@@ -61,7 +61,7 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Class, race, background & abilities',
       'Pick your class, subclass, species/race and background, then set your ability scores (standard array, point buy, or roll). Everything offered is vanilla and rules-legal for the level you choose.',
-      <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" aiConfigured={aiConfigured} />,
+      <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" aiConfigured={aiConfigured} variantKind={variantKind} isDM={isDM} />,
     );
     steps.push({
       id: 'levels', title: 'Level by level', phase: 'Levels',

@@ -144,9 +144,48 @@ slices are driven in the browser before being called done — this repo's standi
       Two of my own errors, corrected inline rather than quietly: I first filed the level-1 pick against
       level 2 (which would have made the walker skip a real level-2 prompt), and I first expected the
       unique power to be a choice.
-- [ ] **S6 — the escape hatch, once, shared.** `+ Add a different …` per slot: system catalog → homebrew →
-      write-your-own, stamping `expanded`/`homebrew`/`dm-granted`. Wired into all three pickers from one
-      component so the tiers cannot drift apart per system.
+- [~] **S6 — the escape hatch. Core + 5e shipped 2026-07-26; PF2/IG wiring is S6b/S6c.**
+      `lib/dnd/slots/entitlement.ts` + `app/dnd/_ui/builder/TakeAnyway.tsx`, end to end on the 5e
+      Foundations picker (picker → POST → gate → ledger → badge). 38 tests.
+
+      **The plan's own vocabulary was wrong, and fixing it is the substance of this slice.** It proposed
+      stamping `expanded`/`homebrew`/`dm-granted` as one union — but `lib/dnd/provenance.ts` already ships
+      `'vanilla' | 'custom' | 'dm-granted'`, and folding them together conflates two axes that genuinely
+      cross:
+      · **content** — is this thing in the book? → `Provenance`, already shipped
+      · **entitlement** — was this character allowed it *here*? → the new module
+      A cross-class feat taken with the DM's blessing is *vanilla content* the character was *not entitled
+      to*; a homebrew feat in a legal slot is the exact opposite. One union cannot say both — and the badge
+      the owner asked for is about the second axis, on sheets whose every element may be straight out of the
+      book. So `Entitlement` is its own type and `Provenance` is untouched.
+
+      **What stops this undoing S1–S5.** A hatch that just turned the gate off would hand back the
+      "ten feats at level 2" build the whole plan exists to prevent. Three properties, each tested:
+      **(1)** it is opt-in *per pick* — anything not named still 400s; **(2)** the client sends only NAMES,
+      never reasons, so the recorded objection is the gate's own and a crafted POST cannot launder a
+      refusal into a flattering explanation; **(3)** it is not offered on a `custom` character, where the
+      rules never bound and an "exception" badge would be noise.
+
+      **The badge is derived from the merged ledger, never from the request.** Reading the request would
+      make a rebuild that happens to contain no exceptions demote a character whose exception the level
+      walker recorded — the badge would come and go depending on which surface saved last. Deriving also
+      means removing the off-rules feat returns the character to plain vanilla instead of leaving a scar.
+
+      **Two deliberate limits, so the UI doesn't promise what the server won't keep:**
+      · The hatch covers **ineligible** picks only, not the "slots full" block — `gateDnd5eBuildFeats`
+        judges eligibility and not the slot count, so a hatch over the count would offer an exception the
+        server never records, leaving the pick unbadged. Enforcing the count server-side is its own change
+        with its own risk to existing builds.
+      · An exception on a feat **beyond the ladder** is recorded at `kind: 'other'` rather than dropped.
+        Those feats own no ASI slot, and dropping the exception with them would let a character take an
+        off-rules feat and still read "Vanilla" — the one outcome this slice exists to prevent.
+
+      Q1 was never answered, so this ships on the assumption recorded below (**available always, marked,
+      DM review surface shows it**) rather than blocking. Reversible: the offer is one function.
+- [ ] **S6b/S6c — the same hatch on PF2 and IG.** `TakeAnyway` already takes plain `{name, reason}` rows so
+      neither needs a shared content model; what each needs is the server half — `pf2-build`/`ig-build`
+      splitting their own gates' refusals and recording the exception on `PF2RecordedChoice`/
+      `IGRecordedChoice` (both additive, like `RecordedChoice.exception` was).
 - [ ] **S7 — spells get the same treatment.** Per-level known/prepared counts per system (5e's cantrips +
       spells known, PF2's spell slots by tradition), same slot model, same escape hatch.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
@@ -267,6 +306,9 @@ same problem in a nicer font. Slice S8 carries that.
 1. **Should `+ Add a different …` be available to a player without the DM, in a campaign?** Options: always
    (marked "altered vanilla"), only outside a campaign, or gated behind a DM approval request (the requests
    board already exists). My assumption: always available and marked, with the DM review surface showing it.
+   **S6 shipped on that assumption** rather than blocking on it — the alternatives are all narrowings of the
+   same mechanism, and every one of them is a change to `unlockOffer`'s single return. Gating behind the
+   requests board would additionally need an approval round-trip, which is a slice, not a config flip.
 3. **5e has no class-specific feat lists** the way PF2 has class feats — 2024 sorts feats into origin /
    general / fighting-style / epic-boon tracks and gates them by prerequisite. Is "only the correct options"
    for 5e = *that slot's track + prerequisites met* (which is what slice 3 already enforces)? Or do you want

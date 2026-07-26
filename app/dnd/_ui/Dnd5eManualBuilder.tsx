@@ -26,6 +26,9 @@ import {
 } from '@/lib/dnd/statgen/builder5e';
 import { applyAbilityIncreases5e } from '@/lib/dnd/statgen/dnd5e';
 import StatGenPanel, { type StatGenMethod } from './StatGenPanel';
+import TakeAnyway from './builder/TakeAnyway';
+import { unlockOffer } from '@/lib/dnd/slots/entitlement';
+import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
 const LINE = 'var(--hx-line, rgba(130,132,140,0.30))';
 const INSET = 'var(--hx-inset, rgba(130,132,140,0.06))';
@@ -44,6 +47,9 @@ export interface Dnd5eBuildResult {
   picks: { system: string; level: number; species?: string; className?: string; subclass?: string; background?: string };
   abilities: Record<AbilityKey, number>;
   feats: string[];
+  /** Feats taken through the escape hatch despite the rules refusing them (slot plan S6). Names only —
+   *  the server records the REASON from its own gate, so a caller cannot author a flattering one. */
+  exceptions: string[];
 }
 
 export default function Dnd5eManualBuilder({
@@ -52,6 +58,8 @@ export default function Dnd5eManualBuilder({
   onBuild,
   layout = 'panel',
   aiConfigured = false,
+  variantKind = 'vanilla',
+  isDM = false,
 }: {
   system: string;
   /** When set (and no `onBuild`), the builder persists via POST /dnd5e-build then reloads, like the PF2/IG
@@ -66,6 +74,11 @@ export default function Dnd5eManualBuilder({
    *  instruction to the shared ai-edit route — so a player can build with AI or ask AI to tweak mid-build,
    *  while the dropdowns stay the primary, manual path. */
   aiConfigured?: boolean;
+  /** The character's build kind, which decides whether the rules bind at all. Defaults to `vanilla` so a
+   *  caller that doesn't know still gets the gate — failing closed is the whole point of the 5e gate. */
+  variantKind?: SheetVariantKind;
+  /** A DM's picks are recorded as `dm-granted` rather than as the player's own exception. */
+  isDM?: boolean;
 }) {
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
@@ -88,6 +101,11 @@ export default function Dnd5eManualBuilder({
   const [base, setBase] = React.useState<Record<AbilityKey, number>>({ str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 });
   const [bgSpread, setBgSpread] = React.useState<Partial<Record<AbilityKey, number>>>({});
   const [feats, setFeats] = React.useState<string[]>([]);
+  // Feats taken THROUGH THE HATCH. A subset of `feats` — an exception is still a pick, it just carries a
+  // record of the rule it broke. Kept as its own list rather than a flag on each chip so the POST can name
+  // exactly what the player acknowledged, which is what the server matches its own refusals against.
+  const [exceptions, setExceptions] = React.useState<string[]>([]);
+  const offer = React.useMemo(() => unlockOffer({ isDM, kind: variantKind }), [isDM, variantKind]);
 
   const subLevel = dnd5eSubclassLevelFor(system, className);
   const subclassUnlocked = subLevel > 0 && level >= subLevel;
@@ -114,7 +132,7 @@ export default function Dnd5eManualBuilder({
       const r = await fetch(`/api/dnd/characters/${characterId}/dnd5e-build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...result.picks, abilities: result.abilities, backgroundAbilities: is2024 ? bgSpread : undefined, feats: result.feats }),
+        body: JSON.stringify({ ...result.picks, abilities: result.abilities, backgroundAbilities: is2024 ? bgSpread : undefined, feats: result.feats, exceptions: result.exceptions }),
       });
       if (!r.ok) throw new Error(String(r.status));
       window.location.reload();
@@ -259,6 +277,14 @@ export default function Dnd5eManualBuilder({
   }, [featList, system, level, finalAbilities, className, feats]);
   const eligibilityOf = (f: { name: string }) => featVerdicts.get(f.name) ?? { ok: true };
   const ineligibleCount = featList.reduce((n, f) => n + (!feats.includes(f.name) && !eligibilityOf(f).ok ? 1 : 0), 0);
+  // What the hatch can offer: the feats the rules refuse and the player has not already taken. Built from
+  // the same verdict map the chips read, so the reason shown in the hatch is the reason on the chip.
+  const blockedFeats = React.useMemo(
+    () => featList
+      .filter((f) => !feats.includes(f.name) && !(featVerdicts.get(f.name)?.ok ?? true))
+      .map((f) => ({ name: f.name, ...(featVerdicts.get(f.name)?.reason ? { reason: featVerdicts.get(f.name)!.reason } : {}) })),
+    [featList, featVerdicts, feats],
+  );
   // What you CAN take, first. Once the eligibility gate went in, a level-8 Fighter's list was 31 struck-
   // through entries with five live ones scattered through them, inside a 160px scroller — so the player
   // had to hunt for the handful of legal picks among the ones the app had just ruled out. Sorting is a
@@ -303,7 +329,13 @@ export default function Dnd5eManualBuilder({
             const why = blocked ? verdict.reason : (full ? `You've used all ${featSlots} slot${featSlots === 1 ? '' : 's'} — deselect one first.` : (f.prerequisiteText || undefined));
             return (
               <button key={f.name} type="button" disabled={disabled} title={why} aria-disabled={disabled || undefined}
-                onClick={() => setFeats((cur) => on ? cur.filter((x) => x !== f.name) : [...cur, f.name])}
+                onClick={() => {
+                  setFeats((cur) => on ? cur.filter((x) => x !== f.name) : [...cur, f.name]);
+                  // Deselecting a hatch pick from its own chip must also drop the exception, or the POST
+                  // would acknowledge a refusal for a feat it is no longer sending and the character would
+                  // keep an "Altered vanilla" badge with nothing left to justify it.
+                  if (on) setExceptions((cur) => cur.filter((x) => x !== f.name));
+                }}
                 style={{ fontSize: 12, padding: '4px 9px', borderRadius: 6, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
                   textDecoration: blocked ? 'line-through' : undefined,
                   border: `1px solid ${on ? 'var(--hx-gold-1, #8a6d3b)' : LINE}`, background: on ? 'var(--hx-inset-strong, rgba(130,132,140,0.14))' : 'none', color: 'inherit' }}>
@@ -319,6 +351,18 @@ export default function Dnd5eManualBuilder({
             {ineligibleCount} feat{ineligibleCount === 1 ? ' is' : 's are'} greyed out — not legal for an ASI slot at level {level}. Hover one for the reason.
           </div>
         )}
+        {/* The escape hatch. Scoped to INELIGIBLE feats and not to the "slots full" block, because the
+            server gate judges eligibility only — a hatch over the slot count would promise an exception the
+            server never records, leaving the pick unbadged. Capping the slots server-side is its own change
+            with its own risk to existing builds, so this offers exactly what the gate can honour. */}
+        <TakeAnyway
+          offer={offer}
+          noun="feat"
+          blocked={blockedFeats}
+          taken={exceptions}
+          onTake={(name) => { setFeats((cur) => cur.includes(name) ? cur : [...cur, name]); setExceptions((cur) => cur.includes(name) ? cur : [...cur, name]); }}
+          onUntake={(name) => { setFeats((cur) => cur.filter((x) => x !== name)); setExceptions((cur) => cur.filter((x) => x !== name)); }}
+        />
         </>
       )}
     </div>
@@ -331,7 +375,7 @@ export default function Dnd5eManualBuilder({
   ) : null;
   const buildButton = (
     <button type="button" disabled={!canBuild}
-      onClick={() => doBuild({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats })}
+      onClick={() => doBuild({ picks: { system, level, species: species || undefined, className: className || undefined, subclass: subclass || undefined, background: background || undefined }, abilities: finalAbilities, feats, exceptions })}
       style={{ justifySelf: 'start', fontSize: 14, fontWeight: 700, padding: '9px 18px', borderRadius: 9, cursor: canBuild ? 'pointer' : 'default', opacity: canBuild ? 1 : 0.5,
         border: `1px solid var(--hx-gold-1, #8a6d3b)`, background: 'var(--hx-inset-strong, rgba(130,132,140,0.14))', color: 'inherit' }}>
       {saving ? 'Building…' : 'Build character'}

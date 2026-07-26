@@ -11,6 +11,7 @@ import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import type { ClassDefinition, SubclassDefinition, ClassFeature } from './types';
 import { clampLevel, snapshotAtLevel } from './engine';
 import { featEligibilityForSystem } from '../feats/eligibility';
+import type { SlotException } from '../slots/entitlement';
 
 export type ChoiceKind = NonNullable<ClassFeature['choice']>;
 
@@ -29,6 +30,11 @@ export interface RecordedChoice {
   /** Set when this level's pick was HOMEBREWED with the AI rather than taken from the book.
    *  Recorded so it shows as custom content in the DM's review (seed 443). */
   homebrew?: { name: string; body: string };
+  /** Set when this pick was taken THROUGH THE ESCAPE HATCH — the rules refused it and the player (or DM)
+   *  took it anyway. Carries the gate's own objection so the sheet can name WHY, not just that something
+   *  changed. A separate axis from `homebrew`: that one says the content is invented, this one says the
+   *  character was not entitled to it here, and either can be true without the other (slot plan S6). */
+  exception?: SlotException;
 }
 
 /** A choice still owed at a level, with everything the UI needs to prompt for it. */

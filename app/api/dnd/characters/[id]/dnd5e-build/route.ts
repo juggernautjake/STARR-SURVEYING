@@ -12,7 +12,8 @@ import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank'
 import type { Character } from '@/app/dnd/_sheet/types';
 import type { AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { gateDnd5eBuildFeats } from '@/lib/dnd/rules-gate';
-import { readActiveSlotMeta, isRulesEnforcedKind } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { unlockOffer, splitAcknowledged, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 import { builderChoicesFor, mergeBuilderChoices, type BuilderChoice } from '@/lib/dnd/statgen/builder-choices';
 
 const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
@@ -39,7 +40,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
   const character = access.access.character as unknown as { id: string; name: string; data?: unknown; system?: string };
 
-  const body = (await req.json().catch(() => ({}))) as Partial<Dnd5eAssembleInput> & { name?: string };
+  const body = (await req.json().catch(() => ({}))) as Partial<Dnd5eAssembleInput> & {
+    name?: string;
+    /** Names the caller is knowingly taking despite a refusal (slot plan S6). Intent only — never reasons. */
+    exceptions?: unknown;
+  };
   const system = typeof body.system === 'string' ? body.system : character.system ?? 'dnd5e-2024';
 
   const base: Character = ((character.data as Character | null) ?? blankCharacter(character.name));
@@ -58,7 +63,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // `body.abilities` is the FINAL spread (the builder posts `finalAbilities`, post background/racial
   // increases), which is what the picker judges against too — so the two cannot disagree about an
   // ability prerequisite that only the increase satisfies.
-  const buildVariant = readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla';
+  const rawVariants = (character as { system_variants?: unknown }).system_variants;
+  const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
   const { refused } = gateDnd5eBuildFeats(requestedFeats, {
     system,
     // `isRulesEnforcedKind`, NOT `=== 'vanilla'`: an ALTERED-VANILLA character is still held to the rules
@@ -70,12 +76,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     abilities: readAbilities(body.abilities),
     featureNames: base.features.filter((f) => !replacedByBuild(f)).map((f) => f.name),
   });
-  if (refused.length) {
+  // ── The ESCAPE HATCH (slot plan S6) ───────────────────────────────────────────────────────────
+  // A refusal used to be a dead end whose only advice was "build a custom character instead" — which
+  // throws away rules-checking on the whole sheet to take one cross-class feat the DM already approved.
+  // The player can now acknowledge a specific refusal and take that pick anyway; it is RECORDED as an
+  // exception and the character's badge moves to "Altered vanilla".
+  //
+  // The client only asserts INTENT — it names picks, never reasons. The reason stored is the one this
+  // gate produced, so a crafted POST cannot record a flattering explanation for a refusal that happened
+  // for some other cause. Anything not acknowledged is still refused, exactly as before.
+  const offer = unlockOffer({ isDM: access.access.isDM, kind: buildVariant });
+  const acknowledged = Array.isArray(body.exceptions)
+    ? body.exceptions.filter((f): f is string => typeof f === 'string')
+    : [];
+  const { accepted, stillRefused } = splitAcknowledged(
+    refused,
+    offer.offered ? acknowledged : [],
+    offer.stamps,
+    level,
+  );
+  if (stillRefused.length) {
     return NextResponse.json({
       error: `This is a vanilla character, so it can only take feats its class and level grant. Remove or change: ${
-        refused.map((r) => `${r.name} (${r.reason})`).join('; ')
-      } — or build a custom character instead.`,
-      refused,
+        stillRefused.map((r) => `${r.name} (${r.reason})`).join('; ')
+      } — or take it anyway as a recorded exception.`,
+      refused: stillRefused,
     }, { status: 400 });
   }
 
@@ -144,6 +169,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           className: typeof body.className === 'string' ? body.className : undefined,
           feats: requestedFeats,
           subclass: typeof body.subclass === 'string' ? body.subclass : undefined,
+          exceptions: accepted,
         }),
         level,
       ) as NonNullable<Character['build']>['choices'],
@@ -151,11 +177,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   };
 
   const normalized = normalizeCharacter(merged);
+
+  // The badge is DERIVED from the merged ledger, never from this request's payload. Reading the request
+  // would make a rebuild that happens to contain no exceptions demote a character whose exception was
+  // recorded by the level walker — the badge would come and go depending on which surface saved last.
+  // Reading the ledger also means removing the off-rules feat takes the character back to plain vanilla
+  // instead of leaving a permanent scar.
+  const exceptions = exceptionsIn(normalized.build?.choices as { level?: number; exception?: unknown }[] | undefined);
+  const nextKind = variantKindWithExceptions(buildVariant, exceptions);
+
+  const patch: Record<string, unknown> = { data: normalized, name: normalized.meta.name || character.name };
+  if (nextKind !== buildVariant) {
+    // Only the active slot's `kind` changes. The rest of the column is spread through untouched rather
+    // than rebuilt via `withActiveSlotMeta` — that helper takes a live `ActiveSheet`, which this route
+    // does not have, and rebuilding the variant map from a partial view here would drop per-slot fields
+    // (lineage, art, summaries) that nothing in a build has any business rewriting.
+    const raw = rawVariants && typeof rawVariants === 'object' ? (rawVariants as Record<string, unknown>) : {};
+    patch.system_variants = { ...raw, [ACTIVE_SLOT_META_KEY]: { ...readActiveSlotMeta(rawVariants), kind: nextKind } };
+  }
+
   const { error } = await supabaseAdmin
     .from('dnd_characters')
-    .update({ data: normalized, name: normalized.meta.name || character.name })
+    .update(patch)
     .eq('id', character.id);
   if (error) return NextResponse.json({ error: 'Could not build the character.' }, { status: 500 });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    variantKind: nextKind,
+    ...(exceptions.length ? { exceptions: exceptions.map(describeException) } : {}),
+  });
 }
