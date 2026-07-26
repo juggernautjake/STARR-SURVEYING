@@ -217,3 +217,40 @@ than the model. The *diagnosis* is unaffected (direction, cause and which skins 
 is structural rather than a chosen colour, so it doesn't rest on the absolute number. But the after-values
 sit only just over AA (4.57 on `jack`), so the eyes-on check now owed is **whether the dock's new light
 appearance on the three light skins looks right**, not whether a hand-picked colour cleared a ratio.
+
+## 2026-07-26 — THE VERIFIED BASELINE (all three tool bugs corrected)
+
+Six live characters, gradients and multi-layer backgrounds composited, and **only nodes that actually render**
+counted. This is the first list in this arc that can be acted on.
+
+| sheet | rendered text nodes | failing |
+|---|---|---|
+| streamer 5e | 158 | 5 |
+| **jack 5e** | 144 | **0** |
+| donata 5e | 200 | 20 |
+| lazzuh 5e (dark) | 131 | 5 |
+| IG (default, dark) | 208 | 2 |
+| PF2 (streamer) | 82 | 8 |
+| **total** | **923** | **40** |
+
+Everything unambiguous has already been fixed (the roller labels, `.btn` on light skins, the CUSTOM chip, the
+IG custom-sections block). **All 40 remaining are colour decisions on a skin's own palette, not defects with
+an obvious right answer** — which is why they are listed rather than changed:
+
+1. **Brand-filled buttons — 20 on donata, 1 on lazzuh.** White on the teal fill `#17b3a3` = **2.62**; white on
+   the danger fill `#f0577a` = **3.31**; `⟲ RESET`'s red text on a dark panel = **2.92**. Fixing means
+   darkening a brand fill or abandoning white text.
+2. **Section numbers (`sec-num`) — 1 on streamer, 4 on lazzuh.** `#b30060` on the streamer's pink
+   (**3.09**) and `#c8323f` on lazzuh's dark (**2.55–3.45**). These are each skin's SIGNATURE accent, set in
+   that skin's own block in `theme.css` — not an unclamped token that could simply be added to the clamp
+   (`--hotpink` already routes through `ensureContrast` in the shell bridge). Decorative numerals, so the
+   trade is legibility against identity.
+3. **The gold/amber family on pale panels — 4 on streamer, 8 on PF2.** `#c8aa6e` on near-white = **2.08**;
+   `#966c00` at **3.24–4.30** on the PF2 chips and section labels. Several are within 0.2–0.65 of passing.
+4. **Two one-offs on IG:** the `🜲` glyph at **1.39** (same inherit-the-page-ink cause as the custom-sections
+   block, in a panel that fix did not cover — the one entry here that IS probably a plain bug), and
+   `COMBAT SKILLS` at **3.33** using the danger red at a site the `--hx-danger-2` fix did not reach.
+
+**Recommended order if these are picked up:** the IG glyph (a bug), then the gold family (several are a
+hair short), then the brand fills and section numbers together — those two are one conversation about how much
+of a skin's identity is negotiable.

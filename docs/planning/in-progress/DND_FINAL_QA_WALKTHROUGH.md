@@ -1221,3 +1221,25 @@ at least one entry (the dice pad) was pure artifact. That re-run is the next sli
 the tool is right.
 
 **Bar:** no app change (the finding was withdrawn), 5000/5000 D&D tests, typecheck exit-0.
+
+### 2026-07-26 — slice 32: the verified baseline, and why I stopped fixing
+
+Re-ran the sweep across six live characters with all three tool corrections at once (gradients, multi-layer
+backgrounds, and only nodes that actually render). **923 rendered text nodes, 40 failures** — the first
+numbers in this arc that can be acted on. `jack` is **clean at 0**; it had ~20 before slice 26.
+
+The full table and the four groups are in `qa-evidence/contrast-sweep.md`. The short version: **everything
+with an obvious right answer is fixed, and all 40 that remain are decisions about a skin's own palette.**
+
+The one that made me stop rather than continue: `sec-num` fails on BOTH a light skin (3.09) and a dark one
+(2.55–3.45), which looked at first like an unclamped token — the systematic fix would be to route it through
+`ensureContrast` like its siblings. It is not: `--hotpink` already goes through the clamp in the shell bridge,
+and the failing values come from each skin's OWN block in `theme.css`. They are the skins' signature accents.
+Changing them is a design decision about identity versus legibility, and after being wrong three times about
+colour this week on reasoning I was confident in, the right move is to hand it over with measurements rather
+than exercise taste on someone else's brand.
+
+**One entry in the list probably IS a plain bug** and is called out as such: the IG `🜲` glyph at 1.39, same
+inherit-the-page-ink cause as the custom-sections block, in a panel slice 30's fix did not cover.
+
+**Bar:** no app change, 5000/5000 D&D tests, typecheck exit-0. Dev server stopped, port released.
