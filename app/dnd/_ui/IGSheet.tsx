@@ -34,6 +34,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 // this sheet actually renders and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
+import '@/app/dnd/_sheet/styles/bespokeButtons.css';
 
 // Interactivity + motion (req 3), kept in ONE injected <style> so the whole IG restyle stays local: the
 // shared hextech.module.css holds a sibling PF2 pass, and touching it would collide. Every hover cue is

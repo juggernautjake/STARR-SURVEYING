@@ -703,3 +703,32 @@ path players actually take rather than a defensive nicety.
 this time persistent 404s on a valid route with `EPERM` webpack-cache errors in its log. Deleting the whole
 `.next` and restarting on a fresh port fixes it; deleting *part* of `.next` corrupts a manifest instead
 (see slice 8). Worth knowing before debugging a phantom routing bug.
+
+### 2026-07-26 — slice 18: template × skin sweep, and a button nobody could see
+
+The outstanding "QA breadth" item from the multi-format templates work.
+
+**All four templates pass.** Classic, Codex, Dashboard and Play each render the PF2 sheet with its name,
+AC, HP and Perception intact, no horizontal overflow and **zero console errors**. Switching between them is
+clean.
+
+**The skin sweep found a real defect — by measuring contrast rather than looking.** Median contrast across
+the sheet is **13.9:1** (excellent), but the worst sample was **1.08:1**: the *"＋ Weapon"* button, computed
+as `rgb(15,20,25)` on `rgb(1,10,19)`. Near-black on near-black. Not hard to read — **invisible**. It would
+have been easy to miss by eye precisely because there is nothing to see.
+
+**The tokens were never wrong**, which is the interesting part. `--ink` and `--hx-text` both resolve
+correctly to `#f0e6d2` all the way down to the button. Nothing was *reading* them: `.btn` is styled in
+`theme.css`, which the bespoke sheets **deliberately don't import** (its element rules bleed onto the
+hextech panels — the reason is written into `rollStage.css`). So the nine `className="btn tiny"` buttons
+across the PF2 and IG panels matched no colour rule at all and inherited the page's base `#0f1419`.
+
+Fixed with a small `bespokeButtons.css` scoped to `.sheet-shell` — reaching both bespoke sheets in every
+format without reintroducing the bleed that caused the exclusion. **1.08 → 16.08.** A guard asserts every
+selector in that file is scoped, that both sheets import it, and — importantly — that neither has started
+importing `theme.css`, so the fix cannot quietly undo the reason the gap existed.
+
+The remaining sub-AA samples are roller-template tab labels (2.78–3.98) — small, secondary, and legible;
+noted rather than churned, since raising them touches the shared roller chrome on every system.
+
+**Bar:** 6 new guards, 4692/4692 D&D tests, typecheck + lint clean.

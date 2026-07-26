@@ -1,0 +1,37 @@
+/* bespokeButtons.css — give `.btn` a readable colour on the BESPOKE (PF2 / IG) sheets.
+ *
+ * The PF2 and IG panels use `className="btn tiny"` in nine places (add a weapon, dismiss a refusal, the
+ * ±HP controls, …). Those classes are styled in `theme.css` — which the bespoke sheets **deliberately do
+ * not import**, because its broad element rules bleed onto the hextech panels (see the note in
+ * `rollStage.css`). The buttons therefore matched no colour rule at all and inherited the page's base text
+ * colour, `#0f1419` — a near-black intended for light surfaces — onto the sheet's near-black panel.
+ *
+ * Measured contrast: **1.08:1**. Not "hard to read": invisible. The tokens were never the problem —
+ * `--ink` and `--hx-text` both resolve correctly to `#f0e6d2` right down to the button; nothing was
+ * reading them.
+ *
+ * Scoped to `.sheet-shell` so it reaches the bespoke sheets in every format (Classic/Codex/Dashboard/Play)
+ * without reintroducing theme.css's element-level bleed, and written so a shell that already colours its
+ * own buttons (`codex.css`, `play.css`) still wins on specificity.
+ */
+.sheet-shell .btn {
+  color: var(--hx-text, #f0e6d2);
+  background: var(--hx-inset-soft, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--hx-line, rgba(255, 255, 255, 0.14));
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sheet-shell .btn.tiny {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.sheet-shell .btn:hover:not(:disabled) {
+  border-color: var(--hx-gold-1, #c8aa6e);
+  color: var(--hx-gold-2, #c8aa6e);
+}
+.sheet-shell .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

@@ -28,6 +28,7 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
 import '@/app/dnd/_sheet/styles/play.css';
+import '@/app/dnd/_sheet/styles/bespokeButtons.css';
 
 export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
