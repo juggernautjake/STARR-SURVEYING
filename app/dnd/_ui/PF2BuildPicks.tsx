@@ -17,7 +17,7 @@ import { PF2_ALL_FEATS, PF2_ALL_SPELLS, PF2_CATALOG_STATUS } from '@/lib/dnd/sys
 import { pf2FeatEligibility, pf2SpellEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 
 export default function PF2BuildPicks({
-  kind, className, ancestry, level, tradition, selected, onToggle,
+  kind, className, ancestry, level, tradition, selected, onToggle, limit,
 }: {
   kind: 'feat' | 'spell';
   className: string;
@@ -26,6 +26,15 @@ export default function PF2BuildPicks({
   tradition?: string;
   selected: string[];
   onToggle: (name: string) => void;
+  /** How many the character is ENTITLED to at this level (PF2 feat slots = one per level per track).
+   *  Once that many are chosen, the rest are blocked with the reason — the same treatment an ineligible
+   *  pick already gets. Omitted = uncapped, which is still right for spells until their per-level
+   *  known/prepared counts are modelled (slot plan S7).
+   *
+   *  Why a cap at all: this control offered the whole catalog with an unbounded toggle, so a level-1
+   *  character could take thirty feats — while the label above it truthfully read "7 owed by level 12".
+   *  The count was computed and displayed and then not enforced. */
+  limit?: number;
 }) {
   const [q, setQ] = useState('');
 
@@ -79,14 +88,18 @@ export default function PF2BuildPicks({
         {rows.map((r) => {
           const active = selected.some((s) => s.toLowerCase() === r.name.toLowerCase());
           // Already-selected entries are never blocked, so a pick made before the class was chosen
-          // can still be removed rather than stranded.
-          const blocked = !r.ok && !active;
+          // can still be removed rather than stranded — and so a full list can always be undone.
+          const full = limit != null && !active && selected.length >= limit;
+          const blocked = (!r.ok && !active) || full;
+          const why = full
+            ? `You've used all ${limit} feat slot${limit === 1 ? '' : 's'} this class grants by level ${level} — deselect one first.`
+            : r.reason;
           return (
             <button
               key={r.name} type="button"
               onClick={() => { if (!blocked) onToggle(r.name); }}
               disabled={blocked}
-              title={blocked ? `${r.reason} — pick a different class or level, or build a custom character.` : `${r.name} · ${r.meta}`}
+              title={blocked ? `${why} — pick a different class or level, or build a custom character.` : `${r.name} · ${r.meta}`}
               style={{
                 fontSize: 11.5, padding: '3px 8px', borderRadius: 12,
                 cursor: blocked ? 'not-allowed' : 'pointer',

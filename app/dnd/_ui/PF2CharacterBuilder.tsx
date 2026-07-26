@@ -218,7 +218,11 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             <div style={{ fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
               <strong style={{ color: 'var(--hx-teal-1)' }}>Multiclass?</strong> In Pathfinder 2e you multiclass by spending a class-feat slot on an Archetype <strong style={{ color: 'var(--hx-gold-2)' }}>Dedication</strong> (search e.g. &ldquo;Fighter Dedication&rdquo;), then taking feats from that archetype — not by gaining levels in a second class.
             </div>
-            <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
+            {/* `featsOwed` is now the CAP, not just a caption. It was computed and displayed here while the
+                picker accepted any number, so a level-1 character could take thirty feats under a label that
+                said "1 owed by level 1". Uncapped when the class isn't chosen yet (the schedule is unknown,
+                and blocking every pick would be worse than allowing one that is re-judged on save). */}
+            <PF2BuildPicks kind="feat" className={className} ancestry={ancestry} level={level} selected={feats} {...(featsOwed ? { limit: featsOwed } : {})} onToggle={(n: string) => setFeats((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n])} />
           </>
         );
         const spellsBlock = cls?.spellcasting ? (

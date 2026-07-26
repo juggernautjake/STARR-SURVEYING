@@ -13,6 +13,8 @@ import { gatePf2Picks } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
 import { PF2_ALL_FEATS, PF2_ALL_SPELLS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { pf2BuilderChoicesFor, mergePf2BuilderChoices } from '@/lib/dnd/systems/pathfinder2e/builder-choices';
+import type { PF2RecordedChoice } from '@/lib/dnd/systems/pathfinder2e/levelup';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -45,6 +47,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const assembled = assemblePF2VanillaCharacter(picks);
+
+  // THE SAME LEDGER THE PF2 LEVEL WALKER READS. `pf2PlanLevelUp` is already slot-driven — one prompt per
+  // (level, feat TRACK) — but Foundations stored a flat `feats: string[]` and `assemblePF2VanillaCharacter`
+  // writes `pf2Build` without `choices`, so every slot still read as unfilled and the walker asked again for
+  // picks the player had just made. Attributing them here is the PF2 half of the same fix made for 5e, and
+  // it is what lets the builder cap at the real slot count instead of accepting thirty feats at level 1.
+  const prior = ((character as { data?: { pf2Build?: { choices?: PF2RecordedChoice[] } } }).data?.pf2Build?.choices) ?? [];
+  assembled.pf2Build = {
+    ...assembled.pf2Build,
+    choices: mergePf2BuilderChoices(prior, pf2BuilderChoicesFor({
+      className: picks.className, level: picks.level ?? 1, feats: picks.feats, subclass: picks.subclass,
+    }), picks.level ?? 1),
+  };
+
   const dmGranted = (Array.isArray(character.dm_granted) ? character.dm_granted : []) as { kind?: ElementKind; name: string; grantedBy?: string | null; mechanics?: string | null }[];
   const summary = summarizeCharacterProvenance(assembled, 'pathfinder2e', dmGranted);
 

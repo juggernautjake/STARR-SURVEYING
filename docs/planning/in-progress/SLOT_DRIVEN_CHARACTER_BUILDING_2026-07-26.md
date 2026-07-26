@@ -106,12 +106,24 @@ slices are driven in the browser before being called done — this repo's standi
       8-of-13 gap is closed, and "a class with a ladder but no prompt" is now unrepresentable — which is the
       part that stops it coming back with the next class someone authors. The whole suite stayed green
       (4818), which is worth noting for a change that ADDS prompts: nothing was relying on the silence.
-- [ ] **S3 — the shared slot vocabulary.** `lib/dnd/slots/` — `SlotSpec`/`SlotFill`/provenance + a pure
-      `fillSlot`/`clearSlot`/`unfilled` core, with the 5e ladder as its first provider. No UI yet; a provider
-      and its tests only.
-- [ ] **S4 — PF2: slot the feat tracks.** `pf2LevelBreakdown` already returns the tracks; turn each into a
-      `SlotSpec` and make `PF2BuildPicks` a one-per-slot picker instead of an unbounded toggle. This is the
-      single biggest behavioural win in the plan (30 feats at level 1 → 1 per track per level).
+- [ ] **S3 — the shared slot vocabulary — DEFERRED until a third system needs it.** Reordered after S4
+      shipped: 5e and PF2 each turned out to have a working slot model of their own already
+      (`asiLevels` + `RecordedChoice`; `pf2LevelBreakdown` + `PF2RecordedChoice`), and both fixes were about
+      *feeding* those models rather than replacing them. Extracting a shared `lib/dnd/slots/` before IG (S5)
+      shows what it actually needs would be abstraction ahead of evidence — and the two builder-choices
+      modules are near-identical twins on purpose, so the shape is already visible when it's time.
+- [x] **S4 — PF2: slot the feat tracks. Shipped 2026-07-26.**
+      `lib/dnd/systems/pathfinder2e/builder-choices.ts` — `pf2FeatSlots` / `pf2FeatSlotCount` (from the
+      tested schedule, so it cannot drift from what the walker prompts), `pf2BuilderChoicesFor` (assigns
+      picks earliest-first, carrying the TRACK) and `mergePf2BuilderChoices`. Three effects:
+      **(1)** `PF2BuildPicks` now takes a `limit` and blocks further picks once the slots are used, so the
+      "7 owed by level 12" caption is finally the cap it always claimed to be — a level-1 character can no
+      longer take thirty feats; **(2)** `pf2-build` records the picks in `pf2Build.choices`, so the walker
+      stops re-asking for every one; **(3)** each feat is attributed to a (level, track), which is what S6's
+      escape hatch and S8's "altered vanilla" badge need to point at.
+      An already-selected pick is never blocked, or a full list could never be undone. 17 new tests.
+      **Note:** the picker's `limit` is deliberately absent for SPELLS — their per-level known/prepared
+      counts are S7, and capping them at the feat number would be worse than not capping them.
 - [ ] **S5 — IG: slot the schedule.** Drive the Foundations chips from `IG_LEVEL_SCHEDULE` per level instead
       of the flat catalog: one stance where the level grants a stance, one power where it grants a power.
 - [ ] **S6 — the escape hatch, once, shared.** `+ Add a different …` per slot: system catalog → homebrew →

@@ -119,7 +119,10 @@ describe('the builder UI greys rather than hides', () => {
   });
 
   it('never blocks an already-selected pick', () => {
-    expect(picker).toContain('const blocked = !r.ok && !active');
+    // Asserted as the RULE rather than one literal expression: S4 added a second reason to block (the slot
+    // cap), and both clauses have to exempt an active pick or a full list could never be undone.
+    expect(picker).toContain('const blocked = (!r.ok && !active) || full');
+    expect(picker).toContain('const full = limit != null && !active && selected.length >= limit');
   });
 
   it('does not let picks satisfy each other’s prerequisites, matching the server', () => {
