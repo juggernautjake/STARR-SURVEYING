@@ -2924,22 +2924,31 @@ the console out of its page. Deferred as its own follow-up; the affordance above
       shows an info panel) that never surfaced the console — so the DM's "not seeing it" was a real
       missing-entry-point, not a mount bug. The entry point is now shipped (the "🖥 Open player console ↗"
       deep-link) and guarded by `map-player-console.test.ts`.
-- [ ] **The panel.** A bottom-anchored drawer over the map: slides UP to open (covering most of the
-      viewer), slides DOWN to close leaving a **peek header always visible** (a handle/tab) that
-      clicks to reopen. Smooth transform transition, not a mount/unmount.
-- [ ] **Contents.** The full "digital screen" — all the info + knobs/controls the console shows
-      (dice, rolls, whatever the screen surfaces). Reuse `console.html`'s content rather than
-      rebuilding it; embed or share the component.
+- [x] ✅ SHIPPED (browser-verified 2026-07-25) **The panel.** `.pconsole` inside `.canvaswrap` (already
+      `position:relative;overflow:hidden`), anchored bottom, moved with a `translateY` transition — not a
+      mount/unmount, which would tear down the console's engine and lose the player's screen. Closed leaves
+      exactly `--peek` (34px) showing, because the header is its own `flex:0 0 var(--peek)` row, so it can
+      never close past its own handle. Verified live: 34px peeking when closed, 561px open.
+- [x] ✅ SHIPPED (browser-verified 2026-07-25) **Contents.** Iframes `console.html` with the studio's own
+      `campaign`/`map` params — the same "embed the proven static tool" approach `/dnd/campaigns/[id]/console`
+      already uses, so the console runs its engine unchanged rather than being rebuilt. Verified live against
+      the Neon Odyssey map: the galaxy view, systems list, HELM knobs, thrust, navigation and the AWAITING
+      INPUT screen all render inside the drawer.
 - [~] **Visible in Player view**, including for the DM previewing Player mode (the reported gap). **Entry
       point SHIPPED + guarded** — the "🖥 Open player console ↗" link appears ONLY in Player mode (and only when
       opened from a campaign), deep-linking to the real console with the current map; `map-player-console.test.ts`
       pins its URL shape + Player-mode-only gating. The FULLER ask — embedding the console drawer *inside* the
       studio's Player preview (vs opening the real console in a new tab) — is the deferred follow-up noted above
       (iframe/factor-out `console.html`), and confirming the in-place drawer is browser QA.
-- [ ] Remembers open/closed per session, like the chat resize (Slice 9's `useResizable` pattern is
-      the reference for a remembered drawer).
-- [ ] Verify by entering Player mode as the DM and confirming the drawer's peek header shows and
-      toggles.
+- [x] ✅ SHIPPED (browser-verified 2026-07-25) Remembered per session in `sessionStorage`
+      (`stardust-map-studio:console-open`), matching the chat-resize idiom. Verified surviving a
+      Player → DM → Player round trip. The iframe `src` is set on FIRST OPEN, not at page load: the console
+      is ~172KB and boots its own engine, so loading it eagerly would tax every DM-editor session that never
+      opens the drawer.
+- [x] ✅ VERIFIED 2026-07-25 — entered Player mode as the DM in a real browser: hidden entirely in DM
+      Editor, peek header visible on entering Player mode, click opens/closes, keyboard (Enter/Space/Escape)
+      operable, `aria-expanded` tracks state. 0 console errors (the only one is a missing favicon).
+      Guarded by 7 new cases in `map-player-console.test.ts` (10 total).
 
 ## Slice 25 — Connect it to the rest ✅ SHIPPED 2026-07-16
 

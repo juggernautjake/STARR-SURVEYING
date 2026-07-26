@@ -243,6 +243,38 @@
   /* PLAYER MODE hides editor chrome */
   body.playmode .tabrail,body.playmode .library,body.playmode .toolrow,body.playmode #btnNewLib{display:none;}
   body.playmode .inst{cursor:pointer;}
+
+  /* ── The player console DRAWER (Slice 39) ────────────────────────────────────────────────────
+     The owner's ask: "the whole digital screen viewer … should pop up from the bottom of the map
+     viewer, and then if we close it it just slides down to the bottom, but the top of it is always
+     visible so that we can click on it to open it again."
+
+     So: anchored to the bottom of .canvaswrap (which is already position:relative;overflow:hidden),
+     moved with a TRANSFORM rather than mounted/unmounted — closing must slide, and an unmount would
+     also tear down the console's engine and lose whatever the player had on screen. Closed still
+     leaves the peek header in view, which is the whole affordance for reopening it.
+     Player mode only; the DM editor keeps its full canvas. */
+  .pconsole{position:absolute;left:0;right:0;bottom:0;height:min(70%,560px);z-index:40;display:none;
+    flex-direction:column;background:#010a13;border-top:1px solid #c8aa6e;
+    box-shadow:0 -10px 34px rgba(0,0,0,.55);
+    transform:translateY(calc(100% - var(--peek)));transition:transform .32s cubic-bezier(.22,.61,.36,1);
+    --peek:34px;}
+  body.playmode .pconsole.avail{display:flex;}
+  .pconsole.open{transform:translateY(0);}
+  /* The always-visible handle. Its own row so the drawer can never close past it. */
+  .pconsole .phead{flex:0 0 var(--peek);height:var(--peek);display:flex;align-items:center;gap:8px;
+    padding:0 12px;cursor:pointer;user-select:none;background:linear-gradient(180deg,#0b1a2c,#071320);
+    color:#c8aa6e;font-family:'Cinzel',Georgia,serif;letter-spacing:.08em;font-size:12px;}
+  .pconsole .phead:hover{background:linear-gradient(180deg,#102439,#0a1a2b);}
+  .pconsole .phead .pgrip{flex:0 0 34px;height:3px;border-radius:2px;background:#c8aa6e;opacity:.5;}
+  .pconsole .phead .pspacer{flex:1;}
+  .pconsole .phead .pchev{transition:transform .32s;font-size:11px;opacity:.85;}
+  .pconsole.open .phead .pchev{transform:rotate(180deg);}
+  .pconsole .pbody{flex:1;min-height:0;position:relative;background:#010a13;}
+  .pconsole .pbody iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  /* Until it is first opened the iframe has no src, so say why the panel is blank. */
+  .pconsole .pidle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#5c6b7a;font-size:12.5px;font-family:'Inter',system-ui,sans-serif;text-align:center;padding:0 20px;}
 </style>
 </head>
 <body>
@@ -293,6 +325,23 @@
       <button id="refresh3dBtn" title="Hot-refresh the 3D viewer to re-render the latest changes">⟳ Refresh 3D</button>
     </div>
     <div id="canvas"><canvas id="skyCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas><div id="bgLayer"></div><div class="bodyLayer" id="backLayer"></div><svg id="svg"></svg><div class="bodyLayer" id="bodyLayer"></div><svg id="svgFront"></svg><canvas id="fxCanvas"></canvas><svg id="labelLayer"></svg><div id="handleLayer"></div><div id="gl3d" style="position:absolute;inset:0;z-index:5;display:none"></div></div>
+    <!-- The player console, in place. The toolbar's "Open player console ↗" still opens the real page in
+         a new tab; this is the same console embedded in the map viewer itself, which is what the DM
+         previewing Player mode was looking for and not finding. Same iframe-a-static-tool approach the
+         /dnd/campaigns/[id]/console route already uses, so the console runs its proven engine unchanged. -->
+    <div class="pconsole" id="pConsole">
+      <div class="phead" id="pConsoleHead" role="button" tabindex="0" aria-expanded="false" aria-controls="pConsoleBody"
+           title="The player console — click to slide it up or down">
+        <span class="pgrip" aria-hidden="true"></span>
+        <span>🖥 PLAYER CONSOLE</span>
+        <span class="pspacer"></span>
+        <span class="pchev" aria-hidden="true">▲</span>
+      </div>
+      <div class="pbody" id="pConsoleBody">
+        <div class="pidle" id="pConsoleIdle">Click the header to open the console.</div>
+        <iframe id="pConsoleFrame" title="Player console" allow="fullscreen" allowfullscreen loading="lazy"></iframe>
+      </div>
+    </div>
   </div>
   <div class="insp">
     <div class="ihead" id="inspHead">◈ INSPECTOR</div>
@@ -2401,8 +2450,67 @@ $("#modeSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>setMode(b.data
   const q=new URLSearchParams(location.search);const camp=q.get("campaign");const el=document.getElementById("openPlayerConsole");
   if(el&&camp){const mid=q.get("map");el.href=`/dnd/campaigns/${encodeURIComponent(camp)}/console`+(mid?`?map=${encodeURIComponent(mid)}`:"");el.dataset.ok="1";}
 })();
+
+/* ── The player console drawer (Slice 39) ──────────────────────────────────────────────────────
+   Slides up over the map viewer and, when closed, slides DOWN to leave its header peeking — never
+   unmounts, so the console keeps its state and the motion reads as one panel rather than a flash.
+
+   Two deliberate choices:
+   • The iframe's `src` is set on FIRST OPEN, not at page load. The console is a 172KB page that boots
+     its own engine and fetches the campaign's map; paying that on every Map Studio load — including
+     every DM-editor session that never opens it — would be a straight tax on the editor.
+   • Open/closed is remembered per SESSION (sessionStorage), matching the chat-resize idiom: a DM who
+     works with the console open keeps it open as they move around, but it does not persist forever
+     into a new day's session. */
+const pConsole=(function(){
+  const root=document.getElementById("pConsole");
+  const head=document.getElementById("pConsoleHead");
+  const frame=document.getElementById("pConsoleFrame");
+  const idle=document.getElementById("pConsoleIdle");
+  if(!root||!head||!frame)return{sync(){}};
+  const q=new URLSearchParams(location.search);
+  const camp=q.get("campaign");const mid=q.get("map");
+  // No campaign → no map to show and no console to load, the same condition that hides the toolbar
+  // link. The drawer stays absent rather than opening onto an error.
+  const available=!!camp;
+  if(available)root.classList.add("avail");
+  const KEY="stardust-map-studio:console-open";
+  let loaded=false;
+  function load(){
+    if(loaded)return;loaded=true;
+    const p=new URLSearchParams({campaign:camp});if(mid)p.set("map",mid);
+    frame.src="console.html?"+p.toString();
+    if(idle)idle.remove();
+  }
+  function setOpen(open,remember){
+    root.classList.toggle("open",open);
+    head.setAttribute("aria-expanded",open?"true":"false");
+    if(open)load();
+    if(remember!==false){try{sessionStorage.setItem(KEY,open?"1":"0");}catch(e){}}
+  }
+  head.addEventListener("click",()=>setOpen(!root.classList.contains("open")));
+  head.addEventListener("keydown",e=>{
+    if(e.key==="Enter"||e.key===" "){e.preventDefault();setOpen(!root.classList.contains("open"));}
+    if(e.key==="Escape"&&root.classList.contains("open"))setOpen(false);
+  });
+  let restored=false;
+  return{
+    /** Called on every mode change. The remembered state is applied the first time Player mode is
+     *  actually entered — restoring it at load would load the console for a DM who never opens it. */
+    sync(m){
+      if(!available)return;
+      if(m!=="play"){setOpen(false,false);return;}
+      if(!restored){restored=true;let want="0";try{want=sessionStorage.getItem(KEY)||"0";}catch(e){}
+        if(want==="1"){setOpen(true,false);return;}}
+      // Re-entering Player mode: honour whatever the player last chose this session.
+      let want="0";try{want=sessionStorage.getItem(KEY)||"0";}catch(e){}
+      setOpen(want==="1",false);
+    },
+  };
+})();
 function setMode(m){mode=m;document.body.classList.toggle("playmode",m==="play");$("#modeSeg").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
   {const el=document.getElementById("openPlayerConsole");if(el)el.style.display=(m==="play"&&el.dataset.ok)?"":"none";}
+  pConsole.sync(m);
   if(m==="play"){tool="select";clearPending();if(drawing)cancelDraw();$("#inspHead").textContent="◈ INFO";selection=null;$("#inspBody").innerHTML=`<div class="empty"><div class="big">▶</div>Player preview. Click any body or system to read its info and points of interest.</div>`;}
   else{$("#inspHead").textContent="◈ INSPECTOR";}
   renderAll();
