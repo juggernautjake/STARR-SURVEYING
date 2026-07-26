@@ -3046,17 +3046,21 @@ regression to *reach*, not the drawing:
       - A scroll-anchor / hash link (`href="#..."`) pushing a `#` entry that Back only scrolls away
         from.
       - Next.js scroll-restoration fighting a manually scrolled container.
-- [~] Fix the specific source(s) found; don't paper over with a custom Back handler. **Done for the one
-      concrete source the audit found** — the library jump-nav now `replaceState`s its hash via `JumpNav`
-      (no custom Back handler), pinned by `jump-nav.test.ts`. This slice ALSO added a regression guard that the
-      **map studio** syncs its URL with `replaceState`, never `pushState` (the other surface the audit cleared,
-      previously unguarded) — so a change reintroducing history pollution on the map page fails in CI, not the
-      field. No other history-pushing source exists in the audited code; if the character-sheet/campaign report
-      persists it needs live repro (browser).
-- [~] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
-      page every time. **DEFERRED (browser)** — an interactive click-Back-and-observe check on the running app;
-      the code-side invariants it depends on (no `pushState` history pollution in the nav/map surfaces) are now
-      guarded, but the end-to-end confirmation needs a live browser session.
+- [x] Fix the specific source(s) found; don't paper over with a custom Back handler. Two rounds:
+      1. The **library** jump-nav (`JumpNav`) and the **PF2** sheet nav (`usePf2Panels`) now `replaceState` their
+         hash instead of letting the browser push it — no custom Back handler. Plus a guard that the **map
+         studio** syncs its URL with `replaceState`, never `pushState`.
+      2. The browser check below then found the source the code audit had missed: the **IG sheet** nav
+         (`useIgPanels`) was the THIRD instance of the same `<a href="#…">` idiom and still bare, so every jump
+         pushed an entry. Fixed the same way (`jumpToSection` → `preventDefault` + `scrollIntoView` +
+         `replaceState`), which keeps `#ig-vitals` working as a deep link without spending a history entry.
+      `jump-nav-history.test.ts` (10) now asserts the property across **all three** navs rather than one file —
+      a guard scoped to a single instance is exactly what let the IG one through.
+- [x] Verify: from a character sheet and from a campaign page, a single Back returns to the previous
+      page every time. **Done in the browser 2026-07-26** (dev server + minted `dnd_session`). `hub → sheet →
+      Back` ✅ and `hub → library → Back` ✅ both passed first time; `hub → sheet → in-page jump → Back` **failed**
+      (`leftTheSheet: false`) and produced the IG fix above. Re-run after the fix: the hash still reads
+      `#ig-vitals` after the jump, `oneBackLeavesTheSheet: true`, `landedOnHub: true`.
 
 **Investigated 2026-07-16, no definitive culprit yet — did NOT ship a speculative fix.** Checked the
 strongest hypotheses: no `history.pushState` anywhere in the map pages (the map-studio bridge uses
@@ -3067,6 +3071,13 @@ Back trap, but their `src` is computed server-side and stable per load, and the 
 `replaceState`. Needs the user's exact reproduction (which page, what they did before Back) to pin —
 "jumps up and down" hints at scroll-restoration, which points at a specific scrollable container.
 Left open rather than guess.
+
+**Resolved 2026-07-26 by actually driving the browser.** The 07-16 code audit's conclusion — "no other
+history-pushing source exists" — was wrong, and the reason is worth keeping: the audit searched for
+`pushState`, and the IG sheet's nav never called it. A bare `<a href="#…">` makes the *browser* push the
+entry, so the defect was invisible to a grep for the API. The user's "jumps up and down" was literal: Back
+was undoing hash jumps one at a time instead of leaving the page. One click in a real browser found in a
+minute what two rounds of reading could not.
 
 ## Slice 38 — Campaign creation → invite-by-link → join → bring/port a character ✅ SHIPPED 2026-07-16
 

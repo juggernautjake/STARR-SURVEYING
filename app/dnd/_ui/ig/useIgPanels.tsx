@@ -1115,6 +1115,27 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     </div>
   );
 
+  /**
+   * Jump WITHOUT pushing a history entry — the fix `JumpNav` and the PF2 sheet already had, and this one
+   * did not.
+   *
+   * These were plain `<a href="#…">`, so the browser pushed an entry per jump and **Back stopped leaving the
+   * sheet**: it undid the hash instead. Confirmed in a browser 2026-07-26 (`hub → sheet → jump → Back` landed
+   * back on the same sheet), which is the "from a character sheet, a single Back returns to the previous
+   * page" check the plan doc had deferred as needing a live session. The earlier audit found and fixed this
+   * class in the library nav and the PF2 sheet; the IG sheet was the surface it missed.
+   *
+   * `replaceState` keeps the deep-link (the URL still names the section) while leaving the history stack
+   * alone — same shape as `usePf2Panels`' `jump`, deliberately, so the three navs behave identically.
+   */
+  const jumpToSection = (e: React.MouseEvent, anchor: string) => {
+    e.preventDefault();
+    const el = typeof document !== 'undefined' ? document.getElementById(anchor) : null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (typeof history !== 'undefined') history.replaceState(null, '', `#${anchor}`);
+  };
+
   // ── Sticky in-sheet jump-nav (req 5) — the app's own `.jumpNavItem` pill idiom (each a bordered ◆ chip),
   //    so a long sheet is navigable without endless scrolling. Sits below the site header; sections carry a
   //    matching scroll-margin so an anchored jump lands with the heading visible. ─────────────────────────
@@ -1124,7 +1145,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     // scrolling beneath don't bleed through the pills.
     <nav aria-label="Jump to section"
       style={{ position: 'sticky', top: 52, zIndex: 5, display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 10px', border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(9,20,40,0.94)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}>
-      {navItems.map((n) => <a key={n.id} href={`#${n.id}`} className={styles.jumpNavItem}>{n.label}</a>)}
+      {navItems.map((n) => <a key={n.id} href={`#${n.id}`} onClick={(e) => jumpToSection(e, n.id)} className={styles.jumpNavItem}>{n.label}</a>)}
     </nav>
   );
 
