@@ -3663,3 +3663,54 @@ defect.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
 data written; port 3539 confirmed bindable.
+
+### 2026-07-27 — slice 98: every sheet shows all-10 ability scores for half a second, in production
+
+Slice 97 measured a ~1.5s placeholder flash on a dev server and explicitly refused to call it a defect,
+because dev timings are not production timings. That was the right call and it left a question that is
+settleable rather than arguable, so this slice settles it with a real `npm run build` + `next start`.
+
+**It survives production, and it is worse than a slow paint.**
+
+| run | placeholder visible at | correct values at |
+|---|---|---|
+| 1 | 12ms | **764ms** |
+| 2 | 18ms | **541ms** |
+| 3 | 3ms | **456ms** |
+
+**The server-rendered HTML itself carries the wrong numbers.** Parsed straight out of the `curl` response:
+
+```
+STR10+0 DEX10+0 CON10+0 INT10+0 WIS10+0 CHA10+0
+```
+
+…while `19` **is** present elsewhere in the same response, inside the RSC payload. The server has the
+character and renders defaults anyway.
+
+**And nothing marks it as provisional.** Measured at 200ms in the production build: the pills are visible,
+`opacity: 1`, not covered, and `anyLoadingOverlay: false` — no skeleton, no spinner, no `aria-busy`. So for
+roughly half a second every sheet displays **six plausible, wrong ability scores** that are visually
+indistinguishable from real ones. A skeleton would be a loading state; this reads as data.
+
+**Cause, exactly** — `app/dnd/_sheet/state/store.tsx:327`:
+
+```js
+const [char, setCharState] = useState<Character>(() => {
+  const initial = dbMode ? blankCharacter('') : loadInitial(characterId)
+```
+
+In DB mode the store initialises from `blankCharacter('')`, whose abilities are all 10, and the real
+character arrives from a client fetch. The file's own header notes the blank fallback is there to be
+SSR-safe — the mechanism is deliberate; rendering *plausible numbers* out of it is the part that is not.
+
+**NOT fixed here, and this time the reason is not uncertainty about the defect.** The defect is measured
+three ways in a production build. The fix is architectural — either thread the server-fetched character
+into the store's initial state, or render a non-numeric placeholder until it arrives — and that is a
+data-flow decision on the sheet's core, on someone else's design. Slice 79 is the cautionary case: what got
+retracted there was a change I had called small and safe. The narrower half (render `—` rather than `10`)
+does not need the architecture touched and cannot be *wrong*, only less pretty; that is the cheap option if
+the full one is not wanted.
+
+**Bar:** production build succeeded, three timed runs plus an SSR-HTML parse and a 200ms overlay check.
+`.next` removed afterwards — this repo has a recorded failure where a production `.next` breaks `next dev`.
+No live data written; port 3543 confirmed bindable. No code changed.
