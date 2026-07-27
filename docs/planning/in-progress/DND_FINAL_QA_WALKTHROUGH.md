@@ -4633,3 +4633,37 @@ because the *reason* would have been known rather than inferred each time.
 
 **Bar:** rubric read in full; the owner instruction quoted from the doc that carries it. Full D&D suite
 green, typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 125: the merge is verified clean, and that is the end of what I can do here
+
+Slice 124 established from the rubric and from the owner's own instruction that this folder empties only
+when the decisions are answered. Rather than add another documentation slice on top of the ones written
+three slices ago, this checks the one action recommended on every page of this log — and then stops.
+
+**`fix/variant-ux-2026-07-25` merges cleanly into `main`:**
+
+| | |
+|---|---|
+| behind `main` | **0** |
+| ahead | **261** |
+| conflicts (`git merge-tree` against the merge base) | **none** |
+| uncommitted files | **0** |
+
+So `6a014d6b` — the live edit-history exposure, the only item in this whole log with a real-world
+consequence — can be taken without a rebase, a conflict resolution, or any decision about the other
+twelve items. **It is unblocked in every sense except that nobody has pressed the button.**
+
+**Everything else genuinely requires you**, and that is now proven rather than asserted: nine decisions and
+three data blocks, all indexed with cost and severity in
+[`../DND_OWNER_DECISIONS_2026-07-27.md`](../DND_OWNER_DECISIONS_2026-07-27.md), each pointing at the
+evidence and — where one exists — the test pin that will ask to be deleted the moment it stops being true.
+
+**What was found and fixed along the way**, for the record: a character name clipped on phones, the IG
+vanilla library blowing the page sideways, undersized touch targets including a 9×13px *destructive*
+delete, a 5px-tall navigation strip in all three builders, eleven controls with no keyboard focus
+indicator, two placeholder-only labels, and nineteen infinite animations brought under
+`prefers-reduced-motion` — plus twelve documented ways a browser measurement lies, four of which caught me
+a second time after being written down.
+
+**Bar:** merge state verified against `origin/main`. Full D&D suite green (5,944 + 11 pinned), typecheck
+exit-0, working tree clean. No code changed.
