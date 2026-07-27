@@ -63,3 +63,82 @@ export function pf2SpellCountsFor(className: string | undefined, level: number):
 export function pf2SlotTableModelled(className: string | undefined): boolean {
   return progressionFor(className)?.spellcasting?.slotTableModelled !== false;
 }
+
+// ── Prepared-slot enforcement (S7c, the last piece) ───────────────────────────────────────────────
+//
+// THE DECISION, owner 2026-07-27 ("make a good decision for 6, I trust your judgement"): **enforce it**,
+// exactly the way 5e already does. `SpellsPanel.tsx` refuses a prepare past the cap (`if (held >=
+// preparedCap) return c`) and disables the control with *"No room: your class prepares N spells at this
+// level — un-prepare one first."* PF2 showing `Rank 1: 2/3` and then silently allowing a 4th would mean the
+// two systems disagree about whether a stated budget means anything, which is worse than either answer.
+//
+// It sits inside S15's *"only ACQUISITION is gated"* boundary rather than against it. Preparing is not
+// acquisition — nothing is added to or removed from the character. It is an assignment of spells the
+// character ALREADY has into today's slots, and the slots are a number the sheet itself publishes. The
+// budget was made visible first (`bfd60b94`) precisely so this cap is stated in advance: S7b's finding is
+// that *a cap discovered by being refused reads as a bug; the same number stated up front reads as a rule.*
+//
+// FOUR EXEMPTIONS, each matching the pill display so the refusal and the number can never disagree:
+//   · spontaneous casters — a repertoire is not a per-day assignment
+//   · cantrips (rank 0)   — not slot-cast; their cap bites at pick time (`39137dbb`)
+//   · focus spells        — cast from the focus pool, so counting them would refuse a caster who is fine
+//   · any rank the character has no modelled slots for — reduced casters (Magus/Summoner) have no
+//     published table, and inventing a cap for them is the exact bug this strand exists to undo
+
+export interface Pf2PreparedRoom {
+  /** Slots this rank grants, or null when no cap applies here. */
+  slots: number | null;
+  /** Non-focus spells of this rank already prepared, excluding the one being edited. */
+  prepared: number;
+  /** May one MORE spell be prepared at this rank? */
+  hasRoom: boolean;
+  /** Player-facing reason when there is not — null when there is. */
+  reason: string | null;
+}
+
+const NO_CAP: Pf2PreparedRoom = { slots: null, prepared: 0, hasRoom: true, reason: null };
+
+export interface Pf2PreparedSpell { name?: string; rank?: number; prepared?: boolean; focus?: boolean }
+
+/**
+ * Whether another spell may be prepared at `rank`. Pure, so the editor's control and any future
+ * server-side check read the SAME rule — the duplicated "is this modelled?" question is what allowed the
+ * `slotTableModelled` bug this file was written to fix.
+ *
+ * Over-count is GRANDFATHERED, not corrected (Q5's recorded assumption: never delete a player's content).
+ * A caster already past the cap simply has no room for more; every spell they hold stays, and un-preparing
+ * is always allowed because this only ever gates turning `prepared` ON.
+ */
+export function pf2PreparedRoom(args: {
+  kind: string | null | undefined;
+  slots: readonly number[] | null | undefined;
+  spells: readonly Pf2PreparedSpell[] | null | undefined;
+  rank: number;
+  /** The spell being edited — re-saving one that is already prepared must never be refused. */
+  editingName?: string;
+}): Pf2PreparedRoom {
+  const { kind, slots, spells, rank, editingName } = args;
+  if (kind !== 'prepared') return NO_CAP;
+  if (!Number.isFinite(rank) || rank <= 0) return NO_CAP;
+
+  const granted = slots?.[rank] ?? 0;
+  // `> 0` and not `>= 0`: a rank with no slots is ambiguous between "not yet available at this level" and
+  // "this class's table is unmodelled", and refusing on either reading would cap a reduced caster.
+  if (!(granted > 0)) return NO_CAP;
+
+  const key = (editingName ?? '').trim().toLowerCase();
+  const prepared = (spells ?? []).filter(
+    (s) => !s.focus && s.prepared && s.rank === rank && (!key || (s.name ?? '').trim().toLowerCase() !== key),
+  ).length;
+
+  if (prepared < granted) return { slots: granted, prepared, hasRoom: true, reason: null };
+  const noun = `slot${granted === 1 ? '' : 's'}`;
+  return {
+    slots: granted,
+    prepared,
+    hasRoom: false,
+    reason: prepared > granted
+      ? `${prepared} spells are prepared against ${granted} rank-${rank} ${noun} — un-prepare one before adding another.`
+      : `No room: rank ${rank} grants ${granted} ${noun} and ${granted === 1 ? 'it is' : 'they are'} all prepared — un-prepare one first.`,
+  };
+}

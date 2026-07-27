@@ -15,6 +15,7 @@
 // Homebrew authored here is neither: it never claimed to be official, so it carries no offRules,
 // and it was authored rather than edited, so it starts un-customized.
 import { useState } from 'react';
+import type { Pf2PreparedRoom } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
 
 type Kind = 'spell' | 'feat';
 
@@ -35,13 +36,18 @@ export interface PF2EditableElement {
 const TRACKS = ['ancestry', 'class', 'skill', 'general', 'archetype', 'feature'] as const;
 
 export default function PF2ElementEditor({
-  kind, initial, onSave, onClose,
+  kind, initial, onSave, onClose, preparedRoomFor,
 }: {
   kind: Kind;
   /** Absent = authoring something new. Present = editing what the character holds. */
   initial?: PF2EditableElement;
   onSave: (edit: Record<string, unknown>) => void;
   onClose: () => void;
+  /** The prepared-slot budget at a given rank (S7c). A FUNCTION rather than a value because the rank is
+   *  editable in this dialog — the budget has to follow the field, or the control would state the room for
+   *  whichever rank happened to be open when it mounted. Omitted → no cap (the editor stays usable
+   *  wherever a caller has no character context). */
+  preparedRoomFor?: (rank: number) => Pf2PreparedRoom | null;
 }) {
   const creating = !initial;
   const [name, setName] = useState(initial?.name ?? '');
@@ -50,6 +56,9 @@ export default function PF2ElementEditor({
   const [track, setTrack] = useState(initial?.track ?? 'class');
   const [text, setText] = useState(initial?.text ?? '');
   const [prepared, setPrepared] = useState(initial?.prepared ?? false);
+
+  // Recomputed from the LIVE rank field, so editing the rank moves the budget with it.
+  const room = kind === 'spell' && preparedRoomFor ? preparedRoomFor(rank) : null;
 
   const trimmed = name.trim();
   const canSave = trimmed.length > 0;
@@ -112,9 +121,25 @@ export default function PF2ElementEditor({
               <span style={lbl}>Rank (0 = cantrip)</span>
               <input type="number" min={0} max={10} value={rank} onChange={(e) => setRank(Math.max(0, Math.min(10, Number(e.target.value) || 0)))} style={field} />
             </label>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: 'var(--hx-text)' }}>
-              <input type="checkbox" checked={prepared} onChange={(e) => setPrepared(e.target.checked)} />
+            {/* PREPARED-SLOT CAP (S7c). Gates turning `prepared` ON only — un-preparing is always allowed,
+                so a caster already over their slots can always get back under them and never loses a spell
+                (Q5: grandfather and mark, never delete). The budget is shown BESIDE the control whether or
+                not there is room, because a limit that only appears at the moment of refusal reads as a
+                bug; stated in advance it reads as a rule (S7b). */}
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: room && !room.hasRoom && !prepared ? 'var(--hx-muted)' : 'var(--hx-text)' }}
+              title={room && !room.hasRoom && !prepared ? room.reason ?? undefined : undefined}>
+              <input
+                type="checkbox"
+                checked={prepared}
+                disabled={!!room && !room.hasRoom && !prepared}
+                onChange={(e) => setPrepared(e.target.checked)}
+              />
               Prepared today
+              {room?.slots != null && (
+                <span style={{ color: room.prepared > room.slots ? 'var(--hx-danger-2)' : 'var(--hx-muted)' }}>
+                  ({room.prepared + (prepared ? 1 : 0)}/{room.slots})
+                </span>
+              )}
             </label>
           </div>
         ) : (

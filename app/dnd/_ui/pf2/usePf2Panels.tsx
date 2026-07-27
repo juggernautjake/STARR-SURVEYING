@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from '../PF2ContentPicker';
 import PF2ElementEditor, { type PF2EditableElement } from '../PF2ElementEditor';
+import { pf2PreparedRoom } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
 import PF2WeaponEditor, { type PF2EditableWeapon } from '../PF2WeaponEditor';
 import PF2ArmorEditor from '../PF2ArmorEditor';
 import styles from '../hextech.module.css';
@@ -456,6 +457,17 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           kind={editor.kind} initial={editor.initial}
           onClose={() => setEditor(null)}
           onSave={(edit) => { setEditor(null); void postEdit(edit); }}
+          // S7c enforcement. The rule lives in `spell-counts.ts` so this control and the slot pills above
+          // cannot disagree about the same number — two copies of "how many slots?" is precisely the shape
+          // that let the `slotTableModelled` bug exist. `editor.initial?.name` is passed so re-saving a
+          // spell that is ALREADY prepared is never refused by its own presence in the count.
+          preparedRoomFor={(rank) => pf2PreparedRoom({
+            kind: pf2.spellcasting.kind,
+            slots: pf2.spellcasting.slots,
+            spells: pf2.spellcasting.spells,
+            rank,
+            editingName: editor.initial?.name,
+          })}
         />
       )}
     </>

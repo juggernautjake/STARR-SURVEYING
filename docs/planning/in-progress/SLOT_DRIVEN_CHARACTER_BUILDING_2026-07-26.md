@@ -317,7 +317,38 @@ slices are driven in the browser before being called done — this repo's standi
       and saying the same thing for both would send them hunting for a prerequisite that is not the problem.
       The picker shows a running `Cantrips 2/2 · Spells known 4/4` budget, because a cap discovered only by
       being refused reads as a bug while the same number shown up front reads as a rule.
-- [ ] **S7c — PF2 spell counts.** Still uncapped, and unlike 5e the count does not exist to enforce:
+- [x] **S7c — PF2 spell counts. ✅ THE LAST PIECE SHIPPED 2026-07-27 (`pf2-prepared-cap.test.ts`, 15 tests).**
+
+      **The decision** (owner: *"make a good decision for 6 — I trust your judgement"*): **enforce the
+      prepared cap**, because 5e already does. `SpellsPanel.tsx` refuses a prepare past the cap
+      (`if (held >= preparedCap) return c`) and disables the control with *"No room: your class prepares N
+      spells at this level — un-prepare one first."* PF2 publishing `Rank 1: 2/3` and then silently
+      accepting a 4th would mean the two systems disagree about whether a stated budget means anything —
+      worse than either answer taken on its own.
+
+      **Why this does not breach S15's "only ACQUISITION is gated" boundary**, which is the thing that made
+      it a decision rather than a task: **preparing acquires nothing.** Nothing joins or leaves the
+      character. It is an assignment of spells they already hold into slots the sheet itself publishes. The
+      row in `DND_OWNER_DECISIONS` framed this as cutting *against* the boundary; on inspection it sits
+      inside it. And the ordering was already right — the budget shipped first (`bfd60b94`) so the cap is
+      stated before it bites, which is S7b's finding exactly: *a cap discovered by being refused reads as a
+      bug; the same number stated in advance reads as a rule.*
+
+      **The rule lives in `spell-counts.ts` (`pf2PreparedRoom`), not in the control** — the slot pills and
+      the checkbox now read the same function, so they cannot disagree about the same number. Two copies of
+      *"how many slots?"* is precisely the shape that let the `slotTableModelled` bug exist below.
+
+      Four exemptions, each mirroring the pill display: **spontaneous** casters (a repertoire is not a
+      per-day assignment), **cantrips** (not slot-cast; capped at pick time by `39137dbb`), **focus spells**
+      (cast from the focus pool), and **any rank with no modelled slots** — `> 0`, not `>= 0`, because a
+      zero is ambiguous between "not available at this level" and "this class's table is unmodelled", and
+      refusing on either reading would cap a reduced caster. Over-count is **grandfathered**: the gate only
+      ever blocks turning `prepared` ON, so a caster past their slots can always get back under them and
+      never loses a spell (Q5). Re-saving an already-prepared spell passes `editingName`, so the cap can
+      never refuse a spell for occupying the slot it already occupies.
+
+      *Original item and its reasoning, kept intact:*
+      Still uncapped, and unlike 5e the count does not exist to enforce:
       `pf2SpellSlots` is a single derived full-caster table keyed on level alone, not per class and not per
       tradition, and the class-feature extras (Wizard school slot, Cleric font) are documented as "tracked
       separately" i.e. unmodelled. So this needs the published per-class tables in hand first — Ground Rule
