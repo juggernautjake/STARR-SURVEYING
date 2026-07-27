@@ -69,7 +69,54 @@ function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abili
 
 /** A feat offered by the picker, plus the reason it is not legal yet — present ONLY when the rules refuse
  *  it. Kept on the option rather than in a parallel set so the label and the decision cannot drift. */
-type FeatChoice = Feat & { blockedReason?: string };
+export type FeatChoice = Feat & { blockedReason?: string };
+
+/** The ASI slot's feat picker, split out of the walker's JSX so its states are reachable in a test.
+ *
+ *  It was an inline IIFE bound to the component's `draft`, which meant S6f's whole point — that an
+ *  ineligible feat is SHOWN, explained, and still SELECTABLE — could only be checked by grepping the file.
+ *  A grep cannot distinguish "rendered with its reason and selectable" from "rendered with its reason and
+ *  `disabled`", and the second is exactly the plausible-looking non-fix that would leave the escape hatch
+ *  as unreachable as the filter S6f removed. Pure: choices in, markup out, one callback. */
+export function AsiFeatPicker({ choices, featKey, onPick }: {
+  choices: FeatChoice[];
+  featKey?: string;
+  onPick: (featKey: string | undefined) => void;
+}) {
+  const known = new Set(choices.map((f) => f.key));
+  // A feat is "custom" when it's set but not one of the rules-legal choices — the explicit escape hatch,
+  // which reveals a free-text name field.
+  const isCustom = (!!featKey && !known.has(featKey)) || featKey === '__custom__';
+  return (
+    <>
+      <select
+        value={featKey && known.has(featKey) ? featKey : (isCustom ? '__custom__' : '')}
+        onChange={(e) => onPick(e.target.value === '' ? undefined : e.target.value)}
+        style={{ flex: '1 1 220px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
+      >
+        <option value="">— choose a feat —</option>
+        {/* An ineligible feat is marked and explained, not hidden — and stays selectable, because the
+            server's refusal is what raises "+ Take it anyway". A `disabled` option would grey it correctly
+            and still leave the hatch unreachable. */}
+        {choices.map((f) => (
+          <option key={f.key} value={f.key}>
+            {f.blockedReason ? `⊘ ${f.name} — ${f.blockedReason}` : `${f.name}${prereqHint(f)}`}
+          </option>
+        ))}
+        {choices.length === 0 && <option value="" disabled>no official feats for this system — use custom</option>}
+        <option value="__custom__">✎ Custom feat…</option>
+      </select>
+      {isCustom && (
+        <input
+          placeholder="custom feat name"
+          value={featKey === '__custom__' ? '' : (featKey ?? '')}
+          onChange={(e) => onPick(e.target.value || '__custom__')}
+          style={{ flex: '1 1 180px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
+        />
+      )}
+    </>
+  );
+}
 
 /** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
 function prereqHint(feat: Feat): string {
@@ -404,42 +451,11 @@ export default function LevelBuilder({
                   </button>
                 )}
                 <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
-                {(() => {
-                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities, hasSpellcasting);
-                  const known = new Set(choices.map((f) => f.key));
-                  // A feat is "custom" when it's set but not one of the rules-legal choices — the
-                  // explicit escape hatch, which reveals a free-text name field.
-                  const isCustom = !!draft?.featKey && !known.has(draft.featKey) || draft?.featKey === '__custom__';
-                  return (
-                    <>
-                      <select
-                        value={draft?.featKey && known.has(draft.featKey) ? draft.featKey : (isCustom ? '__custom__' : '')}
-                        onChange={(e) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey: e.target.value === '' ? undefined : e.target.value === '__custom__' ? '__custom__' : e.target.value }))}
-                        style={{ flex: '1 1 220px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
-                      >
-                        <option value="">— choose a feat —</option>
-                        {/* An ineligible feat is marked and explained, not hidden — and stays selectable,
-                            because the server's refusal is what raises "+ Take it anyway". A `disabled`
-                            option would grey it correctly and still leave the hatch unreachable. */}
-                        {choices.map((f) => (
-                          <option key={f.key} value={f.key}>
-                            {f.blockedReason ? `⊘ ${f.name} — ${f.blockedReason}` : `${f.name}${prereqHint(f)}`}
-                          </option>
-                        ))}
-                        {choices.length === 0 && <option value="" disabled>no official feats for this system — use custom</option>}
-                        <option value="__custom__">✎ Custom feat…</option>
-                      </select>
-                      {isCustom && (
-                        <input
-                          placeholder="custom feat name"
-                          value={draft?.featKey === '__custom__' ? '' : (draft?.featKey ?? '')}
-                          onChange={(e) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey: e.target.value || '__custom__' }))}
-                          style={{ flex: '1 1 180px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
-                        />
-                      )}
-                    </>
-                  );
-                })()}
+                <AsiFeatPicker
+                  choices={asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities, hasSpellcasting)}
+                  featKey={draft?.featKey}
+                  onPick={(featKey) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey }))}
+                />
               </div>
             </div>
           )}
