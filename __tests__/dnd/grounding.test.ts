@@ -99,7 +99,10 @@ describe('systemGroundingBlock', () => {
 describe('homebrew in the grounding block (Area H2/H4)', () => {
   it('surfaces the system’s approved homebrew with the DM-permission caveat', async () => {
     const g = await systemGroundingBlock('dnd5e-2024', 'Pugilist');
-    expect(g.block).toMatch(/Pugilist \(Class, by Jacob\)/);
+    // Co-credited to Andrew & Jacob by the owner 2026-07-27. The attribution is asserted here, not just in
+    // `homebrew-library.test.ts`, because grounding is what the AI reads aloud — if the credit drifts, the
+    // AI is the surface that repeats it to a player.
+    expect(g.block).toMatch(/Pugilist \(Class, by Andrew & Jacob\)/);
     expect(g.block).toMatch(/only if the DM has allowed it/);
   });
   it('does not leak a system’s homebrew into another system’s grounding', async () => {

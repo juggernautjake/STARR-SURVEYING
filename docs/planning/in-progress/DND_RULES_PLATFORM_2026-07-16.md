@@ -15,9 +15,23 @@
 > has no resources field, so it is blocked on the foreign-statblock authoring UI rather than on effort. One
 > was **handed to `DND_FINAL_QA_WALKTHROUGH`**, where interactive drag/rotate confirmation belongs.
 >
-> **What keeps this doc open is line 945 and nothing else:** whether Rangor/Pugilist become a real custom
-> class + subclass through the Slice-5 builder. Nobody but Jack can answer it. Answer it and this doc moves
-> to `completed/`.
+> ~~**What keeps this doc open is line 945 and nothing else:**~~ **THAT CLAIM WAS WRONG, corrected
+> 2026-07-27.** The Rangor/Pugilist question *was* answered by the owner that day and is shipped (see the
+> item, now `[x]`) — and the doc still does not move, because "line 945 and nothing else" was never true.
+>
+> The claim was built on a **count of `- [ ]` boxes**, which is zero. But this doc records open work in four
+> other notations, and all four still have entries: **Slice 5** carries *"class + subclass still owed"* for
+> the manual field-by-field edit form; **Slice 8b** is `⏳ IN PROGRESS`; **Slice 18** is `⏳ PARTIAL`; and
+> **five `[~]` partials** remain in the body despite the paragraph above declaring "every partial resolved".
+> A checkbox count is not a completion measure when the doc marks completion five different ways — and this
+> header has now been wrong about its own open item three times (twice about *where* it was, per the
+> slice-73 note below, and once about whether it was the only one).
+>
+> **What would actually move this doc:** finish Slice 5's manual class/subclass edit form, resolve Slice
+> 8b and Slice 18, and clear the five `[~]`s — each checked against live code rather than against this
+> header. The Pugilist's own residue is *not* on that list: it is blocked on the shared PDF (Ground Rule 3)
+> and pinned by `homebrew-library.test.ts`, which belongs with the other data blocks in
+> `DND_OWNER_DECISIONS` §3.
 >
 > *(Pointer corrected 2026-07-27, slice 73: this header cited the item at **two different** line numbers,
 > `~929` and `~745`, in two paragraphs that said the same thing. It is at 945. A stale pointer in the one
@@ -944,8 +958,37 @@ now audited and guarded:
       for the labels. The levels route computes it server-side (no client-bundle hit) and the Progression
       component fetches `/levels` and prefers that class-DATA table over the hand-authored array — falling
       back to the stored array for a custom/ambiguous character. 7 tests total.
-- [ ] Jack: decide whether Rangor/Pugilist become a real custom class + subclass through the Slice-5
-      builder (they are currently hand-authored sheet data with `system: ambiguous`).
+- [x] **ANSWERED + PARTLY SHIPPED 2026-07-27.** Owner: *"The Pugilist will be custom class that is
+      attributed to **Andrew and Jacob** and is built in as a public class that people can find and use…
+      The rangor will be shown in the custom races for **all systems**, and the pugilist will be shown in
+      the custom classes for **5e 2024**."*
+
+      **The premise of this item was already out of date.** It says they are "hand-authored sheet data with
+      `system: ambiguous`" — but the shareable catalog (Area H2, `lib/dnd/homebrew/`) had since seeded both
+      as approved, browsable `HomebrewContent`, projected into each system's library, into AI grounding and
+      into library search. So "become a real custom class" was no longer the question; scope and credit
+      were.
+
+      **Shipped:** Rangor `system: 'dnd5e-2024'` → `'any'` (the model has carried a system-agnostic scope
+      since H1, so this is a scope correction, not new capability), and the Pugilist co-credited to
+      **Andrew & Jacob**. Verified in a browser on the live PF2 library page: the *Custom / Homebrew ·
+      Extras* section renders Rangor with its full rules text, and the 2024-only Pugilist does **not** leak
+      into it.
+
+      **Deliberately NOT done, and it is a data block rather than a deferral:** neither seed carries a
+      mechanical `payload`, so neither is *adoptable* onto a character — `homebrewToClassDefinition`
+      requires a structurally-valid 20-level `ClassDefinition` and refuses anything less rather than
+      storing a class the level builder cannot level. The repo holds real Pugilist rules only through
+      **level 3** (`jack.ts`, plus the Fisticuffs die's 1d8 → 1d10 @5 → 1d12 @11 → 2d6 @17 and Extra
+      Attack); the authoritative source is the shared PDF named in
+      `completed/DND_JACK_RANGOR_PUGILIST_2026-07-15.md`, which is not in the repo. Writing levels 4–20
+      from the shape of the first three would be inventing a class — the one thing Ground Rule 3 forbids,
+      and the same reason the Magus/Summoner tables are blocked. `homebrew-library.test.ts` pins the
+      boundary **in both directions**: it fails if a payload appears without a source, and it is the first
+      thing to delete when the PDF lands.
+
+      *So the class is findable and readable everywhere the owner asked for now, and becomes usable the
+      moment the table exists — with nothing invented in between.*
 
 ## Slice 8b — Library buildout for the four focus systems ⏳ IN PROGRESS 2026-07-16/17
 
