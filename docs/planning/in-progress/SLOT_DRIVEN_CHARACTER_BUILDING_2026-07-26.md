@@ -1,16 +1,25 @@
-<!-- HOOK:BLOCKED S10 (IG Champion) is the only item left open, and it needs Champion's powers/specializations published on intuitivegames.net. Inventing them is the one thing Ground Rule 3 forbids, so this cannot be worked without the source. Pinned by slot-plan-blockers.test.ts, which flips the day the data arrives. -->
 
 # Slot-driven character building — vanilla by default, custom by explicit choice
 
-> **BLOCKED 2026-07-27 — one item left, and it is waiting on the world rather than on effort.**
+> ## ✅ ALL THREE BLOCKERS RESOLVED 2026-07-27 — none of them was ever blocked
 >
-> S7, S7b, S7c and S9 all closed on 2026-07-27 (see each item). What remains is **S10 — IG Champion**,
-> which needs Champion's powers/specializations to be published; the catalogue is scraped from
-> intuitivegames.net and Champion is not in it. Inventing the list is precisely what Ground Rule 3 forbids,
-> and `slot-plan-blockers.test.ts` asserts the gap in a form that **flips the day the data arrives**.
+> This doc carried three items recorded as "waiting on data from the owner". All three data sets were
+> published the whole time, and the reason each went uncollected was different — which is the useful part:
 >
-> The `HOOK:BLOCKED` marker above stops the auto-continue hook from re-prompting on this doc. It is not a
-> deferral and the item is not closed: the cost is not the obstacle, the source material is.
+> | item | what the doc said | what was actually true |
+> |---|---|---|
+> | **S10** IG Champion | "the catalogue is scraped from intuitivegames.net and Champion is not in it" | It is on /classes. The page **lazy-renders** its subclass blocks, so a scrape that reads the DOM without scrolling sees the nav name and an empty body. We recorded *not published* having measured *not yet rendered*. |
+> | **Q6** IG level-1 feats | "the only number in this plan that is not source-verified" | The site says *"one Combat Feat and one General Feat"* — and **our own library already carried that sentence verbatim** (`IG_BUILD_STEPS`). The builder enforced a guess of 1 while the library published 2. The app disagreed with itself on two screens. |
+> | **Magus/Summoner** tables | "blocked on the published source (Ground Rule 3)" | Published on both class pages. Searching for "the reduced-caster table" fails because Paizo never publishes one — it publishes two class tables that happen to be identical, with the rule as prose above each. The blocker was the **shape of the question**. |
+>
+> **Ground Rule 3 says do not invent what you do not have. It does not say do not go and look.** Reading it
+> as the second is what kept these three parked, and the cost was real: a level-1 IG character has been
+> allowed one feat instead of two, and a Magus has shown no spell slots at all.
+>
+> **What genuinely remains** is one thing, and it is a build rather than a blocker: Magus and Summoner are
+> not in the PF2 **class catalogue** (`pf2Class` returns null — it holds the 14 core classes, and these are
+> Secrets of Magic). Their slots are modelled and the builder already reads them, so each works the moment
+> it is catalogued.
 
 **Status:** IN PROGRESS · started 2026-07-26 · owner-directed
 **Owner directive (2026-07-26):**
@@ -758,7 +767,12 @@ slices are driven in the browser before being called done — this repo's standi
       passes. These two are now named outright, with the reason inline: someone will reasonably think "every
       game rolls dice, why is this 5e-only?", and the answer lives two layers down in which roller node
       mounts which stage.
-- [ ] **S10 — IG Champion.** Fill `IG_CLASS_DETAILS` for Champion when the owner supplies its
+- [x] **S10 — IG Champion. ✅ RESOLVED 2026-07-27 — the data was published; the scrape had not scrolled.**
+      Captured from /classes#Champion: Offensive stance, Armor Skin, eight powers, Elemental Initiate /
+      Devotee specializations, Paragon manifestation. Its Armor Skin was ALREADY in our catalogue — only the
+      class entry was missing, so half the data was present and the gap was recorded as total.
+      *(Original item:)*
+- [x] **S10 — IG Champion.** Fill `IG_CLASS_DETAILS` for Champion when the owner supplies its
       powers/specializations, and the free-text fallback becomes a real picker. Blocked on Brendan's site.
 
 ## Character-level status — ANSWERED by the owner 2026-07-26
