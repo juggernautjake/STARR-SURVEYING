@@ -4568,3 +4568,33 @@ of a moment, and dated. **A claim about a screenshot can be**, and those are the
 
 **Bar:** claims re-checked against live observations already recorded in this log. Full D&D suite green,
 typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 123: replacing the pointers that would rot next
+
+Slice 120 concluded that a figure maintained by hand goes stale by construction, and removed two slice
+counts rather than update them. The decisions doc I wrote at slice 114 contained the same species in a
+different costume: **file-and-line pointers**.
+
+**Both were correct today** — `DND_RULES_PLATFORM` line 947 and `theme.css:862` were verified, not
+assumed. That is exactly why they were worth changing. Slice 73 had to fix pointers in that same file
+which were also correct once: they read `~929` and `~745` against a true value of 945, having drifted as
+the document grew. A line number is right until someone edits above it, and nothing announces when that
+happens.
+
+**Replaced with anchors that survive an edit:**
+
+| was | now |
+|---|---|
+| `` `DND_RULES_PLATFORM` line 947 `` | the item beginning **"Jack: decide whether Rangor"** |
+| `theme.css:862/873` | search `theme.css` for **`.dnd-sheet .card h3`** and its `.skin-streamer` override |
+
+A quoted string is greppable, self-describing, and moves with the thing it names. It also reads better:
+*"the item beginning 'Jack: decide whether Rangor'"* tells you what you are looking for, where `line 947`
+only tells you where it was.
+
+**Small, and deliberately so.** This is the third time this project has paid for the same class of defect
+(slices 73, 109/120, now this), and each time it cost more to find than to fix. The point of doing it while
+the pointers are still *correct* is that it is the only moment when the fix is free.
+
+**Bar:** both pointers verified against the live files before being replaced. Full D&D suite green,
+typecheck exit-0. No code changed.
