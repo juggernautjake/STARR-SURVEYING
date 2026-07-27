@@ -3794,3 +3794,34 @@ about documentation as a control: it works when read, and nothing makes it get r
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — the finding is that the cost estimate in
 the two previous slices was wrong, in the direction that was discouraging the fix.
+
+### 2026-07-27 — slice 101: 2.5 seconds of HP 1/1 on a slow connection
+
+Slice 100 established the fix is cheap and left the decision with the owner. A decision needs severity as
+well as cost, and every number so far came from **localhost**, which is the most flattering network that
+exists. Measured against the production build with CDP throttling:
+
+| network | shown during the window | correct at |
+|---|---|---|
+| localhost, no throttling | HP **1/1**, LEVEL **1**, STR **10** | 681ms |
+| fast 3G — 150ms RTT | same | 885ms |
+| **slow 3G — 400ms RTT** | same | **2,522ms** |
+
+**Two and a half seconds of a level-1 character with one hit point**, on the connection a phone at a table
+in a basement actually has — which is the exact context the last twenty slices of mobile QA were about.
+
+**And that is a floor, not a ceiling.** The server was on `localhost` for all three runs; only the client
+link was throttled. A real deployment adds server round-trip on top of every one of these figures.
+
+**What this settles.** The question was never whether a flash is ugly — it is whether a player can *read*
+it. At 681ms that is marginal. At 2.5 seconds it is not: that is long enough to look at a sheet, register
+"1 HP", and act on it. This doc already recorded the persistent version of this exact misreading as a real
+bug worth fixing (slices 10–12, *"a level-8 Fighter rendering with 1 HP"*). The transient version shows the
+same wrong number, to every character, on every load.
+
+**The decision is now fully specified** — cost: expose `dbPhase` (3 lines, template at `offline`,
+hydration-safe, slice 100) plus one render change; severity: up to 2.5s of wrong vitals on mobile; and the
+only open part is what a loading sheet should look like. That is the whole of it, and it is one call.
+
+**Bar:** production build, three throttled runs via `Network.emulateNetworkConditions`. `.next` removed.
+No live data written; port 3551 confirmed bindable. No code changed.
