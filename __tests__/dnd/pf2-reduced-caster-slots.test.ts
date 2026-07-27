@@ -17,6 +17,9 @@ import { describe, it, expect } from 'vitest';
 import { buildPF2Character } from '@/lib/dnd/systems/pathfinder2e/builder';
 import { pf2MaxSpellRank } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 import { PF2_CLASS_PROGRESSIONS } from '@/lib/dnd/systems/pathfinder2e/data/classes';
+import { pf2SlotTableModelled, pf2SpellCountsFor } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** The classes the data deliberately leaves unmodelled — read from the source, not restated. */
 const UNMODELLED = PF2_CLASS_PROGRESSIONS
@@ -74,10 +77,54 @@ describe('FULL casters are untouched — the risk this fix had to avoid', () => 
 describe('the suppression is explicit, never inferred', () => {
   it('only a literal `false` suppresses — an unknown class keeps the previous behaviour', () => {
     // A class with no progression entry must not be silently emptied; absence of data is not a claim that
-    // the table is unmodelled. Asserted through a real full caster that HAS an entry, plus the predicate's
-    // shape: `=== false`, not `!truthy`.
-    const src = require('node:fs').readFileSync(
-      require('node:path').join(process.cwd(), 'lib/dnd/systems/pathfinder2e/builder.ts'), 'utf8');
-    expect(src).toContain('slotTableModelled === false');
+    // the table is unmodelled. The predicate's shape carries that: `!== false`, not `!truthy`.
+    expect(pf2SlotTableModelled('Wizard')).toBe(true);
+    expect(pf2SlotTableModelled('Magus')).toBe(false);
+    // A class the progressions do not cover at all keeps the previous behaviour rather than being emptied.
+    expect(pf2SlotTableModelled('Not A Real Class')).toBe(true);
+    expect(pf2SlotTableModelled(undefined)).toBe(true);
+  });
+
+  it('the count source reports NOT MODELLED rather than a number it does not have', () => {
+    // `pf2SpellCountsFor` is S7c's missing piece. For a reduced caster it must say so — the whole failure
+    // being fixed is a caller substituting the full table when the real one is absent.
+    const magus = pf2SpellCountsFor('Magus', 9);
+    expect(magus.modelled).toBe(false);
+    expect(magus.slotsByRank).toEqual([]);
+    expect(magus.cantrips).toBe(0);
+    expect(magus.topRank).toBe(0);
+    // …while still reporting what IS known, so a caller can say "prepared caster, counts unmodelled".
+    expect(magus.kind).toBe('prepared');
+  });
+
+  it('and reports real counts for a full caster, which is what S7c said did not exist', () => {
+    // PF2's full casters share one table by design, so this IS the per-class count for them.
+    const wiz = pf2SpellCountsFor('Wizard', 9);
+    expect(wiz.modelled).toBe(true);
+    expect(wiz.cantrips).toBe(5);
+    expect(wiz.topRank).toBe(5);
+    expect(wiz.slotsByRank[5]).toBeGreaterThan(0);
+    expect(wiz.slotsByRank[6]).toBe(0);
+  });
+
+  it('reports the CASTING KIND, because that is where a cap belongs', () => {
+    // 5e's S7b lesson, carried over: a prepared caster's sheet list is not their prepared count, so
+    // enforcement must aim differently for the two. The source reports the distinction and caps nothing.
+    expect(pf2SpellCountsFor('Wizard', 5).kind).toBe('prepared');
+    expect(pf2SpellCountsFor('Sorcerer', 5).kind).toBe('spontaneous');
+  });
+
+  it('a non-caster gets a clean zero, not a crash', () => {
+    const f = pf2SpellCountsFor('Fighter', 9);
+    expect(f).toMatchObject({ modelled: false, kind: null, cantrips: 0, topRank: 0 });
+  });
+
+  it('the decision lives in ONE place, so the builder cannot drift from a future cap', () => {
+    // It began as a private helper inside `builder.ts`. Any enforcement added later must ask the same
+    // question, and two copies of "is this table modelled?" is how the original bug existed at all —
+    // `pf2MaxSpellRank` honoured the flag while the builder ignored it.
+    const builder = readFileSync(join(process.cwd(), 'lib/dnd/systems/pathfinder2e/builder.ts'), 'utf8');
+    expect(builder).toContain("from './spell-counts'");
+    expect(builder).not.toContain('slotTableModelled === false');
   });
 });

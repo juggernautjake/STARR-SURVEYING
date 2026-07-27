@@ -16,22 +16,10 @@ import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
-import { PF2_CLASS_PROGRESSIONS } from './data/classes';
-
-/** True when the class's slot table is DELIBERATELY not modelled — the reduced casters (Magus, Summoner).
- *
- *  `data/classes.ts` sets `slotTableModelled: false` on them and says why in its own header: *"reduced
- *  casters carry `slotTableModelled: false` rather than a plausible table"*. `pf2MaxSpellRank` honours it,
- *  returning a spell-rank ceiling of 0 for them. The builder did not — it handed every class with a
- *  spellcasting block the FULL-caster table — so a built Magus contradicted itself on its own sheet: slot
- *  pills reading "Rank 3: 3" beside a maximum castable rank of 0.
- *
- *  Deliberately conservative: only an EXPLICIT `false` suppresses. A class with no progression entry keeps
- *  the previous behaviour, so this cannot quietly empty a full caster's slots. */
-function pf2SlotTableSuppressed(className: string | undefined): boolean {
-  const prog = PF2_CLASS_PROGRESSIONS.find((p) => p.className.toLowerCase() === (className ?? '').trim().toLowerCase());
-  return prog?.spellcasting?.slotTableModelled === false;
-}
+// Whether a class's slot table is really modelled is decided in ONE place — `spell-counts.ts` — so the
+// builder and any future cap cannot disagree about which casters have countable slots. That module carries
+// the reasoning; this file just honours the answer.
+import { pf2SlotTableModelled } from './spell-counts';
 import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
@@ -274,7 +262,7 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
           // projection whose `spellcasting` has no such flag, so reading it there is `undefined` for every
           // class — which would have emptied the slots of every full caster too. The flag lives on
           // `PF2_CLASS_PROGRESSIONS`; absent an entry, the previous behaviour stands.
-          slots: pf2SlotTableSuppressed(picks.className) ? [] : pf2SpellSlots(level),
+          slots: pf2SlotTableModelled(picks.className) ? pf2SpellSlots(level) : [],
           // Chosen spells resolved against the catalog for their real rank. A prepared caster's
           // build-time picks start prepared — they are what the character is carrying today.
           ...(picks.spells?.length
