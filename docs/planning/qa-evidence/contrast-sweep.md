@@ -484,3 +484,35 @@ from `-rn` as its replacement string, so every match printed as `n`.
 Earlier uses of `-rn` in this session were checked: all but one passed `-l` (file names only, unaffected).
 The exception is slice 77's `choice: 'epic-boon'` scan, whose *content* was mangled — but its conclusion
 rested on the file LIST, and was independently re-verified with `rg -c` against `dnd5e-2014/`, so it holds.
+
+### The touch-target sweep, and why WCAG 2.5.8 alone is not the whole check (slices 86–90)
+
+Recorded beside the contrast method because it is the same kind of thing: a measurement that is only
+trustworthy once its own blind spots are written down.
+
+**The criterion.** WCAG 2.5.8 (AA) requires interactive targets to be 24×24 CSS px, **with an exception**
+for a target that has 24px of clear space to its nearest neighbour. Applying the size test alone
+overcounts; applying it with the exception is correct, and both halves matter in opposite directions:
+
+| slice | what the exception did |
+|---|---|
+| 86 | 13 `?` badges at 16×12 measured 33–35px clear → **conformant**. Reporting them as failures would have been a false alarm. |
+| 89 | 5 step buttons at 46×**5** measured ~46px clear → **conformant**, and completely unusable. |
+
+**So the exception can hide a defect as easily as it can prevent a false alarm**, and the sweep needs a
+second, independent floor: **the smaller dimension, regardless of spacing.** No amount of clearance makes a
+5px strip tappable. A threshold of 10px catches that class without flagging the well-spaced small controls
+that are genuinely fine.
+
+**Both checks, run together, across every swept surface (360px):**
+
+| surface | WCAG failures | under the 10px thin floor |
+|---|---|---|
+| 5e sheet (default / expanded) | 0 | 0 |
+| PF2 sheet | 0 *(4 fixed, slice 87)* | 0 |
+| IG sheet (default / expanded) | 0 *(2 fixed, slice 87)* | 0 |
+| 5e / PF2 / IG builders | 0 | 0 *(5 each fixed, slice 89)* |
+
+**8. The pass/fail count is not the finding.** Slice 89's 5px navigation strip was found by *reading the
+list of undersized targets*, not by the violation count — which was zero on that page, correctly, by the
+criterion. A sweep that only reports its verdict throws away the observation that mattered.

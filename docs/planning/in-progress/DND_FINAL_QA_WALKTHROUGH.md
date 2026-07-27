@@ -3366,3 +3366,38 @@ not because they are built differently.
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser against shipped
 code, in all three builders. No live data written. Dev server stopped, port 3507 confirmed bindable.
+
+### 2026-07-27 — slice 90: fixing the checker, not just the page
+
+Slice 89 found a 5px-tall navigation control **on a page my checker had scored 0 violations**, and scored
+correctly — the control passes WCAG 2.5.8 through the spacing exception. The defect was in the metric, and
+a metric that misses a five-pixel button will miss the next one too.
+
+**The second floor:** the smaller dimension, independent of spacing. No clearance makes a 5px strip
+tappable. 10px catches that class without flagging the well-spaced small controls that are genuinely fine —
+which matters, because slice 86 established those exist and are conformant.
+
+Both checks together, every swept surface at 360px:
+
+| surface | WCAG 2.5.8 failures | under the 10px thin floor |
+|---|---|---|
+| 5e sheet — default / expanded | 0 | 0 |
+| IG sheet — default / expanded | 0 | 0 |
+| IG builder | 0 | 0 |
+
+**The builder result is the useful one:** it re-derives slice 89's fix from the other side. That page had
+**5** too-thin targets before; it now has 0, with the step bars measuring hit-area 25px, painted bar 5px,
+`background-clip: content-box`, and the row still 5px tall. Confirmation from an independent check rather
+than from re-reading the fix.
+
+**The lesson worth keeping is about reporting, not about pixels.** Slice 89's finding came from *reading
+the list of undersized targets*, not from the violation count — which was zero, and right. **A sweep that
+reports only its verdict discards the observation that mattered.** Both the contrast arc and this one have
+now produced a defect that the headline number said was not there.
+
+Recorded as limitation 8 in `qa-evidence/contrast-sweep.md`, alongside the closed-`<details>` phantom and
+the `scrollWidth` trap, so the next sweep inherits the method rather than the conclusion — which is exactly
+what slice 85 found had failed to happen with the `.fld` note.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — the checker improved and every surface
+came back clean under it. No live data written. Dev server stopped, port 3511 confirmed bindable.
