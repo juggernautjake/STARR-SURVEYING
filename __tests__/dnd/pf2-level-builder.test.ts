@@ -6,6 +6,7 @@ import { join } from 'node:path';
 
 const UI = readFileSync(join(process.cwd(), 'app/dnd/_ui/PF2LevelBuilder.tsx'), 'utf8');
 const PAGE = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/levels/page.tsx'), 'utf8');
+const OPTIONS = readFileSync(join(process.cwd(), 'lib/dnd/slots/walker-options.ts'), 'utf8');
 
 describe('PF2LevelBuilder (B10)', () => {
   it('fetches the plan and records/commits through the /pf2-levels route', () => {
@@ -20,9 +21,16 @@ describe('PF2LevelBuilder (B10)', () => {
     expect(UI).toContain('plan?.outstanding?.[0]');
   });
 
-  it('offers subclass options from the class, feats filtered by track+level, and 4 boosts', () => {
+  it('offers subclass options from the class, feats scoped to the slot, and 4 boosts', () => {
     expect(UI).toContain('pf2Class(className)?.subclassOptions');
-    expect(UI).toMatch(/f\.track === choice\.track && f\.level <= choice\.level/);
+    // S6g CHANGED WHAT THIS ASSERTS, on purpose. It used to pin the literal filter
+    // `f.track === choice.track && f.level <= choice.level` — which is how the defect survived: the
+    // suite pinned the implementation as if it were the rule, so the filter that made the escape hatch
+    // unreachable was actively protected by a green test. (S6f hit the identical trap on the 5e walker.)
+    // The RULE is that the slot's track/class scope the offer and the LEVEL is shown rather than
+    // enforced; `walker-options.test.ts` proves that behaviourally against the real catalog and gate.
+    expect(UI).toContain('pf2WalkerFeatOptions(choice.track, choice.level, className)');
+    expect(UI).not.toContain('f.level <= choice.level');
     expect(UI).toContain('picks.length !== 4'); // boosts require exactly 4
   });
 
@@ -32,7 +40,12 @@ describe('PF2LevelBuilder (B10)', () => {
 
   it('does not import the 5e feat list or class registry (PF2 reads its own data)', () => {
     expect(UI).not.toContain('feats/dnd5e-2024');
-    expect(UI).toContain("systems/pathfinder2e/data");
+    // The catalog read moved into `lib/dnd/slots/walker-options.ts` with S6g, so this asserts the
+    // PROPERTY that mattered — PF2's walker is fed PF2 data — one hop away, rather than pinning an
+    // import line that is no longer where the decision lives.
+    expect(UI).toContain('slots/walker-options');
+    expect(OPTIONS).toContain('systems/pathfinder2e/data');
+    expect(OPTIONS).not.toContain('feats/dnd5e-2024');
   });
 });
 

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { IG_FEATS } from '@/lib/dnd/systems/intuitive-games/content';
+import { igOtherSubclassOptions } from '@/lib/dnd/slots/walker-options';
 import { igMulticlassDedicationName, igMulticlassTargets } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { systemSkills } from '@/lib/dnd/system-rules';
 
@@ -148,7 +149,9 @@ function ChoicePrompt({ choice, subclass, count, busy, onRecord }: { choice: Out
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       {choice.kind === 'ability-boosts'
         ? <BoostsInput count={choice.count ?? 2} busy={busy} onPick={(attributes) => onRecord({ level: choice.level, kind: choice.kind, attributes })} />
-        : <PickOne options={optionsFor(choice, subclass)} placeholder={placeholderFor(choice.kind)} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: choice.kind, value })} kindLabel={choice.label} />}
+        : <PickOne options={optionsFor(choice, subclass)} others={otherSubclassOptions(choice)}
+            othersLabel={`⊘ Not on ${subclass || 'this subclass'}’s list — needs an exception`}
+            placeholder={placeholderFor(choice.kind)} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: choice.kind, value })} kindLabel={choice.label} />}
     </div>
   );
 }
@@ -166,6 +169,22 @@ function optionsFor(choice: Outstanding, subclass: string): string[] {
   if (choice.kind === 'trait') return TRAIT_BENEFITS;
   return [];
 }
+
+/** The OTHER subclasses' powers / specializations — offered, marked, and selectable, so the escape hatch
+ *  this file renders can actually be reached (S6g).
+ *
+ *  `/ig-levels` gates exactly two kinds — `subclass-power` and `specialization` — and `igPowerEligibility`
+ *  has exactly ONE refusal for them: *"X is not a <subclass> power"*. Yet `optionsFor` handed back the
+ *  plan's own scoped list, so the only pick the gate can refuse was the one pick the picker would not
+ *  offer. The refusal was unreachable and so was "+ Take it anyway" — S6c built that hatch for IG's
+ *  cross-subclass case specifically, and S6e proved the gate works by driving it. Nothing could get to it.
+ *
+ *  The decision lives in `lib/dnd/slots/walker-options.ts`, tested against the real catalog and the real
+ *  eligibility core — including the bound that keeps it a usable dropdown, and why the label describes the
+ *  CATALOG rather than judging the character. */
+function otherSubclassOptions(choice: Outstanding): string[] {
+  return igOtherSubclassOptions(choice.kind, choice.options ?? []);
+}
 function placeholderFor(kind: Kind): string {
   if (kind.startsWith('feat')) return '— choose a feat —';
   if (kind === 'skill-proficiency') return '— choose a skill —';
@@ -173,7 +192,7 @@ function placeholderFor(kind: Kind): string {
   return '— choose —';
 }
 
-function PickOne({ options, placeholder, busy, onPick, kindLabel }: { options: string[]; placeholder: string; busy: boolean; onPick: (v: string) => void; kindLabel?: string }) {
+function PickOne({ options, others = [], othersLabel, placeholder, busy, onPick, kindLabel }: { options: string[]; others?: string[]; othersLabel?: string; placeholder: string; busy: boolean; onPick: (v: string) => void; kindLabel?: string }) {
   const opts = useMemo(() => [...new Set(options)].sort(), [options]);
   const [value, setValue] = useState('');
   // A choice with NOTHING to choose from. It happens when a subclass in the taxonomy has no entry in
@@ -184,6 +203,12 @@ function PickOne({ options, placeholder, busy, onPick, kindLabel }: { options: s
   // The IG catalog was SCRAPED from intuitivegames.net, so the honest response is not to invent the
   // missing list: it is to say the list isn't here and let the player type what their table uses. A typed
   // value records exactly like a picked one — the walker only needs a non-empty value.
+  //
+  // The S6g widening deliberately does NOT rescue this branch, even though `others` is non-empty here.
+  // A Champion has no catalogued powers, so their own power is UNKNOWN — not an exception — and offering
+  // "every other subclass's powers, needs an exception" would push them to flag a legal pick as altered
+  // vanilla to get past a gap in our data. Free text stays the right answer for missing data; the
+  // widened group is for a rule the player is knowingly stepping outside of.
   if (!opts.length) {
     return (
       <div style={{ display: 'grid', gap: 6 }}>
@@ -205,6 +230,14 @@ function PickOne({ options, placeholder, busy, onPick, kindLabel }: { options: s
       <select value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} style={{ ...selStyle, minWidth: 220 }}>
         <option value="">{placeholder}</option>
         {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+        {/* One shared reason stated ONCE on the group rather than repeated on every row — every entry
+            here is out of scope for the same reason. Nothing is `disabled`: a disabled option would mark
+            it correctly and still leave "+ Take it anyway" unreachable, which was the entire defect. */}
+        {others.length > 0 && (
+          <optgroup label={othersLabel ?? '⊘ Other subclasses — needs an exception'}>
+            {others.map((o) => <option key={o} value={o}>{o}</option>)}
+          </optgroup>
+        )}
       </select>
       <button className={styles.hexBtn} disabled={busy || !value.trim()} onClick={() => onPick(value.trim())}>Record</button>
     </div>

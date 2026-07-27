@@ -13,8 +13,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
-import { PF2_ALL_FEATS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
+import { pf2WalkerFeatOptions } from '@/lib/dnd/slots/walker-options';
 
 interface Outstanding {
   level: number;
@@ -279,27 +279,70 @@ function SubclassInput({ className, busy, onPick }: { className: string; busy: b
 }
 
 function FeatInput({ choice, className, busy, onPick }: { choice: Outstanding; className: string; busy: boolean; onPick: (v: string) => void }) {
-  // Feats of this slot's track that a character of this level can take. Class feats are scoped to the class.
-  const options = useMemo(() => {
-    const list = PF2_ALL_FEATS.filter(
-      (f) => f.track === choice.track && f.level <= choice.level && (choice.track !== 'class' || !f.className || f.className.toLowerCase() === className.toLowerCase()),
-    );
-    return [...new Set(list.map((f) => f.name))].sort();
-  }, [choice.track, choice.level, className]);
+  // Feats of this slot's track. Two filters used to live here and they are NOT the same kind of thing —
+  // S6f made that distinction visible on the 5e walker and it applies identically here.
+  //
+  // · The LEVEL floor is now shown, not enforced. `pf2FeatEligibility`'s first refusal is
+  //   "X is a level-4 feat; this character is level 2" — and this picker used to drop exactly those,
+  //   so the pick could not be made, could not be refused, and could not reach "+ Take it anyway".
+  //   The hatch this file renders 40 lines up was unreachable for the single most common PF2 refusal.
+  //   They stay, grouped, labelled with their level, and SELECTABLE: the server refuses them exactly as
+  //   before, and that refusal is what raises the hatch.
+  //
+  // · CLASS scoping stays a filter, and that is a deliberate asymmetry rather than an oversight.
+  //   `PF2_ALL_FEATS` carries ~500 class feats; offering every other class's as "you can't have this"
+  //   would be a 500-row dropdown of refusals, which S6b already ruled against for the PF2 content
+  //   picker ("the hatch offers what the SEARCH surfaced, not the whole catalog"). A player who wants
+  //   another class's feat is doing something the search surface serves better than a select can.
+  //   Bounded-and-shown, unbounded-and-filtered — the same rule the rest of this plan uses.
+  //
+  // Nothing here judges PREREQUISITES, on purpose. This component holds a class name and a level, not
+  // the character's attributes, skills or feat list, and `pf2FeatEligibility` needs all of them. Judging
+  // with a thinner context than the server is precisely the War Caster bug S6f found on the 5e picker —
+  // it prints a confident, wrong reason. A prereq failure still surfaces the honest way: the server
+  // refuses it and returns its own sentence.
+  //
+  // The split itself lives in `lib/dnd/slots/walker-options.ts` so it can be tested against the real
+  // catalog and the real gate rather than by grepping this file — which is how S6f's two bugs survived a
+  // green suite in the first place.
+  const { legal, higher, higherOmitted } = useMemo(
+    () => pf2WalkerFeatOptions(choice.track, choice.level, className),
+    [choice.track, choice.level, className],
+  );
   const [value, setValue] = useState('');
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <select value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} style={{ ...selStyle, minWidth: 200 }}>
         <option value="">— choose a {choice.track} feat —</option>
-        {options.map((o) => (
+        {legal.map((o) => (
           <option key={o} value={o}>
             {o}
           </option>
         ))}
+        {/* One shared reason for the whole group, so the group states it ONCE rather than repeating
+            "too high level" on sixty rows. No `disabled` anywhere: a disabled option would explain the
+            feat correctly and still leave the hatch unreachable, which was the whole defect. */}
+        {higher.length > 0 && (
+          <optgroup label="⊘ Above your level — needs an exception">
+            {higher.map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.name} (level {f.level})
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <button className={styles.hexBtn} disabled={busy || !value.trim()} onClick={() => onPick(value.trim())}>
         Record
       </button>
+      {/* Say what was left out rather than letting a truncated list read as the whole catalog. Ancestry is
+          the only track that hits this today — the walker doesn't know the character's ancestry, so it
+          cannot narrow 313 entries the way it narrows class feats by class. */}
+      {higherOmitted > 0 && (
+        <div style={{ flexBasis: '100%', fontSize: 11.5, color: 'var(--hx-muted)' }}>
+          {higherOmitted} further out-of-level {choice.track} feats aren’t listed — the nearest {higher.length} are.
+        </div>
+      )}
     </div>
   );
 }
