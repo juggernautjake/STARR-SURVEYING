@@ -162,6 +162,19 @@ stronger claim than *"not loaded yet"*, and conflating them is how an empty stat
 comment explaining why there is no Revert. It now asserts on the control, not the word — a small reminder
 that a source-level test can fail on its own documentation.
 
+**⚑ And the slice's own first mount was wrong, caught in the next pass (`087eda67`).** The panel went inside
+`IGSheet` and `PF2Sheet` — both of which **return early for the codex / dashboard / play formats**, so it
+rendered on Classic and nowhere else. **One layout in four: the exact "authored but not wired" defect this
+session keeps finding, reintroduced by the fix for a different one.**
+
+Moved to the character page chrome beside `VariantToggleView`, which is mounted there for precisely this
+reason and whose comment already said so — *"the shared 5e engine no longer renders for a built PF2/IG
+character"*. The precedent was three lines away and I walked past it.
+
+The tests now assert **both directions** — the page renders it, and neither sheet does. Asserting only
+presence is what let the first version pass, which is the same weakness as a test that pins a gate exists
+without asking what reaches it. That has now been the failure mode in this doc four times.
+
 ### Slice 37 (2026-07-26) — the queue printed raw opcodes
 
 Third and last consequence of slice 35, found the same way as slice 36: **follow the new rows all the way to
