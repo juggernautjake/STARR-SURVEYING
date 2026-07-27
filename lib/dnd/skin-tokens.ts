@@ -200,7 +200,16 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   const text = light
     ? ensureContrast(darken(bg, 0.86), panel, 7) // dark ink from the light bg's own hue
     : ensureContrast(lighten(gold, 0.85), panel, 7); // near-white, faintly warmed by the skin's gold
-  const muted = ensureContrast(mix(text, toRgb(panel), 0.42), panel, 4.5);
+  // Clamped against `panel2`, not `panel` — the third token to need this correction (after `gold2` in
+  // slice 47 and `teal1` in 59), and the broadest, since `--hx-muted` paints labels and captions on every
+  // bespoke sheet. The threshold was already right at 4.5; only the SURFACE was wrong, and content sits on
+  // the framed panel's gradient top. Measured there before: streamer 4.21 · donata 4.14 · jack 4.10 — all
+  // three light skins a little under, while `panel` flattered each by ~0.5.
+  //
+  // `--hx-text` is deliberately left clamped against `panel`: at a ratio of 7 it has enough headroom that
+  // the distinction never bites (12.3–14.1 on panel2 across every skin), so moving it would change colours
+  // for no legibility gain.
+  const muted = ensureContrast(mix(text, toRgb(panel), 0.42), panel2, 4.5);
 
   const vars: Record<string, string> = {
     '--hx-navy-0': navy0,
@@ -291,7 +300,7 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
   const teal2 = darken(teal1, light ? 0.2 : 0.28);
 
   const text = ensureContrast(c.ink || (light ? '#181018' : '#f0e6d2'), panel, 7);
-  const muted = ensureContrast(c.muted || mix(text, toRgb(panel), 0.42), panel, 4.5);
+  const muted = ensureContrast(c.muted || mix(text, toRgb(panel), 0.42), panel2, 4.5);
 
   const vars: Record<string, string> = {
     '--hx-navy-0': navy0,
