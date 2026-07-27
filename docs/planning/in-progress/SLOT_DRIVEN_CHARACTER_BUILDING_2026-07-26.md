@@ -16,10 +16,34 @@
 > as the second is what kept these three parked, and the cost was real: a level-1 IG character has been
 > allowed one feat instead of two, and a Magus has shown no spell slots at all.
 >
-> **What genuinely remains** is one thing, and it is a build rather than a blocker: Magus and Summoner are
-> not in the PF2 **class catalogue** (`pf2Class` returns null — it holds the 14 core classes, and these are
-> Secrets of Magic). Their slots are modelled and the builder already reads them, so each works the moment
-> it is catalogued.
+> **What genuinely remains** is one thing, and it is a build rather than a blocker: **Magus and Summoner
+> are not in the PF2 class catalogue** (`pf2Class` returns null). Their spell tables ARE modelled and the
+> builder already reads them, so each class works the moment it is catalogued.
+>
+> **Attempted 2026-07-27 and backed out deliberately.** The two entries are easy to write — every figure
+> was captured from Archives of Nethys the same day, and the one that would have been guessed wrong is
+> recorded here so the next attempt does not have to re-derive it:
+>
+> | | Magus | Summoner |
+> |---|---|---|
+> | key attribute | STR **or** DEX | CHA |
+> | HP/level | 8 | 10 |
+> | free skills | 2 + INT | **3 + INT** — not the near-universal 2 |
+> | fixed skill | Arcana | one or more, determined by the eidolon |
+> | saves | expert Fort · trained Ref · expert Will | expert Fort · trained Ref · expert Will |
+> | attacks | simple + martial + unarmed | simple + unarmed |
+> | defenses | light + medium + unarmored | unarmored |
+> | level-1 choice | Hybrid Study | Eidolon |
+>
+> **What stopped it is a DESIGN question, not missing data.** `PF2_CLASSES` is asserted in several tests
+> as "the 14 Remaster classes", and that assertion is deliberate — it pins the CORE line-up. Magus and
+> Summoner are Secrets of Magic. Adding them means deciding whether the catalogue means *core* or *all
+> published*, and updating those guards to say which. That is a call about what the app claims to cover,
+> and it should be made on purpose rather than as a side effect of two `push`es. Each entry also needs a
+> `summary` (a required field this note would otherwise have let someone discover the hard way).
+>
+> The half-written change was reverted rather than left in place: a catalogue with two classes whose
+> guards disagree about how many exist is worse than one that is honestly missing them.
 
 **Status:** IN PROGRESS · started 2026-07-26 · owner-directed
 **Owner directive (2026-07-26):**
