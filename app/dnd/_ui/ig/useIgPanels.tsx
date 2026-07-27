@@ -77,7 +77,7 @@ export interface Tagged { kind: string; name: string; source: Source }
 // family while its text comes from `--hx-*`; on a light panel this lighter red would be worse, not better.
 // Each of those needs measuring on its own surface first.
 const BADGE: Record<Source, { t: string; c: string; b: string }> = {
-  vanilla: { t: 'VANILLA', c: 'var(--hx-teal-1)', b: 'rgba(10,200,185,0.12)' },
+  vanilla: { t: 'VANILLA', c: 'var(--hx-teal-1)', b: 'rgba(var(--hx-teal-1-rgb),0.12)' },
   custom: { t: 'CUSTOM', c: 'var(--hx-danger-2)', b: 'rgba(198,64,59,0.14)' },
   'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
 };
@@ -479,7 +479,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
               {activeStance ? (() => {
                 const e = igStanceInPlay(activeStance, derived.level);
                 return (
-                  <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(10,200,185,0.12), rgba(10,200,185,0.04))', borderRadius: 9, padding: '9px 13px', cursor: 'help' }}>
+                  <div title={e?.tooltip ?? activeStance} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--hx-teal-2)', borderLeft: '4px solid var(--hx-teal-1)', background: 'linear-gradient(180deg, rgba(var(--hx-teal-1-rgb),0.12), rgba(var(--hx-teal-1-rgb),0.04))', borderRadius: 9, padding: '9px 13px', cursor: 'help' }}>
                     {/* The one child of this card that named no colour, so it inherited the page's base
                         `#0f1419` — a near-black meant for light surfaces — onto the card's teal-tinted dark
                         fill: measured 1.39:1. Takes the card's own accent, which its sibling below already
@@ -972,7 +972,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     };
     return (
       <section id="ig-companion" style={{ scrollMarginTop: 108 }}>
-        <div className={styles.framedPanel} style={{ padding: '10px 12px', display: 'grid', gap: 10, background: 'rgba(10,200,185,0.04)' }}>
+        <div className={styles.framedPanel} style={{ padding: '10px 12px', display: 'grid', gap: 10, background: 'rgba(var(--hx-teal-1-rgb),0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             <strong style={{ fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 15, color: 'var(--hx-teal-1)' }}>◆ Companion</strong>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--hx-text)' }}>{co.name}</span>

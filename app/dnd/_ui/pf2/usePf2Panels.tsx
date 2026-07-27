@@ -338,7 +338,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 22, fontWeight: 700, color: 'var(--hx-gold-3)' }}>{id.name || 'Unnamed'}</strong>
         <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>Level {id.level} · {id.size}</span>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 5, padding: '1px 6px', background: 'rgba(10,200,185,0.08)' }}>PATHFINDER 2e</span>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', borderRadius: 5, padding: '1px 6px', background: 'rgba(var(--hx-teal-1-rgb),0.08)' }}>PATHFINDER 2e</span>
       </div>
       {idBits.length > 0 && <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', marginTop: -8 }}>{idBits.join(' · ')}</div>}
     </>

@@ -24,6 +24,10 @@
   --hx-gold-2: #c8aa6e;
   --hx-gold-3: #f0e6d2;
   --hx-teal-1: #0ac8b9;
+  /* The teal as a bare triplet, for surfaces painted `rgba(var(--hx-teal-1-rgb), α)`. Identical to the
+     hex above, so an unskinned sheet is pixel-unchanged; `skinHxVars` overrides it per skin so an accent
+     TINT follows the accent instead of staying Hextech cyan under a skin's own accent text. */
+  --hx-teal-1-rgb: 10, 200, 185;
   --hx-teal-2: #0397ab;
   --hx-text: #f0e6d2;
   --hx-muted: #a09b8c;
@@ -49,7 +53,7 @@
   padding: 24px 16px;
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(200, 155, 60, 0.14), transparent 60%),
-    radial-gradient(900px 500px at 50% 120%, rgba(10, 200, 185, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 50% 120%, rgba(var(--hx-teal-1-rgb), 0.08), transparent 60%),
     linear-gradient(180deg, var(--hx-navy-1), var(--hx-navy-0));
 }
 
@@ -197,7 +201,7 @@
   transition: transform 0.16s ease, background 0.15s;
 }
 .switch input:checked + .switchTrack {
-  background: rgba(10, 200, 185, 0.22);
+  background: rgba(var(--hx-teal-1-rgb), 0.22);
   border-color: var(--hx-teal-1);
 }
 .switch input:checked + .switchTrack::after {
@@ -205,7 +209,7 @@
   background: var(--hx-teal-1);
 }
 .switch input:focus-visible + .switchTrack {
-  box-shadow: 0 0 0 2px rgba(10, 200, 185, 0.45);
+  box-shadow: 0 0 0 2px rgba(var(--hx-teal-1-rgb), 0.45);
 }
 .toggleText {
   font-size: 13px;
@@ -377,7 +381,7 @@ select.input {
   cursor: pointer;
   border: 1px solid var(--hx-teal-2);
   color: var(--hx-teal-1);
-  background: rgba(10, 200, 185, 0.06);
+  background: rgba(var(--hx-teal-1-rgb), 0.06);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -385,7 +389,7 @@ select.input {
   transition: box-shadow 0.15s, filter 0.15s;
 }
 .fileBtn:hover {
-  box-shadow: 0 0 12px rgba(10, 200, 185, 0.3);
+  box-shadow: 0 0 12px rgba(var(--hx-teal-1-rgb), 0.3);
 }
 .fileInput {
   position: absolute;
@@ -561,7 +565,7 @@ select.input {
 }
 .hexBtnTeal:hover:not(:disabled) {
   color: #7ff3ea;
-  box-shadow: 0 0 16px rgba(10, 200, 185, 0.35);
+  box-shadow: 0 0 16px rgba(var(--hx-teal-1-rgb), 0.35);
 }
 
 /* Control-row height parity — buttons, inputs and native <select>s that share a
@@ -661,7 +665,7 @@ select.input {
   width: 100%;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(10, 200, 185, 0.12);
+  background: rgba(var(--hx-teal-1-rgb), 0.12);
 }
 .transposeBar::after {
   content: '';
@@ -760,7 +764,7 @@ select.input {
     border-color: var(--hx-gold-1);
   }
   50% {
-    box-shadow: 0 0 46px 12px rgba(10, 200, 185, 0.7);
+    box-shadow: 0 0 46px 12px rgba(var(--hx-teal-1-rgb), 0.7);
     border-color: var(--hx-teal-1);
   }
 }
@@ -815,6 +819,10 @@ select.input {
   --hx-gold-2: #c8aa6e;
   --hx-gold-3: #f0e6d2;
   --hx-teal-1: #0ac8b9;
+  /* The teal as a bare triplet, for surfaces painted `rgba(var(--hx-teal-1-rgb), α)`. Identical to the
+     hex above, so an unskinned sheet is pixel-unchanged; `skinHxVars` overrides it per skin so an accent
+     TINT follows the accent instead of staying Hextech cyan under a skin's own accent text. */
+  --hx-teal-1-rgb: 10, 200, 185;
   --hx-teal-2: #0397ab;
   --hx-text: #f0e6d2;
   --hx-muted: #a09b8c;
@@ -1036,7 +1044,7 @@ select.input {
   padding: 7px 12px;
   border: 1px solid var(--hx-line);
   border-radius: 5px;
-  background: rgba(10, 200, 185, 0.06);
+  background: rgba(var(--hx-teal-1-rgb), 0.06);
   color: var(--hx-gold-3);
   font-size: 13px;
 }
@@ -1283,7 +1291,7 @@ select.input {
     padding: 7px 11px;
     border: 1px solid var(--hx-line);
     border-radius: 5px;
-    background: rgba(10, 200, 185, 0.06);
+    background: rgba(var(--hx-teal-1-rgb), 0.06);
     color: var(--hx-gold-3);
     font-size: 13px;
     max-width: 46vw;
@@ -1443,8 +1451,8 @@ select.input {
 .sheetChip:hover { border-color: var(--hx-gold-0); }
 .sheetChipActive {
   border: 1px solid var(--hx-teal-2);
-  background: rgba(10, 200, 185, 0.12);
-  box-shadow: 0 0 0 1px rgba(10, 200, 185, 0.25) inset;
+  background: rgba(var(--hx-teal-1-rgb), 0.12);
+  box-shadow: 0 0 0 1px rgba(var(--hx-teal-1-rgb), 0.25) inset;
 }
 .sheetChipMain {
   background: none;
@@ -1499,7 +1507,7 @@ select.input {
 }
 .searchHit:hover,
 .searchHit:focus-visible {
-  background: rgba(10, 200, 185, 0.07);
+  background: rgba(var(--hx-teal-1-rgb), 0.07);
   border-left-color: var(--hx-teal-1);
   outline: none;
 }
@@ -1688,7 +1696,7 @@ select.input {
   background: rgba(212, 175, 55, 0.08);
   white-space: nowrap;
 }
-.pf2CostSpecial { color: var(--hx-teal-1); border-color: var(--hx-teal-2); background: rgba(10, 200, 185, 0.08); }
+.pf2CostSpecial { color: var(--hx-teal-1); border-color: var(--hx-teal-2); background: rgba(var(--hx-teal-1-rgb), 0.08); }
 
 /* On a phone the sticky jump bar sits under a shorter header, and the section heading
    needs less clearance below it. */
@@ -1765,7 +1773,7 @@ select.input {
 }
 .pf2SkillChip:hover {
   border-color: var(--hx-teal-2);
-  background: linear-gradient(180deg, rgba(10, 200, 185, 0.08), rgba(10, 200, 185, 0.02));
+  background: linear-gradient(180deg, rgba(var(--hx-teal-1-rgb), 0.08), rgba(var(--hx-teal-1-rgb), 0.02));
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
 }
@@ -1814,7 +1822,7 @@ select.input {
 .pf2RankTrained {
   color: var(--hx-teal-1);
   border: 1px solid var(--hx-teal-2);
-  background: rgba(10, 200, 185, 0.12);
+  background: rgba(var(--hx-teal-1-rgb), 0.12);
 }
 .pf2RankUntrained {
   color: var(--hx-muted);
@@ -1946,7 +1954,7 @@ select.input {
   background: var(--hx-inset);
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
 }
-.pf2SpellChip:hover { border-color: var(--hx-teal-2); background: rgba(10, 200, 185, 0.06); transform: translateY(-1px); }
+.pf2SpellChip:hover { border-color: var(--hx-teal-2); background: rgba(var(--hx-teal-1-rgb), 0.06); transform: translateY(-1px); }
 /* A prepared caster's unprepared spell: on the sheet but not castable now — dimmed, but not the old
    near-invisible 0.55. */
 .pf2SpellDim { opacity: 0.62; }

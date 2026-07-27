@@ -232,6 +232,8 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
     // triplets to a fixed dark purple, which on the three LIGHT skins put near-black ink on a near-black
     // dock (the roller tab labels measured 2.78:1). The shells' `shellVarsFromHx` already derives them from
     // the skin, which is why only the 5e engine had the defect. Emitting them here makes the sheet agree.
+    '--hx-teal-1-rgb': trip(teal1),
+
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
     // --hx-danger is intentionally left to inherit the default red: it reads on both dark and light panels,
@@ -319,6 +321,8 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
     '--hx-muted': muted,
     // Same reason as `skinHxVars` — the ink is clamped against `panel`, so every surface that paints from a
     // triplet has to be panel-derived too, or the clamp is guaranteeing contrast against the wrong colour.
+    '--hx-teal-1-rgb': trip(teal1),
+
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
   };
