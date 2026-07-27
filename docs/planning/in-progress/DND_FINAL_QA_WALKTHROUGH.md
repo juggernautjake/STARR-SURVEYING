@@ -203,6 +203,36 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 59 — the accent clamp had the same bug, and only measurement found it
+
+Slice 58's re-measurement paid for itself immediately. Its PF2 sheet showed 18px modifiers at **4.38** —
+*just* under 4.5, which is the signature of a clamp aiming at **4**. Reading the derivation confirmed it:
+`--hx-teal-1` carried **exactly the two faults slice 47 fixed in `gold2`**, still sitting in its sibling.
+
+`skin-tokens.ts` says of it: *"teal-1 is used both as an accent border AND as roll-result / interactive
+text, so clamp it for legibility too."* The intent was right; the clamp did not aim where text is read —
+against `panel` rather than the gradient top `panel2`, and at 4 (light) / 3 (dark) rather than AA's 4.5.
+
+| skin | before (panel-2) | after |
+|---|---|---|
+| lazzuh (**dark**) | **4.24** ❌ | **4.63** ✅ |
+| streamer | **3.69** ❌ | **4.52** ✅ |
+| jack | **4.23** ❌ | **4.80** ✅ |
+| donata | 5.20 ✅ | 5.20 — untouched |
+
+**The dark skin was failing too**, which is the part a light-skin-only check would have missed — slice 21's
+lesson, and the reason both directions are asserted. The hue survives because `ensureContrast` picks its
+direction from the background: it **lightened** lazzuh's pink on a dark panel and darkened the light skins'.
+Guarded by channel separation, so a runaway to black or a drift to grey fails even where the ratio passes.
+
+**Both derivations fixed** — the skin path and the theme path carry the same line, and a test asserts there
+are exactly two, because fixing one is how a defect survives its own fix.
+
+**The generalisable point:** slice 47 fixed `gold2` and stopped there. The identical bug sat in the token
+declared eight lines below it for twelve more slices, and no amount of re-reading found it — a live
+measurement did, from a number that was *only 0.12 low*. **When a clamp is wrong, check its siblings; and
+when a measurement lands just under a threshold, suspect the threshold rather than the colour.**
+
 ### Slice 58 — re-measuring the baseline, because ten slices had moved it
 
 The contrast baseline was measured **before** slices 34, 47 and 48 changed contrast-affecting code. A stale
