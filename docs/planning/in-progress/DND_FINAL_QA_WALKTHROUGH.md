@@ -3548,3 +3548,40 @@ target sizes) where no transition is running. Slice 93 revoked the one, and this
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No code changed — this slice is
 verification of an existing fix and a correction to how the previous one was verified. No live data
 written; port 3527 confirmed bindable.
+
+### 2026-07-27 — slice 95: the remaining surfaces, and where these defects actually live
+
+Slices 80–94 covered three sheets, three builders and one designer. Five user-facing routes had never been
+swept for **anything**. This closes that, running all four checks at once — viewport overflow, the WCAG
+2.5.8 target test with its spacing exception, the 10px thin floor from slice 90, and focus visibility with
+the settling delay slice 93 made mandatory.
+
+| surface | interactive targets | overflow | too thin | WCAG 2.5.8 | no focus indicator |
+|---|---|---|---|---|---|
+| `/dnd` hub | 15 | 0 | 0 | 0 | 0 |
+| `/dnd/suggestions` | 8 | 0 | 0 | 0 | 0 |
+| `/dnd/library` | 15 | 0 | 0 | 0 | 0 |
+| `/dnd/profile` | 10 | 0 | 0 | 0 | 0 |
+| `/dnd/characters/new` | 24 | 0 | 0 | 0 | 0 |
+
+**Clean, and the shape of the result says where to look next time.** These pages carry **8–24** interactive
+targets. The sheets carry **55–121**, and every defect this arc found lived there or in the builders:
+
+| | targets | defects found |
+|---|---|---|
+| hub / list / form pages | 8–24 | **0** |
+| builders | 34–39 | 5 (the step-bar strip, ×3 files) |
+| bespoke sheets | 55–121 | 11 + 6 + 1 + 13 |
+
+Not a coincidence and not only volume: the simple pages are built from shared components with classes, and
+the sheets are built from **inline-styled one-offs** — which is exactly what escapes a stylesheet's focus
+rules, its padding conventions and its minimum sizes. Slice 89 tested that as a hypothesis and found the
+builders use inline styles too, so styling *approach* alone does not predict it; **inline styling plus
+density** does.
+
+**The arc is complete.** Every user-facing `/dnd` route is now swept on four objective measures. Five real
+defects were fixed (slices 80, 83, 87, 89, 91), one was retracted after a bad measurement (92 → 93), and
+nine tool limitations are recorded in `qa-evidence/contrast-sweep.md` so the next pass inherits the method.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
+data written; port 3531 confirmed bindable.
