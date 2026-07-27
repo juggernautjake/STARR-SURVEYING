@@ -2534,3 +2534,49 @@ decisions**, grouped with measurements and a recommended order.
 
 **Bar:** 5000/5000 D&D tests, typecheck exit-0, lint clean. Dev server stopped; all nine ports used during
 this arc confirmed released (the 3000–3009 zombie sockets in this repo's history are why that gets checked).
+
+### 2026-07-27 — slice 71: the last unswept sheet, and what it turned up
+
+Coverage bookkeeping, which is how this one started. The contrast arc measured PF2, IG, donata and jack.
+**Perrin Underbough had never been swept** — the only live character sitting on a colour theme none of the
+earlier passes covered — so the "zero failures" claim was true of the sheets measured and not of the set.
+
+Sweeping it did two useful things.
+
+**It confirmed slices 59–69 hold on a 5e sheet.** Nothing in the `--hx-*` system appeared. Of six flagged
+nodes, one was a false positive and the other five resolved to `theme.css`'s hand-picked palette — the
+independent system this arc has said all along needs a decision rather than a clamp.
+
+**And it showed that decision is wider than recorded.** Chasing the five back gave the table now in
+`qa-evidence/contrast-sweep.md`: `.dnd-sheet .sec-num { color: var(--hotpink) }` is the **base** rule for
+section headings — ~15 shared components render one — and across the five selectable themes, **7 of 15
+accent×panel combinations are under AA at 13px**, including `#0397ab` at 4.30 on the theme new characters
+get by default. Noxus measures 2.84–3.45, Void Prophet 3.26–3.95.
+
+I had characterised this open item as *brand fills* — button labels, a choice between two designs. It is
+also, and more importantly, **section-heading text on every sheet**. That is a different weight of problem
+than what the item said, so the item is corrected rather than carried forward as written.
+
+**What is a correction here and what is a choice.** The character themes in `theme.ts` were held to a text
+bar by hand and their comments still carry the ratios (`~5.4:1`, `7.2:1 on the card`); the colour themes
+came later without one, and Noxus's only contrast note is about a border. So the bar is the file's own. But
+the remedy changes what a theme *looks like*, and Void Prophet is annotated as an owner pick (2026-07-22) —
+so the measurement, the mechanism and the in-palette option are settled here, and the palette is not.
+
+The option is cheap and needs no invented colour: every one of these palettes already defines `pink` as the
+lighter partner of `hotpink`, and in both failing themes it clears 4.5 (Noxus `#e0576a`, Void Prophet
+`#c77dff`). Swapping only the TEXT uses mirrors `--hx-gold-2`, the text-safe sibling of `--hx-gold` on the
+bespoke side; borders, glows and fills keep the accent, so each theme keeps its identity. The test asserts
+that substitute is viable, so the work is a token swap whenever the owner wants it.
+
+**Pinned, not deferred.** `__tests__/dnd/colour-theme-accent-text.test.ts` asserts the rule for all fifteen
+combinations and marks the seven gaps `it.fails` with their measured ratios. The suite stays green; fixing
+the palette flips those to *"expected to fail but passed"* and names the pin to remove. A comment-only note
+would have rotted, and a plain failing test would have broken CI.
+
+**Bar:** 17 passed / 7 expected-fail in the new file, full D&D suite green, typecheck exit-0, lint clean.
+Dev server stopped, port 3467 released.
+
+**Also recorded** (`contrast-sweep.md`): gradient-clipped text — `color: rgba(0,0,0,0)` +
+`background-clip: text` — reads as a 1.00 false positive and must be skipped by the sweep. Fifth documented
+limitation of this tool; two of the previous four each cost a wrong diagnosis before being written down.

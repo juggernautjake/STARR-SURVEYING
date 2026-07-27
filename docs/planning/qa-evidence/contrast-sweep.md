@@ -352,3 +352,55 @@ dock's rule for accent-tinted surfaces, rather than by adding a fifth clamp surf
 system DERIVES its colours — one correction covers every skin. donata's remaining three live in
 `theme.css`'s hand-picked brand palette, where the fix is a choice between two measured options, not a
 correction to a rule.
+
+### The other half of the palette: the five COLOUR THEMES, measured as text (slice 71)
+
+The line above — "`--hx-*` is derived and fixed; `theme.css` is hand-picked and needs a choice" — was right
+about the mechanism and understated the scope. Measuring a live sheet that had never been swept (Perrin
+Underbough, the only character on a theme none of the earlier sweeps covered) put four `.sec-num` section
+labels at **3.45** and **3.78**. Following that back gave a broader finding than the one page showed.
+
+`.dnd-sheet .sec-num { color: var(--hotpink) }` is the **base** rule — it applies to every skin that does
+not override it, and ~15 shared components render one (`SectionHead`, `VariantToggle`, `SkinSwitch`,
+`LayoutSwitch`, `DescriptionsPanel`, `CustomizationSummary`, `SheetArtUploader`, `AiSheetEdit`,
+`DmOverridePanel`, both galleries). Every section heading on the sheet is this token, at 13px / weight 400.
+
+Computed across all five selectable themes against the panel stops they share (`HEXTECH_GROUNDS`):
+
+| theme | accent | on `panel` | on `panel-2` | on `panel-3` |
+|---|---|---|---|---|
+| Hextech Gold *(default)* | `#0397ab` | 4.85 | 4.63 | **4.30** |
+| Shadow Isles | `#1fb98a` | 6.71 | 6.41 | 5.88 |
+| Noxus Crimson | `#c8323f` | **3.45** | **3.19** | **2.84** |
+| Freljord Ice | `#38a9e6` | 6.35 | 6.06 | 5.56 |
+| Void Prophet | `#9d4edd` | **3.95** | **3.66** | **3.26** |
+
+**Seven of fifteen combinations are under AA**, including one on the theme new characters get by default.
+
+**This is a gap, not a policy.** The CHARACTER themes in the same file were held to a text bar by hand, and
+their comments still carry the ratios they were picked to hit — `'#c2185b', // ... ~5.4:1` and `'#35593a',
+// ... (7.2:1 on the card, 4.9:1 on its own 12% tint)`. The five colour themes came later and carry no such
+annotation. Noxus's *only* contrast note is about a **border**: *"Alpha raised so the crimson border is
+perceptible on the dark panel (TR-2) — 0.28 was 1.24:1"*. Borders were checked; the accent as text was not.
+
+**An in-palette fix exists and is asserted in the test.** Every one of these palettes already defines `pink`
+as the lighter partner of `hotpink`, and in both failing themes that sibling clears 4.5 on the panel stops
+(Noxus `#e0576a`, Void Prophet `#c77dff`). So the correction is a token swap at the TEXT uses of the accent
+— the same shape as `--hx-gold-2`, the text-safe sibling of `--hx-gold` on the bespoke side — and needs no
+invented colour. The accent keeps its borders, glows and fills, so each theme keeps its identity.
+
+Left for the owner deliberately: Void Prophet is annotated as an owner choice (2026-07-22), and changing
+what a theme looks like is not a correction the way a derived clamp is.
+
+Pinned in `__tests__/dnd/colour-theme-accent-text.test.ts` with `it.fails` and the measured ratios, so the
+suite stays green, the gap cannot be forgotten, and correcting the palette reports *"expected to fail but
+passed"* and names the pin to delete.
+
+#### A sweep-tool note: gradient-clipped text reads as a false positive
+
+The same sweep flagged the `.name` heading at **1.00**. It is not a defect: `.name` sets
+`color: rgba(0,0,0,0)` with `background-clip: text` over a `linear-gradient`, so the glyphs are painted by
+the gradient and the computed `color` the sweep reads is the transparent placeholder. Fifth distinct
+limitation this tool has shown (after ignoring `background-image`, collapsed `.fld` ancestors, alpha stacks,
+and expired sessions reading as auth defects). **`color: rgba(0,0,0,0)` + `background-clip: text` should be
+skipped, not reported** — recorded here because two of the previous four cost a wrong diagnosis each.
