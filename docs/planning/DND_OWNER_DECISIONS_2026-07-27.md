@@ -60,3 +60,26 @@ on every sheet. **126 API write handlers** were checked for gates that are calle
 
 Twelve ways a browser measurement lies are indexed at the top of
 `docs/planning/qa-evidence/contrast-sweep.md` — read that before running any sweep, not just a contrast one.
+
+---
+
+## 5. Which test to delete when you decide
+
+The suite reports **11 expected-fail** entries. That is not a warning — each is a *pin*: a deliberate
+`it.fails` recording a defect that is real today, keeping the suite green while making the finding
+impossible to lose. **Fixing any of them turns the pin red** with *"expected to fail but passed"*, which is
+the signal to delete it.
+
+| Decision | Artefact | Pins |
+|---|---|---|
+| 2.1 flash | `__tests__/dnd/sheet-initial-state.test.ts` | **1** |
+| 2.2 `--danger` · 2.3 accent-as-heading | `__tests__/dnd/colour-theme-accent-text.test.ts` | **8** (theme × panel-stop) |
+| 2.4 5e heading skip · 2.5 IG has no `h1` | `__tests__/dnd/sheet-heading-outline.test.ts` | **2** |
+| 2.7 homebrew feats on non-2024 | `__tests__/dnd/homebrew-feat-reachability.test.ts` | 0 — asserts the reachability matrix as it stands, both sides of the gap |
+| 2.9 dice rollers · §3 data blocks | `__tests__/dnd/slot-plan-blockers.test.ts` | 0 — assertions flip when the data arrives |
+| 2.6 prepared cap · 2.8 Rangor/Pugilist | — | Product/rules calls with nothing to pin; the detail is in `SLOT_DRIVEN_CHARACTER_BUILDING` S7c and `DND_RULES_PLATFORM` line 947 |
+
+**Each pin also carries the constraint on its own fix**, which is the part that saves time: the store's
+*"so no other character's content ever flashes"* comment is asserted next to the flash pin, and
+`.dnd-sheet .card h3` next to the heading pin — so the reason the obvious one-line change is wrong is
+visible at the point you would attempt it.

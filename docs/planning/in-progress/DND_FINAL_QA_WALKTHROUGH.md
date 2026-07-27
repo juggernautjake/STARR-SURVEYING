@@ -4447,3 +4447,30 @@ be lost, and each one asks to be deleted the moment it stops being true.
 
 **Bar:** full D&D suite green, typecheck exit-0, lint clean, both source files confirmed unmodified. No
 production code changed.
+
+### 2026-07-27 — slice 119: closing the loop between the pins and the decisions
+
+Slices 117 and 118 gave every finding an artefact. The suite now reports **11 expected-fail**, and until
+now that number meant nothing to anyone reading it — no way to tell a deliberate pin from a broken test,
+and no way to get from "I fixed the palette" to "so delete these eight".
+
+`DND_OWNER_DECISIONS_2026-07-27.md` §5 now maps them both ways: decision → test file → pin count.
+
+**The counts were checked rather than added up.** `rg -c "it\.fails"` gives 4 / 3 / 2, which sums to 9 and
+is wrong — it counts *lines mentioning* `it.fails`, including the comments that explain them, and
+`colour-theme-accent-text.test.ts` generates its pins in a loop (`gap === undefined ? it : it.fails`) so
+its four mentions produce **eight** pins. Running each file gives **8 + 1 + 2 = 11**, matching the suite.
+Reporting 9 would have been a small, confident, checkable error of exactly the kind this arc has produced
+a dozen times.
+
+**Two decisions have no pin, and that is correct rather than an omission:** the prepared cap and
+Rangor/Pugilist are product and rules calls with no defect to encode — there is nothing currently wrong to
+assert. Recorded in the table as such, so the blank reads as considered rather than missed.
+
+**What makes the pins worth more than a checklist** is that each carries the constraint on its own fix:
+the store's *"so no other character's content ever flashes"* is asserted beside the flash pin, and
+`.dnd-sheet .card h3` beside the heading pin. The reason the obvious one-line change is wrong sits at the
+point where someone would try it — which is the only place a warning of that kind ever works.
+
+**Bar:** per-file pin counts verified by running each file, not inferred. Full D&D suite green, typecheck
+exit-0. No code changed.
