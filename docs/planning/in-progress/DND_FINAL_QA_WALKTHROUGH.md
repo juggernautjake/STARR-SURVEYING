@@ -3756,3 +3756,41 @@ and the **scope of a defect** is not, and I keep estimating the first while assu
 
 **Bar:** production build, timed against `next start`. `.next` removed. No live data written; port 3547
 confirmed bindable. No code changed.
+
+### 2026-07-27 — slice 100: the fix is not architectural — the flag already exists
+
+Slices 98 and 99 both called the blank-character flash "architectural" and left it entirely to the owner.
+That framing was checked here and it is **too pessimistic**, which matters: it was the reason for not
+acting, and the reason was wrong.
+
+**`store.tsx` already tracks exactly the needed state.** Line 349:
+
+```js
+const [dbPhase, setDbPhase] = useState<'loading' | 'ready'>(dbMode ? 'loading' : 'ready')
+```
+
+set to `'ready'` at line 427 when the fetch lands. It gates autosave so the fallback is never PATCHed —
+so the distinction between "showing a blank" and "showing the character" is already computed and already
+load-bearing. It is simply **not exposed**: no component outside `store.tsx` can see it.
+
+**Exposing it is a routine 3-line change with a proven template in the same file.** `offline` is the
+precedent — declared in the context interface (line 105), added to the value object (line 1211),
+destructured in `App.tsx:87` and used to render a banner at line 199. Nothing about `dbPhase` differs.
+
+**And it is hydration-safe**, which was the obvious risk: the initial value is `'loading'` on the server
+*and* on the client's first render, so both agree and React has nothing to reconcile. The flip to `'ready'`
+happens in an effect, after hydration.
+
+**So the split is:** exposing the flag is mechanical and cheap; deciding **what a loading sheet should
+look like** — skeleton, dimmed, hidden, spinner — is a visual design call on someone's sheet, and that is
+the part that stays with the owner. Slices 98/99 bundled the two together and called the whole thing
+architectural.
+
+**A tooling note I have to record because I caused it twice.** Mid-investigation a grep returned
+`"…somewhere that's up when she's n)"` — `rg -rn` again, where `-r` is `--replace`. This is **limitation 7
+in `qa-evidence/contrast-sweep.md`, written by me in slice 82** after it nearly produced a false bug
+report. Documenting a trap did not stop me walking into it eighteen slices later, which is worth knowing
+about documentation as a control: it works when read, and nothing makes it get read.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — the finding is that the cost estimate in
+the two previous slices was wrong, in the direction that was discouraging the fix.
