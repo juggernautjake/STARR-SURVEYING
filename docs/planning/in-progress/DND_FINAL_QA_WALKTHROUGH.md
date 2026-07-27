@@ -133,6 +133,36 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 42 — the write sweep, and knowing when a guard is testing the wrong thing
+
+The last of the three access sweeps, and the one with the most at stake: the **55** POST/PATCH/PUT handlers
+under `characters/[id]`. A stranger *modifying* someone else's character is worse than reading it, and /dnd
+is public by direct link.
+
+**Clean again.** Every handler already answers *"whose character is this?"* before writing. Two pinned by
+name: the **PATCH chokepoint** every in-place editor autosaves through still gates *before* parsing the
+body, and the **tip route** funds from the caller's own character (`.eq('owner_user_id', userId)`) rather
+than the streamer's — without which tipping would be a way to spend someone else's currency. That one's
+entire authorization lives in a helper, which is why it is called out rather than left to the pattern.
+
+**The lasting finding is about the guard, not the routes.** The DELETE suite carried a second assertion —
+*"did it resolve a caller?"* — and it flagged three correctly-gated routes on its first run. This suite made
+it **four** (`POST levels/route.ts` resolves access through a local `load()` helper, so no recognised
+function name appears in the handler body). Three separate false alarms is the signal: that assertion tested
+a **proxy** — which function name appears — rather than the property, and it was redundant anyway, since
+authorization cannot be answered without first establishing who is asking.
+
+It is dropped. **Its only real effect was inviting someone to loosen a guard so that correct code would
+pass**, which is how a guard like this dies quietly.
+
+The same discipline is recorded in the negative: `load(` is **explicitly not** in the predicate list, with a
+note saying why. It is a loader, not a gate; the route authorizes with `canWrite` one line later. Adding it
+would have made the suite pass by naming a function that checks nothing — and I nearly did, which is exactly
+why the note is there rather than the entry.
+
+59 tests, no production change. **The three sweeps together — reads, deletes, writes — now hold the whole
+`/api/dnd` character surface, and each fails loudly on a new unclassified route.**
+
 ### Slice 41 — the destructive sweep, and why a clean result still needs an artefact
 
 Slice 40 swept what routes GIVE AWAY. This one sweeps what they DESTROY: every `DELETE` under `/api/dnd`.
