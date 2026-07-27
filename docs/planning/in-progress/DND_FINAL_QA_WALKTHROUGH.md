@@ -203,6 +203,38 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 61 — verifying 59/60 live: the fixes are real, my explanation was not
+
+Re-measuring the PF2 sheet after slices 59 and 60 returned **exactly the same nine failures, to the decimal**
+(3.23 · 3.92 · 4.38). So the two clamp fixes, both correct on their own terms, changed nothing here — and
+the causal story slice 59 told was wrong.
+
+**What actually paints those elements**, read from the DOM rather than inferred:
+
+| element | colour | token | sits on |
+|---|---|---|---|
+| `+15` chip value | `#8a6400` | **`--hx-gold-2`** — *not* teal, as slice 59 assumed | `#f2e4ee` |
+| `E` rank badge | `#9b3fd0` | `--hx-teal-1` | `#d6e1e7` |
+| `◇` empty hero point | `rgba(255,30,156,0.3)` | `--hx-line` | panel |
+
+**Both fixed tokens still fail in place, and the reason is the whole point:** they are clamped against
+`--hx-panel-2` (`#f2eef1`) and these elements sit on **chip fills** — `#f2e4ee` and `#d6e1e7` — which the
+clamp knows nothing about. Slices 59 and 60 guarantee 4.5 *on the panel*; they cannot guarantee anything on
+a surface the token was never measured against.
+
+**This is slice 51's conclusion, now with the exact surfaces.** The remaining gold/accent failures need a
+**surface-derived token** — the roller-dock pattern — not another value tweak. Four slices of clamping have
+taken the tokens as far as clamping can go.
+
+**And one new thing worth chasing later:** the `E` badge's backdrop composites to `#d6e1e7`, a blue-grey, on
+a *pink* skin. A surface that is not skin-derived while its text is — which is precisely the roller-dock
+defect, in a second place.
+
+**The correction I owe the record:** slice 59's fix was genuinely right (`teal1` measured 3.69 on panel-2
+and now measures 4.52), and slice 60's likewise. But I attributed the 4.38 measurement to teal when it was
+gold, and shipped a write-up saying so. The fixes stand; the story was wrong, and only re-measuring caught
+it. **Verifying a fix is not the same as verifying the diagnosis that motivated it.**
+
 ### Slice 60 — the third instance, and a guard that stops there being a fourth
 
 Slice 59 ended by saying *"when a clamp is wrong, check its siblings."* Doing that found `--hx-muted`
@@ -281,8 +313,10 @@ re-measured live against current code.
 live one agreeing to two decimals is the strongest evidence yet that those A/B options are aimed correctly.
 
 **PF2 did not improve** (8 → 9). Its failures are a different family — the unfilled Hero-Point `◇` painting
-`--hx-line` at 3.23, three 11.5px markers at 3.92, three 18px modifiers at 4.38. Recorded as such rather
-than folded into the gold/brand-fill buckets they do not belong to.
+`--hx-line` at 3.23, three 11.5px markers at 3.92, three 18px modifiers at 4.38. **Slice 61 identified all
+three from the DOM:** the modifiers are `--hx-gold-2` on a `#f2e4ee` chip fill, the markers `--hx-teal-1` on
+`#d6e1e7`, the diamond `--hx-line`. All three sit on **tinted surfaces the panel clamps never measured
+against** — the surface-derived-token case, not a value one.
 
 **Stated as a partial refresh, not a new baseline:** three of six sheets, one skin each, default template,
 no interaction states.
