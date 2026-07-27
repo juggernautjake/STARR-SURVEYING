@@ -4178,3 +4178,38 @@ what you are hoping for.
 makes it get read. Recording that beside the list is the most useful thing the list can say about itself.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 111: console errors during interaction, not just on load
+
+Slice 54 swept the console **on load**. Errors thrown when a user actually does something were never
+checked, and that gap is both safe to close (opening a disclosure or switching a tab mutates nothing) and
+objective.
+
+| | on load | during read-only interaction |
+|---|---|---|
+| 6 hub / list / form routes | 0 errors · 0 warnings · 0 uncaught | — |
+| IG sheet | 0 · 0 · 0 | 0 · 0 · 0 |
+| 5e sheet | 0 · 0 · 0 | 0 · 0 · 0 |
+| PF2 sheet | 0 · 0 · 0 | 0 · 0 · 0 |
+
+**Strictly read-only interactions**: expand every `<summary>`, click every tab-like view switcher. Nothing
+that submits, saves, deletes or rolls.
+
+**`warnings: 0` is what made me distrust it** — a React dev build usually emits *something*, and that
+smelled like limitation 12. So the listeners were probed: an injected `console.error`, an injected
+`console.warn`, and a thrown uncaught exception were **all three captured**. The instrument works; the
+pages are quiet.
+
+**And the probe repaid itself immediately.** It reported **3** console errors where it had emitted one,
+which looked like two real errors on `/dnd` that my sweeps had missed. Re-running the six routes with clean
+counters returned **zero** — the extra two were my own probe's uncaught exception, which Playwright surfaces
+on *both* the `pageerror` and `console` channels. A self-check that briefly produces a false alarm about the
+product is still working correctly; the mistake would have been reporting it without re-measuring.
+
+**One honest limit on coverage:** the tab-switching half only bit on the 5e sheet (10 controls). The
+selector found **no** tab-like controls on the IG or PF2 sheets, so for those two "during interaction" means
+disclosures only — 3 and 1 respectively. The result is real but thinner there than the table suggests, and
+that is worth saying rather than letting the zeros read as equivalent.
+
+**Bar:** listeners verified against injected errors before the result was believed. Full D&D suite green,
+typecheck exit-0. No live data written; port 3579 confirmed bindable. No code changed.
