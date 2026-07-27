@@ -12,9 +12,16 @@ function summarize(body: string): string {
   return firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}…` : firstSentence || 'A homebrew feat.';
 }
 
-/** Adapt a homebrew feat into a Feat. Homebrew feats surface only in the 2024 picker (asiFeatChoices is
- *  2024-only), so the system literal is fixed here; the free-text prerequisite becomes a `text` gate
- *  (not machine-checked), and any ability increases become the choosable +1. */
+/** Adapt a homebrew feat into a Feat. The free-text prerequisite becomes a `text` gate (not
+ *  machine-checked), and any ability increases become the choosable +1.
+ *
+ *  `system` is the literal `'dnd5e-2024'` because that is what the `Feat` TYPE declares — it is the shape
+ *  of the 2024 catalogue, not a claim about where this feat came from. Nothing reads it at runtime
+ *  (checked: no `.system ===` comparison exists over feats), which is why a 2014 character's homebrew can
+ *  safely ride this shape into the picker. UPDATED 2026-07-27: the old comment here said homebrew
+ *  "surface[s] only in the 2024 picker", which stopped being true when `asiFeatChoices` grew a 2014 branch
+ *  — 2014 takes feats at the same ASI slot, and its official catalogue is one feat by licence, so a
+ *  player's own content is that edition's only real feat route. */
 export function customFeatToFeat(cf: CustomFeat): Feat {
   return {
     key: cf.key,

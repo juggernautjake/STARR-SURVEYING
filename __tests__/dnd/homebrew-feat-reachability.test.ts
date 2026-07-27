@@ -125,12 +125,28 @@ describe('reachability depends on CATEGORY as well as system', () => {
     expect(emitsChoice('dnd5e-2024', 'epic-boon').length).toBeGreaterThan(0);
   });
 
-  it('so the gap is specifically GENERAL feats on a non-2024 character', () => {
-    // The one cell that is both saveable and unreachable, and the one a player is most likely to write:
-    // the designer's category dropdown defaults to it and the AI drafts them.
-    expect(eligibleHomebrewFeats([feat({ category: 'general' })], 5)).toHaveLength(1); // eligible…
-    expect(read('app/dnd/_ui/LevelBuilder.tsx'))
-      .toContain("if (system !== 'dnd5e-2024') return [];");                            // …but unreachable
+  it('CLOSED 2026-07-27 for 2014 — a saved homebrew feat is now offered at its ASI slot', () => {
+    // Was: the one cell both saveable and unreachable, and the one a player is most likely to write (the
+    // designer's category dropdown defaults to `general` and the AI drafts them). A 2014 player could
+    // author, validate and save a feat, be told it was flagged for DM review, and never be offered it.
+    //
+    // Decided by the owner ("make the best decision… I trust your judgement") on the ground that 2014's
+    // OFFICIAL catalogue is one feat (Grappler) and can never be more — the rest is PHB-only content
+    // outside the CC-BY licence. Homebrew is therefore that edition's only real feat route, which is the
+    // "custom is the explicit escape hatch" principle this builder already runs on.
+    const src = read('app/dnd/_ui/LevelBuilder.tsx');
+    expect(src).toContain("if (system === 'dnd5e-2014') return extra;");
+    // No CATEGORY filter on that branch: origin / general / fighting-style / epic-boon are 2024 TRACKS
+    // that do not exist in 2014, so filtering by them would impose one edition's structure on the other.
+    expect(src).not.toMatch(/dnd5e-2014'\) return extra\.filter/);
+    expect(eligibleHomebrewFeats([feat({ category: 'general' })], 5)).toHaveLength(1);
+  });
+
+  it('and PF2 / IG are still excluded, which is correct rather than an oversight', () => {
+    // In 2014 a feat is taken INSTEAD of an Ability Score Improvement — the very slot this picker spends.
+    // PF2 and IG have their own feat tracks at their own levels and no ASI slot at all, so offering a
+    // 5e-shaped feat there would be a category error, not a courtesy (Ground Rule 1).
+    expect(read('app/dnd/_ui/LevelBuilder.tsx')).toContain("if (system !== 'dnd5e-2024') return [];");
   });
 });
 

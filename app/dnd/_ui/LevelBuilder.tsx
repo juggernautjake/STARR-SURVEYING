@@ -24,6 +24,31 @@ import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
  * to the explicit-custom text entry.
  */
 function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abilities?: Partial<Record<AbilityKey, number>>, hasSpellcasting = false): FeatChoice[] {
+  // 2014: a player's OWN saved homebrew feats are offered here (decision 2.7, owner 2026-07-27). Before
+  // this, a 2014 player could open the feat designer, watch the engine validate their feat, save it, be
+  // told it was flagged for DM review — and no picker would ever offer it. The work simply disappeared,
+  // and nothing in the flow said so.
+  //
+  // WHY 2014 GETS THEM AND PF2/IG DO NOT. In 2014 a feat is taken *instead of* an Ability Score
+  // Improvement, at the levels a class grants one (`FEAT_SLOT_2014 = 'asi'`) — the same slot this picker
+  // spends. PF2 and IG have their own feat tracks at their own levels and no ASI slot at all, so offering
+  // a 5e-shaped feat there would be a category error, not a courtesy (Ground Rule 1).
+  //
+  // WHY THIS MATTERS MORE FOR 2014 THAN FOR 2024: the official 2014 catalogue is ONE feat (Grappler) and
+  // can never be more — everything else is PHB-only content outside the CC-BY licence, deliberately absent
+  // rather than missing (`FEATS_2014_STATUS`). So homebrew is not a nice-to-have for that edition; it is
+  // the only route a 2014 table has to the feats it actually plays with, and it is precisely the "custom
+  // is the explicit escape hatch" principle this builder is built on.
+  //
+  // NO CATEGORY FILTER, unlike 2024 below: origin / general / fighting-style / epic-boon are 2024 TRACKS
+  // that do not exist in 2014, so filtering by them would impose one edition's structure on the other —
+  // the exact bleed `dnd5e-2014.ts` warns about. Every saved feat is offerable at an ASI slot.
+  //
+  // The OFFICIAL 2014 feat is deliberately still absent: `FeatChoice` is `Feat &`, i.e. 2024-typed, and
+  // `dnd5e-2014.ts` says outright that wiring 2014 feats in wants "a system-keyed dispatcher rather than
+  // widening the 2024 type". That is a larger piece with a prescribed design; homebrew needs neither,
+  // because it is already adapted to this shape and carries no edition-specific structure.
+  if (system === 'dnd5e-2014') return extra;
   if (system !== 'dnd5e-2024') return [];
   const official = FEATS_2024.filter((f) => {
     if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
