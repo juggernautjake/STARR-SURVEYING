@@ -183,7 +183,15 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
 
   // Accent → teal ramp. teal-1 is used both as an accent border AND as roll-result / interactive text,
   // so clamp it for legibility too; teal-2 is its darker partner (borders, gradients).
-  const teal1 = ensureContrast(accent, panel, light ? 4 : 3);
+  // Same two corrections slice 47 made to `gold2`, found by measuring a live PF2 sheet (slice 58 put its
+  // 18px modifiers at 4.38 — just under, which is the signature of a clamp aiming at 4). The comment above
+  // already says this token paints TEXT; the clamp simply did not aim where text is read:
+  //   · SURFACE — content sits on the framed panel's gradient TOP (`panel2`), the worse backdrop in both
+  //     directions, not on `panel`.
+  //   · THRESHOLD — 4 (light) and 3 (dark) are both short of AA's 4.5 for text under 18.66px. The dark
+  //     figure mattered too: lazzuh measured 4.24 on panel2, i.e. the dark skins were failing as well.
+  // Measured on panel2 before: lazzuh 4.24 · streamer 3.69 · jack 4.23 (donata already passed at 5.20).
+  const teal1 = ensureContrast(accent, panel2, 4.5);
   const teal2 = darken(teal1, light ? 0.2 : 0.28);
 
   // Ink. THIS is the make-or-break pair for light skins. Body text must clear ~7:1 (AA for body) against
@@ -271,7 +279,15 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
   const gold3 = light ? gold2 : lighten(gold2, 0.4);
 
   const accent = c.teal || c.tealbright || '#0ac8b9';
-  const teal1 = ensureContrast(accent, panel, light ? 4 : 3);
+  // Same two corrections slice 47 made to `gold2`, found by measuring a live PF2 sheet (slice 58 put its
+  // 18px modifiers at 4.38 — just under, which is the signature of a clamp aiming at 4). The comment above
+  // already says this token paints TEXT; the clamp simply did not aim where text is read:
+  //   · SURFACE — content sits on the framed panel's gradient TOP (`panel2`), the worse backdrop in both
+  //     directions, not on `panel`.
+  //   · THRESHOLD — 4 (light) and 3 (dark) are both short of AA's 4.5 for text under 18.66px. The dark
+  //     figure mattered too: lazzuh measured 4.24 on panel2, i.e. the dark skins were failing as well.
+  // Measured on panel2 before: lazzuh 4.24 · streamer 3.69 · jack 4.23 (donata already passed at 5.20).
+  const teal1 = ensureContrast(accent, panel2, 4.5);
   const teal2 = darken(teal1, light ? 0.2 : 0.28);
 
   const text = ensureContrast(c.ink || (light ? '#181018' : '#f0e6d2'), panel, 7);
