@@ -133,6 +133,43 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 44 — the live pass this session owed, and slice 39 confirmed against real data
+
+Slices 35–42 shipped on tests and a build. **This repo's standing rule is that a UI slice is driven in a
+browser before it is called done**, and slice 38 shipped an entirely new surface that had never been
+rendered. Run against a real dev server on port **3456** (3000–3009 remain the known zombie-socket trap)
+with a locally-minted `dnd_session`, against **live** characters. Nothing was created and nothing mutated.
+
+| check | result |
+|---|---|
+| `SheetEditHistory` on the **IG** sheet (Vashti Kelln) | renders — *"Edit history"* + *"Loading edit history…"* server-side |
+| …on the **PF2** sheet (Orin Sallowmere) | renders, same |
+| `/edits` as the **owner** | `200 {"edits":[]}` on both — the empty state, correctly |
+| `/edits` as a signed-in **non-owner**, public character | **403** *"You cannot view this character's edit history."* |
+| the **sheet itself** as that same non-owner | **200** — still readable, so the fix did not over-block |
+| `/edits` on that non-owner's **own** character | **200** — owners unaffected |
+| dev-server log | **no errors, no warnings** across every request |
+
+**Slice 39's exposure was real, and this is the proof.** The database holds **72** `dnd_sheet_edits` rows
+and five **public** characters (Jack, Donata Dime, Flame, Lazzuh Gun, Donata). The three-line result above —
+same user, same character: *sheet 200, history 403, own history 200* — is exactly the discrimination the fix
+intends, verified against that live data rather than argued from the source.
+
+**One correction to how I characterised it, from reading `isDndLoginRequired` rather than assuming.**
+`DND_REQUIRE_LOGIN` is unset, so `/dnd` runs **open** — but the API still requires a session, and the /dnd
+home page is *a public roster picker where clicking a card enters as that identity with no password*. So
+the pre-fix exposure was **one click from a public link**, not literally anonymous. That is a narrower claim
+than "anyone with the URL" and it is the accurate one; the practical severity is unchanged, since obtaining
+the session costs nothing.
+
+**What this pass did NOT establish, stated rather than glossed:** no IG or PF2 character has any audit rows
+yet — the bespoke routes only began recording in slice 35 and nothing has been edited since — so the
+**populated** state of the new panel is still unrendered. Proving it needs an edit on a live character,
+which the standing no-mutation rule forbids during an audit. The empty and loading states are confirmed
+live; the row list is covered by tests only. Likewise no visual/contrast check was made on the new panel —
+it inherits `framedPanel` and the `--hx-*` tokens, but "inherits the right tokens" is exactly the assumption
+slice 34 found wrong on a different surface.
+
 ### Slice 43 — a real production build, and a lint warning that was a trap
 
 **`npm run build` had not been run once this session** — thirteen slices verified by `tsc`, `eslint` and
