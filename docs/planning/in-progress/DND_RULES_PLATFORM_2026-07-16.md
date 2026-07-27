@@ -992,6 +992,41 @@ now audited and guarded:
 
 ## Slice 8b — Library buildout for the four focus systems ⏳ IN PROGRESS 2026-07-16/17
 
+> **PRESENTATION PASS DONE 2026-07-27** (owner: *"in the library for all of the systems, all of the sections
+> for feats and spells and everything are collapsable and expandable and that they are organized well and
+> ordered well"*). The CONTENT half of this slice — the per-system rules text below — is unchanged and still
+> its own work; this note covers only how the page presents it.
+>
+> **Collapsible: already done, verified rather than assumed.** A section is a `<details>` and every entry is
+> a nested `<details>`, both default-closed — measured in a browser as **132 collapsibles on the 2024 page,
+> all closed**. (My first probe said the section was missing entirely; `innerText` excludes content inside a
+> closed `<details>`, which is trap #2 in this project's own list. `textContent` showed it was there all
+> along. Reporting that as a bug would have been the third repeat of a documented measurement error.)
+>
+> **Ordering: genuinely wrong, now fixed.** Each page was assembled in whatever order its builder pushed
+> sections, which produced two defects a reader would feel:
+>
+> | | |
+> |---|---|
+> | **PF2 listed Armour *before* Weapons** | both 5e editions listed Weapons before Armour — the same two sections in opposite orders, unpredictable when switching systems |
+> | **5e filed Feats *after* the gear tables** | a character option sitting below the equipment lists |
+>
+> `orderSections` now applies one canonical sequence to every system, grouped by what a reader is doing:
+> how the game works → what you can be → what you can do → what you carry → extras. Homebrew stays last.
+>
+> The risk in any ordering pass is that it silently drops or re-homes a section, so the guard tests check
+> **totality and stability** as hard as they check order: an unlisted id is appended in its authored
+> relative position rather than sorted into an arbitrary slot or lost. The strongest test asserts the
+> property rather than a fixed list — for **any** pair of sections two systems both have, their relative
+> order agrees — so it keeps holding as sections are added.
+>
+> Browser-verified on the live PF2 page: weapons now precede armour, every section is collapsed by default,
+> and homebrew is last. 8 tests.
+>
+> *One thing checked and cleared:* IG's **"Actions (3-action economy)"** looked like Pathfinder's economy
+> leaking across systems (Ground Rule 1). It is not — `systems.ts` describes IG as a 3-action system and
+> IG's own content references "three-action activity" throughout. Sourced, not bled.
+
 Per the user's directive to focus on **four** systems (D&D 5e 2024, D&D 5e 2014, Intuitive Games,
 Pathfinder 2e) and fully flesh out each system's library — every rule/term/action defined,
 searchable, and AI-navigable so a player or the AI gets correct answers. The other six systems are

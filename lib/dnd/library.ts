@@ -891,8 +891,56 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
     notes: meta?.notes,
     source: r.source,
     tagline: taglineFor(r),
-    sections,
+    sections: orderSections(sections),
   };
+}
+
+// ── Section order (owner 2026-07-27: "organized well and ordered well") ──────────────────────────────────
+//
+// Each system's page was assembled in the order its builder happened to push sections, so the same concept
+// sat in a different place depending on which system you opened. The clearest symptom: **PF2 listed Armour
+// before Weapons while both 5e editions listed Weapons before Armour** — identical sections, opposite
+// order, for no reason a player could infer. 5e also filed Feats *after* the gear tables, so a character
+// option sat below the equipment lists.
+//
+// One canonical sequence, applied to every system, grouped by what a reader is actually doing:
+//
+//   1. how the game works   — core, abilities, advancement, building a character, damage, gotchas
+//   2. what you can be      — classes, species, backgrounds, skills, feats
+//   3. what you can do      — spells/powers, stances, conditions, actions, companions
+//   4. what you carry       — weapons, armour, shields, equipment, tools, magic items
+//   5. extras               — homebrew, always last
+//
+// A section whose id is NOT listed keeps its authored position relative to the other unlisted ones and is
+// appended after the known ones, rather than being sorted into an arbitrary slot or — much worse — dropped.
+// A new section therefore appears in a predictable place and is always visible, which is the property that
+// matters: an ordering pass that can silently lose a section is worse than no ordering pass.
+const SECTION_ORDER: readonly string[] = [
+  // 1 — how the game works
+  'core', 'abilities', 'advancement', 'character-building', 'damage', 'gotchas',
+  // 2 — what you can be
+  'classes', 'class-powers', 'species', 'backgrounds', 'skills', 'combat-skills', 'feats',
+  // 3 — what you can do
+  'spells', 'powers', 'defensive-powers', 'stances', 'conditions', 'actions', 'redistribution',
+  'companions', 'companion-powers',
+  // 4 — what you carry
+  'weapons', 'weapon-properties', 'armor', 'shields', 'equipment', 'tools', 'magical-items', 'languages',
+  // 5 — extras
+  'homebrew',
+];
+
+/** Sort a system's sections into `SECTION_ORDER`. Stable, total, and never lossy: unlisted ids keep their
+ *  relative order and follow the listed ones. Exported for the test that asserts every system agrees. */
+export function orderSections(sections: LibrarySection[]): LibrarySection[] {
+  const rank = (id: string) => {
+    const i = SECTION_ORDER.indexOf(id);
+    return i === -1 ? SECTION_ORDER.length : i;
+  };
+  // `map` to index first so the sort is stable across engines for equal ranks (unlisted sections).
+  return sections
+    .map((s, i) => ({ s, i, r: rank(s.id) }))
+    .sort((a, b) => (a.r - b.r) || (a.i - b.i))
+    .map((x) => x.s);
 }
 
 /** Every system's page, in the GAME_SYSTEMS order. */
