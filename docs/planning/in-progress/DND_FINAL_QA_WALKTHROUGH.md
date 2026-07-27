@@ -4667,3 +4667,97 @@ a second time after being written down.
 
 **Bar:** merge state verified against `origin/main`. Full D&D suite green (5,944 + 11 pinned), typecheck
 exit-0, working tree clean. No code changed.
+
+---
+
+### 2026-07-27 — slices 126–128: the owner answered the page, and three of the five were bigger than it said
+
+Slice 125 closed this log with *"everything else genuinely requires you"*. That was true when written. The
+owner then answered it directly — *"make the best decision… whatever makes the most sense… I trust your
+judgement"* — which unblocked **2.1 through 2.5**. All five are shipped.
+
+What is worth recording is not that they shipped, but that **three of them were materially larger than the
+decisions page had costed**, and in every case the thing that revealed it was the pin's own note rather
+than a new investigation.
+
+**Slice 126 — the blank-character flash (`d3670a52`).** Took option B, the prop-threading `IGSheet` and
+`PF2Sheet` already used, so it is the existing majority pattern rather than a new architecture. The pin
+carried the store's *"so no other character's content ever flashes"* comment, and that is what made the
+difference: a `useState` initialiser runs once per mount, so seeding it alone would have kept character A's
+data on a client-side nav to B — trading a wrong-but-generic sheet for a wrong-and-**specific** one. Both
+providers are keyed on `characterId`. Production build: `HP 32/32 · LEVEL 3 · STR 19` at **41ms**, where it
+had read `HP 1/1` through 2049ms. CLS median **0.194 → 0**.
+
+**Slice 127 — the colour tokens (`70917238`). The decisions page's premise was wrong, and it was my
+premise.** Row 2.2 said "one value… set once in the shared grounds, so it fixes all five themes". It cannot
+be one value. `--danger` is read in two directions that pull apart:
+
+| | as TEXT on panel-3 | white LABEL on it as a FILL |
+|---|---|---|
+| `#c8413f` (current) | **3.06** fail | 4.90 pass |
+| `#e77a79` (the obvious fix) | 5.32 pass | **2.82** fail |
+
+Every value that fixes one breaks the other, and the combinations are not enumerable by hand:
+`themeVariantsFor` hands the five universal themes to every non-streamer skin, so donata's `.btn.danger` —
+which hardcoded `color:#fff` — can be given Noxus's danger. The owner's follow-up named the right shape
+directly: *"put in parameters that change text color to an alternative if the background color meets
+certain criteria… so that whenever we mix and match different styles and templates it still all works
+together."* So the token is split — `--danger` (identity) / `--danger-ink` (text) / `--danger-on` (label on
+a fill) — with the alternates **derived per theme** in `themeToCssVars` from that theme's own grounds. Row
+2.3's recommended sibling swap was *not* taken for the same reason: it fixes the five palettes someone
+measured and does nothing for the skin × theme product.
+
+Two errors on the way, both caught by measuring rather than reasoning, and both worth the entry:
+
+- Testing the **unrounded** colour and returning the rounded one shipped streamerBlue a violet that cleared
+  4.50 as a float and measured **4.48** once written as `#006992`.
+- Putting every token's **self-tint** in the backdrop set pushed donata's `hotpink` off `#c2185b` — a value
+  annotated *in the palette* as ~5.4:1 — to `#a7154e`, correcting it against a backdrop a section heading
+  never lands on. Only `danger` has text on a tint of itself. **Over-correction is a regression too**, and
+  a mechanism that silently redesigns palettes that were already right is worse than the bug it fixes.
+
+**Slice 128 — headings (`ca1baf67`). Row 2.4 described the defect accurately and the fix far too small.**
+It said "renders in two places". Promoting only "Dossier" would have made slice 105's measurement pass and
+left the defect standing: the sheet is **tabbed**, and ~25 card titles across 12 panels were `h3`, so any
+tab whose first heading was not Dossier still skipped `h1 → h3`. The pin's own note — `.card h3` is styled
+*by tag* — is what forced looking at the real extent. Took the clean direction: 12 selectors became
+`.card :is(h2, h3)`, titles became `h2`, nothing changed visually.
+
+Row 2.5 named IG. **PF2 had the identical defect and was never on the page**, because IG is only where a
+browser pass happened to look — `clamped-token-surface.test.ts` already records this exact failure mode
+(*"THE SAME BUG, THREE TIMES … the third only because the second's write-up said to check the siblings"*).
+And verifying the IG fix in a browser turned up a third: the 5e `h1` was **empty** for an unnamed character
+— a 0×0 top-level heading that exists in the outline and says nothing, which is worse for a screen reader
+than the missing heading being fixed. All three closed.
+
+**The pin mechanism completed its cycle.** Every `it.fails` in this log has now been deleted by the commit
+that closed the defect it recorded, and the 8 colour pins became **183 assertions** over 10 themes × 9
+accents — a stronger guard than the pins they replaced, covering combinations that were never measured.
+
+**Bar:** 17,710 tests pass, **0 expected-fail** (down from 11), typecheck exit-0, lint clean of new
+warnings. Live browser verification on each: first paint at 41ms; `.sec-num` under Noxus rendering the
+derived `#da6c76` at **5.53** against the panel where the raw accent was 3.45; and a live outline of
+`H1 Unnamed → H2 Dossier → H2 Resources → H3` with one `h1` and zero level skips.
+
+**What remains in this doc — and a correction I nearly shipped.** My first draft of this paragraph said
+"nothing", and the stop hook's rubric would then have had me move the doc to `completed/`. That was wrong,
+and checking the inbound references rather than my own summary is what caught it:
+
+> `DND_RULES_PLATFORM_2026-07-16.md` line ~3230: *"the remaining corner-drag / stem-rotate / persist
+> confirmation is irreducibly interactive, so it is a `DND_FINAL_QA_WALKTHROUGH` item rather than an open
+> item here. **Tracked there, not dropped.**"*
+
+So this doc holds an **inherited** action item — interactive confirmation that a map image scales from any
+corner and rotates from the stem, and that both persist. It is not deferrable: the other doc closed its own
+item *on the strength of this one staying open*, and marking it done here would quietly lose work that was
+explicitly handed over. `docs/planning/qa-evidence/README.md` also links this file at its `in-progress/`
+path, which would break on a move.
+
+**The doc therefore stays in `in-progress/`** under the rubric's *"contains action items not yet done"*.
+That is the rule working as intended rather than an obstacle to it — the hook's own instruction says not to
+mark items deferred just to empty the folder.
+
+The five QA items this doc tracked in its own right are shipped. The four still open on the decisions page
+(2.6 prepared cap, 2.7 homebrew feats on non-2024, 2.8 Rangor/Pugilist, 2.9 dice rollers) and the three
+data blocks in §3 live in `SLOT_DRIVEN_CHARACTER_BUILDING` and `DND_RULES_PLATFORM`, and the owner's
+mandate covers all of them — so they are being worked in those docs, not deferred.

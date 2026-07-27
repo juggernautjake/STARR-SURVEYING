@@ -29,13 +29,18 @@ the character. Confirmed against live data: **72 audit rows, 5 public characters
 
 ## 2. Decisions — cost and severity are both known
 
+> **UPDATED 2026-07-27, later the same day.** You answered this page with a mandate ("make the best
+> decision… I trust your judgement"), which unblocked five of the nine. **2.1–2.5 are shipped**; they stay
+> listed, struck through, because a decisions index that deletes what it resolved cannot be checked against
+> what it used to say. The four that remain are the ones your mandate did not settle or that need data.
+
 | # | Decision | Cost | Severity | Detail in |
 |---|---|---|---|---|
-| 2.1 | **The blank-character flash.** Every 5e sheet renders `HP 1/1`, `LEVEL 1`, `AC 10` and all abilities `10/+0` until the client fetch lands — no skeleton, nothing marking it provisional. **It also fails a Core Web Vital**: CLS **median 0.194 over 5 runs (range 0.138–0.888)**, never once under the 0.1 "good" threshold, with the largest shift landing on `div.hero` at ~1560ms — exactly when the real data arrives. LCP median **1236ms** against **680ms** for the prop-driven IG sheet, which measured **0 CLS in 12 of 13 runs**. | **A:** expose `dbPhase` (~3 lines, `offline` is the template) + one render change → shows a loading state. **B:** pass the character in as a prop, as `IGSheet`/`PF2Sheet` already do → 4 touch points, flash gone. **B also fixes the CLS inherently; A only does if the loading state reserves exactly the real content's height** — the current blank hero is shorter, which is what jumps. | **456–764ms localhost, 2,522ms on slow 3G**, and that is a floor. `HP 1/1` is the same wrong number this doc already fixed once in its persistent form. Plus the page moves under the reader at ~1.5s. | `DND_FINAL_QA_WALKTHROUGH` slices 97–103, 115 |
-| 2.2 | **`--danger` is a regression.** Base `#ff5252` cleared AA everywhere (5.69/5.28/4.70); `HEXTECH_GROUNDS` overrides it to `#c8413f`, failing everywhere (3.71/3.44/3.06). | One value. Set once in the shared grounds, so it fixes **all five themes**. | 12 text sites incl. `.tp-err` at 12px — **error text**. A red meaning *error* is semantically fixed; no brand identity rides on the shade. | slice 72 |
-| 2.3 | **The accent as section-heading text.** `.sec-num` is the base rule for every section head (~15 shared components). | A token swap. Each failing theme already carries a lighter sibling that reads — **no new colour to pick**. | Noxus **3.45/3.19**, Void Prophet **3.95/3.66** where labels actually sit. | slice 71 |
-| 2.4 | **5e heading level skip** (`h1 → h3` at "Dossier"). | Not one line: the `h3` is styled **by tag** — search `theme.css` for `.dnd-sheet .card h3`, plus its `.skin-streamer` override — so promoting it drops its styling. Decouple the CSS, or use `aria-level="2"` and accept a workaround. Renders in two places. | WCAG 1.3.1, minor. | slice 105 |
-| 2.5 | **IG sheet has no `<h1>`** — eleven headings, no top-level one. | The name renders through `SheetPortrait`; choosing which element becomes the `h1` is structural. | WCAG 1.3.1. A screen-reader user has no anchor for "what is this page". | slice 105 |
+| ~~2.1~~ | ~~**The blank-character flash.**~~ **SHIPPED `d3670a52`** — took option B (prop-threading), the pattern `IGSheet`/`PF2Sheet` already used. First paint now reads `HP 32/32 · LEVEL 3 · STR 19` at **41ms**, where it read `HP 1/1` through 2049ms. CLS median **0.194 → 0**. | | | slices 97–103, 115, 126 |
+| ~~2.2~~ | ~~**`--danger` is a regression.**~~ **SHIPPED `70917238`** — but *not* as "one value". The premise was wrong: the token is read in two directions that pull apart, and every value fixing text-on-panel breaks label-on-fill. Split into `--danger` / `--danger-ink` / `--danger-on`, the latter two **derived per theme**. | | | slice 127 |
+| ~~2.3~~ | ~~**The accent as section-heading text.**~~ **SHIPPED `70917238`** — the sibling swap this page costed was *not* taken. It fixes the five themes someone measured; the derivation fixes the skin × theme product, which is the real surface. | | | slice 127 |
+| ~~2.4~~ | ~~**5e heading level skip.**~~ **SHIPPED `ca1baf67`** — decoupled the CSS (`.card :is(h2, h3)`) rather than using `aria-level`. Bigger than this row said: **~25 card titles across 12 panels**, not two, because the sheet is tabbed. | | | slices 105, 128 |
+| ~~2.5~~ | ~~**IG sheet has no `<h1>`.**~~ **SHIPPED `ca1baf67`** — the masthead `<strong>` became it. **PF2 had the identical defect and is not on this page**, because IG is only where a browser pass happened to look. | | | slices 105, 128 |
 | 2.6 | **The PF2 prepared cap** (S7c). Everything needed is built — `pf2SpellCountsFor`, `kind`, `modelled`, and both budget displays already show the number. | Enforcement only. | It cuts against S15's recorded *"only ACQUISITION is gated"* boundary, and a refused prepare is a rules change a player feels. | `SLOT_DRIVEN_CHARACTER_BUILDING` S7c |
 | 2.7 | **Homebrew feats on non-2024 characters.** A `general` feat saves successfully and no picker ever offers it. | Depends on 2.6-style judgement: 2014 feats are an **optional** rule in that edition, so "should 2014 offer feats at an ASI slot" is the actual question. | Silent — the designer validates, saves, and says it is flagged for DM review. | slices 76–79 |
 | 2.8 | **Rangor / Pugilist** — do they become a real custom class + subclass through the Slice-5 builder? | One sentence. | **Answering this closes `DND_RULES_PLATFORM` entirely** — it is the doc's only open item. | `DND_RULES_PLATFORM`, the item beginning "Jack: decide whether Rangor" |
@@ -71,24 +76,29 @@ Twelve ways a browser measurement lies are indexed at the top of
 
 ## 5. Which test to delete when you decide
 
-The suite reports **11 expected-fail** entries. That is not a warning — each is a *pin*: a deliberate
-`it.fails` recording a defect that is real today, keeping the suite green while making the finding
-impossible to lose. **Fixing any of them turns the pin red** with *"expected to fail but passed"*, which is
-the signal to delete it.
+A *pin* is a deliberate `it.fails` recording a defect that is real today: it keeps the suite green while
+making the finding impossible to lose, and **fixing it turns the pin red** with *"expected to fail but
+passed"* — which is the signal to delete it. That mechanism has now run its full cycle.
+
+**The suite carries ZERO expected-fail entries, down from 11.** Every pin this page listed was deleted by
+the commit that closed the defect it recorded — which is exactly what a pin is for, and is the first time
+in this log that the count has gone to nothing.
 
 | Decision | Artefact | Pins |
 |---|---|---|
-| 2.1 flash | `__tests__/dnd/sheet-initial-state.test.ts` | **1** |
-| 2.2 `--danger` · 2.3 accent-as-heading | `__tests__/dnd/colour-theme-accent-text.test.ts` | **8** (theme × panel-stop) |
-| 2.4 5e heading skip · 2.5 IG has no `h1` | `__tests__/dnd/sheet-heading-outline.test.ts` | **2** |
+| ~~2.1 flash~~ | `__tests__/dnd/sheet-initial-state.test.ts` | 0 — pin replaced by 9 assertions on the fix, incl. `key={characterId}` on every provider |
+| ~~2.2 `--danger` · 2.3 accent-as-heading~~ | `__tests__/dnd/colour-theme-accent-text.test.ts` + `theme-contrast-alternates.test.ts` | 0 — the 8 pins became **183 assertions** over 10 themes × 9 accents |
+| ~~2.4 5e heading skip · 2.5 IG has no `h1`~~ | `__tests__/dnd/sheet-heading-outline.test.ts` | 0 — both pins became assertions, plus PF2, which was never pinned |
 | 2.7 homebrew feats on non-2024 | `__tests__/dnd/homebrew-feat-reachability.test.ts` | 0 — asserts the reachability matrix as it stands, both sides of the gap |
 | 2.9 dice rollers · §3 data blocks | `__tests__/dnd/slot-plan-blockers.test.ts` | 0 — assertions flip when the data arrives |
 | 2.6 prepared cap · 2.8 Rangor/Pugilist | — | Product/rules calls with nothing to pin; the detail is in `SLOT_DRIVEN_CHARACTER_BUILDING` S7c and `DND_RULES_PLATFORM`, the item beginning "Jack: decide whether Rangor" |
 
-**Each pin also carries the constraint on its own fix**, which is the part that saves time: the store's
-*"so no other character's content ever flashes"* comment is asserted next to the flash pin, and
-`.dnd-sheet .card h3` next to the heading pin — so the reason the obvious one-line change is wrong is
-visible at the point you would attempt it.
+**Each pin also carried the constraint on its own fix**, and that is the part that paid off. Every one of
+the three closed rows was *bigger than this page said*, and in each case the pin's own note is what showed
+it: the flash pin carried the store's *"so no other character's content ever flashes"* comment, which is
+why the fix keyed the provider on `characterId` instead of just seeding it; the heading pin carried
+`.dnd-sheet .card h3`, which is what revealed the promotion touches ~25 titles rather than two. **A pin
+that records only the symptom would have produced three under-fixes.**
 
 ---
 
