@@ -404,3 +404,52 @@ the gradient and the computed `color` the sweep reads is the transparent placeho
 limitation this tool has shown (after ignoring `background-image`, collapsed `.fld` ancestors, alpha stacks,
 and expired sessions reading as auth defects). **`color: rgba(0,0,0,0)` + `background-clip: text` should be
 skipped, not reported** — recorded here because two of the previous four cost a wrong diagnosis each.
+
+### Slice 72 — the sibling sweep, and two corrections to the slice above
+
+Slice 71 checked `--hotpink` because `--hotpink` was what the live sheet flagged. `clamped-token-surface.
+test.ts` already records why that is not enough: *"THE SAME BUG, THREE TIMES … the third only because the
+second's write-up said to check the siblings."* So every token used as text was measured across all five
+themes — a boundary-correct census of `color: var(--…)` in `theme.css` gives eleven.
+
+**Two probe artifacts were caught before they became claims.** Both are kinds this file has logged before:
+
+| looked like | actually |
+|---|---|
+| `--violet-2` the worst offender, 2.11–4.29 across every theme | **8 of its 8 text uses are `.skin-donata`** — a LIGHT skin with its own pale panels and explicit `background: #fff`. Measuring it against the dark hextech grounds was the probe's assumption, not a defect. |
+| `--teal` and `--line` failing as text | They are only ever `border-color`. The census regex had no left boundary, so `border-color:` matched — the same false positive already fixed once in `/color: var\(--hx-line\)/`. |
+
+**What survived is `--danger`, and it is a different kind of finding from the accent.**
+
+| | on `panel` | on `panel-2` | on `panel-3` |
+|---|---|---|---|
+| base default `#ff5252` | 5.69 | 5.28 | 4.70 |
+| `HEXTECH_GROUNDS` `#c8413f` | **3.71** | **3.44** | **3.06** |
+
+The base value cleared AA everywhere. The grounds override darkened it below AA everywhere, and because
+`danger` is set once in `HEXTECH_GROUNDS` rather than per-theme, **all five colour themes inherit it** — one
+value, five themes, twelve text sites including `.tp-err` at 12px, which is error text. This is the
+live 3.02 measured on the Reset button (that reading composites through the button's own
+`rgba(255,82,82,.14)` tint, hence a little under the flat-panel figure).
+
+Unlike the accent, this one is hard to read as a design choice: a red that says *error* is semantically
+fixed, there is no brand identity riding on the exact shade, and the value it replaced was legible. It is
+the strongest candidate in this whole arc for a fix that is a correction rather than a decision — but it is
+still a palette value in a hand-picked file, so it is pinned here rather than changed.
+
+#### Corrections to slice 71
+
+Two things in that write-up were broader than the evidence behind them.
+
+1. **"including one on the theme new characters get by default"** — overstated. Hextech Gold's `#0397ab`
+   measures 4.85 and 4.63 on `panel` and `panel-2`; it is only 4.30 on `panel-3`. And `panel-3` is barely a
+   background: the only rules painting it are `.dnd-sheet .stage` and two `.skin-donata` ones. **A section
+   label never sits there.** Reporting the worst of three stops made a stop that is not in play sound like
+   the finding. The default theme is fine where `.sec-num` actually renders.
+2. **"its own `pink` … clears 4.5 on the panel stops"** — the assertion behind it only tested `panel-2`. On
+   all three, Noxus's `#e0576a` is 4.97 / 4.60 / **4.10**. The recommendation survives, because `panel-3`
+   is not a surface a label sits on, but the sentence claimed more than the test did. Slice 51 got a figure
+   wrong the same way. Both bounds are now pinned so the prose and the code cannot drift apart again.
+
+The live-measured core of slice 71 is unaffected: Noxus at **3.45 / 3.19** and Void Prophet at **3.95 /
+3.66**, on the stops section labels do sit on, remain under AA.

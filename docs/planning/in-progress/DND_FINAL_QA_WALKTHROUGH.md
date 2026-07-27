@@ -2580,3 +2580,45 @@ Dev server stopped, port 3467 released.
 **Also recorded** (`contrast-sweep.md`): gradient-clipped text — `color: rgba(0,0,0,0)` +
 `background-clip: text` — reads as a 1.00 false positive and must be skipped by the sweep. Fifth documented
 limitation of this tool; two of the previous four each cost a wrong diagnosis before being written down.
+
+### 2026-07-27 — slice 72: check the siblings (and correct the slice that didn't)
+
+Slice 71 measured `--hotpink` because a live sheet flagged `--hotpink`. That is the exact failure mode
+`clamped-token-surface.test.ts` was written to stop — *"THE SAME BUG, THREE TIMES … the third only because
+the second's write-up said to check the siblings."* So: every token that paints text, across all five
+themes, from a boundary-correct census of `theme.css`.
+
+**Most of what the probe returned was the probe's fault, and saying so is the point.** `--violet-2` looked
+like the worst offender at 2.11–4.29 — until it turned out **8 of its 8 text uses are `.skin-donata`**, a
+light skin with its own pale panels, so measuring it against the dark hextech grounds was meaningless.
+`--teal` and `--line` only ever appear as `border-color`; the census regex lacked a left boundary, which is
+the same false positive this repo already fixed once in `/color: var\(--hx-line\)/`. Both were discarded
+before they reached the doc. The measurement was worth running; 30 of its 42 hits were not real.
+
+**What survived is `--danger`, and it is a stronger finding than the accent was.** The base default
+`#ff5252` clears AA on every panel stop (5.69 / 5.28 / 4.70). `HEXTECH_GROUNDS` overrides it to `#c8413f`,
+which fails on every one (**3.71 / 3.44 / 3.06**) — and because `danger` is set once in the shared grounds
+rather than per-theme, **all five colour themes inherit it**, across twelve text sites including `.tp-err`
+at 12px. That is error text. It is also the 3.02 measured live on a Reset button in slice 71.
+
+This one is hard to read as a design choice: a red meaning *error* is semantically fixed, no brand identity
+rides on the shade, and the value it replaced was legible. It is the best candidate in this arc for a fix
+that is a correction rather than a decision. Still pinned rather than changed — it is a palette value in a
+hand-picked file, and the standing line in this arc is that I measure those and you choose them.
+
+**Two corrections to slice 71**, both cases of the prose claiming more than the assertion under it:
+
+- *"including one on the theme new characters get by default"* — **overstated**. Hextech Gold is 4.85 and
+  4.63 where labels sit; the 4.30 is on `panel-3`, and `panel-3` is painted by exactly `.dnd-sheet .stage`
+  plus two donata rules. A section label never renders there. Reporting the worst of three stops made a
+  surface that is not in play sound like the finding.
+- *"its own `pink` … clears 4.5 on the panel stops"* — the test behind it checked only `panel-2`. Noxus's
+  `#e0576a` is 4.97 / 4.60 / **4.10**. The recommendation stands (again, `panel-3` is not in play), but the
+  sentence was broader than its evidence. Slice 51 went wrong the same way.
+
+Both bounds are now pinned, including an explicit assertion that the substitute is *not* claimed past where
+it holds, so prose and code cannot drift apart a third time. **The live-measured core of slice 71 is
+unaffected:** Noxus 3.45 / 3.19 and Void Prophet 3.95 / 3.66 on the stops labels do sit on.
+
+**Bar:** 22 passed / 8 expected-fail in the file, full D&D suite green, typecheck exit-0, lint clean.
+Probe files deleted in the same slice; no dev server needed (this one was computable from source).
