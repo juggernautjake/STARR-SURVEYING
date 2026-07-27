@@ -172,6 +172,43 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 50 — the palettes' own contrast claims were never checked, and four are wrong
+
+Chasing the section-number item found something better than the item. `theme.ts` documents a ratio beside
+most palette entries — *"~11:1 on cream (AAA)"*, *"5.2:1 on the pale panel"*, *"7.2:1 on the card"*. **Those
+numbers are how anyone picking a colour for a skin decides whether it is safe, and nothing had ever checked
+them.**
+
+All fifteen checked. Eleven accurate or conservative. **Four optimistic — and every one is a gold:**
+
+| entry | claimed | actual |
+|---|---|---|
+| streamer `tealbright` | 5.9 | **5.53** |
+| streamer `gold` | 5.2 | **4.58** — and **4.12** on panel-2 |
+| donata `gold` | 6.1 | **5.72** |
+| rulebook `gold` | 7.4 | **6.63** |
+
+**That is a pattern in one colour family, not noise** — and it is the explanation for why "the gold/amber
+family on pale panels" keeps reappearing in this doc's baseline. Streamer's gold is the sharp case:
+documented at a comfortable 5.2, actually **4.58** on the surface it names (barely over AA) and **failing at
+4.12 on the adjacent panel-2**. A designer trusting that comment would reasonably reuse the colour anywhere
+— which is very likely how several of the tracked gold items got written in the first place.
+
+Comments corrected to the measured values; streamer's now records **both** surfaces, since it passes on one
+and fails on the other — the same *"tuned for one surface, used on another"* shape as slice 47's clamp bug,
+this time in prose rather than code.
+
+**No colour changed.** An overstated comment is worse than no comment, because it is the thing that gets
+reused. 19 tests recompute every claim, so a palette edit that leaves its comment behind fails — and two of
+them pin the finding itself (the golds have the least margin of any family; streamer's really does fail next
+door), so whoever retunes the gold family knows exactly where to start.
+
+**On the section-number item specifically:** it did not reproduce as described. `#b30060` clears AA on
+*every* streamer surface (5.58–6.60), so the baseline's "3.09" was not that pairing — most likely the gold
+`::before` prefix (`.sec-num::before { content: '// '; color: var(--gold) }`) at **4.12** on panel-2, which
+is the same gold this slice just corrected. Recorded rather than silently dropped: the item is real, the
+attribution in the baseline was not.
+
 ### Slice 49 — the brand-fill item, from "20 vague things" to one decision
 
 The baseline's biggest remaining bucket is *"brand-filled buttons — 20 on donata, 1 on lazzuh"*. Measuring
