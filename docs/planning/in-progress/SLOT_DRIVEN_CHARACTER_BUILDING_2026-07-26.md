@@ -414,6 +414,42 @@ slices are driven in the browser before being called done — this repo's standi
       custom dead end needs two conditions at once, with nothing anywhere driving a walker on a custom
       character. **This is the third slice in a row where the defect was in what a correct gate SAW or
       SHOWED, not in whether it existed** — a source-level test cannot see either.
+- [x] **S6g — the same defect on PF2 and IG, found by auditing for S6f's SHAPE. Shipped 2026-07-26**
+      (`bb432ef3`). 18 tests. S6f was a bug; this is what it turned into once stated as a rule:
+
+      > **A picker decides what a player may SEE and ASK FOR. It never decides what is legal. The server
+      > decides what is legal, and its refusal is what raises the hatch.**
+
+      Both walkers were worse than 5e: each offered **exactly the set its own server accepts**, so the gate
+      could never fire from the walker at all and "+ Take it anyway" — which both files have RENDERED since
+      S6c/S6d — was unreachable in both. S6e proved those gates work by driving them directly; nothing had
+      checked that a player could get to them.
+      · **PF2** filtered on `f.level <= choice.level`, and the level floor is `pf2FeatEligibility`'s FIRST
+        refusal. The most common PF2 refusal was unreachable. Level is now shown, not enforced.
+      · **IG** returned the plan's own subclass-scoped list, and *"not a `<subclass>` power"* is
+        `igPowerEligibility`'s ONLY refusal for powers — so IG's gate had exactly one refusal and the
+        picker withheld exactly it. S6c built that hatch for the cross-subclass case specifically.
+      **The bounded/unbounded rule, which is the reusable part.** PF2 class scoping stays a FILTER: ~500
+      class feats would be a dropdown of 500 things you can't have, and S6b already ruled on this. Bounded
+      sets widen and are shown; unbounded ones stay filtered. Measuring caught the one place my own rule
+      broke — the **ancestry** track has 121 in-reach and 192 out-of-reach entries, and widening it took a
+      dropdown from 121 rows to 313. So the group caps at 60 nearest-level entries **and the UI says how
+      many it left out**: this repo's "no silent caps" habit, because a truncated list that says nothing
+      reads as the whole catalog.
+      **Neither picker judges prerequisites, deliberately** — a walker holds a class name and a level, and
+      the eligibility cores need the whole character. Judging with a thinner context than the server is
+      precisely S6f's War Caster bug. A prereq failure still surfaces honestly: the server refuses it and
+      returns its own sentence.
+      **IG's missing-data path is deliberately NOT rescued.** Champion has no catalogued powers, so its
+      powers are UNKNOWN, not exceptions; offering "every other subclass's powers, needs an exception"
+      there would push a player to flag a legal pick as altered vanilla to get past a gap in OUR data.
+      Free text stays the answer for missing data; the widened group is for a rule being stepped outside
+      of. Pinned by a test, because it looks like an oversight.
+      **`lib/dnd/slots/walker-options.ts`** holds the split, so it is tested against the real catalog and
+      the real gates instead of by grepping a component — which is how all of these survived a green suite.
+      **Two existing tests were stale and had to change**, one of them damning: `pf2-level-builder.test.ts`
+      pinned the literal filter `f.level <= choice.level`, so **the defect was actively protected by a
+      passing test**. Identical to S6f's. Both now pin the rule.
 - [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
       A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
       **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure
