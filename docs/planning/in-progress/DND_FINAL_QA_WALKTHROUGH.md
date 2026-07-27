@@ -203,6 +203,37 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 60 — the third instance, and a guard that stops there being a fourth
+
+Slice 59 ended by saying *"when a clamp is wrong, check its siblings."* Doing that found `--hx-muted`
+carrying the same fault — clamped against `panel` while content sits on the gradient top. Its **threshold
+was already right** at 4.5; only the surface was wrong, and `panel` flattered it by ~0.5.
+
+| skin | before (panel-2) | after |
+|---|---|---|
+| streamer | **4.21** ❌ | **4.74** ✅ |
+| donata | **4.14** ❌ | **4.72** ✅ |
+| jack | **4.10** ❌ | **4.63** ✅ |
+| lazzuh | 5.00 ✅ | 5.00 — untouched |
+
+**This is the broadest of the three.** `--hx-muted` paints labels and captions on every bespoke sheet, so
+all three light skins were running a hair under AA across their entire *secondary text layer* — never
+dramatically wrong, which is exactly why nobody saw it.
+
+**`--hx-text` is the deliberate exception**, asserted as such rather than left looking like an oversight: at
+a ratio of 7 it has headroom either way (12.3–14.1 on panel-2), so moving it would change colours for no
+legibility gain.
+
+**The guard is now general.** Three instances of one bug, found three separate ways — by reading (47), by
+live measurement (59), by following a written-down lesson (60) — is enough evidence to stop writing
+per-token files. `clamped-token-surface.test.ts` asserts the rule across **every** text-bearing token on
+**every** skin against **both** panel stops, and pins that each fix landed in **both** derivations, since
+this module builds the token set twice and fixing one copy is how a defect survives its own fix.
+
+**Worth stating plainly:** the trail ran 47 → 59 → 60, and each step was only reachable because the previous
+one wrote down what it had learned. The `gold2` fix that started it was correct and complete for `gold2` —
+and left two identical bugs sitting eight and twenty lines away.
+
 ### Slice 59 — the accent clamp had the same bug, and only measurement found it
 
 Slice 58's re-measurement paid for itself immediately. Its PF2 sheet showed 18px modifiers at **4.38** —
