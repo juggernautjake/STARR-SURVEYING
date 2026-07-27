@@ -35,7 +35,7 @@ import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { IG_ABILITIES, IG_SAVES } from '@/lib/dnd/systems/intuitive-games/model';
 import { igAbilityMod, igDerived, igSkillTotal, igRanksSpent, igResolveAttack } from '@/lib/dnd/systems/intuitive-games/rules';
 import { igInPlayState } from '@/lib/dnd/systems/intuitive-games/resolve';
-import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel, rollTone } from '@/lib/dnd/roll';
 import { IG_STANCES, IG_STANCE_DEFS, IG_POWERS, IG_DEFENSIVE_POWERS, IG_CONDITIONS, IG_ACTION_ECONOMIES, igActionsByEconomy, findIGAncestry } from '@/lib/dnd/systems/intuitive-games/content';
 import { igStanceInPlay, igConditionInPlay } from '@/lib/dnd/systems/intuitive-games/inPlay';
 import { igConditionSummary, igStanceMechanicNote } from '@/lib/dnd/systems/intuitive-games/modifiers';
@@ -219,11 +219,10 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const r = resolveD20Roll({ natural, modifier: modifier + cond.penalty, dc, system: 'intuitive-games' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
-    let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+    // Toned by DEGREE when one exists — the natural face was already spent shifting it (see rollTone).
+    const tone = rollTone(r);
     if (r.degree && r.dc != null) {
       detail += ` · vs DC ${r.dc} → ${degreeLabel(r.degree)}`;
-      if (r.degree === 'critical-success') tone = 'crit';
-      else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
     const sources = [...cond.sources, ...stanceEff.sources];
@@ -235,8 +234,8 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
       token: ++rollTokenRef.current, label, natural, total: r.total, modifier: r.modifier,
       faces: n2 != null ? [n1, n2] : null,
       mode: advantage ? 'adv' : disadvantage ? 'dis' : undefined,
-      crit: r.critical || r.degree === 'critical-success',
-      fumble: r.fumble || r.degree === 'critical-failure',
+      crit: tone === 'crit',
+      fumble: tone === 'fumble',
       tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : undefined,
       boosts: advantage && sources.length ? sources : undefined,
       penalties: (disadvantage || cond.penalty) && sources.length ? sources : undefined,

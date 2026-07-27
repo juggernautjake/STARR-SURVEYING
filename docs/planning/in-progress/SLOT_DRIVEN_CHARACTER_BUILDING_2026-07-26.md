@@ -681,7 +681,46 @@ slices are driven in the browser before being called done — this repo's standi
       button, and the pages were fine — those labels are `text-transform: uppercase`, and `innerText` returns
       the *transformed* text, so `"Rules text"` never matches `"RULES TEXT"`. Case-insensitive matching is the
       fix; believing the first red result would have been a fabricated bug report.
-- [~] **S9 — dice rollers per system.** Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
+- [x] **S9 — dice rollers per system. ✅ RESOLVED 2026-07-27 — and Q4 was answered by being redirected.**
+
+      The owner did not pick between the two options Q4 offered. They asked for something else:
+      *"For the per-system dice rollers, just make sure the math is being done and displayed correctly for
+      each dice roller and system. Whatever bug(s) for any of the different dice rollers, please fix them."*
+      So **Q4 is closed as "neither"** — no new per-system roller settings, because nothing is broken by
+      their absence (see the re-derivation below) and correctness was the actual concern.
+
+      **The audit found a real defect, in both bespoke rollers at once, and it was presentational — exactly
+      the half the request named.** PF2 and IG each seeded the banner tone from the NATURAL face and let
+      only the critical degrees override it:
+
+      ```
+      let tone = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+      if (r.degree === 'critical-success') tone = 'crit';
+      else if (r.degree === 'critical-failure') tone = 'fumble';
+      ```
+
+      That double-counts the die. `fourStepDegree` has **already spent** the natural 20/1 — it is what
+      shifts the degree one step — so reading it again makes the banner contradict its own text:
+
+      | roll | degree | old tone | what the player saw |
+      |---|---|---|---|
+      | +0 vs DC 35, nat 20 | Failure (crit-fail, bumped) | `crit` | the roller **celebrating a miss** |
+      | +20 vs DC 5, nat 1 | Success (crit-success, dropped) | `fumble` | the roller **mourning a hit** |
+
+      A natural 20 is not a critical success in PF2 or IG; it is one step better than you rolled. **The
+      arithmetic was never wrong** — `fourStepDegree`, the thresholds, the clamped shift and the 5e
+      adv/dis + crit-damage rules all check out and are now pinned. Only the presentation was wrong.
+
+      Fixed as ONE shared rule (`rollTone` in `lib/dnd/roll.ts`), not patched twice: the identical wrong
+      line in two files is what made this a pair of bugs instead of one. The animated roller reads the same
+      decision, so the animation can no longer celebrate while the text below it reads "Failure".
+
+      **A test was defending the bug.** `pf2-sheet-roller.test.ts` asserted the literal string
+      `r.critical || r.degree === 'critical-success'` — pinning the defect as though it were the
+      specification. Corrected, with the reason inline. 17 new tests + 4 wiring assertions.
+
+      *Original item and its reasoning, kept intact:*
+      Owner-flagged. `diceRollerStyle`/`recordMode` are read only by the
       full 5e roller nodes (`DiceTray`/`SigilStack`/`RollBoard`/`ImpactRoller` via `rollerFor`); the bespoke
       sheets mount `rollerStageFor`, whose stages read only the `RollFeed`. So the roller *template* picker
       works everywhere but those two settings do nothing on PF2/IG. Either wire the stages to read them or

@@ -46,10 +46,18 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
   });
 
   it('AO-2 — the roll carries its full information to the stage: degree, crit/fumble, and named modifiers', () => {
-    // Degree-of-success tag vs the Target DC, and crit/fumble from a nat 20/1 OR the four-step degree.
+    // Degree-of-success tag vs the Target DC, and crit/fumble from the DEGREE when there is one.
+    //
+    // CORRECTED 2026-07-27. This assertion used to require `r.critical || r.degree === 'critical-success'`
+    // — it pinned the defect as though it were the specification. That expression double-counts the die:
+    // `fourStepDegree` has already spent the natural 20/1 shifting the degree, so reading it again makes a
+    // natural 20 that lands on **Failure** animate as a critical. A nat 20 is not a critical success in
+    // PF2; it is one step better than you rolled. The tone now comes from `rollTone(r)` — shared with the
+    // IG roller, which carried the identical line. See `roll-tone-degrees.test.ts`.
     expect(sheet).toContain('degreeLabel(r.degree)');
-    expect(sheet).toContain('r.critical || r.degree === \'critical-success\'');
-    expect(sheet).toContain('r.fumble || r.degree === \'critical-failure\'');
+    expect(sheet).toContain('const tone = rollTone(r);');
+    expect(sheet).toContain("crit: tone === 'crit',");
+    expect(sheet).toContain("fumble: tone === 'fumble',");
     // The named contributing modifiers reach the stage as boosts/penalties, so the breakdown shows even with
     // a Target DC set (where the tag becomes the degree) — "where did this +N come from" is always answered.
     expect(sheet).toContain('stat.applied.filter((m) => m.value > 0)');

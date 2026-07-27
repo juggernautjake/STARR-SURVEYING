@@ -163,3 +163,38 @@ export function rollDiceExpr(expr: string, rng: () => number = Math.random): Dic
   total = Math.max(0, total);
   return { expr, total, breakdown: `${parts.join(' ')} = ${total}` };
 }
+
+// ── How a resolved roll should READ (S9 / owner 2026-07-27) ──────────────────────────────────────────────
+//
+// THE BUG THIS EXISTS TO PREVENT, found in both bespoke rollers at once. They each seeded the banner tone
+// from the natural face and then let only the CRITICAL degrees override it:
+//
+//     let tone = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+//     if (r.degree === 'critical-success') tone = 'crit';
+//     else if (r.degree === 'critical-failure') tone = 'fumble';
+//
+// In a four-step system that double-counts the die. The natural 20/1 has ALREADY been spent — it is what
+// shifted the degree one step inside `fourStepDegree` — so reading it again produces a banner that
+// contradicts its own text:
+//
+//   · +0 vs DC 35, natural 20 → total 20 is a critical failure, bumped one step to **Failure**… styled as
+//     a crit. The roller celebrates a miss.
+//   · +20 vs DC 5, natural 1 → total 21 is a critical success, dropped one step to **Success**… styled as
+//     a fumble. The roller mourns a hit.
+//
+// A natural 20 is not a critical success in PF2 (or IG); it is one step better than you rolled. So when a
+// degree exists it is the ONLY thing that decides tone, and the face is reported separately as "NAT 20".
+// Outside a degrees system (or with no DC) there is no degree, and the natural face is exactly right.
+//
+// Shared rather than fixed twice, deliberately: the identical wrong line in two files is what made this a
+// pair of bugs instead of one.
+
+export type RollTone = 'crit' | 'fumble' | 'normal';
+
+/** How a resolved roll should be toned: by DEGREE when one exists, otherwise by the natural face. */
+export function rollTone(r: Pick<RollResult, 'degree' | 'critical' | 'fumble'>): RollTone {
+  if (r.degree) {
+    return r.degree === 'critical-success' ? 'crit' : r.degree === 'critical-failure' ? 'fumble' : 'normal';
+  }
+  return r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+}

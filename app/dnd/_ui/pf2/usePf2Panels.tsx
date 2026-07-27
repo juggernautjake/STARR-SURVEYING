@@ -36,7 +36,7 @@ import {
 } from '@/lib/dnd/systems/pathfinder2e/resolve';
 import { pf2VariantsFromPreferences, describePf2Variants, isVanillaPf2Variants } from '@/lib/dnd/systems/pathfinder2e/variants';
 import type { EffectivePreferences } from '@/lib/dnd/preferences';
-import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel } from '@/lib/dnd/roll';
+import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel, rollTone } from '@/lib/dnd/roll';
 import { pf2ConditionMechanics, PF2_CONDITION_MECHANICS } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
@@ -259,11 +259,10 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     const r = resolveD20Roll({ natural: rollNaturalD20(), modifier: stat.total, dc, system: 'pathfinder2e' });
     const sign = r.modifier >= 0 ? `+ ${r.modifier}` : `− ${Math.abs(r.modifier)}`;
     let detail = `d20 [${r.natural}] ${sign}`;
-    let tone: 'crit' | 'fumble' | 'normal' = r.critical ? 'crit' : r.fumble ? 'fumble' : 'normal';
+    // Toned by DEGREE when one exists — the natural face was already spent shifting it (see rollTone).
+    const tone = rollTone(r);
     if (r.degree && r.dc != null) {
       detail += ` · vs DC ${r.dc} → ${degreeLabel(r.degree)}`;
-      if (r.degree === 'critical-success') tone = 'crit';
-      else if (r.degree === 'critical-failure') tone = 'fumble';
     }
     detail += `${r.critical ? ' · NAT 20' : ''}${r.fumble ? ' · NAT 1' : ''}`;
     // The roller shows its work — every source that contributed, named. A suppressed same-type
@@ -286,8 +285,8 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     const penalties = stat.applied.filter((m) => m.value < 0).map((m) => `−${Math.abs(m.value)} ${m.source}`);
     setActiveRoll(buildD20ActiveRoll({
       token: ++rollTokenRef.current, label: name, natural: r.natural, total: r.total, modifier: r.modifier,
-      crit: r.critical || r.degree === 'critical-success',
-      fumble: r.fumble || r.degree === 'critical-failure',
+      crit: tone === 'crit',
+      fumble: tone === 'fumble',
       tag: r.degree && r.dc != null ? `vs DC ${r.dc} → ${degreeLabel(r.degree)}` : stat.breakdown,
       boosts: boosts.length ? boosts : undefined,
       penalties: penalties.length ? penalties : undefined,
