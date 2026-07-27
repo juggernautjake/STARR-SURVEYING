@@ -75,6 +75,9 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
           className={data.meta?.className ?? ''}
           subclassName={data.meta?.subclass ?? ''}
           abilities={data.abilities}
+          // Same test the sheet (`App.tsx`) and the AI edit route already use, so the picker cannot
+          // disagree with them about whether this character casts.
+          hasSpellcasting={!!data.spellcasting?.ability || (data.spells?.length ?? 0) > 0}
           aiConfigured={aiConfigured}
         />
       ),

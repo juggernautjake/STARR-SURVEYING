@@ -20,7 +20,7 @@ import { fightingStyles2014 } from '@/lib/dnd/classes/dnd5e-2014/fighting-styles
 import { progressionRows, progressionColumns } from '@/lib/dnd/classes/progression-rows';
 import { planLevelUp, recordChoice, validateChoice, chosenSubclassKey, type RecordedChoice } from '@/lib/dnd/classes/levelup';
 import { clampLevel } from '@/lib/dnd/classes/engine';
-import { readActiveSlotMeta, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
+import { readActiveSlotMeta, isRulesEnforcedKind, ACTIVE_SLOT_META_KEY } from '@/lib/dnd/system-variants';
 import { unlockOffer, exceptionsIn, variantKindWithExceptions, describeException } from '@/lib/dnd/slots/entitlement';
 
 /** Read the character + its recorded build choices. */
@@ -179,7 +179,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const buildVariant = readActiveSlotMeta(rawVariants).kind ?? 'vanilla';
     const offer = unlockOffer({ isDM: r.access.isDM, kind: buildVariant });
 
-    if (!v.ok) {
+    // A CUSTOM character's rules never bound, so there is nothing here to refuse. PF2 and IG both say this
+    // already (`isRulesEnforcedKind(buildVariant)` guards their gates); this route validated unconditionally
+    // and was the only one of the three that didn't — found by driving it, because the two halves are
+    // individually sensible and only contradict each other in the same request:
+    //   · the gate refused the pick, and
+    //   · `unlockOffer` withheld the hatch BECAUSE the character is custom ("an exception would be noise").
+    // So a custom 5e character was refused and then told nothing could be done about it — a guaranteed dead
+    // end, on precisely the characters the escape hatch exists to serve. It survived every test because no
+    // test drove a walker on a custom character, and it needs BOTH conditions to show itself.
+    //
+    // The pick passes UNRECORDED rather than passing as an exception, which is the sibling routes' choice
+    // and `entitlement`'s own doctrine: on a custom character "there is nothing to unlock and no exception
+    // to record". Filing one anyway would put a subset of picks — only those this validator happens to
+    // judge — into the DM's review queue for a character that never claimed to be rules-legal, and would
+    // read `offer.stamps` off an offer whose `offered` is false.
+    const unbound = !isRulesEnforcedKind(buildVariant);
+    if (!v.ok && !unbound) {
       const accepted = body?.acceptException === true && offer.offered;
       if (!accepted) {
         // Tell the player the door exists, rather than leaving them at a wall.

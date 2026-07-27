@@ -262,6 +262,39 @@ describe('a pick cannot justify itself (the laundering hole)', () => {
   });
 });
 
+// ── The CUSTOM-character dead end, found by driving the 5e walker (S6f) ───────────────────────────────
+//
+// Two individually sensible halves that only contradict each other in the same request:
+//   · this route validated every pick unconditionally, and
+//   · `unlockOffer` withholds the hatch precisely BECAUSE the character is custom.
+// So a custom 5e character was refused and then told nothing could be done about it — a guaranteed dead
+// end, on exactly the characters the hatch exists to serve. PF2 and IG never had it: both guard their
+// gates with `isRulesEnforcedKind`. Invisible to every test above because it needs BOTH conditions, and
+// nothing drove a walker on a custom character.
+describe('5e: a custom character is not gated at all', () => {
+  it('guards the gate with the same predicate its two sibling routes use', () => {
+    expect(ROUTE).toContain('isRulesEnforcedKind');
+    expect(ROUTE).toContain('const unbound = !isRulesEnforcedKind(buildVariant)');
+    expect(ROUTE).toContain('if (!v.ok && !unbound) {');
+  });
+
+  it('lets the pick through UNRECORDED rather than filing an exception on it', () => {
+    // `entitlement`'s own doctrine: on a custom character "there is nothing to unlock and no exception to
+    // record". Filing one anyway would push a subset of picks — only the ones this validator happens to
+    // judge — into the DM's review queue for a character that never claimed to be rules-legal, and would
+    // read `offer.stamps` off an offer whose `offered` is false.
+    const gate = ROUTE.slice(ROUTE.indexOf('const unbound = !isRulesEnforcedKind'));
+    const body = gate.slice(0, gate.indexOf('next.build.choices = recordChoice'));
+    expect(body).toContain('choice.exception = {');           // still filed on a BOUND character
+    expect(body).not.toContain('unbound ||');                 // …but never by being an accepted exception
+  });
+
+  it('still refuses a bound character, so the fix cannot have turned the gate off', () => {
+    expect(ROUTE).toContain('body?.acceptException === true && offer.offered');
+    expect(ROUTE).toMatch(/if \(!accepted\) \{[\s\S]{0,220}status: 400/);
+  });
+});
+
 describe('5e: the mirror image — a pick must not CONVICT itself either', () => {
   it('excludes the slot being replaced from the already-taken feat list', () => {
     // Same structural fault as the IG laundering hole, opposite symptom. `recordChoice` replaces the entry

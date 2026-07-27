@@ -23,7 +23,7 @@ import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
  * ones that ARE offered. Empty for non-2024 systems, where we don't yet ship a feat list — those fall back
  * to the explicit-custom text entry.
  */
-function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abilities?: Partial<Record<AbilityKey, number>>): Feat[] {
+function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abilities?: Partial<Record<AbilityKey, number>>, hasSpellcasting = false): FeatChoice[] {
   if (system !== 'dnd5e-2024') return [];
   const official = FEATS_2024.filter((f) => {
     if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
@@ -33,17 +33,43 @@ function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abili
   const homebrew = extra.filter((f) => f.category === 'general' || (f.category === 'epic-boon' && level >= 19));
   const pool = [...official, ...homebrew];
   // ABILITY prerequisites, when we know the character's scores. This picker and the Foundations one spend
-  // the SAME kind of slot, and after the Foundations gate landed they disagreed: Foundations hard-blocked
-  // Grappler below STR 13 while this one offered it with a "(needs STR 13)" hint. Two enforcement levels
-  // for one rule, in one edition. The platform's rule is that a vanilla builder offers only rules-legal
-  // picks and `✎ Custom feat…` is the escape hatch, so this one aligns with that — and only when the
-  // scores are actually known, so a caller without them keeps the previous hint-only behaviour rather
-  // than silently hiding legal choices.
+  // the SAME kind of slot, and after the Foundations gate landed they disagreed, so this one was aligned
+  // to Foundations — but aligned to the WRONG READING of it. Foundations "hard blocks" Grappler below
+  // STR 13 by rendering it greyed WITH ITS REASON; this filtered it out of the list entirely. Three
+  // separate costs, all found by driving the walker rather than reading it (S6f):
+  //   · The page's own copy promises "ineligible picks are greyed with the reason". They were not greyed,
+  //     they were absent — and "why can't I take Grappler?" is the question a builder exists to answer.
+  //     FeatPicker, SpellPicker, Dnd5eManualBuilder and IGCharacterBuilder all say this in their own
+  //     comments; this was the one picker that hid instead.
+  //   · It made the S6d escape hatch UNREACHABLE for the case it was built for. "+ Take it anyway" only
+  //     appears once the server refuses something, and nothing ineligible could be sent to be refused.
+  //     A filter and a hatch are two answers to one question, and the filter silently won.
+  //   · It contradicts the standing directive that a player may fully customise AT EACH LEVEL, with the
+  //     departure flagged — which requires the illegal pick to be reachable, refused, and then taken
+  //     deliberately, not quietly deleted from the menu.
+  // So: ineligible feats STAY, carrying their reason, and stay selectable. The rules still bind — the
+  // server refuses them exactly as before, and that refusal is what raises the hatch. Nothing here
+  // decides what is legal; it only decides what the player is allowed to SEE and ask for.
+  //
+  // `has` matters as much as `abilities`, and only became VISIBLE once the reasons were. This call omitted
+  // it, so War Caster — the one 2024 general feat gated on a feature rather than a score — was judged
+  // against "no spellcasting" for every character alive. While ineligible feats were hidden that quietly
+  // removed a legal pick from every caster's list; showing them would have printed a flat lie on a Wizard's
+  // screen and pushed a legal choice through the exception hatch, badging the character Altered vanilla for
+  // taking a feat its class grants. The server always knew (`hasSpellcasting` in the rules gate) — only the
+  // picker didn't, which is the same shape as every other bug this session: two places deciding one rule.
   if (!abilities) return pool;
-  return pool.filter((f) => featEligibilityForSystem('dnd5e-2024', f.key, {
-    slot: 'asi', level, abilities,
-  }).ok);
+  return pool.map((f) => {
+    const v = featEligibilityForSystem('dnd5e-2024', f.key, {
+      slot: 'asi', level, abilities, has: hasSpellcasting ? ['spellcasting'] : [],
+    });
+    return v.ok ? f : { ...f, blockedReason: v.reason ?? 'not available to this character' };
+  });
 }
+
+/** A feat offered by the picker, plus the reason it is not legal yet — present ONLY when the rules refuse
+ *  it. Kept on the option rather than in a parallel set so the label and the decision cannot drift. */
+type FeatChoice = Feat & { blockedReason?: string };
 
 /** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
 function prereqHint(feat: Feat): string {
@@ -103,6 +129,7 @@ export default function LevelBuilder({
   className,
   subclassName,
   abilities,
+  hasSpellcasting,
   aiConfigured,
 }: {
   characterId: string;
@@ -115,6 +142,10 @@ export default function LevelBuilder({
    *  way the Foundations picker does. Optional: without them the picker keeps its hint-only behaviour
    *  rather than hiding feats it cannot judge. */
   abilities?: Partial<Record<AbilityKey, number>>;
+  /** Does the character cast? War Caster is the one 2024 general feat gated on a FEATURE rather than a
+   *  score, so without this the picker judges every character as a non-caster. Defaults to false, which
+   *  only ever over-reports — and an over-report is now visible and takeable rather than a silent deletion. */
+  hasSpellcasting?: boolean;
   aiConfigured: boolean;
 }) {
   const router = useRouter();
@@ -363,7 +394,7 @@ export default function LevelBuilder({
                 )}
                 <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
                 {(() => {
-                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities);
+                  const choices = asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities, hasSpellcasting);
                   const known = new Set(choices.map((f) => f.key));
                   // A feat is "custom" when it's set but not one of the rules-legal choices — the
                   // explicit escape hatch, which reveals a free-text name field.
@@ -376,8 +407,13 @@ export default function LevelBuilder({
                         style={{ flex: '1 1 220px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
                       >
                         <option value="">— choose a feat —</option>
+                        {/* An ineligible feat is marked and explained, not hidden — and stays selectable,
+                            because the server's refusal is what raises "+ Take it anyway". A `disabled`
+                            option would grey it correctly and still leave the hatch unreachable. */}
                         {choices.map((f) => (
-                          <option key={f.key} value={f.key}>{f.name}{prereqHint(f)}</option>
+                          <option key={f.key} value={f.key}>
+                            {f.blockedReason ? `⊘ ${f.name} — ${f.blockedReason}` : `${f.name}${prereqHint(f)}`}
+                          </option>
                         ))}
                         {choices.length === 0 && <option value="" disabled>no official feats for this system — use custom</option>}
                         <option value="__custom__">✎ Custom feat…</option>
