@@ -172,6 +172,43 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 49 — the brand-fill item, from "20 vague things" to one decision
+
+The baseline's biggest remaining bucket is *"brand-filled buttons — 20 on donata, 1 on lazzuh"*. Measuring
+it narrows it sharply, and **the narrowing is the value**.
+
+Donata's filled buttons are **gradients** with a white label — and every one of them **ends** on a colour
+white reads on comfortably (6.41 / 6.91 / 5.87). Only the **light stop**, where the button starts, was ever
+unchecked against its own label. `.btn.solid` starts on `--hotpink` and passes at both ends; three others
+start lighter and fail:
+
+| button | light stop | white on it |
+|---|---|---|
+| `.btn.teal` | `#17b3a3` (theme.ts calls it "candy teal (bg)") | **2.62** |
+| `.btn.danger` | `#f0577a` | **3.31** |
+| `.btn.pink` | `#ff5fa8` | **2.82** |
+
+**So it is not twenty judgement calls — it is three gradient stops**, each with two remedies that both keep
+the skin, both measured:
+
+- **A — darken only the light stop** to the minimum that passes, hue preserved: `#118479` (4.56) ·
+  `#ca4966` (4.51) · `#c24880` (4.63). The gradient starts deeper and ends exactly where it already ended.
+- **B — keep the brand colour untouched** and use the skin's own ink as the label: **5.45** on the candy
+  teal, and it works on the pink stop too. **`.btn.gold` on this same skin already does this**
+  (`color:#4a2f04`) — so B is an established pattern here, not an invention.
+
+**B does not work on the danger stop** — mid-toned, and neither white nor the ink clears it, so that one
+wants A. Recorded because *"just use dark text everywhere"* would otherwise become a second round of bugs.
+
+**Deliberately not applied.** Unlike slice 47's clamp, nothing here is misconfigured: these are hand-picked
+brand colours and changing one changes how the skin looks. That is genuinely the owner's call — what was
+missing was the numbers to make it in one step. The rule shapes are asserted alongside, so a restructured
+button fails this file rather than leaving it asserting numbers about CSS that no longer exists.
+
+**Where the line now sits, after three slices of testing it:** slice 46 deferred and was wrong (the
+mechanism was broken); slice 47 fixed it; slice 48 found the same shape again in undefined tokens; this one
+deferred and is *right*, and can show why — the mechanism is sound, only the choice remains. 15 tests.
+
 ### Slice 48 — six `var(--hx-…)` references named tokens that do not exist
 
 Following slice 47's lead — *"other tracked contrast items may share a mechanical cause"* — found a
