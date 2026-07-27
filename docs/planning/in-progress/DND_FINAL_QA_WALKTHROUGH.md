@@ -1,6 +1,6 @@
 # D&D — Final full-system QA walkthrough (Playwright, browser, manual)
 
-**STATUS: IN PROGRESS — 73 slices run (2026-07-25 → 27).** This is the LAST D&D item, extracted from
+**STATUS: IN PROGRESS — 108 slices run (2026-07-25 → 27).** This is the LAST D&D item, extracted from
 `DND_RULES_PLATFORM_2026-07-16.md` (originally "Slice 40").
 
 > ## Where this actually stands — read this before the sections below
@@ -59,6 +59,42 @@
 > - **Everything else** lives in `SLOT_DRIVEN_CHARACTER_BUILDING` (the escape hatch, spell slots, the
 >   exceptions badge, dice rollers, IG's Champion data and level-1 feat count) and is blocked on an owner
 >   decision, not on effort.
+>
+> ### ⚑ Added 2026-07-27 (slice 109) — this list was 35 slices out of date
+>
+> *Slice 73 rewrote this section and it went stale again by the same mechanism it was fixing: the body kept
+> growing, the summary did not. **It omitted the most severe finding of the entire arc**, so an owner
+> reading only the header would not have learned about it.*
+>
+> **THE ONE THAT MATTERS — every 5e sheet shows a blank character on load (slices 97–103).**
+> The store initialises from `blankCharacter('')`, so the whole stat rail is wrong until the client fetch
+> lands: **`HP 1 / 1`**, `LEVEL 1`, `AC 10`, `SAVE DC 10`, `INIT +0`, and all six abilities `10 / +0`. With
+> no skeleton, no spinner and nothing marking it provisional — it reads as data. Measured on a **production
+> build**: 456–764ms on localhost, 885ms on fast 3G, **2,522ms on slow 3G**, and that is a floor because the
+> server was local too. `HP 1/1` is the same wrong number this doc already recorded as a real bug in its
+> persistent form (slices 10–12).
+> **Confined to the 5e engine** — `IGSheet`/`PF2Sheet` take the character as a prop and are correct from
+> first paint (slice 102). Two costed options, both at `store.tsx:327` (slice 103):
+> **A** expose `dbPhase` (~3 lines, `offline` is the template) and render a loading state; **B** thread the
+> server-fetched character in as a prop, the way the other two engines already do — four touch points, and
+> the flash disappears. Only "what should a loading sheet look like" is undecided.
+>
+> **Two document-structure gaps (slice 105), neither safely fixable without a call:** the 5e sheet skips
+> `h1 → h3` at "Dossier", and the **IG sheet has no `<h1>` at all**. The `h3` is styled *by tag*
+> (`theme.css:862/873` + skin overrides), so promoting it drops its styling; the IG name renders through
+> `SheetPortrait`, so choosing the `h1` is a structural decision.
+>
+> **Shipped since slice 73, all browser-verified:** a clipped character name on phones (80), the IG vanilla
+> library blowing the page out sideways (83), undersized touch targets on PF2/IG including a 9×13px
+> *destructive* delete (87), a 5px-tall step-navigation strip in all three builders (89), eleven controls
+> with no keyboard focus indicator (91), two placeholder-only labels (104), and every one of the **19**
+> infinite animations brought under `prefers-reduced-motion` — including an **11-per-second shake** — with
+> `.spinner` deliberately exempt (106–108).
+>
+> **Swept clean and worth not re-running:** `/dnd`, `/dnd/library`, `/dnd/suggestions`, `/dnd/profile`,
+> `/dnd/characters/new` on four measures (95); network + broken images across 11 routes (96); ability-modifier
+> arithmetic on every sheet (97); accessible names on 210 controls (104); landmarks, `lang`, duplicate IDs
+> and image `alt` everywhere (105).
 >
 > ### How to run a pass (both original blockers are solved)
 > - Ports 3000–3009 hold **orphaned dead sockets**; start on a genuinely free one (this run used 3456–3466,
@@ -4084,3 +4120,29 @@ the right class.
 
 **Bar:** all three rules verified in the browser in both media states. Full D&D suite green, typecheck
 exit-0. No live data written; port 3575 confirmed bindable. No code changed — this slice is evidence.
+
+### 2026-07-27 — slice 109: the header went stale again, the same way, in 35 slices
+
+Slice 73 rewrote this doc's "Genuinely open" section after finding it described the state at slice 33. It
+had gone stale again by slice 108, by the identical mechanism: **the body grows one slice at a time and the
+summary does not move.** Nothing fails when they diverge, which is exactly what slice 73 wrote down.
+
+**And it was stale in the expensive direction.** The section listed the two palette decisions and stopped —
+so it **never mentioned the blank-character flash at all**. An owner reading only the header would not have
+learned that every 5e sheet displays `HP 1 / 1` for up to 2.5 seconds on a slow connection. That is the most
+severe finding of the arc, seven slices of work, and it was invisible from the top of the document.
+
+**Now recorded there:** the flash with its measurements, its confinement to the 5e engine, and both costed
+options; the two document-structure gaps and why neither is safely fixable without a decision; the eight
+fixes shipped since slice 73; and the list of surfaces already swept clean, so nobody re-runs them.
+
+**The count was wrong too** — "73 slices" against 108.
+
+**Why this keeps happening, and the one thing that would stop it.** Every recurrence has the same cause: a
+slice appends its own entry, which is cheap and local, and updating the summary requires re-reading what
+the summary now gets wrong, which is neither. The habit that works is the one slice 73 named and I then
+failed to keep — **treat the header as part of any slice that changes what is open**, not as a periodic
+tidy-up. Three of this doc's own recorded time-losses were stale summaries; this is the fourth, and the
+first where I was the author of both the summary and the drift.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed.
