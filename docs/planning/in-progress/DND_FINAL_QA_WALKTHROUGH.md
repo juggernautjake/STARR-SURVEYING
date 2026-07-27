@@ -3291,3 +3291,36 @@ measured bound, not the extrapolation slice 85 rejected, but it is inference and
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fixes verified in the browser against the
 shipped code. No live data written. Dev server stopped, port 3503 confirmed bindable.
+
+### 2026-07-27 — slice 88: pinning the target-size fixes, and refusing the blanket version
+
+Slices 86–87 fixed 13 icon buttons measured below WCAG 2.5.8's 24×24 floor. This turns those fixes into
+something that survives the next edit — the same move slice 81 made for the heading break — while
+**declining** the version of it that would have been wrong.
+
+**The temptation:** `app/dnd` has ~30 icon-only buttons (`×`, `✎`, `▲`, `▼`, `＋`) across a dozen files. A
+guard requiring the minimum on all of them looks obviously right and would have been a false-positive
+factory: many sit inside a padded `.btn` class and already clear 24px, and the 5e sheet's 16 undersized
+targets are **conformant** via the spacing exception (33–35px clear). Slice 85 is the precedent — a scan
+found 200+ column-less grids, and fixing them all would have been speculative, because the one measured
+blowout was caused by its content rather than the pattern.
+
+So the guard covers **the two files whose buttons were measured failing**, asserts the count in each, and
+names the refusal as an assertion rather than leaving it as an omission someone later "fixes".
+
+**It caught its own bug on the first run.** The IG check originally matched remove buttons with
+`aria-label=\{`Remove [^`]*`\}[^>]*>×</button>` and found **zero** — every one of those buttons carries an
+`onClick={() => …}`, and the arrow's `>` closes the character class early. The only reason that surfaced is
+the non-empty floor asserted beside it, which exists because slice 75 found a guard that could not fail
+being cited as evidence. Rewritten line-based; a regex that must span JSX attributes cannot be trusted when
+those attributes contain arrows.
+
+**Mutation-checked.** Removing the floor from a single button — the `Increase dying` stepper — fails **two**
+assertions, the per-file count and the stepper-specific one, each naming what broke. Restored, no diff.
+
+**Also pinned:** that `Tip` stays 15×15, with the reason (conformant via spacing; enlarging it is a design
+decision across every badge in the app). Recorded as an assertion so the *choice* is visible, not just its
+absence.
+
+**Bar:** 6/6 new, full D&D suite green, typecheck exit-0, lint clean. No production code changed — the
+source edit shown above was the mutation check, reverted.
