@@ -2726,3 +2726,44 @@ saved homebrew comes back (create+save with no read-back would be a dead end), t
 sharing surface is the missing piece.
 
 **Bar:** 9/9 in the guard, full D&D suite green, typecheck exit-0, lint clean.
+
+### 2026-07-27 — slice 75: are there other guards that cannot fail?
+
+Slice 74 found one assertion that passed vacuously while being cited as evidence. The generalisable
+question is whether it was alone, so this slice swept for the two shapes that produce it: `existsSync(...)`
+asserted **false** (which passes for a path that is merely wrong as readily as for one genuinely gone), and
+a loop over a **discovered** file list with no floor (zero files → passes having checked nothing).
+
+**Most of what the sweep touched was already sound, and that is worth recording as clearly as the finds.**
+
+| guard | verdict |
+|---|---|
+| `character-mutation-authorization` | **Sound** — floors its discovery at `handlers.length >= 55`. |
+| `delete-route-authorization` | **Sound** — `routes.length >= 19`. |
+| `character-route-access-classes` | **Sound** — loops hand-authored maps, non-empty by construction. |
+| `ig-site-coverage` | **Sound**, and interestingly so: an empty `source` makes every `toBe(true)` **fail** rather than pass. The assertion's direction is what saves it. |
+| `no-orphan-modules` (main sweep) | **Sound** — `MODULES.length > 50`, `FILES.length > 150`. Its *primary* guard was well built; slice 74's vacuous assertion was an auxiliary claim added beside it, which is a fairer description than the one I gave yesterday. |
+
+**Two were genuinely exposed.**
+
+**`sheet-contrast` — the `.sec-num` inline-colour guard.** It reads a directory, matches a regex, and
+asserts no offenders. Effective today, but empty for the wrong reason if the components directory is
+reorganised, the files renamed, or a single attribute order changed — the regex requires `className`
+before `style`. Two floors added: the directory must yield files, and the pattern must still match the
+four components that legitimately carry an inline `.sec-num` style (font-size and letter-spacing, no
+colour). **Mutation-checked rather than assumed**: breaking the regex now fails with *"the sec-num
+inline-style pattern matched nothing — regex stale?"* where before it reported green.
+
+**`hub/settings-panel-removal`** — ten `existsSync(...) === false` assertions, anchored only by accident:
+a later `describe` in the same file does a `readFileSync` that would throw on a bad `REPO_ROOT`. Depending
+on a *different* block for your anchor is fragile, because deleting that block silently turns this one
+vacuous. The anchor is now local and explicit.
+
+**The through-line of slices 71–75.** Every one came from checking a claim rather than trusting it, and the
+claim was wrong five times running: a "settled" sweep that had never covered one live character; a finding
+generalised from one token without checking its siblings; three doc headers contradicting their own bodies;
+a guard that could not fail; and now a second one. None was found by reading code for bugs. They were found
+by asking *what would have to be true for this statement to be right, and is it?*
+
+**Bar:** 25/25 in `sheet-contrast` (and 1 deliberate failure during the mutation check, reverted), 45/45
+across both touched files, full D&D suite green, typecheck exit-0, lint clean.

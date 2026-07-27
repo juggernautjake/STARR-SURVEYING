@@ -29,6 +29,17 @@ const REMOVED_PATHS = [
 ];
 
 describe('Slice 17 — SettingsPanel surface is fully removed', () => {
+  // ⚑ ANCHOR ADDED 2026-07-27 (slice 75). Every assertion below is `existsSync(...) === false`, which
+  // passes for a path that is merely WRONG as readily as for one that is genuinely gone. If REPO_ROOT
+  // ever resolved incorrectly, all ten would pass while guarding nothing — the shape slice 74 found in
+  // `no-orphan-modules.test.ts`. It was anchored only by accident: a later describe in this file does a
+  // `readFileSync` that would throw. Depending on a different block for your anchor is fragile, since
+  // deleting that block silently turns this one vacuous. So the anchor is now local and explicit.
+  it('REPO_ROOT actually points at the repository', () => {
+    expect(fs.existsSync(path.join(REPO_ROOT, 'package.json')), 'REPO_ROOT is wrong').toBe(true);
+    expect(fs.existsSync(path.join(REPO_ROOT, 'lib/hub/components')), 'hub components moved').toBe(true);
+  });
+
   for (const rel of REMOVED_PATHS) {
     it(`${rel} no longer exists`, () => {
       expect(fs.existsSync(path.join(REPO_ROOT, rel))).toBe(false);

@@ -71,13 +71,31 @@ describe('theme tokens drive every accent (no hardcoded palette literals)', () =
   // and "AI // Ask" labels unreadable. Shared components must not pin a colour on it.
   it('no shared component pins an inline colour on a .sec-num label', () => {
     const dir = path.join(process.cwd(), 'app/dnd/_sheet/components');
+    const files = fs.readdirSync(dir).filter((n) => n.endsWith('.tsx'));
     const offenders: string[] = [];
-    for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.tsx'))) {
+    let inlineStyledSecNums = 0;
+    for (const f of files) {
       const src = fs.readFileSync(path.join(dir, f), 'utf8');
       for (const m of src.matchAll(/className="sec-num"\s+style=\{\{([^}]*)\}\}/g)) {
+        inlineStyledSecNums++;
         if (/(^|[\s,])color:/.test(m[1])) offenders.push(`${f}: ${m[0].slice(0, 76)}`);
       }
     }
+
+    // ⚑ FLOORS ADDED 2026-07-27 (slice 75). Without these this test passes by finding NOTHING —
+    // reorganise the components directory, rename the files, or reformat a single attribute order,
+    // and `offenders` stays empty for the wrong reason while still reporting green. That is exactly
+    // the defect slice 74 found in `no-orphan-modules.test.ts`, where a guard cited as evidence
+    // could not fail. A discovery-based test needs to assert it discovered something.
+    expect(files.length, 'no .tsx files found — did the components directory move?')
+      .toBeGreaterThan(20);
+    // The regex requires `className` BEFORE `style`, so it is sensitive to attribute order as well
+    // as to location. Four components legitimately carry an inline style on a `.sec-num` (font-size
+    // and letter-spacing tweaks, no colour); if that count drops to zero the pattern has stopped
+    // matching the codebase rather than the codebase having become clean.
+    expect(inlineStyledSecNums, 'the sec-num inline-style pattern matched nothing — regex stale?')
+      .toBeGreaterThanOrEqual(4);
+
     expect(offenders, `these override their skin's section-label styling:\n${offenders.join('\n')}`).toEqual([]);
   });
 
