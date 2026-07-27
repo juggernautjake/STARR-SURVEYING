@@ -1,4 +1,4 @@
-| PF2 streamer | 8 | **9** of 115 → **0** after slices 62–67 (see slice 68) |# Contrast sweep — how to run it
+# Contrast sweep — how to run it
 
 A paste-into-devtools (or Playwright `evaluate`) version of the measurement used in the final-QA
 walkthrough's skin sweep. The maths lives in **`lib/dnd/theme-contrast.ts`** and is unit-tested
