@@ -203,6 +203,31 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 66 — verified 65 (a clean win), then the last token doing the wrong job
+
+**Slice 65 verified live, and this time it held:** the PF2 rank badge went **3.65 → 9.02**, and the sheet
+**10 → 6** failing. Four slices of chasing the tint family, and the arc from 62 to 65 took this sheet from
+9 to 6 with the rank badge going from failing to comfortable.
+
+That left the hero-point pips at **3.23**, which turned out to be **slice 34's shape in a third variant**:
+`--hx-line` is tuned as a **1px hairline** against the panel, and was painting a **15px glyph**. A token
+doing a job it was never tuned for.
+
+`--hx-muted` is the token clamped for exactly this role — and an *empty* pip **should** read as
+de-emphasised, which is what muted means, rather than as barely visible. It is still information: how many
+points you could hold. Swept the rest: every other `--hx-line` in both bespoke sheets is a genuine border,
+so this was the only text use.
+
+**The guard's first draft was wrong in a useful way.** `/color: var\(--hx-line\)/` matches the tail of
+`border-color: var(--hx-line)` — the token's correct and widespread use — so it failed on healthy code and
+would have pushed me to "fix" something that was right. A lookbehind fixed it. **A guard that cannot tell
+the correct usage from the incorrect one is worse than no guard**, and this is the second time in two slices
+that writing the assertion carefully was what made the slice correct rather than merely finished.
+
+**Where the PF2 sheet stands:** 6 failures, and both remaining families are already diagnosed —
+three `+15`-style chip values (`--hx-gold-2` on a **neutral** `rgba(0,0,0,0.05)` chip fill, so the
+surface-derived case from slice 61, *not* the accent-on-accent one) and the brand-fill decision.
+
 ### Slice 65 — the rule applied everywhere it occurs, and a guard that found one by itself
 
 Slice 64 fixed the badge it had measured. Sweeping for the **pairing** — accent text on a fill of that same
