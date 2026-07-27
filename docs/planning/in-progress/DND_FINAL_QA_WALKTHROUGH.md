@@ -203,6 +203,35 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 65 — the rule applied everywhere it occurs, and a guard that found one by itself
+
+Slice 64 fixed the badge it had measured. Sweeping for the **pairing** — accent text on a fill of that same
+accent — found **four more**. Measured across all four skins:
+
+| tint | accent text | ink |
+|---|---|---|
+| α = 0.06 / 0.08 | 4.00 · 4.58 · 4.31 · 4.19 — *three of four fail* | 10.9 – 12.4 |
+| α = 0.12 | 3.76 · 4.28 · 4.09 · 4.00 — *all four fail* | 10.9 – 12.4 |
+
+Fixed: `.pf2CostSpecial`, `.fileBtn`, the PF2 system badge, the IG provenance badges. Each keeps its colour
+identity — border and fill untouched, only the glyph moves to the ink.
+
+**The guard caught one I had missed by hand.** I swept with a single-line grep and found three; the regex
+that pins the *pairing* then failed on `.fileBtn` — a multi-line rule at α=0.06. Writing the assertion as
+the rule rather than as the list of known instances is what turned a partial fix into a complete one, in
+the same slice.
+
+**And the IG badges were a second defect wearing the same clothes.** VANILLA was accent-on-accent like the
+others, but CUSTOM and DM-GRANTED used `--hx-danger-2` and `--hx-gold-2` as text — and **`--hx-danger-2` is
+a light red that is deliberately not skin-derived**, so on a light skin it was pale text on a pale panel.
+Their `c` served as both text *and* border; splitting the roles fixes both problems at once, because the ink
+is clamped against the panel on every skin.
+
+**Worth noting against slice 63's framing:** that slice read the badge's 0.27 drop as a cost of the tint
+fix. Two slices later the picture is the opposite — the tint fix exposed a defect present on every skin, in
+five places, one of which was a *different* defect entirely. The "cost" was the first honest measurement of
+something that had always been wrong.
+
 ### Slice 64 — ink on the tint, and the defect was on every skin all along
 
 Slice 63 named the remedy; this applies it. And measuring it across all four skins rather than the one that
