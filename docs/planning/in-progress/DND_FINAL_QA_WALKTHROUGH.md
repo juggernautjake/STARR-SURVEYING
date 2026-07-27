@@ -3510,3 +3510,41 @@ was wrong about the product rather than about the code.
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Net code change for slices 92+93 combined:
 **none** — one addition, then its removal, with the reason recorded in `play.css` so the next reader does
 not re-derive the same false positive. No live data written; port 3523 confirmed bindable.
+
+### 2026-07-27 — slice 94: finishing the audit slice 93 opened
+
+Slice 93 found a measurement trap that invalidated slice 92's fix, and re-checked slice 91 against it —
+but only on **4 of its 11** controls, and with a neutralisation method that could not actually show the
+pre-fix state. Both gaps are closed here, because a partial audit of one's own retraction is the worst
+place to stop.
+
+**Slice 93's neutralisation was wrong.** It disabled the slice-91 rule with `outline: revert`, which rolls
+back to the **user-agent** style — and the UA style *has* a focus ring. So every control it sampled showed
+`outline: auto 1px`, which is not what the page did before the fix. It happened not to matter, because the
+question asked was whether border/background settle into an indicator, and that part was measured
+correctly. But the control group was wrong, and that is worth saying rather than leaving for someone to
+notice. Neutralising with `outline: none !important` reproduces the pre-fix state exactly.
+
+**Every control, re-measured with settling time:**
+
+| | |
+|---|---|
+| form controls reached by Tab | **12** |
+| still showing **no** indicator after 400ms | **12** |
+| that gained one after settling | **0** |
+
+`(unlabelled)`, `HP amount`, `Active stance`, `Add condition`, `Defensive power (In Play)`, `Set STR`,
+`Set DEX`, `Set CON`, `Set INT`, `Set WIS`, `Set CHA`, `Active stance (Combat)`.
+
+**Slice 91's fix is fully vindicated**, on every control rather than the sampled third — and the sweep
+found a **twelfth** control (`Active stance (Combat)`) that slice 91's own tab run never reached, already
+covered by the fix because it is a `select` inside `.siteChrome`. Scoping to a container rather than
+enumerating elements is why that one was fixed without being found.
+
+**The audit is now complete.** Of the fixes shipped in slices 80–92, only slice 92's rested on a
+same-tick sample of a transitioned property; the rest measured static layout (clipping, track widths,
+target sizes) where no transition is running. Slice 93 revoked the one, and this confirms the other.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No code changed — this slice is
+verification of an existing fix and a correction to how the previous one was verified. No live data
+written; port 3527 confirmed bindable.
