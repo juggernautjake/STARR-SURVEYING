@@ -3471,3 +3471,42 @@ is open. The comment in `play.css` says so, so nobody later reads confidence int
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No live data written. Dev server stopped,
 port 3519 confirmed bindable.
+
+### 2026-07-27 — slice 93: the Play toggle was never broken — a transition measured on the wrong tick
+
+Slice 92 shipped a fix for `.play-ref-toggle` while explicitly recording that the **cause was not
+established**, and argued the fix was safe because the *defect* was measured twice. That reasoning was
+sound in form and wrong in fact: **the defect itself was the measurement.**
+
+**The cause.** The base rule declares `transition: border-color, background 0.15s`. Slice 92 read the
+computed values on the same tick as the Tab keypress, when they had barely left their unfocused state:
+
+| | border | background |
+|---|---|---|
+| unfocused baseline | `rgba(255, 30, 156, 0.3)` | `rgba(255, 240, 250, 0.4)` |
+| **~1ms after focus** | `rgba(252, 31, 153, 0.306)` | `rgba(255, 240, 250, 0.404)` |
+| **after 500ms** | **`rgb(127, 92, 0)`** = `var(--gold)` | **`rgba(255, 250, 254, 0.75)`** |
+
+The rule works exactly as written. The toggle has always had a focus indicator — a gold border and a
+background lift — and the design deliberately traded the browser ring for it. **Slice 92's addition is
+reverted**, since it overrode a working, intentional treatment.
+
+**The tell was in the numbers and I read past it.** `0.306` against a `0.3` baseline is not "identical" —
+it is a transition 2% of the way through. I compared with string equality and called it unchanged.
+
+**Slice 91 was re-tested against the same trap and SURVIVES.** Its eleven controls declare the identical
+`border-color 0.15s` transition, so the suspicion transferred exactly — but after settling their border
+stays `rgb(30, 45, 61)`, unchanged, with no outline and no box-shadow. They had no indicator at any point
+in time, not merely at t=0. That fix stands.
+
+**What separates the two is worth keeping**, because both looked the same at t=0: one had a property that
+was *travelling* and one had a property that was *static*. Only a second sample distinguishes them, and
+neither the WCAG criterion nor the computed style at focus-time says which you are looking at.
+
+**Recorded as limitation 9 in `qa-evidence/contrast-sweep.md`:** a transitioned property cannot be sampled
+on the same tick as the state change. This is the ninth entry, and the fourth where a confident measurement
+was wrong about the product rather than about the code.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Net code change for slices 92+93 combined:
+**none** — one addition, then its removal, with the reason recorded in `play.css` so the next reader does
+not re-derive the same false positive. No live data written; port 3523 confirmed bindable.

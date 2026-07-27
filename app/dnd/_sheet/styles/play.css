@@ -148,19 +148,13 @@
   background: rgba(var(--panel-rgb), 0.75);
   outline: none;
 }
-/* A KEYBOARD USER MUST SEE THIS ONE TOO (WCAG 2.4.7). The rule above trades the browser's ring for a
-   gold border and a background lift, which is a legitimate indicator — but MEASURED under real Tab
-   presses on a `skin-streamer` sheet, with `matches(':focus-visible')` returning true, **neither the
-   border nor the background actually changed**: both read identical to their unfocused values, and the
-   outline stayed `none`. So the trade gave up the ring and did not deliver the replacement, leaving the
-   only reference toggle on the Play layout with no focus indicator at all.
-   Why those declarations do not land is not established — the rule reports as matching and `--gold` is
-   defined. This restores a ring explicitly rather than depending on that answer: same specificity, later
-   in the file, so it wins on order over the `outline: none` above regardless of the cause. */
-.sheet-shell .play-ref-toggle:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
-}
+/* Slice 92 added an explicit `outline` here, believing this toggle had no focus indicator; slice 93
+   measured properly and REVERTED it. The rule above works exactly as written. The earlier reading was
+   taken ~1ms after the Tab keypress, and `transition: border-color, background 0.15s` (declared above)
+   means the computed values at that instant have barely left their unfocused state — border read
+   `rgba(252, 31, 153, .306)` against a `rgba(255, 30, 156, .3)` baseline, which rounds to "unchanged".
+   After settling it is `rgb(127, 92, 0)` — `var(--gold)` — with the background lifted, exactly as
+   intended. A transitioned property cannot be sampled on the same tick as the state change. */
 .sheet-shell .play-ref-caret {
   color: var(--gold);
   font-size: 13px;

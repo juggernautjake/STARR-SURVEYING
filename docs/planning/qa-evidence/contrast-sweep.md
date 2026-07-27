@@ -516,3 +516,14 @@ that are genuinely fine.
 **8. The pass/fail count is not the finding.** Slice 89's 5px navigation strip was found by *reading the
 list of undersized targets*, not by the violation count — which was zero on that page, correctly, by the
 criterion. A sweep that only reports its verdict throws away the observation that mattered.
+
+**9. A transitioned property cannot be sampled on the same tick as the state change (slice 93).** Reading
+`getComputedStyle` immediately after a `focus`/`hover`/class change returns the value *mid-transition*,
+which for a 150ms ease is indistinguishable from "unchanged" at t≈0. This produced a fully-confident false
+defect: `.play-ref-toggle`'s focus border read `rgba(252, 31, 153, 0.306)` against a `rgba(255, 30, 156,
+0.3)` baseline — 2% of the way to `var(--gold)` — and was reported as having no focus indicator. After
+500ms it is `rgb(127, 92, 0)`, exactly as its rule specifies.
+
+**Sample twice, and check `transition-property` before believing a "no change" result.** The
+discriminator is not the first reading: eleven IG form controls carry the *same* `border-color 0.15s`
+transition and are genuinely static under focus, so t=0 looks identical for a real defect and a false one.
