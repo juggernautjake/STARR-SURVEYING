@@ -133,6 +133,37 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 41 — the destructive sweep, and why a clean result still needs an artefact
+
+Slice 40 swept what routes GIVE AWAY. This one sweeps what they DESTROY: every `DELETE` under `/api/dnd`.
+
+**The result was clean.** All 19 already authorize beyond *"is signed in"* — via `getCampaignRole`,
+`requireDm`, `requireCharacterWrite`, `canWrite`, `isOwner`, `isDndOwner`, `canManage`, or an ownership
+check. Nothing to fix.
+
+**Which is exactly why it is now a test.** A clean sweep leaves no artefact: the next reader has no way to
+tell it was ever run, and the property survives only as long as nobody adds a route in a hurry. Slice 39's
+leak was not a mistake anyone would defend — it was a rule four people knew and one person missed. A
+negative result that isn't written down decays the same way.
+
+*"Signed in"* is never sufficient here. Every one of these deletes something inside **someone else's game**
+— a campaign's map, an encounter, a member, a character, a DM grant, a stream alias — so the question is
+always *whose it is*, never merely *who is asking*.
+
+The DELETE handler's body is extracted and checked **on its own**, since a gate in another export in the
+same file protects nothing. Two cases are pinned by name rather than pattern:
+- **Deleting a character stays owner-only.** A DM may edit your character but must not erase it; `canWrite`
+  there would be a catastrophic loosening that reads as a tidy-up.
+- **Deleting a stream alias 404s rather than 403s**, so absence and denial look identical to a stranger.
+
+**The suite's first run flagged three correctly-gated routes, and both causes were bugs in the suite:** two
+resolve the caller through `getCharacterAccess`/`requireCharacterWrite` instead of calling `getDndSession`,
+and `canManage` was missing from the predicate list. Worth recording because the failure mode of a guard
+like this is *demanding one spelling of a correct thing* — and the fix under pressure is to loosen the guard
+rather than to understand the route. Both reasons are now inline for whoever widens the list next.
+
+22 tests, no production change.
+
 ### Slice 40 — the access sweep, and the boundary made checkable
 
 The right follow-up to a leak is not "fix it and move on" but "how many siblings have it?" — so every
