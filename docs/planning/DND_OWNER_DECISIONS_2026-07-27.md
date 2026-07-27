@@ -1,8 +1,14 @@
 # D&D — everything waiting on Jack, in one place
 
-**Written 2026-07-27 (slice 114).** Three docs sit in `in-progress/` and between them hold **113 slices**
-of work. Everything still open in all three needs a decision or data **from you** — none of it is blocked
-on effort. Finding that out currently means reading three documents and ~4,500 lines, so this is the index.
+**Written 2026-07-27.** Three docs sit in `in-progress/` and between them hold a long QA log. Everything
+still open in all three needs a decision or data **from you** — none of it is blocked on effort. Finding
+that out means reading three documents end to end, so this is the index.
+
+> *No slice count here on purpose.* The first version of this line carried one and it was stale within six
+> slices — the third time in this project a hand-maintained number in a header drifted from its body
+> (slices 73 and 109 were the others, both of which I fixed by updating the number, which is what set up
+> the next drift). **A figure that has to be maintained by hand will go stale; the fix is to not assert
+> it.** What matters below is which items are open, and those change only when you decide one.
 
 **It is an index, not a plan.** Each row points at the doc that holds the detail and the evidence; nothing
 here is new. Deliberately filed at `docs/planning/` root rather than `in-progress/`, because it is not

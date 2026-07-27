@@ -1,7 +1,13 @@
 # D&D — Final full-system QA walkthrough (Playwright, browser, manual)
 
-**STATUS: IN PROGRESS — 108 slices run (2026-07-25 → 27).** This is the LAST D&D item, extracted from
+**STATUS: IN PROGRESS (2026-07-25 → 27).** This is the LAST D&D item, extracted from
 `DND_RULES_PLATFORM_2026-07-16.md` (originally "Slice 40").
+
+> *The slice count that used to sit in this line has been removed rather than updated.* It went stale
+> twice — slice 73 found it saying 33 at slice 73, slice 109 found it saying 73 at slice 108, and each
+> time I fixed it by writing the new number, which is what guaranteed the next drift. The count was never
+> the useful part; **what is open** is, and that only changes when a decision is made. Every slice entry
+> below is dated and in order, so the length is visible without a figure that has to be maintained.
 
 > ## Where this actually stands — read this before the sections below
 >
@@ -4474,3 +4480,27 @@ point where someone would try it — which is the only place a warning of that k
 
 **Bar:** per-file pin counts verified by running each file, not inferred. Full D&D suite green, typecheck
 exit-0. No code changed.
+
+### 2026-07-27 — slice 120: removing the number instead of updating it, for the third time
+
+`DND_OWNER_DECISIONS` opened with "**113 slices** of work". I wrote that line six slices ago. It is now
+wrong, in a document created specifically to stop people reading stale summaries.
+
+**This is the third instance of one defect, and my two previous fixes caused it.** Slice 73 found this
+doc's header saying 33 slices at slice 73; slice 109 found it saying 73 at slice 108. **Both times I fixed
+it by writing the new number** — which resets the clock and guarantees the next drift. Doing that a third
+time would be the definition of not learning from it.
+
+**So both counts are removed rather than corrected.** A figure maintained by hand goes stale by
+construction; the only durable fix is to stop asserting it. Nothing is lost — every slice entry is dated
+and in order, so the length of this log is visible by scrolling, and **what is open** (the part that
+matters) changes only when a decision is made, which is a real event rather than a side effect of me
+appending another entry.
+
+**The general form, worth keeping because this repo has now paid for it three times:** *a summary should
+assert only things that change when the underlying thing changes.* "31 contrast items remaining" and "108
+slices run" both fail that test — they go stale from work happening, which is the one thing guaranteed to
+keep happening. "The flash is unfixed" does not: it stops being true exactly when someone fixes it, and the
+pin in `sheet-initial-state.test.ts` says so out loud at that moment.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed.
