@@ -49,6 +49,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const res = await getCharacterAccess(params.id);
   if (!res.access) return NextResponse.json({ error: res.error }, { status: res.status });
+  // EDIT HISTORY NEEDS WRITE ACCESS, not merely read access.
+  //
+  // `getCharacterAccess` grants READ on `visibility === 'public'` — and /dnd is public by direct link — so
+  // this endpoint handed anyone with the URL forty rows of a character's history: every field's old and new
+  // value, the DM's rulings, off-rules notes, and the display NAME of whoever made each change. The sheet
+  // being public does not make its revision history public.
+  //
+  // Both review surfaces already state this rule and enforce it client-side — `EditReviewPanel`: *"A viewer
+  // who can't write the sheet has no business in its edit history"*, and `SheetEditHistory` the same. The
+  // server did not agree with them, so the rule was decoration: hidden panel, open endpoint.
+  //
+  // The one consumer that read this WITHOUT a write check is `use-element-edits`, which enriches the ✎
+  // tooltip with the specific change. It degrades to the generic marker text on a non-OK response — the
+  // fallback its own comment calls "expected rather than exceptional" (a standalone sheet, an aged-out
+  // edit) — so a plain viewer still sees that an element was customized, just not who changed it to what.
+  if (!res.access.canWrite) {
+    return NextResponse.json({ error: 'You cannot view this character’s edit history.' }, { status: 403 });
+  }
 
   const limit = Math.min(200, Math.max(1, Number(req.nextUrl.searchParams.get('limit') ?? 50)));
   const { data, error } = await supabaseAdmin
