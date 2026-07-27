@@ -61,9 +61,24 @@ const effectOf = (name: string) => effectMap.get(name.trim().toLowerCase()) ?? '
 type Source = 'vanilla' | 'custom' | 'dm-granted';
 export interface Tagged { kind: string; name: string; source: Source }
 
+// Danger as TEXT takes `--hx-danger-2`, never `--hx-danger`. The base token is tuned as a border and fill
+// accent; as small text on these panels it measures 3.19–3.50:1 against AA's 4.5, while `--hx-danger-2`
+// clears it at 6.62–7.26 with the hue unchanged. `hextech.module.css` created the lighter token for exactly
+// this and fixed the sites known at the time; the final-QA contrast sweep then measured `COMBAT SKILLS`
+// still failing at 3.33 in a browser, so this file's remaining text uses are converted together.
+//
+// BORDERS deliberately stay on `--hx-danger` — a border needs 1.3:1 (`CONTRAST.border`), not 4.5, and the
+// base red is what the accent language is built from.
+//
+// The numbers above are computed with `lib/dnd/theme-contrast.ts` against `--hx-panel`, and the model is
+// validated rather than assumed: it put COMBAT SKILLS at 3.50 where the browser measured 3.33 — same
+// verdict, model slightly optimistic. The other 22 files carrying `color: var(--hx-danger)` are NOT swept
+// blind, because the roller-dock slice proved a surface can be painted from the skin-derived `--panel`
+// family while its text comes from `--hx-*`; on a light panel this lighter red would be worse, not better.
+// Each of those needs measuring on its own surface first.
 const BADGE: Record<Source, { t: string; c: string; b: string }> = {
   vanilla: { t: 'VANILLA', c: 'var(--hx-teal-1)', b: 'rgba(10,200,185,0.12)' },
-  custom: { t: 'CUSTOM', c: 'var(--hx-danger)', b: 'rgba(198,64,59,0.14)' },
+  custom: { t: 'CUSTOM', c: 'var(--hx-danger-2)', b: 'rgba(198,64,59,0.14)' },
   'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
 };
 function Badge({ source }: { source: Source }) {
@@ -421,7 +436,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                 style={{ width: 44, fontSize: 13.5, fontWeight: 600, padding: '3px 4px', textAlign: 'center', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
               <button type="button" className="igs-int" disabled={editing || !hpAmt.trim()} title="Take damage"
                 onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'apply_damage', amount: n }); setHpAmt(''); } }}
-                style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, padding: '3px 8px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger)', borderRadius: 6, cursor: 'pointer' }}>−</button>
+                style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, padding: '3px 8px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger-2)', borderRadius: 6, cursor: 'pointer' }}>−</button>
               <button type="button" className="igs-int" disabled={editing || !hpAmt.trim()} title="Heal"
                 onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { postEdit({ op: 'heal', amount: n }); setHpAmt(''); } }}
                 style={{ fontSize: 14, fontWeight: 700, lineHeight: 1, padding: '3px 8px', background: 'none', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>＋</button>
@@ -508,11 +523,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                 {cb.conditions.map((c) => {
                   const e = igConditionInPlay(c);
                   return (
-                    <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
+                    <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger-2)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
                       {c}
                       {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                       {canDoEdit && (
-                        <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                        <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                       )}
                     </span>
                   );
@@ -539,7 +554,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                 return (
                   <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
                     {sum.flatD20 !== 0 && (
-                      <div><span style={{ color: 'var(--hx-danger)', fontWeight: 700 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
+                      <div><span style={{ color: 'var(--hx-danger-2)', fontWeight: 700 }}>{sum.flatD20} to attacks, saves &amp; skill checks</span> ({sum.flatSources.join(', ')})</div>
                     )}
                     {sum.disadvantages.map((d) => <div key={d}>{d}</div>)}
                   </div>
@@ -629,7 +644,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
           ))}
           {combat.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hx-danger)', letterSpacing: '0.07em', marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid var(--hx-line)' }}>COMBAT SKILLS</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hx-danger-2)', letterSpacing: '0.07em', marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid var(--hx-line)' }}>COMBAT SKILLS</div>
               {combat.map((s) => <Row key={s.name} s={s} />)}
             </div>
           )}
@@ -695,7 +710,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <div className="igs-tile" style={{ border: '1px solid var(--hx-line)', borderRadius: 8, padding: '7px 11px', fontSize: 13.5, fontWeight: 600 }}>
           <span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>HP </span>{cb.hitPoints.classBackgroundHp} class+bg
-          {cb.hitPoints.lethal ? <span style={{ color: 'var(--hx-danger)' }}> · {cb.hitPoints.lethal} lethal</span> : null}
+          {cb.hitPoints.lethal ? <span style={{ color: 'var(--hx-danger-2)' }}> · {cb.hitPoints.lethal} lethal</span> : null}
           {cb.hitPoints.nonlethal ? <span style={{ color: 'var(--hx-muted)' }}> · {cb.hitPoints.nonlethal} nonlethal</span> : null}
         </div>
         {/* DR includes Advanced Defensive's "half your level", which previously appeared in
@@ -768,11 +783,11 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
             {cb.conditions.map((c) => {
               const e = igConditionInPlay(c);
               return (
-                <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
+                <span key={c} className="igs-int" title={e?.tooltip ?? c} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13.5, fontWeight: 600, color: 'var(--hx-danger-2)', background: 'rgba(198,64,59,0.10)', border: '1px solid var(--hx-danger)', borderRadius: 12, padding: '2px 10px', cursor: 'help' }}>
                   {c}
                   {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                   {canDoEdit && (
-                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
                   )}
                 </span>
               );
