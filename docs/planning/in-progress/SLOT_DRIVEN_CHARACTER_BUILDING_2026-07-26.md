@@ -334,10 +334,27 @@ slices are driven in the browser before being called done — this repo's standi
       `pf2SlotTableModelled` lives there too, so *"is this table modelled?"* is answered in **one** place —
       two copies of that question is precisely how the bug above existed. 14 tests.
 
-      **So S7c is now exactly where 5e's S7 was after its count source landed:** source shipped, enforcement
-      open, and the enforcement shape already known from S7b — cantrips capped for everyone, levelled spells
-      capped in the picker for **spontaneous** casters, and on the prepare step for **prepared** ones.
-      Reduced casters stay uncapped, because their tables genuinely are not modelled.
+      **ENFORCEMENT — THE CANTRIP HALF SHIPPED 2026-07-27** (`39137dbb`). 11 tests. The split is copied
+      from S7b rather than reinvented, because PF2 divides the same way:
+      · **Cantrips** are a known list for every caster, so the number bites at pick time → **capped**, with
+        the budget shown UP FRONT (`Cantrips 2/5`). S7b's finding holds unchanged — a cap discovered by
+        being refused reads as a bug; the same number stated in advance reads as a rule.
+      · **Levelled spells** are deliberately **not** capped. A prepared caster's sheet list is the spellbook
+        or the whole tradition, both far larger than what is cast in a day, so capping the picker would
+        refuse spells the class plainly has. The caption names where that limit really lives, so its absence
+        is not read as "unlimited".
+      · **Reduced casters** get no cap and no budget line — their tables are genuinely unmodelled, and
+        inventing one is the bug this strand exists to undo.
+      `cantripLimit` is a separate prop from `limit` on purpose: a PF2 caster's entitlement is per RANK, and
+      one flat number cannot express *"5 cantrips, levelled spells governed elsewhere"*.
+      **Nobody over the cap is broken** — `>=` with the same `active` exemption the feat cap uses, so an
+      over-count caster can still deselect but never add, and the caption reports the overage rather than
+      hiding it (Q5's recorded assumption: grandfather and mark, never delete a player's content). The count
+      resolves against the CATALOG, not the rendered rows, so the budget cannot drift as the search filters.
+
+      **What remains of S7c** is the levelled cap at its correct site — the prepare step for prepared
+      casters and the known-list for spontaneous ones — plus the Magus/Summoner tables, which stay blocked
+      on the published source (Ground Rule 3). The count source and the aiming decision are both done.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
