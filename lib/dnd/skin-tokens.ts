@@ -152,6 +152,21 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   const panel2 = light ? darken(panel, 0.05) : lighten(panel, 0.08);
   const line = light ? darken(panel, 0.32) : lighten(panel, 0.14);
 
+  // THE SURFACE EVERY TEXT CLAMP BELOW MEASURES AGAINST — named once, after getting it wrong three times.
+  //
+  // Slice 47 moved these clamps from `panel` to `panel2` (the framed panel's gradient top). Right, and
+  // still not the worst case: chips, tiles and rows paint `var(--hx-inset)` OVER the panel, and text sits
+  // on THAT. Measured on the chip surface, 8 of 9 token×skin combinations were still under AA — gold
+  // 4.07–4.28, muted 4.14–4.26, teal 4.06–4.29 across the three light skins.
+  //
+  // The right backdrop is the one the ink is LEAST separated from, and which that is flips with the skin:
+  //   · LIGHT skin — the ink is dark, so the DARKEST surface is worst → the inset over panel2.
+  //   · DARK skin — the ink is light, so the LIGHTEST surface is worst → panel2 itself, because
+  //     `--hx-inset` there is a near-black recess that only ever increases separation.
+  // Picking the wrong one does not merely fail to help — it RELAXES the clamp. Hence per skin, not always
+  // the inset. The alphas mirror the `--hx-inset` values emitted further down, so the two cannot drift.
+  const inkSurface = light ? mix(panel2, [0, 0, 0], 0.05) : panel2;
+
   // Gold ramp (0 darkest … 3 lightest), all derived from the swatch's `gold`. gold-2 is the workhorse —
   // it paints section titles as TEXT on the panel — so it's the one we contrast-clamp. On light skins a
   // bright yellow-gold on near-white is illegible, so the clamp quietly deepens it to an amber that reads;
@@ -173,7 +188,7 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   // skin's gold is deepened just enough to read and keeps its hue. Dark skins are unaffected (lazzuh
   // already measures 9.04 here) — the direction slice 21 insists on checking, since a light-skin fix that
   // silently moves the dark ones is how that slice's original defect got in.
-  const gold2 = ensureContrast(gold, panel2, 4.5);
+  const gold2 = ensureContrast(gold, inkSurface, 4.5);
   const gold1 = darken(gold2, 0.16);
   const gold0 = darken(gold2, light ? 0.34 : 0.45);
   // gold-3 is the "brightest" gold (title-gradient top, portrait glows). On dark skins it lightens toward
@@ -191,7 +206,7 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   //   · THRESHOLD — 4 (light) and 3 (dark) are both short of AA's 4.5 for text under 18.66px. The dark
   //     figure mattered too: lazzuh measured 4.24 on panel2, i.e. the dark skins were failing as well.
   // Measured on panel2 before: lazzuh 4.24 · streamer 3.69 · jack 4.23 (donata already passed at 5.20).
-  const teal1 = ensureContrast(accent, panel2, 4.5);
+  const teal1 = ensureContrast(accent, inkSurface, 4.5);
   const teal2 = darken(teal1, light ? 0.2 : 0.28);
 
   // Ink. THIS is the make-or-break pair for light skins. Body text must clear ~7:1 (AA for body) against
@@ -209,7 +224,7 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   // `--hx-text` is deliberately left clamped against `panel`: at a ratio of 7 it has enough headroom that
   // the distinction never bites (12.3–14.1 on panel2 across every skin), so moving it would change colours
   // for no legibility gain.
-  const muted = ensureContrast(mix(text, toRgb(panel), 0.42), panel2, 4.5);
+  const muted = ensureContrast(mix(text, toRgb(panel), 0.42), inkSurface, 4.5);
 
   const vars: Record<string, string> = {
     '--hx-navy-0': navy0,
@@ -284,9 +299,14 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
   const panel2 = light ? darken(panel, 0.05) : lighten(panel, 0.08);
   // A theme's `line` is often an rgba() (valid for --hx-line directly); fall back to a derived hairline.
   const line = c.line || (light ? darken(panel, 0.32) : lighten(panel, 0.14));
+  // The clamp backdrop — see the twin of this line in `skinHxVars` for the reasoning. Kept identical here
+  // because this derivation feeds the SAME tokens onto the SAME surfaces; the two drifting apart is the
+  // failure mode `clamped-token-surface.test.ts` exists to catch, and it caught exactly that when this
+  // change was first made to only one of them.
+  const inkSurface = light ? mix(panel2, [0, 0, 0], 0.05) : panel2;
 
   const gold = c.gold || '#c8aa6e';
-  const gold2 = ensureContrast(gold, panel2, 4.5);
+  const gold2 = ensureContrast(gold, inkSurface, 4.5);
   const gold1 = darken(gold2, 0.16);
   const gold0 = darken(gold2, light ? 0.34 : 0.45);
   const gold3 = light ? gold2 : lighten(gold2, 0.4);
@@ -300,11 +320,11 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
   //   · THRESHOLD — 4 (light) and 3 (dark) are both short of AA's 4.5 for text under 18.66px. The dark
   //     figure mattered too: lazzuh measured 4.24 on panel2, i.e. the dark skins were failing as well.
   // Measured on panel2 before: lazzuh 4.24 · streamer 3.69 · jack 4.23 (donata already passed at 5.20).
-  const teal1 = ensureContrast(accent, panel2, 4.5);
+  const teal1 = ensureContrast(accent, inkSurface, 4.5);
   const teal2 = darken(teal1, light ? 0.2 : 0.28);
 
   const text = ensureContrast(c.ink || (light ? '#181018' : '#f0e6d2'), panel, 7);
-  const muted = ensureContrast(c.muted || mix(text, toRgb(panel), 0.42), panel2, 4.5);
+  const muted = ensureContrast(c.muted || mix(text, toRgb(panel), 0.42), inkSurface, 4.5);
 
   const vars: Record<string, string> = {
     '--hx-navy-0': navy0,

@@ -80,8 +80,11 @@ describe('both derivations were fixed, not just the one that was measured', () =
     // it. Fixing one and not the other is how a defect survives a fix, which this file has seen before.
     const src = require('node:fs').readFileSync(
       require('node:path').join(process.cwd(), 'lib/dnd/skin-tokens.ts'), 'utf8');
-    const occurrences = src.split('ensureContrast(accent, panel2, 4.5)').length - 1;
-    expect(occurrences).toBe(2);
+    // UPDATED slice 67: the backdrop moved again, from `panel2` to `inkSurface` (the chip surface on light
+    // skins). This asserted the literal `panel2` form and so failed the moment the clamp got MORE correct
+    // — the same "pins the implementation, not the rule" trap that slice 64 had to fix in a sibling file.
+    // What matters is that BOTH derivations clamp the accent against the shared worst-case surface.
+    expect(src.split('ensureContrast(accent, inkSurface, 4.5)').length - 1).toBe(2);
     expect(src).not.toContain('ensureContrast(accent, panel, light ? 4 : 3)');
   });
 });

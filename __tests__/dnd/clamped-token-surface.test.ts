@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { skinHxVars } from '@/lib/dnd/skin-tokens';
-import { contrastRatio, aaThresholdForSize } from '@/lib/dnd/theme-contrast';
+import { contrastRatio, aaThresholdForSize, flattenStack, parseColor } from '@/lib/dnd/theme-contrast';
 
 const SKINS = ['streamer', 'donata', 'jack', 'lazzuh'] as const;
 /** The tokens that paint TEXT and are therefore clamped. */
@@ -48,6 +48,30 @@ describe('every clamped text token clears AA on the WORSE panel stop', () => {
       }
     }
   });
+
+  it('AND on the CHIP surface — the inset over the panel, which is where most of them actually sit', () => {
+    // The fourth and final correction to this clamp's backdrop (slice 67). `panel2` was still not the
+    // worst case: chips, tiles and rows paint `var(--hx-inset)` OVER the panel. Measured there BEFORE,
+    // 8 of 9 token×skin combinations were under AA — gold 4.07–4.28, muted 4.14–4.26, teal 4.06–4.29 on
+    // the light skins. The clamp now targets whichever surface the ink is least separated from, which
+    // flips with the skin: the inset on light skins, `panel2` on dark ones.
+    for (const skin of SKINS) {
+      const v = vars(skin);
+      const inset = v['--hx-inset'] ?? 'rgba(1, 10, 19, 0.4)'; // dark skins inherit the default recess
+      const chip = flattenStack([parseColor(inset)!], parseColor(v['--hx-panel-2'])!);
+      const rgb = `rgb(${Math.round(chip.r)}, ${Math.round(chip.g)}, ${Math.round(chip.b)})`;
+      for (const token of TEXT_TOKENS) {
+        expect(contrastRatio(v[token], rgb)!, `${skin} ${token} on chip`).toBeGreaterThanOrEqual(AA);
+      }
+    }
+  });
+
+  it('the dark skin is untouched by that choice, which is the point of making it per-skin', () => {
+    // On a dark skin `--hx-inset` is a near-black recess that INCREASES separation, so clamping against
+    // it would relax the clamp rather than tighten it. lazzuh's gold measured 9.04 on panel2 before this
+    // change and must still.
+    expect(contrastRatio(vars('lazzuh')['--hx-gold-2'], vars('lazzuh')['--hx-panel-2'])!).toBeCloseTo(9.04, 1);
+  });
 });
 
 describe('--hx-text is the deliberate exception', () => {
@@ -63,18 +87,20 @@ describe('--hx-text is the deliberate exception', () => {
 describe('the derivations say so, in both copies', () => {
   const SRC = readFileSync(join(process.cwd(), 'lib/dnd/skin-tokens.ts'), 'utf8');
 
-  it('no text token is still clamped against the bare panel', () => {
-    // The exact forms that were wrong. Listed literally so the failure names what regressed.
-    expect(SRC).not.toContain('ensureContrast(accent, panel, light ? 4 : 3)');
-    expect(SRC).not.toContain('ensureContrast(gold, panel, light ? 4 : 3)');
-    expect(SRC).not.toMatch(/ensureContrast\(mix\(text, toRgb\(panel\), 0\.42\), panel, 4\.5\)/);
+  it('no text token is still clamped against a surface that is not the worst one', () => {
+    // Every form this clamp has worn while being wrong. Listed literally so a regression names itself.
+    expect(SRC).not.toContain('ensureContrast(accent, panel, light ? 4 : 3)');   // slice 59 fixed
+    expect(SRC).not.toContain('ensureContrast(gold, panel, light ? 4 : 3)');     // slice 47 fixed
+    expect(SRC).not.toContain('ensureContrast(accent, panel2, 4.5)');            // slice 67 superseded
+    expect(SRC).not.toContain('ensureContrast(gold, panel2, 4.5)');              // slice 67 superseded
+    expect(SRC).not.toMatch(/ensureContrast\(mix\(text, toRgb\(panel\), 0\.42\), panel2?, 4\.5\)/);
   });
 
   it('and each fix landed in BOTH derivations — the skin path and the theme path', () => {
-    // This file derives the token set twice. Fixing one copy is how a defect survives its own fix, which
-    // is why every one of these three corrections had to be applied in duplicate.
-    expect(SRC.split('ensureContrast(accent, panel2, 4.5)').length - 1).toBe(2);
-    expect(SRC.split('ensureContrast(gold, panel2, 4.5)').length - 1).toBe(2);
-    expect(SRC.split(', panel2, 4.5)').length - 1).toBeGreaterThanOrEqual(6);
+    // This file derives the token set twice, and fixing one copy is how a defect survives its own fix.
+    // That is not hypothetical: slice 67's first attempt converted only `skinHxVars`, and THIS assertion
+    // is what caught it before it shipped.
+    expect(SRC.split('const inkSurface').length - 1).toBe(2);
+    expect(SRC.split('inkSurface, 4.5)').length - 1).toBe(6); // 3 tokens × 2 derivations
   });
 });
