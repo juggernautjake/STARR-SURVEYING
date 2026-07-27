@@ -203,6 +203,40 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 67 — the clamp's backdrop, corrected for the fourth and last time
+
+Chasing the PF2 chip values (4.38) found the clamp was still measuring the wrong surface. Slice 47 moved it
+from `panel` to `panel2`; right, and still not the worst case — **chips, tiles and rows paint
+`var(--hx-inset)` over the panel, and text sits on that.** Measured there, **8 of 9 token×skin combinations
+were under AA**:
+
+| | gold | muted | teal |
+|---|---|---|---|
+| streamer | 4.28 → **4.56** | 4.26 → **4.53** | 4.06 → **4.60** |
+| donata | 4.27 → **4.56** | 4.23 → **4.77** | 4.66 → **4.66** |
+| jack | 4.07 → **4.63** | 4.14 → **4.67** | 4.29 → **4.58** |
+| lazzuh | 10.51 | 5.82 | 5.38 — unchanged |
+
+**Chosen per skin, because which surface is worst FLIPS.** On a light skin the ink is dark, so the *darkest*
+surface (the inset) is worst. On a dark skin the ink is light, so the *lightest* (`panel2`) is worst —
+`--hx-inset` there is a near-black recess that only ever increases separation. Clamping against the wrong
+one would not merely fail to help, it would **relax** the clamp. lazzuh's gold is asserted unchanged at 9.04
+to prove the dark path was not loosened.
+
+**The guard caught my own half-fix.** The first attempt converted only `skinHxVars` and left the theme
+derivation on `panel2` — and the assertion that *both* copies match failed immediately. That test was
+written two slices earlier for exactly this scenario, and it is the reason a half-applied fix did not ship.
+
+**And two tests had to change, for a reason worth naming.** Both pinned the literal `panel2` form, so they
+failed the moment the clamp became *more* correct. That is the third instance this session of a test
+encoding today's implementation rather than the rule — and each time, the fix is to assert the property
+(*"both derivations clamp against the shared worst-case surface"*) rather than the spelling.
+
+**The backdrop has now been wrong four ways** — `panel` at threshold 4/3 (47, 59), `panel` at 4.5 (60),
+`panel2` (67) — and each was found by a different method: reading, live measurement, following a written
+lesson, and chasing a number that was 0.12 low. The clamp itself was never the problem; **where it aimed
+was, every single time.**
+
 ### Slice 66 — verified 65 (a clean win), then the last token doing the wrong job
 
 **Slice 65 verified live, and this time it held:** the PF2 rank badge went **3.65 → 9.02**, and the sheet
