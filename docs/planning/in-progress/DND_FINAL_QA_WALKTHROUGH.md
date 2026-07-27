@@ -133,6 +133,32 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 36 (2026-07-26) — a Revert button that could only ever fail
+
+**Follow-through on slice 35, and the reason a slice should be checked for what it makes COMMON.** The
+review panel rendered "⟲ Revert" on every row; the revert route refuses any row carrying no `new_value`
+with *"This edit carries no reversible change."* A DM clicking Revert on a bespoke-sheet row got an error
+every time, with nothing to do about it — a **dead control**, which is on this doc's own hunt list.
+
+It was pre-existing (the AI path has written `ig:*` / `pf2:*` rows for a long time), but slice 35 turned it
+from rare into routine by filing one for every IG/PF2 build edit. Checking that was the point.
+
+**Why those rows cannot revert, and why that is correct:** they describe a change to a **sidecar** the 5e
+`Character` shape cannot express, so `revertSheetEdit` has nothing to replay backwards. They are real
+history, not undo points.
+
+**The wrong fix, rejected explicitly:** filtering those rows out of the queue. That hides a change from the
+DM to avoid an awkward button, which is strictly worse than a row without one — the queue's entire purpose
+is that nothing is invisible. The row now shows **"record only"** where the button was, and a test pins that
+the visible-row filter still drops only the revert-audit rows.
+
+`isRevertableEditRow` moved beside `revertSheetEdit` and answers for all three callers — the panel, the
+single revert route, and the batch revert route. The batch one was *already correct* inline (`!!r.new_value`)
+and was routed through the predicate anyway, so a future change to the rule cannot reach two of three
+callers and miss the third — the same failure that produced two audit vocabularies on the shared sheet.
+The server still 400s on a direct POST: **the hidden button is a courtesy, the refusal is the guarantee.**
+10 tests.
+
 ### Slice 35 (2026-07-26) — IG and PF2 sheet edits never reached the DM's review queue
 
 Found by taking the previous slice's *method* rather than its subject: the rules-platform sweep concluded
