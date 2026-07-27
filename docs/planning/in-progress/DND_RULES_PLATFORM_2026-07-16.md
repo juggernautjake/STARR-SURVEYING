@@ -19,19 +19,28 @@
 > 2026-07-27.** The Rangor/Pugilist question *was* answered by the owner that day and is shipped (see the
 > item, now `[x]`) — and the doc still does not move, because "line 945 and nothing else" was never true.
 >
-> The claim was built on a **count of `- [ ]` boxes**, which is zero. But this doc records open work in four
-> other notations, and all four still have entries: **Slice 5** carries *"class + subclass still owed"* for
-> the manual field-by-field edit form; **Slice 8b** is `⏳ IN PROGRESS`; **Slice 18** is `⏳ PARTIAL`; and
-> **five `[~]` partials** remain in the body despite the paragraph above declaring "every partial resolved".
-> A checkbox count is not a completion measure when the doc marks completion five different ways — and this
-> header has now been wrong about its own open item three times (twice about *where* it was, per the
-> slice-73 note below, and once about whether it was the only one).
+> The claim was built on a **count of `- [ ]` boxes**, which is zero. But this doc records open work in
+> other notations too: **Slice 5** carries *"class + subclass still owed"* for the manual field-by-field
+> edit form, **Slice 8b** is `⏳ IN PROGRESS`, and **Slice 18** is `⏳ PARTIAL`. A checkbox count is not a
+> completion measure when the doc marks completion several different ways — and this header has now been
+> wrong about its own open item three times (twice about *where* it was, per the slice-73 note below, and
+> once about whether it was the only one).
 >
-> **What would actually move this doc:** finish Slice 5's manual class/subclass edit form, resolve Slice
-> 8b and Slice 18, and clear the five `[~]`s — each checked against live code rather than against this
-> header. The Pugilist's own residue is *not* on that list: it is blocked on the shared PDF (Ground Rule 3)
-> and pinned by `homebrew-library.test.ts`, which belongs with the other data blocks in
-> `DND_OWNER_DECISIONS` §3.
+> **CORRECTION 2026-07-27, to this very paragraph.** Its first version also claimed *"five `[~]` partials
+> remain"*. There are **zero**. I had grepped for `[~]` and counted prose mentions of the token — including
+> the sentence I was writing at the time, and the "every partial resolved" line above it. A real checkbox
+> partial is `- [~]` at the start of a line, and `grep -cE '^\s*- \[~\]'` returns 0. The one prose `[~]`
+> that described genuinely unfinished work (armour's Strength-requirement field, ~line 2062) has since been
+> checked against live code and closed — it shipped, and is applied by the ledger, not merely authorable.
+>
+> That is the same error this header keeps making in a new costume: **counting a token instead of checking
+> the thing**. The fix is the one the slice-73 note already prescribed — verify against live code, never
+> against this header — and it applies to corrections of the header as much as to the header.
+>
+> **What would actually move this doc:** finish Slice 5's manual class/subclass edit form, and resolve
+> Slice 8b's content half and Slice 18 — each checked against live code. The Pugilist's own residue is
+> *not* on that list: it is blocked on the shared PDF (Ground Rule 3) and pinned by
+> `homebrew-library.test.ts`, which belongs with the other data blocks in `DND_OWNER_DECISIONS` §3.
 >
 > *(Pointer corrected 2026-07-27, slice 73: this header cited the item at **two different** line numbers,
 > `~929` and `~745`, in two paragraphs that said the same thing. It is at 945. A stale pointer in the one
@@ -2061,6 +2070,13 @@ re-derivable). So triggers are a **separate concept** that lives beside effects,
       `resistance`, covering "resistances" and "arbitrary effects". Of the seven fields listed, six are
       authorable today; **only STR requirement is absent.** Left `[~]` for that one field rather than closed,
       but the remaining work is one input, not a builder.
+      **✅ CLOSED 2026-07-27 — that last field shipped, and this note was the stale part.** `ItemBuilder`
+      renders the Strength-requirement input (`patchArmor({ strengthReq })`), and it is not merely
+      authorable but *applied*: `ledger.ts` adds an `armor-str-req` source dropping walking speed by 10 ft
+      when the worn armour's `strengthReq` exceeds the character's Strength — modelled as a named source so
+      the Combat panel's ★ can explain it, because *"a player whose speed silently dropped 10 feet has a
+      bug, not a rule."* Covered by `armor-strength-requirement.test.ts`. All seven fields are now
+      authorable, so nothing in this item remains.
       **Original text follows:** **Mechanic ✅ shipped + tested, builder UI not.** The live AC path
       (`deriveAc`, used by CombatPanel) already honors category (light = base + DEX, medium = base +
       min(DEX, cap), heavy = flat) and an item's own `dexCap`, and arbitrary armour `effects` flow through
