@@ -2816,3 +2816,42 @@ here rather than looking complete.
 **Bar:** 9/9 new, full D&D suite green, typecheck exit-0, lint clean. No live data written: the create half
 was driven read-only and the read-back half closed as tests rather than by seeding a character.
 Dev server stopped, port 3471 released.
+
+### 2026-07-27 — slice 77: the gap is one cell, not a system
+
+Slice 76 ended by naming the cheapest fix — *"a warning at design time, which needs no rules decision"*.
+Before writing that warning it had to be true, so the claim behind it got checked. **It was overbroad.**
+
+Slice 76 said a homebrew feat saved on a non-2024 character is unreachable and *"no picker will ever offer
+it"*. That is right for `general` feats and **wrong for `fighting-style`**. `levels/route.ts` builds
+`featPool = [...featCatalogForSystem(system), ...homebrewFeats]` and then `byCategory('fighting-style')`,
+which becomes `choice.options` on the plan — and 2014's **Fighter, Paladin and Ranger all emit a
+fighting-style choice**. A homebrew fighting style saved on a 2014 Fighter shows up exactly where it should.
+
+Derived from the class registry rather than asserted:
+
+| homebrew category | 2024 | 2014 |
+|---|---|---|
+| `general` | ✅ ASI picker | ❌ `asiFeatChoices` returns `[]` |
+| `epic-boon` | ✅ at 19+ | ❌ no 2014 class emits the choice |
+| `fighting-style` | ✅ | ✅ Fighter · Paladin · Ranger |
+| `origin` | ❌ not an ASI pick | ❌ |
+
+**So the gap is one cell:** a `general` homebrew feat on a non-2024 character. That is also the cell a
+player is most likely to land in — the designer's category dropdown defaults to `general` and the AI drafts
+them — so the finding survives, considerably narrowed and much more precisely aimed.
+
+**And the warning slice 76 proposed would have been wrong as described.** "Feats you save here won't appear
+on this character's system" is false for a 2014 Fighter writing a fighting style. Shipping it would have
+introduced a *new* incorrect statement while fixing a misleading silence — worse than the silence, because
+a confident wrong label is harder to doubt than an absence. That is the concrete cost of the overbroad
+claim, and the reason this slice exists instead of the warning.
+
+**Third time in this arc** a claim of mine generalised past its evidence — slices 72 and 75 were the others
+— and the cause was identical each time: **one measured case stated as a rule.** 71 measured one token and
+spoke for the palette; 76 measured one category and spoke for the system. The correction is not to measure
+more before speaking, it is to say which case was measured. The matrix is now derived from the registry, so
+it cannot drift from the data it describes, and it carries the same non-empty floor slice 75 added
+elsewhere — an empty class directory would otherwise make every cell vacuously true.
+
+**Bar:** 13/13 (9 from slice 76 + 4 new), full D&D suite green, typecheck exit-0, lint clean.

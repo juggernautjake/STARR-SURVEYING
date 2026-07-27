@@ -83,6 +83,56 @@ describe('category eligibility mirrors the official rule', () => {
   });
 });
 
+// ── The reachability matrix (slice 77) ────────────────────────────────────────────────────────────
+//
+// CORRECTION TO SLICE 76. That slice said a homebrew feat saved on a non-2024 character is unreachable
+// and that "no picker will ever offer it". True for `general`, and **wrong for `fighting-style`**.
+// `levels/route.ts` builds `featPool = [...featCatalogForSystem(system), ...homebrewFeats]` and then
+// `byCategory('fighting-style')`, which becomes `choice.options` on the plan — and 2014's Fighter,
+// Paladin and Ranger all emit a `fighting-style` choice. So that category DOES reach a 2014 picker.
+//
+// Third time in this arc a claim of mine generalised past its evidence (72 and 75 were the others), and
+// the same cause each time: one measured case stated as a rule. The matrix below is derived from the
+// real class registry rather than restated, so it cannot drift from the data it describes.
+describe('reachability depends on CATEGORY as well as system', () => {
+  const read = (p: string) =>
+    require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+  const classFiles = (edition: string): string[] => {
+    const dir = require('node:path').join(process.cwd(), `lib/dnd/classes/${edition}`);
+    return require('node:fs').readdirSync(dir).filter((f: string) => f.endsWith('.ts'));
+  };
+  const emitsChoice = (edition: string, kind: string) =>
+    classFiles(edition).filter((f) => read(`lib/dnd/classes/${edition}/${f}`).includes(`choice: '${kind}'`));
+
+  it('the class directories are found — this matrix is worthless if they are not', () => {
+    // The floor slice 75 added everywhere else. An empty directory would make every claim below vacuous.
+    expect(classFiles('dnd5e-2014').length).toBeGreaterThan(8);
+    expect(classFiles('dnd5e-2024').length).toBeGreaterThan(8);
+  });
+
+  it('2014 DOES emit fighting-style choices — so homebrew of that category is reachable there', () => {
+    const emitters = emitsChoice('dnd5e-2014', 'fighting-style');
+    expect(emitters.sort()).toEqual(['fighter.ts', 'paladin.ts', 'ranger.ts']);
+    // And the route feeds homebrew into that list rather than only the official one.
+    const route = read('app/api/dnd/characters/[id]/levels/route.ts');
+    expect(route).toContain('...featCatalogForSystem(def.system), ...homebrewFeats');
+    expect(route).toContain("byCategory('fighting-style')");
+  });
+
+  it('2014 emits NO epic-boon choice, so that category is unreachable there', () => {
+    expect(emitsChoice('dnd5e-2014', 'epic-boon')).toEqual([]);
+    expect(emitsChoice('dnd5e-2024', 'epic-boon').length).toBeGreaterThan(0);
+  });
+
+  it('so the gap is specifically GENERAL feats on a non-2024 character', () => {
+    // The one cell that is both saveable and unreachable, and the one a player is most likely to write:
+    // the designer's category dropdown defaults to it and the AI drafts them.
+    expect(eligibleHomebrewFeats([feat({ category: 'general' })], 5)).toHaveLength(1); // eligible…
+    expect(read('app/dnd/_ui/LevelBuilder.tsx'))
+      .toContain("if (system !== 'dnd5e-2024') return [];");                            // …but unreachable
+  });
+});
+
 describe('THE REACHABILITY GAP — pinned, not fixed', () => {
   // `asiFeatChoices` lives inside LevelBuilder.tsx and is not exported, so the gate is asserted against
   // the source. That is deliberate: the point is that the FIRST line of the function discards every
