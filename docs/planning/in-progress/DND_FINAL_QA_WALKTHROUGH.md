@@ -203,6 +203,30 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 68 — the PF2 sheet reaches ZERO contrast failures
+
+Verified slice 67 live, and it closes the arc:
+
+| sheet | before this arc | **now** |
+|---|---|---|
+| **PF2 streamer** (bespoke, `--hx-*`) | 9 of 115 | **0 of 115** |
+| donata 5e (theme.css) | 3 of 164 | 3 — **unchanged** |
+
+**Zero.** Every text node on the bespoke Pathfinder sheet now clears its own AA threshold, composited
+through the real backdrop chain, counting only nodes that actually render.
+
+The arc that got there, and each step was found a different way:
+- **62** — the tint was hard-coded Hextech cyan on every skin *(found by chasing a stray observation)*
+- **64/65** — accent text on its own tint, five places *(found by measuring all four skins, not one)*
+- **66** — a border token painting a 15px glyph *(found by sweeping the token's other uses)*
+- **67** — the clamp aiming at the panel when text sits on the chip *(found by chasing a 0.12 shortfall)*
+
+**donata is unchanged, and that is the correct result rather than a miss:** the 5e engine paints from
+`theme.css`'s `--gold`/`--hotpink`, not the `--hx-*` set slice 67 corrects. Its three survivors are the
+**brand-fill decision**, which has computed options waiting and is genuinely the owner's call. The two
+families were never the same problem, and this confirms it — a change that fixed nine failures on one sheet
+moved the other by exactly zero.
+
 ### Slice 67 — the clamp's backdrop, corrected for the fourth and last time
 
 Chasing the PF2 chip values (4.38) found the clamp was still measuring the wrong surface. Slice 47 moved it

@@ -1,4 +1,4 @@
-# Contrast sweep — how to run it
+| PF2 streamer | 8 | **9** of 115 → **0** after slices 62–67 (see slice 68) |# Contrast sweep — how to run it
 
 A paste-into-devtools (or Playwright `evaluate`) version of the measurement used in the final-QA
 walkthrough's skin sweep. The maths lives in **`lib/dnd/theme-contrast.ts`** and is unit-tested
@@ -316,3 +316,20 @@ fails loudly instead of leaving a stale number here.
 
 **Revised baseline: 40 → 31 failing** (IG's 2 closed; the 7 unmeasured siblings were never in the count).
 The remainder is items 1–3, all colour decisions on a skin's own palette.
+
+## 2026-07-27 — the bespoke PF2 sheet reaches ZERO
+
+Re-measured after slices 62–67 (tint family, accent-on-tint, border-token-as-text, and the clamp backdrop):
+
+| sheet | then | **now** |
+|---|---|---|
+| PF2 streamer | 9 of 115 | **0 of 115** |
+| donata 5e | 3 of 164 | 3 — unchanged |
+
+Every text node on the bespoke Pathfinder sheet clears its own AA threshold, composited through the real
+backdrop chain, rendered nodes only.
+
+**donata's three are the brand-fill decision and were never expected to move** — the 5e engine paints from
+`theme.css`'s `--gold`/`--hotpink`, not the `--hx-*` set those slices corrected. A change that cleared nine
+failures on one sheet moving the other by exactly zero is the cleanest evidence yet that these are two
+independent colour systems, and should be reasoned about separately.
