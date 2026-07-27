@@ -55,41 +55,79 @@ text (≥24px, or ≥18.66px bold) — so a 23px headline at 3.85 is a genuine m
 ## The snippet
 
 ```js
+// CORRECTED 2026-07-27 (slice 121). The version that used to sit here had limitations 1, 2 and 3 —
+// it read `backgroundColor` only, took one layer, and never checked whether an element was rendered.
+// The file warned about all three in prose and then shipped the broken code anyway, so anyone
+// following its instructions reproduced the false alarms it was warning about. This is the version
+// actually used across the sweeps that produced the findings.
 (() => {
   const parse = (c) => { const m = (c || '').match(/[\d.]+/g); if (!m || m.length < 3) return null;
     return { r: +m[0], g: +m[1], b: +m[2], a: m[3] != null ? +m[3] : 1 }; };
   const over = (t, b) => ({ r: t.r*t.a + b.r*(1-t.a), g: t.g*t.a + b.g*(1-t.a), b: t.b*t.a + b.b*(1-t.a), a: 1 });
+
+  // (1) `background-image` counts. A gradient surface is opaque; skipping it composites text onto
+  //     whatever is behind the panel and invents failures.
+  const fromImage = (bi) => {
+    if (!bi || bi === 'none') return null;
+    const stops = (bi.match(/rgba?\([^)]+\)/g) || []).map(parse).filter(s => s && s.a > 0.5);
+    return stops.length ? stops[0] : null;
+  };
+
   const bgOf = (el) => {
     const stack = []; let n = el;
     while (n && n !== document.documentElement) {
-      const c = parse(getComputedStyle(n).backgroundColor);
+      const s = getComputedStyle(n);
+      const img = fromImage(s.backgroundImage);
+      if (img) { stack.push(img); if (img.a >= 1) break; }
+      const c = parse(s.backgroundColor);
       if (c && c.a > 0) { stack.push(c); if (c.a >= 1) break; }
       n = n.parentElement;
     }
-    const base = parse(getComputedStyle(document.documentElement).backgroundColor) ?? { r:255,g:255,b:255,a:1 };
-    let out = stack.length && stack[stack.length-1].a >= 1 ? stack.pop() : { ...base, a: 1 };
-    for (let i = stack.length - 1; i >= 0; i--) out = over(stack[i], out);
+    let out = { r: 255, g: 255, b: 255, a: 1 };
+    for (let i = stack.length - 1; i >= 0; i--) out = over(stack[i], out);   // (2) composite the whole stack
     return out;
   };
+
   const lum = (c) => { const f = [c.r, c.g, c.b].map(v => { const s = v/255;
     return s <= 0.03928 ? s/12.92 : Math.pow((s+0.055)/1.055, 2.4); });
     return 0.2126*f[0] + 0.7152*f[1] + 0.0722*f[2]; };
   const ratio = (fg, bg) => { const a = lum(fg), b = lum(bg);
     return +(((Math.max(a,b) + 0.05) / (Math.min(a,b) + 0.05)).toFixed(2)); };
 
+  // (3) rendered means rendered — ancestors, content-visibility and zero-size boxes included.
+  const isRendered = (el) =>
+    (typeof el.checkVisibility === 'function' ? el.checkVisibility() : true) &&
+    el.getClientRects().length > 0;
+  // (6) a CLOSED <details> still yields layout boxes; its contents are on nobody's screen.
+  const inClosedDetails = (el) => {
+    let n = el.parentElement;
+    while (n && n !== document.documentElement) {
+      if (n.tagName === 'DETAILS' && !n.hasAttribute('open') && !el.closest('summary')) return true;
+      n = n.parentElement;
+    }
+    return false;
+  };
+
   const rows = [...document.querySelectorAll('*')]
     .filter(e => e.children.length === 0 && (e.innerText || '').trim().length > 1)
-    .map(e => { const cs = getComputedStyle(e); const fg = parse(cs.color); if (!fg) return null;
+    .filter(e => isRendered(e) && !inClosedDetails(e))
+    .map(e => { const cs = getComputedStyle(e);
+      // (5) gradient-clipped text: the glyphs are painted by the background, not by `color`.
+      if (cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text') return null;
+      const fg = parse(cs.color); if (!fg) return null;
+      const bg = bgOf(e);
+      const eff = fg.a < 1 ? over(fg, bg) : fg;          // a translucent ink composites too
       const size = parseFloat(cs.fontSize) || 16;
       const bold = (parseInt(cs.fontWeight, 10) || 400) >= 700;
       const need = (size >= 24 || (bold && size >= 18.66)) ? 3 : 4.5;
-      const r = ratio(fg, bgOf(e));
-      return { r, need, pass: r >= need, size, text: (e.innerText || '').trim().slice(0, 30) }; })
+      return { r: ratio(eff, bg), need, pass: ratio(eff, bg) >= need, size,
+               text: (e.innerText || '').trim().slice(0, 30) }; })
     .filter(Boolean)
     .sort((a, b) => a.r - b.r);
 
   const fails = rows.filter(x => !x.pass);
   console.table(fails.slice(0, 25));
+  // Report the denominator too: "0 failing" means nothing if it sampled 0 elements.
   return { sampled: rows.length, failing: fails.length,
            median: rows[Math.floor(rows.length / 2)]?.r };
 })()

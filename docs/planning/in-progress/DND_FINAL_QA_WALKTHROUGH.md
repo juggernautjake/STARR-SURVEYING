@@ -4504,3 +4504,37 @@ keep happening. "The flash is unfixed" does not: it stops being true exactly whe
 pin in `sheet-initial-state.test.ts` says so out loud at that moment.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 121: the file documented the tool's bugs and kept shipping them
+
+`qa-evidence/contrast-sweep.md` exists so the next sweep inherits the method (slice 110 indexed twelve ways
+a browser measurement lies). It also publishes a paste-into-devtools snippet — and **that snippet still had
+limitations 1, 2 and 3 in it**. The file warned about them in prose, above and below the code, and then
+shipped the code that causes them. Anyone following its instructions would have reproduced the exact false
+alarms it was warning about.
+
+**Verified before claiming it**, since "the docs are wrong" is easy to assert: the published `bgOf` read
+`backgroundColor` only — no `background-image` — and the row filter tested `children.length === 0` and
+`innerText` with **no visibility check at all**, despite limitation 3 printing the `checkVisibility` /
+`getClientRects` predicate a few paragraphs later.
+
+**Replaced with the version actually used across the sweeps that produced the findings**, carrying the
+corrections the file had already paid for: gradient backgrounds (1), the whole composited stack (2),
+`isRendered` (3), gradient-clipped text skipped rather than reported at 1.00 (5), closed `<details>`
+excluded (6), a translucent ink composited against its own backdrop, and `sampled` returned alongside
+`failing` so a zero can be told apart from a sweep that looked at nothing.
+
+**Checked three ways, because publishing code that does not run would be worse than publishing code with
+known bugs:**
+
+1. every `js` block in the file parses (3 of 3);
+2. the new snippet, **pasted in verbatim as a reader would**, runs against two live sheets;
+3. it reproduces the known answer — **PF2 84 sampled / 0 failing / median 6.19**, **IG 210 / 0 / 7.71** —
+   which is slice 69's "both bespoke sheets at zero" re-derived through the published tool rather than the
+   private one, and with a non-zero denominator so the zero means something.
+
+**The general shape is one this arc keeps meeting:** a warning next to a defect does not fix the defect,
+and readers copy code, not caveats. Documentation earns its place when it is the thing that runs.
+
+**Bar:** snippet parsed, pasted and executed against two live pages. Full D&D suite green, typecheck
+exit-0. No live data written; port 3595 confirmed bindable. No production code changed.
