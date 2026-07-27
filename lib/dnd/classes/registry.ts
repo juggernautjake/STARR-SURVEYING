@@ -21,6 +21,7 @@ import { SORCERER_2024, SORCERER_SUBCLASSES_2024 } from './dnd5e-2024/sorcerer';
 import { WARLOCK_2024, WARLOCK_SUBCLASSES_2024 } from './dnd5e-2024/warlock';
 import { WIZARD_2024, WIZARD_SUBCLASSES_2024 } from './dnd5e-2024/wizard';
 import { PUGILIST_2024, PUGILIST_SUBCLASSES_2024 } from './dnd5e-2024/pugilist';
+import { PUGILIST_2014, PUGILIST_2014_SUBCLASSES, PUGILIST_2024_EXTRA_SUBCLASSES } from './pugilist';
 
 // D&D 5e 2014 (Slice 6a) — authored class-by-class; each is independently "known" (the registry
 // degrades per class, so an un-authored 2014 class simply falls back to the AI/homebrew path).
@@ -52,6 +53,8 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
   ...PALADIN_SUBCLASSES_2024, ...RANGER_SUBCLASSES_2024, ...ROGUE_SUBCLASSES_2024,
   ...SORCERER_SUBCLASSES_2024, ...WARLOCK_SUBCLASSES_2024, ...WIZARD_SUBCLASSES_2024,
   ...PUGILIST_SUBCLASSES_2024,
+  // The published 2024 line-up has SIX subclasses; the import above carried only Sweet Science.
+  ...PUGILIST_2024_EXTRA_SUBCLASSES,
 ];
 
 /**
@@ -67,6 +70,12 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
 const DND5E_2014_CLASSES: ClassDefinition[] = [
   BARBARIAN_2014, FIGHTER_2014, ROGUE_2014, MONK_2014, RANGER_2014, PALADIN_2014, SORCERER_2014,
   WARLOCK_2014, BARD_2014, CLERIC_2014, DRUID_2014, WIZARD_2014, ARTIFICER_2014,
+  // The 2014 Pugilist (Benjamin Hoffman / Sterling Vermin) — homebrew, authored 1–20 so the level walker
+  // can walk it like any class, and flagged `custom` so the picker badges it and a DM can gate it. The
+  // 2024 revision is a genuinely different class (d10 hit die, different Fisticuffs ladder, Bloodied at 2)
+  // and lives in `dnd5e-2024/pugilist.ts`. Both are kept because a player on either edition should get
+  // THEIR Pugilist, not the other one wearing its name.
+  PUGILIST_2014,
 ];
 const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [
   ...BARBARIAN_SUBCLASSES_2014, ...FIGHTER_SUBCLASSES_2014, ...ROGUE_SUBCLASSES_2014,
@@ -74,6 +83,7 @@ const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [
   ...SORCERER_SUBCLASSES_2014, ...WARLOCK_SUBCLASSES_2014, ...BARD_SUBCLASSES_2014,
   ...CLERIC_SUBCLASSES_2014, ...DRUID_SUBCLASSES_2014, ...WIZARD_SUBCLASSES_2014,
   ...ARTIFICER_SUBCLASSES_2014,
+  ...PUGILIST_2014_SUBCLASSES, // all seven Fight Clubs
 ];
 
 const BY_SYSTEM: Record<string, { classes: ClassDefinition[]; subclasses: SubclassDefinition[] }> = {

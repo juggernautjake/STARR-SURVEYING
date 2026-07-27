@@ -53,7 +53,7 @@ export const HOMEBREW_SEEDS: HomebrewContent[] = [
     // co-authored piece ever lands, that is the moment to widen it.
     creator: { name: 'Andrew & Jacob' },
     status: 'approved',
-    summary: 'A bare-knuckle martial class built on Fisticuffs + a Moxie pool. Subclass: Sweet Science.',
+    summary: 'A bare-knuckle martial class built on Fisticuffs + a Moxie pool. Seven Fight Clubs in 2014; six subclasses in the 2024 revision.',
     description: [
       '**Fisticuffs.** Your unarmed strikes are your signature weapon, scaling as you level.',
       '**Iron Chin.** While not wearing armor, your AC = 12 + your CON modifier (the sheet uses whichever unarmored formula is higher).',

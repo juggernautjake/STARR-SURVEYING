@@ -23,6 +23,8 @@ const HIT_DICE: Record<string, number> = {
   Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
   Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8, Artificer: 8,
   Sorcerer: 6, Wizard: 6,
+  // Pugilist (Benjamin Hoffman / Sterling Vermin) — 2014 uses d8; the 2024 revision uses d10.
+  Pugilist: 8,
 };
 
 // RAW saving-throw proficiency pair per class (+ Artificer CON/INT). "Exactly 2 saves" wouldn't catch a
@@ -32,6 +34,7 @@ const SAVES: Record<string, string[]> = {
   Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
   Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
   Artificer: ['con', 'int'],
+  Pugilist: ['con', 'str'],
 };
 
 // The 2014 subclass-choice level per class — an EDITION-SENSITIVE quirk (2024 puts every subclass at L3;
@@ -41,6 +44,7 @@ const SAVES: Record<string, string[]> = {
 const SUBCLASS_LEVEL: Record<string, number> = {
   Cleric: 1, Sorcerer: 1, Warlock: 1, Druid: 2, Wizard: 2,
   Barbarian: 3, Bard: 3, Fighter: 3, Monk: 3, Paladin: 3, Ranger: 3, Rogue: 3, Artificer: 3,
+  Pugilist: 3, // 'Fight Club'
 };
 
 // The EXACT 2014 ASI cadence — INCLUDING level 19 (in 2024 that's an Epic Boon, not an ASI: the edition
@@ -51,6 +55,7 @@ const ASI_LEVELS: Record<string, number[]> = {
   Barbarian: [4, 8, 12, 16, 19], Bard: [4, 8, 12, 16, 19], Cleric: [4, 8, 12, 16, 19], Druid: [4, 8, 12, 16, 19],
   Monk: [4, 8, 12, 16, 19], Paladin: [4, 8, 12, 16, 19], Ranger: [4, 8, 12, 16, 19], Sorcerer: [4, 8, 12, 16, 19],
   Warlock: [4, 8, 12, 16, 19], Wizard: [4, 8, 12, 16, 19], Artificer: [4, 8, 12, 16, 19],
+  Pugilist: [4, 8, 12, 16, 19],
 };
 
 describe('the 2014 class roster (authored class-by-class)', () => {
