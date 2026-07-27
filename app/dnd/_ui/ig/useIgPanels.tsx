@@ -83,7 +83,15 @@ const BADGE: Record<Source, { t: string; c: string; b: string }> = {
 };
 function Badge({ source }: { source: Source }) {
   const m = BADGE[source];
-  return <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', color: m.c, background: m.b, border: `1px solid ${m.c}`, borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' }}>{m.t}</span>;
+  // INK for the label, `m.c` for the border and the tint — the roller dock's split, applied here for two
+  // reasons at once (slice 65):
+  //   · VANILLA was accent-on-its-own-tint, which measures 3.76–4.28 across the skins. Same defect as
+  //     `.pf2RankTrained`, same remedy.
+  //   · CUSTOM and DM-GRANTED are worse in a quieter way: `--hx-danger-2` is a LIGHT red and is
+  //     deliberately NOT skin-derived, so on a light skin it was pale text on a pale panel. The ink is
+  //     contrast-clamped against the panel by construction, on every skin.
+  // The badge still reads as its colour — that comes from the border and the fill, which are untouched.
+  return <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--hx-text)', background: m.b, border: `1px solid ${m.c}`, borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' }}>{m.t}</span>;
 }
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`);

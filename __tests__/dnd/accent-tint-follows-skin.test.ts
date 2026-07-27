@@ -154,3 +154,35 @@ describe('DANGER tints are the deliberate exception', () => {
     expect(IG).toMatch(/rgba\(198,\s*64,\s*59/);
   });
 });
+
+describe('the accent-on-tint rule is applied everywhere it occurs, not just where it was measured', () => {
+  // Slice 64 fixed the rank badge. Sweeping for the same PAIRING — accent text on a fill of that same
+  // accent — found three more, and one of them was a different defect wearing the same clothes.
+  //
+  // Measured on the tint over panel-2, across all four skins:
+  //     α = 0.08   accent 4.00 · 4.58 · 4.31 · 4.19   (three of four fail)
+  //     α = 0.12   accent 3.76 · 4.28 · 4.09 · 4.00   (all four fail)
+  //     ink        10.9 – 12.4 at both strengths
+  it('the PF2 cost chip takes the ink', () => {
+    const rule = CSS.slice(CSS.indexOf('.pf2CostSpecial'), CSS.indexOf('.pf2CostSpecial') + 200);
+    expect(rule).toContain('color: var(--hx-text)');
+    expect(rule).toContain('rgba(var(--hx-teal-1-rgb)');
+  });
+
+  it('the PF2 system badge takes the ink while keeping its accent border', () => {
+    expect(PF2).toContain("color: 'var(--hx-text)', border: '1px solid var(--hx-teal-1)'");
+  });
+
+  it('the IG provenance badges take the ink, with the colour carried by border and fill', () => {
+    // VANILLA was accent-on-accent. CUSTOM/DM-GRANTED were a quieter problem: `--hx-danger-2` is a LIGHT
+    // red that is deliberately not skin-derived, so on a light skin it was pale text on a pale panel.
+    // One change fixes both, because the ink is clamped against the panel on every skin.
+    expect(IG).toContain("color: 'var(--hx-text)', background: m.b, border: `1px solid ${m.c}`");
+  });
+
+  it('and no element still pairs accent text with its own accent fill', () => {
+    // The pairing itself, as a rule. A new chip that reaches for both fails here.
+    expect(CSS).not.toMatch(/color: var\(--hx-teal-1\);[^}]*rgba\(var\(--hx-teal-1-rgb\)/);
+    expect(PF2).not.toMatch(/color: 'var\(--hx-teal-1\)'[^}]{0,160}rgba\(var\(--hx-teal-1-rgb\)/);
+  });
+});
