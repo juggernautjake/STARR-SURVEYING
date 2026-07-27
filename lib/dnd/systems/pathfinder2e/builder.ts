@@ -19,7 +19,7 @@ import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 // Whether a class's slot table is really modelled is decided in ONE place — `spell-counts.ts` — so the
 // builder and any future cap cannot disagree about which casters have countable slots. That module carries
 // the reasoning; this file just honours the answer.
-import { pf2SlotTableModelled } from './spell-counts';
+import { pf2SlotTableModelled, pf2ReducedSlots } from './spell-counts';
 import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
@@ -262,7 +262,12 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
           // projection whose `spellcasting` has no such flag, so reading it there is `undefined` for every
           // class — which would have emptied the slots of every full caster too. The flag lives on
           // `PF2_CLASS_PROGRESSIONS`; absent an entry, the previous behaviour stands.
-          slots: pf2SlotTableModelled(picks.className) ? pf2SpellSlots(level) : [],
+          // RESOLVED 2026-07-27 — the reduced tables were published all along. Magus and Summoner now get
+          // their OWN slots (`pf2ReducedSlots`) instead of an empty array, so a built Magus stops showing
+          // no slot pills at all. Everything above still holds for any class we genuinely cannot model:
+          // the fallback is emptiness, never a plausible-looking full-caster table.
+          slots: [...(pf2ReducedSlots(picks.className, level)
+            ?? (pf2SlotTableModelled(picks.className) ? pf2SpellSlots(level) : []))],
           // Chosen spells resolved against the catalog for their real rank. A prepared caster's
           // build-time picks start prepared — they are what the character is carrying today.
           ...(picks.spells?.length

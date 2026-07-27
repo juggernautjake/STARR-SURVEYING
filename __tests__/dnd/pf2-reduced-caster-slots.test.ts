@@ -85,14 +85,17 @@ describe('the suppression is explicit, never inferred', () => {
     expect(pf2SlotTableModelled(undefined)).toBe(true);
   });
 
-  it('the count source reports NOT MODELLED rather than a number it does not have', () => {
-    // `pf2SpellCountsFor` is S7c's missing piece. For a reduced caster it must say so — the whole failure
-    // being fixed is a caller substituting the full table when the real one is absent.
+  it('the count source now reports the REAL table, captured 2026-07-27', () => {
+    // This asserted `modelled: false` and an empty table, which was the correct answer while the real one
+    // was uncaptured — the failure it guarded was a caller substituting the FULL table for the missing one.
+    // Both tables have since been read off Archives of Nethys, so the honest answer changed. The guard that
+    // still matters is below: a Magus must never be handed a full caster's numbers.
     const magus = pf2SpellCountsFor('Magus', 9);
-    expect(magus.modelled).toBe(false);
-    expect(magus.slotsByRank).toEqual([]);
-    expect(magus.cantrips).toBe(0);
-    expect(magus.topRank).toBe(0);
+    expect(magus.modelled).toBe(true);
+    expect(magus.slotsByRank[4]).toBe(2);
+    expect(magus.slotsByRank[5]).toBe(2);
+    expect(magus.slotsByRank[1], 'low ranks are LOST, not merely fewer').toBe(0);
+    expect(magus.topRank).toBe(5);
     // …while still reporting what IS known, so a caller can say "prepared caster, counts unmodelled".
     expect(magus.kind).toBe('prepared');
   });

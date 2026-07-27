@@ -48,6 +48,16 @@ export function pf2SpellCountsFor(className: string | undefined, level: number):
   if (!sc) return NONE;
   // An EXPLICIT false is the only thing that suppresses. A class with no flag is not a claim that its
   // table is unmodelled — the same conservatism the builder uses, so the two cannot disagree.
+  // REDUCED CASTERS are modelled now (2026-07-27) — Magus and Summoner have real, captured tables, so they
+  // no longer fall through to NONE. `slotTableModelled: false` stays on their data entries as the record of
+  // what was true before the capture; this check runs first because the table is the better answer.
+  const reduced = pf2ReducedSlots(className, level);
+  if (reduced) {
+    const slotsByRank = [...reduced];
+    let topRank = 0;
+    for (let r = 1; r <= 9; r++) if ((slotsByRank[r] ?? 0) > 0) topRank = r;
+    return { modelled: true, kind: sc.kind ?? null, cantrips: slotsByRank[0] ?? 0, slotsByRank, topRank };
+  }
   if (sc.slotTableModelled === false) return { ...NONE, kind: sc.kind ?? null };
 
   const lvl = Math.max(1, Math.min(20, Math.round(level || 1)));
@@ -141,4 +151,61 @@ export function pf2PreparedRoom(args: {
       ? `${prepared} spells are prepared against ${granted} rank-${rank} ${noun} — un-prepare one before adding another.`
       : `No room: rank ${rank} grants ${granted} ${noun} and ${granted === 1 ? 'it is' : 'they are'} all prepared — un-prepare one first.`,
   };
+}
+
+// ── REDUCED CASTERS — Magus and Summoner (captured 2026-07-27) ───────────────────────────────────
+//
+// These were recorded for weeks as blocked on "the published reduced-caster tables (Ground Rule 3)".
+// They are published, on the class pages themselves, and the two tables are IDENTICAL:
+//
+//   Magus    (2e.aonprd.com/Classes.aspx?ID=17)  "you have no more than two spell slots of your highest
+//                                                 level and, if you can cast 2nd-level spells or higher,
+//                                                 two spell slots of 1 level lower"
+//   Summoner (2e.aonprd.com/Classes.aspx?ID=18)  "you begin to lose lower-level spell slots once you
+//                                                 reach 5th level. The maximum number of spell slots you
+//                                                 get from the summoner class is four"
+//
+// WHY THE SEARCH KEPT FAILING: the rule is PROSE on both pages, and the grid is an unlabelled table among
+// six others. Looking for "the reduced-caster table" finds nothing because Paizo never publishes one — it
+// publishes two class tables that happen to agree. The blocker was the shape of the question.
+//
+// Rows are levels 1–20; each row is slots by rank, index 0 = cantrips. Transcribed cell-for-cell from the
+// two grids, which match each other exactly. Magus's table marks some empty cells with an asterisk noting
+// that its 'studious spells' feature grants extra slots for SPECIFIC spells — a class feature, not a slot
+// count, so it is not folded in here.
+const PF2_REDUCED_SLOTS: readonly (readonly number[])[] = [
+  /*  1 */ [5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  /*  2 */ [5, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+  /*  3 */ [5, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  /*  4 */ [5, 2, 2, 0, 0, 0, 0, 0, 0, 0],
+  /*  5 */ [5, 0, 2, 2, 0, 0, 0, 0, 0, 0],
+  /*  6 */ [5, 0, 2, 2, 0, 0, 0, 0, 0, 0],
+  /*  7 */ [5, 0, 0, 2, 2, 0, 0, 0, 0, 0],
+  /*  8 */ [5, 0, 0, 2, 2, 0, 0, 0, 0, 0],
+  /*  9 */ [5, 0, 0, 0, 2, 2, 0, 0, 0, 0],
+  /* 10 */ [5, 0, 0, 0, 2, 2, 0, 0, 0, 0],
+  /* 11 */ [5, 0, 0, 0, 0, 2, 2, 0, 0, 0],
+  /* 12 */ [5, 0, 0, 0, 0, 2, 2, 0, 0, 0],
+  /* 13 */ [5, 0, 0, 0, 0, 0, 2, 2, 0, 0],
+  /* 14 */ [5, 0, 0, 0, 0, 0, 2, 2, 0, 0],
+  /* 15 */ [5, 0, 0, 0, 0, 0, 0, 2, 2, 0],
+  /* 16 */ [5, 0, 0, 0, 0, 0, 0, 2, 2, 0],
+  /* 17 */ [5, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+  /* 18 */ [5, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+  /* 19 */ [5, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+  /* 20 */ [5, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+];
+
+/** The classes whose slots come from the reduced table above rather than the full-caster one. */
+const REDUCED_CASTERS = new Set(['magus', 'summoner']);
+
+export function pf2IsReducedCaster(className: string | undefined): boolean {
+  return REDUCED_CASTERS.has((className ?? '').trim().toLowerCase());
+}
+
+/** Slots by rank for a reduced caster at 'level' (index 0 = cantrips), or null for any other class. */
+export function pf2ReducedSlots(className: string | undefined, level: number): readonly number[] | null {
+  if (!pf2IsReducedCaster(className)) return null;
+  const lvl = Math.max(1, Math.min(20, Math.round(level || 1)));
+  return PF2_REDUCED_SLOTS[lvl - 1];
 }

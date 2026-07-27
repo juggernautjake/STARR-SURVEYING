@@ -85,9 +85,14 @@ describe('the wiring uses the count SOURCE, and only when modelled', () => {
     expect(builder).toContain('.modelled ? { cantripLimit:');
   });
 
-  it('and the source agrees: a full caster has 5, a reduced one has none', () => {
+  it('and the source agrees: five cantrips for a full caster AND for a reduced one', () => {
+    // UPDATED 2026-07-27. This asserted `modelled: false` for a Magus, which was true while its table was
+    // uncaptured. The table is captured now, and it gives reduced casters five cantrips too — the reduction
+    // is in LEVELLED slots, not cantrips. Asserting the old emptiness would now pin the absence of data we
+    // have.
     expect(pf2SpellCountsFor('Wizard', 5).cantrips).toBe(5);
-    expect(pf2SpellCountsFor('Magus', 5).modelled).toBe(false);
+    expect(pf2SpellCountsFor('Magus', 5).modelled).toBe(true);
+    expect(pf2SpellCountsFor('Magus', 5).cantrips).toBe(5);
   });
 });
 
