@@ -22,7 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { describeEdit } from '@/lib/dnd/edit-describe';
 import styles from './hextech.module.css';
 
-interface Row {
+export interface Row {
   id: string;
   field_path: string | null;
   is_dm: boolean | null;
@@ -53,7 +53,18 @@ export default function SheetEditHistory({ characterId, canWrite }: {
   useEffect(() => { load(); }, [load]);
 
   if (!characterId || !canWrite) return null;
+  return <EditHistoryView rows={rows} loaded={loaded} />;
+}
 
+/** The MARKUP, split from the fetching container above so its states are reachable in a test.
+ *
+ *  Same reason `CampaignsPanel` was split out of `CharacterCampaigns`: the container renders its populated
+ *  state only after a request resolves, which never happens under `renderToStaticMarkup`, so a test could
+ *  otherwise only grep the source. This repo has been burned twice by exactly that — a build gate that
+ *  passed nine source-anchored tests while refusing every legal build, and a green 15k-test suite that
+ *  missed three rendering-condition bugs in one browser pass. A grep proves a branch EXISTS; only a render
+ *  proves it puts the right thing on screen. */
+export function EditHistoryView({ rows, loaded }: { rows: Row[]; loaded: boolean }) {
   // Same filter as the shared panel: the revert-audit rows are bookkeeping about the queue, not changes
   // to the character.
   const visible = rows.filter((r) => !(r.field_path ?? '').startsWith('revert:'));
