@@ -18,6 +18,31 @@ Plus, from the same conversation: *"make sure that all of the preferences are pe
 `SETTINGS_PER_SYSTEM_RULES_VARIANTS`, S-6) and *"make sure the dice rollers are all set up correctly for each
 system"* (slice 9 below).
 
+## Where this stands — read before picking anything up (2026-07-26, end of the S6 strand)
+
+**Shipped:** S1–S6g, S8a–d, S11–S14. The slot model exists in all three systems, the escape hatch is on
+every builder AND every walker, it is reachable from all of them, its exceptions are named on the badge,
+and a DM rules on each one individually.
+
+**Everything still open is blocked on an INPUT, not on effort** — which is why the remaining three items
+have sat unchanged while eight slices shipped around them:
+
+| item | blocked on |
+|---|---|
+| **S7c** — PF2 spell counts | The published per-class/per-tradition tables. `pf2SpellSlots` is one derived full-caster table keyed on level alone, so there is no count to enforce yet. Ground Rule 3 — the same bar that deferred Automatic Bonus Progression. |
+| **S9** — per-system dice rollers | Owner answer to **Q4**. The BUG half is closed (S-6 scoped both settings out of PF2/IG, so nothing claims to do something it cannot); what is left is a feature question. |
+| **S10** — IG Champion | Owner supplying Champion's powers/specializations. The catalog is scraped from intuitivegames.net and Champion is not in it; inventing the list is the one thing we must not do. |
+
+Plus **seven questions for the owner** at the foot of this doc. Every one shipped on a recorded assumption
+rather than blocking, so none of them is holding code — but Q6 (how many feats an IG character starts with
+at level 1) is the only number in this whole plan that is not source-verified.
+
+**The pattern worth carrying forward.** The last four slices (S6d–S6g) all found the same class of defect:
+**a correct gate that the player could not reach, or that was fed the wrong thing.** Every one survived a
+green 5,400-test suite, and two were actively PROTECTED by tests that pinned an implementation as if it
+were the rule. Assertions that a gate EXISTS are nearly worthless here; assertions about what reaches it
+are what caught these.
+
 ## The one idea
 
 **A character sheet is a set of SLOTS, each owned by a level, each holding exactly one choice.** Everything
@@ -156,7 +181,10 @@ slices are driven in the browser before being called done — this repo's standi
       Two of my own errors, corrected inline rather than quietly: I first filed the level-1 pick against
       level 2 (which would have made the walker skip a real level-2 prompt), and I first expected the
       unique power to be a choice.
-- [~] **S6 — the escape hatch. Core + 5e shipped 2026-07-26; PF2/IG wiring is S6b/S6c.**
+- [x] **S6 — the escape hatch. Core + 5e shipped 2026-07-26; PF2/IG landed in S6b/S6c, the walkers in
+      S6d, and S6f/S6g made it REACHABLE on all three.** Closed 2026-07-26: this entry's own stated
+      remainder ("PF2/IG wiring is S6b/S6c") has been `[x]` since the day it was written, and leaving it
+      `[~]` is exactly the stale-partial trap `DND_RULES_PLATFORM`'s header warns about.
       `lib/dnd/slots/entitlement.ts` + `app/dnd/_ui/builder/TakeAnyway.tsx`, end to end on the 5e
       Foundations picker (picker → POST → gate → ledger → badge). 38 tests.
 
