@@ -23,6 +23,10 @@ export interface DescribableEdit {
   field_path?: string | null;
   old_value?: unknown;
   new_value?: unknown;
+  /** A sentence written by whoever filed the row, for rows that carry no before/after to diff. The
+   *  bespoke-sheet routes (`ig:*` / `pf2:*`) write one because their change lives in a sidecar the 5e
+   *  `Character` shape cannot express — there is no scalar pair to format, but there IS a description. */
+  summary?: string | null;
 }
 
 /** AI rows store a whole `SheetEdit` in `new_value`; a manual row stores the bare value. */
@@ -64,6 +68,18 @@ export function describeEdit(row: DescribableEdit): string {
   // MANUAL — the case that rendered as a bare path. Both values are right here.
   const before = show(row.old_value);
   const after = show(row.new_value);
+  // SUMMARY-ONLY rows — the third vocabulary, and the same hole this file was written to close.
+  //
+  // A bespoke-sheet row (`ig:add_power`, `pf2:add_feat`) changes a SIDECAR the 5e `Character` shape cannot
+  // express, so it stores no before/after pair to diff — but it does store a sentence. Without this the row
+  // fell to `return path` below and the DM's queue printed the raw opcode **`ig:add_power`** where it
+  // should have said "Gained the power Arcane Spell — off-rules: not a Beastmaster power". Exactly the
+  // failure described at the top of this file, on a row shape that did not exist when it was written.
+  //
+  // Checked HERE rather than first, deliberately: a structured edit or a real before/after pair is a more
+  // precise answer than a generic sentence, so the summary is the fallback, not the preference.
+  const summary = typeof row.summary === 'string' ? row.summary.trim() : '';
+  if (before === after && summary) return summary;
   if (before === after) return path;               // nothing to say; the row should not exist, but be quiet
 
   // An ELEMENT arriving or leaving reads better as a verb than as a diff against nothing. Once the sheet
