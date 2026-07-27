@@ -3215,3 +3215,42 @@ was the exception, not the first of a family.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — the finding is that no code *should*
 change. No live data written. Dev server stopped, port 3495 confirmed bindable.
+
+### 2026-07-27 — slice 86: touch targets, and a circle that was an ellipse
+
+The walkthrough item names *"spacing, alignment"* alongside contrast and overflow. Those are largely
+matters of taste and were left, but one mobile property in that family is **objectively measurable and had
+never been checked**: touch target size. WCAG 2.5.8 (AA) sets 24×24 CSS px as the floor.
+
+Swept the 5e sheet at 360px — **88 interactive targets**, of which 16 are under 24×24, in four shapes. The
+striking one: **13 identical `?` help badges at 16×12px**, 10px font, `padding: 0 4px`.
+
+**They are conformant, and checking that before reporting is the point.** WCAG 2.5.8 has a spacing
+exception — an undersized target passes if a 24px circle centred on it does not reach another target. All
+13 measured **33–35px** to their nearest neighbour, so all 13 pass. Reporting "13 WCAG failures" would have
+been the fourth false alarm of this arc; the exception is part of the criterion, not a loophole.
+
+**But the measurement did expose a real defect underneath it.** `Tip.tsx` styles its badge as a proper
+**15×15 circle**. `triggerStyle` spreads **last**, and exactly one of its six call sites —
+`HouseRulesPanel.tsx:102` — overrode that with:
+
+```
+border: '1px solid var(--hx-line)', borderRadius: '50%', padding: '0 4px',
+width: 'auto', height: 'auto'
+```
+
+It **asks for a circle and then removes the two properties that make one**. The `border` and `borderRadius`
+it restated were already Tip's defaults, so the entire override was redundant except for the `auto`s that
+broke it — and the result was 13 badges rendering as **16×12 ellipses** on every sheet with house rules.
+The other five call sites pass only a margin and a colour, and get the circle.
+
+**Fix:** make this one match the others. Verified after: all 13 render **15×15, `border-radius: 50%`**,
+actual circles, `aria-label` intact.
+
+**On the size itself, deliberately unchanged:** 15×15 is small, and below what Apple (44) or Material (48)
+would advise — but it conforms via spacing, it is `Tip`'s own consistent size across the app, and enlarging
+it means changing every tooltip badge everywhere, which is a design decision rather than a correction. The
+measurement is recorded here so that decision can be made with the number in hand.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser against the
+shipped code. No live data written. Dev server stopped, port 3499 confirmed bindable.

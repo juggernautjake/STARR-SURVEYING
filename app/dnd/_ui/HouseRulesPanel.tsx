@@ -99,7 +99,14 @@ export default function HouseRulesPanel({ preferences }: { preferences: Effectiv
                     title={`${name} — a house rule`}
                     label={`what ${name} means`}
                     tip={`${help} This is the value in force for your campaign, not a rule you picked, and it changes how your own sheet behaves. Your DM sets it; a 🔒 means they have locked it, so it cannot be overridden on a single character.`}
-                    triggerStyle={{ marginLeft: 5, fontSize: 10, color: 'var(--hx-muted)', border: '1px solid var(--hx-line)', borderRadius: '50%', padding: '0 4px', width: 'auto', height: 'auto' }}
+                    // Only the margin and the colour, like every other `Tip` call site. This one used to
+                    // re-declare the badge — `border`, `borderRadius: '50%'`, `padding: '0 4px'` and,
+                    // fatally, `width: 'auto', height: 'auto'`. `triggerStyle` spreads LAST, so those
+                    // `auto`s overrode Tip's own `width: 15, height: 15` and the badge rendered as a
+                    // **16×12 ellipse**: it asked for a circle and then removed the two properties that
+                    // make one. 13 of them on a sheet, and the border/radius it restated were already
+                    // Tip's defaults, so the whole override was redundant apart from the harm.
+                    triggerStyle={{ marginLeft: 5, color: 'var(--hx-muted)' }}
                   />
                 )}
               </dt>
