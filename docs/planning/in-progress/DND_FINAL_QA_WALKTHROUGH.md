@@ -172,6 +172,35 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 52 — correcting slice 51: the rejection rested on an unproven premise
+
+Slice 51 rejected deepening streamer's `--gold` because *"the PF2 dice pad goes 2.86 → 2.41"*. Reading the
+**pad's code** rather than this doc's evidence shows that premise does not hold, in two separate ways.
+
+- **`DicePad.tsx` paints `var(--hx-gold-2, var(--gold, inherit))`.** It reads `--gold` *only* if
+  `--hx-gold-2` is undefined in its scope — and `--hx-gold-2` is the CSS-module token **slice 47 already
+  clamped**. Whether this value reaches the pad at all is a scope question static reading cannot answer.
+- **The 2.86 figure is itself from a retracted measurement.** The contrast-sweep evidence records those
+  buttons as measured inside a collapsed `.fld` (`display:none`) — one of the three tool bugs it lists under
+  *"it measures things nobody can see"*. I used a number the same file had already withdrawn.
+
+The value is **still unchanged**, but now for the right reason: not *"deepening is wrong"* but *"one read
+settles it and nobody has taken it"*. And the upside is broader than slice 51 implied — **~100 shared-sheet
+sites** paint with `var(--gold)`, and deepening clears panel (4.58→5.44), panel-2 (4.12→4.89) and panel-3
+(4.27→4.60).
+
+`theme.ts` now states the open question and exactly how to close it: **read the pad's computed colour on a
+streamer sheet with the dock EXPANDED.** Clamped token → the value is free to deepen. `#966c00` → the fix is
+a surface-derived token. The test splits to match: light-surface arithmetic asserted unconditionally, the
+dark-surface one renamed to say it applies *only if* the pad resolves this token.
+
+**Second time in this arc that an attribution in the evidence file did not survive contact with the code** —
+the first was the section-number item in slice 50, which also did not reproduce as described. That file
+warns at the top that its own earlier entries were "later corrected or retracted by measurement" and says
+**trust the newest slice, not the first**. Slice 51 read an older entry as current and reasoned from it.
+The habit that catches this is cheap and I skipped it: *when the evidence names a colour on a surface, check
+which token that element actually paints with.*
+
 ### Slice 51 — a fix that measured well, and was rejected anyway
 
 Slice 50 left one concrete item: streamer's `--gold` fails at **4.12** on panel-2 while its own comment
