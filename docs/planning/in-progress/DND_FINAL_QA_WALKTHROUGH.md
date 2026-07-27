@@ -203,6 +203,31 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 69 — BOTH bespoke sheets at zero
+
+The IG sheet uses the same `--hx-*` tokens slices 62–67 corrected and had not been re-measured. It came
+back at **1 of 239** — *"Currently in"* at **4.31**, a fifth of a point short.
+
+**One more instance of the same shape, and the last.** That label is `--hx-muted` on the **stance card**,
+which paints its own **accent gradient** (`rgba(var(--hx-teal-1-rgb), 0.12 → 0.04)`). The muted clamp targets
+the panel and the neutral inset — not an accent tint. Rather than chase a *fifth* clamp surface for a single
+card, it takes the remedy the roller dock established for accent-tinted surfaces: **use the ink.**
+
+| sheet | baseline | **now** |
+|---|---|---|
+| **PF2 streamer** | 8–9 | **0 of 115** |
+| **IG** (default) | 2 | **0 of 239** |
+| donata 5e | 20 | 3 — the brand-fill decision |
+
+**Both bespoke sheets are now at zero measured contrast failures**, across 354 rendered text nodes,
+composited through real backdrops.
+
+**The dividing line the whole arc drew:** everything reachable from the `--hx-*` token system is fixed and
+guarded, because that system *derives* its colours and a derivation can be corrected once for every skin.
+What remains — donata's three — lives in `theme.css`'s hand-picked brand palette, where the fix is a choice
+between two measured options rather than a correction to a rule. **That is not a smaller version of the same
+problem; it is a different kind of problem**, and the last six slices are the evidence.
+
 ### Slice 68 — the PF2 sheet reaches ZERO contrast failures
 
 Verified slice 67 live, and it closes the arc:

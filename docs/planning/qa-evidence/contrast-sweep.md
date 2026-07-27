@@ -333,3 +333,22 @@ backdrop chain, rendered nodes only.
 `theme.css`'s `--gold`/`--hotpink`, not the `--hx-*` set those slices corrected. A change that cleared nine
 failures on one sheet moving the other by exactly zero is the cleanest evidence yet that these are two
 independent colour systems, and should be reasoned about separately.
+
+### Both bespoke sheets, final
+
+| sheet | baseline | now |
+|---|---|---|
+| PF2 streamer | 8–9 | **0 of 115** |
+| IG (default) | 2 | **0 of 239** |
+| donata 5e | 20 | 3 — the brand-fill decision |
+
+354 rendered text nodes across the two bespoke sheets, zero failures.
+
+The IG sheet's last one was *"Currently in"* at 4.31 — `--hx-muted` on the **stance card**, which paints its
+own ACCENT gradient rather than the neutral inset the clamp targets. Fixed with the ink, per the roller
+dock's rule for accent-tinted surfaces, rather than by adding a fifth clamp surface for one card.
+
+**The line this draws:** everything reachable from the `--hx-*` system is fixed and guarded, because that
+system DERIVES its colours — one correction covers every skin. donata's remaining three live in
+`theme.css`'s hand-picked brand palette, where the fix is a choice between two measured options, not a
+correction to a rule.

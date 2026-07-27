@@ -494,7 +494,12 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                         uses on this exact background and which measures fine there. */}
                     <span aria-hidden style={{ fontSize: 21, lineHeight: 1, color: 'var(--hx-teal-1)' }}>🜲</span>
                     <div style={{ display: 'grid', gap: 2 }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>Currently in</span>
+                      {/* INK, not muted. This card paints its own ACCENT gradient
+                          (`rgba(var(--hx-teal-1-rgb), 0.12 → 0.04)`), and the muted clamp targets the panel
+                          and the neutral inset — not an accent tint. Measured here at 4.31, a fifth of a
+                          point short. Rather than chase a fifth clamp surface for one card, this takes the
+                          remedy the roller dock established for accent-tinted surfaces: use the ink. */}
+                      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-text)' }}>Currently in</span>
                       <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--hx-teal-1)' }}>{e?.name ?? activeStance} {badgeFor(activeStance)}</span>
                     </div>
                     {e?.summary && <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-text)', flex: '1 1 150px', lineHeight: 1.45 }}>{e.summary}</span>}
