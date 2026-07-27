@@ -3864,3 +3864,41 @@ limitation caught me, and both times the fix was to stop parsing text and read t
 **Bar:** full D&D suite green, typecheck exit-0. No live data written; port 3555 confirmed bindable. No
 code changed — the finding narrows the scope of an existing one and identifies an in-repo precedent for
 its fix.
+
+### 2026-07-27 — slice 103: two different fixes, and I had been costing one and recommending the other
+
+Slice 100 costed the fix at "3 lines, template at `offline`". Slice 102 recommended the pattern IG and PF2
+already use. **Those are two different fixes**, and reporting one cost against the other recommendation
+made the decision look cheaper and simpler than it is. Checked properly:
+
+**Option A — show a loading state.** Expose `dbPhase` through the context (declare in the interface, add to
+the value object, destructure in the component — the `offline` flag is the working template in that same
+file), then render the sheet as unmistakably loading until it flips. **Genuinely ~3 lines plus one render
+change**, and hydration-safe because `dbPhase` starts `'loading'` on both server and client.
+Result: no wrong numbers, but a visible loading state on every sheet open.
+
+**Option B — pass the character in, as IG and PF2 do.** Verified by reading the mount:
+
+```
+<SheetRoot characterId={…} campaignId={…} sheetType={…} system={…} isDM={…}
+           canWrite={…} customLayout={…} customCss={…} preferences={…} … />
+```
+
+`SheetRoot` gets **`characterId` and a dozen scalars — and not the character data**, while the page holds
+the full row (it reads `character.sheet_type`, `character.custom_layout`, `character.system` from it a few
+lines earlier). Compare `<IGSheet ig={igData} …>` and `<PF2Sheet pf2={pf2Data} …>` on the same page, which
+receive their whole character. So B is **four touch points** — page → `SheetRoot` → provider → the
+`store.tsx:328` initialiser — and the initial value has to be run through `normalizeCharacter` exactly as
+the fetch path does at line 385, with `baselineRef` seeded to match line 388 or `reset()` changes meaning.
+Result: no flash at all, and the 5e engine stops being the odd one out.
+
+**Not "3 lines" — that number belonged to A.** Slice 100 measured A honestly; slice 102 then argued for B
+on the strength of the IG/PF2 precedent, and the two got reported as one cheap option. Third cost estimate
+of this arc to need correcting, and the same shape each time: **I priced the change I had just looked at
+and attached the number to the change I was recommending.**
+
+**Both are still the owner's call**, and now they are actually distinguishable: A is cheap and adds a
+loading state; B costs more and removes the problem. Neither is blocked on anything.
+
+**Bar:** source-level verification, no server needed. Full D&D suite green, typecheck exit-0. No code
+changed.
