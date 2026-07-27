@@ -360,9 +360,21 @@ slices are driven in the browser before being called done — this repo's standi
       hiding it (Q5's recorded assumption: grandfather and mark, never delete a player's content). The count
       resolves against the CATALOG, not the rendered rows, so the budget cannot drift as the search filters.
 
-      **What remains of S7c** is the levelled cap at its correct site — the prepare step for prepared
-      casters and the known-list for spontaneous ones — plus the Magus/Summoner tables, which stay blocked
-      on the published source (Ground Rule 3). The count source and the aiming decision are both done.
+      **THE PREPARED BUDGET IS NOW VISIBLE 2026-07-27** (`bfd60b94`). 8 tests. The slot pills read
+      `Rank 1: 3` — the entitlement and nothing else — so a prepared caster could not see whether today's
+      slots were full. Computed, rendered, and left unanswerable: **the same shape as 5e's `preparedCap`**,
+      which sat on the sheet since the panel was written while the only thing that ever SET it was a demo
+      character. Now `Rank 1: 2/3`, with both states explained on hover.
+      Four deliberate exclusions: not for **spontaneous** casters (a repertoire is not a per-day
+      assignment), not for **cantrips** (not slot-cast), **focus spells filtered out** (cast from the focus
+      pool — counting them would show a caster over their slots while nothing was wrong), and an overage is
+      **flagged, not clamped**, since clamping hides a real state and the standing rule is grandfather and
+      mark.
+
+      **What remains of S7c** is enforcement of the levelled cap, and its correct site is the SERVER's
+      `update_spell` — a client-only cap is decoration, which this session established three separate times.
+      Plus the Magus/Summoner tables, still blocked on the published source (Ground Rule 3). The count
+      source, the aiming decision, and both budget displays are done.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
