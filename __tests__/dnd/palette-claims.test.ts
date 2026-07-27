@@ -66,8 +66,8 @@ describe('the four corrected comments say the measured number now', () => {
     // It is the one entry whose honest comment is a list rather than a number, because the value is fine
     // on some surfaces and not others — which is the finding, not a defect in the comment.
     expect(THEME).toContain('4.58:1 on `panel`');
-    expect(THEME).toContain("2.86 on the PF2 dice pad's DARK");
-    expect(THEME).toContain('was tried and rejected');
+    expect(THEME).toContain('UNCHANGED PENDING ONE LIVE CHECK');
+    expect(THEME).toContain('depends on whether it renders inside that module');
   });
 
   it('none of the four still claims its old, optimistic figure', () => {
@@ -90,11 +90,20 @@ describe('what the pattern means, asserted so it cannot be lost', () => {
     expect(worstGold).toBeLessThan(5); // streamer's #966c00 at 4.58 — over AA on its panel, but barely
   });
 
-  it('ONE VALUE CANNOT SERVE BOTH — the reason this is not a colour tweak', () => {
-    // Slice 51 tried deepening streamer's gold 10% to #876100 and rejected it on measurement. This pins
-    // WHY, so nobody re-proposes it: the light surfaces improve and the DARK one degrades. A single hex
-    // cannot clear 4.5 against both a near-white panel and the PF2 pad's #302a49 — the fix is a
-    // surface-derived token, exactly what the roller dock got when it hit this.
+  it('the deepening helps every LIGHT surface — the half that is settled', () => {
+    // Not applied yet; what blocks it is the dice-pad scope question recorded in theme.ts, not this.
+    for (const bg of ['#fffafe', '#fdeaf8', '#f5e2ff']) {
+      expect(contrastRatio('#876100', bg)!).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrastRatio('#966c00', '#fdeaf8')!).toBeLessThan(4.5); // 4.12 — why it is worth doing
+  });
+
+  it('and WOULD hurt a dark surface, IF the pad resolves this token at all', () => {
+    // The conditional matters, and it is the correction slice 52 exists for. Slice 51 rejected the
+    // deepening outright on this arithmetic — but `DicePad.tsx` paints
+    // `var(--hx-gold-2, var(--gold, inherit))`, so it reads THIS token only if `--hx-gold-2` is undefined
+    // in its scope. The arithmetic below is real; whether it reaches the pad is unproven, and settling it
+    // is one computed-style read on an expanded dock.
     const light = '#f2e4ee', dark = '#302a49';
     expect(contrastRatio('#966c00', light)!).toBeLessThan(4.5);       // 3.85 today
     expect(contrastRatio('#876100', light)!).toBeGreaterThan(4.5);    // 4.57 — the tempting fix

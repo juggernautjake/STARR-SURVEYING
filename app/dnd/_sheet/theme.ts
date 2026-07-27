@@ -118,11 +118,22 @@ export const streamerTheme: SheetTheme = {
     // links, ability mods, table headers, etc. in the base sheet).
     teal: '#9b3fd0',
     tealbright: '#8a5e04', // deep gold — 5.53:1 on the pale panel (measured; the comment said 5.9) (it backs links, ability mods, table headers)
-    // MEASURED, and deliberately UNCHANGED — see `palette-claims.test.ts`. 4.58:1 on `panel` (the comment
-    // here used to claim 5.2), 4.12 on panel-2, 3.85 on the PF2 chip fill, 3.24 on the MANAGE-LEVELS strip,
-    // and 2.86 on the PF2 dice pad's DARK #302a49. Deepening it 10% to #876100 was tried and rejected: it
-    // fixes the light surfaces (chip 3.85→4.57) and makes the dark one WORSE (2.86→2.41). One value cannot
-    // serve a near-white panel and a dark pad — the fix is a surface-derived token, as the roller dock got.
+    // MEASURED, and UNCHANGED PENDING ONE LIVE CHECK — see `palette-claims.test.ts`. 4.58:1 on `panel`
+    // (this comment used to claim 5.2), 4.12 on panel-2, 4.27 on panel-3. Deepening it 10% to #876100
+    // clears every one of those (5.44 / 4.89 / 4.60) and would help the ~100 shared-sheet sites that paint
+    // with `var(--gold)`.
+    //
+    // WHAT BLOCKS IT is a single unresolved question, and the earlier reasoning got it wrong twice, so it
+    // is written out. The QA evidence records "#966c00 on the PF2 dice pad's DARK #302a49 = 2.86", which
+    // would make deepening actively worse there (2.41). But `DicePad.tsx` paints
+    // `var(--hx-gold-2, var(--gold, inherit))` — it reads `--gold` ONLY if `--hx-gold-2` is undefined in
+    // its scope, and `--hx-gold-2` is a CSS-module token. So whether the pad is affected by this value at
+    // all depends on whether it renders inside that module's scope, which static reading cannot settle.
+    //
+    // → Settle it by reading the pad's COMPUTED colour on a streamer sheet with the dock EXPANDED (the
+    //   original 2.86 was measured while `.fld` was `display:none`, which is a retracted artifact — see
+    //   the contrast-sweep evidence). If it computes to the clamped `--hx-gold-2`, this value is free to
+    //   deepen; if it computes to #966c00, the fix is a surface-derived token, not a value.
     gold: '#966c00',
     danger: '#e5344f',
     good: '#1c9e63',
