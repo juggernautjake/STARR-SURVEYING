@@ -4415,3 +4415,35 @@ it, at which point it asks to be removed.
 
 **Bar:** full D&D suite green, typecheck exit-0, mutation-checked, store confirmed unmodified. No
 production code changed.
+
+### 2026-07-27 — slice 118: pinning the last two unprotected findings
+
+Slice 117 pinned the blank-character flash after noting it was the only finding of this arc living purely
+as prose. That was not quite true — **slice 105's two document-structure gaps were in the same position**,
+reported and unprotected, in the document slices 73 and 109 both showed is where findings rot.
+
+`sheet-heading-outline.test.ts` closes it. Both facts were re-verified from source first, avoiding the trap
+that a zero match from a wrong path reads exactly like a clean result (limitation 12) — the file-length
+floor at the top of the test exists for that reason:
+
+- **5e**: `<h3>Dossier</h3>` in **two** files, and `App.tsx` contains **no `<h2>` at all** — so the jump is
+  h1 → h3 with nothing between.
+- **IG**: **zero `<h1>`** in `IGSheet.tsx` or `useIgPanels.tsx`, and `SheetPortrait` spends the character's
+  name on an `alt` attribute. There is no element that is semantically the title, which is exactly why
+  picking one is a structural decision rather than a rename.
+
+**The constraints are pinned beside the defects**, which is the part that makes this more than a to-do
+list: `.dnd-sheet .card h3` and its skin override are asserted to exist, so the reason promoting the tag is
+not a one-line fix stays visible next to the thing it blocks. Slice 117 did the same with the store's
+anti-leak comment.
+
+**Mutation-checked, both.** Adding an `<h2>` before "Dossier" and an `<h1>` to `IGSheet` makes **four**
+assertions fire, including both `it.fails` reporting "expected to fail but passed". Reverted; `git diff` on
+both files is empty.
+
+**Every finding of this arc now has an artefact** — a fix, a guard, or a pin that flips when someone
+addresses it. The suite carries **11 expected-fail** pins: 8 palette, 1 flash, 2 headings. None of them can
+be lost, and each one asks to be deleted the moment it stops being true.
+
+**Bar:** full D&D suite green, typecheck exit-0, lint clean, both source files confirmed unmodified. No
+production code changed.
