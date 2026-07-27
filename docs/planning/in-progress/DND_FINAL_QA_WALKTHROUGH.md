@@ -4213,3 +4213,37 @@ that is worth saying rather than letting the zeros read as equivalent.
 
 **Bar:** listeners verified against injected errors before the result was believed. Full D&D suite green,
 typecheck exit-0. No live data written; port 3579 confirmed bindable. No code changed.
+
+### 2026-07-27 — slice 112: why the IG/PF2 interaction coverage cannot be improved, and what that turned up
+
+Slice 111 flagged that its tab-switching pass only bit on the 5e sheet — the selector found no tab-like
+controls on IG or PF2. Closing that gap meant finding what those sheets actually use, and the answer is why
+the gap has to stay.
+
+**Their view switchers are the skin, template and theme pickers** — *Hextech / Neon Odyssey / Magical
+Streamer / Candy Bazaar / Homebrew Rulebook*, *Classic / Codex / Dashboard / Play mode*, and the colour
+themes. Slice 102 already established the template chip **POSTs in the background**; the same is true of the
+other two. **They are not read-only**, so exercising them means writing a preference onto a live character.
+Of 94 buttons on the IG sheet only 29 look non-writing, and the interesting ones among those are exactly
+these pickers.
+
+**So slice 111's "disclosures only" coverage for IG and PF2 is the ceiling**, not an oversight — recorded
+with the reason rather than left looking like something I did not get to.
+
+**The discovery was worth more than the gap.** A control that silently persists on click raises a question
+worth asking of the routes behind it: is the write gated, or does the UI just not offer the button to
+viewers? Checked in source — `layout/route.ts` and `theme/route.ts` both:
+
+```js
+const access = await requireCharacterWrite(params.id);
+if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });
+```
+
+**The gate is called AND its result short-circuits** — which is the distinction slice 74 found missing
+elsewhere, where a gate nobody acts on is indistinguishable from no gate. Both routes then validate the
+payload against the character's own system and style (`isTemplateBuiltFor`, `isThemeVariant`), so a crafted
+request cannot set a template the system does not have. **Properly enforced, server-side, not just hidden
+in the UI.**
+
+**Bar:** source-level verification of both write routes. Full D&D suite green, typecheck exit-0. No live
+data written — which is the point of this slice. Port 3583 confirmed bindable. No code changed.
