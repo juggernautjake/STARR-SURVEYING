@@ -203,6 +203,33 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 64 — ink on the tint, and the defect was on every skin all along
+
+Slice 63 named the remedy; this applies it. And measuring it across all four skins rather than the one that
+happened to be rendered changed the story:
+
+| skin | accent on tint | **ink on tint** |
+|---|---|---|
+| streamer | **3.76** ❌ | **10.26** ✅ |
+| donata | **4.28** ❌ | **11.59** ✅ |
+| jack | **4.09** ❌ | **11.53** ✅ |
+| lazzuh | **4.00** ❌ | **11.69** ✅ |
+
+**Accent-on-its-own-tint was failing on all four skins.** This was never a streamer problem — the old
+cyan-under-purple mismatch had been hiding it behind an *accidental* hue separation. **Slice 62 did not
+create this defect; it revealed one that had been there the whole time**, which is the opposite of how slice
+63 first read the 3.92 → 3.65 movement.
+
+The remedy is the roller dock's, quoted in the CSS so the next reader gets the reasoning rather than the
+conclusion: *"the active tab could not keep the accent as its text colour… so it uses the ink and stays
+recognisable through its teal border and tint."* The badge keeps its identity from the **border and tint**,
+both still the accent; only the glyph moves to the ink, which is contrast-clamped by construction.
+
+**One of slice 62's own assertions had to change** — it pinned the badge's *text* as `var(--hx-teal-1)`,
+true when written and exactly what this slice corrects. Rewritten to pin what it was really for: that the
+**fill** comes from the accent family. A test that encodes today's implementation rather than the rule is a
+test that has to be rewritten every time the rule is applied properly.
+
 ### Slice 63 — verifying 62: the fix works, and made one number slightly worse
 
 Measured the rank badge again after the tint conversion. **The fix does what it was for:** its backdrop went
