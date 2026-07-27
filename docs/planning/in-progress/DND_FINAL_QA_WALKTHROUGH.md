@@ -2995,3 +2995,50 @@ masking a defect by clipping it at the root.
 `react-hooks/exhaustive-deps` warnings in `app/dnd` (StreamPoll, a resize effect) untouched by this slice —
 recorded rather than called "clean", since a CSS change cannot produce ESLint output either way. First
 production-code change in nine slices. Dev server stopped, port 3479 released.
+
+### 2026-07-27 — slice 81: the other three layouts, and turning slice 80 into a rule
+
+Slice 80 fixed one selector. The sheet has **four templates** — classic, codex, dashboard, play — each with
+its own name selector in its own stylesheet, so the obvious question is whether the other three share the
+defect. They do not, and establishing that took reading rather than driving, because template is stored in
+`data.sheetLayout` and switching it POSTs — a live write this audit did not need to make.
+
+**Why they are safe, from source:**
+
+| layout | name rule | size | verdict |
+|---|---|---|---|
+| classic | `.dnd-sheet h1.name` | `clamp(44px, 8vw, 82px)` → floors at **44px** | the defect, fixed slice 80 |
+| codex | `.sheet-shell .codex-name` | 22px | far inside a 360px screen |
+| play | `.sheet-shell .play-name` | 28px, → 23px under 720px | same |
+
+And the *silent* half cannot occur there either: the only `overflow: hidden` rules in `codex.css` and
+`play.css` are on **portrait containers** (`.codex-portrait`, and `.play-portrait`, a 68px circular
+avatar), which is clipping an image to a shape and is correct. No name sits in a clipping box.
+Play had already been hardened for narrow screens deliberately — `minmax(min(100%, 340px), 1fr)` with the
+reason written out (*"a bare `minmax(340px, 1fr)` would overflow the viewport below ~360px"*), plus
+`min-width: 0` on the cards. **So no change was made there**, and extending slice 80's property to those
+selectors would have been hardening against a defect there is no evidence of.
+
+**What did ship is the rule instead of the instance.** `large-heading-breaks.test.ts` scans every sheet
+stylesheet for heading-ish selectors, computes the SMALLEST size each can resolve to, and requires
+`overflow-wrap: anywhere` on any that can reach 40px+. This is the shape the repo already uses for exactly
+this failure mode — `clamped-token-surface.test.ts` exists because the same contrast bug appeared in three
+sibling tokens one at a time, each found separately.
+
+**The threshold is on the clamp's FLOOR, not its maximum**, and that is the whole insight: `82px` on a
+desktop is harmless because the container is wide. The defect lives at the small end, where `8vw` (28.8px
+at 360px) loses to the 44px floor and the type stops shrinking while the screen keeps going.
+
+**Honest about its current reach:** the scan finds 14 heading-ish rules carrying a size and exactly **one**
+is ≥40px, so today this guard protects a single selector. Its value is the fifth template, or a future
+"make the codex name bigger" change — cross 40px and the rule starts applying automatically. Worth noting
+from the same scan: `.dnd-sheet.skin-streamer h1.name` overrides to **24px**, so that skin was never at
+risk, which is why the defect only showed on one character.
+
+**Mutation-checked, per slice 75.** Swapping the property to `break-word` fails **4** assertions across the
+two guard files — including one that names `break-word` explicitly. That is the regression that matters:
+`break-word` looks like a fix, breaks lines identically, and silently restores the clipping because it does
+not shrink min-content. A guard that only checked "is some overflow-wrap set" would have passed it.
+
+**Bar:** 5 new + 4 existing guards, full D&D suite green, typecheck exit-0. No production code changed this
+slice — the CSS edit shown above was the mutation check, reverted. No live data written, no server needed.
