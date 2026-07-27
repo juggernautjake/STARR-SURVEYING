@@ -4348,3 +4348,38 @@ was an error in a document whose whole purpose is to make the choice cheap.
 **Bar:** production build, CLS via `PerformanceObserver` on `layout-shift` with `hadRecentInput` excluded.
 `.next` removed. Full D&D suite green, typecheck exit-0. No live data written; port 3587 confirmed
 bindable. No code changed.
+
+### 2026-07-27 — slice 116: one sample is not a performance measurement
+
+Slice 115 measured CLS **once per page** and put the number into a decisions document the owner may act on.
+Performance metrics are noisy; a single sample is not evidence. Re-run five times each, on a fresh
+production build:
+
+| | CLS across runs | median | LCP median |
+|---|---|---|---|
+| **5e sheet** — store-driven | `0.888` · `0.138` · `0.166` · `0.194` · `0.221` | **0.194** | **1236ms** |
+| IG sheet — prop-driven | `0` · `0` · **`1.285`** · `0` · `0` | **0** | **680ms** |
+
+**Two things were wrong in slice 115, in opposite directions.**
+
+1. **The 0.222 I published was near the top of a range that spans 6×** (0.138–0.888). The median is 0.194.
+   The *conclusion* survives — the 5e sheet was above the 0.1 "good" threshold in **every** run — but the
+   figure I put in front of the owner was the unluckiest of five.
+2. **"`IGSheet`/`PF2Sheet` and the hub all score 0" was too strong.** One IG run measured **1.285**, larger
+   than anything the 5e sheet produced. Chased with 8 further runs: **all zero**, so 12 of 13 overall. Most
+   consistent with an environmental artefact, and I cannot prove that, so it is recorded as an
+   unreproduced outlier rather than rounded away.
+
+**LCP is the new information and it points the same way:** the store-driven sheet takes **1236ms** to
+largest paint against the prop-driven sheet's **680ms** — roughly double, on the same machine, against the
+same database. That is the hydration round-trip showing up in a third independent metric after the wrong
+numbers (97) and the layout shift (115).
+
+**Row 2.1 of `DND_OWNER_DECISIONS` now carries the median and the range**, not a single sample. Publishing
+one measurement of a noisy quantity as a fact is the same error as slices 98/100/103's cost estimates —
+confident, specific, and derived from one look — and the correction is the same: say how many times you
+measured.
+
+**Bar:** production build, 13 CLS runs plus LCP, `PerformanceObserver` with `hadRecentInput` excluded.
+`.next` removed. Full D&D suite green, typecheck exit-0. No live data written; port 3591 confirmed
+bindable. No code changed.
