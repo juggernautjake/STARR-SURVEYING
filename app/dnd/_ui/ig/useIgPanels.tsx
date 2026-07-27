@@ -79,7 +79,7 @@ export interface Tagged { kind: string; name: string; source: Source }
 const BADGE: Record<Source, { t: string; c: string; b: string }> = {
   vanilla: { t: 'VANILLA', c: 'var(--hx-teal-1)', b: 'rgba(var(--hx-teal-1-rgb),0.12)' },
   custom: { t: 'CUSTOM', c: 'var(--hx-danger-2)', b: 'rgba(198,64,59,0.14)' },
-  'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(200,170,110,0.14)' },
+  'dm-granted': { t: 'DM-GRANTED', c: 'var(--hx-gold-2)', b: 'rgba(var(--hx-gold-2-rgb),0.14)' },
 };
 function Badge({ source }: { source: Source }) {
   const m = BADGE[source];

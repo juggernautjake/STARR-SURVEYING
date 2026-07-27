@@ -78,5 +78,38 @@ describe('both derivations emit it', () => {
   it('the skin path and the theme path, since this file builds the set twice', () => {
     const SRC = read('lib/dnd/skin-tokens.ts');
     expect(SRC.split("'--hx-teal-1-rgb': trip(teal1)").length - 1).toBe(2);
+    expect(SRC.split("'--hx-gold-2-rgb': trip(gold2)").length - 1).toBe(2);
+  });
+});
+
+describe('GOLD tints had the identical defect, found by asking the same question', () => {
+  // The sibling sweep. `--hx-gold-2` is skin-derived too, so a hard-coded `rgba(200,170,110,α)` fill was
+  // Hextech gold sitting under a skin's own gold text — the same mismatch, four more places.
+  it('the declared triplet equals the declared hex, so the default stays a no-op', () => {
+    expect(CSS).toContain('--hx-gold-2: #c8aa6e');
+    expect(CSS).toContain('--hx-gold-2-rgb: 200, 170, 110');
+  });
+
+  it('nothing paints the hard-coded gold any more', () => {
+    for (const src of [CSS, PF2, IG]) expect(src).not.toMatch(/rgba\(200,\s*170,\s*110/);
+  });
+
+  it('and the triplet follows each skin', () => {
+    for (const skin of ['streamer', 'donata', 'jack', 'lazzuh'] as const) {
+      const v = skinHxVars(skin) as Record<string, string>;
+      const hex = v['--hx-gold-2'].replace('#', '');
+      expect(v['--hx-gold-2-rgb']).toBe([0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', '));
+    }
+  });
+});
+
+describe('DANGER tints are the deliberate exception', () => {
+  it('stay hard-coded, because that token is not skin-derived', () => {
+    // `skin-tokens.ts` says so outright: "--hx-danger is intentionally left to inherit the default red: it
+    // reads on both dark and light panels, and skins don't ship a 'danger' swatch to derive one from."
+    // So a `rgba(198,64,59,α)` fill is CORRECT, and converting it would invent a derivation that has no
+    // source. Asserted so the next person doing this sweep does not "finish the job" wrongly.
+    expect(read('lib/dnd/skin-tokens.ts')).toContain('--hx-danger is intentionally left to inherit');
+    expect(IG).toMatch(/rgba\(198,\s*64,\s*59/);
   });
 });

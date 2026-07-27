@@ -22,6 +22,10 @@
   --hx-gold-0: #785a28;
   --hx-gold-1: #c89b3c;
   --hx-gold-2: #c8aa6e;
+  /* The gold as a bare triplet, for surfaces painted `rgba(var(--hx-gold-2-rgb), α)`. Same reasoning as
+     `--hx-teal-1-rgb`: identical to the hex above, so an unskinned sheet is unchanged, and skin-derived
+     everywhere else so a gold TINT stops being Hextech gold under a skin's own gold text. */
+  --hx-gold-2-rgb: 200, 170, 110;
   --hx-gold-3: #f0e6d2;
   --hx-teal-1: #0ac8b9;
   /* The teal as a bare triplet, for surfaces painted `rgba(var(--hx-teal-1-rgb), α)`. Identical to the
@@ -185,7 +189,7 @@
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: rgba(200, 170, 110, 0.12);
+  background: rgba(var(--hx-gold-2-rgb), 0.12);
   border: 1px solid var(--hx-line);
   transition: background 0.15s, border-color 0.15s;
 }
@@ -449,7 +453,7 @@ select.input {
 .framedPanel {
   position: relative;
   background:
-    repeating-linear-gradient(135deg, rgba(200, 170, 110, 0.03) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(135deg, rgba(var(--hx-gold-2-rgb), 0.03) 0 2px, transparent 2px 9px),
     linear-gradient(180deg, var(--hx-panel-2), var(--hx-panel));
   border: 1px solid var(--hx-gold-0);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(200, 155, 60, 0.04);
@@ -817,6 +821,10 @@ select.input {
   --hx-gold-0: #785a28;
   --hx-gold-1: #c89b3c;
   --hx-gold-2: #c8aa6e;
+  /* The gold as a bare triplet, for surfaces painted `rgba(var(--hx-gold-2-rgb), α)`. Same reasoning as
+     `--hx-teal-1-rgb`: identical to the hex above, so an unskinned sheet is unchanged, and skin-derived
+     everywhere else so a gold TINT stops being Hextech gold under a skin's own gold text. */
+  --hx-gold-2-rgb: 200, 170, 110;
   --hx-gold-3: #f0e6d2;
   --hx-teal-1: #0ac8b9;
   /* The teal as a bare triplet, for surfaces painted `rgba(var(--hx-teal-1-rgb), α)`. Identical to the

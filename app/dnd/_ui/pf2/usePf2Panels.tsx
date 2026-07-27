@@ -363,7 +363,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     <div
       role="note"
       aria-label="Optional Pathfinder 2e rules in force"
-      style={{ display: 'flex', alignItems: 'flex-start', gap: 8, border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(200,170,110,0.10)', borderRadius: 8, padding: '8px 12px' }}
+      style={{ display: 'flex', alignItems: 'flex-start', gap: 8, border: '1px solid var(--hx-gold-2, #c8aa6e)', background: 'rgba(var(--hx-gold-2-rgb),0.10)', borderRadius: 8, padding: '8px 12px' }}
     >
       <span aria-hidden style={{ fontSize: 13 }}>⚖</span>
       <div style={{ flex: 1, minWidth: 0 }}>

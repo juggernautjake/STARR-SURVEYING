@@ -234,6 +234,8 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
     // the skin, which is why only the 5e engine had the defect. Emitting them here makes the sheet agree.
     '--hx-teal-1-rgb': trip(teal1),
 
+    '--hx-gold-2-rgb': trip(gold2),
+
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
     // --hx-danger is intentionally left to inherit the default red: it reads on both dark and light panels,
@@ -322,6 +324,8 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
     // Same reason as `skinHxVars` — the ink is clamped against `panel`, so every surface that paints from a
     // triplet has to be panel-derived too, or the clamp is guaranteeing contrast against the wrong colour.
     '--hx-teal-1-rgb': trip(teal1),
+
+    '--hx-gold-2-rgb': trip(gold2),
 
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
