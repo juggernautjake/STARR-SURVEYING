@@ -4383,3 +4383,35 @@ measured.
 **Bar:** production build, 13 CLS runs plus LCP, `PerformanceObserver` with `hadRecentInput` excluded.
 `.next` removed. Full D&D suite green, typecheck exit-0. No live data written; port 3591 confirmed
 bindable. No code changed.
+
+### 2026-07-27 — slice 117: pinning the one finding that had no test
+
+Every finding of this arc got an artefact except the most severe one. The palette gaps have `it.fails`
+pins; the target sizes, the heading break and the reduced-motion rules have guards. **The blank-character
+flash existed only as prose, in a 4,500-line document** — the exact place slices 73 and 109 showed things
+rot.
+
+`sheet-initial-state.test.ts` fixes that, and reading the code to write it turned up **a constraint I had
+missed across seven slices**.
+
+**The blank is deliberate, and the store says why:** *"In DB mode the real sheet arrives from the API on
+mount; until then show a neutral BLANK character **so no other character's content ever flashes**."* The
+store is module-level — without the reset, opening character B could paint character A's data first. **A
+fix that simply deletes the blank trades a wrong-but-generic sheet for a wrong-and-specific one**, which is
+worse, and I had been describing the initialiser as if that risk did not exist. Option B is unaffected
+(the server sends the character the URL asked for), but the constraint is now recorded next to the pin.
+
+**What the test asserts**, all read from the real values rather than transcribed: the blank is level 1, `HP
+1 / 1`, `AC 10`, six 10s and an empty name — that last being why the hero is shorter and the page jumps.
+Then that the initialiser still starts blank, that the anti-leak comment is still beside it, and that
+`dbPhase` exists but is still unexposed, which *is* option A's cost.
+
+**Mutation-checked, because a pin that cannot fire is worse than none.** Applying option B's shape to the
+initialiser makes **two** assertions fire, including the `it.fails` reporting "expected to fail but passed"
+— the signal to delete the pin. Reverted; `git diff` on `store.tsx` is empty.
+
+**Suite now 5,938 passing + 9 expected-fail** — the ninth is this defect, sitting green until someone fixes
+it, at which point it asks to be removed.
+
+**Bar:** full D&D suite green, typecheck exit-0, mutation-checked, store confirmed unmodified. No
+production code changed.
