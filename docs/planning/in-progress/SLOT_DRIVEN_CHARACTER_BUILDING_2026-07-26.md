@@ -1,4 +1,16 @@
+<!-- HOOK:BLOCKED S10 (IG Champion) is the only item left open, and it needs Champion's powers/specializations published on intuitivegames.net. Inventing them is the one thing Ground Rule 3 forbids, so this cannot be worked without the source. Pinned by slot-plan-blockers.test.ts, which flips the day the data arrives. -->
+
 # Slot-driven character building — vanilla by default, custom by explicit choice
+
+> **BLOCKED 2026-07-27 — one item left, and it is waiting on the world rather than on effort.**
+>
+> S7, S7b, S7c and S9 all closed on 2026-07-27 (see each item). What remains is **S10 — IG Champion**,
+> which needs Champion's powers/specializations to be published; the catalogue is scraped from
+> intuitivegames.net and Champion is not in it. Inventing the list is precisely what Ground Rule 3 forbids,
+> and `slot-plan-blockers.test.ts` asserts the gap in a form that **flips the day the data arrives**.
+>
+> The `HOOK:BLOCKED` marker above stops the auto-continue hook from re-prompting on this doc. It is not a
+> deferral and the item is not closed: the cost is not the obstacle, the source material is.
 
 **Status:** IN PROGRESS · started 2026-07-26 · owner-directed
 **Owner directive (2026-07-26):**
@@ -272,7 +284,10 @@ slices are driven in the browser before being called done — this repo's standi
       disagreeing about what is legal, which is exactly what that function's own comment promises cannot
       happen. Now `isRulesEnforcedKind`. **The test suite had pinned the buggy line as if it were the rule**,
       which is how it survived; it now pins the rule and asserts the two bound kinds behave identically.
-- [~] **S7 — spells. The COUNT SOURCE shipped 2026-07-26; enforcement is still open.** 23 tests.
+- [x] **S7 — spells. Count source shipped 2026-07-26; enforcement CLOSED 2026-07-27.** 23 tests.
+      Enforcement landed for both systems: 5e under S7b, PF2 under S7c (cantrips capped, prepared cap
+      enforced, reduced casters deliberately uncapped because their tables are unmodelled). Nothing in
+      this item remains open.
       `lib/dnd/spells/counts.ts` — `spellCountsFor` / `preparedCapFor`, the missing counterpart to
       `maxSpellLevelFor` (that answers "how HIGH can they cast?", this answers "how MANY do they get?").
       **The counts were already authored and already unused**, the same shape as the feat defect S1–S5 fixed:
@@ -296,7 +311,12 @@ slices are driven in the browser before being called done — this repo's standi
       know, and a wrong cap is worse than none.
       **Found by the orphan-module guard**, which failed the first version of this slice: the count source
       landed with no consumer. Exactly what that guard is for.
-- [~] **S7b — enforce the counts. 5e shipped 2026-07-26; PF2 still open.** 13 tests.
+- [x] **S7b — enforce the counts. 5e shipped 2026-07-26; PF2 CLOSED 2026-07-27.** 13 tests.
+      **PF2’s half is done, in the three pieces S7c tracked:** the cantrip cap (`39137dbb`), the prepared
+      budget made visible (`bfd60b94`), and the prepared cap enforced (`c6415fe9`, decision 2.6). The
+      “PF2 still open” here was true when written and stale by the time S7c closed — the enforcement work
+      landed under S7c’s heading rather than under this one, which is exactly how a status line goes stale
+      while the work it describes is finished. Checked against the code, not against the heading.
       **Aiming the cap was the whole risk, and the obvious aim is wrong.** `spellsKnown` means two things:
       for a 2014 KNOWING class it is the size of its known list (so the sheet list IS that list, and capping
       the picker is right); for a 2024 PREPARER it is the number PREPARED — and the sheet list is not that.
