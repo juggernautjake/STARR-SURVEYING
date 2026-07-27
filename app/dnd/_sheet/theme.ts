@@ -117,8 +117,8 @@ export const streamerTheme: SheetTheme = {
     // tealbright → a deep gold that stays legible on the light panels (it backs
     // links, ability mods, table headers, etc. in the base sheet).
     teal: '#9b3fd0',
-    tealbright: '#8a5e04', // deep gold — 5.9:1 on the pale panel (it backs links, ability mods, table headers)
-    gold: '#966c00',      // 5.2:1 on the pale panel
+    tealbright: '#8a5e04', // deep gold — 5.53:1 on the pale panel (measured; the comment said 5.9) (it backs links, ability mods, table headers)
+    gold: '#966c00',      // 4.58:1 on the pale panel — measured (the comment said 5.2), and only 4.12:1 on panel-2
     danger: '#e5344f',
     good: '#1c9e63',
     line: 'rgba(255, 30, 156, 0.30)',
@@ -159,7 +159,7 @@ export const donataTheme: SheetTheme = {
     // repurposed away from cyan → candy teal (bg) + a legible deep teal (link/mod/table text)
     teal: '#17b3a3',
     tealbright: '#0a6b5d', // link/mod/term teal — 6.2:1 on cream, clears AA on the mint panel too
-    gold: '#8f5a06',       // amber — 6.1:1, clears AA on its own tint
+    gold: '#8f5a06',       // amber — 5.72:1 measured (the comment said 6.1); clears AA on its own tint
     danger: '#ad1f3d',    // ~5.9:1
     good: '#1c8f57',
     line: 'rgba(123, 44, 191, 0.28)',
@@ -201,7 +201,7 @@ export const rangorTheme: SheetTheme = {
     'violet-2': '#4a4640',
     teal: '#6f7f6a',      // muted green (background fill)
     tealbright: '#33513f', // link/mod/term green — ~8:1 on the card, clears AA on its own tint
-    gold: '#6b5220',      // bronze — 7.4:1 on the card, 6.0:1 on its own 10% tint
+    gold: '#6b5220',      // bronze — 6.63:1 on the card, measured (the comment said 7.4); 6.0:1 on its own 10% tint
     danger: '#8d3225',    // muted brick — 5.6:1, clears AA on its own tint
     good: '#3d5c4a',
     line: 'rgba(90, 84, 70, 0.30)',
