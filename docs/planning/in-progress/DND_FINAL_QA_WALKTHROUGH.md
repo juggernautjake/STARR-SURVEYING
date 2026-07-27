@@ -198,10 +198,37 @@ outstanding choice — PF2's Orin owes a subclass, IG's Vashti owes a trait, and
 to the sheet (nothing outstanding). Getting to one means **recording a choice on a live character**, which
 the standing no-mutation rule forbids during an audit.
 
-So S6g's optgroup remains covered by tests and by its correct absence, not by a positive render. That is a
-real gap, and the way to close it is the same one slice 45 used for the edit-history panel: **split the
-picker's markup so its states are reachable without a fetch or a save.** Recorded as the next step rather
-than left as a silent hole.
+So S6g's optgroup remains covered by tests and by its correct absence, not by a positive render.
+
+→ **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
+split this note predicted.
+
+### Slice 55 — rendering the escape-hatch groups that shipped without ever showing
+
+Slice 54's owed item. The pickers turned out to be **pure components** — no fetch, no store, no router — so
+this needed two exports rather than the `SheetEditHistory`-style split that note assumed.
+
+**The load-bearing assertion: nothing in either group is `disabled`.** That is the whole of S6g. A disabled
+option would *look* like a correct fix — the pick is visible, greyed, explained — while leaving the hatch
+exactly as unreachable as the filter S6g removed, because a disabled option cannot be selected, cannot be
+sent, and therefore can never be refused. **A grep cannot tell those two apart.** Only a render can.
+
+Proven end to end rather than by option-list arithmetic:
+- PF2's group is labelled **"Above your level — needs an exception"**, each entry carrying the level that
+  puts it out of reach;
+- legal feats still render **outside** the group, so the ordinary path is untouched;
+- a level-20 slot renders **no group at all** rather than an empty one;
+- the **ancestry** track — the only one exceeding `MAX_OUT_OF_REACH` — shows its *"N further … aren't
+  listed"* note, so the cap is never silent;
+- IG's group **names the subclass**, holds the other subclasses' powers, and keeps the character's own
+  outside it;
+- the **Champion** path (no catalogued powers) still offers **free text and no group** — a gap in *our* data
+  must not be flagged as the player's exception.
+
+11 tests, no production change beyond the exports. **This is the third time this session that a UI shipped
+green and unrendered** (S6g here, `SheetEditHistory` in slice 45, the mount bug in slice 38's correction).
+The pattern is stable enough to state as a rule: **when a slice adds a branch that only appears in a state
+the tests construct, render that state.**
 
 ### Slice 53 — one computed-style read ends a two-slice argument
 
