@@ -3825,3 +3825,42 @@ only open part is what a loading sheet should look like. That is the whole of it
 
 **Bar:** production build, three throttled runs via `Network.emulateNetworkConditions`. `.next` removed.
 No live data written; port 3551 confirmed bindable. No code changed.
+
+### 2026-07-27 — slice 102: only the 5e sheet flashes, and the other two show how to fix it
+
+Slices 97–101 characterised the blank-character flash entirely on the **5e** sheet and said nothing about
+whether PF2 and IG share it. They do not, and that changes both the scope and the recommended fix.
+
+**The three sheet engines get their data differently:**
+
+| engine | how it receives the character | first paint |
+|---|---|---|
+| `app/dnd/_sheet/` (5e, both editions) | store, initialised from `blankCharacter('')`, then a client fetch | **wrong** |
+| `IGSheet` / `PF2Sheet` (bespoke) | `ig: IGCharacter` **as a prop**, from the server component | **correct** |
+
+Sampled on the same dev server, same session:
+
+| sheet | 2ms | 322ms | 2049ms |
+|---|---|---|---|
+| 5e Lazzuh — store-driven | `HP 1 / 1` | `HP 1 / 1` | **`HP 1 / 1`** |
+| IG Vashti — prop-driven | `STR 17` | `STR 17` | `STR 17` |
+
+The IG sheet is right on the first sample and never wrong. **The defect is confined to the shared 5e
+engine** — which still means both editions and every skin and layout built on it, but not the other two
+systems.
+
+**And this is the useful part: the fix is not a new architecture, it is the one two of the three engines
+already use.** "Pass the server-fetched character in as a prop" is not a proposal to evaluate — it is
+running in `IGSheet` and `PF2Sheet` today, in this repo, against the same data source. Slices 98 and 99
+called the change architectural partly because it looked novel. It is the *existing* majority pattern; the
+5e engine is the outlier.
+
+**A near-miss worth recording.** The first attempt at this used a regex over stripped SSR HTML and reported
+that the IG page contained *both* `STR 17` and `STR 10` — apparently contradictory. That is
+**limitation 11**, my own: `STR 10` was a boundary-crossing match (Vashti's INT is 10). Measuring in the
+browser instead of the HTML string resolved it in one step. Second time in three slices that a documented
+limitation caught me, and both times the fix was to stop parsing text and read the rendered element.
+
+**Bar:** full D&D suite green, typecheck exit-0. No live data written; port 3555 confirmed bindable. No
+code changed — the finding narrows the scope of an existing one and identifies an in-repo precedent for
+its fix.
