@@ -1275,7 +1275,29 @@ character write succeeds; and are best-effort, so a failed audit cannot fail a p
 52 tests, including one that reads both edit unions out of the source and asserts every name in a play set
 is a real op — a typo there would fail safe but leave a genuinely-play op logging forever.
 
-### Inherited 2026-07-26 — map-viewer handles (from `DND_RULES_PLATFORM`)
+### Inherited 2026-07-26 — map-viewer handles (from `DND_RULES_PLATFORM`) — ✅ CONFIRMED 2026-07-27
+
+> **DONE, in a real browser.** Scale from **all four** corners, rotate from the stem, and both persist.
+> Measured on `/dnd/maps/map-studio.html` with synthetic pointer drags on the real handles:
+>
+> | | |
+> |---|---|
+> | corners `tl` `tr` `bl` `br` | every one changes `w`/`h`/`size` — all four wired |
+> | rotate stem | `rot` 0 → 4 on a drag |
+> | persistence | `stardust-map-studio` in localStorage held `w: 302, rot: 42` after the drags |
+>
+> **The assumption that blocked this for a day was wrong.** It was carried as needing a live authenticated
+> character; the map studio is a **vanilla HTML page under `public/`**, so it is reachable without auth and
+> was drivable all along. Worth recording because "this needs a session I cannot get" is a claim that
+> deserves the same check as any other.
+>
+> **And I nearly filed a false bug on it.** My first pass asserted `i.scale` and reported all four corners
+> as dead. `onInstScaleDown` writes `i.w`, `i.h` and `i.size` and never touches `i.scale` — I was asserting
+> a field the code does not use. Reading the handler, rather than trusting the reading, is what caught it.
+> That is the thirteenth entry for `qa-evidence/contrast-sweep.md`'s list of ways a measurement lies:
+> **asserting the field you expected instead of the field the code writes.**
+>
+> Test data was removed from the studio's store afterwards, so nothing of this check is left behind.
 
 One interactive check moved here rather than being left open in a doc whose other items are all shipped:
 **scale from any corner and rotate from the stem, and confirm both persist**, on a map-viewer object.
