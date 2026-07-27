@@ -1,4 +1,34 @@
+<!-- HOOK:BLOCKED The two unchecked items are this doc's STANDING BRIEF (hunt for defects; log every fix), not deliverables. The hunt has run for 128 slices and every fix is logged inline — that is what this document IS. What remains is item 2's completion condition, "when the walkthrough is clean for every system, this pass and the D&D platform work is done", which is an owner's declaration rather than a task. An agent should not declare someone else's QA pass finished. -->
+
 # D&D — Final full-system QA walkthrough (Playwright, browser, manual)
+
+> ## ⏸ PAUSED 2026-07-27 — what remains needs YOU, not effort
+>
+> **Both unchecked boxes are this doc's standing brief, not work packages:**
+>
+> - *"Hunt for correctness + UX defects and FIX them as found"* — this has run for **128 slices**. The
+>   sweep covers every user-facing `/dnd` route: contrast (**0** failures across 354 rendered nodes on
+>   both bespoke sheets), viewport overflow, WCAG 2.5.8 target size, keyboard focus, accessible names
+>   (**210** controls, 0 unnamed), landmarks / `lang` / duplicate IDs / image `alt`,
+>   `prefers-reduced-motion` (19 infinite animations), network + broken images across 11 routes, console
+>   errors on load **and** during interaction, ability-modifier arithmetic on every sheet, and **126** API
+>   write handlers checked for gates that are called but not acted on.
+> - *"Log every fix inline here"* — satisfied by construction. This document **is** that log.
+>
+> **What actually remains is item 2's completion condition:** *"When the walkthrough is clean for every
+> system, this pass — and the D&D platform work — is done."* That is a judgement about whether the work
+> is finished, and it is yours. I can report that the suite is green (**17,760** passing, **0** `it.fails`
+> pins, down from 11 this morning), that all nine owner decisions are closed and shipped, and that nothing
+> known is outstanding in this doc — but declaring someone else's QA pass complete is not a call an agent
+> should make on their behalf.
+>
+> **To close it:** tick both boxes and move this file to `completed/`. **To keep it open:** leave it, and
+> the brief stays live for the next pass — a legitimate choice, since a rolling QA log is exactly the kind
+> of doc that should not be "finished" while the product is still moving.
+>
+> The `HOOK:BLOCKED` marker above stops the auto-continue hook re-prompting on this doc. It is **not** a
+> deferral — nothing is being set aside — and the marker requires a stated reason precisely so it cannot
+> be used to silence the loop.
 
 **STATUS: IN PROGRESS (2026-07-25 → 27).** This is the LAST D&D item, extracted from
 `DND_RULES_PLATFORM_2026-07-16.md` (originally "Slice 40").
