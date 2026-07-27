@@ -133,6 +133,41 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 35 (2026-07-26) — IG and PF2 sheet edits never reached the DM's review queue
+
+Found by taking the previous slice's *method* rather than its subject: the rules-platform sweep concluded
+*"every mechanical build path on the shared sheet now audits"* — and **the shared sheet was the whole
+scope**. The two bespoke sheets write through their own routes. Neither audited anything.
+
+`ig-edit` and `pf2-edit` inserted **no row at all**, so on an IG or PF2 character a player could add a feat,
+add a power or spell, change an ability score, or add an attack, and the DM saw nothing. **Content taken
+through the escape hatch was invisible too** — which is what that queue exists to surface, and what S8c/S8d
+built the DM's per-exception rulings on top of.
+
+**It is a bug, not a gap, because the AI path already audits these** (`ai-edit` writes `ig:<op>` /
+`pf2:<op>` rows). `ig-edit`'s own header makes the argument for the mirror case: *"gating only the AI would
+make 'use the manual control instead' a way around the rules."* Auditing only the AI makes the manual
+control a way around the review queue — and the manual control is the one players actually use.
+
+Both routes now audit, honouring the boundary the shared sheet already settled — **BUILD audits, PLAY does
+not**. A stance switch, a condition, HP, temp HP, PF2's dying/wounded track and its hero/focus pools stay
+out, or they would bury the build changes the queue exists for.
+
+**Two decisions worth keeping:**
+- `lib/dnd/audit/bespoke-ops.ts` owns the classification so the routes cannot drift — the same reason the
+  entitlement core is shared across three systems.
+- It is a **deny-list**: an op nobody has classified **audits**. The costs are asymmetric — an unclassified
+  play op is a filterable noisy row, an unclassified build op is a silent change to a character, which is
+  the defect itself. An unrecognised system audits for the same reason.
+
+Rows reuse the AI path's field-path vocabulary so one event reads identically however it was made; carry
+`source: 'manual'` (the column's CHECK allows `ai|manual|revert`); describe the edit that was **applied**
+rather than the one requested, since the gate can alter it; note off-rules content; land only after the
+character write succeeds; and are best-effort, so a failed audit cannot fail a player's edit.
+
+52 tests, including one that reads both edit unions out of the source and asserts every name in a play set
+is a real op — a typo there would fail safe but leave a genuinely-play op logging forever.
+
 ### Inherited 2026-07-26 — map-viewer handles (from `DND_RULES_PLATFORM`)
 
 One interactive check moved here rather than being left open in a doc whose other items are all shipped:
