@@ -133,6 +133,59 @@ describe('reachability depends on CATEGORY as well as system', () => {
   });
 });
 
+// ── The feat path against its two siblings (slice 78) ─────────────────────────────────────────────
+//
+// Slices 76 and 77 examined the FEAT designer, then spoke about "homebrew". There are three designers,
+// and the same reachability question was unasked for the other two — the exact habit slice 77 named.
+// Asking it produces a **negative result that reframes the finding**: classes and subclasses are
+// coherently system-scoped end to end, and the feat path is the odd one out.
+//
+//   kind        saved as               read back through                          system-filtered?
+//   ---------   --------------------   ----------------------------------------   ----------------
+//   class       character's system     findClass(sys, key, extra.filter(...))     YES
+//   subclass    character's system     subclassesFor(sys, key, extra.filter(...)) YES
+//   feat        character's system     customFeatToFeat — STAMPS 'dnd5e-2024'     no
+//
+// So the gap is not "homebrew is half-wired". It is that the feat adapter **discards the character's
+// real system** and leans on a different gate (`asiFeatChoices`'s 2024-only check) instead of the
+// system filter its siblings use. That is why the general/non-2024 cell is unreachable, and it also
+// points at the fix without deciding anything: make feats behave like classes and subclasses.
+describe('the three homebrew kinds, compared', () => {
+  const read = (p: string) =>
+    require('node:fs').readFileSync(require('node:path').join(process.cwd(), p), 'utf8');
+
+  it('classes and subclasses filter homebrew BY SYSTEM when reading it back', () => {
+    const registry = read('lib/dnd/classes/registry.ts');
+    expect(registry).toContain('extra.filter((c) => c.system === system)');   // findClass
+    expect(registry).toContain('extra.filter((s) => s.system === system)');   // subclassesFor
+  });
+
+  it('and their save routes store the character’s real system, so the filter matches', () => {
+    const custom = read('lib/dnd/classes/custom.ts');
+    expect(custom).toContain('system: draft.system');   // buildCustomClass
+    expect(custom).toContain('system: input.system');   // buildCustomSubclass
+    for (const kind of ['class', 'subclass']) {
+      const route = read(`app/api/dnd/characters/[id]/homebrew-${kind}/save/route.ts`);
+      expect(route, `${kind} save derives system from the character`).toContain('normalizeSystem');
+    }
+  });
+
+  it('the subclass route even refuses a parent class that does not resolve in that system', () => {
+    // The strongest of the three: it will not create an orphan. Worth pinning as the standard the
+    // feat path is being measured against, rather than as an incidental detail.
+    const route = read('app/api/dnd/characters/[id]/homebrew-subclass/save/route.ts');
+    expect(route).toContain('findClass(system, input.classKey, readHomebrewClasses(data))');
+  });
+
+  it('the FEAT adapter alone discards it — the one inconsistency, and the cause of the gap', () => {
+    const adapter = read('lib/dnd/feats/homebrew-adapter.ts');
+    expect(adapter).toContain("system: 'dnd5e-2024'");
+    // And nothing downstream re-filters by system, which is why a stamped feat still reaches the
+    // fighting-style list on 2014. The stamp is not load-bearing; it is just untrue.
+    expect(read('app/api/dnd/characters/[id]/levels/route.ts')).not.toContain('f.system === def.system');
+  });
+});
+
 describe('THE REACHABILITY GAP — pinned, not fixed', () => {
   // `asiFeatChoices` lives inside LevelBuilder.tsx and is not exported, so the gate is asserted against
   // the source. That is deliberate: the point is that the FIRST line of the function discards every

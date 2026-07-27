@@ -2855,3 +2855,40 @@ it cannot drift from the data it describes, and it carries the same non-empty fl
 elsewhere — an empty class directory would otherwise make every cell vacuously true.
 
 **Bar:** 13/13 (9 from slice 76 + 4 new), full D&D suite green, typecheck exit-0, lint clean.
+
+### 2026-07-27 — slice 78: asking the other two designers the same question
+
+Slices 76 and 77 examined the **feat** designer and then spoke about *"homebrew"*. There are three
+designers — class, subclass, feat — and the reachability question was never asked of the other two. That
+is precisely the habit slice 77 had just finished naming, so this slice asks it.
+
+**The answer is a negative result, and it reframes the finding rather than extending it.**
+
+| kind | saved as | read back through | system-filtered? |
+|---|---|---|---|
+| class | the character's system | `findClass(sys, key, extra.filter(c => c.system === system))` | **yes** |
+| subclass | the character's system | `subclassesFor(sys, key, extra.filter(s => s.system === system))` | **yes** |
+| feat | the character's system | `customFeatToFeat` — **stamps `'dnd5e-2024'`** | no |
+
+Classes and subclasses are coherent end to end: the save route derives `normalizeSystem(character.system)`,
+the builder stores it (`system: draft.system` / `system: input.system`), and the read-back filters on it.
+The subclass route goes further and **refuses a parent class that does not resolve in that system**, so it
+will not create an orphan — the strongest of the three, and the standard the feat path is measured against.
+
+**So the gap is not "homebrew is half-wired".** It is that the feat adapter alone **discards the
+character's real system** and leans on a different gate — `asiFeatChoices`'s 2024-only check — instead of
+the system filter its two siblings use. That single inconsistency is the cause of the one unreachable cell
+slice 77 isolated.
+
+**It also points at the fix without deciding anything.** Making feats behave like classes and subclasses —
+preserve the real system, let the picker decide — is a consistency correction rather than a rules call. It
+does not settle whether 2014 offers feats at an ASI slot; it removes the reason the answer is currently
+"silently no". Whether to take it is still yours, but it is a smaller and better-aimed change than either
+option slice 76 proposed, and unlike the warning it cannot be *wrong*.
+
+**A detail worth keeping:** the 2024 stamp is not load-bearing. Nothing downstream re-filters feats by
+system, which is exactly why a stamped feat still reaches the fighting-style list on a 2014 Fighter. The
+stamp is not doing work — it is just untrue, which is the worst combination for a field to be in.
+
+**Bar:** 17/17 in the file (9 + 4 + 4 across slices 76–78), full D&D suite green, typecheck exit-0, lint
+clean. Static — no server needed, and no live data written.
