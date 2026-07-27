@@ -77,6 +77,11 @@ export default function SuggestionBox() {
         value={body}
         onChange={(e) => { setBody(e.target.value); grow(); if (status !== 'idle') { setStatus('idle'); setMsg(null) } }}
         placeholder="Your tip, feature request, or idea…"
+        // A placeholder is not a label: it disappears the moment there is any text, and it is announced
+        // inconsistently across screen readers (WCAG 3.3.2). These were the only two controls on either
+        // sheet named by placeholder alone — 210 were checked and every other one had a real name — so
+        // this is additive ARIA with no visual change rather than a labelling scheme.
+        aria-label="Your suggestion"
         rows={2}
         style={{ ...inputStyle, resize: 'none', minHeight: 44, lineHeight: 1.5 }}
       />
@@ -85,6 +90,7 @@ export default function SuggestionBox() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name (optional)"
+          aria-label="Your name (optional)"
           style={{ ...inputStyle, width: 'auto', flex: '1 1 160px' }}
         />
         <button

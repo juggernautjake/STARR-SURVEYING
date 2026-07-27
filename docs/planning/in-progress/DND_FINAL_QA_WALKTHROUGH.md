@@ -3902,3 +3902,35 @@ loading state; B costs more and removes the problem. Neither is blocked on anyth
 
 **Bar:** source-level verification, no server needed. Full D&D suite green, typecheck exit-0. No code
 changed.
+
+### 2026-07-27 — slice 104: accessible names — 210 controls, two named by placeholder
+
+Slices 97–103 spent seven passes on one defect, and the last three corrected my own estimates rather than
+finding anything about the product. This moves to an axis never checked: **can a screen reader announce
+each control** (WCAG 4.1.2). The lead came from slice 94, whose tab-order dump contained an entry printed
+as `(unlabelled)`.
+
+**The lead was a false one, and the axis is in good shape.** Computing the accessible name properly —
+`aria-label`, then `aria-labelledby`, then `<label for>`, then a wrapping `<label>`, then `title`, then own
+text — across both sheets **after waiting for hydration** (slice 97's rule):
+
+| sheet | controls checked | no accessible name |
+|---|---|---|
+| IG Vashti | 118 | **0** |
+| 5e Lazzuh | 92 | **0** |
+
+Slice 94's `(unlabelled)` was an artefact of the cruder `aria-label ?? textContent` used there; the control
+had a name by another route. **210 controls, every one announceable.**
+
+**Two are named by placeholder alone**, both in `SuggestionBox`: the suggestion `textarea` and the optional
+name `input`. A placeholder is not a label — it vanishes the moment there is any text, and screen-reader
+treatment of it is inconsistent (WCAG 3.3.2).
+
+**Fixed, and this is a case where "safe" holds up.** Two `aria-label` attributes. Additive ARIA: no layout,
+no behaviour, no visual change — verified that the placeholders are still rendered for sighted users, and
+that the page now reports **0** placeholder-only controls. That claim has burned me three times this arc
+(79, 98, 103), so it is worth naming why this one is different: those were changes whose *effect* had to be
+predicted, and this one adds an attribute that nothing else reads.
+
+**Bar:** fix verified in the browser against the shipped code. Full D&D suite green, typecheck exit-0, lint
+clean. No live data written; port 3559 confirmed bindable.
