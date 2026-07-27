@@ -203,6 +203,31 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 63 — verifying 62: the fix works, and made one number slightly worse
+
+Measured the rank badge again after the tint conversion. **The fix does what it was for:** its backdrop went
+from `#d6e1e7` — a blue-grey on a pink skin — to **`#e8d0ea`**, a lilac. The surface now belongs to the same
+family as its text.
+
+**And its contrast went 3.92 → 3.65.** Sheet total: **9 → 10** failing.
+
+That is not a regression to undo; it is the trade becoming visible. Cyan-under-purple was *incoherent but
+accidentally higher-contrast*, because two unrelated hues separate well. Purple text on a purple tint is
+**coherent and closer together**. Fixing the family exposed that the badge was relying on a mismatch.
+
+**The established remedy is already in this codebase.** The roller-dock slice hit exactly this and recorded
+its answer: *"the active tab could not keep the accent as its text colour… so it uses the ink and stays
+recognisable through its teal border and tint."* `.pf2RankTrained` wants the same shape — **ink for the
+text, accent for the border and tint** — which keeps the badge's identity and restores separation. Left as
+the next step rather than shipped, because it changes how the badge looks.
+
+**A fourth sighting of the same tool bug, and I walked into it.** My first measurement returned **55 of 115
+failing** and I nearly reported a catastrophic regression. The script I had trimmed read only
+`backgroundColor` and ignored `background-image` — precisely the bug this evidence file documents under
+*"it ignored `background-image`"*. Re-run with the gradient-aware version: **10**. The file has now warned
+about this four times, and it still caught me; the tell was that the number was implausible, not that the
+code looked wrong.
+
 ### Slice 62 — the accent TINT never followed the skin, in 23 places
 
 Slice 61's stray observation, chased. The PF2 rank badge composited to `#d6e1e7` — a **blue-grey** — under
