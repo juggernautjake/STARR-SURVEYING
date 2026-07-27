@@ -4311,3 +4311,40 @@ closes `DND_RULES_PLATFORM` completely. It has been that doc's only open item si
 
 **Bar:** index only; every figure in it is carried from a slice that measured it, and nothing is new. Full
 D&D suite green, typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 115: the flash also moves the page, and that separates the two fixes
+
+Cumulative layout shift had never been measured. It is objective, it is a Core Web Vital, and it is exactly
+what a sheet re-rendering from a blank character to real data would be expected to cause — so it was the
+one axis left that could say something new rather than confirm something known.
+
+**Measured against a production build, 4s window, ignoring user-initiated shifts:**
+
+| page | CLS | shifts | largest |
+|---|---|---|---|
+| **5e sheet** — store-driven | **0.222** | 3 | **0.194 on `div.hero` at 1559ms** |
+| IG sheet — prop-driven | **0** | 0 | — |
+| `/dnd` hub | **0** | 0 | — |
+
+**0.222 fails the threshold** (good ≤ 0.1) and the largest shift lands at **1559ms** — the hydration swap
+timed at ~1.5s in slice 97. Same root cause, now with a second measurable symptom: the page does not merely
+show wrong numbers, it **moves under the reader** as they arrive.
+
+**The two sheets that take their character as a prop score a flat zero.** That is the same architectural
+split as slice 102, showing up in a completely different metric, which is the strongest evidence yet that
+it is the split that matters and not a coincidence of either measurement.
+
+**And it separates the two options, which slice 114 presented as equivalent in effect.** They are not:
+
+- **B** (thread the character in) fixes the shift *inherently* — the first paint is the final layout.
+- **A** (loading state) fixes the wrong numbers but only fixes CLS **if the loading state reserves exactly
+  the real content's height**. The current blank hero is shorter — a name of `""` against `LAZZUH GUN` —
+  and that difference is what jumps. A skeleton built without measuring the real height would leave 0.194
+  of the 0.222 untouched.
+
+`DND_OWNER_DECISIONS_2026-07-27.md` row 2.1 updated with both, since presenting them as interchangeable
+was an error in a document whose whole purpose is to make the choice cheap.
+
+**Bar:** production build, CLS via `PerformanceObserver` on `layout-shift` with `hadRecentInput` excluded.
+`.next` removed. Full D&D suite green, typecheck exit-0. No live data written; port 3587 confirmed
+bindable. No code changed.
