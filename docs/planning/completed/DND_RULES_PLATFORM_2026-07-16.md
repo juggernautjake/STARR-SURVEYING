@@ -1,5 +1,29 @@
 # D&D Rules Platform — full buildout
 
+> ## ✅ COMPLETE 2026-07-27 — moved to `completed/`
+>
+> **Zero unchecked items in the whole doc** (`grep -cE '^\s*- \[[ ~]\]'` → 0). What kept it in
+> `in-progress/` was three stale STATUS LINES, not unfinished work — each corrected the same day, each
+> found by opening the slice instead of reading its heading:
+>
+> | slice | heading said | opening it showed |
+> |---|---|---|
+> | 18 | `⏳ PARTIAL` | every item `[x]`; the last closed as deferred-with-reason |
+> | 39 | `⏳ PARTIAL` | its "still open" ask shipped 9 days later, browser-verified |
+> | 8b | `⏳ IN PROGRESS` | all four systems `✅`; presentation pass done 2026-07-27 |
+>
+> **Two items remain, both closed as deferred-with-reason rather than done**, per the rubric's rule that a
+> deferral needs a stated cause: a form-authoring surface for Slice 18 (needs the foreign-statblock
+> authoring UI — `Forms.tsx` is display-and-toggle only, re-verified in code) and Slice 5's manual
+> field-by-field edit form for class/subclass drafts (explicitly *nice-to-have*; the AI re-prompt path
+> works today, and the feat version shipped 2026-07-26 as the pattern to follow).
+>
+> **The lesson this doc kept teaching and I kept re-learning:** its header was wrong about its own open
+> item four times, and my corrections to it were wrong twice more, always the same way — *counting a
+> token instead of checking the thing it stands for*. `- [ ]`, `[~]`, the word `PARTIAL`, the phrase
+> "still open". Four notations, four chances to be misled by a string. The only method that worked was
+> opening the slice and reading the code.
+
 > **REOPENED in `in-progress/` (owner 2026-07-25):** "put everything into the in progress folder to allow
 > the stop hook to work on it." Previously parked while the other three tabletop docs were closed.
 >
@@ -1003,7 +1027,7 @@ now audited and guarded:
       *So the class is findable and readable everywhere the owner asked for now, and becomes usable the
       moment the table exists — with nothing invented in between.*
 
-## Slice 8b — Library buildout for the four focus systems ⏳ IN PROGRESS 2026-07-16/17
+## Slice 8b — Library buildout for the four focus systems ✅ SHIPPED 2026-07-16/17 (presentation 2026-07-27)
 
 > **PRESENTATION PASS DONE 2026-07-27** (owner: *"in the library for all of the systems, all of the sections
 > for feats and spells and everything are collapsable and expandable and that they are organized well and
@@ -3588,7 +3612,13 @@ this slice is mostly about wiring them into one journey.
 **Sequencing note:** 38a is the shippable start (system picker + allow-custom on create). 38b builds
 on existing invites. 38c/38d are larger and depend on the builder (31) and variants being solid.
 
-## Slice 39 — A slide-up "digital screen" console in the map player view ⏳ PARTIAL 2026-07-16
+## Slice 39 — A slide-up "digital screen" console in the map player view ✅ SHIPPED 2026-07-16/25
+
+> **HEADING CORRECTED 2026-07-27.** It read `⏳ PARTIAL`, and the prose below still says *"Still open (the
+> fuller ask): embed the console drawer inside the studio's Player preview"*. Its own later item answers
+> that: **"✅ SHIPPED (browser-verified 2026-07-25) The panel. `.pconsole` inside `.canvaswrap` … 34px
+> peeking when closed, 561px open."** The fuller ask shipped nine days after the paragraph that calls it
+> open, and nobody went back to the paragraph. Same stale-prose shape as Slice 18's heading.
 
 **Finding: the drawer already exists and works — in the REAL player console (`console.html`), not in
 the studio's Player preview.** Verified in the browser: `#console` slides 246px ⇄ 30px with a
