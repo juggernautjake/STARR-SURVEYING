@@ -30,6 +30,7 @@ import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
 import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
 import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
+import SheetEditHistory from '@/app/dnd/_ui/SheetEditHistory';
 // Shared FORMAT stylesheets — scoped under `.sheet-shell` (T-SHELL-SCOPE), so they only style a shell
 // this sheet actually renders and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -201,6 +202,11 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
       ) : header}
       {nav}
       {panels.map((p) => <Fragment key={p.id}>{p.render()}</Fragment>)}
+      {/* What has been changed on this character, for whoever may edit it. The shared sheet's
+          `EditReviewPanel` is bound to the 5e store, so this sheet had no review surface at all — the
+          audited IG edits existed with nowhere to read them. Read-only by nature: a bespoke row records a
+          sidecar change the 5e Character shape cannot express, so it is history, not an undo point. */}
+      <SheetEditHistory characterId={characterId} canWrite={canEdit} />
       {/* The roller floats (R-2) — pinned, movable, resizable, minimizable, remembered per character. */}
       <FloatingRoller characterId={characterId}>{roller}</FloatingRoller>
     </div>
