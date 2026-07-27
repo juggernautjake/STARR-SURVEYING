@@ -170,7 +170,37 @@ live; the row list is covered by tests only. Likewise no visual/contrast check w
 it inherits `framedPanel` and the `--hx-*` tokens, but "inherits the right tokens" is exactly the assumption
 slice 34 found wrong on a different surface.
 
-→ **The row-list half of that gap is closed by slice 45**, which renders it. The contrast check remains owed.
+→ **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
+
+### Slice 46 — the contrast check, and a defect I did not fix on purpose
+
+Slice 44's other owed item. It found a real failure: the new panel's heading is **13px bold** — which still
+needs **4.5**, since bold only earns the 3.0 threshold at ≥18.66px — and measures **3.70 / 3.64 / 3.75** on
+streamer / donata / jack.
+
+Measured against the **panel-2** stop specifically: `.framedPanel` is `linear-gradient(180deg,
+var(--hx-panel-2), var(--hx-panel))` and the heading sits at its top. Measuring against `--hx-panel` would
+have flattered it by ~0.4 — the difference between *"fails"* and *"borderline"*, and precisely the
+"measured a proxy instead of the thing" error this evidence file has logged three times.
+
+**Deliberately not fixed, and that is the substance of the slice.** The heading uses `var(--hx-gold-2)` —
+the house style, the same token the IG panels' own `<h3>` section headings use at the same weight. So it is
+not a defect the new panel introduced; it is the **same gold-family item this doc already tracks** among its
+remaining colour decisions. Fixing one heading in isolation would leave every sibling failing while making
+the new panel the odd one out, and would pre-empt a call that belongs to whoever owns each skin's identity.
+All three are within **~0.9** of passing, so it is a tuning decision, not a rewrite.
+
+**The structural finding, which generalises well past this heading:** `skin-tokens.ts` derives `--hx-text`
+and `--hx-muted` through `ensureContrast(…, panel, 7 | 4.5)` — **clamped against the panel, correct on every
+skin by construction**. The gold ramp is *not* clamped; it is the skin's own swatch, darkened. **The ink
+tokens are safe by design and the gold ones are safe only by luck**, which is exactly why the light skins
+broke and the dark ones did not. That is the shape of the whole remaining gold-family item, and it suggests
+the fix is to route the ramp through the same clamp rather than to hand-pick colours per skin.
+
+Asserted in both directions, so a broken clamp fails loudly too. The panel's **body** text uses the clamped
+tokens, so what a DM actually reads is legible on every skin while the heading decision stays open. 9 tests
+— and when the gold family is retuned this file fails, which is the signal to flip the assertion and close
+the item, not to delete it.
 
 ### Slice 45 — rendering the state that had never rendered
 
