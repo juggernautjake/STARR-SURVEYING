@@ -827,11 +827,32 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                 {pf2.spellcasting.tradition} {pf2.spellcasting.kind}, {pf2.spellcasting.attribute} · proficiency {fmt(pf2Proficiency(pf2.spellcasting.rank, id.level, rv))} ({pf2.spellcasting.rank}).
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {pf2.spellcasting.slots.map((n, r) => (n > 0 ? (
-                  <span key={r} className={styles.pf2SlotPill}>
-                    {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: 'var(--hx-teal-1)', fontWeight: 700 }}>{n}</strong>
-                  </span>
-                ) : null))}
+                {pf2.spellcasting.slots.map((n, r) => {
+                  if (n <= 0) return null;
+                  // HOW MANY OF THOSE SLOTS ARE FILLED (slot plan S7c). The pills stated the entitlement
+                  // and nothing else, so a prepared caster could not see whether today's slots were full
+                  // — the number was computed, displayed, and left unanswerable. Shown only for PREPARED
+                  // casters: a spontaneous caster's repertoire is not a per-day assignment, so "2/3
+                  // prepared" would be meaningless for them.
+                  //
+                  // FOCUS SPELLS ARE EXCLUDED, because they are cast from the focus pool rather than from
+                  // slots — the same exclusion the Focus Points block below relies on. Counting them here
+                  // would show a caster over their slots while nothing was actually wrong.
+                  const prepared = pf2.spellcasting.kind === 'prepared' && r > 0
+                    ? (pf2.spellcasting.spells ?? []).filter((s) => !s.focus && s.prepared && s.rank === r).length
+                    : null;
+                  const over = prepared != null && prepared > n;
+                  return (
+                    <span key={r} className={styles.pf2SlotPill}
+                      title={prepared == null ? undefined
+                        : over ? `${prepared} prepared against ${n} slot${n === 1 ? '' : 's'} — more than this rank grants.`
+                          : `${prepared} of ${n} slot${n === 1 ? '' : 's'} prepared today.`}>
+                      {r === 0 ? 'Cantrips' : `Rank ${r}`}: <strong style={{ color: over ? 'var(--hx-danger-2)' : 'var(--hx-teal-1)', fontWeight: 700 }}>
+                        {prepared == null ? n : `${prepared}/${n}`}
+                      </strong>
+                    </span>
+                  );
+                })}
               </div>
               {/* Focus Points pool (S7e) — focus spells are cast from this, not from slots; it was flagged
                   on spells but never trackable. Max = number of focus spells (cap 3). Refocus recovers 1. */}
