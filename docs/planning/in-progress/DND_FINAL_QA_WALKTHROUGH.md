@@ -3401,3 +3401,35 @@ what slice 85 found had failed to happen with the `.fld` note.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — the checker improved and every surface
 came back clean under it. No live data written. Dev server stopped, port 3511 confirmed bindable.
+
+### 2026-07-27 — slice 91: eleven controls a keyboard user could not locate
+
+Eleven slices measured sizing and overflow. **Keyboard focus visibility had never been checked** — and it
+is the same kind of property: objective, and a real barrier when it fails. WCAG 2.4.7 (Focus Visible, AA).
+
+**Tabbing the IG sheet with real key presses: 69 stops, 58 with a focus ring, 11 with nothing at all.**
+`HP amount`, `Active stance`, `Add condition`, `Defensive power (In Play)`, and all six `Set STR…CHA`
+boxes. Every one is an inline-styled `input`/`select` with **no class**, so none of the `.input`,
+`.pf2Chip` or `.searchHit` focus rules in `hextech.module.css` reach them.
+
+**The cause is an absence, not a suppression.** Their computed outline while focused sat at the CSS
+*initial* value — `none` / `3px` / `currentcolor` — and no rule anywhere sets `outline: none` on them.
+Nothing removed the ring; the UA ring never landed. That distinction mattered: the first hypothesis was a
+stray reset, and a grep for one would have kept coming up empty.
+
+**It was nearly mis-measured, in the direction of overstating.** A programmatic `.focus()` sweep reported
+**21** missing. `:focus-visible` does not match synthetic focus on a button, so ten buttons that are
+perfectly fine looked broken. Driving genuine `Tab` presses cut it to the true **11**, all form controls.
+Slice 84's rule again, now three for three: *the check that settles it is the one that mimics the
+interaction*.
+
+**Fix:** a `:focus-visible` ring on form controls scoped to `.siteChrome`, which is the D&D chrome and
+nothing else. Verified by re-tabbing against the shipped CSS: **70 stops, 70 with a ring, 0 missing**, the
+eleven now reporting `outline: solid 2px`.
+
+**Scoped to form controls on purpose** — buttons already had rings, and a blanket `*:focus-visible` would
+have restyled a hundred working controls to fix eleven. Same restraint as slice 88's refusal of the blanket
+target-size guard, for the same reason.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser under real
+keyboard input. No live data written. Dev server stopped, port 3515 confirmed bindable.

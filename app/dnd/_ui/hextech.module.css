@@ -888,6 +888,22 @@ select.input {
   margin-bottom: 0;
   min-height: 0;
 }
+/* A KEYBOARD USER MUST BE ABLE TO SEE WHERE THEY ARE (WCAG 2.4.7 Focus Visible, AA).
+   Measured by tabbing the IG sheet with real key presses: 69 tab stops, 58 showed a focus ring and
+   **11 showed nothing at all** — `HP amount`, `Active stance`, `Add condition`, `Defensive power`,
+   and all six `Set STR…CHA` boxes. Every one is an inline-styled `input`/`select` carrying no class,
+   so none of the `.input`/`.pf2Chip`/`.searchHit` focus rules in this file reach them, and their
+   computed outline sat at the CSS initial (`none` / `3px` / `currentcolor`) — nothing applied it and
+   nothing removed it; the UA ring simply never landed.
+   Buttons were fine, which is why this is scoped to form controls. Worth noting how nearly it was
+   mis-measured: a programmatic `.focus()` sweep reported 21 missing, because `:focus-visible` does not
+   match synthetic focus on a button — driving real Tab presses cut it to the true 11. */
+.siteChrome input:focus-visible,
+.siteChrome textarea:focus-visible,
+.siteChrome select:focus-visible {
+  outline: 2px solid var(--hx-teal-1);
+  outline-offset: 1px;
+}
 .siteMain {
   flex: 1 0 auto;
 }
