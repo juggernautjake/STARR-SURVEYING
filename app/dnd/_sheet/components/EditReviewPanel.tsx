@@ -14,7 +14,7 @@ import { recentBatches, type EditHistoryRow } from '@/lib/dnd/edit-history'
 import { describeEdit } from '@/lib/dnd/edit-describe'
 import { isRevertableEditRow } from '@/lib/dnd/sheet-edits'
 
-interface EditRow {
+export interface EditRow {
   id: string
   field_path: string | null
   editor_user_id: string | null
@@ -34,6 +34,44 @@ interface EditRow {
 // rows, so every MANUAL edit rendered as its bare field path with no before/after — on the one panel whose
 // whole purpose is showing what changed. Shared because the same diff is wanted on the inline ✎ hover next,
 // and a second formatter there would drift from this one.
+
+/** One row of the queue, split from the panel so both of its states are reachable in a test.
+ *
+ *  The panel itself is bound to `useChar`, so the branch below could only ever be grepped — and a grep
+ *  cannot tell "offers Revert" from "offers nothing", which is exactly what this branch decides. Pure:
+ *  a row, a busy flag, one callback. */
+export function EditHistoryRow({ row, busy, onRevert }: { row: EditRow; busy: boolean; onRevert: () => void }) {
+  return (
+    <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink)', wordBreak: 'break-word' }}>{describeEdit(row)}</div>
+        {/* The person, THEN their role — "Jacob (DM)" rather than a bare "DM". At a table with
+            three players "player" answers the wrong question: a DM reviewing a change wants to
+            know which one made it. Falls back to the old wording when the account is gone. */}
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+          {row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'DM' : 'player')}
+          {' · '}{new Date(row.created_at).toLocaleString()}
+        </div>
+      </div>
+      {/* Revert is offered only where it can actually work. The server refuses a row carrying no
+          `new_value` ("this edit carries no reversible change") — but this button was rendered on
+          every row, so a DM clicking it on a bespoke-sheet row (`ig:*` / `pf2:*`, which record a
+          change to a sidecar the 5e Character shape cannot express) got an error every time. One
+          predicate now answers for both, from `lib/dnd/sheet-edits.ts`.
+          These rows still SHOW — they are real history, and hiding a change from the DM to avoid
+          an awkward button would be the worse trade. They are simply not undo points. */}
+      {isRevertableEditRow(row) ? (
+        <button className="btn tiny danger" disabled={busy} onClick={onRevert} title="Undo this edit, restoring the prior value">
+          {busy ? '…' : '⟲ Revert'}
+        </button>
+      ) : (
+        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }} title="This entry records what changed, but not enough to put it back — undo it on the character's own sheet.">
+          record only
+        </span>
+      )}
+    </div>
+  )
+}
 
 export default function EditReviewPanel() {
   const { characterId, canWrite, reloadFromDb, char, setChar } = useChar()
@@ -160,34 +198,7 @@ export default function EditReviewPanel() {
           {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
           <div style={{ display: 'grid', gap: 6 }}>
             {visible.map((row) => (
-              <div key={row.id} className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 6 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--ink)', wordBreak: 'break-word' }}>{describeEdit(row)}</div>
-                  {/* The person, THEN their role — "Jacob (DM)" rather than a bare "DM". At a table with
-                      three players "player" answers the wrong question: a DM reviewing a change wants to
-                      know which one made it. Falls back to the old wording when the account is gone. */}
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {row.editor_name ? `${row.editor_name} (${row.is_dm ? 'DM' : 'player'})` : (row.is_dm ? 'DM' : 'player')}
-                    {' · '}{new Date(row.created_at).toLocaleString()}
-                  </div>
-                </div>
-                {/* Revert is offered only where it can actually work. The server refuses a row carrying no
-                    `new_value` ("this edit carries no reversible change") — but this button was rendered on
-                    every row, so a DM clicking it on a bespoke-sheet row (`ig:*` / `pf2:*`, which record a
-                    change to a sidecar the 5e Character shape cannot express) got an error every time. One
-                    predicate now answers for both, from `lib/dnd/sheet-edits.ts`.
-                    These rows still SHOW — they are real history, and hiding a change from the DM to avoid
-                    an awkward button would be the worse trade. They are simply not undo points. */}
-                {isRevertableEditRow(row) ? (
-                  <button className="btn tiny danger" disabled={busy === row.id} onClick={() => revert(row.id)} title="Undo this edit, restoring the prior value">
-                    {busy === row.id ? '…' : '⟲ Revert'}
-                  </button>
-                ) : (
-                  <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }} title="This entry records what changed, but not enough to put it back — undo it on the character's own sheet.">
-                    record only
-                  </span>
-                )}
-              </div>
+              <EditHistoryRow key={row.id} row={row} busy={busy === row.id} onRevert={() => revert(row.id)} />
             ))}
           </div>
         </>
