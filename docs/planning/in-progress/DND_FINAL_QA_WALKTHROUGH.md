@@ -203,6 +203,24 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 70 — full verification after the token work
+
+Slices 59–69 changed **shared** things — three contrast clamps, two new token triplets, CSS across the
+hextech module, and both bespoke panel sets. Everything since had been verified with `vitest __tests__/dnd`
+and `tsc` only, which does not exercise a production build or the other 760 test files.
+
+| check | result |
+|---|---|
+| Production build | **✓ Compiled successfully**, 464/464 static pages |
+| **Full** repo suite (not just `dnd`) | **1,236 files / 17,444 tests pass**, 30 skipped |
+| Typecheck | clean |
+| Lint | clean |
+| Working tree | clean, branch in sync with origin |
+
+Worth running rather than assuming: this repo has a documented pattern where module-singleton pollution
+surfaces **only** in a whole-suite run, and a shared-token change is exactly the kind that reaches beyond
+its own area. Nothing outside D&D moved.
+
 ### Slice 69 — BOTH bespoke sheets at zero
 
 The IG sheet uses the same `--hx-*` tokens slices 62–67 corrected and had not been re-measured. It came
