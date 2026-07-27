@@ -133,6 +133,20 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Inherited 2026-07-26 — map-viewer handles (from `DND_RULES_PLATFORM`)
+
+One interactive check moved here rather than being left open in a doc whose other items are all shipped:
+**scale from any corner and rotate from the stem, and confirm both persist**, on a map-viewer object.
+
+Its static half is already guarded — `map-viewer-handles.test.ts` pins that `renderHandles` keys off `kind`
+(only `text` bails) and never off the art DOM, so the spiral/spin (`spingalaxy`) and 3D (`planet3d`)
+variants, which render a `<canvas>` rather than an `<img>`, still get handles. A future early-return that
+stripped them fails in CI.
+
+What is left is drag maths against a real pointer, which no unit test reaches. Note when running it whether
+the image had spiral or spin on: a stale deployed build and that specific variant are the two live theories
+for the original "handles disappeared" report, which was never reproduced.
+
 ### Slice 34 (2026-07-26) — the last two contrast BUGS, and the sweep that was deliberately not run
 
 The baseline's item 4 called the IG `🜲` glyph *"the one entry here that IS probably a plain bug"* and

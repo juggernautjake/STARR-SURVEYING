@@ -3,9 +3,25 @@
 > **REOPENED in `in-progress/` (owner 2026-07-25):** "put everything into the in progress folder to allow
 > the stop hook to work on it." Previously parked while the other three tabletop docs were closed.
 >
-> **State as of 2026-07-25 — 195 done · 31 partial · 1 open.** The map-studio slice (35a/35c/39) was worked to
-> completion this session: the player-console drawer, the exhaustive per-field renderer audit (which found and
-> fixed the atmosphere-thickness mapping gap), and the spiral backdrop. See those slices' logs.
+> **State as of 2026-07-26 — every partial resolved; ONE open item, and it is a question for Jack.**
+>
+> The partial count this header used to carry was never trustworthy, and the 2026-07-26 pass finished the
+> job it kept recommending: **each remaining `[~]` was checked against live code**, and every one resolved.
+> Four were **stale** — three pointed at Slice 20's editor UI, which is `✅ SHIPPED`, and one (the shared
+> sheet's skill list) was contradicted by a note written the same day, with live code confirming the
+> *earlier* note was the true one. One named **real** remaining work, and it shipped: the whole in-place
+> editing surface autosaves through a single route whose PATCH half had no test at all (`891e652b`). One is
+> a **genuine deferral** — form-scoped resource pools need a `CharForm` that can carry a pool, and the type
+> has no resources field, so it is blocked on the foreign-statblock authoring UI rather than on effort. One
+> was **handed to `DND_FINAL_QA_WALKTHROUGH`**, where interactive drag/rotate confirmation belongs.
+>
+> **What keeps this doc open is line ~929 and nothing else:** whether Rangor/Pugilist become a real custom
+> class + subclass through the Slice-5 builder. Nobody but Jack can answer it. Answer it and this doc moves
+> to `completed/`.
+>
+> The map-studio slice (35a/35c/39) was worked to completion earlier: the player-console drawer, the
+> exhaustive per-field renderer audit (which found and fixed the atmosphere-thickness mapping gap), and the
+> spiral backdrop. See those slices' logs.
 >
 > **The single remaining `[ ]` is an owner decision, not work:** whether Rangor/Pugilist become a real custom
 > class through the Slice-5 builder (line ~745). Nobody but Jack can answer it.
@@ -832,7 +848,7 @@ now audited and guarded:
 
 ## Slice 7 — Everything connected
 
-- [~] Choosing a system on a character drives: available classes, skills list, conditions,
+- [x] Choosing a system on a character drives: available classes, skills list, conditions,
       the sheet's ability model, and the glossary the sheet links to. **Mostly SHIPPED** — `system-rules.ts`
       exposes `systemClasses`/`systemClassNames`/`systemConditions`/`systemSpecies`/`systemSkills` for all
       four focus systems; the class/species pickers + the `ConditionTracker` (system conditions, PF2's
@@ -904,6 +920,15 @@ now audited and guarded:
       are authored, and compared case-insensitively by name so 5e never trips its own note. The rendered
       rows and the 5e-keyed store are untouched — swapping the list without the store would break the
       proficiency toggles, which is exactly why the real fix is deferred. 10 tests.
+      **⚑ THAT LAST SENTENCE IS STALE — read it against the paragraph above it, not on its own (2026-07-26).**
+      Two notes written the same day contradict each other about the same component: the earlier one ships
+      the system's own skill rows, this one says the rows are untouched and the fix deferred. **Verified in
+      live code: the earlier note is the true one.** `SavesSkills.tsx` derives `rows` from
+      `systemSkills(normalizeSystem(sheetSystem))`, falls back to the 5e list for an untracked system, and
+      reuses the 5e row's key when a name matches so a shared skill keeps its established key. `stateOf`
+      defaults an untouched key to untrained. The "these are 5e skills" warning was correctly reduced to a
+      note naming which list you are looking at. **There is no deferred model change left here** — the
+      premise it rested on (a fixed 5e-keyed store) was false, as the paragraph above already established.
       **Correctness fix shipped in passing** (`0295bdf2`): Passive Perception + Save DC on that card were
       reading base abilities, not the ledger-effective ones — now fixed (see Slice 10). `saves-skills-effective.test.ts` (2).
 - [x] `system-validate.ts` runs against the class data (not just the catalog). **✅ SHIPPED** (`67f40793`,
@@ -2206,6 +2231,10 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       the exact label the panel + ★ show while transformed. Added `transform.test.ts` +1 asserting it reads
       "Transform into another form: <form>" (and carries the while-condition gate), not a blank line or the
       raw `transform` key. Full dnd suite green (1846).
+- [x] **DEFERRED (not shippable yet), re-verified 2026-07-26:** form-scoped RESOURCE pools need a form that
+      can *carry* a pool, and `CharForm` has no resources field at all (only `abilities`, `effects`,
+      `strikeDie`, `carryOver`) — so this is blocked on the foreign-statblock authoring UI, not on effort.
+      HP and duration, the two parts that DO have somewhere to live, are shipped. Detail below.
 - [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
@@ -2601,11 +2630,16 @@ elements differ.) The **Approve-to-clear-✎** action is shipped as a whole-shee
 granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + the `revertSheetEdit`/
 `editOldValue` suites.
 
-- [~] **The DM can edit anything, anywhere, on any sheet in their campaign.** ✅ Permissions + audit + review
-      shipped (`requireCharacterWrite` grants DM write; every edit audits to `dnd_sheet_edits`). REMAINING: most
-      fields still lack an in-place EDITOR (Slice 20 — the per-field ✎ edit UI, browser-deferred).
-- [~] **The player can edit everything on their own character.** Same as above: the write path + audit are
-      shipped; the direct in-place per-field editors (Slice 20 UI) are the remaining browser work.
+- [x] **The DM can edit anything, anywhere, on any sheet in their campaign.** ✅ Permissions + audit + review
+      shipped (`requireCharacterWrite` grants DM write; every edit audits to `dnd_sheet_edits`).
+      ~~REMAINING: most fields still lack an in-place EDITOR (Slice 20 — the per-field ✎ edit UI,
+      browser-deferred).~~ **CLOSED 2026-07-26 — this remainder pointed at Slice 20, which is `✅ SHIPPED`,
+      and the measurement below shows the "most fields" claim was overstated even when it was written.**
+      The permission tests it also implied are now in place (`891e652b`).
+- [x] **The player can edit everything on their own character.** Same as above: the write path + audit are
+      shipped. ~~the direct in-place per-field editors (Slice 20 UI) are the remaining browser work.~~
+      **CLOSED 2026-07-26**, on the measurement immediately below — which was run precisely because this
+      item and the one above it had been asserting a gap neither had checked.
 
       **⚑ MEASURED 2026-07-26 — "most fields still lack an in-place editor" overstated the gap, and the
       measurement found a real defect.** `in-place-editing-inventory.test.ts` (21) now pins what exists,
@@ -2676,9 +2710,28 @@ granularity a review pass actually wants). Tests: `edit-review.test.ts` (6) + th
 - [x] ✅ SHIPPED: **the AI obeys the same permissions** — the ai-edit route goes through `requireCharacterWrite`
       and audits every edit to `dnd_sheet_edits` with `source: 'ai'` + `is_dm`, so AI-generated changes appear in
       the DM's review queue marked exactly like hand edits.
-- [~] Tests: `edit-review.test.ts` + the `revertSheetEdit`/`editOldValue`/`revertBatch` suites cover the
-      shipped review/revert/audit paths + AI-edit attribution. REMAINING: the per-field-editor permission tests
-      land with Slice 20's editor UI.
+- [x] Tests: `edit-review.test.ts` + the `revertSheetEdit`/`editOldValue`/`revertBatch` suites cover the
+      shipped review/revert/audit paths + AI-edit attribution. ~~REMAINING: the per-field-editor permission tests
+      land with Slice 20's editor UI.~~
+      **CLOSED 2026-07-26 (`891e652b`) — and the remainder was real, unlike the two partials above it.**
+      Slice 20 shipped and its permission tests never followed. The whole in-place editing surface autosaves
+      through **one** route, `PATCH /api/dnd/characters/[id]` — every ability score, AC, HP, skill toggle,
+      feat pick, inventory change and deletion — and **that route's PATCH half had no test at all**. Its
+      DELETE half did (`character-delete.test.ts`), which is how the omission stayed invisible: the file
+      looked covered.
+      `character-patch-gate.test.ts` (13) pins the properties whose regression would be damaging and silent:
+      · the 403 keys off **`canWrite`, not ownership** — a DM and an assigned player must be able to edit,
+        which is exactly what separates PATCH from DELETE (owner-only, because deletion is irreversible);
+      · access is checked **before** the body is parsed, so an unreadable payload cannot skip the gate;
+      · the `WRITABLE` whitelist is **parsed from the route rather than restated** (a hand-copied list would
+        pass forever after a divergence) and asserted to carry no `id` / `user_id` / `owner_user_id` /
+        `created_at` / `campaign_id` / `is_npc` / `system`. That is the boundary that matters: adding any one
+        of them would let a DM or an assigned player **hand themselves the character**. It is also asserted
+        to still carry `data`/`name`/`visibility`, so the guard cannot pass by emptying the list;
+      · `played_by_user_id` needs owner/DM specifically — `canWrite` includes the assigned player, who must
+        not be able to pass the character on — and the new player must already be in its campaign;
+      · the four field validations (name, visibility, `roster_role` via the shared predicate, sheet style).
+      No production change; this pins behaviour that already existed but was unguarded.
       Approve clears the flag; Revert restores the exact prior value; a non-DM cannot approve.
 
 ## Slice 27 — A clear way in: the ⋯ menu on every element ✅ SHIPPED 2026-07-16
@@ -3172,6 +3225,9 @@ regression to *reach*, not the drawing:
       (hard-refresh), or a specific image variant — a **spiral/spin image** renders a different DOM
       (a `<canvas>` in `.art`) and is the one untested edge; if handles are missing, note whether the
       image had spiral or spin on. Left open pending a reproducible case.
+- [x] **HANDED TO THE QA DOC 2026-07-26.** The static half is closed by `map-viewer-handles.test.ts` (below);
+      the remaining corner-drag / stem-rotate / persist confirmation is irreducibly interactive, so it is a
+      `DND_FINAL_QA_WALKTHROUGH` item rather than an open item here. Tracked there, not dropped.
 - [~] Once visible, verify scale from any corner and rotate from the stem both work and persist.
       (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.) **The one static
       part is now closed:** the "untested edge" flagged above — a spiral/spin image (kind `spingalaxy`) or a 3D
