@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { getCharacterAccess } from '@/lib/dnd/characters';
-import { revertSheetEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { revertSheetEdit, isRevertableEditRow, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import type { Character } from '@/app/dnd/_sheet/types';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq('character_id', params.id)
     .single();
   if (eErr || !edit) return NextResponse.json({ error: 'That edit was not found on this character.' }, { status: 404 });
-  if (!edit.new_value) return NextResponse.json({ error: 'This edit carries no reversible change.' }, { status: 400 });
+  if (!isRevertableEditRow(edit)) return NextResponse.json({ error: 'This edit carries no reversible change.' }, { status: 400 });
 
   const { data: charRow, error: cErr } = await supabaseAdmin
     .from('dnd_characters')

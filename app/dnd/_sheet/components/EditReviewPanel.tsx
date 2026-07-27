@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useChar } from '../state/store'
 import { recentBatches, type EditHistoryRow } from '@/lib/dnd/edit-history'
 import { describeEdit } from '@/lib/dnd/edit-describe'
+import { isRevertableEditRow } from '@/lib/dnd/sheet-edits'
 
 interface EditRow {
   id: string
@@ -170,9 +171,22 @@ export default function EditReviewPanel() {
                     {' · '}{new Date(row.created_at).toLocaleString()}
                   </div>
                 </div>
-                <button className="btn tiny danger" disabled={busy === row.id} onClick={() => revert(row.id)} title="Undo this edit, restoring the prior value">
-                  {busy === row.id ? '…' : '⟲ Revert'}
-                </button>
+                {/* Revert is offered only where it can actually work. The server refuses a row carrying no
+                    `new_value` ("this edit carries no reversible change") — but this button was rendered on
+                    every row, so a DM clicking it on a bespoke-sheet row (`ig:*` / `pf2:*`, which record a
+                    change to a sidecar the 5e Character shape cannot express) got an error every time. One
+                    predicate now answers for both, from `lib/dnd/sheet-edits.ts`.
+                    These rows still SHOW — they are real history, and hiding a change from the DM to avoid
+                    an awkward button would be the worse trade. They are simply not undo points. */}
+                {isRevertableEditRow(row) ? (
+                  <button className="btn tiny danger" disabled={busy === row.id} onClick={() => revert(row.id)} title="Undo this edit, restoring the prior value">
+                    {busy === row.id ? '…' : '⟲ Revert'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }} title="This entry records what changed, but not enough to put it back — undo it on the character's own sheet.">
+                    record only
+                  </span>
+                )}
               </div>
             ))}
           </div>

@@ -312,6 +312,23 @@ export function editOldValue(current: Character, e: SheetEdit): unknown {
  *  · collection ADD (no prior element) → drop the element the edit created.
  * The element's CURRENT name is `to` for a rename (that's what it's called now) else `name`.
  */
+/** Can this audit row be reversed at all?
+ *
+ *  A row is reversible only if it recorded the EDIT that made the change — `revertSheetEdit` replays that
+ *  edit backwards, so with no `new_value` there is nothing to reverse and the revert route 400s.
+ *
+ *  Several kinds of row legitimately carry none: the bespoke-sheet rows (`ig:*` / `pf2:*`, from both the
+ *  manual routes and the AI path) record that something happened on a sidecar the 5e `Character` shape
+ *  cannot express, and the batch/revert markers describe an action rather than a field change. Those are
+ *  informational — real history, not undo points.
+ *
+ *  This lives here, next to `revertSheetEdit`, so the REVIEW UI and the REVERT ROUTE ask one question in
+ *  one place. They previously disagreed: the route refused non-reversible rows with a 400 while the panel
+ *  rendered a "⟲ Revert" button on every row, so the DM was offered an action that could only ever fail. */
+export function isRevertableEditRow(row: { new_value?: unknown } | null | undefined): boolean {
+  return !!row?.new_value;
+}
+
 export function revertSheetEdit(input: Character, e: SheetEdit, oldValue: unknown): Character {
   const c: Character = structuredClone(input);
   const currentName = (e.op === 'rename_attack' || e.op === 'rename_feature' || e.op === 'rename_item' || e.op === 'rename_spell' || e.op === 'rename_resource')

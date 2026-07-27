@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { getCharacterAccess } from '@/lib/dnd/characters';
-import { revertBatch, type AuditedEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
+import { revertBatch, isRevertableEditRow, type AuditedEdit, type SheetEdit } from '@/lib/dnd/sheet-edits';
 import type { Character } from '@/app/dnd/_sheet/types';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -33,7 +33,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .order('created_at', { ascending: true });
   if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 });
   const audited = ((rows ?? []) as { field_path: string | null; old_value: unknown; new_value: SheetEdit | null }[])
-    .filter((r): r is { field_path: string | null; old_value: unknown; new_value: SheetEdit } => !!r.new_value);
+    // Same rule as the single-edit revert and the review UI, asked in one place: a row with no
+    // `new_value` records that something happened but not enough to put it back.
+    .filter((r): r is { field_path: string | null; old_value: unknown; new_value: SheetEdit } => isRevertableEditRow(r));
   if (!audited.length) return NextResponse.json({ error: 'That change was not found (it may already be undone).' }, { status: 404 });
 
   const { data: charRow, error: cErr } = await supabaseAdmin
