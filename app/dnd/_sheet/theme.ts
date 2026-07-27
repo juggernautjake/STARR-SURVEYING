@@ -118,7 +118,12 @@ export const streamerTheme: SheetTheme = {
     // links, ability mods, table headers, etc. in the base sheet).
     teal: '#9b3fd0',
     tealbright: '#8a5e04', // deep gold — 5.53:1 on the pale panel (measured; the comment said 5.9) (it backs links, ability mods, table headers)
-    gold: '#966c00',      // 4.58:1 on the pale panel — measured (the comment said 5.2), and only 4.12:1 on panel-2
+    // MEASURED, and deliberately UNCHANGED — see `palette-claims.test.ts`. 4.58:1 on `panel` (the comment
+    // here used to claim 5.2), 4.12 on panel-2, 3.85 on the PF2 chip fill, 3.24 on the MANAGE-LEVELS strip,
+    // and 2.86 on the PF2 dice pad's DARK #302a49. Deepening it 10% to #876100 was tried and rejected: it
+    // fixes the light surfaces (chip 3.85→4.57) and makes the dark one WORSE (2.86→2.41). One value cannot
+    // serve a near-white panel and a dark pad — the fix is a surface-derived token, as the roller dock got.
+    gold: '#966c00',
     danger: '#e5344f',
     good: '#1c9e63',
     line: 'rgba(255, 30, 156, 0.30)',

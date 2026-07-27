@@ -8,7 +8,7 @@
 // four is a gold.**
 //
 //     streamer tealbright  claimed 5.9  actual 5.53
-//     streamer gold        claimed 5.2  actual 4.58   ← and only 4.12 on panel-2
+//     streamer gold        claimed 5.2  actual 4.58   ← and 4.12 / 3.85 / 3.24 / 2.86 elsewhere
 //     donata   gold        claimed 6.1  actual 5.72
 //     rulebook gold        claimed 7.4  actual 6.63
 //
@@ -62,9 +62,12 @@ describe('every documented ratio matches the arithmetic', () => {
 
 describe('the four corrected comments say the measured number now', () => {
   // A comment that overstates a ratio is worse than no comment: it is the thing a designer reuses.
-  it('streamer gold records BOTH its surfaces, since it fails on the second', () => {
-    expect(THEME).toContain('4.58:1 on the pale panel');
-    expect(THEME).toContain('only 4.12:1 on panel-2');
+  it('streamer gold records every surface it lands on, including the ones it fails', () => {
+    // It is the one entry whose honest comment is a list rather than a number, because the value is fine
+    // on some surfaces and not others — which is the finding, not a defect in the comment.
+    expect(THEME).toContain('4.58:1 on `panel`');
+    expect(THEME).toContain("2.86 on the PF2 dice pad's DARK");
+    expect(THEME).toContain('was tried and rejected');
   });
 
   it('none of the four still claims its old, optimistic figure', () => {
@@ -84,12 +87,17 @@ describe('what the pattern means, asserted so it cannot be lost', () => {
     const worstGold = Math.min(...golds.map(([s, c]) => contrastRatio(c, SURFACE[s])!));
     const worstInk = Math.min(...inks.map(([s, c]) => contrastRatio(c, SURFACE[s])!));
     expect(worstGold).toBeLessThan(worstInk);
-    expect(worstGold).toBeLessThan(5); // streamer's, at 4.58 — over AA, but barely
+    expect(worstGold).toBeLessThan(5); // streamer's #966c00 at 4.58 — over AA on its panel, but barely
   });
 
-  it('and streamer’s gold really does fail on the neighbouring surface', () => {
-    // 4.12 on panel-2. The colour is fine where it was measured and not where it is also used — the same
-    // "tuned for one surface, used on another" shape as the gold-2 clamp bug (slice 47).
-    expect(contrastRatio('#966c00', '#fdeaf8')!).toBeLessThan(4.5);
+  it('ONE VALUE CANNOT SERVE BOTH — the reason this is not a colour tweak', () => {
+    // Slice 51 tried deepening streamer's gold 10% to #876100 and rejected it on measurement. This pins
+    // WHY, so nobody re-proposes it: the light surfaces improve and the DARK one degrades. A single hex
+    // cannot clear 4.5 against both a near-white panel and the PF2 pad's #302a49 — the fix is a
+    // surface-derived token, exactly what the roller dock got when it hit this.
+    const light = '#f2e4ee', dark = '#302a49';
+    expect(contrastRatio('#966c00', light)!).toBeLessThan(4.5);       // 3.85 today
+    expect(contrastRatio('#876100', light)!).toBeGreaterThan(4.5);    // 4.57 — the tempting fix
+    expect(contrastRatio('#876100', dark)!).toBeLessThan(contrastRatio('#966c00', dark)!); // 2.41 < 2.86
   });
 });
