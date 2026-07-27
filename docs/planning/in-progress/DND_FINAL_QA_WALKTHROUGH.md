@@ -4667,3 +4667,5 @@ a second time after being written down.
 
 **Bar:** merge state verified against `origin/main`. Full D&D suite green (5,944 + 11 pinned), typecheck
 exit-0, working tree clean. No code changed.
+
+<!-- HOOK:BLOCKED Every remaining item needs an owner decision, not effort: the blank-character flash (option A vs B, store.tsx), --danger's contrast regression, the section-heading accent on Noxus/Void Prophet, and the two heading-structure gaps. All measured, costed and pinned by tests in DND_OWNER_DECISIONS_2026-07-27.md. Delete this line when one is answered. -->
