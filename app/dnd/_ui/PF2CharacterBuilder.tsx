@@ -292,7 +292,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
                 {stepDefs.map((s, i) => (
-                  <button key={i} type="button" onClick={() => setPstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)' }} />
+                  <button key={i} type="button" onClick={() => setPstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', padding: '10px 0', margin: '-10px 0', boxSizing: 'content-box', background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)', backgroundClip: 'content-box' }} />
                 ))}
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{cur.help}</div>

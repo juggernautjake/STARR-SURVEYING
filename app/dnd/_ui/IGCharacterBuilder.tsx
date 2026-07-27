@@ -402,7 +402,12 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
               </div>
               <div style={{ display: 'flex', gap: 5 }}>
                 {stepDefs.map((s, i) => (
-                  <button key={i} type="button" onClick={() => setIstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)' }} />
+                  <button key={i} type="button" onClick={() => setIstep(i)} title={s.title} aria-label={`Go to ${s.title}`} style={{ height: 5, flex: 1, borderRadius: 3, border: 'none', cursor: 'pointer', padding: '10px 0', margin: '-10px 0', boxSizing: 'content-box',
+                    /* The 5px bar is the VISUAL; the padding gives it a 25px tap target and the negative
+                       margin keeps the row 5px tall, so the layout is unchanged. `backgroundClip` MUST come
+                       after `background`: the shorthand resets it to `border-box`, and with that order
+                       reversed the bar paints over its own padding and renders 25px tall. Measured. */
+                    background: i <= idx ? 'var(--hx-teal-1)' : 'var(--hx-line)', backgroundClip: 'content-box' }} />
                 ))}
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>{cur.help}</div>

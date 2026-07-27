@@ -3324,3 +3324,45 @@ absence.
 
 **Bar:** 6/6 new, full D&D suite green, typecheck exit-0, lint clean. No production code changed — the
 source edit shown above was the mutation check, reverted.
+
+### 2026-07-27 — slice 89: a five-pixel-tall navigation control
+
+Slices 86–87 swept the three sheets for touch targets. The **builders** were never swept. All three come
+back with **0 WCAG 2.5.8 violations** (38, 39 and 34 targets; 8 undersized each, every one clear on
+spacing) — but the scan surfaced something the pass/fail count could not.
+
+**The guided builder's step navigation is a 5px-tall click strip.** Each segment of the progress bar is a
+real button — `aria-label="Go to Class & level"`, `"Go to Species"`, … — `tabIndex 0`, not disabled,
+measuring **46 × 5 px**. Five of them, in all three builders.
+
+**It passes WCAG and is still unusable on a phone.** The spacing exception is about *neighbouring* targets,
+and these are 46px wide so their centres sit ~46px apart — comfortably clear. The criterion has nothing to
+say about a target that is simply too thin to hit. This is the counterpart of slice 86's lesson: there, the
+exception meant a reported failure was not real; here, passing the exception hides one that is.
+
+**Fixed without changing a pixel of the design:**
+
+```
+padding: '10px 0', margin: '-10px 0', boxSizing: 'content-box',
+background: …, backgroundClip: 'content-box'
+```
+
+The padding grows the hit area, the negative margin cancels its effect on the row, and the content-box clip
+keeps the paint confined to the original 5px. Measured after: **hit area 25px, painted bar still 5px, row
+height still 5px, bar position identical, page overflow 0.** Five times the target, no visual change.
+
+**Property ORDER is load-bearing here, and only measuring caught it.** The first attempt put
+`backgroundClip` *before* `background`. The `background` shorthand resets `background-clip` to `border-box`
+— so the computed value came back `border-box` and the bar would have painted across its own padding,
+rendering 25px tall. The hit-area numbers were already correct at that point; had I checked those alone the
+fix would have shipped looking right and rendering wrong. The comment in `IGCharacterBuilder` records why
+the order matters, since it is not visible from reading the properties.
+
+**A hypothesis that was wrong, recorded because it was load-bearing while it lasted:** I expected the
+builders to be clean because they use padded `.btn` classes while the bespoke panels use bare inline-styled
+icon buttons. They do not — of 26 buttons in the 5e builder, **0** carry a `btn` class and 23 are
+inline-styled, exactly like the sheets. The builders are clean because their controls are better spaced,
+not because they are built differently.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser against shipped
+code, in all three builders. No live data written. Dev server stopped, port 3507 confirmed bindable.
