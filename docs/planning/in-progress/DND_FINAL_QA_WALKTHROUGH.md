@@ -3042,3 +3042,45 @@ not shrink min-content. A guard that only checked "is some overflow-wrap set" wo
 
 **Bar:** 5 new + 4 existing guards, full D&D suite green, typecheck exit-0. No production code changed this
 slice — the CSS edit shown above was the mutation check, reverted. No live data written, no server needed.
+
+### 2026-07-27 — slice 82: the IG sheet at 360px, and two tools that lied
+
+Slices 80–81 swept the 5e sheet, the PF2 sheet, the builder and the feat designer. **The IG sheet — the
+third of the three sheet types — had never been checked at mobile width.** This closes that: it is
+**clean at 360px**, 0 overflowing elements and 0 clipped, with the sweep's self-check still firing on an
+injected 600px probe.
+
+Getting there took two false alarms, both worth more than the clean result.
+
+**The sweep reported 1,633 elements overflowing by 31px.** It was wrong, and what said so was an internal
+contradiction rather than judgement: `document.scrollWidth` was **345** and the window would not scroll
+right — which cannot be true at the same time as 1,633 visible elements reaching 391px. Chasing the chain
+showed nothing fixed, nothing transformed, nothing clipping, a grid track computed at `376.438px` inside a
+315px parent, and text measuring past the viewport edge. Every individual signal said "real defect".
+
+The one that mattered was `detailsOpen: **false**`. All of it sat inside a **closed accordion**. Chromium
+lays those subtrees out — `content-visibility: hidden` sizes to content, not to the container — so a
+collapsed panel's children measure at natural width and read as overflow that no user can encounter. The
+contrast arc met this exact genus once before (*"buttons inside a collapsed `.fld`"*) and the lesson did
+not carry, because it had been written down as a fact about `.fld` rather than about collapsed containers.
+It is now recorded as the general form in `qa-evidence/contrast-sweep.md` (limitation 6).
+
+**And the self-check passed the whole time**, which is the part worth keeping. It proves the sweep can see
+a real overflow. It says nothing about whether the sweep invents unreal ones. **A tool check that only
+tests for false negatives will certify a tool drowning in false positives** — slice 75 built exactly that
+kind of check and I trusted it one step further than it reaches.
+
+**The second false alarm nearly became a bug report.** While chasing the first, a grep printed
+`if (key === 'intuitive-games') return 'n';` from `lib/dnd/library.ts` — which reads precisely like a
+find-and-replace having wrecked a user-facing string. The file says `return 'Ancestries';`. The cause was
+mine: **`rg -r` is `--replace`**, so `rg -rn "Ancestries"` used `n` as the replacement and printed every
+match as `n`. Earlier `-rn` uses this session were audited — all but one passed `-l` and were unaffected;
+slice 77's epic-boon scan had its content mangled but its conclusion rested on the file list and was
+independently re-verified, so it stands.
+
+**Net:** the third sheet type is verified at mobile width, and two tool limitations are documented that had
+each produced a confident, completely false finding within the same slice. No code changed, because nothing
+was broken — the honest outcome, and one both false alarms were dressed up to look different from.
+
+**Bar:** full D&D suite green, typecheck exit-0. No live data written. Dev server stopped, port 3483
+confirmed bindable.

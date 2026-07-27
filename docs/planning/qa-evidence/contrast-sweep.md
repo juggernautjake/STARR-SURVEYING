@@ -453,3 +453,34 @@ Two things in that write-up were broader than the evidence behind them.
 
 The live-measured core of slice 71 is unaffected: Noxus at **3.45 / 3.19** and Void Prophet at **3.95 /
 3.66**, on the stops section labels do sit on, remain under AA.
+
+### Two sweep-tool limitations found the hard way (slice 82)
+
+Recorded here beside the contrast-sweep limitations because they are the same genus and cost the same way.
+
+**6. A CLOSED `<details>` yields layout boxes, and they read as viewport overflow.** Sweeping the IG sheet
+at 360px reported **1,633 elements overflowing by 31px** — while `document.scrollWidth` was 345 and the
+window would not scroll horizontally. Those two cannot both be true of visible content, which is what said
+the tool was wrong rather than the page. The offenders were all inside `<details open="false">`: Chromium
+still lays the subtree out (`content-visibility: hidden` sizes to CONTENT, not to the container), so a
+collapsed accordion's children measure at their natural width. The contrast sweep already hit this genus
+once — *"buttons inside a collapsed `.fld`"* — and the lesson did not transfer because it was written as a
+fact about `.fld` rather than about collapsed containers.
+
+The corrected sweep skips any element inside a closed `<details>` (except inside its `<summary>`, which is
+visible) and any element with `content-visibility: hidden`. With that, the IG sheet is **clean at 360px**:
+0 overflowing, 0 clipped, self-check still detecting an injected 600px probe.
+
+**A near miss worth naming:** the self-check PASSED throughout. It proves the sweep can detect a real
+overflow; it says nothing about whether the sweep reports unreal ones. A tool check that only tests for
+false negatives will happily certify a tool that is drowning in false positives.
+
+**7. `rg -r` is `--replace`, not "recursive".** Chasing the above, `rg -rn "Ancestries"` printed
+`if (key === 'intuitive-games') return 'n';` from `lib/dnd/library.ts` — which reads exactly like a botched
+find-and-replace having destroyed a user-facing string, and was one step from being reported as a critical
+bug. The file actually says `return 'Ancestries';`. Ripgrep is recursive by default; `-r` consumed the `n`
+from `-rn` as its replacement string, so every match printed as `n`.
+
+Earlier uses of `-rn` in this session were checked: all but one passed `-l` (file names only, unaffected).
+The exception is slice 77's `choice: 'epic-boon'` scan, whose *content* was mangled — but its conclusion
+rested on the file LIST, and was independently re-verified with `rg -c` against `dnd5e-2014/`, so it holds.
