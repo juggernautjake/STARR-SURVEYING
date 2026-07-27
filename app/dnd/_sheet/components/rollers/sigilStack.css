@@ -196,7 +196,7 @@
 .dnd-sheet .sigil-tile.st-penalty .sigil-glyph,
 .dnd-sheet .sigil-tile.st-penalty .sigil-label,
 .dnd-sheet .sigil-tile.st-penalty .sigil-val {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   font-weight: 600;
 }
 .dnd-sheet .sigil-tile.st-penalty::before {
@@ -244,7 +244,7 @@
 }
 .dnd-sheet .sigil-tile.is-fumble .sigil-val,
 .dnd-sheet .sigil-tile.is-fumble .sigil-glyph {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 
 /* When the stack finishes assembling, the capstone gives one lock pulse. */
@@ -264,7 +264,7 @@
   color: var(--gold);
 }
 .dnd-sheet .sigil-flag.fumble {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .sigil-tag {
   text-align: center;
@@ -381,7 +381,7 @@
 .dnd-sheet .sigil-exh {
   font-size: 10.5px;
   letter-spacing: 0.06em;
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   border: 1px solid var(--danger);
   border-radius: 6px;
   padding: 2px 7px;
@@ -493,7 +493,7 @@
   color: var(--gold);
 }
 .dnd-sheet .sigil-re.fumble .sigil-re-total {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .sigil-re-break {
   margin-top: 3px;
@@ -512,7 +512,7 @@
   font-weight: 600;
 }
 .dnd-sheet .sigil-eff-down {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   font-weight: 600;
 }
 .dnd-sheet .sigil-mode-adv {
@@ -520,7 +520,7 @@
   font-weight: 700;
 }
 .dnd-sheet .sigil-mode-dis {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   font-weight: 700;
 }
 

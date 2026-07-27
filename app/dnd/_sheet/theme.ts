@@ -7,6 +7,7 @@
 // "a new theme + data", not a fork of the 2,000-line stylesheet — and omitting a
 // token falls back to the Lazzuh defaults baked into theme.css.
 import type { CSSProperties } from 'react';
+import { composite, labelOn, legibleText, parseHex, type Rgb } from './contrast';
 
 export type ThemeColorToken =
   | 'void' | 'void-2' | 'panel' | 'panel-2' | 'panel-3'
@@ -373,6 +374,38 @@ function hexToRgbTriplet(hex: string): string | null {
   return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
 }
 
+// The tokens that paint ACCENTS (text, fills, bars) rather than grounds. Each gets a derived
+// `-ink` (legible as text on this theme's own grounds) and `-on` (legible as a label on a fill of
+// itself). The grounds/text tokens are excluded: they ARE the backdrops, so deriving an alternate
+// for them is circular, and `ink`/`muted` are already tuned against their own panels per theme.
+const ACCENT_TOKENS = [
+  'pink', 'hotpink', 'violet', 'violet-2', 'teal', 'tealbright', 'gold', 'danger', 'good',
+] as const;
+
+/** Tokens whose OWN text sits on a tint of ITSELF, so the tint has to be in their backdrop set.
+ *  Only `danger` does: `.btn.danger`, `.adv-seg .on-dis` and the danger chip each paint
+ *  `color: var(--danger-ink)` on `background: rgba(var(--danger-rgb), α)`. Plenty of other tokens have
+ *  tinted backgrounds (hotpink has 24), but their text is a DIFFERENT token — `.sec-num` is hotpink on
+ *  the bare panel, never on a hotpink tint.
+ *
+ *  This distinction is the difference between a fix and a regression. Including self-tints for every
+ *  token pushed donata's `hotpink` from the hand-verified #c2185b (5.4:1, annotated in the palette) to
+ *  #a7154e, correcting a value against a backdrop it never lands on. */
+const SELF_TINTED_TOKENS = new Set(['danger']);
+
+/** The backdrops an accent can land on in this theme: the five grounds — plus, for the tokens above,
+ *  a tint of the accent itself over each panel at the alphas the stylesheet actually uses. */
+function backdropsFor(colors: Partial<Record<ThemeColorToken, string>>, token: string, accent: Rgb): Rgb[] {
+  const grounds = (['void', 'void-2', 'panel', 'panel-2', 'panel-3'] as const)
+    .map((k) => colors[k])
+    .filter((v): v is string => typeof v === 'string')
+    .map(parseHex)
+    .filter((v): v is Rgb => v !== null);
+  if (!SELF_TINTED_TOKENS.has(token)) return grounds;
+  const panels = grounds.slice(2);
+  return [...grounds, ...panels.flatMap((p) => [composite(accent, 0.14, p), composite(accent, 0.22, p)])];
+}
+
 export function themeToCssVars(theme?: SheetTheme | null): CSSProperties {
   const vars: Record<string, string> = {};
   if (theme?.colors) {
@@ -385,6 +418,17 @@ export function themeToCssVars(theme?: SheetTheme | null): CSSProperties {
       // bypass the theme entirely and bleed hot pink onto every other character.
       const rgb = hexToRgbTriplet(value);
       if (rgb) vars[`--${token}-rgb`] = rgb;
+
+      // Derived legibility alternates (see `contrast.ts`). Computed from THIS theme's grounds, so a
+      // skin × theme combination nobody hand-checked is still readable — which is the whole point,
+      // since `themeVariantsFor` lets every non-streamer skin wear any of the universal themes.
+      if ((ACCENT_TOKENS as readonly string[]).includes(token)) {
+        const accent = parseHex(value);
+        if (accent) {
+          vars[`--${token}-ink`] = legibleText(value, backdropsFor(theme.colors, token, accent));
+          vars[`--${token}-on`] = labelOn(value, { void: theme.colors.void, ink: theme.colors.ink });
+        }
+      }
     }
   }
   if (theme?.fonts?.display) vars['--font-display'] = theme.fonts.display;

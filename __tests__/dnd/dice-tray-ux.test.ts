@@ -47,7 +47,10 @@ describe('per-skin number-display styling (D4d)', () => {
   it('the spin + landing honour the mode (cycle vs stable/mono), crit/fumble stay semantic', () => {
     expect(rollStage).toContain('mode.cycleColor ? randOf(NEON) : (mode.color');
     expect(rollStage).toContain('mode.cycleFont ? randOf(FONTS) : (mode.font');
-    expect(rollStage).toContain("fumble ? 'var(--danger)' : crit ? 'var(--gold)'"); // crit/fumble semantic on every skin
+    // crit/fumble stay semantic on every skin. `--danger-ink` is the per-theme text alternate of
+    // `--danger` (see app/dnd/_sheet/contrast.ts) — the token, and so the meaning, is unchanged; it is
+    // the legible-as-text form of it, which is what a rolled number is.
+    expect(rollStage).toContain("fumble ? 'var(--danger-ink, var(--danger))' : crit ? 'var(--gold)'");
   });
 
   it('DiceTray passes the active skin to RollStage', () => {

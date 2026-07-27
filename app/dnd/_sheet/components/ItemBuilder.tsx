@@ -423,7 +423,7 @@ export default function ItemBuilder({
         </div>
       )}
 
-      {err && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</div>}
+      {err && <div style={{ color: 'var(--danger-ink, var(--danger))', fontSize: 13 }}>{err}</div>}
       <div className="btn-row">
         <button type="button" className="btn tiny solid" onClick={save}>{initial ? 'Save changes' : 'Add item'}</button>
         <button type="button" className="btn tiny" onClick={onCancel}>Cancel</button>

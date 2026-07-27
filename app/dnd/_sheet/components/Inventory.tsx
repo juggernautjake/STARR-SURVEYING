@@ -220,7 +220,7 @@ export default function Inventory() {
         // already flow through effStr/size). No-op without one — makes that registered target actually work.
         const cap = carryingCapacity(effStr, size) + ledger.value('carrying_capacity', 0)
         const enc = encumbranceLevel(carried, effStr, size)
-        const tone = enc === 'over' ? 'var(--danger)' : enc === 'heavily' ? 'var(--gold)' : enc === 'encumbered' ? 'var(--gold)' : 'var(--muted)'
+        const tone = enc === 'over' ? 'var(--danger-ink, var(--danger))' : enc === 'heavily' ? 'var(--gold)' : enc === 'encumbered' ? 'var(--gold)' : 'var(--muted)'
         return (
           <div className="mono" style={{ fontSize: 12.5, color: 'var(--muted)', margin: '2px 0 10px' }}>
             Carrying <strong style={{ color: 'var(--ink)' }}>{carried}</strong> / {cap} lb

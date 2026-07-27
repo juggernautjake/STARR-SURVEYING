@@ -62,7 +62,7 @@ export default function ConditionTracker() {
         <span style={label}>Conditions</span>
         {active.length === 0 && <span style={{ fontSize: 12, color: 'var(--muted, #9aa)' }}>none</span>}
         {active.map((c) => (
-          <span key={c} style={{ ...chip, borderColor: 'var(--danger)', color: 'var(--danger)', background: 'transparent', display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'auto' }}>
+          <span key={c} style={{ ...chip, borderColor: 'var(--danger)', color: 'var(--danger-ink, var(--danger))', background: 'transparent', display: 'inline-flex', gap: 6, alignItems: 'center', cursor: 'auto' }}>
             <RuleTip term={c} />
             <button onClick={() => toggleCond(c)} title={`Remove ${c}`} aria-label={`Remove ${c}`} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, font: 'inherit' }}>✕</button>
           </span>

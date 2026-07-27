@@ -20,7 +20,7 @@ export default function Balance() {
           </ul>
         </div>
         <div className="card callout" style={{ borderLeftColor: 'var(--danger)', background: 'rgba(255,82,82,0.06)' }}>
-          <h3 style={{ color: 'var(--danger)' }}>Weaknesses</h3>
+          <h3 style={{ color: 'var(--danger-ink, var(--danger))' }}>Weaknesses</h3>
           <ul className="clean">
             {char.balance.weaknesses.map((w, i) => (
               <li key={i}>{md(w)}</li>

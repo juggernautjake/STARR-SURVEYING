@@ -629,7 +629,7 @@
 .dnd-sheet .rbn-revealall:hover { color: var(--ink); border-color: var(--line-strong); }
 .dnd-sheet .rbn-card.is-reveal.is-up { transition: transform 0.3s ease; transform: translateY(-9px) scale(1.07); }
 .dnd-sheet .rb-felt.is-crit .rbn-num { color: var(--tealbright); text-shadow: 0 0 18px rgba(var(--tealbright-rgb), 0.6); }
-.dnd-sheet .rb-felt.is-fumble .rbn-num { color: var(--danger); text-shadow: 0 0 18px rgba(var(--danger-rgb), 0.6); }
+.dnd-sheet .rb-felt.is-fumble .rbn-num { color: var(--danger-ink, var(--danger)); text-shadow: 0 0 18px rgba(var(--danger-rgb), 0.6); }
 
 /* slide the three off (a touch slower) */
 .dnd-sheet .rbn-phase-out .rbn-card { animation: rbnOut 0.46s ease forwards; }
@@ -677,7 +677,7 @@
 .dnd-sheet .rbn-ro-break { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
 .dnd-sheet .rbn-ro-src { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 11px; }
 .dnd-sheet .rbn-src-up { color: var(--good); font-style: normal; }
-.dnd-sheet .rbn-src-dn { color: var(--danger); font-style: normal; }
+.dnd-sheet .rbn-src-dn { color: var(--danger-ink, var(--danger)); font-style: normal; }
 .dnd-sheet .rbn-ro-total { font-family: var(--font-display); font-size: 15px; color: var(--ink); }
 .dnd-sheet .rbn-ro-total strong { color: var(--gold); font-size: 20px; margin-left: 4px; }
 

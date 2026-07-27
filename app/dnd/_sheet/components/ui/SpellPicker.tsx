@@ -250,7 +250,7 @@ export default function SpellPicker({ onClose }: { onClose: () => void }) {
                           {s.concentration ? ' · concentration' : ''}{s.ritual ? ' · ritual' : ''}
                         </span>
                         {!elig.ok && (
-                          <span className="tag" style={{ marginLeft: 6, color: blocked ? 'var(--danger)' : '#e0a020' }} title={elig.reason}>
+                          <span className="tag" style={{ marginLeft: 6, color: blocked ? 'var(--danger-ink, var(--danger))' : '#e0a020' }} title={elig.reason}>
                             {blocked ? 'not available' : 'off-rules'}
                           </span>
                         )}

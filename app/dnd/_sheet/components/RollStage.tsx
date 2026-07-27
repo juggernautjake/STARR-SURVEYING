@@ -101,7 +101,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
     if (!animate) {
       setDisplay(landing)
       setStyle({
-        color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
+        color: fumble ? 'var(--danger-ink, var(--danger))' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
         fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : mode.cycleFont ? randOf(FONTS) : (mode.font ?? "'Orbitron'"),
         fontWeight: 900,
         rotate: 0,
@@ -147,7 +147,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
         setStyle({
           // Crit/fumble always read semantically (gold/danger) on every skin; a normal landing uses the skin's
           // display mode — cycling colour/font on futuristic, the skin's stable/mono colour otherwise (D4d).
-          color: fumble ? 'var(--danger)' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
+          color: fumble ? 'var(--danger-ink, var(--danger))' : crit ? 'var(--gold)' : mode.cycleColor ? randOf(NEON) : (mode.color ?? 'var(--tealbright)'),
           fontFamily: fumble ? "'Oswald'" : crit ? "'Orbitron'" : mode.cycleFont ? randOf(FONTS) : (mode.font ?? "'Orbitron'"),
           fontWeight: 900,
           rotate: 0,

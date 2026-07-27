@@ -132,7 +132,7 @@ export default function StatRail() {
             {canWrite && (
               <button className="step" style={{ marginRight: 2 }} onClick={() => setExhaustion(Math.max(0, combat.exhaustion - 1))} title="Reduce exhaustion">−</button>
             )}
-            <span className="vv" style={{ color: combat.exhaustion > 0 ? 'var(--danger)' : 'var(--muted)' }}>{combat.exhaustion}</span>
+            <span className="vv" style={{ color: combat.exhaustion > 0 ? 'var(--danger-ink, var(--danger))' : 'var(--muted)' }}>{combat.exhaustion}</span>
             {canWrite && (
               <button className="step" style={{ marginLeft: 2 }} onClick={() => setExhaustion(Math.min(6, combat.exhaustion + 1))} title="Add exhaustion">+</button>
             )}

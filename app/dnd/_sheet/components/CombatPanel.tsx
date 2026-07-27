@@ -127,7 +127,7 @@ export default function CombatPanel() {
         <div className="card hp-card">
           <h3>Hit Points</h3>
           <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, color: dying ? 'var(--danger)' : 'var(--good)', lineHeight: 1 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, color: dying ? 'var(--danger-ink, var(--danger))' : 'var(--good)', lineHeight: 1 }}>
               {shownHp}
             </span>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--muted)' }}>
@@ -347,7 +347,7 @@ export default function CombatPanel() {
             )}
             {vulnerabilities.length > 0 && (
               <li>
-                <strong style={{ color: 'var(--danger)' }}>Vulnerable</strong> —{' '}
+                <strong style={{ color: 'var(--danger-ink, var(--danger))' }}>Vulnerable</strong> —{' '}
                 {vulnerabilities.map((r, i) => (
                   <span key={`${r.value}-${r.source}`} style={{ textTransform: 'capitalize' }}>
                     {i > 0 && ', '}

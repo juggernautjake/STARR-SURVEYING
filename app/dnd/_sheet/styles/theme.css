@@ -53,6 +53,27 @@
   --gold-rgb: 255, 204, 63;
   --danger-rgb: 255, 82, 82;
   --good-rgb: 74, 222, 128;
+  /* Derived legibility alternates (see app/dnd/_sheet/contrast.ts). themeToCssVars() computes an
+     `--<token>-ink` and `--<token>-on` for every accent from the CHARACTER's own grounds, because a
+     skin and a colour theme are independent axes — donata's structure can wear Noxus's palette, so no
+     hand-picked literal is correct for every combination. Two alternates, because the token is used in
+     both directions and they pull apart: every value legible as TEXT on the panels is too light to
+     carry a white LABEL when the same token is used as a FILL.
+       --danger      the identity colour: fills, borders, the codex HP bar. Needs only 3:1.
+       --danger-ink  the same hue walked away from the grounds until it clears 4.5 as text.
+       --danger-on   the label to paint ON a --danger fill.
+     These are the Lazzuh-default fallbacks, and they are what `themeToCssVars` derives for
+     `lazzuhTheme` — #ff5252 itself measures 3.68 against its own button tint, so the unthemed sheet
+     needs the alternate too. Consumers still write `var(--danger-ink, var(--danger))` so a token that
+     is never derived degrades to the identity colour rather than to nothing. */
+  --danger-ink: #ff7171;
+  --danger-on: #080512;
+  /* `.sec-num` (every section heading) and donata's heading pill consume these. Lazzuh's own hotpink
+     and gold already clear AA on its grounds, so the defaults equal the identity colours — the
+     derivation only moves a token that fails. */
+  --hotpink-ink: #ff2d8b;
+  --hotpink-on: #080512;
+  --gold-ink: #ffcc3f;
   --line: rgba(var(--violet-rgb), 0.28);
   --line-strong: rgba(var(--violet-rgb), 0.55);
   --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.85);
@@ -389,7 +410,7 @@
   border-radius: 8px;
   background: rgba(var(--violet-rgb), 0.06);
 }
-.dnd-sheet .tp-err { margin: 0; font-size: 12px; color: var(--danger); }
+.dnd-sheet .tp-err { margin: 0; font-size: 12px; color: var(--danger-ink, var(--danger)); }
 
 /* The Active Effects panel (Slice 12) — every source currently modifying the character, with the
    RESOLVED effect it is having. Token-driven throughout so it reads on every skin. */
@@ -462,7 +483,7 @@
 .dnd-sheet .ae-off-tag {
   margin-left: 6px;
   font-size: 10.5px;
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   text-decoration: none;
 }
 .dnd-sheet .ae-note {
@@ -647,8 +668,8 @@
 }
 .dnd-sheet .btn.danger {
   border-color: var(--danger);
-  background: rgba(255, 82, 82, 0.14);
-  color: var(--danger);
+  background: rgba(var(--danger-rgb), 0.14);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .btn.solid {
   background: var(--hotpink);
@@ -801,7 +822,7 @@
   color: var(--gold);
 }
 .dnd-sheet .stat.hp.critical .big {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 
 /* ------------------------------------------------------------------ SECTIONS */
@@ -820,7 +841,11 @@
 .dnd-sheet .sec-num {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--hotpink);
+  /* 13px / weight 400 — under the large-text exemption, so this needs 4.5:1. The derived alternate
+     (contrast.ts) is what makes that hold on every colour theme: Noxus measured 3.45 and Void Prophet
+     3.95 here as the raw accent. ~15 shared components render a `.sec-num`, so this one rule is every
+     section heading on the sheet. */
+  color: var(--hotpink-ink, var(--hotpink));
   letter-spacing: 0.2em;
 }
 .dnd-sheet h2 {
@@ -1497,8 +1522,8 @@
   color: var(--good);
 }
 .dnd-sheet .adv-seg button.on-dis {
-  background: rgba(255, 82, 82, 0.22);
-  color: var(--danger);
+  background: rgba(var(--danger-rgb), 0.22);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .adv-seg button.on-flat {
   background: rgba(var(--violet-rgb), 0.28);
@@ -1521,11 +1546,11 @@
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.1em;
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
   border: 1px solid var(--danger);
   border-radius: 6px;
   padding: 3px 8px;
-  background: rgba(255, 82, 82, 0.12);
+  background: rgba(var(--danger-rgb), 0.12);
 }
 .dnd-sheet .add-check {
   display: flex;
@@ -1982,7 +2007,7 @@
   filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.7));
 }
 .dnd-sheet .roll-entry.fumble .re-total {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .roll-entry.dmg .re-total {
   color: var(--gold);
@@ -2008,7 +2033,7 @@
   text-transform: uppercase;
 }
 .dnd-sheet .fumble-flag {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 
 /* toast for state toggles */
@@ -2289,7 +2314,7 @@
   color: var(--good);
 }
 .dnd-sheet .death-bad {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 
 /* clickable cards / press feedback / button shine */
@@ -2413,7 +2438,7 @@
   color: var(--gold);
 }
 .dnd-sheet .vpill.hp.crit .vv {
-  color: var(--danger);
+  color: var(--danger-ink, var(--danger));
 }
 .dnd-sheet .vpill.click,
 .dnd-sheet .apill {
@@ -2812,7 +2837,7 @@
 .dnd-sheet.skin-streamer .btn.solid { color: #fff; text-shadow: none; background: var(--hotpink); border-color: var(--hotpink); box-shadow: 3px 3px 0 rgba(var(--sk-accent), 0.4); }
 .dnd-sheet.skin-streamer .btn.solid:hover { filter: brightness(1.06); }
 .dnd-sheet.skin-streamer .card h3 .lvl { color: var(--sk-onaccent-ink); }
-.dnd-sheet.skin-streamer .adv-seg button.on-dis { color: var(--danger); }
+.dnd-sheet.skin-streamer .adv-seg button.on-dis { color: var(--danger-ink, var(--danger)); }
 
 /* De-cyan the faint accent tints in tables/callouts/focus; make them pink. */
 .dnd-sheet.skin-streamer th { background: rgba(var(--sk-accent), 0.08); }
@@ -2944,7 +2969,7 @@
 .dnd-sheet.skin-streamer .btn.teal { box-shadow: 3px 3px 0 rgba(169, 77, 208, 0.42); }
 
 /* ---- Section labels / card frames ---- */
-.dnd-sheet.skin-streamer .sec-num { font-family: var(--font-mono); font-size: 17px; letter-spacing: 0.14em; color: var(--hotpink); }
+.dnd-sheet.skin-streamer .sec-num { font-family: var(--font-mono); font-size: 17px; letter-spacing: 0.14em; color: var(--hotpink-ink, var(--hotpink)); }
 .dnd-sheet.skin-streamer .sec-num::before { content: '// '; color: var(--gold); }
 .dnd-sheet.skin-streamer .card {
   border-radius: 3px;
@@ -3322,7 +3347,10 @@
 }
 .dnd-sheet.skin-donata .sec-num {
   font-family: var(--font-mono);
-  color: #fff;
+  /* A white LABEL on a hotpink fill — correct for donata's own #c2185b, but this skin can wear any of
+     the five universal themes, and white on Freljord's pale #38a9e6 is ~2.6:1. `--hotpink-on` picks
+     white or the palette's dark per theme. */
+  color: var(--hotpink-on, #fff);
   background: linear-gradient(160deg, var(--hotpink), var(--violet));
   padding: 3px 10px;
   border-radius: 999px;
@@ -3375,7 +3403,12 @@
 .dnd-sheet.skin-donata .btn.pink { color: #fff; background: linear-gradient(160deg, #ff5fa8, var(--hotpink)); border-color: transparent; }
 .dnd-sheet.skin-donata .btn.teal { color: #fff; background: linear-gradient(160deg, var(--teal), var(--tealbright)); border-color: transparent; }
 .dnd-sheet.skin-donata .btn.gold { color: #4a2f04; background: linear-gradient(160deg, #f5c542, #e0951a); border-color: transparent; }
-.dnd-sheet.skin-donata .btn.danger { color: #fff; background: linear-gradient(160deg, #f0577a, var(--danger)); border-color: transparent; }
+/* Light stop darkened #f0577a → #ca4966 (option A, measured in donata-filled-button-contrast.test.ts):
+   white on #f0577a was 3.31, and this is the one gradient where the skin's own dark ink does not rescue
+   it either (2.9), so deepening the stop is the only remedy that keeps one label legible across the
+   whole gradient. The label itself is now `--danger-on` rather than a hardcoded #fff, because this skin
+   can wear any of the five universal themes and the dark stop is `var(--danger)`. */
+.dnd-sheet.skin-donata .btn.danger { color: var(--danger-on, #fff); background: linear-gradient(160deg, #ca4966, var(--danger)); border-color: transparent; }
 .dnd-sheet.skin-donata .btn.ghost { background: transparent; color: var(--violet-2); }
 .dnd-sheet.skin-donata .btn.solid:hover,
 .dnd-sheet.skin-donata .btn.pink:hover,
@@ -3481,7 +3514,7 @@
 .dnd-sheet.skin-donata .adv-seg { background: #f4e8f6; border-radius: 999px; }
 .dnd-sheet.skin-donata .adv-seg button { color: var(--violet-2); background: transparent; }
 .dnd-sheet.skin-donata .adv-seg button.on-adv { background: var(--good); color: #fff; }
-.dnd-sheet.skin-donata .adv-seg button.on-dis { background: var(--danger); color: #fff; }
+.dnd-sheet.skin-donata .adv-seg button.on-dis { background: var(--danger); color: var(--danger-on, #fff); }
 .dnd-sheet.skin-donata .adv-seg button.on-flat { background: #fff; color: var(--ink); }
 .dnd-sheet.skin-donata .tray-dice .btn { color: var(--violet-2); background: #fff; }
 /* These set white text but inherited `background: #fff` from the `.tray-dice .btn` rule above,
@@ -3565,7 +3598,7 @@
   letter-spacing: 0.005em;
 }
 .dnd-sheet.skin-rulebook .sec-head { border-bottom: 3px solid var(--line-strong); align-items: center; }
-.dnd-sheet.skin-rulebook .sec-num { color: var(--hotpink); }
+.dnd-sheet.skin-rulebook .sec-num { color: var(--hotpink-ink, var(--hotpink)); }
 .dnd-sheet.skin-rulebook .card h3 { color: var(--hotpink); font-family: var(--font-display); }
 /* Keyword links / rules terms stay green + bold, like the PDF's highlighted keywords. */
 .dnd-sheet.skin-rulebook em.term { color: var(--tealbright); font-weight: 600; }
@@ -3617,7 +3650,7 @@
   text-transform: uppercase;
 }
 .dnd-sheet.skin-hextech .sec-head { border-bottom: 1px solid var(--line); align-items: center; }
-.dnd-sheet.skin-hextech .sec-num { color: var(--gold); }
+.dnd-sheet.skin-hextech .sec-num { color: var(--gold-ink, var(--gold)); }
 /* Cards read as beveled Hextech panels — navy fill, gold hairline, faint teal inner glow. */
 .dnd-sheet.skin-hextech .card {
   background: linear-gradient(180deg, rgba(14, 30, 48, 0.92), rgba(8, 20, 36, 0.92));

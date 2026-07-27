@@ -194,7 +194,7 @@ export default function CharacterGallery() {
           </label>
           <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>PNG/JPG/WEBP/GIF · ≤8&nbsp;MB each · pick several at once</span>
           {upMsg && (
-            <span style={{ fontSize: 12, color: upMsg.ok ? 'var(--good)' : 'var(--danger)' }}>{upMsg.text}</span>
+            <span style={{ fontSize: 12, color: upMsg.ok ? 'var(--good)' : 'var(--danger-ink, var(--danger))' }}>{upMsg.text}</span>
           )}
         </div>
       )}
@@ -252,7 +252,7 @@ export default function CharacterGallery() {
                       onClick={() => del(it)}
                       disabled={busy != null}
                       title="Delete this image permanently"
-                      style={{ ...galBtn(false), borderLeft: '1px solid var(--line, #1e2d3d)', flex: '0 0 34px', color: 'var(--danger)' }}
+                      style={{ ...galBtn(false), borderLeft: '1px solid var(--line, #1e2d3d)', flex: '0 0 34px', color: 'var(--danger-ink, var(--danger))' }}
                     >{busy === `del:${it.id}` ? '…' : '🗑'}</button>
                   </div>
                 )}

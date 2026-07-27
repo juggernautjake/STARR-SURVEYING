@@ -167,7 +167,7 @@ export default function FeatPicker({ onClose }: { onClose: () => void }) {
                     <div style={{ fontSize: 12.5, marginTop: 2 }}>{feat.summary ?? feat.benefit}</div>
                     {/* Why it's barred — the question the sheet should answer rather than hide. */}
                     {!elig.ok && (
-                      <div style={{ fontSize: 11.5, color: blocked ? 'var(--danger)' : '#e0a020', marginTop: 3 }}>
+                      <div style={{ fontSize: 11.5, color: blocked ? 'var(--danger-ink, var(--danger))' : '#e0a020', marginTop: 3 }}>
                         {blocked ? '✕' : '⚠'} {elig.reason}
                       </div>
                     )}

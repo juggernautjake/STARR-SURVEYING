@@ -59,7 +59,7 @@ export default function ImageUpload({
         />
       </label>
       {value && <button type="button" className="btn tiny danger" onClick={() => onChange(undefined)}>Remove</button>}
-      {err && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{err}</span>}
+      {err && <span style={{ color: 'var(--danger-ink, var(--danger))', fontSize: 12 }}>{err}</span>}
     </div>
   )
 }

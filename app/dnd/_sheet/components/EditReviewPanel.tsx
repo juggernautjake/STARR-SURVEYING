@@ -195,7 +195,7 @@ export default function EditReviewPanel() {
             </div>
           )}
           <p className="ae-empty">Every individual change, newest first. Revert restores exactly what it replaced.</p>
-          {err && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{err}</p>}
+          {err && <p style={{ color: 'var(--danger-ink, var(--danger))', fontSize: 13 }}>{err}</p>}
           <div style={{ display: 'grid', gap: 6 }}>
             {visible.map((row) => (
               <EditHistoryRow key={row.id} row={row} busy={busy === row.id} onRevert={() => revert(row.id)} />

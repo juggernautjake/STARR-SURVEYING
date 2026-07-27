@@ -157,7 +157,7 @@ export default function SpellEditor({ spell, onClose }: { spell: Spell; onClose:
           <input className="ed-input" value={draft.effectDuration ?? ''} onChange={(e) => set('effectDuration', e.target.value)} />
         </Field>
       )}
-      {err && <p className="ed-note" style={{ color: 'var(--danger)' }}>{err}</p>}
+      {err && <p className="ed-note" style={{ color: 'var(--danger-ink, var(--danger))' }}>{err}</p>}
     </EditDialog>
   )
 }

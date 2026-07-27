@@ -83,7 +83,7 @@ export default function SheetArtUploader({ variant }: { variant?: 'pink' | 'blue
           onChange={(e) => { const f = e.target.files?.[0]; if (f) upload('token', f); if (tokenRef.current) tokenRef.current.value = '' }}
         />
       </label>
-      {msg && <span style={{ fontSize: 13, color: msg.ok ? 'var(--good)' : 'var(--danger)' }}>{msg.text}</span>}
+      {msg && <span style={{ fontSize: 13, color: msg.ok ? 'var(--good)' : 'var(--danger-ink, var(--danger))' }}>{msg.text}</span>}
       <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>
         {variant ? `Uploading for the ${variant} style · ` : ''}PNG/JPG/WEBP/GIF · ≤8&nbsp;MB
       </span>
