@@ -133,6 +133,33 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 40 — the access sweep, and the boundary made checkable
+
+The right follow-up to a leak is not "fix it and move on" but "how many siblings have it?" — so every
+character-scoped GET was swept.
+
+**Result: no further leaks.** Slice 39's was the only one. `uploads`, `levels` and `homebrew-subclass` all
+already gate their GET on write access, which is the useful finding: **the boundary was never in dispute,
+it just lived in four separate readers' heads and one of them slipped.**
+
+All **14** character-scoped GET routes are now enumerated *from the filesystem* and classified, and a NEW
+one fails the suite until it is added:
+
+| class | routes | why |
+|---|---|---|
+| **WRITE** | `edits`, `uploads`, `levels`, `homebrew-subclass` | Anything about the character's **construction or history** — who changed what, the source files behind the build, the level-up workspace, an unpublished draft. These describe the *player's process*, not the character, and a public sheet does not make its process public. |
+| **READ** | `route.ts`, `export`, `ig-levels`, `pf2-levels` | Content the sheet already shows. |
+| **SESSION** | `campaigns`, the five `stream/*` | The answer depends on **who is asking**. |
+
+**The one judgement recorded rather than glossed:** `ig-levels`/`pf2-levels` stay read-gated while 5e's
+`levels` is write-gated — an asymmetry that looks like a bug and isn't. Both are asserted to derive from
+`row.data` and to touch neither `dnd_sheet_edits` nor `dnd_character_uploads`, so they expose nothing a
+reader cannot already fetch. That assertion is the thing keeping the classification honest: if either ever
+reaches for a privileged table, the test fails rather than the reasoning quietly going stale.
+
+Fail-visible by design, the same choice `lib/dnd/audit/bespoke-ops.ts` makes — one line to classify a route,
+against what forgetting cost last time. 18 tests, no production change.
+
 ### Slice 39 — a public character's edit history was readable by anyone
 
 Found by auditing the slice before it: `SheetEditHistory` gates on `canWrite` **client-side**, so the
