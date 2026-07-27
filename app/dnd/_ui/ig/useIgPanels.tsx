@@ -540,7 +540,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                       {c}
                       {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                       {canDoEdit && (
-                        <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                        <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
                       )}
                     </span>
                   );
@@ -692,8 +692,8 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                       {canDoEdit && (
                         <>
                           {/* Edit / remove this weapon (S8b) — same ops the AI + other systems use. */}
-                          <button type="button" aria-label={`Edit ${a.name}`} disabled={editing} onClick={() => setIgEditor({ kind: 'weapon', initial: { name: a.name, damage: a.damage, ability: a.ability, properties: a.properties, weaponType: a.weaponType, bonusToHit: a.bonusToHit, bonusDamage: a.bonusDamage, proficient: a.proficient } })} title={`Edit ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 12, padding: '0 0 0 6px' }}>✎</button>
-                          <button type="button" aria-label={`Remove ${a.name}`} disabled={editing} onClick={() => postEdit({ op: 'remove_attack', name: a.name })} title={`Remove ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 0 0 3px' }}>×</button>
+                          <button type="button" aria-label={`Edit ${a.name}`} disabled={editing} onClick={() => setIgEditor({ kind: 'weapon', initial: { name: a.name, damage: a.damage, ability: a.ability, properties: a.properties, weaponType: a.weaponType, bonusToHit: a.bonusToHit, bonusDamage: a.bonusDamage, proficient: a.proficient } })} title={`Edit ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 12, padding: '0 0 0 6px', minWidth: 24, minHeight: 24 }}>✎</button>
+                          <button type="button" aria-label={`Remove ${a.name}`} disabled={editing} onClick={() => postEdit({ op: 'remove_attack', name: a.name })} title={`Remove ${a.name}`} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: '0 0 0 3px', minWidth: 24, minHeight: 24 }}>×</button>
                         </>
                       )}
                     </td>
@@ -800,7 +800,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
                   {c}
                   {e?.tooltip && <InfoTip tip={e.tooltip} label={`${c} rules`} />}
                   {canDoEdit && (
-                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                    <button type="button" aria-label={`Remove ${c}`} disabled={editing} onClick={() => postEdit({ op: 'remove_condition', name: c })} style={{ background: 'none', border: 'none', color: 'var(--hx-danger-2)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
                   )}
                 </span>
               );
@@ -868,7 +868,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
               >✎</button>
             )}
             {canDoEdit && (
-              <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+              <button type="button" aria-label={`Remove ${p}`} disabled={editing} onClick={() => postEdit({ op: 'remove_power', name: p })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
             )}
           </span>
           {/* A player's override WINS over the catalogue text — that is the point of
@@ -907,7 +907,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
             <span key={f} className="igs-int" title={tip} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', background: 'var(--hx-inset-soft)', border: '1px solid var(--hx-line)', borderRadius: 12, padding: '3px 11px', cursor: def ? 'help' : 'default' }}>
               {f} {badgeFor(f)}
               {canDoEdit && (
-                <button type="button" aria-label={`Remove ${f}`} disabled={editing} onClick={() => postEdit({ op: 'remove_feat', name: f })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
+                <button type="button" aria-label={`Remove ${f}`} disabled={editing} onClick={() => postEdit({ op: 'remove_feat', name: f })} style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, minWidth: 24, minHeight: 24 }}>×</button>
               )}
             </span>
           );
@@ -1192,7 +1192,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
       <span style={{ flex: 1 }}>{refusal}</span>
       <button
         type="button" onClick={() => setRefusal(null)} aria-label="Dismiss"
-        style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0 }}
+        style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, minWidth: 24, minHeight: 24 }}
       >×</button>
     </div>
   ) : null;

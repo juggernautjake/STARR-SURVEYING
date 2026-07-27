@@ -3254,3 +3254,40 @@ measurement is recorded here so that decision can be made with the number in han
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser against the
 shipped code. No live data written. Dev server stopped, port 3499 confirmed bindable.
+
+### 2026-07-27 — slice 87: the rest of the touch targets, including a 9px delete
+
+Slice 86 swept one sheet and stopped at the first interesting result. This finishes the other two, applying
+the full WCAG 2.5.8 test — **size, then the spacing exception** — so that only genuine failures are counted.
+
+| sheet | targets | under 24×24 | fail size **and** spacing |
+|---|---|---|---|
+| Perrin — 5e | 88 | 16 | 0 (all pass on spacing) |
+| Orin — PF2 | 55 | 11 | **4** |
+| Vashti — IG | 121 | 13 | **2** |
+
+**PF2: the Dying and Wounded steppers**, `▲`/`▼` at **19×18px stacked 21px apart** — failing both tests.
+These are the controls a player taps while they are dying, which is the worst possible moment to mis-tap.
+
+**IG: an `✎` edit at 18×19 and a `×` remove at 12×13, sitting 15px apart** on the same weapon row — and
+worse ones behind them: `Remove Toughness` and `Remove Weapon Focus` at **9×13px**. A **destructive**
+control, nine pixels wide, adjacent to a non-destructive one. The `aria-label`s were already good
+("Remove Cutlass"), so this was purely a size problem, not a labelling one.
+
+**Fix:** `minWidth: 24, minHeight: 24` on the affected icon buttons — 6 in `usePf2Panels.tsx`, 7 in
+`useIgPanels.tsx`. Verified after: every one measures **24×24**, both sheets report **0 remaining
+violations**, and page overflow stays **0** with no horizontal scroll, so the larger targets did not
+disturb the layouts that slices 83–85 had just finished checking.
+
+**Two things deliberately not done.** The 5e sheet's 16 undersized targets were left alone — every one
+passes on spacing (33–35px clear), and enlarging them would be a density change with no accessibility
+argument behind it. And the `Tip` badge from slice 86 stays 15×15 for the same reason.
+
+**One honesty note on scope:** two of the 13 IG buttons carry the fix by *deduction* rather than
+measurement — the valued-condition steppers only render when a character actually has a valued condition,
+and no live character does. They share the exact style of a measured violation but with **smaller** padding
+(`0 1px` against `0 4px`), so they cannot be larger than the ones proved failing. That is inference from a
+measured bound, not the extrapolation slice 85 rejected, but it is inference and is marked as such.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fixes verified in the browser against the
+shipped code. No live data written. Dev server stopped, port 3503 confirmed bindable.

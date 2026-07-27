@@ -555,8 +555,8 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                 </span>
                 {canDoEdit && (
                   <span style={{ display: 'inline-flex', gap: 2 }}>
-                    <button type="button" aria-label="Increase dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.min(4, pf2.combat.dyingValue + 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▲</button>
-                    <button type="button" aria-label="Decrease dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.max(0, pf2.combat.dyingValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▼</button>
+                    <button type="button" aria-label="Increase dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.min(4, pf2.combat.dyingValue + 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10, minWidth: 24, minHeight: 24 }}>▲</button>
+                    <button type="button" aria-label="Decrease dying" disabled={saving} onClick={() => void postEdit({ op: 'set_dying', value: Math.max(0, pf2.combat.dyingValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10, minWidth: 24, minHeight: 24 }}>▼</button>
                   </span>
                 )}
               </div>
@@ -565,8 +565,8 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                 <strong style={{ fontSize: 15, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: pf2.combat.woundedValue > 0 ? 'var(--hx-gold-2)' : 'var(--hx-text)' }}>{pf2.combat.woundedValue}</strong>
                 {canDoEdit && (
                   <span style={{ display: 'inline-flex', gap: 2 }}>
-                    <button type="button" aria-label="Increase wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: pf2.combat.woundedValue + 1 })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▲</button>
-                    <button type="button" aria-label="Decrease wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: Math.max(0, pf2.combat.woundedValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>▼</button>
+                    <button type="button" aria-label="Increase wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: pf2.combat.woundedValue + 1 })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10, minWidth: 24, minHeight: 24 }}>▲</button>
+                    <button type="button" aria-label="Decrease wounded" disabled={saving} onClick={() => void postEdit({ op: 'set_wounded', value: Math.max(0, pf2.combat.woundedValue - 1) })} style={{ background: 'none', border: '1px solid var(--hx-line)', color: 'var(--hx-muted)', cursor: 'pointer', borderRadius: 4, padding: '0 4px', fontSize: 10, minWidth: 24, minHeight: 24 }}>▼</button>
                   </span>
                 )}
               </div>
@@ -647,8 +647,8 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                   {/* Valued conditions (Frightened 2, Clumsy 1…) get a ▲▼ to bump the value; ▼ to 0 removes. */}
                   {canDoEdit && mech?.valued && (
                     <>
-                      <button type="button" aria-label={`Increase ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) + 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1 }}>▲</button>
-                      <button type="button" aria-label={`Decrease ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) - 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1 }}>▼</button>
+                      <button type="button" aria-label={`Increase ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) + 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1, minWidth: 24, minHeight: 24 }}>▲</button>
+                      <button type="button" aria-label={`Decrease ${c.name}`} disabled={saving} onClick={() => void postEdit({ op: 'set_condition', name: c.name, value: (c.value || 1) - 1 })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 1px', fontSize: 11, lineHeight: 1, minWidth: 24, minHeight: 24 }}>▼</button>
                     </>
                   )}
                   {canDoEdit && (
