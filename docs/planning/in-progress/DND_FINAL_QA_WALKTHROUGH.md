@@ -172,6 +172,37 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 54 — a console sweep, and an honest limit on what a read-only audit can reach
+
+Every Playwright navigation in slice 53 reported *"New console entries"* and **nobody had read them**. A
+browser console is where hydration mismatches, failed fetches and React warnings surface, and none of this
+session's twenty-odd slices had looked. So: six pages, all four systems, both builder surfaces.
+
+| page | console |
+|---|---|
+| PF2 sheet (Orin, streamer skin) | **0 errors, 0 warnings** |
+| IG sheet (Vashti) | **0 / 0** |
+| 5e sheet (Donata Dime) | **0 / 0** |
+| PF2 Foundations builder | **0 / 0** |
+| PF2 level walker | **0 / 0** |
+| IG level walker | **0 / 0** |
+
+**One live confirmation of S6g fell out of it.** IG's outstanding choice is a **New Trait**, and the picker
+correctly shows **no** *"needs an exception"* group — `igOtherSubclassOptions` is scoped to `subclass-power`
+and `specialization`, and that scoping is now verified in the rendered DOM rather than only in a unit test.
+The absence is the assertion: a widening that leaked onto every kind would have shown here.
+
+**And the limit, stated rather than glossed: the widened groups themselves could not be reached.** The
+exception group only renders on a feat/power choice, and no live character offers one as its *first*
+outstanding choice — PF2's Orin owes a subclass, IG's Vashti owes a trait, and Donata's `/levels` redirects
+to the sheet (nothing outstanding). Getting to one means **recording a choice on a live character**, which
+the standing no-mutation rule forbids during an audit.
+
+So S6g's optgroup remains covered by tests and by its correct absence, not by a positive render. That is a
+real gap, and the way to close it is the same one slice 45 used for the edit-history panel: **split the
+picker's markup so its states are reachable without a fetch or a save.** Recorded as the next step rather
+than left as a silent hole.
+
 ### Slice 53 — one computed-style read ends a two-slice argument
 
 Slices 51 and 52 argued about whether deepening streamer's `--gold` would hurt the PF2 dice pad. **One
