@@ -2767,3 +2767,52 @@ by asking *what would have to be true for this statement to be right, and is it?
 
 **Bar:** 25/25 in `sheet-contrast` (and 1 deliberate failure during the mutation check, reverted), 45/45
 across both touched files, full D&D suite green, typecheck exit-0, lint clean.
+
+### 2026-07-27 — slice 76: driving the claim I made from reading
+
+Slice 74 said, plainly, *"create homebrew, save it, use it on that character: works."* That was reached by
+**reading code**, and this doc's own standing rule is that reading is not enough. So it got driven.
+
+**It is true on 2024 and not true anywhere else, and the failure is silent.**
+
+First, what the browser confirmed. The feat designer at `/dnd/characters/[id]/build/feat` renders and
+works: two paths (AI draft / write it myself), a full manual form — name, category, prerequisite, ability
+increase, rules text, repeatable — and the engine reviewing **live** as you type, distinguishing blocking
+errors from advice (`⛔ name: A feat needs a name`, `⛔ body: A feat needs rules text`, `⚠ prerequisite:
+General feats normally require level 4+`), plus `⚒ Save to my character` and the honest disclosure that
+saved feats are *flagged custom for DM review*. That half is genuinely good.
+
+Then the path underneath it:
+
+| step | behaviour |
+|---|---|
+| the designer page | renders for **any** character; deliberately does not show or edit `system` — *"the save route derives the real one from the character … this page cannot know it and must not invent it"* |
+| the save route | accepts it, scoping to `normalizeSystem(character.system)` — a 2014 character saves a 2014 feat, successfully |
+| `levels/route.ts` | adapts every saved feat and passes them to the walker |
+| `asiFeatChoices` | **opens with `if (system !== 'dnd5e-2024') return [];`** |
+
+So on a non-2024 character a player can open the designer, write a feat, watch it validate, save it, be
+told it is flagged for DM review — **and no picker will ever offer it.** Nothing in that flow says so. The
+work simply disappears. Each step is defensible alone, which is why reading them one at a time did not
+catch it; the gap only exists between step 2 and step 4.
+
+**A related detail, contained but worth knowing:** `customFeatToFeat` hardcodes `system: 'dnd5e-2024'`,
+so the object handed to the picker claims a system its owner is not. The persisted `CustomFeat` keeps the
+real one, so this is in-memory only — but it is why the mismatch is invisible from the data side.
+
+**Also established:** no character in the live database has ever saved a homebrew feat. All five return
+`"homebrewFeats":[]`. So this path has never run in anger, which is consistent with the gap surviving.
+
+**Not fixed, and the reason is real rather than a hedge.** The fix means deciding what 2014 does with feats
+at an ASI slot, and 2014 feats are an **optional** rule in that edition — making them appear is a rules
+decision about someone's game. Same line this arc has held since slice 71. A fix touching only the picker
+would also be half a fix: the designer and save route are open to every system, so the other half is
+whether to warn at design time or to gate the designer.
+
+**Nine tests** pin the adapter's faithful fields, the category rules, the stamped system, and both sides of
+the gap — the picker's gate *and* that the designer and route do not restrict — so a one-sided fix fails
+here rather than looking complete.
+
+**Bar:** 9/9 new, full D&D suite green, typecheck exit-0, lint clean. No live data written: the create half
+was driven read-only and the read-back half closed as tests rather than by seeding a character.
+Dev server stopped, port 3471 released.
