@@ -4283,3 +4283,31 @@ guard would have provided, obtained once and recorded.
 **Bar:** static verification of 126 handlers, three independent formulations, discrepancies resolved by
 reading the source. Full D&D suite green, typecheck exit-0. No server needed; no live data written. No code
 changed.
+
+### 2026-07-27 — slice 114: one page listing everything that is actually waiting on you
+
+Every axis that can be measured without mutating live data or making a product decision has now been swept
+(see §4 of the new file for the list). What remains across all three in-progress docs is **decisions and
+data**, and finding that out required reading three documents and ~4,500 lines. That is a real barrier to
+the one thing that would actually unblock this work.
+
+**`docs/planning/DND_OWNER_DECISIONS_2026-07-27.md`** now holds it in one page:
+
+- **`6a014d6b` first and alone**, because it is the only item with a live consequence — a public
+  character's full edit history, editor names included, readable by anyone who could open the character.
+  72 audit rows, 5 public characters, fixed, unmerged behind ~250 commits.
+- **Nine decisions**, each with **cost and severity side by side** — the flash (both options costed), the
+  two palette regressions, the two heading gaps, the prepared cap, homebrew feats on non-2024 characters,
+  Rangor/Pugilist, and the dice-roller question. Cost was the thing I kept getting wrong in isolation
+  (slices 98, 100, 103), so every row carries the corrected figure and points at the evidence.
+- **Three data blocks**, with the note that each is pinned by a test that flips when the data arrives.
+- **What is already swept**, so none of it gets re-run.
+
+**Filed at `docs/planning/` root, deliberately not `in-progress/`.** It is an index, not a piece of work,
+and putting it in the folder would both misdescribe it and add a fourth doc to a hook that counts them.
+
+**One row is worth more than the rest combined:** answering **Rangor/Pugilist** — a single sentence —
+closes `DND_RULES_PLATFORM` completely. It has been that doc's only open item since slice 73.
+
+**Bar:** index only; every figure in it is carried from a slice that measured it, and nothing is new. Full
+D&D suite green, typecheck exit-0. No code changed.
