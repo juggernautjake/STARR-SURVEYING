@@ -1,6 +1,6 @@
 # D&D — Final full-system QA walkthrough (Playwright, browser, manual)
 
-**STATUS: IN PROGRESS — 33 slices run (2026-07-25 → 26).** This is the LAST D&D item, extracted from
+**STATUS: IN PROGRESS — 73 slices run (2026-07-25 → 27).** This is the LAST D&D item, extracted from
 `DND_RULES_PLATFORM_2026-07-16.md` (originally "Slice 40").
 
 > ## Where this actually stands — read this before the sections below
@@ -22,17 +22,38 @@
 >   vanilla pick. The 5e build route had no gate at all until slice 22.
 > - **Dead controls** (23): swept every `app/dnd` `.tsx`; nothing handler-less outside a style demo, and
 >   nothing collected-then-dropped in any of the three builders' UI → POST → parse → assemble chains.
-> - **Contrast** (18–21, 24–28, 30–33): five real defects fixed, three of my own measurement bugs found and
->   corrected, and a verified baseline of **31 remaining items, all colour decisions**, in
->   `qa-evidence/contrast-sweep.md` with a recommended order.
+> - **Contrast** (18–21, 24–28, 30–34, 47, 53, 58–72): **finished, and the "31 remaining" line this header
+>   used to carry is 40 slices out of date.** Both bespoke sheets now measure **zero** failures across 354
+>   rendered text nodes (PF2 0/115, IG 0/239). The `--hx-*` set is *derived*, so the four clamp corrections
+>   (47/59/60/67) fixed every skin at once and are guarded by `clamped-token-surface.test.ts`. Full detail
+>   and every retraction in `qa-evidence/contrast-sweep.md`.
 > - **The campaign panel, the three homebrew designers, and the per-system settings modal** — each driven in
 >   a browser after shipping (S14, slice 30, and the S-6 note in `SETTINGS_PER_SYSTEM_RULES_VARIANTS`).
 >
 > ### Genuinely open, and why
-> - **The 31 contrast items** — brand fills, section numbers, the gold family. Each is a trade between a
->   skin's identity and legibility. Measured; needs an owner's eye, not a rule. (Was 39. Slice 34 closed
->   IG's two, which were the last entries on that list that were BUGS rather than colour choices — so the
->   remainder is now uniformly a matter of taste, and genuinely yours to call.)
+>
+> *(This section rewritten 2026-07-27, slice 73. It described the state at slice 33 and had drifted far
+> enough to misdirect: it announced 31 open contrast items when the derived-token work had closed all of
+> them, and it framed what remains as "a matter of taste" when slice 72 showed at least one of them is a
+> regression from a value that used to pass. This header's own advice — trust the newest slice, not the
+> first — applied to the header.)*
+>
+> - **Two palette decisions, both measured, neither one taste.** They live in `theme.css`'s hand-picked
+>   colours, which — unlike `--hx-*` — cannot be fixed by a clamp:
+>   1. **The accent as section-heading text** (slice 71). `.dnd-sheet .sec-num { color: var(--hotpink) }` is
+>      the base rule for every section head, ~15 shared components. Noxus measures **3.45 / 3.19** and Void
+>      Prophet **3.95 / 3.66** where labels actually sit. Each theme already carries a lighter sibling that
+>      reads, so the fix is a token swap and invents no colour.
+>   2. **`--danger`** (slice 72), and this is the stronger one. The base default `#ff5252` cleared AA
+>      everywhere (5.69 / 5.28 / 4.70); `HEXTECH_GROUNDS` overrides it to `#c8413f`, which fails everywhere
+>      (**3.71 / 3.44 / 3.06**) — across **all five themes at once**, since it is set in the shared grounds,
+>      over twelve text sites including `.tp-err` at 12px, which is error text. A red meaning *error* is
+>      semantically fixed and no brand identity rides on the shade, so this reads as a regression rather
+>      than a decision — it is only unshipped because it is still a palette value in a hand-picked file.
+>
+>   Both are pinned in `__tests__/dnd/colour-theme-accent-text.test.ts` with `it.fails` and their measured
+>   ratios: the suite stays green, and fixing either reports *"expected to fail but passed"* and names the
+>   pin to delete.
 > - **ASI-slot ownership is no longer open** — `SLOT_DRIVEN_CHARACTER_BUILDING` S1/S2 dissolved it: both
 >   surfaces now write the same ledger, and the authored ladder drives the prompts for all 13 classes.
 > - **Everything else** lives in `SLOT_DRIVEN_CHARACTER_BUILDING` (the escape hatch, spell slots, the
@@ -2622,3 +2643,43 @@ unaffected:** Noxus 3.45 / 3.19 and Void Prophet 3.95 / 3.66 on the stops labels
 
 **Bar:** 22 passed / 8 expected-fail in the file, full D&D suite green, typecheck exit-0, lint clean.
 Probe files deleted in the same slice; no dev server needed (this one was computable from source).
+
+### 2026-07-27 — slice 73: the docs' own summaries had drifted, in all three
+
+Slice 72 corrected two claims in slice 71 where the prose asserted more than the test under it. This slice
+asks the obvious follow-up — *is that only true of the slices, or of the documents?* — and checks the
+headers, since the header is the part an owner actually reads before deciding anything.
+
+**All three had drifted, each differently, and one contradicted itself on its own summary line.**
+
+**`SLOT_DRIVEN_CHARACTER_BUILDING`** — worst of the three. Its "what's blocked" table restated S7c's
+blocking reason **verbatim from the paragraph directly above that reports the reason as disproven**. Four
+commits had shipped against S7c by then: the count source, the cantrip cap, and both budget displays. An
+owner reading the table would have concluded S7c was waiting on published tables. It is waiting on *them* —
+whether to enforce the prepared cap, which cuts against S15's recorded boundary. The banner above the table
+was wrong in the same direction: *"everything still open is blocked on an INPUT, not on effort"* flattens a
+decision into a data block. Corrected, and the table now carries a **kind** column, because *"waiting on
+the world"* and *"waiting on a sentence"* are not the same status and only one of them you can act on.
+The honest count is **one blocked item, one data remnant, and two decisions** — not three blocked items.
+
+**`DND_RULES_PLATFORM`** — the header cited its single open item at **two different line numbers** (`~929`
+and `~745`) in two paragraphs that said the same thing. It is at **945**. The duplicate paragraph is why it
+rotted: the same fact maintained in two places, so one went stale. Pointer corrected, duplicate removed.
+A swept check found no other line-number references in any of the three docs, so this was the only one.
+
+**This doc** — the largest drift, and the most pointed, because its own header warns *"trust the newest
+slice on any topic, not the first"* while being the stale text. It said **33 slices** and announced **"31
+remaining contrast items, all colour decisions"**. Forty slices had happened since: both bespoke sheets
+measure **zero** across 354 rendered nodes, and the derived `--hx-*` set is corrected and guarded. Worse
+than the count being stale, *"uniformly a matter of taste"* is now false — slice 72 showed `--danger` is a
+**regression from a value that used to pass**, which is not taste. Rewritten with both open items stated at
+their measured ratios.
+
+**Why this is worth a slice.** This doc's own log names three separate occasions where stale planning text
+cost real time — slice 21's "the roller is dark on every skin", the equip-validation partials fixed a day
+before the doc admitted it, and "`attacksFromInventory` is UNCALLED". Every one was a summary that had
+stopped tracking its body. The failure keeps recurring because a summary is written once and the body grows
+under it; nothing fails when they diverge. Three headers now match their bodies, and the one duplicated
+paragraph that caused a drift is gone rather than re-synced.
+
+**No code changed.** Bar: full D&D suite green (5,899 + 8 expected-fail), typecheck exit-0, lint clean.

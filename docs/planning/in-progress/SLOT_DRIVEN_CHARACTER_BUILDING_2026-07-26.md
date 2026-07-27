@@ -32,14 +32,24 @@ handed a Magus a full caster's spell slots while `pf2MaxSpellRank` reported a ce
 character). Its count source and cantrip cap have since shipped; see S7c below. The lesson is the sibling
 doc's, applied late: *a blocking claim deserves the same code check a partial does.*
 
-**Everything still open is blocked on an INPUT, not on effort** — which is why the remaining items
-have sat unchanged while eight slices shipped around them:
+**Everything still open needs something from OUTSIDE the code** — but not all of it is the same kind of
+outside, and this table said otherwise until 2026-07-27. Two rows are missing *data*; one is missing a
+*decision*, and a decision can be made today.
 
-| item | blocked on |
-|---|---|
-| **S7c** — PF2 spell counts | The published per-class/per-tradition tables. `pf2SpellSlots` is one derived full-caster table keyed on level alone, so there is no count to enforce yet. Ground Rule 3 — the same bar that deferred Automatic Bonus Progression. |
-| **S9** — per-system dice rollers | Owner answer to **Q4**. The BUG half is closed (S-6 scoped both settings out of PF2/IG, so nothing claims to do something it cannot); what is left is a feature question. |
-| **S10** — IG Champion | Owner supplying Champion's powers/specializations. The catalog is scraped from intuitivegames.net and Champion is not in it; inventing the list is the one thing we must not do. |
+**⚑ CORRECTED 2026-07-27 (slice 73).** This table restated S7c's blocking reason verbatim — the reason the
+paragraph directly above it already reported as **disproven**. The doc contradicted itself on its own
+summary line, which is the version an owner actually reads. Four commits had shipped against S7c by then.
+Same defect slice 72 fixed in the contrast write-ups: prose kept asserting what the evidence had moved past.
+
+| item | needs | kind |
+|---|---|---|
+| **S7c** — PF2 spell counts | **A decision, not data.** The count source (`pf2SpellCountsFor`), the cantrip cap, and both budget displays have shipped. What is left is whether to *enforce* the prepared cap — which cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare. Everything needed to implement it is in place. Separately, the Magus/Summoner **reduced** tables remain blocked on the published source (Ground Rule 3) — that half is data. | **owner call** (+ a data remnant) |
+| **S9** — per-system dice rollers | Owner answer to **Q4**. The BUG half is closed (S-6 scoped both settings out of PF2/IG, so nothing claims to do something it cannot); what is left is a feature question. | owner call |
+| **S10** — IG Champion | Owner supplying Champion's powers/specializations. The catalog is scraped from intuitivegames.net and Champion is not in it; inventing the list is the one thing we must not do. | **data** |
+
+So the honest count is **one blocked item (S10), one data remnant inside S7c, and two decisions** — not
+three blocked items. The difference matters: a blocked item is waiting on the world, a decision is waiting
+on a sentence.
 
 Plus **seven questions for the owner** at the foot of this doc. Every one shipped on a recorded assumption
 rather than blocking, so none of them is holding code — but Q6 (how many feats an IG character starts with

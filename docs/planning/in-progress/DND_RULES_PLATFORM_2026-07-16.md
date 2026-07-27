@@ -15,16 +15,18 @@
 > has no resources field, so it is blocked on the foreign-statblock authoring UI rather than on effort. One
 > was **handed to `DND_FINAL_QA_WALKTHROUGH`**, where interactive drag/rotate confirmation belongs.
 >
-> **What keeps this doc open is line ~929 and nothing else:** whether Rangor/Pugilist become a real custom
+> **What keeps this doc open is line 945 and nothing else:** whether Rangor/Pugilist become a real custom
 > class + subclass through the Slice-5 builder. Nobody but Jack can answer it. Answer it and this doc moves
 > to `completed/`.
+>
+> *(Pointer corrected 2026-07-27, slice 73: this header cited the item at **two different** line numbers,
+> `~929` and `~745`, in two paragraphs that said the same thing. It is at 945. A stale pointer in the one
+> paragraph an owner reads to find the one open item is a small defect with an outsized cost, and the
+> duplicate paragraph is why it drifted — the fact was maintained in two places, so one rotted.)*
 >
 > The map-studio slice (35a/35c/39) was worked to completion earlier: the player-console drawer, the
 > exhaustive per-field renderer audit (which found and fixed the atmosphere-thickness mapping gap), and the
 > spiral backdrop. See those slices' logs.
->
-> **The single remaining `[ ]` is an owner decision, not work:** whether Rangor/Pugilist become a real custom
-> class through the Slice-5 builder (line ~745). Nobody but Jack can answer it.
 >
 > ### ⚠ 2026-07-26 — THE PARTIAL COUNT IS NOT TRUSTWORTHY. Verify before working one.
 >
