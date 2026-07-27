@@ -16,7 +16,7 @@ import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2WalkerFeatOptions } from '@/lib/dnd/slots/walker-options';
 
-interface Outstanding {
+export interface Outstanding {
   level: number;
   kind: 'subclass' | 'feat' | 'boosts';
   track?: 'ancestry' | 'class' | 'skill' | 'general' | 'archetype';
@@ -278,7 +278,7 @@ function SubclassInput({ className, busy, onPick }: { className: string; busy: b
   );
 }
 
-function FeatInput({ choice, className, busy, onPick }: { choice: Outstanding; className: string; busy: boolean; onPick: (v: string) => void }) {
+export function FeatInput({ choice, className, busy, onPick }: { choice: Outstanding; className: string; busy: boolean; onPick: (v: string) => void }) {
   // Feats of this slot's track. Two filters used to live here and they are NOT the same kind of thing —
   // S6f made that distinction visible on the 5e walker and it applies identically here.
   //

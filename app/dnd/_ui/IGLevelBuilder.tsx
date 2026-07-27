@@ -192,7 +192,7 @@ function placeholderFor(kind: Kind): string {
   return '— choose —';
 }
 
-function PickOne({ options, others = [], othersLabel, placeholder, busy, onPick, kindLabel }: { options: string[]; others?: string[]; othersLabel?: string; placeholder: string; busy: boolean; onPick: (v: string) => void; kindLabel?: string }) {
+export function PickOne({ options, others = [], othersLabel, placeholder, busy, onPick, kindLabel }: { options: string[]; others?: string[]; othersLabel?: string; placeholder: string; busy: boolean; onPick: (v: string) => void; kindLabel?: string }) {
   const opts = useMemo(() => [...new Set(options)].sort(), [options]);
   const [value, setValue] = useState('');
   // A choice with NOTHING to choose from. It happens when a subclass in the taxonomy has no entry in
