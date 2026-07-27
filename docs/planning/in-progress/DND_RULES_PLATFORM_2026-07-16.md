@@ -37,8 +37,12 @@
 > the thing**. The fix is the one the slice-73 note already prescribed — verify against live code, never
 > against this header — and it applies to corrections of the header as much as to the header.
 >
-> **What would actually move this doc:** finish Slice 5's manual class/subclass edit form, and resolve
-> Slice 8b's content half and Slice 18 — each checked against live code. The Pugilist's own residue is
+> **What would actually move this doc:** finish Slice 5's manual class/subclass edit form, and Slice 8b's
+> per-system content half. *(Slice 18 was on this list until 2026-07-27, when opening it showed every item
+> already `[x]` with the last one closed as deferred-with-reason — its `⏳ PARTIAL` heading was simply
+> stale. I had called it outstanding three times today on the strength of that heading without opening it:
+> the same "count the token, don't check the thing" error this header keeps making.)* The Pugilist's own
+> residue is
 > *not* on that list: it is blocked on the shared PDF (Ground Rule 3) and pinned by
 > `homebrew-library.test.ts`, which belongs with the other data blocks in `DND_OWNER_DECISIONS` §3.
 >
@@ -2202,7 +2206,23 @@ consumable-buff editors — the whole authoring surface.
       `EFFECT_OPERATIONS` asserting `describeEffect` has an explicit case for each — so a new operation can't
       ship a meaningless tooltip. All 10 covered. `effect-builder.test.ts` +10.
 
-## Slice 18 — Transform: become a different character entirely ⏳ PARTIAL 2026-07-16
+## Slice 18 — Transform: become a different character entirely ✅ SHIPPED (one item deferred) 2026-07-16
+
+> **HEADING CORRECTED 2026-07-27.** It read `⏳ PARTIAL`, and that was stale. Every item in this slice is
+> `[x]`: the transform effect, the never-overwrite-the-base rule, per-form carry-over (`keepFeatures` /
+> `keepMental`), the Active Effects panel's **End transform**, and the star markers explaining the *form's*
+> numbers while transformed. Zero unchecked boxes.
+>
+> The one remaining piece — **authoring a form with the character builder**, so "become another PC
+> entirely" works for a whole foreign sheet — is closed as **deferred-with-reason**, re-verified against the
+> code on 2026-07-26: `Forms.tsx` is display-and-toggle only, with no statblock or builder reference in the
+> file. That is the same deferral this doc's header already records as *genuine* — it needs the
+> foreign-statblock authoring UI, not effort on this slice.
+>
+> Recorded because a stale `⏳ PARTIAL` costs twice: it makes the doc look unfinishable, and it hides which
+> work is actually left. I described this slice as an outstanding build three times today on the strength of
+> that heading, without opening it — the same "count the token, don't check the thing" error this doc's own
+> header has now made four times.
 
 > "maybe a spell turns us into a bear, then we would suddenly have the bear character sheet. We would
 > need to be able to end the effect and revert back to our normal character sheet."
