@@ -4050,3 +4050,37 @@ measured the same thing two ways.
 
 **Bar:** full D&D suite green, typecheck exit-0, lint clean. No live data written; port 3571 confirmed
 bindable.
+
+### 2026-07-27 — slice 108: closing slice 107's own evidence gap
+
+Slice 107 shipped nine reduced-motion rules and flagged that only one was **observed** — the rest were
+verified from source, because the influence meter and the floating action buttons do not render on the page
+that was measured. A stated gap in my own evidence is the cheapest thing on the list to close.
+
+**The obstacle was reaching the elements, not the CSS.** The influence meter needs live stream state and
+the FABs need a chat session. Rather than manufacture either, the rules were exercised directly: recover
+the hashed CSS-module class name **from the loaded stylesheet** (not guessed), attach it to an element in a
+context where the selector can match, and read the computed animation in both media states.
+
+| element | no preference | `prefers-reduced-motion: reduce` |
+|---|---|---|
+| `.influenceTrackMax` — the 11-per-second shake | `influenceShake` · 0.09s · **infinite** | **`none` · 0s · 1** |
+| `.tray-fab` | `fabpulse` · 2.4s · **infinite** | **`none` · 0s · 1** |
+| `.stream-fab` | `fabpulse` · 2.4s · **infinite** | **`none` · 0s · 1** |
+
+**All three now measured both ways.** Default users keep every effect; the preference removes them.
+
+**The first attempt failed for an instructive reason** and is worth keeping: run on `/dnd`, the FAB probe
+reported `animation: none` in *both* states — which reads as "already fixed" and would have been recorded
+as a pass. It was not: the hub has no `.dnd-sheet` ancestor, so `.dnd-sheet .tray-fab` could never match
+and the element had no animation to disable. The probe carried `fabRuleReachable: false` alongside the
+result, which is what caught it. **A negative result from a selector that cannot match looks exactly like a
+negative result from a rule that works** — the same shape as the closed-`<details>` phantom (limitation 6)
+and the vacuous `existsSync` (slice 74), now met a third time in a third disguise.
+
+**Checked along the way:** `.influenceFillMax` already carries `animation: none !important`, so the maxed
+fill was never animating — only the track's shake was, which is the one slice 107 covered. The fix targets
+the right class.
+
+**Bar:** all three rules verified in the browser in both media states. Full D&D suite green, typecheck
+exit-0. No live data written; port 3575 confirmed bindable. No code changed — this slice is evidence.
