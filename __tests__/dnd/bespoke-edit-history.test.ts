@@ -14,22 +14,30 @@ import { join } from 'node:path';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const PANEL = read('app/dnd/_ui/SheetEditHistory.tsx');
+const PAGE = read('app/dnd/characters/[id]/page.tsx');
 const IG = read('app/dnd/_ui/IGSheet.tsx');
 const PF2 = read('app/dnd/_ui/PF2Sheet.tsx');
 
-describe('both bespoke sheets mount it', () => {
-  for (const [name, src] of [['IGSheet', IG], ['PF2Sheet', PF2]] as const) {
-    it(`${name} renders SheetEditHistory`, () => {
-      expect(src).toContain('<SheetEditHistory');
-      expect(src).toContain("from '@/app/dnd/_ui/SheetEditHistory'");
-    });
+describe('it is mounted where every FORMAT gets it', () => {
+  // The first draft of this slice put the panel inside IGSheet and PF2Sheet. Both of those return EARLY
+  // for the codex / dashboard / play formats, so it rendered on the Classic layout and nowhere else —
+  // the "authored but not wired" defect, reintroduced by the fix for a different one. The page chrome is
+  // where `VariantToggleView` already solves exactly this, for exactly this reason.
+  it('the character page renders it for a bespoke sheet', () => {
+    expect(PAGE).toContain("from '@/app/dnd/_ui/SheetEditHistory'");
+    expect(PAGE).toMatch(/bespokeSheet && canWrite && <SheetEditHistory characterId=\{character\.id\} canWrite=\{canWrite\} \/>/);
+  });
 
-    it(`${name} passes the character and the write gate`, () => {
-      // Without `characterId` the panel silently renders nothing, which would look identical to "no edits"
-      // — the failure mode most likely to go unnoticed.
-      expect(src).toMatch(/<SheetEditHistory characterId=\{characterId\} canWrite=\{canEdit\}/);
-    });
-  }
+  it('and NOT inside either sheet, where three formats would miss it', () => {
+    expect(IG).not.toContain('SheetEditHistory');
+    expect(PF2).not.toContain('SheetEditHistory');
+  });
+
+  it('sits with the variant toggle, which is mounted for the same reason', () => {
+    // If one moves into a layout-specific branch later, the other is the precedent that says why not.
+    expect(PAGE).toContain('<VariantToggleView');
+    expect(PAGE.indexOf('<SheetEditHistory')).toBeGreaterThan(PAGE.indexOf('<VariantToggleView'));
+  });
 });
 
 describe('it is gated like the shared panel', () => {

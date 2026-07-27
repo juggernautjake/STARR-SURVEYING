@@ -8,6 +8,7 @@ import { getCharacterAccess } from '@/lib/dnd/characters';
 import { supabaseAdmin } from '@/lib/supabase';
 import SheetRoot from '@/app/dnd/_sheet/SheetRoot';
 import { VariantToggleView } from '@/app/dnd/_sheet/components/VariantToggle';
+import SheetEditHistory from '@/app/dnd/_ui/SheetEditHistory';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
@@ -364,6 +365,14 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       {bespokeSheet && canWrite && (
         <VariantToggleView characterId={character.id} variantKind={activeKind} canWrite={canWrite} exceptions={activeExceptions} />
       )}
+      {/* Edit history for a bespoke (PF2/IG) sheet — same reasoning as the toggle directly above, and it
+          belongs HERE for the same reason. `EditReviewPanel` lives in the shared 5e engine, which no longer
+          renders for a built PF2/IG character, so those sheets had no review surface at all.
+          Mounted in the page chrome rather than inside IGSheet/PF2Sheet deliberately: both of those return
+          EARLY for the codex / dashboard / play formats, so a panel placed in their Classic branch would
+          exist on one layout in four — the "authored but not wired" defect this codebase keeps producing.
+          One mount here covers every format, exactly as the toggle does. */}
+      {bespokeSheet && canWrite && <SheetEditHistory characterId={character.id} canWrite={canWrite} />}
       {canWrite && Array.isArray((character as { build_questions?: string[] }).build_questions) && (character as { build_questions?: string[] }).build_questions!.length > 0 && (
         <BuildQuestions characterId={character.id} questions={(character as { build_questions?: string[] }).build_questions as string[]} />
       )}

@@ -24,7 +24,6 @@ import DashboardShell from '@/app/dnd/_sheet/shells/DashboardShell';
 import PlayShell from '@/app/dnd/_sheet/shells/PlayShell';
 import FloatingRoller from '@/app/dnd/_sheet/components/rollers/FloatingRoller';
 import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
-import SheetEditHistory from '@/app/dnd/_ui/SheetEditHistory';
 // The shared FORMAT stylesheets — safe to load here: their rules are scoped under `.sheet-shell`
 // (T-SHELL-SCOPE), so they only style a shell this sheet actually renders, and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
@@ -191,11 +190,6 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
       {overlays}
       {section('pf2-feats')}
       {section('pf2-spells')}
-      {/* The DM's view of what changed here. `EditReviewPanel` is bound to the 5e store, so this sheet
-          had no review surface at all — the audited PF2 edits existed with nowhere to read them. Read-only
-          by nature: a bespoke row records a sidecar change the 5e Character shape cannot express, so it is
-          history, not an undo point. */}
-      <SheetEditHistory characterId={characterId} canWrite={canEdit} />
       {footer}
     </div>
   );
