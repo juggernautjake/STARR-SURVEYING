@@ -170,6 +170,34 @@ live; the row list is covered by tests only. Likewise no visual/contrast check w
 it inherits `framedPanel` and the `--hx-*` tokens, but "inherits the right tokens" is exactly the assumption
 slice 34 found wrong on a different surface.
 
+→ **The row-list half of that gap is closed by slice 45**, which renders it. The contrast check remains owed.
+
+### Slice 45 — rendering the state that had never rendered
+
+Slice 44's gap, taken seriously: with no audit rows on any bespoke character, the panel's populated state
+existed only as source-greps. That is the weakest proof this repo accepts, and its own history says why —
+a build gate passed **nine** source-anchored tests while refusing every legal build, and a green 15k-test
+suite missed three rendering-condition bugs in one browser pass. **A grep proves a branch exists; only a
+render proves it puts the right thing on screen.**
+
+The markup is now split into `EditHistoryView` — the same split `CampaignsPanel` got from
+`CharacterCampaigns`, for the same reason: a fetching container renders its populated state only after a
+request resolves, which never happens under `renderToStaticMarkup`.
+
+**12 render tests.** The load-bearing one proves slice 37 end to end **through the component** rather than
+through `describeEdit` in isolation: a bespoke row shows *"Learned the Arcane Spell power."* and **not**
+`ig:add_power`. Also pinned:
+- DM vs player attribution;
+- the **deleted-account fallback** — `editor_user_id` is `ON DELETE SET NULL`, so a removed account must not
+  render *"null (player)"*;
+- **no Revert control on any row**, asserted on the rendered `<button>` rather than the word, since the
+  source explains at length why there is none;
+- a list of **only** `revert:` rows reads as **empty**, not as a heading over nothing — the exact bug
+  `CampaignsPanel` hit and the reason its own gating was rewritten.
+
+**Still not a browser:** no effects run, no CSS applies, and nothing here proves the panel's colours clear
+AA or that it sits sensibly on the page. That half of slice 44's gap stands.
+
 ### Slice 43 — a real production build, and a lint warning that was a trap
 
 **`npm run build` had not been run once this session** — thirteen slices verified by `tsc`, `eslint` and
