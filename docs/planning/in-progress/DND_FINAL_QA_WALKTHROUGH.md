@@ -4538,3 +4538,33 @@ and readers copy code, not caveats. Documentation earns its place when it is the
 
 **Bar:** snippet parsed, pasted and executed against two live pages. Full D&D suite green, typecheck
 exit-0. No live data written; port 3595 confirmed bindable. No production code changed.
+
+### 2026-07-27 — slice 122: the evidence index did not point at the most reusable thing in it
+
+Slice 121 found the sweep file shipping the bugs it documented. The parallel question is whether anything
+else in `qa-evidence/` is broken or misleading, so the directory was checked rather than assumed.
+
+**The screenshots and their claims hold up**, and one of them is worth recording as a small vindication:
+
+- **`builder-mobile-after.png` still matches the current build** — despite slice 89 rebuilding the very
+  step rail it shows. That fix gave a 5px-tall navigation strip a 25px tap target using `padding` +
+  negative `margin` + `background-clip: content-box`, specifically so nothing moved visually. **The
+  screenshot staying valid through the change is the evidence that it worked**, which is a nicer proof
+  than the measurement was.
+- `pf2-sheet-vanilla.png`'s `Class DC 25` was re-observed live during the ability-arithmetic sweep.
+- The absent GIF is still absent for the reason originally given, which still applies.
+
+**What was actually wrong is the index.** `README.md` listed four screenshots and **never mentioned
+`contrast-sweep.md`** — the method, the twelve documented lies, and the only executable artefact in the
+directory. Slice 110 fixed discoverability *inside* that file by adding an index to its top; the directory
+listing still pointed past it. Someone opening `qa-evidence/` to see what was there would have concluded it
+held pictures.
+
+Now first in the table, with a note to start there before running any sweep, plus a short "are these still
+accurate?" section recording what was re-checked and when.
+
+**The distinction that made this worth a slice:** a screenshot going stale is not a defect — it is evidence
+of a moment, and dated. **A claim about a screenshot can be**, and those are the things that were verified.
+
+**Bar:** claims re-checked against live observations already recorded in this log. Full D&D suite green,
+typecheck exit-0. No code changed.
