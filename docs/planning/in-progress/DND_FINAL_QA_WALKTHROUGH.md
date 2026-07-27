@@ -133,6 +133,32 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 37 (2026-07-26) — the queue printed raw opcodes
+
+Third and last consequence of slice 35, found the same way as slice 36: **follow the new rows all the way to
+the reader.** They reach the DM through `describeEdit`, and it had no case for them:
+
+```
+ig:add_power                                                        ← what the DM saw
+Gained the power Arcane Spell — off-rules: not a Beastmaster power  ← what the row already held
+```
+
+The sentence was in the row's `summary` column the whole time. Nothing read it. **This is the same failure
+`lib/dnd/edit-describe.ts` was written to close** — its own header describes a queue that *"showed a DM
+which field a player touched but never what they did to it"* — recurring on a row shape that did not exist
+when it was written. A formatter with three vocabularies had grown a fourth without noticing.
+
+**The summary is a FALLBACK, not a preference**, and that ordering is the whole risk in this change. A
+structured edit or a real before/after pair is more precise than a generic sentence, so the summary is
+consulted only where the row would otherwise degrade to a bare path. Preferring it would have flattened
+`spell.Fireball.damage: 8d6 → 10d6` into "Buffed Fireball" on every AI and manual row — a far larger
+regression than the bug being fixed. Pinned in both directions, plus the empty/whitespace summary that a
+naive `summary ||` would have rendered as a blank line. 9 tests.
+
+**Three slices from one change, and that is the point.** Slice 35 added rows; 36 found a control that could
+not act on them; 37 found a reader that could not describe them. None was visible from the diff that caused
+them — each needed following the new thing to its next consumer.
+
 ### Slice 36 (2026-07-26) — a Revert button that could only ever fail
 
 **Follow-through on slice 35, and the reason a slice should be checked for what it makes COMMON.** The
