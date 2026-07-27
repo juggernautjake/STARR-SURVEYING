@@ -3173,3 +3173,45 @@ settles it is the one that mimics the interaction** — click the summary, then 
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No code changed this slice; the finding is
 a correction plus two confirmations. No live data written. Dev server stopped, port 3491 confirmed bindable.
+
+### 2026-07-27 — slice 85: is the grid blowout a class of defect? No — and that matters
+
+Slice 83 fixed four column-less `display: grid` containers in `IGVanillaLibrary`. The obvious next move is
+the one slice 81 made for headings: generalise the instance into a rule. A scan says the opportunity is
+enormous — **200+ inline `display: 'grid'` declarations across `app/dnd` carry no `gridTemplateColumns`**,
+21 in `useIgPanels.tsx` alone, 20 in the class designer.
+
+**Generalising would have been wrong, and the evidence was already in hand.** The feat designer has **10**
+column-less grids and swept clean in slice 80. So a bare `display: grid` is not a defect; it becomes one
+only when its content's min-content exceeds the container. `IGVanillaLibrary` blew out because of what it
+holds — 566 catalogue entries with long effect text in one panel — not because of how it was written.
+A blanket `minmax(0, 1fr)` sweep would have been 200+ speculative edits justified by one instance.
+
+**So the question was measured instead**, on the structurally closest page: `/dnd/library/[key]`, 12
+column-less grids, catalogue content, never swept.
+
+| state at 360px | elements past the edge | page scroll |
+|---|---|---|
+| first load | **0** | 0 |
+| **one** accordion open | **0** | 0 |
+| **ten** open | **0** | 0 |
+| *all 286 open at once* | *2,593, worst 228px past* | *0* |
+
+**Clean under every realistic interaction.** The alarming row is the unrealistic one: no user opens 286
+accordions, and there is no "expand all" control that would produce it. This is the third time this session
+a dramatic number has turned out to be method rather than product (after slice 82's phantom and slice 84's
+`scrollWidth`), and the same corrective applied each time — **reproduce it the way a person would**.
+
+**One tooling regression caught in passing.** This slice's first measurement of the page reported a single
+521px overflowing `<span>` on first load. It was a phantom inside a closed `<details>`: I had dropped
+slice 82's explicit `inClosedDetails()` walk and relied on `contentVisibility === 'hidden'` alone, which
+does not catch **children** of a closed panel because the property is not inherited to them. Restored, the
+first-load count is 0. A lesson written down two slices ago was re-learned because the code implementing it
+was not carried forward — the same failure mode as the `.fld` note in slice 82, one level up.
+
+**Net for the mobile-width item:** two real defects found and fixed (slice 80's clipped name, slice 83's
+IG grid blowout), and the fix scope is now bounded by evidence rather than extrapolated. `IGVanillaLibrary`
+was the exception, not the first of a family.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — the finding is that no code *should*
+change. No live data written. Dev server stopped, port 3495 confirmed bindable.
