@@ -23,14 +23,16 @@
 > - **Dead controls** (23): swept every `app/dnd` `.tsx`; nothing handler-less outside a style demo, and
 >   nothing collected-then-dropped in any of the three builders' UI → POST → parse → assemble chains.
 > - **Contrast** (18–21, 24–28, 30–33): five real defects fixed, three of my own measurement bugs found and
->   corrected, and a verified baseline of **39 remaining items, all colour decisions**, in
+>   corrected, and a verified baseline of **31 remaining items, all colour decisions**, in
 >   `qa-evidence/contrast-sweep.md` with a recommended order.
 > - **The campaign panel, the three homebrew designers, and the per-system settings modal** — each driven in
 >   a browser after shipping (S14, slice 30, and the S-6 note in `SETTINGS_PER_SYSTEM_RULES_VARIANTS`).
 >
 > ### Genuinely open, and why
-> - **The 39 contrast items** — brand fills, section numbers, the gold family. Each is a trade between a
->   skin's identity and legibility. Measured; needs an owner's eye, not a rule.
+> - **The 31 contrast items** — brand fills, section numbers, the gold family. Each is a trade between a
+>   skin's identity and legibility. Measured; needs an owner's eye, not a rule. (Was 39. Slice 34 closed
+>   IG's two, which were the last entries on that list that were BUGS rather than colour choices — so the
+>   remainder is now uniformly a matter of taste, and genuinely yours to call.)
 > - **ASI-slot ownership is no longer open** — `SLOT_DRIVEN_CHARACTER_BUILDING` S1/S2 dissolved it: both
 >   surfaces now write the same ledger, and the authored ladder drives the prompts for all 13 classes.
 > - **Everything else** lives in `SLOT_DRIVEN_CHARACTER_BUILDING` (the escape hatch, spell slots, the
@@ -130,6 +132,40 @@ a full `tsc --noEmit` is exit-0.
       alone) and would be stale on arrival.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
+
+### Slice 34 (2026-07-26) — the last two contrast BUGS, and the sweep that was deliberately not run
+
+The baseline's item 4 called the IG `🜲` glyph *"the one entry here that IS probably a plain bug"* and
+paired it with `COMBAT SKILLS` at 3.33. Both are now closed and **the IG row of the baseline is 0 failing**.
+
+- **The glyph was already fixed** (`3367cbc2`) before the item was picked up. The same stale-evidence trap
+  these docs keep recording — the cheapest step is always *check the code before working the item*, and it
+  has now paid off three separate times in this pass.
+- **`COMBAT SKILLS` is fixed** (`d171b8dd`), along with **seven sibling sites the original token change had
+  missed**: the condition chips on both panels, the CUSTOM badge, the flat-d20 line, the lethal count and
+  the two remove buttons. All nine danger-coloured TEXT uses in `useIgPanels.tsx` now take `--hx-danger-2`
+  — **3.19–3.50 → 6.62–7.26**, hue unchanged.
+
+**What makes this a QA slice rather than a token swap** is the two things it refused to do:
+
+1. **Borders keep `--hx-danger`.** A border needs 1.3:1, not 4.5, and the base red is what the accent
+   language is built from — so the edit was made by CSS *property*, not by replacing the token. A
+   find-and-replace would have taken every border with it.
+2. **The other 22 files carrying `color: var(--hx-danger)` were left alone.** This is the contrast file's
+   own hard-won lesson applied instead of restated: the roller-dock slice proved a surface can be painted
+   from the skin-derived `--panel` family while its text comes from `--hx-*`, so **on a light panel the
+   lighter red is worse, not better**. A blind 41-site swap would have been the fourth
+   "measured a proxy instead of the thing" mistake in that file's history. Those sites need a browser pass.
+
+**The model was validated, not trusted:** `theme-contrast.ts` computed 3.50 where the browser measured
+3.33 — same verdict, model slightly optimistic. That agreement is what licenses fixing the eight siblings by
+computation, since they sit on the same surfaces in the same file. The condition chips were never measured
+in place at all: the sampled character held no conditions, so they were invisible to the sweep rather than
+passing it — which is the same "counts only what rendered" caveat the baseline records about itself.
+
+`__tests__/dnd/ig-danger-text-contrast.test.ts` (9) pins the **rule** — text takes the lighter token,
+borders keep the base — and the token values the ratios depend on, so retuning either red fails loudly
+rather than leaving a stale number in the evidence file.
 
 ### 2026-07-26 — browser pass over the spell-count work (slot plan S7/S7b)
 

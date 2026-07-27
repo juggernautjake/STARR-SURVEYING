@@ -247,10 +247,45 @@ an obvious right answer** — which is why they are listed rather than changed:
    trade is legibility against identity.
 3. **The gold/amber family on pale panels — 4 on streamer, 8 on PF2.** `#c8aa6e` on near-white = **2.08**;
    `#966c00` at **3.24–4.30** on the PF2 chips and section labels. Several are within 0.2–0.65 of passing.
-4. **Two one-offs on IG:** the `🜲` glyph at **1.39** (same inherit-the-page-ink cause as the custom-sections
-   block, in a panel that fix did not cover — the one entry here that IS probably a plain bug), and
-   `COMBAT SKILLS` at **3.33** using the danger red at a site the `--hx-danger-2` fix did not reach.
+4. ~~**Two one-offs on IG:** the `🜲` glyph at **1.39** (same inherit-the-page-ink cause as the
+   custom-sections block, in a panel that fix did not cover — the one entry here that IS probably a plain
+   bug), and `COMBAT SKILLS` at **3.33** using the danger red at a site the `--hx-danger-2` fix did not
+   reach.~~ **BOTH FIXED — the IG row of the baseline is now 0 failing.**
 
-**Recommended order if these are picked up:** the IG glyph (a bug), then the gold family (several are a
+**Recommended order if these are picked up:** ~~the IG glyph (a bug),~~ then the gold family (several are a
 hair short), then the brand fills and section numbers together — those two are one conversation about how much
 of a skin's identity is negotiable.
+
+## 2026-07-26 — item 4 closed, and the IG row is clean
+
+**The glyph was already fixed** (`3367cbc2`) before this list was re-read — worth noting as the same
+stale-evidence trap the docs above keep hitting: *check the code before working an item*. It took the
+card's own accent instead of inheriting the page ink.
+
+**`COMBAT SKILLS` is fixed** (`d171b8dd`), together with seven sibling sites the same token change had
+missed: the condition chips (×2 panels), the CUSTOM badge, the flat-d20 line, the lethal count and the two
+remove buttons. All nine danger-coloured TEXT uses in `useIgPanels.tsx` now take `--hx-danger-2`
+(**3.19–3.50 → 6.62–7.26**, hue unchanged).
+
+**Two decisions inside that, both deliberate:**
+
+- **Borders keep `--hx-danger`.** A border needs 1.3:1 (`CONTRAST.border`), not 4.5, and the base red is
+  what the accent language is built from. So the change was made by CSS *property*, not by replacing the
+  token — a find-and-replace would have taken the borders with it.
+- **The other 22 files carrying `color: var(--hx-danger)` were NOT swept.** This is the file's own lesson
+  applied rather than restated: the roller-dock slice proved a surface can be painted from the
+  skin-derived `--panel` family while its text comes from `--hx-*`, and **on a light panel this lighter
+  red is worse, not better**. A blind 41-site swap would have been the fourth "measured a proxy instead of
+  the thing" mistake in this file. Each needs its own surface measured — a browser pass, not a sweep.
+
+**The model was validated, not trusted:** `lib/dnd/theme-contrast.ts` put `COMBAT SKILLS` at 3.50 where the
+browser measured 3.33 — same verdict, model slightly optimistic. That agreement is what justifies fixing
+the eight siblings by computation, since they sit on the same surfaces in the same file; the condition
+chips in particular were never *measured* in place, because the character sampled held no conditions.
+
+Pinned by `__tests__/dnd/ig-danger-text-contrast.test.ts` (9), which asserts the RULE — text takes the
+lighter token, borders keep the base — plus the token values the ratios rest on, so retuning either red
+fails loudly instead of leaving a stale number here.
+
+**Revised baseline: 40 → 31 failing** (IG's 2 closed; the 7 unmeasured siblings were never in the count).
+The remainder is items 1–3, all colour decisions on a skin's own palette.
