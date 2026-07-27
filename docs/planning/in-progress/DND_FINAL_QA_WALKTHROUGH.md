@@ -230,6 +230,15 @@ accent vanish instead of follow the skin, a different bug wearing this fix's clo
 hard-coded value is correct. It only misbehaves once a skin is applied — and the sweeps that would have
 caught it all ran on sheets where it happened to be right.
 
+**The sibling sweep, same slice:** asking the same question of `--hx-gold-2` found **four more** (2 CSS,
+1 PF2, 1 IG) — Hextech gold under a skin's own gold text. `--hx-gold-2-rgb` joins the set, with the same
+no-op proof (`#c8aa6e` is exactly `200, 170, 110`).
+
+**And the deliberate NON-fix, pinned by a test:** `--hx-danger` tints **stay hard-coded**. That token is
+intentionally not skin-derived — *"skins don't ship a 'danger' swatch to derive one from"* — so
+`rgba(198,64,59,α)` is **correct**, and converting it would invent a derivation with no source. That is the
+likeliest way this fix gets over-applied, so the exception is asserted rather than left to judgement.
+
 ### Slice 61 — verifying 59/60 live: the fixes are real, my explanation was not
 
 Re-measuring the PF2 sheet after slices 59 and 60 returned **exactly the same nine failures, to the decimal**
