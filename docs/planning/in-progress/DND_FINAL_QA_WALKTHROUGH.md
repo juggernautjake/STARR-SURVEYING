@@ -172,6 +172,35 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 53 — one computed-style read ends a two-slice argument
+
+Slices 51 and 52 argued about whether deepening streamer's `--gold` would hurt the PF2 dice pad. **One
+browser read settles it**, which is what should have happened before slice 51 reasoned about it.
+
+At a `d4` button the colour computes to **`rgb(138,100,0)` = `#8a6400`** — that is **`--hx-gold-2`**,
+resolved at that element. `DicePad.tsx` paints `var(--hx-gold-2, var(--gold, inherit))`, so **the `--gold`
+fallback is unreachable there**. This token never touches the pad, and slice 51's objection was about a
+colour that element does not use. (The 2.86 figure was doubly wrong — it also came from a measurement this
+evidence file had already retracted, taken while those buttons sat in a collapsed `.fld`.)
+
+**A second read explained the whole confusion.** The one streamer-skinned character, **Orin Sallowmere, is
+Pathfinder** — it renders the *bespoke* sheet off `--hx-*`, not `.dnd-sheet`'s `--gold`. So **no live
+character paints with this token at all today.** That is why deepening it is safe but not urgent, and it is
+also why the original streamer-5e measurements in this doc came from applying the skin during QA rather than
+from a real character.
+
+Also measured in passing, on Jack (`skin-rulebook`): all four gold-painted nodes pass (**5.06–5.36**),
+composited through the real backdrop chain.
+
+The value stays unchanged — **now because it is unexercised, not because it is unsafe.** `theme.ts` records
+the measurement and the reason; the test drops its conditional and instead pins `DicePad`'s fallback chain on
+the source, so a refactor that removes the first fallback — silently exposing the pad to this token — fails.
+
+**The lesson, and it is the same one three times now:** slices 50, 51 and 52 each reasoned from a colour
+named in this file rather than from the token the element actually paints with. Every one of those
+inferences was wrong, and each took a slice to unwind. **The read costs one command.** Render-and-read only;
+no live data touched.
+
 ### Slice 52 — correcting slice 51: the rejection rested on an unproven premise
 
 Slice 51 rejected deepening streamer's `--gold` because *"the PF2 dice pad goes 2.86 → 2.41"*. Reading the
