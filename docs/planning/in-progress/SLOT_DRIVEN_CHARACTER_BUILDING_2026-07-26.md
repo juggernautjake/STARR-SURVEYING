@@ -24,7 +24,15 @@ system"* (slice 9 below).
 every builder AND every walker, it is reachable from all of them, its exceptions are named on the badge,
 and a DM rules on each one individually.
 
-**Everything still open is blocked on an INPUT, not on effort** — which is why the remaining three items
+**⚑ 2026-07-27 — the blocking claims are now VERIFIED IN CODE, and one of them was wrong.**
+`slot-plan-blockers.test.ts` (10) tests the three below against the live code rather than restating them,
+and each assertion **flips** the day the data arrives, so a blocker announces its own resolution.
+**S10 and S9 and Q6 verify.** **S7c did not** — it was half wrong and hiding a live bug (`buildPF2Character`
+handed a Magus a full caster's spell slots while `pf2MaxSpellRank` reported a ceiling of 0 for the same
+character). Its count source and cantrip cap have since shipped; see S7c below. The lesson is the sibling
+doc's, applied late: *a blocking claim deserves the same code check a partial does.*
+
+**Everything still open is blocked on an INPUT, not on effort** — which is why the remaining items
 have sat unchanged while eight slices shipped around them:
 
 | item | blocked on |
