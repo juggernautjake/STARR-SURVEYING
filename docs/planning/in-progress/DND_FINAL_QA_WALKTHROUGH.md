@@ -3934,3 +3934,41 @@ predicted, and this one adds an attribute that nothing else reads.
 
 **Bar:** fix verified in the browser against the shipped code. Full D&D suite green, typecheck exit-0, lint
 clean. No live data written; port 3559 confirmed bindable.
+
+### 2026-07-27 — slice 105: document structure — two real gaps, neither safely fixable by me
+
+Completing the accessibility axis with the structural checks: heading order, landmarks, `lang`, duplicate
+IDs, image `alt`. One pass, three pages, read after hydration.
+
+| page | headings | `h1` | level jumps | landmarks | `lang` | dup IDs | `img` missing alt |
+|---|---|---|---|---|---|---|---|
+| `/dnd` hub | 6 | 1 | none | all 4 | `en` | 0 | 0 |
+| 5e sheet | 4 | 1 | **h1 → h3 at "Dossier"** | all 4 | `en` | 0 | 0 |
+| IG sheet | 11 | **0** | none | all 4 | `en` | 0 | 0 |
+
+**Landmarks, `lang`, duplicate IDs and image alt are clean everywhere** — every visible `<img>` carries an
+`alt` (including `alt=""` where decorative, which is the correct form and easy to get wrong).
+
+**Two real gaps, both WCAG 1.3.1:**
+
+1. **The 5e sheet skips a level**, h1 straight to h3.
+2. **The IG sheet has no `<h1>` at all** — eleven headings and no top-level one. A screen-reader user
+   landing there has no anchor for "what is this page".
+
+**And neither is a safe change for me to make**, which is the part worth recording rather than the gaps
+themselves:
+
+- `<h3>Dossier</h3>` is styled **by tag** — `.dnd-sheet .card h3` at `theme.css:862` and `873`, plus skin
+  overrides at `2796` and `2814`. Promoting it to `<h2>` silently drops that styling. The clean fix is to
+  decouple the CSS from the tag; the quick fix is `aria-level="2"`, which keeps the styling and corrects
+  the semantics but leaves an ARIA workaround that a later CSS cleanup would want removed. That is a
+  judgement about which direction the styles should go, and it is rendered in two places
+  (`App.tsx:366` and `panels/fivePanels.tsx:87`), so it is not a one-line change either.
+- The IG sheet's name renders through `<SheetPortrait name={name} />`, not a heading element. Choosing
+  which element becomes the `h1` is a structural decision about someone's bespoke sheet.
+
+**I checked the coupling before calling either one safe**, which is the habit slices 79, 98 and 103 cost me
+by not having. The measurement stands on its own; the fixes need an owner.
+
+**Bar:** full D&D suite green, typecheck exit-0. No live data written; port 3563 confirmed bindable. No
+code changed.
