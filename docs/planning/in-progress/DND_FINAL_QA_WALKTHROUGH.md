@@ -3433,3 +3433,41 @@ target-size guard, for the same reason.
 
 **Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. Fix verified in the browser under real
 keyboard input. No live data written. Dev server stopped, port 3515 confirmed bindable.
+
+### 2026-07-27 — slice 92: the other two sheets, and a focus rule that matched but did nothing
+
+Slice 91 fixed 11 controls on the IG sheet and scoped the fix to `.siteChrome`. Whether that reaches the
+other two sheets, and whether they had failures at all, was assumed rather than checked. Both now measured
+by tabbing with real key presses.
+
+| sheet | tab stops | with a focus ring | missing |
+|---|---|---|---|
+| Perrin — 5e, lazzuh skin | 80 | 80 | **0** |
+| Orin — PF2, streamer skin | 79 | 78 | **1** |
+
+The 5e sheet is clean, and every stop sat inside `.siteChrome`, so slice 91's scope does reach it.
+
+**The PF2 one is more interesting than a missing rule.** `.play-ref-toggle` — the only reference toggle on
+the Play layout — has a `:focus-visible` rule that deliberately trades the browser ring for a gold border
+and a background lift. That is a legitimate indicator, and my checker only counts outline and box-shadow,
+so the first read looked like a **checker false positive**, which is what I expected to write up.
+
+**It was not.** Measured under real Tab with `matches(':focus-visible')` returning **true**, the border,
+the background and the outline were all **identical to their unfocused values**. The rule reports as
+matching, `--gold` is defined, the element sits inside `.sheet-shell` as the selector requires, and a scan
+of every stylesheet found no competing rule — and the declarations still do not land. **So the trade gave
+up the ring and never delivered the replacement.**
+
+**Why is not established, and the fix does not depend on knowing.** An explicit
+`outline: 2px solid var(--gold)` at the same specificity, later in the file, wins on order over the
+`outline: none` above it whatever the cause. Verified: **84 stops, 84 with a ring, 0 missing**, the toggle
+now reporting `outline: solid 2px`.
+
+**Worth stating plainly:** shipping a fix while the mechanism is unexplained is the thing slice 79 warned
+about — that slice retracted a "fix" built on a wrong mechanism. The difference here is which part is
+uncertain. There, the *defect* was misdiagnosed and the fix would not have compiled. Here the defect is
+measured twice under the real interaction, the fix is verified against shipped CSS, and only the *cause*
+is open. The comment in `play.css` says so, so nobody later reads confidence into it that is not there.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No live data written. Dev server stopped,
+port 3519 confirmed bindable.
