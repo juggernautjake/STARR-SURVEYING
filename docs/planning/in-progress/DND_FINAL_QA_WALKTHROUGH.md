@@ -3585,3 +3585,38 @@ nine tool limitations are recorded in `qa-evidence/contrast-sweep.md` so the nex
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
 data written; port 3531 confirmed bindable.
+
+### 2026-07-27 — slice 96: nothing is 404ing, and the checker proves it can say otherwise
+
+The walkthrough's open box asks for correctness as well as styling. Slice 54 swept the **console**; the
+**network** was never swept. A 404 asset or a failing endpoint is as user-visible as a contrast failure and
+strictly easier to measure, so this closes it.
+
+**Eleven routes, every request and every `<img>`:**
+
+| | |
+|---|---|
+| routes loaded to `networkidle` | 11 |
+| responses ≥ 400 | **0** |
+| failed requests (DNS, abort, refused) | **0** |
+| `<img>` elements that loaded with `naturalWidth === 0` | **0** |
+
+Covering the hub, library index, the IG library page, suggestions, profile, the create form, all four live
+character sheets and a builder.
+
+**The self-check is the part worth recording**, because this arc has produced four separate zeros that were
+really instrument failures. Three probes, all confirmed before the result was believed:
+
+- a request to a route that does not exist → **captured** (404)
+- an injected `<img src="/dnd/__no_such_image__.png">` → **captured** (404)
+- the same image read back through the `complete && naturalWidth === 0` probe → **detected**
+
+So the zero means "nothing failed", not "nothing was watched" — the distinction slice 82's phantom, slice
+85's stale regex, slice 74's vacuous `existsSync` and slice 90's blind metric each turned on.
+
+**Two checks in one, deliberately.** A missing image can fail at the network layer *or* arrive as a 200
+with unusable bytes; the response listener catches the first and the `naturalWidth` probe the second.
+Either alone would have reported a clean sweep for half the failure modes.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
+data written; port 3535 confirmed bindable.
