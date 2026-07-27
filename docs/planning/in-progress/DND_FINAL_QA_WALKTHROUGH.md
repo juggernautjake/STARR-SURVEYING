@@ -133,6 +133,34 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 39 — a public character's edit history was readable by anyone
+
+Found by auditing the slice before it: `SheetEditHistory` gates on `canWrite` **client-side**, so the
+question was whether the server agreed. It did not.
+
+`GET /api/dnd/characters/[id]/edits` gated on `getCharacterAccess` alone, and `canRead` is
+`canWrite || visibility === 'public' || (campaign && isMember)` — with **/dnd public by direct link**. So
+anyone with the URL could pull forty rows of a character's revision history: every field's old and new
+value, the DM's rulings, off-rules notes, and the **display name** of whoever made each change.
+
+**The sheet being public does not make its history public.** And the rule was already written — twice,
+in the UI: *"A viewer who can't write the sheet has no business in its edit history"* (`EditReviewPanel`),
+and the same in `SheetEditHistory`. It existed in two components and nowhere on the server. **Hidden panel,
+open endpoint** — the same shape as "gating only the AI", which this codebase has now hit in four places.
+
+GET now requires `canWrite`, matching what the UI claimed and what POST on the same route already required.
+
+**One UX consequence, deliberate and reversible.** `use-element-edits` reads this endpoint with no write
+check of its own, to enrich the ✎ tooltip with the specific change. A viewer now gets a 403 and the tooltip
+falls back to its generic marker text — the path its **own comment** calls *"expected rather than
+exceptional"*. So a viewer still sees THAT an element was customized, just not who changed it to what.
+That fallback being designed-for is what made this safe to ship rather than a guess; **if you want viewers
+to keep the detail, it needs an element-scoped endpoint, not bulk history access** — a slice, not a flag.
+
+8 tests, including the access-matrix facts underneath it: a public character is readable but not writable,
+a campaign member who is not on the character likewise, and everyone who *should* see history — owner,
+assigned player, DM — has write.
+
 ### Slice 38 (2026-07-26) — and there was nowhere to read them
 
 The end of the chain, and the biggest of the four. Slices 35–37 made IG/PF2 edits record, behave and read
