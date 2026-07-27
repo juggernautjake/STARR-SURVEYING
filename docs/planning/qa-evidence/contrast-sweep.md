@@ -2,14 +2,14 @@
 ### …and, since slice 109, the browser-QA method for this repo generally
 
 > **⚑ THE FILE NAME UNDER-SELLS THIS. Read the index below before running any browser sweep, not just a
-> contrast one.** It began as a contrast recipe and accumulated **twelve** ways a browser measurement lies
+> contrast one.** It began as a contrast recipe and accumulated **fourteen** ways a browser measurement lies
 > — over half of which have nothing to do with colour. Slices 74, 82, 85, 90 and 108 each said the point was
 > for the next sweep to *inherit the method*; that only works if the method is findable, and it was filed
 > under the name of one specific sweep. Renaming would break the references from ~20 slice entries, so the
 > index is here instead.
 >
-> **Every one of these produced a confident, wrong result before it was written down**, and four of them bit
-> a second time *after* being written down — documentation works when it is read, and nothing makes it get
+> **Every one of these produced a confident, wrong result before it was written down**, and **five** of them bit
+> a second time *after* being written down (#7, `rg -r`, has now done so twice) — documentation works when it is read, and nothing makes it get
 > read.
 >
 > | # | The lie | The tell |
@@ -26,6 +26,8 @@
 > | 10 | A client-rendered value sampled **before hydration** | correct at 1800ms, wrong at 900ms |
 > | 11 | Regex over whitespace-stripped `innerText` | matches spanning unrelated elements |
 > | 12 | A selector that **cannot match** returns the same "clean" as a rule that works | check reachability, not just the result |
+> | 13 | Asserting **the field you expected** instead of the field the code writes | "all four corners dead" when the handler writes `w`/`h`/`size`, never `scale` |
+> | 14 | `innerText` **omits text inside a collapsed `<details>`** | a rendered section reported as missing entirely |
 >
 > **The two habits that caught most of them:** measure the same thing a second way (the browser kept
 > catching the static scripts, and vice versa), and make every probe report whether it *could* have failed.
