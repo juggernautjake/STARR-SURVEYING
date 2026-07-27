@@ -584,7 +584,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
               <span title="Hero Points — you start each session with 1; the GM awards more (max 3). Spend 1 to reroll a check (keep the new result), or spend all 3 to avoid death." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: 'var(--hx-gold-2)' }}>Hero Points</span>
               <span aria-label={`${hp} of 3 hero points`} style={{ display: 'inline-flex', gap: 4 }}>
-                {[1, 2, 3].map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= hp ? 'var(--hx-gold, #c8aa6e)' : 'var(--hx-line)' }}>{n <= hp ? '◆' : '◇'}</span>)}
+                {[1, 2, 3].map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= hp ? 'var(--hx-gold-2)' : 'var(--hx-line)' }}>{n <= hp ? '◆' : '◇'}</span>)}
               </span>
               {canDoEdit && (
                 <span style={{ display: 'inline-flex', gap: 4 }}>

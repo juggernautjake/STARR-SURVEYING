@@ -238,7 +238,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
     return v.ok ? undefined : v.reason;
   };
   const detailRow = (label: string, value?: string) =>
-    value ? <div><span style={{ color: 'var(--hx-muted)' }}>{label}: </span><span style={{ color: 'var(--hx-ink)' }}>{value}</span></div> : null;
+    value ? <div><span style={{ color: 'var(--hx-muted)' }}>{label}: </span><span style={{ color: 'var(--hx-text)' }}>{value}</span></div> : null;
 
   return (
     <details className={styles.framedPanel} style={{ margin: '10px 0', padding: '10px 14px' }} open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
@@ -282,7 +282,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
               <div><span style={{ color: 'var(--hx-muted)' }}>Powers: </span>
                 {classDetail.powers.map((p, i) => {
                   const eff = igClassPowerEffect(p);
-                  return <span key={p}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-ink)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{p}</span></span>;
+                  return <span key={p}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-text)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{p}</span></span>;
                 })}
               </div>
             ) : null}
@@ -291,7 +291,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
                 {classDetail.specializations.map((s, i) => {
                   const bare = s.split(' (')[0];
                   const eff = igClassPowerEffect(bare) ?? (s.includes('(') ? s.slice(s.indexOf('(') + 1, s.lastIndexOf(')')) : undefined);
-                  return <span key={s}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-ink)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{bare}</span></span>;
+                  return <span key={s}>{i > 0 ? ', ' : ''}<span title={eff ?? 'Effect text not captured yet.'} style={{ color: 'var(--hx-text)', cursor: eff ? 'help' : 'default', borderBottom: eff ? '1px dotted var(--hx-line)' : 'none' }}>{bare}</span></span>;
                 })}
               </div>
             ) : null}
@@ -308,7 +308,7 @@ export default function IGCharacterBuilder({ characterId, initialName, aiConfigu
             {breakdown.map((r) => (
               <div key={r.level}>
                 <span style={{ color: 'var(--hx-muted)' }}>L{r.level} · </span>
-                <span style={{ color: 'var(--hx-ink)' }}>
+                <span style={{ color: 'var(--hx-text)' }}>
                   {r.gains.map((g) => `${g.label}${g.count && g.count > 1 ? ` ×${g.count}` : ''}`).join(' · ')}
                 </span>
                 <span style={{ color: 'var(--hx-muted)' }}> · {r.solidasCumulative} Solidas</span>

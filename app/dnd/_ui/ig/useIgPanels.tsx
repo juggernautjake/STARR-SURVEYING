@@ -451,7 +451,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
             <button key={s} type="button" className="igs-tile igs-int" onClick={() => rollLine(`${s} save`, derived.saves[s], s === 'Reflex' ? 'reflex_save' : s === 'Fortitude' ? 'fortitude_save' : 'will_save')}
               // The tooltip explains WHY the number moved, so a changed value is never mysterious.
               title={`Roll ${s} (d20 ${fmt(shown)})${rs?.sources.length ? ` · ${rs.sources.join(', ')}` : ''}`}
-              style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '9px 6px', cursor: 'pointer' }}>
+              style={{ textAlign: 'center', border: `1px solid ${changed || rs?.swing !== 'none' ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '9px 6px', cursor: 'pointer' }}>
               <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase', color: 'var(--hx-muted)' }}>{s}{swingMark(rs?.swing)}</div>
               <div style={{ fontSize: 23, fontWeight: 800, lineHeight: 1.1, color: changed ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)' }}>{fmt(shown)}</div>
               {/* Base shown alongside when something is modifying it, so the player can see both. */}
@@ -717,7 +717,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
             no number anywhere — the stance granted it and the sheet never showed it. */}
         {inPlay.damageReduction.dr > 0 && (
           <div className="igs-tile" title={inPlay.damageReduction.sources.join(' · ')}
-            style={{ border: `1px solid ${inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '7px 11px', fontSize: 13.5, fontWeight: 600 }}>
+            style={{ border: `1px solid ${inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold-1)' : 'var(--hx-line)'}`, borderRadius: 8, padding: '7px 11px', fontSize: 13.5, fontWeight: 600 }}>
             <span style={{ color: 'var(--hx-muted)', fontWeight: 700 }}>DR </span>
             <span style={{ color: inPlay.damageReduction.dr !== cb.damageReduction ? 'var(--hx-gold-2)' : undefined }}>{inPlay.damageReduction.dr}</span>
             {inPlay.damageReduction.dr !== cb.damageReduction && (
