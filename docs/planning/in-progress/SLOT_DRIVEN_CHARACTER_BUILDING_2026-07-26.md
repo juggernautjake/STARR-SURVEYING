@@ -380,6 +380,40 @@ slices are driven in the browser before being called done — this repo's standi
       it converted them from silent to consequential. A self-justifying pick used to be invisible leniency
       and a self-convicting one a confusing error; with flagging in place the first erases a flag and the
       second invents one, and both corrupt the record the DM reviews.
+- [x] **S6f — the walker HID ineligible feats, which hid the hatch too. Shipped 2026-07-26** (`9c8c8ab1`).
+      18 tests. Both defects found by DRIVING the 5e walker; both were invisible to the 5,452-test suite,
+      and for instructive reasons.
+      · **The gate was wired correctly and still made the builder worse.** `asiFeatChoices` was aligned to
+        Foundations after they disagreed about Grappler — but to the WRONG READING of it. Foundations
+        "hard blocks" by rendering the feat greyed WITH ITS REASON; this filtered it out of the list.
+        Three costs: the page's own copy promises "ineligible picks are greyed with the reason" and they
+        were simply absent; **S6d's hatch became unreachable for the case it was built for**, because
+        "+ Take it anyway" only appears once the server refuses something and nothing ineligible could be
+        sent to be refused; and it contradicts the directive that a player may customise AT EACH LEVEL with
+        the departure flagged, which needs the illegal pick reachable, refused, then taken deliberately.
+        Ineligible feats now stay, carry the gate's own reason, and stay **selectable** — a `disabled`
+        option would grey them correctly and still leave the hatch unreachable. **A filter and a hatch are
+        two answers to one question, and the filter silently won.**
+      · **The reasons then exposed a bug underneath them.** The call omitted `has`, so War Caster — the one
+        2024 general feat gated on a FEATURE rather than a score — was judged against "no spellcasting" for
+        every character alive. While ineligible feats were hidden that quietly deleted a legal pick from
+        every caster's list; once shown it would have printed a flat lie on a Wizard's screen and pushed a
+        legal choice through the exception hatch, **badging the character Altered vanilla for taking a feat
+        its class grants**. The server always knew; only the picker didn't — the same two-places-one-rule
+        shape as S6e.
+      · **A CUSTOM 5e character was refused and then told nothing could be done.** Two individually
+        sensible halves that contradict each other only in the same request: this route validated
+        unconditionally, while `unlockOffer` withholds the hatch *because* the character is custom ("an
+        exception would be noise"). A guaranteed dead end on precisely the characters the hatch exists to
+        serve. PF2 and IG both guard their gates with `isRulesEnforcedKind`; 5e was the one route that
+        didn't. The pick now passes **unrecorded** rather than as an exception — `entitlement`'s own
+        doctrine, and filing one anyway would push a subset of picks into the DM's queue for a character
+        that never claimed to be rules-legal.
+      **Why the suite missed both.** The feat test asserted `asiFeatChoices` CALLED the eligibility gate —
+      it pinned the filter as if the filter were the rule, so the fix had to change a green test. And the
+      custom dead end needs two conditions at once, with nothing anywhere driving a walker on a custom
+      character. **This is the third slice in a row where the defect was in what a correct gate SAW or
+      SHOWED, not in whether it existed** — a source-level test cannot see either.
 - [x] **S11 — take a character into and out of a campaign, clearly. Shipped 2026-07-26.**
       A **Campaigns** panel on the character's own page: which campaigns it is in, **Take out** for each, and
       **Take in** for any campaign the caller belongs to. `lib/dnd/campaign-membership.ts` is the pure
