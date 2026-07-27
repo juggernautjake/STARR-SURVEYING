@@ -1827,8 +1827,15 @@ select.input {
   border-radius: 5px;
   padding: 0 5px;
 }
+/* INK on the tint, not the accent — the roller dock's resolution, applied here for the same reason.
+   Once the tint began following the skin (so the fill is the accent's own hue), accent-coloured TEXT on it
+   lost its separation: this badge measured 3.65:1 on the streamer skin. The dock hit this exact wall and
+   recorded the answer — "the active tab could not keep the accent as its text colour… so it uses the ink
+   and stays recognisable through its teal border and tint."
+   The badge keeps its identity from the BORDER and the TINT, which are still the accent; only the glyph
+   moves to the ink, which is contrast-clamped against the panel by construction. */
 .pf2RankTrained {
-  color: var(--hx-teal-1);
+  color: var(--hx-text);
   border: 1px solid var(--hx-teal-2);
   background: rgba(var(--hx-teal-1-rgb), 0.12);
 }
