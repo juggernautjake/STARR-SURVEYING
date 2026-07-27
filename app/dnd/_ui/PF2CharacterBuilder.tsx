@@ -11,6 +11,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import PF2BuildPicks from './PF2BuildPicks';
+import { pf2SpellCountsFor } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
 import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -257,6 +258,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
           <>
             <div style={label}>SPELLS <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>{spells.length ? `(${spells.length} chosen)` : ''}</span></div>
             <PF2BuildPicks kind="spell" className={className} ancestry={ancestry} level={level} tradition={cls.spellcasting.tradition} selected={spells} onToggle={toggleWith(setSpells)}
+              {...(pf2SpellCountsFor(className, level).modelled ? { cantripLimit: pf2SpellCountsFor(className, level).cantrips } : {})}
               offer={offer} exceptions={exceptions.filter((e) => spells.includes(e))} onTakeAnyway={takeAnyway(setSpells)} onUndoException={undoException(setSpells)} />
           </>
         ) : null;

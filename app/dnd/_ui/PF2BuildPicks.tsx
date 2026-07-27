@@ -19,7 +19,7 @@ import TakeAnyway from './builder/TakeAnyway';
 import type { UnlockOffer } from '@/lib/dnd/slots/entitlement';
 
 export default function PF2BuildPicks({
-  kind, className, ancestry, level, tradition, selected, onToggle, limit,
+  kind, className, ancestry, level, tradition, selected, onToggle, limit, cantripLimit,
   offer, exceptions = [], onTakeAnyway, onUndoException,
 }: {
   kind: 'feat' | 'spell';
@@ -38,6 +38,19 @@ export default function PF2BuildPicks({
    *  character could take thirty feats — while the label above it truthfully read "7 owed by level 12".
    *  The count was computed and displayed and then not enforced. */
   limit?: number;
+  /** How many CANTRIPS this caster gets (slot plan S7c). Rank-aware on purpose: `limit` above is a flat
+   *  count, which is right for feat slots and wrong for spells — a PF2 caster's entitlement is per RANK,
+   *  so one number cannot express "5 cantrips, and levelled spells governed separately".
+   *
+   *  Only cantrips are capped here, which is 5e's S7b split applied to PF2: cantrips are a known list for
+   *  every caster, so the number bites at pick time. LEVELLED spells are deliberately left uncapped — for a
+   *  PREPARED caster the sheet list is the spellbook or the whole tradition, both far larger than what is
+   *  cast in a day, so capping the picker there would refuse spells the class plainly has. That cap belongs
+   *  on the prepare step, exactly as 5e put it on the prepared toggle.
+   *
+   *  Omitted = uncapped, which is what a reduced caster (Magus/Summoner) must get: their tables are not
+   *  modelled, and inventing one is the bug this work exists to undo. */
+  cantripLimit?: number;
   /** The escape hatch (slot plan S6b). Omitted → no hatch, and the picker behaves exactly as before. */
   offer?: UnlockOffer;
   /** Names already taken through the hatch. */
@@ -83,6 +96,14 @@ export default function PF2BuildPicks({
     }
   }, [kind, q, ctx, selected]);
 
+  /** Cantrips already chosen, resolved against the CATALOG rather than the search rows — the rows are
+   *  filtered by the query, so counting them would let the budget drift as the player types. */
+  const cantripsChosen = useMemo(() => {
+    if (cantripLimit == null) return 0;
+    const chosen = new Set(selected.map((s) => s.trim().toLowerCase()));
+    return PF2_ALL_SPELLS.filter((s) => s.rank === 0 && chosen.has(s.name.toLowerCase())).length;
+  }, [cantripLimit, selected]);
+
   const status = kind === 'feat' ? PF2_CATALOG_STATUS.feats : PF2_CATALOG_STATUS.spells;
   const input = { padding: '6px 9px', fontSize: 12.5, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 6 } as const;
 
@@ -93,16 +114,31 @@ export default function PF2BuildPicks({
         placeholder={`Search ${status.count} ${kind}s…`}
         style={input}
       />
+      {/* The budget, shown UP FRONT. S7b's finding, and it applies unchanged: a cap discovered only by
+          being refused reads as a bug, while the same number stated before you pick reads as a rule. */}
+      {cantripLimit != null && (
+        <div style={{ fontSize: 11.5, color: cantripsChosen > cantripLimit ? 'var(--hx-danger-2)' : 'var(--hx-muted)' }}>
+          Cantrips {cantripsChosen}/{cantripLimit}
+          {cantripsChosen > cantripLimit ? ' — over this class’s number; remove one to get back to legal.' : ''}
+          {' · '}levelled spells are limited by your slots per rank when you prepare them.
+        </div>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
         {rows.map((r) => {
           const active = selected.some((s) => s.toLowerCase() === r.name.toLowerCase());
           // Already-selected entries are never blocked, so a pick made before the class was chosen
           // can still be removed rather than stranded — and so a full list can always be undone.
           const full = limit != null && !active && selected.length >= limit;
-          const blocked = (!r.ok && !active) || full;
-          const why = full
-            ? `You've used all ${limit} feat slot${limit === 1 ? '' : 's'} this class grants by level ${level} — deselect one first.`
-            : r.reason;
+          // Cantrips are counted on their own — see `cantripLimit`. `>=` matches the feat cap: a caster
+          // already over the number (an older character, a DM grant) can still REMOVE, never add, so
+          // nothing is silently deleted.
+          const cantripFull = cantripLimit != null && !active && r.meta === 'cantrip' && cantripsChosen >= cantripLimit;
+          const blocked = (!r.ok && !active) || full || cantripFull;
+          const why = cantripFull
+            ? `You've chosen all ${cantripLimit} cantrips this class grants at level ${level} — deselect one first.`
+            : full
+              ? `You've used all ${limit} feat slot${limit === 1 ? '' : 's'} this class grants by level ${level} — deselect one first.`
+              : r.reason;
           return (
             <button
               key={r.name} type="button"
