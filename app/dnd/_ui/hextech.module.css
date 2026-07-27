@@ -2033,6 +2033,18 @@ select.input {
     transition: none;
   }
   .pf2Chip:hover, .pf2SkillChip:hover, .pf2SpellChip:hover { transform: none; }
+
+  /* The reduced-motion blocks in this file all cover TRANSITIONS and TRANSFORMS on things you
+     interact with, which is the right instinct and misses the one animation that never stops.
+     `.portraitActive` runs `hexPulse` — a box-shadow glow, 1.6s, `infinite` — and measurement showed
+     it running unchanged with `prefers-reduced-motion: reduce` emulated: 1 infinite animation before
+     and 1 after.
+     It is a glow rather than movement, so it is not a WCAG 2.3.x failure (0.625Hz is far below the
+     three-flashes threshold, and nothing translates). It is the courtesy the preference asks for: a
+     perpetual pulse is exactly what someone setting "reduce motion" is trying to turn off. Scoped
+     inside the media query, so it can only ever affect a user who asked for it, and the only effect
+     is less animation. The gold border stays — the active portrait is still marked. */
+  .portraitActive { animation: none; }
 }
 
 /* ── The guided builder's two-column shell ────────────────────────────────────────────────────────

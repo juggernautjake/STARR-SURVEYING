@@ -3972,3 +3972,40 @@ by not having. The measurement stands on its own; the fixes need an owner.
 
 **Bar:** full D&D suite green, typecheck exit-0. No live data written; port 3563 confirmed bindable. No
 code changed.
+
+### 2026-07-27 — slice 106: `prefers-reduced-motion` changed nothing on the sheet
+
+A platform with four animated rollers and glow effects is where reduced-motion support earns its keep, and
+it had never been checked. The CSS suggests it was considered — **8 `prefers-reduced-motion` blocks**
+against **28 `animation:` and 52 `transition:` declarations** — so the question was whether they cover the
+right things.
+
+**Emulating the preference changed nothing measurable:**
+
+| | animating elements | infinite | elements with transitions |
+|---|---|---|---|
+| no preference | 2 | **1** | 68 |
+| `reduce` | 2 | **1** — still running | 76 |
+
+**The existing blocks are aimed correctly and miss one thing.** They cover transitions and transforms on
+things you *interact with* — `.siteBrand` hover/focus, and the whole PF2 chip/row/button family getting
+`transition: none` and `transform: none`. What none of them covers is the one animation that never stops:
+`.portraitActive` runs `hexPulse` — `1.6s ease-in-out infinite`.
+
+**Characterised honestly, because it changes what the finding is worth.** `hexPulse` animates
+**`box-shadow` only** — a glow between 8px gold and 20px cream. Nothing translates, nothing scales. At
+0.625Hz it is nowhere near WCAG 2.3.1's three-flashes threshold, and with no movement it is not a 2.3.3
+failure either. **This is not a WCAG violation** — it is the courtesy the preference exists to ask for: a
+perpetual pulse is precisely what someone enabling "reduce motion" is trying to switch off.
+
+**Fixed, and in the category where "safe" actually holds.** One declaration, `.portraitActive { animation:
+none }`, **inside the existing media query** — so it can only ever reach a user who asked for it, and the
+only effect it can have is *less* animation. Verified both ways: 1 infinite animation with no preference
+and **0** with `reduce`, and the gold border is identical in both, so the active portrait is still marked.
+
+That is the third change this arc I have called safe and the third of a specific kind — additive ARIA
+(104), and now a rule that is inert unless the user opts in. The ones that went wrong (79, 98, 103) all
+changed behaviour for *everybody* and needed their effect predicted.
+
+**Bar:** fix verified in the browser against shipped CSS, both media states. Full D&D suite green,
+typecheck exit-0, lint clean. No live data written; port 3567 confirmed bindable.
