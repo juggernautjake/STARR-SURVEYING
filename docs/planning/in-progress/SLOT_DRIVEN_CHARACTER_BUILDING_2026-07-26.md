@@ -1,3 +1,5 @@
+<!-- HOOK:BLOCKED The one remaining item is an owner DECISION, not effort: PF2_CLASSES is asserted in several tests as "the 14 Remaster classes", pinning the CORE line-up. Adding Magus and Summoner (Secrets of Magic) means deciding whether that catalogue means core-only or all-published, and updating those guards to say which. Every figure needed is already captured in the doc. An agent should not silently redefine what the app claims to cover. -->
+
 
 # Slot-driven character building — vanilla by default, custom by explicit choice
 
