@@ -218,6 +218,33 @@ is structural rather than a chosen colour, so it doesn't rest on the absolute nu
 sit only just over AA (4.57 on `jack`), so the eyes-on check now owed is **whether the dock's new light
 appearance on the three light skins looks right**, not whether a hand-picked colour cleared a ratio.
 
+## 2026-07-27 — PARTIAL RE-MEASUREMENT, after ~10 contrast-affecting slices
+
+The baseline below was measured before slices 34, 47 and 48 changed contrast-affecting code (IG's
+danger-as-text, the `--hx-gold-2` clamp, six undefined `var(--hx-…)` references). **A stale baseline is the
+thing this file keeps warning about**, so three of its six sheets were re-measured against current code with
+the corrected maths — gradients composited, multi-layer backgrounds, rendered nodes only.
+
+| sheet | then | **now** | notes |
+|---|---|---|---|
+| donata 5e (Donata Dime) | 20 | **3** | of 164 rendered nodes |
+| rulebook 5e (Jack) | — | **1** | of 154; an **82px decorative watermark** at 1.29 — the "decorative glyph is usually noise" case this file names |
+| PF2 streamer (Orin) | 8 | **9** | of 115 |
+
+**donata went 20 → 3, and the three that remain are the brand-fill item, confirmed live.** Two of them
+measure **exactly** what slice 49 computed from the CSS — `⬇ Export` at **2.62** (white on the candy teal)
+and `⟲ Reset` at **3.31** (white on `#f0577a`). That agreement between a static reading and a live one is
+worth noting on its own: the A/B options recorded in slice 49 apply to precisely these controls.
+
+**PF2 did not improve** (8 → 9), and its failures are a different family: the unfilled Hero-Point `◇` at
+3.23 (it paints `--hx-line`, a hairline colour, which is arguably deliberate for an *empty* pip but is still
+information), three 11.5px `E` markers at 3.92, and three 18px modifiers at **4.38** — a hair under.
+
+**Caveats, stated so this is not mistaken for a new baseline:** three of six sheets, one skin each, default
+template, no interaction states. The streamer/lazzuh/IG rows are unmeasured since the fixes. What it does
+establish is that the largest single bucket (donata's 20) is now 3, and that those 3 are the decision
+already written up rather than anything new.
+
 ## 2026-07-26 — THE VERIFIED BASELINE (all three tool bugs corrected)
 
 Six live characters, gradients and multi-layer backgrounds composited, and **only nodes that actually render**

@@ -203,6 +203,36 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 58 — re-measuring the baseline, because ten slices had moved it
+
+The contrast baseline was measured **before** slices 34, 47 and 48 changed contrast-affecting code. A stale
+baseline is exactly what this doc's evidence file keeps warning about, so three of its six sheets were
+re-measured live against current code.
+
+| sheet | then | **now** |
+|---|---|---|
+| donata 5e | 20 | **3** of 164 rendered nodes |
+| rulebook 5e (Jack) | — | **1** of 154 — an 82px decorative watermark at 1.29 |
+| PF2 streamer | 8 | **9** of 115 |
+
+**donata went 20 → 3, and the survivors are the brand-fill item, confirmed live** — two of them measuring
+**exactly** what slice 49 computed from the CSS (`⬇ Export` 2.62, `⟲ Reset` 3.31). A static reading and a
+live one agreeing to two decimals is the strongest evidence yet that those A/B options are aimed correctly.
+
+**PF2 did not improve** (8 → 9). Its failures are a different family — the unfilled Hero-Point `◇` painting
+`--hx-line` at 3.23, three 11.5px markers at 3.92, three 18px modifiers at 4.38. Recorded as such rather
+than folded into the gold/brand-fill buckets they do not belong to.
+
+**Stated as a partial refresh, not a new baseline:** three of six sheets, one skin each, default template,
+no interaction states.
+
+**Two process notes worth more than the numbers.** First, the run began with a **500 on every sheet** — and
+it was mine: `npm run build` had written production output into `.next/`, which `next dev` then read as a
+mix. Reporting that as a regression would have been a fabricated bug of exactly the kind slice 14 warns
+about; the check costs one restart. Second, the session cookie had **expired mid-audit** (minted with a
+1-hour life), producing 307s that look like an auth defect. Both were environment, neither was code — and
+both are the reason this doc's standing rule is to verify a red result before believing it.
+
 ### Slice 57 — the last unrendered branch, and the audit that now comes back clean
 
 Running slice 55's rule over everything this session changed leaves exactly one: **slice 36's "record only"
