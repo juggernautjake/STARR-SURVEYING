@@ -371,8 +371,30 @@ slices are driven in the browser before being called done — this repo's standi
       **flagged, not clamped**, since clamping hides a real state and the standing rule is grandfather and
       mark.
 
-      **What remains of S7c** is enforcement of the levelled cap, and its correct site is the SERVER's
-      `update_spell` — a client-only cap is decoration, which this session established three separate times.
+      **What remains of S7c** is enforcement of the levelled cap — and investigating its site turned up a
+      genuine design tension rather than a mechanical gap, so it is written out here instead of guessed at.
+
+      **`gatePf2Edit` deliberately does NOT gate `update_spell`,** and says why: *"Only ACQUISITION is
+      gated. `update_spell`/`update_feat` retune something the character already legitimately holds, which
+      is a customisation rather than a fresh acquisition — re-gating it would mean a level-4 wizard who was
+      legitimately granted a rank-5 spell could never edit its text afterwards, and would see the grant
+      refused back at them (S15)."*
+
+      **The prepared cap is a different axis from that**, which is the observation that makes this decidable:
+      S15 protects the right to *hold and retune* a spell someone granted you. Preparing is a **per-day
+      assignment**, not acquisition — so a narrow gate on `prepared: true` alone would not re-litigate any
+      grant. The wizard could still edit their rank-5 spell's text; they simply could not prepare more
+      rank-1 spells than they have rank-1 slots.
+
+      **Why it is still left open rather than shipped:** it cuts against a documented decision on a path the
+      codebase explicitly chose not to gate, and it is a rules change a player feels — a refused prepare.
+      That is an owner's call, not an implementer's. Everything needed to make it is now in place:
+      `pf2SpellCountsFor` supplies the per-rank number, `kind` says whether the class prepares at all,
+      `modelled` keeps the reduced casters out, and **S6e's rule applies directly** — the spell being
+      updated must be excluded from its own count, or re-preparing an already-prepared spell would convict
+      itself. Both budget displays already show the number, so the cap would confirm what the UI states
+      rather than surprising anyone.
+
       Plus the Magus/Summoner tables, still blocked on the published source (Ground Rule 3). The count
       source, the aiming decision, and both budget displays are done.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
