@@ -133,6 +133,35 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 38 (2026-07-26) — and there was nowhere to read them
+
+The end of the chain, and the biggest of the four. Slices 35–37 made IG/PF2 edits record, behave and read
+correctly — then the obvious question: **where does a DM actually see them?** Nowhere.
+
+**Neither `IGSheet` nor `PF2Sheet` rendered any edit history at all.** `EditReviewPanel` is bound to the
+shared 5e store (`useChar`, for the ✎ approve-all pass over `char.attacks`/`inventory`/`features`/`spells`)
+and the bespoke sheets do not use that store, so they simply mounted no review surface. On half the systems
+the platform's promise — *"every change is visible to the DM, and reversible by them"* — was false in **both
+halves at once**: nothing was recorded, and there was nowhere to look. Each half hid the other, which is why
+neither was noticed.
+
+`SheetEditHistory` is store-free — `characterId` + `canWrite` — reads the same `/edits` endpoint, applies
+the same revert-row filter, and renders through the **same `describeEdit`**. Not a second formatter: that is
+precisely where two vocabularies drifted once already, and a copy here would have been the third.
+
+**Read-only by nature, not as a shortcut.** A bespoke row carries no `new_value`, so the revert route
+refuses it by design — a button here could only ever fail, which is the dead control slice 36 just removed
+from the shared panel. Rebuilding it on a new surface would have undone that slice. The panel says why
+instead of leaving the absence unexplained.
+
+Gated twice (the fetch is skipped *and* the render bails), so a `canWrite` that flips after load cannot leak
+history to a viewer. Loading and empty are kept distinct — *"this sheet is as it was built"* is a much
+stronger claim than *"not loaded yet"*, and conflating them is how an empty state starts lying. 12 tests.
+
+**One test caught its own first draft:** asserting the file does not contain `"Revert"` failed on the
+comment explaining why there is no Revert. It now asserts on the control, not the word — a small reminder
+that a source-level test can fail on its own documentation.
+
 ### Slice 37 (2026-07-26) — the queue printed raw opcodes
 
 Third and last consequence of slice 35, found the same way as slice 36: **follow the new rows all the way to
