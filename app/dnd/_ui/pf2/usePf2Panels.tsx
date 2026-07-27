@@ -584,7 +584,12 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
               <span title="Hero Points — you start each session with 1; the GM awards more (max 3). Spend 1 to reroll a check (keep the new result), or spend all 3 to avoid death." style={{ fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'help', color: 'var(--hx-gold-2)' }}>Hero Points</span>
               <span aria-label={`${hp} of 3 hero points`} style={{ display: 'inline-flex', gap: 4 }}>
-                {[1, 2, 3].map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= hp ? 'var(--hx-gold-2)' : 'var(--hx-line)' }}>{n <= hp ? '◆' : '◇'}</span>)}
+                {/* The EMPTY pip takes `--hx-muted`, not `--hx-line`. A hairline token used as text is
+                    slice 34's shape: `--hx-line` is tuned as a 1px border against the panel and measures
+                    3.23:1 as a 15px glyph, while `--hx-muted` is contrast-clamped for exactly this role.
+                    An empty pip should read as de-emphasised — which is what muted MEANS — rather than as
+                    barely visible, and it is still carrying information: how many points you could hold. */}
+                {[1, 2, 3].map((n) => <span key={n} aria-hidden style={{ fontSize: 15, lineHeight: 1, color: n <= hp ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>{n <= hp ? '◆' : '◇'}</span>)}
               </span>
               {canDoEdit && (
                 <span style={{ display: 'inline-flex', gap: 4 }}>

@@ -186,3 +186,22 @@ describe('the accent-on-tint rule is applied everywhere it occurs, not just wher
     expect(PF2).not.toMatch(/color: 'var\(--hx-teal-1\)'[^}]{0,160}rgba\(var\(--hx-teal-1-rgb\)/);
   });
 });
+
+describe('a BORDER token is never used as text', () => {
+  // Slice 34's shape, third variant. `--hx-line` is tuned as a 1px hairline against the panel; as a 15px
+  // glyph it measured 3.23:1 on the PF2 hero-point pips. `--hx-muted` is the token clamped for exactly
+  // that role — de-emphasised but legible — and an empty pip is still information: how many you could hold.
+  it('nothing sets `color` to --hx-line', () => {
+    for (const src of [PF2, IG]) {
+      expect(src).not.toMatch(/color: ['"]var\(--hx-line\)['"]/);
+    }
+    // The lookbehind matters: without it this matches the tail of `border-color: var(--hx-line)`, which is
+    // the token's CORRECT use and appears throughout. The first draft of this assertion failed on exactly
+    // that — a guard that cannot tell the right usage from the wrong one is worse than no guard.
+    expect(CSS).not.toMatch(/(?<!-)color: var\(--hx-line\)/);
+  });
+
+  it('while it is still used as a border, which is what it is for', () => {
+    expect(PF2).toMatch(/border: '1px solid var\(--hx-line\)'/);
+  });
+});
