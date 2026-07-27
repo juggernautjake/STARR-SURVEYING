@@ -16,6 +16,22 @@ import type { PF2Attack, PF2Rank } from './model';
 import type { Character } from '@/app/dnd/_sheet/types';
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
+import { PF2_CLASS_PROGRESSIONS } from './data/classes';
+
+/** True when the class's slot table is DELIBERATELY not modelled — the reduced casters (Magus, Summoner).
+ *
+ *  `data/classes.ts` sets `slotTableModelled: false` on them and says why in its own header: *"reduced
+ *  casters carry `slotTableModelled: false` rather than a plausible table"*. `pf2MaxSpellRank` honours it,
+ *  returning a spell-rank ceiling of 0 for them. The builder did not — it handed every class with a
+ *  spellcasting block the FULL-caster table — so a built Magus contradicted itself on its own sheet: slot
+ *  pills reading "Rank 3: 3" beside a maximum castable rank of 0.
+ *
+ *  Deliberately conservative: only an EXPLICIT `false` suppresses. A class with no progression entry keeps
+ *  the previous behaviour, so this cannot quietly empty a full caster's slots. */
+function pf2SlotTableSuppressed(className: string | undefined): boolean {
+  const prog = PF2_CLASS_PROGRESSIONS.find((p) => p.className.toLowerCase() === (className ?? '').trim().toLowerCase());
+  return prog?.spellcasting?.slotTableModelled === false;
+}
 import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
@@ -238,7 +254,27 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
     spellcasting: cls?.spellcasting
       ? {
           tradition: cls.spellcasting.tradition, kind: cls.spellcasting.kind,
-          attribute: cls.spellcasting.attribute, rank: spellRank, slots: pf2SpellSlots(level),
+          attribute: cls.spellcasting.attribute, rank: spellRank,
+          // HONOUR `slotTableModelled`. This handed `pf2SpellSlots(level)` — the FULL-caster table — to
+          // every class carrying a spellcasting block, including the reduced casters the data file marks
+          // `slotTableModelled: false` precisely so nothing would invent one for them. Its own note says
+          // "reduced casters carry `slotTableModelled: false` RATHER THAN a plausible table", and
+          // `pf2MaxSpellRank` honours that by returning a ceiling of 0.
+          //
+          // So a built Magus or Summoner contradicted itself on its own sheet: the spells panel printed
+          // "Rank 3: 3" from these slots while the rules said their maximum castable rank was 0. A
+          // fabricated table is the worse half of that — `pf2MaxSpellRank`'s comment makes the call
+          // already ("a refused legal spell is visible and fixable; a silently over-generous ceiling is
+          // neither"), and this is the same choice for counts.
+          //
+          // Empty means "not modelled", which the panel already renders as no slot pills, rather than as
+          // a wrong number presented as fact. It fills in the day someone models those two tables.
+          //
+          // Suppressed ONLY where the rich data says so explicitly. `pf2Class` returns a thin level-1
+          // projection whose `spellcasting` has no such flag, so reading it there is `undefined` for every
+          // class — which would have emptied the slots of every full caster too. The flag lives on
+          // `PF2_CLASS_PROGRESSIONS`; absent an entry, the previous behaviour stands.
+          slots: pf2SlotTableSuppressed(picks.className) ? [] : pf2SpellSlots(level),
           // Chosen spells resolved against the catalog for their real rank. A prepared caster's
           // build-time picks start prepared — they are what the character is carrying today.
           ...(picks.spells?.length
