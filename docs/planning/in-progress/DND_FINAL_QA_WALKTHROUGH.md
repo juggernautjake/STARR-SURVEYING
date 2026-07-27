@@ -3084,3 +3084,45 @@ was broken — the honest outcome, and one both false alarms were dressed up to 
 
 **Bar:** full D&D suite green, typecheck exit-0. No live data written. Dev server stopped, port 3483
 confirmed bindable.
+
+### 2026-07-27 — slice 83: the defect that was hiding behind the false positive
+
+Slice 82 dismissed 1,633 phantom overflows on the IG sheet as a closed-`<details>` artefact and called the
+sheet clean. That was correct **for the state it measured**, and it left an obvious question unasked: a
+closed accordion is one a user *opens*. Every sweep in slices 80–82 measured only the collapsed state.
+
+**Opened, the same panel overflows for real.** Setting `open` on all three `<details>` at 360px:
+
+| | closed (slice 82) | **opened** |
+|---|---|---|
+| elements past the viewport edge | 0 (after excluding phantoms) | **1,633** |
+| `document.scrollWidth` | 345 — no overflow | **391** vs 345 client |
+| page scrolls sideways | no | **yes** |
+
+The numbers are identical to the phantom, which is exactly why this was easy to miss and worth writing
+down: **the false positive and the real defect report the same measurements.** What separates them is
+whether the user can reach the state, and the collapsed reading is the one that is meaningless.
+
+**Cause: grid blowout.** `IGVanillaLibrary.tsx` builds four nested `display: 'grid'` containers with no
+`grid-template-columns`. A default `auto` track is floored at its content's min-content width, so it can
+grow **wider than its own container** — each computed a single track of **376.438px inside a 315px box**,
+pushing the filter `<input>`, the group headings and all 566 entries 31px past the viewport edge.
+
+**Fix:** `gridTemplateColumns: 'minmax(0, 1fr)'` on all four. Measured against the real code afterwards:
+track **376.438px → 315px**, input **376 → 315**, elements past the edge **1,633 → 0**, with the sweep's
+self-check still firing on an injected 600px probe.
+
+**What is NOT fully fixed, stated plainly:** the page still reports a **4px** residual horizontal scroll
+(`scrollWidth` 391 vs 345 client) even with nothing past the edge — down from 31px of visibly cut content,
+and consistent with a sub-pixel artefact given the `.438px` fractions in play, but I did not identify its
+source. Calling this "fixed" without that sentence would repeat the overclaiming slices 72/75/77/79 each
+had to correct. The user-facing symptom — content cut off and a page that slides sideways — is resolved.
+
+**The transferable lesson, and it invalidates part of slices 80–82:** every mobile sweep so far measured
+**default** state only. Collapsed panels, unopened modals, inactive tabs and un-expanded rows were all
+either skipped as phantoms or never rendered. Those sweeps were not wrong about what they measured; they
+were narrower than they sounded. The 5e sheet, PF2 sheet, builder and feat designer were reported clean at
+390px **in their default state**, and that claim now carries the qualifier it always needed.
+
+**Bar:** full D&D suite green, typecheck exit-0. Fix verified in a browser against the shipped code, not
+inferred. No live data written. Dev server stopped, port 3487 confirmed bindable.

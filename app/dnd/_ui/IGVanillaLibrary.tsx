@@ -35,7 +35,16 @@ export default function IGVanillaLibrary() {
         <span style={{ fontSize: 11.5, fontWeight: 400, color: 'var(--hx-muted)' }}>· {total} elements from the Intuitive Games system</span>
       </summary>
 
-      <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+      {/* `minmax(0, 1fr)` on every grid in this panel, not a bare `display: grid` (MOB-IG1).
+          A grid's default `auto` track is floored at its content's min-content width, so it can grow
+          WIDER than its own container and take the page with it — the "grid blowout". Measured on a
+          360px viewport with this panel open: each of these four grids computed a single track of
+          376.438px inside a 315px box, pushing `<input>`, the group headings and every entry 31px past
+          the viewport edge and giving the page a horizontal scroll it should never have.
+          It hid from earlier sweeps because a CLOSED `<details>` reports the same numbers for a reason
+          that is NOT a defect (slice 82), so the real one only appears in the opened state a user
+          actually taps into. Verified: with this applied to all four, zero elements overflow. */}
+      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10 }}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -44,11 +53,11 @@ export default function IGVanillaLibrary() {
         />
         {groups.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>No vanilla elements match “{q}”.</div>}
         {groups.map((g) => (
-          <div key={g.title} style={{ display: 'grid', gap: 5 }}>
+          <div key={g.title} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 5 }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--hx-teal-1)', textTransform: 'uppercase' }}>{g.title}</div>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 4 }}>
               {g.entries.map((e) => (
-                <li key={e.name} style={{ display: 'grid', gap: 1, fontSize: 12.5, color: 'var(--hx-text)' }}>
+                <li key={e.name} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1, fontSize: 12.5, color: 'var(--hx-text)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--hx-teal-1)', border: '1px solid var(--hx-teal-1)', background: 'rgba(10,200,185,0.12)', borderRadius: 4, padding: '1px 4px' }}>VANILLA</span>
                     {e.name}
