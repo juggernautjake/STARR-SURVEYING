@@ -54,10 +54,34 @@ json_string() {
   fi
 }
 
-remaining_planning_docs=0
+# A doc is ACTIONABLE unless it carries an explicit blocked marker on a line of its own:
+#
+#   <!-- HOOK:BLOCKED reason goes here -->
+#
+# The marker exists for one situation: every remaining item in the doc needs a decision or
+# data only the owner has, so no slice can honestly be shipped. Without it the loop has no
+# exit but Ctrl+C, and the model is pushed to either invent work or falsely mark things
+# deferred — both worse than stopping.
+#
+# It is deliberately awkward to abuse:
+#   · it lives in the doc, in version control, visible in review and in `git blame`;
+#   · it must carry a reason on the same line (a bare marker does not count);
+#   · it is per-doc, so one blocked doc never silences the others;
+#   · deleting the line — or the owner answering — resumes the loop with no other change.
+blocked_docs=()
+actionable_docs=0
 if [ -d "$IN_PROGRESS" ]; then
-  remaining_planning_docs=$(find "$IN_PROGRESS" -type f -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  while IFS= read -r doc; do
+    [ -n "$doc" ] || continue
+    # Marker must have at least one non-space character of reason after it.
+    if grep -qE '<!--[[:space:]]*HOOK:BLOCKED[[:space:]]+[^[:space:]-]' "$doc" 2>/dev/null; then
+      blocked_docs+=("$(basename "$doc")")
+    else
+      actionable_docs=$((actionable_docs + 1))
+    fi
+  done < <(find "$IN_PROGRESS" -type f -name "*.md" 2>/dev/null)
 fi
+remaining_planning_docs=$actionable_docs
 
 remaining_qa_items=0
 if [ -f "$QA_CHECKLIST" ]; then
@@ -67,6 +91,15 @@ fi
 if [ "$remaining_planning_docs" -gt 0 ]; then
   reason="${remaining_planning_docs} planning doc(s) still in docs/planning/in-progress/. Pick the next one (alphabetical filename order works), read it together with the live state of the code it describes, then ship the smallest meaningful next slice — typecheck + lint, commit, push. Annotate the doc with the slice's completion note. When every action item in a doc is shipped or explicitly deferred with a one-line rationale, MOVE the doc from docs/planning/in-progress/ to docs/planning/completed/ per the rubric in docs/planning/README.md. Do not mark items deferred just to empty the folder; defer only when implementation cost clearly exceeds value, and document the reason inline. Once in-progress/ is empty this hook will route the conversation into the QA phase."
   printf '{"decision":"block","reason":%s}\n' "$(json_string "$reason")"
+  exit 0
+fi
+
+# Every remaining planning doc is explicitly blocked. Stop cleanly rather than fall through
+# into the QA phase — QA is the stage AFTER planning finishes, and blocked is not finished.
+# Naming the docs keeps the state visible instead of looking like the loop simply ended.
+if [ ${#blocked_docs[@]} -gt 0 ]; then
+  msg="Auto-continue paused. Every planning doc left in docs/planning/in-progress/ is marked <!-- HOOK:BLOCKED --> with a reason: ${blocked_docs[*]}. Nothing can be shipped without a decision or data from you. Remove the marker from a doc (or answer what it is waiting on) and the loop resumes automatically on the next stop."
+  printf '{"systemMessage":%s}\n' "$(json_string "$msg")"
   exit 0
 fi
 
