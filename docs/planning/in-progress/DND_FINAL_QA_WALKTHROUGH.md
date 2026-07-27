@@ -2991,5 +2991,7 @@ collapsed and expanded states, at 390px — no page-level horizontal scroll and 
 element made it report the overflow, and `html`/`body` are both `overflow-x: visible`, so nothing was
 masking a defect by clipping it at the root.
 
-**Bar:** 4/4 new guards, full D&D suite green, typecheck exit-0, lint clean. First production-code change
-in nine slices. Dev server stopped, port 3479 released.
+**Bar:** 4/4 new guards, full D&D suite green, typecheck exit-0. Lint: 0 errors, 5 pre-existing
+`react-hooks/exhaustive-deps` warnings in `app/dnd` (StreamPoll, a resize effect) untouched by this slice —
+recorded rather than called "clean", since a CSS change cannot produce ESLint output either way. First
+production-code change in nine slices. Dev server stopped, port 3479 released.
