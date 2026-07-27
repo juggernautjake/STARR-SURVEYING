@@ -203,6 +203,37 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 56 — applying slice 55's own rule, and finding it had missed one
+
+Slice 55 ended by stating a rule: *"when a slice adds a branch that only appears in a state the tests
+construct, render that state."* Applying it as an audit immediately found the gap **in slice 55 itself** —
+it rendered the PF2 and IG pickers and left the **5e** one behind, which is where this whole escape-hatch
+thread began (S6f).
+
+It was an inline IIFE bound to the walker's `draft`, so it could only be grepped. And a grep genuinely
+cannot separate the fix from the most plausible non-fix:
+
+```
+<option value="grappler">⊘ Grappler — needs STR 13</option>            ← the fix
+<option value="grappler" disabled>⊘ Grappler — needs STR 13</option>   ← looks right, hatch dead
+```
+
+The second greys the feat correctly, explains it correctly, and leaves the player **exactly as stuck as the
+filter S6f removed** — a disabled option cannot be selected, cannot be sent, and can never be refused.
+
+`AsiFeatPicker` is now a pure component. Behaviour preserved, **all 54 existing S6f tests pass untouched**,
+and the single simplification is provably equivalent (the old
+`e.target.value === '__custom__' ? '__custom__' : e.target.value` ternary returned its input either way).
+
+**8 render tests**, and they reach further than the disabled check. They pin the hatch's own states: the
+custom option is always offered; the free-text field appears when a custom value is set; and an **unknown
+stored `featKey` is treated as custom**, so a character already holding a homebrew feat does not have it
+silently dropped by a picker that does not list it. The empty-list placeholder *is* `disabled`, asserted
+explicitly, so the "no disabled" rule reads as being about **feats** rather than about every option present.
+
+**All three walkers' pickers are now rendered.** The rule found its own exception on first use, which is
+about the best evidence it is worth keeping.
+
 ### Slice 55 — rendering the escape-hatch groups that shipped without ever showing
 
 Slice 54's owed item. The pickers turned out to be **pure components** — no fetch, no store, no router — so
