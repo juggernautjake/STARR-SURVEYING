@@ -57,9 +57,24 @@ describe('what the blank character actually contains', () => {
   });
 });
 
-describe('the initialiser, and the constraint on any fix', () => {
-  it('DB mode still starts from a blank character', () => {
+describe('the initialiser, and the constraint the fix had to respect', () => {
+  it('DB mode seeds from the server-fetched character when it has one', () => {
+    // FIXED 2026-07-27 (option B). The page already fetched the row to render itself; it now passes
+    // `initialCharacter` through `SheetRoot` to the provider, so first paint is the real sheet.
+    // Measured after, production build: `HP 32 / 32 · LEVEL 3 · STR 19` at **41ms** where it had read
+    // `HP 1 / 1` through 2049ms, and CLS median **0.194 → 0**.
+    expect(STORE).toContain('dbMode && initialCharacter ? safeNormalize(initialCharacter) : null');
+  });
+
+  it('and still falls back to blank when there is no seed', () => {
+    // Preview/standalone, or any caller without the row. Unchanged behaviour for them.
     expect(STORE).toContain("dbMode ? blankCharacter('') : loadInitial(characterId)");
+  });
+
+  it('the seed is validated, so a foreign or half-written row cannot paint the sheet', () => {
+    // Same guard the DB hydrate path uses. Anything failing it falls back to the blank, which is the
+    // safe direction — an empty sheet beats someone else's numbers.
+    expect(STORE).toMatch(/function safeNormalize[\s\S]{0,400}!d\.meta \|\| !d\.abilities/);
   });
 
   it('the anti-leak reason is still recorded next to it', () => {
@@ -75,12 +90,26 @@ describe('the initialiser, and the constraint on any fix', () => {
   });
 });
 
-describe('THE DEFECT — pinned, fails on purpose', () => {
-  it.fails('the sheet should not paint a blank character before the real one (slices 97–116)', () => {
-    // Passing means someone has fixed it: either the initialiser no longer starts blank in DB mode
-    // (option B), or `dbPhase` is exposed so the sheet can render a loading state instead (option A).
-    const startsBlank = STORE.includes("dbMode ? blankCharacter('') : loadInitial(characterId)");
-    const phaseExposed = /dbPhase,\s*$/m.test(STORE) || /dbPhase\s*,\s*\n\s*\}/.test(STORE);
-    expect(startsBlank && !phaseExposed).toBe(false);
+describe('THE FIX — the anti-leak property it had to preserve', () => {
+  // This was `it.fails` while the defect stood (slices 97–116). Option B shipped, so it asserts the
+  // fix instead. The pin is gone because the thing it recorded is gone.
+  const ROOT = readFileSync(join(process.cwd(), 'app/dnd/_sheet/SheetRoot.tsx'), 'utf8');
+
+  it('the provider is KEYED on characterId', () => {
+    // The load-bearing half. A `useState` initialiser runs once per mount, so without this a
+    // client-side navigation from character A to B would keep A's seed until the fetch landed —
+    // trading a wrong-but-generic sheet for a wrong-and-SPECIFIC one, which is worse and is exactly
+    // what the store's "no other character's content ever flashes" comment guards against.
+    const providers = [...ROOT.matchAll(/<CharacterProvider([^>]*)>/g)].map((m) => m[1]);
+    expect(providers.length, 'no providers found — did SheetRoot change shape?').toBeGreaterThan(0);
+    for (const p of providers) {
+      expect(p, 'a CharacterProvider is missing key={characterId}').toContain('key={characterId}');
+      expect(p, 'a CharacterProvider is missing initialCharacter').toContain('initialCharacter=');
+    }
+  });
+
+  it('the page passes the row it already fetched', () => {
+    const page = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
+    expect(page).toContain('initialCharacter={character.data}');
   });
 });

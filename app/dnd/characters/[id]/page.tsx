@@ -420,6 +420,11 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           // defaults to 'vanilla' for an unlabelled slot, which is the safe direction.
           variantKind={activeKind}
           ownerName={ownerName}
+          // The row is already in hand here — every prop above reads off it. Passing the data blob
+          // too lets the sheet paint the real character on first render instead of a blank one that
+          // showed `HP 1 / 1` for up to 2.5s on a slow connection. `IGSheet`/`PF2Sheet` below have
+          // always worked this way; this makes the 5e engine match them.
+          initialCharacter={character.data}
         />
       )}
       {/* The campaign's active house rules, read-only (Area P3 scaffold) — so a player can see the rules in

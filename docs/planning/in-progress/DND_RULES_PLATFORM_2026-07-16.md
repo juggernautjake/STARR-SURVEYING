@@ -3818,5 +3818,3 @@ at the owner's request (2026-07-17). It needs an interactive, DB-backed session 
 throwaway test account + characters), which we agreed to run at another time. The read-only browser sweep
 already done (every no-data /dnd page runtime-verified error-free) and the "known gaps" notes for the run
 travelled with it into that doc. Move it back to `in-progress/` when the run starts.
-
-<!-- HOOK:BLOCKED One open item and it is a product question only Jack can answer: whether Rangor/Pugilist become a real custom class + subclass through the Slice-5 builder. Answering it closes this doc outright. Delete this line when answered. -->

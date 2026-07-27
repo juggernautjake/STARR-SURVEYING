@@ -29,6 +29,7 @@ export default function SheetRoot({
   preferences,
   variantKind,
   ownerName,
+  initialCharacter,
 }: {
   characterId?: string;
   campaignId?: string;
@@ -56,6 +57,11 @@ export default function SheetRoot({
    *  Codex identity column, which lists the character's owner. It is DB metadata about the
    *  row rather than character rules data, which is why it is a prop and not on `Character`. */
   ownerName?: string | null;
+  /** The character's `data` blob as the server already fetched it. Lets the store paint the real
+   *  sheet on first render instead of a blank one — see the initialiser in `state/store.tsx`.
+   *  The providers below are keyed on `characterId` so navigating between characters remounts
+   *  rather than carrying the previous character's seed. */
+  initialCharacter?: unknown;
 }) {
   // A custom (AI-composed) sheet takes over rendering when it has valid blocks. If it
   // contains interactive widgets (Slice 11), render it via React inside the provider so
@@ -64,7 +70,7 @@ export default function SheetRoot({
   if (sheetType === 'custom' && hasCustomLayout(customLayout)) {
     if (layoutHasInteractive(customLayout)) {
       return (
-        <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
+        <CharacterProvider key={characterId} initialCharacter={initialCharacter} characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
           <div className="dnd-sheet skin-hextech" style={{ padding: 16 }}>
             <InteractiveSheet layout={customLayout} />
           </div>
@@ -79,7 +85,7 @@ export default function SheetRoot({
     // configurable rule silently used its vanilla default. The custom-interactive branch above passed it;
     // this one did not. Forwarding it is what makes both campaign house rules and a player's own choices
     // actually drive the sheet.
-    <CharacterProvider characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
+    <CharacterProvider key={characterId} initialCharacter={initialCharacter} characterId={characterId} campaignId={campaignId} isDM={isDM} canWrite={canWrite} system={system} variantKind={variantKind} preferences={preferences}>
       <App sheetType={sheetType} system={system} theme={theme} ownerName={ownerName} />
     </CharacterProvider>
   );

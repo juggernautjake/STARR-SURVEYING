@@ -715,5 +715,3 @@ same problem in a nicer font. Slice S8 carries that.
    the DM but does not block, because blocking would start failing submissions that succeed today and the
    policy is the campaign owner's to set. Three plausible answers: never block (today), block unless every
    exception is `dm-granted`, or block on any. The change is one predicate feeding `hasBlockingCustom`.
-
-<!-- HOOK:BLOCKED Two owner decisions (enforce the PF2 prepared cap against S15's acquisition-only boundary; the per-system dice-roller feature question Q4) and three data blocks that cannot be invented (IG Champion's powers, the IG level-1 feat count, the published Magus/Summoner reduced-caster tables). Delete this line when one is answered. -->

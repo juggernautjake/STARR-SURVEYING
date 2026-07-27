@@ -264,6 +264,19 @@ function freshUses(c: Character, formId: string | null): Record<string, number> 
   return out
 }
 
+/** Normalize a server-supplied `dnd_characters.data` blob, or null if it is not a character.
+ *  Same guard the DB hydrate path uses (`d.meta && d.abilities`) so a half-written or foreign
+ *  row can never seed the sheet — it falls back to the blank instead, which is the safe direction. */
+function safeNormalize(raw: unknown): Character | null {
+  try {
+    const d = raw as { meta?: unknown; abilities?: unknown } | null | undefined
+    if (!d || typeof d !== 'object' || !d.meta || !d.abilities) return null
+    return normalizeCharacter(d)
+  } catch {
+    return null
+  }
+}
+
 export function CharacterProvider({
   children,
   characterId,
@@ -273,6 +286,7 @@ export function CharacterProvider({
   system,
   preferences,
   variantKind = 'vanilla',
+  initialCharacter,
 }: {
   children: React.ReactNode
   /** When set (C3), the sheet loads/saves `dnd_characters.data` via the API for
@@ -298,6 +312,10 @@ export function CharacterProvider({
    *  'vanilla' deliberately — an unlabelled or legacy sheet should obey the rules rather than
    *  escape them, so the safe direction is the default. */
   variantKind?: SheetVariantKind
+  /** This character's `dnd_characters.data` as the SERVER already fetched it, so the first paint is
+   *  the real sheet instead of a blank one. Optional: omitted (preview/standalone, or any caller that
+   *  does not have it) falls back to the previous blank-then-hydrate behaviour unchanged. */
+  initialCharacter?: unknown
 }) {
   // Effective preferences, defaulting to the vanilla set when none were supplied (standalone sheet).
   const prefs: EffectivePreferences = preferences ?? resolvePreferences(DEFAULT_CAMPAIGN_PREFERENCES)
@@ -325,6 +343,26 @@ export function CharacterProvider({
   // BLANK character so no other character's content ever flashes. Preview/standalone mode
   // hydrates from this character's own cache slot, also falling back to blank.
   const [char, setCharState] = useState<Character>(() => {
+    // The server already fetched this character to render the page, so paint it immediately rather
+    // than a blank one. Before this, DB mode always started from `blankCharacter('')` and swapped to
+    // the real sheet when the client fetch landed ~0.5s later on localhost and **2.5s on slow 3G** —
+    // during which every vital read wrong: `HP 1 / 1`, `LEVEL 1`, `AC 10`, six ability 10s, with no
+    // skeleton or spinner to mark it provisional. It read as data. That also cost a failing CLS
+    // (median 0.194) as the shorter blank hero jumped when the real name arrived.
+    //
+    // The blank fallback STAYS for the case it was written for — the comment below is the reason it
+    // exists and it is a real one. `initialCharacter` is this character's own server-rendered row,
+    // and `CharacterProvider` is keyed on `characterId`, so a navigation between characters remounts
+    // with the new row instead of reusing the previous one. Without that key this would trade a
+    // wrong-but-generic sheet for a wrong-and-specific one, which is worse.
+    //
+    // `IGSheet`/`PF2Sheet` already work this way, taking the character as a prop; they measure 0 CLS
+    // and are correct from first paint. This makes the 5e engine consistent with them.
+    const seeded = dbMode && initialCharacter ? safeNormalize(initialCharacter) : null
+    if (seeded) {
+      baselineRef.current = structuredClone(seeded)
+      return seeded
+    }
     const initial = dbMode ? blankCharacter('') : loadInitial(characterId)
     // Standalone mode has no later hydrate, so its baseline is what we start with.
     if (!dbMode) baselineRef.current = structuredClone(initial)
