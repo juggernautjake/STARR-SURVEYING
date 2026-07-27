@@ -183,9 +183,20 @@ export default function LevelBuilder({
   const current = plan?.outstanding?.[0] ?? null;
 
   // Reset the draft whenever we move to a different choice.
+  //
+  // The dep list is NARROW ON PURPOSE — `current.level` and `current.kind` identify WHICH choice is being
+  // made, and those are the only fields this effect reads. `exhaustive-deps` asks for `current` itself,
+  // and satisfying it would be a real bug: `current` is `plan?.outstanding?.[0]`, a fresh object on every
+  // refetch, so the effect would re-run and **wipe a half-filled draft out from under the player** — the
+  // ability scores they had picked, the skills they had ticked — every time the plan reloaded.
+  //
+  // Verified against this warning rather than silenced blindly (final-QA slice 43): the effect body reads
+  // no other field of `current`, so there is no stale closure to fix. Suppressed so the standing warning
+  // stops inviting someone to "fix" it into that bug.
   useEffect(() => {
     if (!current) { setDraft(null); return; }
     setDraft({ level: current.level, kind: current.kind, ...(current.kind === 'expertise' ? { skills: [] } : {}), ...(current.kind === 'asi' ? { abilities: [] } : {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.level, current?.kind]);
 
   const save = useCallback(
