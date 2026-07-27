@@ -26,6 +26,8 @@
 // player whose feat vanished.
 import { describe, it, expect } from 'vitest';
 import { customFeatToFeat, eligibleHomebrewFeats } from '@/lib/dnd/feats/homebrew-adapter';
+import { FEATS_2014 } from '@/lib/dnd/feats/dnd5e-2014';
+import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
 import type { CustomFeat } from '@/lib/dnd/classes/custom';
 
 const feat = (over: Partial<CustomFeat> = {}): CustomFeat => ({
@@ -135,11 +137,39 @@ describe('reachability depends on CATEGORY as well as system', () => {
     // outside the CC-BY licence. Homebrew is therefore that edition's only real feat route, which is the
     // "custom is the explicit escape hatch" principle this builder already runs on.
     const src = read('app/dnd/_ui/LevelBuilder.tsx');
-    expect(src).toContain("if (system === 'dnd5e-2014') return extra;");
+    expect(src).toContain("const pool2014: FeatChoice[] = [...FEATS_2014, ...extra];");
     // No CATEGORY filter on that branch: origin / general / fighting-style / epic-boon are 2024 TRACKS
     // that do not exist in 2014, so filtering by them would impose one edition's structure on the other.
-    expect(src).not.toMatch(/dnd5e-2014'\) return extra\.filter/);
+    expect(src).not.toMatch(/pool2014[^;]*extra\.filter/);
     expect(eligibleHomebrewFeats([feat({ category: 'general' })], 5)).toHaveLength(1);
+  });
+
+  it('the OFFICIAL 2014 feat is offered too, judged by 2014’s own dispatcher arm', () => {
+    // `dnd5e-2014.ts` prescribed this exactly: "add a system-keyed dispatcher rather than widening the
+    // 2024 type". Both halves now exist, so Grappler reaches the picker without either edition claiming
+    // the other's structure — and it is judged by the 2014 arm, not the 2024 one.
+    const src = read('app/dnd/_ui/LevelBuilder.tsx');
+    expect(src).toContain("featEligibilityForSystem('dnd5e-2014', f.key, { slot: 'asi', level, abilities })");
+    expect(FEATS_2014.map((f) => f.key)).toContain('grappler');
+  });
+
+  it('and FeatChoice is no longer the 2024 catalogue’s type, which is what unblocked it', () => {
+    // The narrowing is the load-bearing part. While `FeatChoice = Feat & {…}`, offering a 2014 feat meant
+    // widening `Feat` across editions or inventing a category at the boundary — the same bleed either way.
+    const src = read('app/dnd/_ui/LevelBuilder.tsx');
+    expect(src, 'FeatChoice went back to being 2024-typed').not.toMatch(/export type FeatChoice = Feat &/);
+    expect(src).toMatch(/export interface FeatChoice \{/);
+  });
+
+  it('2014’s eligibility arm really does gate on the ability score', () => {
+    // Behavioural, not a string match: Grappler needs STR 13, and the arm must say so rather than pass
+    // everything through. If this ever returns ok for STR 8, the picker is showing a feat as legal that
+    // the server will refuse.
+    const low = featEligibilityForSystem('dnd5e-2014', 'grappler', { slot: 'asi', level: 4, abilities: { str: 8 } });
+    expect(low.ok).toBe(false);
+    expect(low.reason ?? '').toMatch(/str/i);
+    const high = featEligibilityForSystem('dnd5e-2014', 'grappler', { slot: 'asi', level: 4, abilities: { str: 14 } });
+    expect(high.ok).toBe(true);
   });
 
   it('and PF2 / IG are still excluded, which is correct rather than an oversight', () => {

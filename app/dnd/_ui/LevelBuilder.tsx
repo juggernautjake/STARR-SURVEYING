@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
+import { FEATS_2014 } from '@/lib/dnd/feats/dnd5e-2014';
 import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
 
 /**
@@ -44,11 +45,22 @@ function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abili
   // that do not exist in 2014, so filtering by them would impose one edition's structure on the other —
   // the exact bleed `dnd5e-2014.ts` warns about. Every saved feat is offerable at an ASI slot.
   //
-  // The OFFICIAL 2014 feat is deliberately still absent: `FeatChoice` is `Feat &`, i.e. 2024-typed, and
-  // `dnd5e-2014.ts` says outright that wiring 2014 feats in wants "a system-keyed dispatcher rather than
-  // widening the 2024 type". That is a larger piece with a prescribed design; homebrew needs neither,
-  // because it is already adapted to this shape and carries no edition-specific structure.
-  if (system === 'dnd5e-2014') return extra;
+  // The OFFICIAL 2014 catalogue joins them, judged by 2014's OWN rules. `dnd5e-2014.ts` prescribed the
+  // shape of this: *"add a system-keyed dispatcher rather than widening the 2024 type"*. Both halves now
+  // exist — `featEligibilityForSystem` is that dispatcher and already has a 2014 arm, and `FeatChoice` is
+  // a presentation shape rather than the 2024 catalogue's type — so a 2014 feat reaches the picker without
+  // either edition claiming the other's structure.
+  if (system === 'dnd5e-2014') {
+    const pool2014: FeatChoice[] = [...FEATS_2014, ...extra];
+    if (!abilities) return pool2014;
+    return pool2014.map((f) => {
+      // 2014 arm, not the 2024 one: Grappler's STR 13 is judged by 2014's schedule. A homebrew feat is
+      // unknown to the catalogue and the dispatcher passes it (`ok: true`), which is right — its
+      // prerequisite is free text nobody can machine-check.
+      const v = featEligibilityForSystem('dnd5e-2014', f.key, { slot: 'asi', level, abilities });
+      return v.ok ? f : { ...f, blockedReason: v.reason ?? 'not available to this character' };
+    });
+  }
   if (system !== 'dnd5e-2024') return [];
   const official = FEATS_2024.filter((f) => {
     if (f.category !== 'general' && !(f.category === 'epic-boon' && level >= 19)) return false;
@@ -93,8 +105,20 @@ function asiFeatChoices(system: string, level: number, extra: Feat[] = [], abili
 }
 
 /** A feat offered by the picker, plus the reason it is not legal yet — present ONLY when the rules refuse
- *  it. Kept on the option rather than in a parallel set so the label and the decision cannot drift. */
-export type FeatChoice = Feat & { blockedReason?: string };
+ *  it. Kept on the option rather than in a parallel set so the label and the decision cannot drift.
+ *
+ *  NARROWED 2026-07-27 from `Feat & { … }` to the fields this picker actually RENDERS. It was the 2024
+ *  catalogue's type, which meant a 2014 feat could not be offered here without either widening `Feat` to
+ *  span both editions — forcing every 2014 feat to claim a 2024 category it does not have, the exact bleed
+ *  `feats/dnd5e-2014.ts` warns about — or inventing a category at the boundary, which is the same bleed
+ *  wearing a hat. A presentation shape is neither: both editions' feats already satisfy it structurally,
+ *  and neither has to pretend to be the other. `Feat` is unchanged and still assignable. */
+export interface FeatChoice {
+  key: string;
+  name: string;
+  prerequisites?: readonly { ability?: { key: AbilityKey; min: number }; needs?: string; text?: string }[];
+  blockedReason?: string;
+}
 
 /** The ASI slot's feat picker, split out of the walker's JSX so its states are reachable in a test.
  *
@@ -144,7 +168,7 @@ export function AsiFeatPicker({ choices, featKey, onPick }: {
 }
 
 /** A short "(needs STR 13, Spellcasting)" hint for a feat's non-level prerequisites. */
-function prereqHint(feat: Feat): string {
+function prereqHint(feat: FeatChoice): string {
   const parts: string[] = [];
   for (const p of feat.prerequisites ?? []) {
     if (p.ability) parts.push(`${p.ability.key.toUpperCase()} ${p.ability.min}`);
