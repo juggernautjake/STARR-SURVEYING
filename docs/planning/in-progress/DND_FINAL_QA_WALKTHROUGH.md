@@ -4247,3 +4247,39 @@ in the UI.**
 
 **Bar:** source-level verification of both write routes. Full D&D suite green, typecheck exit-0. No live
 data written — which is the point of this slice. Port 3583 confirmed bindable. No code changed.
+
+### 2026-07-27 — slice 113: no gate in the D&D API is called and then ignored
+
+Slice 112 verified two write routes call `requireCharacterWrite` **and act on its result** — the
+distinction slice 74 found missing elsewhere, where a gate nobody acts on is indistinguishable from no
+gate. `character-mutation-authorization.test.ts` asserts every handler *contains* an auth predicate; it
+does **not** assert the result is used. A gate whose return value is dropped would pass it. So the whole
+surface was checked.
+
+**126 write handlers (`POST`/`PATCH`/`PUT`/`DELETE`) across `app/api/dnd`. Result: `0` that call a gate and
+ignore it.** The pattern does not occur.
+
+**120 are gated. The six that are not, correctly:** `auth/login`, `logout`, `quick`, `register`, `signup` —
+which *establish* identity and therefore cannot require it — and `dev/enter`.
+
+**Getting to that number took three passes, and the reason is the useful part.** Every candidate rule for
+"is this handler gated?" has a blind spot, and they are opposite ones:
+
+| formulation | what it misses |
+|---|---|
+| match the gate helper by name | **indirection** — `levels/route.ts` wraps `getCharacterAccess` in a local `load()`, so the call is not in the handler body |
+| require a literal `status: 403` | **delegation** — `layout` and `theme` return `status: access.status`, so no literal appears, and both were *verified* correct in slice 112 |
+
+First pass flagged 11 routes, second 7, third 14 — **all false positives**, each time in a way that looked
+like a security finding. The one thing that resolved them was reading the handler.
+
+**So no new guard was added, and that is the finding.** The existing test's curated predicate list is not a
+weaker approach than either formulation I tried — it is the pragmatic answer to the fact that neither
+naming nor status is reliable on its own. **A brittle security guard is worse than none**: it fails
+spuriously, gets widened to make the failure stop, and ends up asserting nothing. The gap it genuinely has
+— "called but not acted on" — is now measured at zero across all 126 handlers, which is the assurance the
+guard would have provided, obtained once and recorded.
+
+**Bar:** static verification of 126 handlers, three independent formulations, discrepancies resolved by
+reading the source. Full D&D suite green, typecheck exit-0. No server needed; no live data written. No code
+changed.
