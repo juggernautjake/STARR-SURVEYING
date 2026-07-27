@@ -3620,3 +3620,46 @@ Either alone would have reported a clean sweep for half the failure modes.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
 data written; port 3535 confirmed bindable.
+
+### 2026-07-27 — slice 97: the numbers add up, and three extractors disagreed about it
+
+The open box asks for *"numbers that don't add up on the resulting sheet"*. Ability modifiers are the one
+derived value checkable from rendered output alone — `floor((score − 10) / 2)` holds in every system here —
+so no engine mapping is needed and no assumption smuggled in.
+
+**Result: correct on every sheet, verified against stored data.**
+
+| sheet | rendered | verdict |
+|---|---|---|
+| 5e Lazzuh Gun | STR 19→+4, DEX 14→+2, CON 15→+2, INT 11→+0, WIS 13→+1, CHA 13→+1 | 6/6 correct, and matches `data.abilities` (`str:19…`) |
+| 5e Perrin | six pills, all consistent | 6/6 |
+| IG Vashti | STR 17→+3, DEX 14→+2, CON 15→+2, INT 10→+0, WIS 12→+1, CHA 13→+1 | 6/6 |
+| PF2 Orin | — | renders no score/modifier pair at all (modifier-first design); nothing to check |
+
+**Getting there took three extractors that disagreed, and the disagreement was the finding.**
+
+1. A container-walking heuristic reported `STR 10 +0` everywhere.
+2. A whole-body regex over whitespace-stripped `innerText` reported the same.
+3. Reading the `.apill` elements directly reported `STR 19 +4`.
+
+At the midpoint this looked like **the most serious defect of the entire session** — the sheet displaying
+10s while the database held 19s. Writing that up was one step away. What stopped it was checking the raw
+element before believing the extractor, which showed six visible pills reading the correct values and
+`bareTens: 0` — no element on the page rendering a bare 10 at all.
+
+**And the resolution is a timing trap, not a selector one.** Sampling the same `.apill` at intervals: `10/+0`
+at 0, 300 and 900ms; `19/+4` at 1800ms. **The sheet renders placeholders and hydrates at ~1.5s** on a dev
+server. All three extractors were reading the same element; they differed in *when*. That is why it cost so
+much — every disagreement presents as a DOM-structure problem and invites another rewrite of the query.
+
+This is the second time in five slices that a "settled state" assumption produced a confident false defect
+(slice 93 was the first, over a 150ms CSS transition). Recorded as limitations 10 and 11 in
+`qa-evidence/contrast-sweep.md`, together, since they compound: a mistimed sample plus a boundary-crossing
+regex agree with each other and look like corroboration.
+
+**Not claimed:** whether a ~1.5s flash of default values matters to a real user. Dev-server timings are not
+production timings, and I have no production measurement — so it is recorded as an observation, not a
+defect.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed — nothing was found to change. No live
+data written; port 3539 confirmed bindable.

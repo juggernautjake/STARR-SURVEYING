@@ -527,3 +527,22 @@ defect: `.play-ref-toggle`'s focus border read `rgba(252, 31, 153, 0.306)` again
 **Sample twice, and check `transition-property` before believing a "no change" result.** The
 discriminator is not the first reading: eleven IG form controls carry the *same* `border-color 0.15s`
 transition and are genuinely static under focus, so t=0 looks identical for a real defect and a false one.
+
+**10. A client-rendered value must be sampled after hydration, not after `domcontentloaded` (slice 97).**
+Sibling of limitation 9, and it bit harder. The 5e ability strip renders placeholder `10 / +0` and swaps to
+the real scores at **~1.5s** on a dev server:
+
+| sampled at | STR pill |
+|---|---|
+| 0 / 300 / 900ms | `STR10+0` |
+| **1800ms** | **`STR19+4`** |
+
+Three different extractors gave three different answers in one slice, and the cause was **timing, not
+selectors** — which is exactly how it burns an hour, because each disagreement looks like a DOM-structure
+problem and invites another rewrite of the query. Wait for `networkidle` plus a margin, or poll until the
+value stops changing.
+
+**11. Regexing whitespace-stripped `innerText` fabricates matches.** Stripping whitespace from whole-page
+text joins numbers belonging to different elements, so a pattern like `(STR|DEX|…)(\d{1,2})([+-]\d{1,2})`
+matches across boundaries and reports values that are on no screen. **Scope the query to the element that
+renders the value** (`.apill` here) and anchor the pattern with `^…$`.
