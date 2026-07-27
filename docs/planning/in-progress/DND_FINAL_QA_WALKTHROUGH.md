@@ -3714,3 +3714,45 @@ the full one is not wanted.
 **Bar:** production build succeeded, three timed runs plus an SSR-HTML parse and a 200ms overlay check.
 `.next` removed afterwards — this repo has a recorded failure where a production `.next` breaks `next dev`.
 No live data written; port 3543 confirmed bindable. No code changed.
+
+### 2026-07-27 — slice 99: the flash is the whole stat rail, and it kills my own "cheap fix"
+
+Slice 98 measured the placeholder flash on the ability pills and offered a narrow alternative to the
+architectural fix: *"render `—` rather than `10`… needs no architecture change and cannot be wrong."*
+That recommendation was made without checking how much of the sheet is affected. It is wrong.
+
+**The store initialises from `blankCharacter('')`, so the ENTIRE stat rail is a blank character** for the
+same window. Production build, 150ms after `domcontentloaded`:
+
+| field | at 150ms | actual |
+|---|---|---|
+| name | *(empty)* | LAZZUH GUN |
+| LEVEL | **1** | 3 |
+| **HP** | **1 / 1** | **32 / 32** |
+| AC | **10** | 13 |
+| SAVE DC | **10** | 14 |
+| INIT | **+0** | +2 |
+| FORM | **Base** | "The Kid" |
+| STR / DEX / CON … | **10 / +0** ×6 | 19/+4, 14/+2, … |
+
+**`HP 1 / 1` is the one that matters.** A player glancing at their sheet mid-session reads one hit point.
+This doc's own slices 10–12 recorded *"a level-8 Fighter rendering with 1 HP was real and is fixed"* — that
+was the persistent form of this exact misreading. The transient form is still here, on every sheet load,
+and it is the same wrong number.
+
+**So the cheap half is not viable.** Patching the ability pills to `—` would correct 6 of ~13 wrong values
+and leave `HP 1/1`, `LEVEL 1` and `AC 10` untouched — while making the sheet *look* more finished during
+the window, which is worse than leaving it obviously mid-load. **A partial fix here reduces the visible
+symptom without reducing the risk**, and the risk is the whole point. Retracted.
+
+**What is left is one decision, and it is the architectural one:** thread the server-fetched character into
+the store's initial state (the data is already in the same response — `19` sits in the RSC payload), or
+render the sheet as unmistakably loading until it arrives. Both are `store.tsx:327`'s
+`dbMode ? blankCharacter('') : …`. Neither is mine to pick.
+
+**Two slices, two corrections to my own recommendation** — 98 narrowed 97's "not a defect", and 99 kills
+98's "cheap alternative". The pattern is consistent enough to name: *the cost of a fix is easy to estimate
+and the **scope of a defect** is not, and I keep estimating the first while assuming the second.*
+
+**Bar:** production build, timed against `next start`. `.next` removed. No live data written; port 3547
+confirmed bindable. No code changed.
