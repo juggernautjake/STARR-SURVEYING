@@ -4009,3 +4009,44 @@ changed behaviour for *everybody* and needed their effect predicted.
 
 **Bar:** fix verified in the browser against shipped CSS, both media states. Full D&D suite green,
 typecheck exit-0, lint clean. No live data written; port 3567 confirmed bindable.
+
+### 2026-07-27 — slice 107: all nineteen infinite animations, and an 11-per-second shake
+
+Slice 106 fixed the one infinite animation visible on the sheet I happened to be looking at. That is the
+weaker version of the check. **Enumerating them from source instead: 19 `infinite` animations across the
+two D&D stylesheets, of which 10 were outside every `prefers-reduced-motion` block.**
+
+**The one that matters is not a glow.** `influenceShake` on `.influenceTrackMax`:
+
+```
+transform: translate(-3px, 2px) rotate(-1.5deg)     0.09s linear infinite
+```
+
+**Roughly eleven cycles per second, translating and rotating, forever** — it runs once the patron-influence
+meter maxes out. Everything else found this arc has been `box-shadow`; this is the only genuine
+high-frequency motion in the codebase, and it was uncovered.
+
+**Now covered:** `influenceTrackMax`, `influenceFill` (hue + glow), `transposeBar`, `revealImg`, both
+`siteBrandCluster` rotations, and the three `fabpulse` floating action buttons in `theme.css` — that last
+block had covered the streamer *skin* thoroughly and missed the FABs, which run on **every** skin.
+
+**`.spinner` is left running, deliberately.** A spinner is not decoration — it is the only signal that work
+is happening, and freezing it reads as a hung app. Reducing non-essential motion is the goal; this one is
+the message. Recorded in the CSS so it does not look like an oversight next time.
+
+**Result: 19 infinite animations, 1 uncovered, and that one on purpose.**
+
+**Verification, stated precisely.** The 5e sheet measured 1 infinite animation normally and **0** under
+`reduce`, in the browser. The other rules are verified *statically* — the selectors are now inside the media
+blocks and the enumeration confirms it — but **not observed rendering**, because the influence meter and the
+FABs are not on that page in this state. That is weaker evidence than slice 106's and worth flagging rather
+than rounding up.
+
+**Three tooling errors in one slice, all mine, all in the analysis rather than the product.** The coverage
+script first truncated media blocks at the first nested `}`, then failed to strip comments from captured
+selectors — each time reporting `.portraitActive` as uncovered when slice 106 had *measured* it covered.
+**The browser result was the fixed point that kept catching the script**, which is the argument for having
+measured the same thing two ways.
+
+**Bar:** full D&D suite green, typecheck exit-0, lint clean. No live data written; port 3571 confirmed
+bindable.

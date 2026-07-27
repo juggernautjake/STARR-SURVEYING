@@ -3063,6 +3063,15 @@
   .dnd-sheet.skin-streamer [data-inf-fill] {
     animation: none;
   }
+  /* Slice 107. This block covered the streamer SKIN's animations and missed the three that run on
+     every skin: the floating action buttons pulse `fabpulse` forever. Glow only (box-shadow), so
+     lower stakes than the shake in `hextech.module.css` — but "forever" is the part the preference
+     is about, and these sit on top of the sheet on every screen. */
+  .dnd-sheet .tray-fab,
+  .dnd-sheet .stream-fab,
+  .dnd-sheet .stream-fab .stream-fab-dot {
+    animation: none;
+  }
 }
 
 /* Stream-chat feed reads as the streamer.s neon broadcast monitor — a deep plum screen

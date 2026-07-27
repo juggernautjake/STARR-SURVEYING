@@ -2045,6 +2045,25 @@ select.input {
      inside the media query, so it can only ever affect a user who asked for it, and the only effect
      is less animation. The gold border stays — the active portrait is still marked. */
   .portraitActive { animation: none; }
+
+  /* Slice 107: the rest of this file's `infinite` animations, found by enumerating them rather than by
+     noticing one on a page. `influenceShake` is the reason this is not cosmetic — it is
+     `translate(-3px, 2px) rotate(-1.5deg)` at **0.09s per cycle, ~11 per second**, the only real
+     high-frequency motion in the codebase, and it runs forever once the influence meter maxes. The
+     others are glows and sweeps. Same contract as above: inert unless the user asked for it, and the
+     only possible effect is less motion. */
+  .influenceTrackMax,
+  .influenceFill,
+  .transposeBar,
+  .revealImg,
+  .siteBrand > .siteBrandCluster:nth-child(1),
+  .siteBrand > .siteBrandCluster:nth-child(3) {
+    animation: none;
+  }
+
+  /* `.spinner` (hexSpin) is DELIBERATELY left running. A spinner is not decoration — it is the only
+     signal that work is in progress, and freezing it reads as a hung app rather than as calm. WCAG's
+     guidance is to reduce non-essential motion; this one is essential to the message. */
 }
 
 /* ── The guided builder's two-column shell ────────────────────────────────────────────────────────
