@@ -2683,3 +2683,46 @@ under it; nothing fails when they diverge. Three headers now match their bodies,
 paragraph that caused a drift is gone rather than re-synced.
 
 **No code changed.** Bar: full D&D suite green (5,899 + 8 expected-fail), typecheck exit-0, lint clean.
+
+### 2026-07-27 — slice 74: a guard that could not fail, certifying a claim that was false
+
+Slice 73 found three planning headers that had drifted from their bodies. The same question applies to
+guards: a test that records a known gap is a summary too, and nothing fails when it stops matching.
+
+`no-orphan-modules.test.ts` exempts `lib/dnd/homebrew/adopt.ts` and `policy.ts` as recorded gaps, and
+backed the exemption with this, labelled *"the claim in EXEMPT, verified rather than asserted from memory"*:
+
+```js
+it('the homebrew subsystem genuinely has no route or UI', () => {
+  expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew'))).toBe(false);
+});
+```
+
+**It verified nothing, and the claim it certified is false.** Homebrew routes are per-character and live at
+`app/api/dnd/characters/[id]/homebrew-*`; the probed path was never going to exist, so the assertion could
+not have failed for the right reason. The asymmetry is the whole lesson — `toBe(false)` on a path passes
+for *every* wrong path, while `toBe(true)` fails loudly on one. A guard that cannot fail is worse than no
+guard, because this one was being cited as evidence.
+
+**What is actually there.** Two subsystems, conflated by the word "homebrew":
+
+| | state |
+|---|---|
+| `lib/dnd/classes/homebrew-store.ts` — **per-character** | **Fully wired.** Three designer pages (`/dnd/characters/[id]/build/{class,subclass,feat}`), six routes, persisted to `character.data.homebrew{Classes,Subclasses,Feats}`, and read back by the level walker — `levels/route.ts` feeds all three into `findClass`, `subclassesFor` and `featPool`. Create homebrew, save it, use it on that character: works. |
+| `lib/dnd/homebrew/` — the **shared library** | Publishing a piece so *other* characters and campaigns can take it. No publish, browse or adopt surface exists. This is what the two recorded gaps are about. |
+
+So *"homebrew cannot actually be adopted"* read as *"homebrew does not work"* — the opposite of true, and
+the more expensive direction for a note to be wrong in. **This also answers the owner's question from
+2026-07-26** (*"do we have it so that users can create homebrew stuff and save it"*) with something
+verified rather than remembered: **yes for create/save/use; no for share.**
+
+**A second stale note fixed on the way.** `homebrew-feat/save/route.ts` ended with *"Surfacing homebrew
+feats in the ASI feat picker needs a CustomFeat→Feat adapter — a follow-up."* That follow-up shipped —
+`levels/route.ts` does `readHomebrewFeats(data).map(customFeatToFeat)` and passes them to the walker. A
+working path was documented as unfinished.
+
+Both halves are now asserted where they live: one test proves the per-character path exists *and* that
+saved homebrew comes back (create+save with no read-back would be a dead end), the other pins that the
+sharing surface is the missing piece.
+
+**Bar:** 9/9 in the guard, full D&D suite green, typecheck exit-0, lint clean.

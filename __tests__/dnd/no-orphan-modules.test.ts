@@ -52,16 +52,33 @@ const EXEMPT: Record<string, string> = {
   // "written" and "reachable".)
 
   // ── The three below are REAL GAPS, recorded rather than hidden. ────────────────────────────────
+  // ⚑ SCOPE CORRECTED 2026-07-27 (slice 74). Both entries below said "homebrew" where they meant
+  // SHARED homebrew, and the assertion at the foot of this file then "verified" that reading by
+  // checking a path the code was never going to use. There are TWO homebrew subsystems:
+  //
+  //   · `lib/dnd/classes/homebrew-store.ts` — PER-CHARACTER, and fully wired. Three designer pages
+  //     (`/dnd/characters/[id]/build/{class,subclass,feat}`), six routes, persisted to
+  //     `character.data.homebrew{Classes,Subclasses,Feats}`, and read back by the level walker
+  //     (`levels/route.ts` feeds all three into `findClass` / `subclassesFor` / `featPool`).
+  //     Creating homebrew and using it on its own character WORKS.
+  //   · `lib/dnd/homebrew/` — the SHARED library: publishing a piece so other characters and
+  //     campaigns can take it. That is the half with no surface, and it is what these two are about.
+  //
+  // The distinction matters because "homebrew cannot actually be adopted" read as "homebrew does not
+  // work", which is false and is the opposite of reassuring to anyone reading this file to find out.
   'lib/dnd/homebrew/adopt.ts':
-    'GAP (pre-existing, Area H4/H5): the mechanical half of "use a homebrew piece on a character" — ' +
-    'turns a shared piece\'s payload into an ActiveEffect the ledger resolves. No route or UI calls ' +
-    'it, so homebrew cannot actually be adopted. The pure logic is written and tested; the surface ' +
-    'that would reach it was never built.',
+    'GAP (pre-existing, Area H4/H5): the mechanical half of "take a SHARED homebrew piece onto a ' +
+    'character" — turns a published piece\'s payload into an ActiveEffect the ledger resolves. No ' +
+    'route or UI calls it, so a piece cannot be adopted FROM A LIBRARY. Note this is not the same as ' +
+    'homebrew being unusable: per-character homebrew (lib/dnd/classes/homebrew-store.ts) is wired ' +
+    'end to end and does reach the builder. The pure logic here is written and tested; the sharing ' +
+    'surface that would reach it was never built.',
 
   'lib/dnd/homebrew/policy.ts':
-    'GAP (pre-existing, Area H4): the campaign-level DM gate deciding which shared homebrew is legal ' +
+    'GAP (pre-existing, Area H4): the campaign-level DM gate deciding which SHARED homebrew is legal ' +
     'in a campaign. Nothing calls it, so that gate is not enforced anywhere. Same shape as the PF2 ' +
-    'rules-gate bug — a gate nobody invokes is indistinguishable from no gate.',
+    'rules-gate bug — a gate nobody invokes is indistinguishable from no gate. (Vacuous today rather ' +
+    'than dangerous: with no sharing surface there is nothing for it to gate yet.)',
 
   'lib/dnd/stream-names-ai.ts':
     'GAP (pre-existing, Phase J1): AI-generated chat usernames. The stream chat uses the procedural ' +
@@ -171,8 +188,41 @@ describe('the recorded gaps are stated honestly', () => {
     expect(EXEMPT['lib/dnd/homebrew/policy.ts']).toContain('GAP');
   });
 
-  it('the homebrew subsystem genuinely has no route or UI', () => {
-    // The claim in EXEMPT, verified rather than asserted from memory.
+  // ⚑ REPLACED 2026-07-27 (slice 74). The assertion here was:
+  //
+  //     it('the homebrew subsystem genuinely has no route or UI', () => {
+  //       expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew'))).toBe(false);
+  //     });
+  //
+  // labelled "the claim in EXEMPT, verified rather than asserted from memory". It verified nothing:
+  // homebrew routes are per-character and live at `app/api/dnd/characters/[id]/homebrew-*`, so the
+  // path it probed was never going to exist and the assertion could not have failed for the right
+  // reason. The claim it certified — that homebrew has no route or UI — is false; six routes and
+  // three designer pages exist. A guard that cannot fail is worse than no guard, because this one
+  // was cited as evidence. Both halves are now asserted where they actually live.
+  it('per-character homebrew IS wired — routes, designers, and a path back into the builder', () => {
+    for (const kind of ['class', 'subclass', 'feat']) {
+      expect(fs.existsSync(path.join(ROOT, `app/api/dnd/characters/[id]/homebrew-${kind}/route.ts`)),
+        `homebrew-${kind} route`).toBe(true);
+      expect(fs.existsSync(path.join(ROOT, `app/api/dnd/characters/[id]/homebrew-${kind}/save/route.ts`)),
+        `homebrew-${kind} save route`).toBe(true);
+      expect(fs.existsSync(path.join(ROOT, `app/dnd/characters/[id]/build/${kind}/page.tsx`)),
+        `${kind} designer page`).toBe(true);
+    }
+    // Saved homebrew must come BACK, or create+save is a dead end. The level walker reads all three.
+    const levels = fs.readFileSync(path.join(ROOT, 'app/api/dnd/characters/[id]/levels/route.ts'), 'utf8');
+    expect(levels).toContain('readHomebrewClasses');
+    expect(levels).toContain('readHomebrewSubclasses');
+    expect(levels).toContain('readHomebrewFeats');
+  });
+
+  it('the SHARED-library half is the part with no surface — that is what the two gaps mean', () => {
+    // No publish/browse/adopt surface anywhere: not as a route directory, and not as a page.
     expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew'))).toBe(false);
+    expect(fs.existsSync(path.join(ROOT, 'app/dnd/homebrew'))).toBe(false);
+    // And the two modules are reached only by their own tests.
+    for (const mod of ['adopt', 'policy']) {
+      expect(EXEMPT[`lib/dnd/homebrew/${mod}.ts`]).toContain('SHARED');
+    }
   });
 });

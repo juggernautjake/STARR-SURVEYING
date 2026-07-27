@@ -1,8 +1,13 @@
 // app/api/dnd/characters/[id]/homebrew-feat/save/route.ts — persist a homebrew feat to the character
 // (Slice 5). POST { feat }: rebuilds + re-reviews server-side (never trusts the client), REJECTS on
 // errors, else upserts the built CustomFeat into character.data.homebrewFeats (by key). Write-gated,
-// scoped to the character's system, flagged custom. (Surfacing homebrew feats in the ASI feat picker
-// needs a CustomFeat→Feat adapter — a follow-up.)
+// scoped to the character's system, flagged custom.
+//
+// (This comment used to end "Surfacing homebrew feats in the ASI feat picker needs a CustomFeat→Feat
+// adapter — a follow-up." That follow-up SHIPPED: `levels/route.ts` does
+// `readHomebrewFeats(data).map(customFeatToFeat)` and feeds them into both `featPool` and the walker's
+// `homebrewFeats`, so a saved feat reaches the ASI picker. Corrected slice 74 — the stale note made a
+// working path read as unfinished, which is the more expensive direction for a comment to be wrong in.)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
