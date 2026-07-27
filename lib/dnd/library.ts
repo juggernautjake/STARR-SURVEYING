@@ -27,7 +27,7 @@ import { browseHomebrew } from './homebrew/model';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY, igAllTaxonomyClasses } from './systems/intuitive-games/taxonomy';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
-import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects, igPowersNotInRoster } from './systems/intuitive-games/content';
+import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_ALT_BUILD_ROLLING, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects, igPowersNotInRoster } from './systems/intuitive-games/content';
 
 /** The full feat registry for a system, or [] when only a catalog sample exists. System-keyed
  *  dispatcher (the pattern `findFeat`'s comment calls for) so a feat never leaks across systems. */
@@ -272,7 +272,7 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
       id: 'character-building',
       title: 'Building a character',
       lead: 'The order of choices at level 1 (each step lists what it grants):',
-      body: [...IG_BUILD_STEPS, IG_PROGRESSION_NOTE],
+      body: [...IG_BUILD_STEPS, IG_PROGRESSION_NOTE, ...IG_ALT_BUILD_ROLLING],
     });
     // Combat & damage mechanics (from /core-rules): the damage Fortitude save, damage types, cover, movement.
     sections.push({

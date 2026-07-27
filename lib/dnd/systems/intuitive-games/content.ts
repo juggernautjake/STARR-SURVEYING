@@ -382,6 +382,11 @@ export interface IGClassDetail {
 export const IG_CLASS_DETAILS: IGClassDetail[] = [
   // Combat group — Fighter is the parent class; Freebooter/Marksman/Sohei/Champion are its subclasses.
   { name: 'Fighter', classification: 'class', primaryAbility: 'Strength or Dexterity', hp: '12 + Background HP', note: 'Parent class of the Champion, Freebooter, Marksman, and Sohei subclasses; base-Fighter specifics are minimal on the site.' },
+  // CHAMPION — captured verbatim from intuitivegames.net/classes#Champion (2026-07-27). This entry was
+  // absent for months on the recorded belief that "Champion is not in [the catalogue]" and that supplying
+  // it needed the owner. It is published, and always was: the /classes page lazy-renders its subclass
+  // blocks, so a scrape that does not scroll the page sees the name in the nav and no body.
+  { name: 'Champion', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Offensive', defensivePower: 'Armor Skin', powers: ['Challenge', 'Combat Feat', 'Combat Skill Proficiency', 'Martial Prowess', 'Surge', 'Weapon Expert', 'Weapon Mastery', 'Weapon Training'], specializations: ['Elemental Initiate', 'Devotee'], note: 'Manifestation: Paragon.' },
   { name: 'Freebooter', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Mobile', defensivePower: 'Redirect', powers: ['Combat Feat', 'Combat Skill Proficiency', 'Favored Enemy', 'General Skill Proficiency', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Dabbler (gain subclass powers from other classes)', 'Virtuoso (advantage on skill rolls)'] },
   { name: 'Marksman', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Shifting', defensivePower: 'Redirect', powers: ['Combat Feat', 'Rapid Reload', 'Sharpshooter', 'Shot On The Run', 'Trick Shot', 'Weapon Training'], specializations: ['Sniper (double weapon range, bonus damage)', 'Expert Shot (cover fire, challenge, switch-hitter)'] },
   { name: 'Sohei', classification: 'subclass of Fighter', hp: '12 + Background HP', grantedStance: 'Precise', defensivePower: 'Counterattack', powers: ['Advanced Combat Skill', 'Chi Strike', 'Combat Feat', 'Flurry', 'Martial Prowess', 'Weapon Expert', 'Weapon Training'], specializations: ['Chakra Master (mobility/sensory abilities)', 'Sage (apply Divine Curse aspects to attacks)'] },
@@ -614,6 +619,18 @@ export const IG_BUILD_STEPS: string[] = [
   'Skills — gain 2 + your Intelligence modifier ranks (maximum 1 rank per skill at level 1).',
   'Equipment — start with Solidas equal to your highest Profession, Craft, or Perform skill + 20 to buy gear.',
 ];
+/** The site's ALTERNATE build method (intuitivegames.net/character-building → "Alternate Character
+ *  Building → Rolling Ability Scores"), captured 2026-07-27. Absent until then: the scrape took the main
+ *  guide and stopped at its last heading, so a table that rolls rather than assigns had no entry in the
+ *  library at all. Kept separate from `IG_BUILD_STEPS` because it REPLACES that guide's step 2 rather than
+ *  adding to it — and because it explicitly suppresses the level-1 boosts the main path grants. */
+export const IG_ALT_BUILD_ROLLING: string[] = [
+  'Rolling ability scores (alternate) — each of the six scores starts at 6 rather than 10.',
+  'Roll 1d6 per score and multiply each result by 2; you may reroll each die once if it comes up 1.',
+  'Add that to the base of 6 to get the starting score, then assign the six results as you prefer.',
+  'Do NOT apply any level-1 Ability Score Boosts other than the one granted by your chosen class.',
+];
+
 export const IG_PROGRESSION_NOTE =
   'Levels 2–10 add traits, powers, feats, and ability boosts on a fixed schedule. Specializations begin at ' +
   'Level 4 (greater specializations at Level 8), unique powers arrive at Level 6, and a capstone plus a ' +

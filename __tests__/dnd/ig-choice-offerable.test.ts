@@ -20,11 +20,12 @@ const detailNames = new Set(IG_CLASS_DETAILS.map((d) => d.name.toLowerCase()));
 
 describe('the IG taxonomy and the IG catalog agree — or the UI admits they do not', () => {
   it('names the subclasses that have no catalog entry, so the gap is visible here and not to a player', () => {
-    // This is documentation-as-test: it asserts the CURRENT known gap exactly. If someone adds Champion's
-    // real data (from the published site — do not invent it) this fails and is deleted. If someone adds a
-    // NEW subclass to the taxonomy without catalog data, this fails too, which is the point.
+    // Documentation-as-test. It asserted a known gap of exactly ['Champion'] until 2026-07-27, when
+    // Champion's real data was captured from the published site and catalogued — so the gap is now EMPTY.
+    // It keeps its second job: adding a NEW subclass to the taxonomy without catalog data fails here,
+    // which is the point. The list is asserted rather than the count, so a swap cannot hide in a total.
     const missing = SUBCLASSES.filter((s) => !detailNames.has(s.toLowerCase())).sort();
-    expect(missing).toEqual(['Champion']);
+    expect(missing).toEqual([]);
   });
 
   it('every OTHER subclass can offer every choice it demands', () => {

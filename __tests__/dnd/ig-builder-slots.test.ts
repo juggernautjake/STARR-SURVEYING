@@ -21,13 +21,14 @@ const SUB = 'Freebooter'; // a fully-catalogued Fighter subclass
 
 describe('the scraped schedule defines the budgets', () => {
   it('a level-2 character cannot hold ten feats', () => {
-    // The owner's exact example. Level 2 grants one General feat; +1 for the level-1 allowance.
-    expect(igFeatBudget(SUB, 2)).toBe(2);
+    // The owner's exact example. Level 2 grants one General feat; +2 for the level-1 allowance
+    // (source-verified 2026-07-27: "Each character begins with one Combat Feat and one General Feat").
+    expect(igFeatBudget(SUB, 2)).toBe(3);
   });
 
   it('budgets grow with level, one feat per level', () => {
     expect(igFeatBudget(SUB, 5)).toBe(igFeatBudget(SUB, 4) + 1);
-    expect(igFeatBudget(SUB, 10)).toBe(10); // levels 2..10 grant nine, plus the level-1 allowance
+    expect(igFeatBudget(SUB, 10)).toBe(11); // levels 2..10 grant nine, plus TWO at level 1
   });
 
   it('powers follow the site exactly: one at level 1, then the schedule', () => {

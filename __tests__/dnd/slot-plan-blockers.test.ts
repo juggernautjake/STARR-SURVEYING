@@ -14,12 +14,22 @@ import { IG_CLASS_TAXONOMY } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { igFeatBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { PREF_SHARED_ENGINE_ONLY, prefAppliesToSystem } from '@/lib/dnd/preference-options';
 
-describe('S10 — IG Champion has no catalogued powers (blocked on the published source)', () => {
+describe('S10 — RESOLVED 2026-07-27: Champion IS published, and is now catalogued', () => {
   const champion = IG_CLASS_DETAILS.find((d) => d.name.toLowerCase() === 'champion');
 
-  it('is still absent from IG_CLASS_DETAILS', () => {
-    // WHEN THIS FAILS, S10 is unblocked: the data arrived, so fill in the picker and close the item.
-    expect(champion).toBeUndefined();
+  // THE BLOCKER WAS FALSE. This item read "the catalogue is scraped from intuitivegames.net and Champion
+  // is not in it". Champion is on that page and always was — /classes lazy-renders its subclass blocks, so
+  // a scrape that reads the DOM without scrolling sees the name in the nav and an EMPTY section body. The
+  // earlier pass recorded "not published" when what it had measured was "not yet rendered".
+  //
+  // Captured 2026-07-27 by scrolling the page to force render, then reading innerText.
+  it('is catalogued, with the powers the site lists', () => {
+    expect(champion).toBeDefined();
+    expect(champion!.grantedStance).toBe('Offensive');
+    expect(champion!.defensivePower).toBe('Armor Skin');
+    expect(champion!.powers).toContain('Challenge');
+    expect(champion!.powers).toContain('Weapon Mastery');
+    expect(champion!.specializations).toEqual(['Elemental Initiate', 'Devotee']);
   });
 
   it('but IS selectable, which is why the gap needed handling rather than ignoring', () => {
@@ -28,28 +38,42 @@ describe('S10 — IG Champion has no catalogued powers (blocked on the published
     expect(JSON.stringify(IG_CLASS_TAXONOMY).toLowerCase()).toContain('champion');
   });
 
-  it('and inventing its list is the thing the codebase refuses', () => {
-    // The IG catalog is SCRAPED from intuitivegames.net. Every other subclass with powers has them from
-    // the site; a hand-written Champion list would be indistinguishable in the data and wrong in play.
+  it('and nothing about it was invented — every field traces to the page', () => {
+    // The IG catalog is SCRAPED from intuitivegames.net, and Champion is no exception: its stance, its
+    // defensive power, its eight powers and its two specializations were all read off /classes#Champion.
+    // The entry carries a note saying so, which is what distinguishes captured data from a plausible
+    // hand-written list — the failure mode this assertion has always been guarding against.
     const withPowers = IG_CLASS_DETAILS.filter((d) => (d.powers?.length ?? 0) > 0);
-    expect(withPowers.length).toBeGreaterThan(0);
-    expect(withPowers.some((d) => d.name.toLowerCase() === 'champion')).toBe(false);
+    expect(withPowers.some((d) => d.name.toLowerCase() === 'champion')).toBe(true);
+    // Champion's power list matches the site's, in the site's order.
+    expect(champion!.powers).toEqual([
+      'Challenge', 'Combat Feat', 'Combat Skill Proficiency', 'Martial Prowess',
+      'Surge', 'Weapon Expert', 'Weapon Mastery', 'Weapon Training',
+    ]);
+    // Its Armor Skin defensive power was ALREADY in the catalogue — only the class entry was missing,
+    // which is a useful shape to notice: half the data was there and the gap was recorded as total.
+    expect(champion!.defensivePower).toBe('Armor Skin');
   });
 });
 
-describe('Q6 — the IG level-1 feat allowance is a guess, and errs permissive', () => {
-  it('grants exactly one feat at level 1, above whatever the schedule gives', () => {
-    // The site's schedule starts at level 2 and describes level 1 as including "starting feats" WITHOUT a
-    // number. `igFeatBudget` adds 1. If the real answer is 0 or 2, this is the one line that changes.
-    const atOne = igFeatBudget('Freebooter', 1);
-    expect(atOne).toBe(1);
+describe('Q6 — RESOLVED 2026-07-27: the IG level-1 feat allowance is TWO, from the source', () => {
+  // This block was written as a blocker that "flips the day the data arrives". It has flipped.
+  //
+  // intuitivegames.net/character-building, Feats section, read 2026-07-27:
+  //   *"Each character begins with one Combat Feat and one General Feat of their choice."*
+  //
+  // The old guess was 1, chosen to err permissive because the scraped schedule covers levels 2–10 and
+  // describes level 1 only as including "starting feats" with no number. It was the one number in the
+  // whole slot plan that was not source-verified — and it was reachable the entire time, on the same
+  // page the schedule itself was scraped from. The blocker was never data availability; it was that
+  // nobody opened the section next to the one already being read.
+  it('grants exactly TWO feats at level 1 — one Combat, one General', () => {
+    expect(igFeatBudget('Freebooter', 1)).toBe(2);
   });
 
-  it('and the guess is permissive rather than restrictive, which is the safe direction', () => {
-    // A cap one too generous still bounds the list; one too tight blocks a legal build. The budget must
-    // never be 0 at level 1, or a legal starting feat would be refused outright.
+  it('for every subclass, since the rule is a character rule and not a class one', () => {
     for (const sub of ['Freebooter', 'Marksman', 'Arcanist']) {
-      expect(igFeatBudget(sub, 1)).toBeGreaterThan(0);
+      expect(igFeatBudget(sub, 1), sub).toBe(2);
     }
   });
 

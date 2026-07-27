@@ -42,9 +42,19 @@ export function igSlots(subclass: string | undefined, level: number): IGSlot[] {
     .flatMap((row) => row.gains.filter((g) => g.choose).map((g) => ({ level: row.level, kind: g.kind })));
 }
 
-/** How many feats the character may hold by `level`. See the header for the level-1 allowance. */
+/**
+ * How many feats the character may hold by `level`.
+ *
+ * **The level-1 allowance is TWO, and it is now source-verified** (intuitivegames.net/character-building,
+ * read 2026-07-27): *"Each character begins with one Combat Feat and one General Feat of their choice."*
+ *
+ * It was `+ 1` — a deliberate guess that erred permissive because the schedule the scraper captured covers
+ * levels 2–10 and describes level 1 only as including "starting feats" without a number. That made it the
+ * one number in the whole slot plan that was not source-verified (recorded as Q6). Reading the guide's own
+ * Feats section answers it: a level-1 IG character holds two feats, one of each kind.
+ */
 export function igFeatBudget(subclass: string | undefined, level: number): number {
-  return igSlots(subclass, level).filter((s) => FEAT_KINDS.includes(s.kind)).length + 1;
+  return igSlots(subclass, level).filter((s) => FEAT_KINDS.includes(s.kind)).length + 2;
 }
 
 /** How many powers the character may hold by `level` — 1 at level 1 (site-stated) plus later gains. */
