@@ -2235,7 +2235,7 @@ the overlay rule, because "you are a bear now" must be perfectly reversible.
       can *carry* a pool, and `CharForm` has no resources field at all (only `abilities`, `effects`,
       `strikeDie`, `carryOver`) — so this is blocked on the foreign-statblock authoring UI, not on effort.
       HP and duration, the two parts that DO have somewhere to live, are shipped. Detail below.
-- [~] Damage taken in form, resources spent in form, and duration are tracked on the form instance,
+      *(Original item and its reasoning, kept intact:)* Damage taken in form, resources spent in form, and duration are tracked on the form instance,
       not on the base sheet. (HP ✅ — `char.formHp` pool via `separateHp`, base frozen; duration already
       on `combat.transformTurnsLeft`. Form-scoped RESOURCE pools remain a follow-up under the
       foreign-statblock authoring UI.)
@@ -3228,7 +3228,7 @@ regression to *reach*, not the drawing:
 - [x] **HANDED TO THE QA DOC 2026-07-26.** The static half is closed by `map-viewer-handles.test.ts` (below);
       the remaining corner-drag / stem-rotate / persist confirmation is irreducibly interactive, so it is a
       `DND_FINAL_QA_WALKTHROUGH` item rather than an open item here. Tracked there, not dropped.
-- [~] Once visible, verify scale from any corner and rotate from the stem both work and persist.
+      *(Original item and its reasoning, kept intact:)* Once visible, verify scale from any corner and rotate from the stem both work and persist.
       (Manual/browser step — belongs to the Slice 40 QA pass; the drag math is unchanged.) **The one static
       part is now closed:** the "untested edge" flagged above — a spiral/spin image (kind `spingalaxy`) or a 3D
       body (`planet3d`) renders a `<canvas>` not an `<img>` — is guarded in `map-viewer-handles.test.ts`:
