@@ -3126,3 +3126,50 @@ were narrower than they sounded. The 5e sheet, PF2 sheet, builder and feat desig
 
 **Bar:** full D&D suite green, typecheck exit-0. Fix verified in a browser against the shipped code, not
 inferred. No live data written. Dev server stopped, port 3487 confirmed bindable.
+
+### 2026-07-27 — slice 84: the expanded-state re-sweep, and slice 83's symptom was misdescribed
+
+Slice 83 ended by qualifying its predecessors: every mobile sweep had measured **default state only**. This
+runs the re-sweep that admission demanded, and — in the course of it — corrects how slice 83 described its
+own finding.
+
+**The previously-"clean" sheets are still clean with everything expanded** (all `<details>` open, 360px):
+
+| sheet | elements past the edge | clipped | page overflow |
+|---|---|---|---|
+| Perrin — 5e, lazzuh skin | 0 | 2, both intentional | none (345 = 345) |
+| Orin — PF2, streamer skin | 0 | 0 | none (345 = 345) |
+
+The two "clipped" on the 5e sheet are the pair slice 80 waved through as *"likely decorative"* without
+looking. **Checked this time:** they are `<input type="file">` elements inside styled `.btn.tiny` buttons
+("⤴ Art", "⤴ Token"), held at 20px and clipped so the custom button shows instead of the browser's
+"Choose file" chrome. Intentional, and the earlier dismissal happened to be right — but it was a guess.
+
+**The correction, and it matters more than the clean results.** Slice 83 reported that the IG panel made
+"the page scroll sideways", and flagged an unresolved "4px residual". Both came from `document.scrollWidth`
+and JS-driven scroll attempts after setting `open` on every `<details>` at once. Repeating it with a **real
+click** on the summary — what a tap actually does:
+
+| state | `docScrollWidth` | **max horizontal scroll** |
+|---|---|---|
+| fresh load, closed | 345 | **0** |
+| after tapping *Vanilla library* | 391 | **0** |
+| after closing again | 345 | **0** |
+
+**The page never scrolls horizontally, in any state.** `document.scrollWidth` reports 391 while the page
+cannot be scrolled one pixel — so that property was measuring a region the user cannot reach, and the "4px
+residual" was an artefact of driving three accordions open through script rather than one through a click.
+
+**This makes the original defect worse, not better.** Content 31px wider than the viewport with no
+horizontal scroll is content **cut off at the window edge and unreachable** — not an awkward sideways
+scroll. The fix in slice 83 (`minmax(0, 1fr)`, track 376.438px → 315px, elements past the edge 1,633 → 0)
+is unaffected and is confirmed; only the symptom was described wrongly, in the direction of sounding milder
+than it was.
+
+**The method lesson, which is the durable part:** `document.scrollWidth` is not a measure of what a user
+can see or reach, and neither is a programmatically-forced open state. Where slices 80–83 disagreed with
+each other, the disagreement traces to which of those two proxies was being trusted. **The check that
+settles it is the one that mimics the interaction** — click the summary, then try to scroll.
+
+**Bar:** full D&D suite green, typecheck exit-0, 0 lint errors. No code changed this slice; the finding is
+a correction plus two confirmations. No live data written. Dev server stopped, port 3491 confirmed bindable.
