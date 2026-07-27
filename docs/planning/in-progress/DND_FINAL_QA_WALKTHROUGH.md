@@ -172,6 +172,38 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 51 — a fix that measured well, and was rejected anyway
+
+Slice 50 left one concrete item: streamer's `--gold` fails at **4.12** on panel-2 while its own comment
+documents an AA intent. Deepening it 10% to `#876100` clears **every** surface in the palette's own set
+(panel 5.44, panel-2 4.89, panel-3 4.60, void-2 4.85). It looked exactly like slice 47 — intent right, value
+wrong — and it was ready to ship.
+
+**Checking where the token actually lands stopped it.** This doc's own earlier evidence records `#966c00` on
+surfaces outside the palette's set, including a **dark** one:
+
+| surface | today | with the tweak |
+|---|---|---|
+| PF2 chip `#f2e4ee` | 3.85 | **4.57** — fixed |
+| MANAGE LEVELS `#e7d2c1` | 3.24 | 3.85 — better, still failing |
+| PF2 dice pad `#302a49` (dark) | 2.86 | **2.41 — worse** |
+
+Eight light-surface items fixed, **six dark-surface items degraded**. Not a win — and shipping it would have
+traded one set of failures for another *while reading as progress in the log*.
+
+**So the value is unchanged and the finding is recorded instead: one hex cannot clear 4.5 against both a
+near-white panel and a dark pad.** The fix is a **surface-derived token** — precisely what the roller dock
+got when it hit this same wall — not a colour tweak. That is the whole gold-family item's real shape, and it
+is now written down with the arithmetic behind it.
+
+The comment lists every surface the token lands on, including the failing ones, and says the tweak was tried
+and rejected; a test pins the numbers so nobody re-proposes it from the light-surface half of the picture.
+
+**Worth keeping:** measuring against *the surfaces in the palette* said ship it. Measuring against *the
+surfaces in the app* said don't. Five slices in this arc have now turned on the same question — **which
+background is this actually on?** — and this is the first time the answer killed a change rather than
+motivating one.
+
 ### Slice 50 — the palettes' own contrast claims were never checked, and four are wrong
 
 Chasing the section-number item found something better than the item. `theme.ts` documents a ratio beside
