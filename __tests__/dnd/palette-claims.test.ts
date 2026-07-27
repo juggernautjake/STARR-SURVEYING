@@ -8,7 +8,7 @@
 // four is a gold.**
 //
 //     streamer tealbright  claimed 5.9  actual 5.53
-//     streamer gold        claimed 5.2  actual 4.58   ← and 4.12 / 3.85 / 3.24 / 2.86 elsewhere
+//     streamer gold        claimed 5.2  actual 4.58   ← and 4.12 on panel-2, 4.27 on panel-3
 //     donata   gold        claimed 6.1  actual 5.72
 //     rulebook gold        claimed 7.4  actual 6.63
 //
@@ -66,8 +66,8 @@ describe('the four corrected comments say the measured number now', () => {
     // It is the one entry whose honest comment is a list rather than a number, because the value is fine
     // on some surfaces and not others — which is the finding, not a defect in the comment.
     expect(THEME).toContain('4.58:1 on `panel`');
-    expect(THEME).toContain('UNCHANGED PENDING ONE LIVE CHECK');
-    expect(THEME).toContain('depends on whether it renders inside that module');
+    expect(THEME).toContain('THE BLOCKER IS GONE — measured in a browser');
+    expect(THEME).toContain('fallback is unreachable there');
   });
 
   it('none of the four still claims its old, optimistic figure', () => {
@@ -90,23 +90,23 @@ describe('what the pattern means, asserted so it cannot be lost', () => {
     expect(worstGold).toBeLessThan(5); // streamer's #966c00 at 4.58 — over AA on its panel, but barely
   });
 
-  it('the deepening helps every LIGHT surface — the half that is settled', () => {
-    // Not applied yet; what blocks it is the dice-pad scope question recorded in theme.ts, not this.
+  it('deepening to #876100 clears every streamer surface', () => {
+    // Safe to apply — the dark-surface objection was disproven in a browser (slice 53). Left undone only
+    // because no live character paints with this token today; see theme.ts.
     for (const bg of ['#fffafe', '#fdeaf8', '#f5e2ff']) {
       expect(contrastRatio('#876100', bg)!).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrastRatio('#966c00', '#fdeaf8')!).toBeLessThan(4.5); // 4.12 — why it is worth doing
   });
 
-  it('and WOULD hurt a dark surface, IF the pad resolves this token at all', () => {
-    // The conditional matters, and it is the correction slice 52 exists for. Slice 51 rejected the
-    // deepening outright on this arithmetic — but `DicePad.tsx` paints
-    // `var(--hx-gold-2, var(--gold, inherit))`, so it reads THIS token only if `--hx-gold-2` is undefined
-    // in its scope. The arithmetic below is real; whether it reaches the pad is unproven, and settling it
-    // is one computed-style read on an expanded dock.
-    const light = '#f2e4ee', dark = '#302a49';
-    expect(contrastRatio('#966c00', light)!).toBeLessThan(4.5);       // 3.85 today
-    expect(contrastRatio('#876100', light)!).toBeGreaterThan(4.5);    // 4.57 — the tempting fix
-    expect(contrastRatio('#876100', dark)!).toBeLessThan(contrastRatio('#966c00', dark)!); // 2.41 < 2.86
+  it('the dice pad reads --hx-gold-2, so this token cannot reach it', () => {
+    // MEASURED, not reasoned: at a d4 button the computed colour is rgb(138,100,0) = #8a6400, which is
+    // `--hx-gold-2` — resolved, so the `var(--gold, …)` fallback in DicePad.tsx is unreachable. That is
+    // what killed slice 51's objection, and it is pinned on the SOURCE so a refactor that drops the first
+    // fallback (and would silently expose the pad to this token) fails here.
+    const dicePad = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/DicePad.tsx'), 'utf8');
+    expect(dicePad).toContain('var(--hx-gold-2, var(--gold, inherit))');
+    // And the baseline token is declared, so the fallback never fires.
+    expect(readFileSync(join(process.cwd(), 'app/dnd/_ui/hextech.module.css'), 'utf8')).toContain('--hx-gold-2:');
   });
 });

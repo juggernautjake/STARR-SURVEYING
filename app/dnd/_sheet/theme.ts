@@ -123,17 +123,18 @@ export const streamerTheme: SheetTheme = {
     // clears every one of those (5.44 / 4.89 / 4.60) and would help the ~100 shared-sheet sites that paint
     // with `var(--gold)`.
     //
-    // WHAT BLOCKS IT is a single unresolved question, and the earlier reasoning got it wrong twice, so it
-    // is written out. The QA evidence records "#966c00 on the PF2 dice pad's DARK #302a49 = 2.86", which
-    // would make deepening actively worse there (2.41). But `DicePad.tsx` paints
-    // `var(--hx-gold-2, var(--gold, inherit))` — it reads `--gold` ONLY if `--hx-gold-2` is undefined in
-    // its scope, and `--hx-gold-2` is a CSS-module token. So whether the pad is affected by this value at
-    // all depends on whether it renders inside that module's scope, which static reading cannot settle.
+    // THE BLOCKER IS GONE — measured in a browser 2026-07-27, not reasoned about. The objection was that
+    // deepening would worsen "#966c00 on the PF2 dice pad's dark #302a49 = 2.86". It cannot: `DicePad.tsx`
+    // paints `var(--hx-gold-2, var(--gold, inherit))`, and at that element `--hx-gold-2` RESOLVES
+    // (computed colour rgb(138,100,0) = #8a6400, matching `--hx-gold-2`, while `--gold` reads a different
+    // value entirely). The `--gold` fallback is unreachable there, so this token never touches the pad.
+    // (The 2.86 figure was also from a retracted measurement — those buttons were inside a collapsed
+    // `.fld`; see the contrast-sweep evidence's "it measures things nobody can see".)
     //
-    // → Settle it by reading the pad's COMPUTED colour on a streamer sheet with the dock EXPANDED (the
-    //   original 2.86 was measured while `.fld` was `display:none`, which is a retracted artifact — see
-    //   the contrast-sweep evidence). If it computes to the clamped `--hx-gold-2`, this value is free to
-    //   deepen; if it computes to #966c00, the fix is a surface-derived token, not a value.
+    // So deepening to #876100 is SAFE and would clear every streamer surface. It is left undone only
+    // because it is not urgent: this token styles the SHARED 5e sheet, and the one streamer-skinned
+    // character (Orin Sallowmere) is Pathfinder — which renders the bespoke sheet off `--hx-*` instead.
+    // No live character currently paints with it. Owner's call, with the numbers above.
     gold: '#966c00',
     danger: '#e5344f',
     good: '#1c9e63',
