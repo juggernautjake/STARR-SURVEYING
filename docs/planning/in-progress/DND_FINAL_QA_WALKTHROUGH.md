@@ -4598,3 +4598,38 @@ the pointers are still *correct* is that it is the only moment when the fix is f
 
 **Bar:** both pointers verified against the live files before being replaced. Full D&D suite green,
 typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 124: reading the rubric the hook has been citing
+
+The stop hook has referred to *"the rubric in `docs/planning/README.md`"* every time, and I had never
+opened it. That was worth correcting on its own, and it settles a question that has been implicitly
+re-asked for a hundred slices: **why does this folder never empty?**
+
+**The rubric is clear, and there is a fourth folder I did not know about.** `pending/` is for work
+*"scoped and parked deliberately… not being worked now"* — which, now that every remaining item is
+owner-gated, describes these three docs better than `in-progress/` does. IN-PROGRESS is defined as *any of*
+"contains action items not yet done", which is also true, and the rubric's tie-breaker is explicit: **when
+unsure, classify as IN-PROGRESS.**
+
+**And moving them would contravene a direct instruction**, which is the part that settles it. From
+`DND_RULES_PLATFORM`'s own header:
+
+> **REOPENED in `in-progress/` (owner 2026-07-25):** *"put everything into the in progress folder to allow
+> the stop hook to work on it."*
+
+These docs are in this folder **because the owner put them here for this purpose**. Reclassifying them to
+`pending/` would be technically arguable under the rubric and plainly against what was asked — and it would
+also empty the folder by relabelling rather than by finishing anything, which the hook's own instruction
+prohibits in the same breath.
+
+**So the answer is recorded once, in `DND_OWNER_DECISIONS` §6:** the folder empties when the nine decisions
+and three data blocks are answered. Not by deferral — the rubric reserves that for work whose cost exceeds
+its value, and none of these qualify; every one is cheap and blocked only on a judgement I do not get to
+make.
+
+**I should have read this on slice 1.** A hundred slices of "is there anything else I can legitimately do
+here" would have been shorter with the rubric in hand — not because the answer would have differed, but
+because the *reason* would have been known rather than inferred each time.
+
+**Bar:** rubric read in full; the owner instruction quoted from the doc that carries it. Full D&D suite
+green, typecheck exit-0. No code changed.

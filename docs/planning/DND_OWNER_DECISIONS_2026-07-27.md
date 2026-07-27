@@ -89,3 +89,26 @@ the signal to delete it.
 *"so no other character's content ever flashes"* comment is asserted next to the flash pin, and
 `.dnd-sheet .card h3` next to the heading pin — so the reason the obvious one-line change is wrong is
 visible at the point you would attempt it.
+
+---
+
+## 6. Why `in-progress/` never empties, and what would empty it
+
+Worth stating once so it is not re-derived: **only you can move these docs.**
+
+`docs/planning/README.md`'s rubric says a doc is IN-PROGRESS if *"it contains action items not yet done"* —
+true of all three — and that when unsure, classify as IN-PROGRESS. There is a `pending/` folder whose
+definition (*"scoped and parked deliberately… not being worked now"*) arguably fits better now that
+everything left is owner-gated. **It is still the wrong move**, because these docs are where they are on
+your explicit instruction:
+
+> **REOPENED in `in-progress/` (owner 2026-07-25):** *"put everything into the in progress folder to allow
+> the stop hook to work on it."*
+
+So the folder empties when the items in §2 and §3 above are answered — not before, and not by reclassifying
+anything. Every remaining item needs a decision or data that only you hold; none is blocked on effort, and
+none can be deferred honestly, since the rubric is explicit that deferral is for work whose cost exceeds
+its value, which is not the case for any of them.
+
+**The shortest path to a smaller folder:** answering **2.8 (Rangor/Pugilist)** closes
+`DND_RULES_PLATFORM` outright — it is that doc's only open item, and one sentence settles it.
