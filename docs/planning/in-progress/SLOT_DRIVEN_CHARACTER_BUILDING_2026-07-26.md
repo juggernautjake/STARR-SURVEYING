@@ -323,6 +323,21 @@ slices are driven in the browser before being called done — this repo's standi
       thin level-1 projection carrying no such flag, so reading it there is `undefined` for everyone. The
       flag lives on `PF2_CLASS_PROGRESSIONS`; suppression now requires a literal `false`, since absent data
       is not a claim that a table is unmodelled. 9 tests.
+
+      **THE COUNT SOURCE SHIPPED 2026-07-27** (`76db756d`) — `lib/dnd/systems/pathfinder2e/spell-counts.ts`,
+      the exact counterpart of 5e's `lib/dnd/spells/counts.ts`, and the piece this item said did not exist.
+      `pf2SpellCountsFor(className, level)` returns a real per-rank count for the eight full casters and
+      **`modelled: false`** for the reduced ones, instead of substituting the full table. It also reports
+      `kind` and **caps nothing** — 5e's S7b proved that aiming the cap is the entire risk (a Wizard's
+      spellbook is not their prepared count, and PF2 splits the same way), so the source states the
+      distinction and enforcement stays a separate step.
+      `pf2SlotTableModelled` lives there too, so *"is this table modelled?"* is answered in **one** place —
+      two copies of that question is precisely how the bug above existed. 14 tests.
+
+      **So S7c is now exactly where 5e's S7 was after its count source landed:** source shipped, enforcement
+      open, and the enforcement shape already known from S7b — cantrips capped for everyone, levelled spells
+      capped in the picker for **spontaneous** casters, and on the prepare step for **prepared** ones.
+      Reduced casters stay uncapped, because their tables genuinely are not modelled.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
