@@ -172,6 +172,41 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 47 — it was never a colour decision: the clamp had two bugs
+
+Slice 46 left the gold heading as an owner call. **Reading the derivation instead of the rendered colour
+showed it was not one.** `gold2` was *already* `ensureContrast(gold, …)`, with the comment *"gold-2 is the
+workhorse — it paints section titles as TEXT on the panel — so it's the one we contrast-clamp."* The intent
+was right all along; the clamp had two measurable bugs.
+
+- **The surface.** `.framedPanel` paints `linear-gradient(180deg, var(--hx-panel-2), var(--hx-panel))` and a
+  title sits at its **top** — on `panel2`, not `panel`. `panel2` is the worse backdrop *in both directions*
+  (darker on light skins, lighter on dark), so clamping against `panel` flattered every result by ~0.4.
+- **The threshold.** These titles are 13–14px **bold**, and bold earns WCAG's relaxed 3.0 only at ≥18.66px.
+  Below that it needs 4.5 — so the targets of `4` (light) and `3` (dark) were both short.
+
+Now `ensureContrast(gold, panel2, 4.5)`, in **both** derivations — the skin path and the theme path carried
+the same line.
+
+| skin | before | after |
+|---|---|---|
+| streamer | **3.70** ❌ | **4.77** ✅ |
+| donata | **3.64** ❌ | **4.76** ✅ |
+| jack | **3.75** ❌ | **4.55** ✅ |
+| lazzuh (dark) | 9.04 | **9.04** — unchanged |
+
+**The hue survives.** `#7f5c00` / `#965e0a` / `#8a6215` are deepened ambers, not a fallback ink —
+`ensureContrast` steps 4% and stops the moment the ratio is met. That is pinned by a **channel-order guard**
+(red ≥ green > blue, not near-black), because the ratio assertion alone would happily accept a clamp that
+ran away to black or drifted off-hue. The dark no-op is asserted too, not assumed: slice 21's defect
+survived precisely because a fix was checked on one skin.
+
+**The lesson worth carrying:** slice 46 was right that a *colour* is the owner's call, and wrong that this
+was a colour. Deferring to taste is correct only after checking whether the mechanism is simply broken —
+here the token was already trying to do the right thing against the wrong surface, and one line fixed every
+skin at once without anyone choosing a shade. **"This needs a human decision" is itself a claim that
+deserves a measurement.**
+
 ### Slice 46 — the contrast check, and a defect I did not fix on purpose
 
 Slice 44's other owed item. It found a real failure: the new panel's heading is **13px bold** — which still
