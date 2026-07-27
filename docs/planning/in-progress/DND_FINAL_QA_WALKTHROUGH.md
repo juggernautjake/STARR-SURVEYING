@@ -4146,3 +4146,35 @@ tidy-up. Three of this doc's own recorded time-losses were stale summaries; this
 first where I was the author of both the summary and the drift.
 
 **Bar:** full D&D suite green, typecheck exit-0. No code changed.
+
+### 2026-07-27 — slice 110: the method was filed where nobody would look for it
+
+Slice 109 fixed this doc's header. Two things follow from it, and both were checked rather than assumed.
+
+**The other two in-progress docs have NOT drifted.** `git log` shows no commits touching
+`DND_RULES_PLATFORM` or `SLOT_DRIVEN_CHARACTER_BUILDING` since slice 73 corrected them, and nothing shipped
+since affects either. Their headers still describe their bodies. Slice 109's failure was specific to the
+doc that was actually growing, which is the expected shape and worth confirming rather than inferring.
+
+**`qa-evidence/contrast-sweep.md` was the real problem.** It opens *"Contrast sweep — how to run it"* and
+describes itself as the measurement for the skin sweep — while now carrying **twelve** distinct ways a
+browser measurement lies, **over half of which have nothing to do with colour**: closed `<details>`
+reporting layout boxes, `rg -r` silently replacing matches, transitions sampled mid-flight, values read
+before hydration, regexes spanning unrelated elements.
+
+Slices 74, 82, 85, 90 and 108 each ended by saying the point was for the next sweep to **inherit the
+method**. That only works if the method is findable, and it was filed under the name of one specific sweep.
+Renaming it would break references from ~20 slice entries, so the file now opens with an index instead: all
+twelve, each with its *tell*, and the two habits that caught most of them — measure the same thing a second
+way, and make every probe report whether it **could** have failed.
+
+**Limitation 12 added** while indexing, from slice 108: a selector that cannot match returns the same clean
+result as a rule that works. That is the third disguise of the same fault (after the closed-`<details>`
+phantom and the vacuous `existsSync`), and the one that recurs most — because a clean result is exactly
+what you are hoping for.
+
+**The uncomfortable line in that index, and it is the honest one:** four of the twelve bit a **second** time
+*after* being written down. Documentation is a control that only works when read, and nothing in the process
+makes it get read. Recording that beside the list is the most useful thing the list can say about itself.
+
+**Bar:** full D&D suite green, typecheck exit-0. No code changed.

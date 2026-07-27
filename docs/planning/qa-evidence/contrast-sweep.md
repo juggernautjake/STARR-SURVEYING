@@ -1,4 +1,34 @@
 # Contrast sweep — how to run it
+### …and, since slice 109, the browser-QA method for this repo generally
+
+> **⚑ THE FILE NAME UNDER-SELLS THIS. Read the index below before running any browser sweep, not just a
+> contrast one.** It began as a contrast recipe and accumulated **twelve** ways a browser measurement lies
+> — over half of which have nothing to do with colour. Slices 74, 82, 85, 90 and 108 each said the point was
+> for the next sweep to *inherit the method*; that only works if the method is findable, and it was filed
+> under the name of one specific sweep. Renaming would break the references from ~20 slice entries, so the
+> index is here instead.
+>
+> **Every one of these produced a confident, wrong result before it was written down**, and four of them bit
+> a second time *after* being written down — documentation works when it is read, and nothing makes it get
+> read.
+>
+> | # | The lie | The tell |
+> |---|---|---|
+> | 1 | Backdrop walk ignored `background-image` | gradients composited as transparent |
+> | 2 | Took only the first colour of the first background layer | a 5% tint read as the layer |
+> | 3 | Elements inside a collapsed `.fld` measured as visible | numbers for things off-screen |
+> | 4 | Alpha stacks flattened wrongly | plausible-but-wrong ratios |
+> | 5 | `color: rgba(0,0,0,0)` + `background-clip: text` | reports 1.00 on gradient-painted text |
+> | 6 | A **closed `<details>`** still yields layout boxes | 1,633 "overflows" with no page scroll |
+> | 7 | `rg -r` is `--replace`, not "recursive" | source printed with matches replaced |
+> | 8 | The pass/fail **count** is not the finding | a 5px control that passed WCAG |
+> | 9 | A **transitioned** property sampled on the same tick | `0.306` vs a `0.3` baseline = "unchanged" |
+> | 10 | A client-rendered value sampled **before hydration** | correct at 1800ms, wrong at 900ms |
+> | 11 | Regex over whitespace-stripped `innerText` | matches spanning unrelated elements |
+> | 12 | A selector that **cannot match** returns the same "clean" as a rule that works | check reachability, not just the result |
+>
+> **The two habits that caught most of them:** measure the same thing a second way (the browser kept
+> catching the static scripts, and vice versa), and make every probe report whether it *could* have failed.
 
 A paste-into-devtools (or Playwright `evaluate`) version of the measurement used in the final-QA
 walkthrough's skin sweep. The maths lives in **`lib/dnd/theme-contrast.ts`** and is unit-tested
@@ -546,3 +576,13 @@ value stops changing.
 text joins numbers belonging to different elements, so a pattern like `(STR|DEX|…)(\d{1,2})([+-]\d{1,2})`
 matches across boundaries and reports values that are on no screen. **Scope the query to the element that
 renders the value** (`.apill` here) and anchor the pattern with `^…$`.
+
+**12. A selector that cannot match returns the same result as a rule that works (slice 108).** Probing the
+`.dnd-sheet .tray-fab` reduced-motion rule from `/dnd` reported `animation: none` in **both** media states —
+which reads as "already correct" and would have been recorded as a pass. The hub has no `.dnd-sheet`
+ancestor, so the selector could never match and there was nothing to disable. What caught it was the probe
+reporting `fabRuleReachable: false` beside the result.
+
+**Make every probe say whether it COULD have failed.** This is the third disguise of the same fault — the
+closed-`<details>` phantom (6) and the vacuous `existsSync` in slice 74 were the first two — and it is the
+one that recurs most, because a clean result is exactly what you are hoping for.
