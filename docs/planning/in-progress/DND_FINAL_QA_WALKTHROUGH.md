@@ -133,6 +133,33 @@ a full `tsc --noEmit` is exit-0.
 - [ ] Log every fix inline here (or in a QA notes file). When the walkthrough is clean for every system,
       this pass — and the D&D platform work — is done.
 
+### Slice 43 — a real production build, and a lint warning that was a trap
+
+**`npm run build` had not been run once this session** — thirteen slices verified by `tsc`, `eslint` and
+5,681 tests, none of which make the check a build makes. It catches server/client boundary violations, and
+slice 38 put a `'use client'` component into a server page, so it was owed.
+
+**Result: `✓ Compiled successfully`.** No errors. Every warning pre-existing — `<img>` vs `next/image`, and a
+handful of `react-hooks/exhaustive-deps`. So the session's work is production-clean, which is now recorded
+rather than assumed. (This also closes the "npm build" item the multi-format template work left open.)
+
+**One of those warnings was a trap, and it sat in `LevelBuilder.tsx`** — the file this session has worked in
+most. The draft-reset effect depends on `[current?.level, current?.kind]`; the rule wants `current` itself.
+**Satisfying it would be a real bug.** `current` is `plan?.outstanding?.[0]` — a fresh object on every
+refetch — so the effect would re-run and **wipe a half-filled draft out from under the player**: the ability
+scores they had picked, the skills they had ticked, gone every time the plan reloaded.
+
+Checked rather than silenced blindly: the effect body reads no other field of `current`, so there is no
+stale closure to fix. Now suppressed **with the reasoning inline**, using the convention already in this
+repo, so a standing warning stops inviting someone to "fix" it into that bug.
+
+**Worth naming, because it is the third instance in three slices:** a linter demanding `current`, a guard
+demanding `getDndSession`, and a test demanding `f.level <= choice.level` were all *tools insisting on one
+spelling of a correct thing*. Each time the tempting move was to change the code to satisfy the tool. Twice
+that would have introduced a bug; once it hid one for a whole slice. **When a tool flags code you have
+reason to believe is right, the first job is to find out which of you is wrong — not to make the message go
+away.**
+
 ### Slice 42 — the write sweep, and knowing when a guard is testing the wrong thing
 
 The last of the three access sweeps, and the one with the most at stake: the **55** POST/PATCH/PUT handlers
