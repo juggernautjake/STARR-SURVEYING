@@ -12,6 +12,7 @@ import { readCampaignPreferences } from '@/lib/dnd/campaign-preferences';
 import { gatePf2Edit } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
 import { PF2_ALL_FEATS, PF2_ALL_SPELLS } from '@/lib/dnd/systems/pathfinder2e/data';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { isAuditableBespokeEdit, bespokeFieldPath } from '@/lib/dnd/audit/bespoke-ops';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -57,6 +58,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .update({ data: nextData })
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Audit the BUILD edits to the DM's review queue — see `lib/dnd/audit/bespoke-ops.ts` for the boundary
+  // and why it is a deny-list. This route wrote no audit row at all while `ai-edit`'s PF2 branch has always
+  // inserted a `pf2:<op>` row, so adding a feat, a spell, an attack or an attribute change on the sheet was
+  // invisible to the DM while asking the AI for the same thing was not.
+  //
+  // Unlike IG, PF2 carries `offRules` on the EDIT itself (`add_feat` / `add_spell`), so the note comes from
+  // there. The AI branch omits it today; including it here is deliberate — the queue's whole purpose is
+  // surfacing exactly this, and an audit row that hides it would be worse than the one it replaces.
+  // Best-effort: a failed audit must not fail the player's edit.
+  if (isAuditableBespokeEdit('pathfinder2e', gate.edit.op)) {
+    const off = 'offRules' in gate.edit ? gate.edit.offRules : undefined;
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: access.access.isDM,
+      field_path: bespokeFieldPath('pathfinder2e', gate.edit.op), old_value: null, new_value: null,
+      scope: 'permanent', source: 'manual',
+      summary: describePf2Edit(gate.edit) + (off ? ` — off-rules: ${off}` : ''),
+    }).then(() => {}, () => {});
+  }
 
   return NextResponse.json({
     ok: true,

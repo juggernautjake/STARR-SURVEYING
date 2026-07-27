@@ -10,6 +10,7 @@ import { applyIgEdit, parseIgEdit, describeIgEdit } from '@/lib/dnd/systems/intu
 import { isIGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
 import { gateIgEdit, markIgOffRules } from '@/lib/dnd/systems/intuitive-games/rules-gate';
 import { readActiveSlotMeta } from '@/lib/dnd/system-variants';
+import { isAuditableBespokeEdit, bespokeFieldPath } from '@/lib/dnd/audit/bespoke-ops';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
@@ -49,6 +50,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .update({ data: nextData })
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Audit the BUILD edits to the DM's review queue. This route wrote nothing at all before, while the AI
+  // path (`ai-edit`'s `edit_ig_sheet` branch) has always inserted an `ig:<op>` row — so adding a feat, a
+  // power, an attack or an ability change on the sheet was invisible to the DM, and adding the same thing
+  // by asking the AI was not. This file's own header makes the argument for the mirror case ("gating only
+  // the AI would make 'use the manual control instead' a way around the rules"); the same is true of the
+  // review queue. Off-rules content taken through the escape hatch matters most here — that is exactly
+  // what the queue exists to surface.
+  //
+  // PLAY edits stay out, per the boundary the shared sheet settled: a stance switch or a condition applied
+  // mid-fight is not a build change, and logging them would bury the ones that are. Best-effort, matching
+  // the AI path: a failed audit must not fail the player's edit.
+  if (isAuditableBespokeEdit('intuitive-games', gate.edit.op)) {
+    await supabaseAdmin.from('dnd_sheet_edits').insert({
+      character_id: params.id, editor_user_id: session.userId, is_dm: access.access.isDM,
+      field_path: bespokeFieldPath('intuitive-games', gate.edit.op), old_value: null, new_value: null,
+      scope: 'permanent', source: 'manual',
+      summary: describeIgEdit(gate.edit) + (gate.offRules ? ` — off-rules: ${gate.offRules}` : ''),
+    }).then(() => {}, () => {});
+  }
 
   return NextResponse.json({
     ok: true,
