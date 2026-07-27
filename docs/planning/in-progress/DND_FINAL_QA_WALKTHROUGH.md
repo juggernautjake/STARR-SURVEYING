@@ -2940,3 +2940,56 @@ is the one most worth checking, because it is the one that gets acted on.**
 
 **Bar:** 18/18 in the file, full D&D suite green, typecheck exit-0, lint clean. No production code changed
 — the change slice 78 proposed was not made, and that is the outcome.
+
+### 2026-07-27 — slice 80: the walkthrough item that was never run — overflow and mobile width
+
+Slices 71–79 increasingly audited *my own previous slices* rather than the product. The walkthrough's one
+substantive open box says what it wants: *"styling, formatting, readability and attractiveness on every
+screen touched (spacing, contrast, alignment, **overflow, mobile width**…)"*. Contrast was swept
+exhaustively across ~20 slices. **Overflow and mobile width never were** — one screen at 390px in slice 9
+and nothing since. So this slice ran that, and it found a real user-facing defect.
+
+**A long character name is clipped on a phone, silently.**
+
+`h1.name` is `font-size: clamp(44px, 8vw, 82px)`. At 360px the middle term is only 28.8px, so **the floor
+wins and the name stops shrinking at 44px**. A long name is then wider than the screen — and `.hero`
+carries `overflow-x: hidden`, so the excess is **clipped rather than scrolled**. Measured on Perrin
+Underbough at 360px: `.hero` scrollWidth **365** against clientWidth **315**. Fifty pixels of the
+character's own name, gone, with no gesture that reveals them.
+
+That is the worse of the two failure modes and the reason a page-level check alone would have missed it:
+the page does **not** scroll horizontally, so every "is there a horizontal scrollbar" test passes. The
+content is simply cut.
+
+**The fix is one property, and my diagnosis of it was wrong until I measured.** I had it as the classic
+flexbox `min-width: auto` problem. Applying each candidate alone, in the browser:
+
+| variant | item width | clipped |
+|---|---|---|
+| baseline | 350px | **50px** |
+| `min-width: 0` on the flex item | 350px | **50px** — no effect whatsoever |
+| `overflow-wrap: anywhere` | 285px | **0** |
+| both | 285px | 0 |
+
+`anywhere` and not the more familiar `break-word`: the two break identically once a line is being laid
+out, but only `anywhere` also reduces the element's **min-content** size — and min-content was what
+propagated up and held the block at 350px inside a 285px container. That distinction is the entire fix,
+and it is why `min-width: 0` did nothing.
+
+**Deliberately not the other obvious fix.** Lowering the clamp's floor would change the type scale on
+every screen to solve a problem that exists only on narrow ones. This leaves the design alone.
+
+**Verified after:** Perrin at 360px clips **0**; the PF2 sheet at 360px clips 0 and does not scroll; and
+at 1280px the name still renders at 82px across exactly two lines (height 148 = 2 × 73.8 line-height), so
+`anywhere` engages only when a word genuinely does not fit. Four guards pin the property, the rejection of
+`break-word`, the untouched clamp, and `.hero`'s `overflow-x: hidden` — that last one because the fix works
+*because* the hero still clips, and the pair should stay understood together.
+
+**Also swept, clean:** the 5e sheet, the PF2 sheet, the level builder, and the feat designer in both its
+collapsed and expanded states, at 390px — no page-level horizontal scroll and no clipped elements.
+**The sweep was mutation-checked** before any of that was believed (slice 75's rule): injecting a 500px
+element made it report the overflow, and `html`/`body` are both `overflow-x: visible`, so nothing was
+masking a defect by clipping it at the root.
+
+**Bar:** 4/4 new guards, full D&D suite green, typecheck exit-0, lint clean. First production-code change
+in nine slices. Dev server stopped, port 3479 released.

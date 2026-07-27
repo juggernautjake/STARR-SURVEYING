@@ -189,6 +189,15 @@
   letter-spacing: 0.01em;
   margin: 0;
   text-transform: uppercase;
+  /* A long name at the clamp's 44px FLOOR is wider than a phone. `font-size` stops shrinking there
+     (8vw is only 28.8px at 360px, so the floor wins), and the hero's `overflow-x: hidden` then CLIPS
+     the excess instead of scrolling it — the name is cut off with no way to reveal it. Measured on a
+     360px viewport: `.hero` scrollWidth 365 against clientWidth 315, so 50px gone.
+     `anywhere` and not `break-word`: the two break identically once a line is being laid out, but only
+     `anywhere` also reduces the element's MIN-CONTENT size, and min-content is what was propagating up
+     and holding the block at 350px inside a 285px container. Verified by applying each alone in the
+     browser — `break-word`'s sizing behaviour is why `min-width: 0` on the flex item changed nothing. */
+  overflow-wrap: anywhere;
   /* Starts from the theme's ink, not hardcoded white: this is background-clip:text, so a
      white stop made the first letters invisible on the light parchment/MLM skins. */
   background: linear-gradient(94deg, var(--ink) 0%, var(--pink) 48%, var(--teal) 100%);
