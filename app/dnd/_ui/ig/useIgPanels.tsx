@@ -1130,8 +1130,15 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const header = (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        {/* The character's name is the sheet's masthead — 21px and letter-spaced so it reads as a title. */}
-        <strong style={{ fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 21, letterSpacing: '0.02em', color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</strong>
+        {/* The character's name is the sheet's masthead — 21px and letter-spaced so it reads as a title.
+            It is the page's top-level heading because it already WAS the title in every sense but the
+            markup: the IG sheet had none at all (WCAG 1.3.1, measured slice 105), and the name's only
+            other appearance is the
+            `alt` on `SheetPortrait`. Making this element the heading is what the pin called a structural
+            decision — the alternative, a visually-hidden h1, would duplicate the name for screen readers
+            while leaving the visible masthead semantically inert. `margin: 0` keeps the UA's h1 margins
+            from moving a layout that was built around an inline element. */}
+        <h1 style={{ margin: 0, fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 21, letterSpacing: '0.02em', color: 'var(--hx-gold-2)' }}>{id.name || 'Unnamed'}</h1>
         <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>Intuitive Games · Level {derived.level}</span>
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 5, fontSize: 13.5, fontWeight: 500, color: 'var(--hx-text)', alignItems: 'center' }}>

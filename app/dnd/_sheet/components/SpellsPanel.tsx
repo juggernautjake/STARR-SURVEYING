@@ -144,7 +144,7 @@ export default function SpellsPanel() {
         return (
           <div className="card" key={lvl}>
             <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h3 style={{ margin: 0 }}>{ORDINAL[lvl]}</h3>
+              <h2 style={{ margin: 0 }}>{ORDINAL[lvl]}</h2>
               {slot && (
                 <div className="flex" style={{ gap: 4, alignItems: 'center' }} title={canWrite ? 'Click a pip to spend or restore a slot' : `${slot.current} of ${slot.max} slots left`}>
                   <span style={{ ...lab, marginRight: 4 }}>Slots</span>
@@ -254,7 +254,7 @@ export default function SpellsPanel() {
           a spell still sees it. Casting from granted slots is a follow-up. */}
       {grantedSpells.length > 0 && (
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Granted Spells</h3>
+          <h2 style={{ marginTop: 0 }}>Granted Spells</h2>
           <div style={{ display: 'grid', gap: 8 }}>
             {grantedSpells.map(({ sp, source }, gi) => (
               <div key={`granted-${source}-${sp.id}-${gi}`} style={{ border: '1px solid var(--tealbright)', borderRadius: 10, padding: '9px 11px', background: 'var(--panel-2)' }}>

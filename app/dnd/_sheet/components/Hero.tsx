@@ -33,7 +33,11 @@ export default function Hero() {
   // a pendant that makes you "Zul the Barbarian". Like every effect it's an overlay: the DISPLAY
   // shows the imposed value, editing still writes the base (char.meta.*), and dropping the source
   // gives you back exactly who you were. Base stands when nothing imposes an identity.
-  const displayName = ledger.identity('name')?.value ?? char.meta.name
+  // `|| 'Unnamed'` so the page's only `<h1>` is never EMPTY. An unnamed character rendered a 0×0 heading
+  // with no text content — a top-level heading that exists in the outline and says nothing, which is worse
+  // for a screen reader than the missing-h1 case the bespoke sheets had. Both IG and PF2 already use this
+  // exact fallback for their mastheads; this makes the shared 5e sheet agree with them.
+  const displayName = (ledger.identity('name')?.value ?? char.meta.name) || 'Unnamed'
   const displaySpecies = ledger.identity('species')?.value ?? char.meta.species
   // Multiclass shows the split ("Fighter 3 / Wizard 2") in place of the single class (MC-5e-5); the subclass
   // line is then subsumed by the split. An identity effect that IMPOSES a class still wins over both.

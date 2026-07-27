@@ -143,7 +143,7 @@ export default function SavesSkills() {
       <div className="two">
         {/* SAVING THROWS */}
         <div className="card">
-          <h3>Saving Throws</h3>
+          <h2>Saving Throws</h2>
           <div className="rowlist">
             {ABILITIES.map((a) => {
               const s = char.saves[a.key]
@@ -185,7 +185,7 @@ export default function SavesSkills() {
 
         {/* SKILLS */}
         <div className="card">
-          <h3>Skills</h3>
+          <h2>Skills</h2>
           {/* The rows above are now THIS SYSTEM's skills, so the "these are 5e's skills" warning that used
               to sit here has been removed rather than reworded — it would now be false. What remains worth
               saying is only which list you are looking at, and only when it is not the 5e one. */}

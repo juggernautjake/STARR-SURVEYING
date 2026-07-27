@@ -884,7 +884,7 @@
   padding: 20px 22px;
   margin-bottom: 14px;
 }
-.dnd-sheet .card h3 {
+.dnd-sheet .card :is(h2, h3) {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -895,7 +895,7 @@
   align-items: center;
   gap: 10px;
 }
-.dnd-sheet .card h3 .lvl {
+.dnd-sheet .card :is(h2, h3) .lvl {
   display: inline-block;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -2818,7 +2818,7 @@
 .dnd-sheet.skin-streamer .stat .big,
 .dnd-sheet.skin-streamer h2,
 .dnd-sheet.skin-streamer strong,
-.dnd-sheet.skin-streamer .card h3,
+.dnd-sheet.skin-streamer .card :is(h2, h3),
 .dnd-sheet.skin-streamer .ab .score,
 .dnd-sheet.skin-streamer .form-name,
 .dnd-sheet.skin-streamer .res-head .rn,
@@ -2836,7 +2836,7 @@
 /* Text that sits on a saturated accent fill stays white. */
 .dnd-sheet.skin-streamer .btn.solid { color: #fff; text-shadow: none; background: var(--hotpink); border-color: var(--hotpink); box-shadow: 3px 3px 0 rgba(var(--sk-accent), 0.4); }
 .dnd-sheet.skin-streamer .btn.solid:hover { filter: brightness(1.06); }
-.dnd-sheet.skin-streamer .card h3 .lvl { color: var(--sk-onaccent-ink); }
+.dnd-sheet.skin-streamer .card :is(h2, h3) .lvl { color: var(--sk-onaccent-ink); }
 .dnd-sheet.skin-streamer .adv-seg button.on-dis { color: var(--danger-ink, var(--danger)); }
 
 /* De-cyan the faint accent tints in tables/callouts/focus; make them pink. */
@@ -2979,8 +2979,8 @@
   background-image: repeating-linear-gradient(0deg, rgba(var(--sk-accent), 0.028) 0 1px, transparent 1px 5px);
   box-shadow: 0 0 0 1px rgba(var(--sk-accent3), 0.14), 4px 4px 0 rgba(var(--sk-accent), 0.12);
 }
-.dnd-sheet.skin-streamer .card h3 { font-family: var(--font-display); letter-spacing: 0.02em; text-shadow: 0 1px 0 #fff; }
-.dnd-sheet.skin-streamer .card h3 .lvl { border-radius: 2px; font-family: var(--font-mono); }
+.dnd-sheet.skin-streamer .card :is(h2, h3) { font-family: var(--font-display); letter-spacing: 0.02em; text-shadow: 0 1px 0 #fff; }
+.dnd-sheet.skin-streamer .card :is(h2, h3) .lvl { border-radius: 2px; font-family: var(--font-mono); }
 .dnd-sheet.skin-streamer h2 { font-family: var(--font-display); }
 
 /* ---- Tabs as a pixel HUD ---- */
@@ -3234,7 +3234,7 @@
 /* --- Flip every base white/dark-on-dark heading & value to the deep-plum ink --- */
 .dnd-sheet.skin-donata h2,
 .dnd-sheet.skin-donata strong,
-.dnd-sheet.skin-donata .card h3,
+.dnd-sheet.skin-donata .card :is(h2, h3),
 .dnd-sheet.skin-donata .stat .big,
 .dnd-sheet.skin-donata .ab .score,
 .dnd-sheet.skin-donata .form-name,
@@ -3251,7 +3251,7 @@
   color: var(--ink);
 }
 .dnd-sheet.skin-donata h2 { text-transform: none; letter-spacing: 0.005em; }
-.dnd-sheet.skin-donata .card h3 { text-transform: none; letter-spacing: 0.005em; }
+.dnd-sheet.skin-donata .card :is(h2, h3) { text-transform: none; letter-spacing: 0.005em; }
 
 /* ------------------------------------------------------------------ HERO
    A cream "shop-awning" banner: cream ground + a candy gradient top strip,
@@ -3367,11 +3367,11 @@
   border-radius: 18px;
   box-shadow: 0 10px 26px -18px rgba(var(--sk-grape), 0.55);
 }
-.dnd-sheet.skin-donata .card h3 {
+.dnd-sheet.skin-donata .card :is(h2, h3) {
   padding-bottom: 8px;
   border-bottom: 2px solid rgba(var(--sk-rasp), 0.18);
 }
-.dnd-sheet.skin-donata .card h3 .lvl {
+.dnd-sheet.skin-donata .card :is(h2, h3) .lvl {
   color: #fff;
   background: linear-gradient(160deg, var(--hotpink), var(--violet));
   border-radius: 999px;
@@ -3599,7 +3599,7 @@
 }
 .dnd-sheet.skin-rulebook .sec-head { border-bottom: 3px solid var(--line-strong); align-items: center; }
 .dnd-sheet.skin-rulebook .sec-num { color: var(--hotpink-ink, var(--hotpink)); }
-.dnd-sheet.skin-rulebook .card h3 { color: var(--hotpink); font-family: var(--font-display); }
+.dnd-sheet.skin-rulebook .card :is(h2, h3) { color: var(--hotpink); font-family: var(--font-display); }
 /* Keyword links / rules terms stay green + bold, like the PDF's highlighted keywords. */
 .dnd-sheet.skin-rulebook em.term { color: var(--tealbright); font-weight: 600; }
 .dnd-sheet.skin-rulebook .hl-note { color: var(--hotpink); }
@@ -3643,7 +3643,7 @@
 }
 /* Engraved-gold serif section headers over a fine gold rule (the Hextech UI title feel). */
 .dnd-sheet.skin-hextech h2,
-.dnd-sheet.skin-hextech .card h3 {
+.dnd-sheet.skin-hextech .card :is(h2, h3) {
   color: var(--gold);
   font-family: var(--font-display);
   letter-spacing: 0.04em;

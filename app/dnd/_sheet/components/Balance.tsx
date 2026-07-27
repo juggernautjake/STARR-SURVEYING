@@ -12,7 +12,7 @@ export default function Balance() {
       {char.balance.lead && <p className="lead">{md(char.balance.lead)}</p>}
       <div className="two">
         <div className="card callout" style={{ borderLeftColor: 'var(--good)', background: 'rgba(74,222,128,0.06)' }}>
-          <h3 style={{ color: 'var(--good)' }}>Synergies</h3>
+          <h2 style={{ color: 'var(--good)' }}>Synergies</h2>
           <ul className="clean">
             {char.balance.synergies.map((s, i) => (
               <li key={i}>{md(s)}</li>
@@ -20,7 +20,7 @@ export default function Balance() {
           </ul>
         </div>
         <div className="card callout" style={{ borderLeftColor: 'var(--danger)', background: 'rgba(255,82,82,0.06)' }}>
-          <h3 style={{ color: 'var(--danger-ink, var(--danger))' }}>Weaknesses</h3>
+          <h2 style={{ color: 'var(--danger-ink, var(--danger))' }}>Weaknesses</h2>
           <ul className="clean">
             {char.balance.weaknesses.map((w, i) => (
               <li key={i}>{md(w)}</li>

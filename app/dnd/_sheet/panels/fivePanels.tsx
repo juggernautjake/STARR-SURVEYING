@@ -84,7 +84,7 @@ export function useFivePanels(): SheetPanel[] {
           <>
             <section>
               <div className="card">
-                <h3>Dossier</h3>
+                <h2>Dossier</h2>
                 {char.bio.intro.map((p, i) => (
                   <p key={i}>{md(p)}</p>
                 ))}
@@ -105,7 +105,7 @@ export function useFivePanels(): SheetPanel[] {
         render: () => (
           <section>
             <div className="card">
-              <h3>{s.title}</h3>
+              <h2>{s.title}</h2>
               <CustomSectionView
                 section={s}
                 editable={canWrite}
@@ -138,7 +138,7 @@ export function useFivePanels(): SheetPanel[] {
               render: () => (
                 <section>
                   <div className="card">
-                    <h3>Add a custom section</h3>
+                    <h2>Add a custom section</h2>
                     <p style={{ opacity: 0.75, marginTop: 0 }}>
                       Build your own section — a vehicle, a contact list, downtime notes, anything the sheet
                       doesn’t already track. It appears on every template.

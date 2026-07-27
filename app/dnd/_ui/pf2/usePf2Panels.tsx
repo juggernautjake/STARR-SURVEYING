@@ -336,7 +336,10 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       {/* Header. This is intentionally the FIRST child in flow (not absolutely pinned), so a panel can
           later be mounted as a sibling ABOVE the stat block without fighting a pin. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <strong style={{ fontFamily: 'var(--hx-font-display)', fontSize: 22, fontWeight: 700, color: 'var(--hx-gold-3)' }}>{id.name || 'Unnamed'}</strong>
+        {/* Same fix as the IG masthead, and found the same way: the pin named IG because IG is where a
+            browser pass happened to measure. PF2 is the other bespoke sheet and had the identical shape —
+            a `strong` doing a title's job, and no top-level heading on the page at all. */}
+        <h1 style={{ margin: 0, fontFamily: 'var(--hx-font-display)', fontSize: 22, fontWeight: 700, color: 'var(--hx-gold-3)' }}>{id.name || 'Unnamed'}</h1>
         <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--hx-muted)' }}>Level {id.level} · {id.size}</span>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--hx-text)', border: '1px solid var(--hx-teal-1)', borderRadius: 5, padding: '1px 6px', background: 'rgba(var(--hx-teal-1-rgb),0.08)' }}>PATHFINDER 2e</span>
       </div>

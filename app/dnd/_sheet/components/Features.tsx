@@ -70,13 +70,13 @@ export default function Features() {
         if (locked) {
           return (
             <div className="card feature-locked" key={f.id}>
-              <h3>
+              <h2>
                 <span className="lock-badge">🔒 Lv {req}</span>
                 {f.name}
                 <span className="tag" style={{ marginLeft: 'auto', color: sourceColor(f.source) }}>
                   {f.source}
                 </span>
-              </h3>
+              </h2>
               <p className="muted" style={{ margin: 0 }}>
                 Unlocks at <strong>Level {req}</strong>. Level up to reveal this feature.
               </p>
@@ -85,7 +85,7 @@ export default function Features() {
         }
         return (
           <div className="card" key={f.id}>
-            <h3>
+            <h2>
               {f.level && <span className="lvl">{f.level}</span>}
               {f.image && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -107,7 +107,7 @@ export default function Features() {
               <span className="tag" style={{ marginLeft: 'auto', color: sourceColor(f.source) }}>
                 {f.source}
               </span>
-            </h3>
+            </h2>
             {/* Auto-links every rule named in the body to THIS system's glossary article. */}
             {f.body.map((p, i) => (
               <p key={i}><RichRules text={p} /></p>
@@ -134,12 +134,12 @@ export default function Features() {
 
       {grantedFeatures.map((g, i) => (
         <div className="card" key={`granted-${g.sourceId ?? i}-${i}`} style={{ borderColor: 'var(--tealbright)' }}>
-          <h3>
+          <h2>
             {g.name}
             <span className="tag" style={{ marginLeft: 'auto', color: 'var(--tealbright)' }}>
               granted
             </span>
-          </h3>
+          </h2>
           <p className="muted" style={{ margin: 0 }}>
             Granted by <strong>{g.source}</strong> — active while equipped. Its mechanics apply through the item&apos;s own effects.
           </p>

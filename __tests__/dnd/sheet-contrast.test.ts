@@ -134,7 +134,9 @@ describe('panel text follows the theme ink, not hardcoded white', () => {
     '.dnd-sheet .adv-seg button.on-flat',
     '.dnd-sheet .roll-entry .re-label',
     '.dnd-sheet .inv-name',
-    '.dnd-sheet .card h3',
+    // Card titles were promoted h3 → h2 (WCAG 1.3.1 level skip, 2026-07-27) and the rule now matches both
+    // tags, so nothing lost its styling. Same rule, same assertion — only the selector text moved.
+    '.dnd-sheet .card :is(h2, h3)',
     '.dnd-sheet h2',
     '.dnd-sheet strong',
   ];

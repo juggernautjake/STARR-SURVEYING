@@ -59,7 +59,7 @@ export default function MlmPanel() {
       {/* Downline scoreboard */}
       <section>
         <div className="card">
-          <h3 style={label}>My Downline // The Journey So Far</h3>
+          <h2 style={label}>My Downline // The Journey So Far</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(96px,1fr))', gap: 10, marginTop: 8 }}>
             {[
               ['Years In', '6', 'and counting!'],
@@ -86,7 +86,7 @@ export default function MlmPanel() {
       {/* Rank = Level ladder */}
       <section>
         <div className="card">
-          <h3 style={label}>Rank = Level // She levels by climbing the company</h3>
+          <h2 style={label}>Rank = Level // She levels by climbing the company</h2>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 10px' }}>
             No XP from fighting — she gains a level only when the DM approves a <b>promotion</b>. Rungs 1–{cur} = her real progress; the rest is where she <i>swears</i> she’s headed.
           </p>
@@ -123,7 +123,7 @@ export default function MlmPanel() {
       {/* The pyramid + products */}
       <section>
         <div className="card">
-          <h3 style={label}>The Harmonyte Lattice™ // (legally, not a pyramid)</h3>
+          <h2 style={label}>The Harmonyte Lattice™ // (legally, not a pyramid)</h2>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, margin: '8px 0 4px' }}>
             {TIERS.map((t, i) => (
               <div key={i} style={{
@@ -143,7 +143,7 @@ export default function MlmPanel() {
 
       <section>
         <div className="card">
-          <h3 style={label}>The Product Line™ // “It basically sells itself.”</h3>
+          <h2 style={label}>The Product Line™ // “It basically sells itself.”</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10, marginTop: 8 }}>
             {PRODUCTS.map(([n, p, d], i) => (
               <div key={i} style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 12, padding: '12px 14px' }}>

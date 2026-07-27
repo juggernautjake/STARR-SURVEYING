@@ -93,7 +93,7 @@ function StaticBlock({ block }: { block: CustomBlock }) {
     case 'stats':
       return (
         <section className="card">
-          {block.title && <h3>{block.title}</h3>}
+          {block.title && <h2>{block.title}</h2>}
           <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 8, margin: 0 }}>
             {block.items.map((it, i) => (
               <div key={i} style={{ background: 'rgba(1,10,19,0.5)', border: '1px solid var(--line,#1e3a52)', borderRadius: 6, padding: '7px 9px' }}>
@@ -107,14 +107,14 @@ function StaticBlock({ block }: { block: CustomBlock }) {
     case 'list':
       return (
         <section className="card">
-          {block.title && <h3>{block.title}</h3>}
+          {block.title && <h2>{block.title}</h2>}
           {block.ordered ? <ol>{block.items.map((it, i) => <li key={i}>{it}</li>)}</ol> : <ul>{block.items.map((it, i) => <li key={i}>{it}</li>)}</ul>}
         </section>
       );
     case 'table':
       return (
         <section className="card" style={{ overflowX: 'auto' }}>
-          {block.title && <h3>{block.title}</h3>}
+          {block.title && <h2>{block.title}</h2>}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr>{block.columns.map((c, i) => <th key={i} style={{ border: '1px solid var(--line,#1e3a52)', padding: '6px 9px', textAlign: 'left' }}>{c}</th>)}</tr></thead>
             <tbody>{block.rows.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} style={{ border: '1px solid var(--line,#1e3a52)', padding: '6px 9px' }}>{c}</td>)}</tr>)}</tbody>

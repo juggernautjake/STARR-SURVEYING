@@ -125,7 +125,7 @@ export default function CombatPanel() {
       <div className="two">
         {/* HP TRACKER */}
         <div className="card hp-card">
-          <h3>Hit Points</h3>
+          <h2>Hit Points</h2>
           <div style={{ textAlign: 'center', margin: '4px 0 14px' }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 52, fontWeight: 700, color: dying ? 'var(--danger-ink, var(--danger))' : 'var(--good)', lineHeight: 1 }}>
               {shownHp}
@@ -277,7 +277,7 @@ export default function CombatPanel() {
 
         {/* DEFENSES + REST */}
         <div className="card">
-          <h3>Defenses</h3>
+          <h2>Defenses</h2>
           <ul className="clean">
             <li>
               <strong>Armor Class <EffectStar target="ac" label="Armor Class">{acInfo.ac}</EffectStar></strong> — {acInfo.fromEquipment ? `from ${acInfo.source}` : combat.acNote}

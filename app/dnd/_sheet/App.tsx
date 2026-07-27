@@ -363,7 +363,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
           <>
             <section>
               <div className="card">
-                <h3>Dossier</h3>
+                <h2>Dossier</h2>
                 {char.bio.intro.map((p, i) => (
                   <p key={i}>{md(p)}</p>
                 ))}
@@ -425,7 +425,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
                 tab === s.id && (
                   <section key={s.id}>
                     <div className="card">
-                      <h3>{s.title}</h3>
+                      <h2>{s.title}</h2>
                       <CustomSectionView
                         section={s}
                         editable={canWrite}

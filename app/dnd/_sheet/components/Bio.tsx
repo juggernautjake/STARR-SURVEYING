@@ -57,7 +57,7 @@ function StoryCard({
   return (
     <div className="card">
       <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>{title}</h3>
+        <h2 style={{ margin: 0 }}>{title}</h2>
         {canEdit && !editing && (
           <button className="btn tiny" onClick={start} title="Edit this section">✎ Edit</button>
         )}
@@ -181,7 +181,7 @@ export default function Bio() {
       {is2024 && (char.meta.background || canWrite) && (
         <div className="card" style={{ marginBottom: 12 }}>
           <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h3 style={{ margin: 0 }}>Background <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>(2024 — grants ability increases + an Origin feat)</span></h3>
+            <h2 style={{ margin: 0 }}>Background <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>(2024 — grants ability increases + an Origin feat)</span></h2>
             {canWrite && (
               <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                 <select
