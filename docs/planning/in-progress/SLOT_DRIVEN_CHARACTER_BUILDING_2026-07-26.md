@@ -304,6 +304,25 @@ slices are driven in the browser before being called done — this repo's standi
       tradition, and the class-feature extras (Wizard school slot, Cleric font) are documented as "tracked
       separately" i.e. unmodelled. So this needs the published per-class tables in hand first — Ground Rule
       3, the same bar that deferred Automatic Bonus Progression.
+
+      **⚑ VERIFIED IN CODE 2026-07-27, and the premise is HALF WRONG — which turned up a live bug.**
+      The blocking claim is right for *reduced* casters and wrong for *full* ones. PF2's full casters all
+      share one slot table by design, so `pf2SpellSlots(level)` **is** the per-class count for the eight
+      classes marked `progression: 'full'` — enforcement there needs no new source. What is genuinely
+      missing is only the Magus/Summoner reduced tables, which `data/classes.ts` deliberately omits.
+      **So S7c is not blocked; it is smaller than written.** Its remaining scope is the picker cap for full
+      casters (the S7b shape), with reduced casters left uncapped.
+
+      **The bug found on the way, and fixed (`1d2ebad7`):** `slotTableModelled` is authored on every class
+      and was read by **nothing** outside the data file — the same "authored and already unused" shape S7
+      found for the 5e counts. `buildPF2Character` handed `pf2SpellSlots(level)` to *every* class with a
+      spellcasting block, so a built **Magus** carried a full caster's slots while `pf2MaxSpellRank`
+      simultaneously reported a ceiling of **0** — the sheet contradicting itself, slot pills against its
+      own rules. Now suppressed for exactly the classes the data marks unmodelled.
+      **The first attempt broke every full caster** and two existing tests caught it: `pf2Class` returns a
+      thin level-1 projection carrying no such flag, so reading it there is `undefined` for everyone. The
+      flag lives on `PF2_CLASS_PROGRESSIONS`; suppression now requires a literal `false`, since absent data
+      is not a claim that a table is unmodelled. 9 tests.
 - [x] **S8a — "altered vanilla" is a real state. Shipped 2026-07-26.**
       `SheetVariantKind` is now `'vanilla' | 'altered-vanilla' | 'custom'`, with `variantKindLabel` giving
       each a distinct label and the variant badge rendering **"Altered vanilla"** as neither of the other two.
