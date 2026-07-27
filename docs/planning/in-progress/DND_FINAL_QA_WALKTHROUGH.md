@@ -2892,3 +2892,51 @@ stamp is not doing work — it is just untrue, which is the worst combination fo
 
 **Bar:** 17/17 in the file (9 + 4 + 4 across slices 76–78), full D&D suite green, typecheck exit-0, lint
 clean. Static — no server needed, and no live data written.
+
+### 2026-07-27 — slice 79: retracting slice 78, one step before shipping it
+
+Slice 78 concluded that the feat adapter was "the odd one out", that its `system: 'dnd5e-2024'` stamp was
+*"not doing work — it is just untrue"*, and that aligning it with its siblings was a free consistency fix.
+I called it the cheapest item on the owner's list. **It was wrong, and the fix would not have compiled.**
+
+It got checked because the next action was to ship it.
+
+`Feat.system` is typed as the **literal** `'dnd5e-2024'` (`lib/dnd/feats/dnd5e-2024.ts:31`). The `Feat`
+type *is* "a 2024 feat". `ClassDefinition.system` and `SubclassDefinition.system` are plain `string` and
+span editions — **which is precisely why they can and must filter on it**:
+
+| type | `system` | why it behaves as it does |
+|---|---|---|
+| `ClassDefinition` | `string` | one type spans editions → filtering is meaningful and necessary |
+| `SubclassDefinition` | `string` | same |
+| `Feat` | `'dnd5e-2024'` | edition-specific by type → the literal is the **only** legal value |
+
+So the three are not inconsistent. They differ because their types differ, and `system: cf.system` would
+be a type error. The stamp is load-bearing after all — it satisfies "this object is 2024-shaped", which is
+what the 2024 picker consumes — and it asserts nothing false about the homebrew feat, whose persisted
+`CustomFeat` keeps `dnd5e-2014` throughout.
+
+**What survives from slices 76–78, unchanged:**
+- The reachability matrix (77), derived from the class registry.
+- The gap: a `general` homebrew feat on a non-2024 character saves successfully and is never offered.
+- That classes and subclasses are coherently system-scoped end to end — still true, still a useful
+  contrast, just **not evidence of a feat defect**.
+
+**What is retracted:** that the adapter is defective, that the stamp is untrue, that a consistency fix
+exists, and that it "removes the reason the answer is currently silently no". The cause of the gap is one
+line and always was — `asiFeatChoices` opening with `if (system !== 'dnd5e-2024') return []`, which gates
+on the **character's** system. No value a feat carries can affect it.
+
+**So the remaining question is exactly what it was before slice 78, and it is a rules decision:** should a
+2014 character be offered feats at an ASI slot at all? 2014 feats are an optional rule in that edition.
+There is no free fix hiding behind it.
+
+**The pattern, now four for four.** 72, 75, 77 and this one all corrected a claim of mine that generalised
+past its evidence, and this is the first that would have produced a *wrong change* rather than only wrong
+prose — I had already described it to the owner as the cheapest thing on their list. What caught it was
+not review but the act of preparing to ship: checking the type because the edit needed to typecheck. The
+transferable lesson is narrow and worth keeping: **"and this is a small safe fix" is itself a claim, and it
+is the one most worth checking, because it is the one that gets acted on.**
+
+**Bar:** 18/18 in the file, full D&D suite green, typecheck exit-0, lint clean. No production code changed
+— the change slice 78 proposed was not made, and that is the outcome.

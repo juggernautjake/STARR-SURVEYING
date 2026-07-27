@@ -57,10 +57,11 @@ describe('the adapter is faithful about everything except the system', () => {
     expect(f.prerequisites?.[0]).not.toHaveProperty('minLevel');
   });
 
-  it('but it STAMPS dnd5e-2024 onto a feat the character saved as 2014', () => {
-    // The literal is hardcoded, documented as "asiFeatChoices is 2024-only, so the system literal is
-    // fixed here". Contained — the PERSISTED CustomFeat keeps its real system, this is the in-memory
-    // adaptation only — but it means the object handed to the picker claims a system its owner is not.
+  it('and sets dnd5e-2024 because that is the only value the Feat type allows', () => {
+    // Slice 76 recorded this as the object "claiming a system its owner is not", and slice 78 escalated
+    // it to a defect. Slice 79 established it is neither: `Feat.system` is the literal `'dnd5e-2024'`,
+    // so this is a shape conversion into the 2024 picker's type, not an assertion about the homebrew.
+    // The persisted CustomFeat keeps `dnd5e-2014` and is what the character actually owns.
     expect(feat().system).toBe('dnd5e-2014');
     expect(customFeatToFeat(feat()).system).toBe('dnd5e-2024');
   });
@@ -177,11 +178,33 @@ describe('the three homebrew kinds, compared', () => {
     expect(route).toContain('findClass(system, input.classKey, readHomebrewClasses(data))');
   });
 
-  it('the FEAT adapter alone discards it — the one inconsistency, and the cause of the gap', () => {
-    const adapter = read('lib/dnd/feats/homebrew-adapter.ts');
-    expect(adapter).toContain("system: 'dnd5e-2024'");
-    // And nothing downstream re-filters by system, which is why a stamped feat still reaches the
-    // fighting-style list on 2014. The stamp is not load-bearing; it is just untrue.
+  // ⚑ RETRACTED 2026-07-27 (slice 79). This block previously held a test titled "the FEAT adapter alone
+  // discards it — the one inconsistency, and the cause of the gap", asserting that `customFeatToFeat`
+  // stamping `'dnd5e-2024'` was a defect, that it was "not load-bearing… just untrue", and that aligning
+  // it with its siblings was a free consistency fix. **All of that was wrong**, and it was checked only
+  // because the next step was to ship it.
+  //
+  // `Feat.system` is typed as the LITERAL `'dnd5e-2024'` (lib/dnd/feats/dnd5e-2024.ts:31). The `Feat`
+  // type IS "a 2024 feat". `ClassDefinition.system` and `SubclassDefinition.system` are plain `string`,
+  // spanning editions — which is *why* they can and must filter on it. So the three are not
+  // inconsistent; they differ because their types differ, and the adapter's literal is the only value
+  // that type permits. `system: cf.system` would not compile.
+  //
+  // The stamp is therefore load-bearing after all: it satisfies the contract "this object is
+  // 2024-shaped", which is exactly what the 2024 picker consumes. It says nothing false about the
+  // homebrew feat, whose persisted `CustomFeat` keeps its real system throughout.
+  it('the adapter’s literal is REQUIRED by the target type, not a choice it made', () => {
+    expect(read('lib/dnd/feats/dnd5e-2024.ts')).toContain("system: 'dnd5e-2024';");
+    const types = read('lib/dnd/classes/types.ts');
+    expect(types).toContain('system: string;');
+    // The persisted shape keeps the truth, which is why nothing is actually lost.
+    expect(read('lib/dnd/classes/custom.ts')).toContain('system: string;');
+  });
+
+  it('so the cause of the gap is the PICKER’s gate on the character, not the feat’s own field', () => {
+    // `asiFeatChoices(system, …)` gates on the CHARACTER's system. No change to a feat's `system` value
+    // could affect it. The gap and its cause are one line, and it is this one.
+    expect(read('app/dnd/_ui/LevelBuilder.tsx')).toContain("if (system !== 'dnd5e-2024') return [];");
     expect(read('app/api/dnd/characters/[id]/levels/route.ts')).not.toContain('f.system === def.system');
   });
 });
