@@ -172,6 +172,38 @@ slice 34 found wrong on a different surface.
 
 → **Both halves of that gap are now closed:** slice 45 renders the row list, slice 46 measures the contrast.
 
+### Slice 48 — six `var(--hx-…)` references named tokens that do not exist
+
+Following slice 47's lead — *"other tracked contrast items may share a mechanical cause"* — found a
+different one. **Eleven `--hx-*` tokens are referenced across `app/dnd` and never defined.** Six of those
+references supply **no fallback**, which makes the declaration invalid: the browser drops it.
+
+- **`IGCharacterBuilder` used `color: var(--hx-ink)` on four text elements.** `--hx-ink` exists only in
+  `custom-sheet.ts`'s standalone-export CSS — a different scope — so the colour was dropped and the text
+  **inherited its parent's**. That is *precisely* slice 34's `🜲` glyph bug (*"named no colour, so it
+  inherited the page's base `#0f1419` … measured 1.39:1"*), alive in a second place **because nothing was
+  looking for the shape, only for the instance**. Now `--hx-text`, clamped to 7:1 on every skin.
+- **`useIgPanels` used `border: 1px solid var(--hx-gold)` twice.** Invalid → the border fell back to
+  `currentColor`, so a *"this value changed"* affordance rendered in the text colour instead of gold. The
+  affordance silently did not work. Now `--hx-gold-1`.
+
+Also fixed one that *had* a fallback and should not have: **PF2's Hero Point diamonds** are text hardcoded
+to `var(--hx-gold, #c8aa6e)` — the pre-clamp gold, bypassing the ramp slice 47 had just corrected, and
+exactly the *"`#c8aa6e` on near-white = 2.08"* the contrast baseline names. Now `--hx-gold-2`, matching its
+own sibling label one line above it.
+
+**The remaining skin-blind references are inventoried, not swept.** They render (a fallback exists) but
+always in one colour whatever the skin. A hardcoded dark-theme value can be *worse* on a light skin, so each
+needs its own surface measured — the same call slice 34 made about the 22 files it declined to touch.
+
+The guard fails on any `var(--hx-…)` without a fallback naming an undefined token, and on any **new**
+undefined token even with one — so the list can shrink but not grow quietly.
+
+**Why this is the more useful half of the finding:** slice 34 fixed one glyph that inherited the page ink,
+and the fix was correct but *local*. The same mistake was sitting four times over in a neighbouring file the
+whole time. A defect found by eye gets fixed where it was seen; only asking *"what shape is this?"* finds
+the rest.
+
 ### Slice 47 — it was never a colour decision: the clamp had two bugs
 
 Slice 46 left the gold heading as an owner call. **Reading the derivation instead of the rendered colour
