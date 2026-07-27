@@ -73,19 +73,42 @@ describe('the gold heading is NOT, and here is the measurement', () => {
     }
   });
 
-  it('all three LIGHT skins fail — the tracked gold-family item, now with numbers', () => {
-    // Measured 2026-07-27 against the panel-2 stop: streamer 3.70 · donata 3.64 · jack 3.75 (all < 4.5).
-    // This assertion is characterising a KNOWN-OPEN item, not blessing it. When the gold family is
-    // retuned, this test fails — and that failure is the signal to flip it to `toBeGreaterThanOrEqual`
-    // and close the item, NOT to delete the assertion.
+  it('the LIGHT skins now clear AA too — the item this file was opened to track', () => {
+    // FLIPPED 2026-07-27 (slice 47), which is exactly what this assertion was written to make happen:
+    // it previously asserted `toBeLessThan(NEED)` with the note "when the gold family is retuned, this
+    // test fails — that failure is the signal to flip it and close the item, NOT to delete it."
+    //
+    // Before: streamer 3.70 · donata 3.64 · jack 3.75.   After: 4.77 · 4.76 · 4.55.
+    //
+    // The fix was in the CLAMP, not in a hand-picked colour: `gold2` was already
+    // `ensureContrast(gold, …)` — it clamped against `panel` at 4, while the title sits on `panel2` and
+    // 13–14px bold needs 4.5. Now `ensureContrast(gold, panel2, 4.5)`.
     for (const skin of LIGHT) {
       const t = tokens(skin);
       const r = contrastRatio(t.gold2, worstBackdrop(t))!;
-      expect(r, `${skin} gold-2 on panel-2`).toBeLessThan(NEED);
-      // And it is CLOSE — within ~0.9 of passing — which is what makes it a tuning decision rather than a
-      // rewrite. Recorded so nobody assumes the gold has to be abandoned to fix it.
-      expect(r).toBeGreaterThan(3.0);
+      expect(r, `${skin} gold-2 on panel-2`).toBeGreaterThanOrEqual(NEED);
     }
+  });
+
+  it('and the hue survived — these are still golds, not a fallback ink', () => {
+    // `ensureContrast` steps 4% at a time and stops the moment the ratio is met, so the skin's identity is
+    // deepened rather than replaced. Guard on the channel ORDER (red ≥ green > blue) that makes an amber
+    // an amber: a clamp that ran away to near-black or drifted off-hue would break this while still
+    // passing the ratio assertion above.
+    for (const skin of LIGHT) {
+      const hex = tokens(skin).gold2.replace('#', '');
+      const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      expect(r, `${skin} red≥green`).toBeGreaterThanOrEqual(g);
+      expect(g, `${skin} green>blue`).toBeGreaterThan(b);
+      expect(r, `${skin} not black`).toBeGreaterThan(40);
+    }
+  });
+
+  it('the dark skin did not move — a light-skin fix must not shift the dark ones', () => {
+    // Slice 21's lesson, and the reason its original defect survived: checking one skin makes a wrong
+    // swap look right. `lazzuh` measured 9.04 before this change and must still.
+    const t = tokens('lazzuh');
+    expect(contrastRatio(t.gold2, worstBackdrop(t))!).toBeCloseTo(9.04, 1);
   });
 
   it('the new panel uses the same token as the sheets’ own section headings', () => {

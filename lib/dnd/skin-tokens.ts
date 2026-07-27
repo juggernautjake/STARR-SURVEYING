@@ -156,7 +156,24 @@ export function skinHxVars(sheetType: string | undefined): CSSProperties {
   // it paints section titles as TEXT on the panel — so it's the one we contrast-clamp. On light skins a
   // bright yellow-gold on near-white is illegible, so the clamp quietly deepens it to an amber that reads;
   // on dark skins the clamp is a no-op (the swatch golds already pop on the dark panels).
-  const gold2 = ensureContrast(gold, panel, light ? 4 : 3);
+  //
+  // TWO CORRECTIONS, both measured (final-QA slice 47). The intent above was already right — this token is
+  // clamped *because* it paints titles as text — but it clamped against the wrong surface at the wrong
+  // threshold, landing just under AA on every light skin:
+  //
+  //   · THE SURFACE. `.framedPanel` paints `linear-gradient(180deg, var(--hx-panel-2), var(--hx-panel))`
+  //     and a section title sits at its TOP — on `panel2`, not `panel`. `panel2` is the worse backdrop in
+  //     both directions (darker on light skins, lighter on dark ones), so clamping against `panel`
+  //     flattered every result by ~0.4 — the difference between "passes" and "fails".
+  //   · THE THRESHOLD. These titles render at 13–14px BOLD, and bold earns WCAG's relaxed 3.0 only at
+  //     ≥18.66px. Below that it needs the full 4.5, so `4` (light) and `3` (dark) were both short.
+  //
+  // Measured on the panel-2 stop BEFORE this change: streamer 3.70 · donata 3.64 · jack 3.75 — each within
+  // ~0.9 of passing. `ensureContrast` steps 4% at a time and stops the moment the ratio is met, so the
+  // skin's gold is deepened just enough to read and keeps its hue. Dark skins are unaffected (lazzuh
+  // already measures 9.04 here) — the direction slice 21 insists on checking, since a light-skin fix that
+  // silently moves the dark ones is how that slice's original defect got in.
+  const gold2 = ensureContrast(gold, panel2, 4.5);
   const gold1 = darken(gold2, 0.16);
   const gold0 = darken(gold2, light ? 0.34 : 0.45);
   // gold-3 is the "brightest" gold (title-gradient top, portrait glows). On dark skins it lightens toward
@@ -248,7 +265,7 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
   const line = c.line || (light ? darken(panel, 0.32) : lighten(panel, 0.14));
 
   const gold = c.gold || '#c8aa6e';
-  const gold2 = ensureContrast(gold, panel, light ? 4 : 3);
+  const gold2 = ensureContrast(gold, panel2, 4.5);
   const gold1 = darken(gold2, 0.16);
   const gold0 = darken(gold2, light ? 0.34 : 0.45);
   const gold3 = light ? gold2 : lighten(gold2, 0.4);
