@@ -203,6 +203,33 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 62 — the accent TINT never followed the skin, in 23 places
+
+Slice 61's stray observation, chased. The PF2 rank badge composited to `#d6e1e7` — a **blue-grey** — under
+purple text on the streamer skin, because `.pf2RankTrained` painted `background: rgba(10, 200, 185, 0.12)`:
+the **default Hextech cyan, hard-coded**, while its `color` came from `var(--hx-teal-1)` and *did* follow
+the skin.
+
+**A surface from one family with text from the other** — precisely the roller-dock defect this codebase
+already fixed once (*"the dock was light from one family and its labels were coloured from the other"*),
+sitting unswept in **23** places.
+
+The fix is the pattern already here: `skin-tokens.ts` emits `--hx-panel-rgb` / `--hx-void-rgb` through
+`trip()` for exactly this reason. `--hx-teal-1-rgb` joins them, from both derivations.
+
+**Swept wholesale — and unlike slice 34's danger-token case, that is provable rather than a judgement
+call.** The default `--hx-teal-1` is `#0ac8b9` = **exactly** `10, 200, 185`, so on an unskinned sheet the
+substitution is a **no-op**; it can only change what was already wrong. A test pins that equality, because
+if either value drifts without the other, every accent tint shifts on the one sheet this was meant to leave
+untouched.
+
+11 tests, including that the tints were **replaced rather than deleted** — stripping them would make the
+accent vanish instead of follow the skin, a different bug wearing this fix's clothes.
+
+**Why this one was invisible for so long:** it is not a contrast failure on the default skin, where the
+hard-coded value is correct. It only misbehaves once a skin is applied — and the sweeps that would have
+caught it all ran on sheets where it happened to be right.
+
 ### Slice 61 — verifying 59/60 live: the fixes are real, my explanation was not
 
 Re-measuring the PF2 sheet after slices 59 and 60 returned **exactly the same nine failures, to the decimal**
