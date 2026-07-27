@@ -203,6 +203,30 @@ So S6g's optgroup remains covered by tests and by its correct absence, not by a 
 → **Closed by slice 55**, which renders both pickers directly. They needed only an export, not the markup
 split this note predicted.
 
+### Slice 57 — the last unrendered branch, and the audit that now comes back clean
+
+Running slice 55's rule over everything this session changed leaves exactly one: **slice 36's "record only"
+marker** in the DM's review queue. `revert-affordance.test.ts` proves the *predicate* and greps for
+`isRevertableEditRow(row) ? (` — neither shows what a DM sees.
+
+**The failure mode a grep cannot see is a swapped ternary.** Revert offered on the rows that *cannot*
+revert, "record only" on the ones that can. That passes every existing assertion — the predicate is called,
+the branch exists, no `disabled` appears — while inverting the entire fix. A test now asserts the two land
+on **opposite** rows.
+
+`EditHistoryRow` extracted as a pure component: a row, a busy flag, one callback. The panel stays bound to
+`useChar`; only the row needed freeing. Existing tests pass untouched.
+
+**10 tests**, and the one worth naming is that a non-revertable row **still shows its change**. Filtering
+those out to avoid an awkward button was the fix slice 36 *explicitly rejected* as the worse trade, and
+nothing would have caught someone re-attempting it. Also pinned: the deleted-account fallback renders the
+bare role rather than `"null (player)"` — `editor_user_id` is `ON DELETE SET NULL`, so that is a real state.
+
+**The audit now comes back clean.** Every UI branch this session added is rendered: the three walkers'
+pickers (55, 56), the bespoke edit-history panel and its states (45), its mount across all four formats
+(38-fix), and both queue row states here. There is no next item under this rule — which is the first time
+in this arc that applying a rule has produced nothing.
+
 ### Slice 56 — applying slice 55's own rule, and finding it had missed one
 
 Slice 55 ended by stating a rule: *"when a slice adds a branch that only appears in a state the tests
