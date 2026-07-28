@@ -20,12 +20,10 @@ const ROOT = process.cwd();
  * point of the list is that adding to it is a deliberate act, not a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
-  'lib/dnd/homebrew/kinds.ts':
-    'TEMPORARY, and the only entry here that is meant to be DELETED rather than kept. It is the kind ' +
-    'registry for the Content Studio (P0-3 in TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md), ' +
-    'shipped ahead of the UI that renders it because the schema is what the API, the form and the ' +
-    'transposer all have to agree on. Slice P6-6 (`/dnd/content/new`) imports it and this line comes out. ' +
-    'If you are reading this after P6-6 shipped, the exemption is stale — remove it and let the guard run.',
+  // `lib/dnd/homebrew/kinds.ts` was exempted here on 2026-07-28 with an expiry note naming the slice that
+  // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
+  // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got
+  // deleted is rare enough to be worth showing.
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
@@ -72,19 +70,16 @@ const EXEMPT: Record<string, string> = {
   //
   // The distinction matters because "homebrew cannot actually be adopted" read as "homebrew does not
   // work", which is false and is the opposite of reassuring to anyone reading this file to find out.
-  'lib/dnd/homebrew/adopt.ts':
-    'GAP (pre-existing, Area H4/H5): the mechanical half of "take a SHARED homebrew piece onto a ' +
-    'character" — turns a published piece\'s payload into an ActiveEffect the ledger resolves. No ' +
-    'route or UI calls it, so a piece cannot be adopted FROM A LIBRARY. Note this is not the same as ' +
-    'homebrew being unusable: per-character homebrew (lib/dnd/classes/homebrew-store.ts) is wired ' +
-    'end to end and does reach the builder. The pure logic here is written and tested; the sharing ' +
-    'surface that would reach it was never built.',
+  // `lib/dnd/homebrew/adopt.ts` left this list on 2026-07-28: the Content Studio's API (P6-4) calls its
+  // `validateHomebrewPayload`, so the module is reached by shipping code. Its ADOPT half is still not
+  // called — that is slice P6-8 — but a module is either imported or it is not, and this one now is.
 
   'lib/dnd/homebrew/policy.ts':
-    'GAP (pre-existing, Area H4): the campaign-level DM gate deciding which SHARED homebrew is legal ' +
-    'in a campaign. Nothing calls it, so that gate is not enforced anywhere. Same shape as the PF2 ' +
-    'rules-gate bug — a gate nobody invokes is indistinguishable from no gate. (Vacuous today rather ' +
-    'than dangerous: with no sharing surface there is nothing for it to gate yet.)',
+    'GAP (Area H4): the campaign-level DM gate deciding which SHARED homebrew is legal in a campaign. ' +
+    'Nothing calls it, so that gate is not enforced anywhere. Same shape as the PF2 rules-gate bug — a ' +
+    'gate nobody invokes is indistinguishable from no gate. Narrowed 2026-07-28: the catalog now HAS a ' +
+    'surface (dnd_homebrew + /api/dnd/homebrew), so this is no longer vacuous-for-lack-of-content — it is ' +
+    'waiting on slice P6-8, the adopt route, which is the only caller it should ever have.',
 
   'lib/dnd/stream-names-ai.ts':
     'GAP (pre-existing, Phase J1): AI-generated chat usernames. The stream chat uses the procedural ' +
@@ -189,8 +184,10 @@ describe('no lib/dnd module is an orphan', () => {
 
 describe('the recorded gaps are stated honestly', () => {
   // These assertions exist so the gaps cannot be quietly downgraded to "fine" by editing a comment.
-  it('the homebrew adopt/policy gap is described as a gap', () => {
-    expect(EXEMPT['lib/dnd/homebrew/adopt.ts']).toContain('GAP');
+  it('the homebrew policy gap is described as a gap', () => {
+    // `adopt.ts` dropped off this list on 2026-07-28 — P6-4's API imports it, so it is no longer an orphan.
+    // `policy.ts` remains one until the adopt route (P6-8) calls it, and must keep saying so.
+    expect(EXEMPT['lib/dnd/homebrew/adopt.ts'], 'adopt.ts is imported now; it should not be exempt').toBeUndefined();
     expect(EXEMPT['lib/dnd/homebrew/policy.ts']).toContain('GAP');
   });
 
@@ -222,13 +219,22 @@ describe('the recorded gaps are stated honestly', () => {
     expect(levels).toContain('readHomebrewFeats');
   });
 
-  it('the SHARED-library half is the part with no surface — that is what the two gaps mean', () => {
-    // No publish/browse/adopt surface anywhere: not as a route directory, and not as a page.
-    expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew'))).toBe(false);
-    expect(fs.existsSync(path.join(ROOT, 'app/dnd/homebrew'))).toBe(false);
-    // And the two modules are reached only by their own tests.
-    for (const mod of ['adopt', 'policy']) {
-      expect(EXEMPT[`lib/dnd/homebrew/${mod}.ts`]).toContain('SHARED');
-    }
+  // ⚑ FLIPPED 2026-07-28 (P6-2/P6-3/P6-4). This asserted the shared-library half had NO surface —
+  // no route directory, no page — which was true when written and is the reason the Content Studio was
+  // planned. Building the surface turned it red, which is what a pin like this is for. Replaced with
+  // assertions on what now exists, and on the ONE part that is still missing.
+  it('the SHARED catalog now has a surface — and the adopt half is the piece still owed', () => {
+    // The catalog can be created, read, edited and deleted.
+    expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew/route.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew/[id]/route.ts'))).toBe(true);
+    // It is backed by a real table rather than the two-entry hard-coded array it had for months.
+    expect(fs.existsSync(path.join(ROOT, 'seeds/455_dnd_homebrew.sql'))).toBe(true);
+
+    // What is NOT built yet, stated where it cannot rot: nothing adopts a catalog piece onto a character,
+    // so `policy.ts`'s DM gate still has no caller. P6-8 closes both at once — and when it does, this
+    // assertion flips exactly the way the one it replaced did.
+    const routes = fs.readdirSync(path.join(ROOT, 'app/api/dnd/homebrew'));
+    expect(routes, 'no adopt route yet — see P6-8').not.toContain('adopt');
+    expect(EXEMPT['lib/dnd/homebrew/policy.ts']).toBeDefined();
   });
 });

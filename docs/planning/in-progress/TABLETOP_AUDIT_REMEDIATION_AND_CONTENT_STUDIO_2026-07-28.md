@@ -381,18 +381,35 @@ of homebrew.
 
 - [x] **P6-1 — The kind registry.** See P0-3. **Shipped 2026-07-28.**
 
-- [ ] **P6-2 — The table.** `seeds/455_dnd_homebrew.sql`: `dnd_homebrew` with `owner_user_id`, `kind`,
-      `system`, `status`, `visibility` (`private` | `unlisted` | `public`), `name`, `summary`, `description`,
-      `tags[]`, `payload jsonb`, `image_url`, `assessment jsonb`, `based_on`, `partial_to_level`,
-      `origin_id` (the piece a transposed variant came from), `created_at`, `updated_at`. Indexed on
-      `(owner_user_id)`, `(system, kind)` and `(visibility, status)`.
+- [x] **P6-2 — The table. Shipped 2026-07-28.** `seeds/455_dnd_homebrew.sql`. `kind` is deliberately NOT a
+      CHECK constraint — the vocabulary lives in `model.ts` and widened 13 → 18 the same day, so a
+      constraint would mean a migration per kind with the failure landing at INSERT time in production;
+      `normalizeHomebrew` already drops an unknown kind rather than coercing it. `dnd_content` is left
+      alone (P6-19 migrates it) because bolting five columns onto a table in active play to serve a feature
+      that does not exist yet is the wrong order.
 
-- [ ] **P6-3 — The store.** `lib/dnd/homebrew/store.ts` — row ↔ `HomebrewContent` mapping plus the pure
-      visibility rule (`canReadContent(row, viewer)`, `canWriteContent`). DB calls stay in the route.
+- [x] **P6-3 — The store. Shipped 2026-07-28.** `lib/dnd/homebrew/store.ts` — row↔model mapping,
+      `canReadHomebrew` / `canWriteHomebrew` / `isBrowsable` / `visibleHomebrew` / `pickCreatorWritable`,
+      27 tests over the whole visibility × status product.
+      **A design bug was caught in authoring and is pinned as a regression test.** `isBrowsable` was first
+      written as `visibility === 'public' && status === 'approved'` — two plausible conditions that multiply
+      into a permanently false one, because with public self-serve nothing ever *sets* `approved`. The
+      catalog would have been unbrowsable forever. Resolved by making **`visibility` the publish action**
+      (`status` only ever excludes, on `rejected`) with `statusForVisibility` keeping `isHomebrewPublished`
+      — which the library section and AI grounding read — in agreement.
 
-- [ ] **P6-4 — The API.** `/api/dnd/homebrew` (GET list with kind/system/visibility/query filters, POST
-      create) and `/api/dnd/homebrew/[id]` (GET / PATCH / DELETE). Owner-gated writes, visibility-gated
-      reads. Rate-limited per P2-1.
+- [x] **P6-4 — The API. Shipped 2026-07-28.** `/api/dnd/homebrew` (GET with mine/system/kind/q filters,
+      POST) and `/api/dnd/homebrew/[id]` (GET / PATCH / DELETE). Three validation layers reported together
+      so an author fixes everything in one pass: identity (`validateHomebrew`), the kind's own schema
+      (`validateDraftFields`), and the mechanics against the **engine's own** validators
+      (`validateHomebrewPayload`). A private piece 404s rather than 403s, so it does not confirm its
+      existence to someone guessing ids. Delete leaves adopted copies and transposed variants alone —
+      adoption copies the payload onto the sheet, so deleting a catalog entry must not reach into someone
+      else's character and remove a class they are playing.
+      **Two orphan exemptions came off the list** (`kinds.ts`, `adopt.ts`) because the API imports them, and
+      the pin asserting the shared catalog *had no surface* flipped and was replaced. `policy.ts` stays
+      exempt and is now the only piece owed — P6-8 is its only intended caller.
+      **Still to do here:** rate-limiting (P2-1) — the routes ship ungated like the other 113.
 
 - [ ] **P6-5 — The Studio: browse.** `/dnd/content` — every piece the viewer may see, with kind, system and
       visibility filters plus search. Tabs: **Mine · Shared with me · Public**. This is the owner's *"we need
