@@ -1,0 +1,527 @@
+# Tabletop — audit remediation + the Homebrew Content Studio
+
+**Status:** IN PROGRESS · opened 2026-07-28 · **this is the stop-hook doc — work it slice by slice until done**
+**Origin:** the 28 Jul 2026 structural audit (41 findings, `~/Downloads/starr-tabletop-audit-2026-07-28.html`)
+plus the owner's Content Studio brief of the same day.
+
+> **How to work this doc.** Take the **lowest-numbered unchecked slice** in the lowest unchecked phase and
+> do it. One slice = one commit. Each slice ends green: `tsc --noEmit`, `vitest run __tests__/dnd`, `eslint`.
+> UI slices are **driven in a browser** before being ticked — this repo's standing rule, and the audit's own
+> finding is that a green suite misses rendering bugs. Tick the box, write one line of what actually shipped
+> (including anything the slice turned out to be *bigger* than written), and move on.
+>
+> **Do not renumber slices.** IDs are referenced from commits and from the audit. Insert as `P3-4b` rather
+> than shifting everything below.
+
+---
+
+## Ground rules (inherited — these bite constantly in this work)
+
+1. **Never invent a rule.** Source-verify every number. Where a source is missing, the item is BLOCKED and
+   pinned by a test that flips when the data arrives — not filled in from the shape of its neighbours.
+2. **Provenance is not eligibility.** `vanilla` hard-blocks, `custom` flags, `dm-granted` marks. The Content
+   Studio must not become a bypass for any of it.
+3. **A payload that does not validate is refused, never coerced.** Explain the refusal at authoring time;
+   never weaken the validator to make a form pass.
+4. **Authored is not shipped.** The audit's single most common defect is *reachable-from-nowhere*. A slice is
+   not done until a user can get to it by clicking, starting from the lobby.
+5. **Partial is a first-class state.** A class built to level 5 is `partial` — rendered as such, adoptable to
+   the level it covers. Not an error, not a blocker.
+
+---
+
+## Phase 0 — Do these first (hours, not days)
+
+- [ ] **P0-1 — Merge the edit-history exposure fix.** Cherry-pick `6a014d6b` onto `main`. A public character's
+      full edit history, editor names included, is readable by anyone who can open the character — confirmed
+      against live data at **72 audit rows across 5 public characters**. The fix (`edits/route.ts` requires
+      `canWrite`) is stranded on `fix/variant-ux-2026-07-25` behind ~250 commits. *This is the only live
+      exposure in the entire audit.* **Done when:** the commit is on `main` and
+      `__tests__/dnd/character-access.test.ts` covers an unauthenticated GET of `edits`.
+
+- [x] **P0-2 — Widen the homebrew kind vocabulary.** `HOMEBREW_KINDS` gains `creature`, `background`,
+      `condition`, `action`, `rule` (13 → 18), with labels. Prerequisite for the whole Studio.
+      **Shipped 2026-07-28.**
+
+- [x] **P0-3 — The kind registry.** `lib/dnd/homebrew/kinds.ts` — the declarative field schema that makes the
+      builder adjust to the chosen kind, plus `kindIsMechanicalIn` / `proseOnlyNotice` (the honesty layer:
+      a kind that cannot carry mechanics in a system SAYS SO instead of pretending), `blankDraftFor`,
+      `validateDraftFields`, `isPartialBuild`. **Shipped 2026-07-28.**
+
+- [ ] **P0-4 — Link the three homebrew designers.** *(audit A-3 — the highest value-per-hour item found.)*
+      `/build/class`, `/build/subclass` and `/build/feat` are complete, tested, working, and **nothing in the
+      codebase links to them**; a repo-wide search returns only their own header comments. Add entries to
+      `CharacterBuildKit` and to the escape hatch's homebrew tier.
+      **Design:** they are gated on `isSharedEngineSystem` — they emit the 5e `ClassDefinition`/`CustomFeat`
+      shapes, and a PF2/IG character reaching them would author content its engine cannot consume. Show the
+      Studio link instead for those systems.
+      **Done when:** a 5e character can reach all three by clicking from the sheet, a PF2 character cannot,
+      and a test asserts the reachability matrix in both directions.
+
+- [ ] **P0-5 — Delete the orphaned components; restore the format preview.** *(A-1, A-2.)* `TemplateBrowser`
+      and `SheetStyleBrowser` are rendered nowhere — `SheetChrome` replaced them — while
+      `format-preview.test.ts` still asserts against `TemplateBrowser`'s source, keeping dead code green.
+      Delete both; move `<FormatPreview id={t.id}/>` into `SheetChrome`'s template row so players stop
+      choosing between Classic / Codex / Dashboard / Play blind; re-point the test at `SheetChrome`.
+      **Done when:** the four formats show their layout diagram in the picker, and no `_ui/*.tsx` default
+      export is unreferenced (add the guard in P4-6).
+
+---
+
+## Phase 1 — Quick wins (each ≤ half a day)
+
+- [ ] **P1-1 — Initiative HP for every system.** *(B-3.)* `encounters/[id]/entries` seeds HP from
+      `c.data?.combat` — the 5e shape — so PF2 (`data.pf2e`: `ancestryHp` + `classHpPerLevel` + CON/level)
+      and IG (`data.ig.hitPoints`) combatants enter the tracker with **null HP, silently**.
+      **Design:** a `maxHpFor(system, data)` dispatcher beside the per-system `resolve.ts` modules; both
+      systems already compute final HP, so this is wiring, not rules. **Done when:** adding a PF2 and an IG
+      character to an encounter seeds correct HP, with a test per system.
+
+- [ ] **P1-2 — Currency on the PF2 and IG sheets.** *(C-3.)* `lib/dnd/currency.ts` + `Character.currencies`
+      is 5e-only; neither bespoke sheet can hold a copper piece. The module is already system-agnostic in
+      shape — lift it to a shared sidecar field and render it in each sheet's equipment area (PF2's arrives
+      with P5-1). **Done when:** a PF2 and an IG character can hold and spend coin, and the AI
+      add/set/remove-currency tools work on both.
+
+- [ ] **P1-3 — Explain the 2014 feat catalogue.** *(C-8.)* `FEATS_2014` holds exactly one entry (Grappler)
+      and can never hold more — the rest is PHB-only content outside the CC-BY licence, so **homebrew is that
+      edition's only real feat route**. One line of copy at the 2014 ASI slot pointing at "＋ Add a different
+      feat". **Done when:** the 2014 ASI step reads as a constraint rather than as an empty list.
+
+- [ ] **P1-4 — Gate the dev routes.** *(D-5.)* `/dnd/hextech-demo`, `/dnd/preview/edit-flow` (self-described
+      DEV-ONLY), `/dnd/Lazzuh_Gun` and `/dnd/login` all ship to production unlisted and indexable. Gate the
+      two harnesses behind `NEXT_PUBLIC_E2E_HARNESS`; add `noindex` metadata to all four.
+
+- [ ] **P1-5 — Session scheduling, surfaced.** *(B-5.)* `dnd_sessions.scheduled_at` exists in the schema and
+      is in the PATCH route's `WRITABLE` list. **Nothing sets it and nothing renders it.**
+      **Design:** a datetime field on session create/edit; a "Next session" banner on the campaign hub for all
+      members; store UTC, render in the viewer's locale. RSVP is out of scope (P3-5).
+
+- [ ] **P1-6 — One upload-limit module.** *(F-6.)* Six different ceilings (5/8/12/15/20/25 MB) hard-coded
+      across eight routes. One constants module; keep the per-route values, stop duplicating them.
+
+---
+
+## Phase 2 — Safety, privacy & cost
+
+- [ ] **P2-1 — A rate limiter.** *(F-1 — critical.)* There is **no throttling anywhere** across 113 routes,
+      nine of which call a paid model. Anyone can register with a 4-character name and password and loop them.
+      **Design:** `lib/dnd/rate-limit.ts` — a fixed-window counter keyed on `session.userId` (falling back to
+      IP for unauthenticated routes), stored in a small Postgres table so it survives the serverless
+      cold-start problem an in-memory map has. A `withRateLimit(handler, { bucket, limit, windowSec })`
+      wrapper so a route opts in with one line. Return 429 with `Retry-After` and a human message.
+      **Apply first to:** `ai/test`, `characters/[id]/ingest`, `characters/[id]/variants`, `library/chat`,
+      `sessions/[id]/{ai-notes,recap}`, `stream/{direct,mood-refresh,spam}`, and every Studio AI route.
+      **Done when:** an over-budget caller gets a 429 that says when to retry, and a test proves the window.
+
+- [ ] **P2-2 — A per-user AI spend ceiling.** Building on P2-1: a daily token/call budget per user, surfaced
+      honestly in the UI ("AI assists: 34 of 50 today") rather than failing opaquely. **Done when:** the
+      ceiling is visible before it is hit, not only after.
+
+- [ ] **P2-3 — Login throttling + a real password floor.** *(F-2.)* No attempt counter, no lockout, no
+      backoff, against a 4-character minimum. Exponential backoff per name and per IP (same limiter);
+      raise the minimum to 8 for **new** accounts only, so no existing player is locked out of their own
+      characters. **Done when:** repeated failures back off, and the uniform "Invalid name or password"
+      response is preserved (it already correctly avoids enumeration).
+
+- [ ] **P2-4 — Account recovery.** *(F-3.)* Identity is `name:<normalized>` with no email; a forgotten
+      password means every character, variant and membership on that account is **permanently unreachable**,
+      with no admin path.
+      **Design:** (a) a change-password control that knows the old one; (b) a one-time recovery code shown
+      once at signup and on demand, stored hashed; (c) *optional* recovery email — offered, never required,
+      preserving the no-email design. **Done when:** a user who forgets their password has a route back that
+      does not involve the owner editing the database.
+
+- [ ] **P2-5 — Campaign visibility, archive and delete.** *(D-2.)* `loadAllCampaignSummaries()` selects
+      **every** campaign with no filter, no pagination and no recency ordering, and returns the DM's name,
+      every player's name and every character's name — to anyone who opens `/dnd` in open-access mode. There
+      is no `visibility` column, no `archived_at`, and no `DELETE` route: **a campaign can never be removed
+      or hidden by anyone.**
+      **Design:** add `visibility` (`public` | `unlisted` | `private`, default `unlisted`) and `archived_at`;
+      a DM-gated `DELETE` that soft-deletes (archive) with a hard-delete confirmation path; paginate the hub
+      (20/page) ordered by recent activity; the hub lists `public` only, plus your own regardless.
+      **Done when:** a DM can hide and delete their own table, a stranger sees only public ones, and the hub
+      issues a bounded query.
+
+- [ ] **P2-6 — A route-gate guard test.** *(F-5.)* RLS is enabled on the D&D tables with **zero policies**,
+      so all authorization is app-code-only across 113 routes with no database backstop. Writing real
+      policies is the fuller answer; the cheap 90% is a test that every `route.ts` under `app/api/dnd`
+      references one of the known gate helpers (`getDndSession`, `getCampaignRole`, `getCharacterAccess`,
+      `requireCharacterWrite`, `isDndOwner`), failing loudly on a new ungated route.
+      **Done when:** adding an ungated route turns the suite red.
+
+- [ ] **P2-7 — Per-user storage quota.** *(F-6.)* No cap on total stored bytes; one account can fill the
+      media bucket. A total-bytes check on upload with a clear message.
+
+---
+
+## Phase 3 — Play at the table
+
+- [ ] **P3-1 — Sheet rolls reach the shared campaign log.** *(B-2 — critical.)* Every roll from all four
+      rollers goes into `commitRoll`, which is `setLog(...)` local state capped at 40. **Nothing posts to
+      `/api/dnd/rolls`** — the only writer is the DM's manual dice box. The route's own header comment claims
+      the opposite, which means this was intended and never wired.
+      **Design:** a fire-and-forget POST inside `commitRoll` when the character has a campaign, carrying
+      `label / formula / result / breakdown / crit / fumble` (the entry already holds all of them), then ping
+      the existing campaign realtime channel. Must not block or fail the roll animation on a network error.
+      Correct the stale route comment. **Done when:** a player's attack roll appears on the DM's feed live.
+
+- [ ] **P3-2 — The roll feed everywhere it belongs.** *(B-6.)* `RollFeed` is mounted only in `SessionConsole`,
+      which is DM-facing — so players never see a roll history and a campaign without an active session has
+      none at all. Add a compact feed to the campaign hub for all members and to the sheet's floating dock.
+
+- [ ] **P3-3 — Roll statistics.** Falls out of P3-1 for almost nothing: per-player nat-20s, average d20,
+      luckiest session. High delight per line.
+
+- [ ] **P3-4 — Experience points.** *(B-4.)* No XP anywhere — no field, no award, no milestone tool, no
+      trigger telling a player it is time to level. Levels are typed by hand.
+      **Design:** `meta.xp` on the character plus a per-system threshold table (5e's is in the SRD; PF2 uses
+      a flat 1000/level; IG has its own; `ambiguous` gets milestone-only). One DM control — "Award XP" /
+      "Level the party" — which drops a notification with a deep link into that character's level walker.
+      Milestone mode is a campaign preference, so tables that do not use XP never see it.
+      **Done when:** awarding XP to a party of mixed systems levels each correctly, or prompts them to.
+
+- [ ] **P3-5 — Session RSVP + reminders.** Builds on P1-5: members mark yes/no/maybe; the hub shows the
+      count. (A Discord webhook is P10-4.)
+
+- [ ] **P3-6 — Encounter builder with a difficulty budget.** Add N copies of a creature at once; compute the
+      encounter's difficulty against the party using each system's own budget. Depends on P8-1 (bestiary).
+
+- [ ] **P3-7 — The DM party overview.** Every PC's AC, passive Perception, saves, HP and conditions on one
+      screen. All of it is already computed by the per-system resolvers — this is a new arrangement of
+      existing data, and it is the single most-used DM screen in every comparable tool.
+
+---
+
+## Phase 4 — Navigation & information architecture
+
+- [ ] **P4-1 — `/dnd/characters` — a real character index.** *(D-1.)* No such page exists; the only list is
+      a card grid in `MyTable` showing name, portrait and campaign — **no system, class or level** — with no
+      search, filter, sort, duplicate or delete.
+      **Design:** system badge, class/level, campaign, last-edited; search + filter by system and campaign;
+      per-row actions (open, duplicate, new variant, export, delete) consolidated from where they are
+      scattered across the sheet page today.
+
+- [ ] **P4-2 — Menu completeness.** *(D-3.)* The header offers five links. `/dnd/profile` is linked **only**
+      from `CampaignDashboard`, the branch that does not run in open-access mode — so in the default
+      configuration nothing links to it. `/dnd/suggestions` is linked only from a footer control.
+      Add Profile, My Characters, My Content (P6-7) and Requests; badge the toggle with the notification
+      count.
+
+- [ ] **P4-3 — Tab the character page.** *(D-4.)* One 454-line page stacks ~20 always-mounted panels
+      vertically. The sheet inside it is tabbed; the page around it is not, so the further down a control
+      lives the less likely it is ever found.
+      **Design:** three tabs around the sheet — **Play** (sheet + rollers) · **Build** (build kit, variants,
+      level walker, grants, Studio links) · **Manage** (history, export, visibility, campaigns, settings).
+      Every existing component is kept; only what is mounted changes. Deep links must still land on the right
+      tab.
+
+- [ ] **P4-4 — A ⌘K command palette.** *(D-6.)* The library has excellent search; nothing else does. One
+      palette spanning characters, campaigns, NPCs, custom content and library articles, reusing the
+      library's keyword engine as the index.
+
+- [ ] **P4-5 — Lobby depth.** `MyTable` has no "＋ Character" button of its own, no Profile link, and no
+      link to the library from the page body. Fix all three while P4-1 and P6-7 are in flight.
+
+- [ ] **P4-6 — An orphan-component guard.** A test asserting every default export under `app/dnd/_ui/` and
+      `app/dnd/_sheet/components/` is referenced at least once. This is the guard that would have caught
+      A-1/A-3 years earlier, and it is the cheapest insurance in this document.
+
+---
+
+## Phase 5 — Cross-system parity
+
+- [ ] **P5-1 — Pathfinder 2e inventory + Bulk.** *(C-1 — the largest parity hole.)* PF2 has **no inventory
+      at all**: no `inventory`/`items`/`bulk` field on the model, no equipment panel among its nine, no
+      coins. A PF2 character cannot record that they are carrying a rope. Meanwhile `data/equipment.ts`
+      ships full weapon/armour/shield/rune/item tables that reach only the library and the armour editor.
+      **Design:** `PF2Character.inventory[]` (name, qty, bulk, invested, worn/held/stowed, notes);
+      `pf2BulkLimit = 5 + STR mod`, encumbered above it, max at limit + 5; an Equipment panel modelled on
+      the IG one; an item picker fed by the existing catalogue; currency from P1-2.
+      **Done when:** a PF2 character can equip from the catalogue and the sheet shows Bulk and encumbrance.
+
+- [ ] **P5-2 — Pathfinder 2e shields.** *(C-2.)* `PF2_SHIELDS` is catalogued with hardness/HP/BT and
+      `pf2Shield()` is exported and **never called**; the rules engine has no Raise a Shield (+2 circumstance
+      AC — the most-used defensive action in the game), no Shield Block, no shield damage, no broken
+      threshold. Depends on P5-1.
+
+- [ ] **P5-3 — Pathfinder 2e multiclass.** *(C-4.)* 5e gets true multiclassing; IG gets a flagged house rule;
+      PF2 gets nothing — and PF2's version is **core**, not optional: multiclass archetype dedication feats
+      taken at a class-feat slot the builder already computes via `pf2LevelBreakdown`.
+      **Design:** model dedication as a class-feat-slot option with PF2's own follow-up rule (two more feats
+      from an archetype before a second dedication). Content is authored in `feats-class.ts`.
+
+- [ ] **P5-4 — PF2 companions, familiars and eidolons.** *(C-7.)* Companions exist for 5e 2024 and IG only.
+      PF2 animal companions are a compact three-tier data shape and close most of the gap; the Summoner's
+      eidolon is a second statblock and can reuse the creature model from P6-13.
+
+- [ ] **P5-5 — 5e 2014 companions.** Find Familiar, the Ranger's beast, the Paladin's steed.
+
+- [ ] **P5-6 — Languages beyond 2024.** *(C-9.)* `lib/dnd/languages/` holds one file. PF2 already carries
+      languages inside its ancestry stat lines — surfacing them is nearly free; 2014 and IG need a picker.
+
+- [ ] **P5-7 — The guided builder's per-level flows.** *(C-6.)* `/dnd/characters/[id]/builder` is still B1
+      for all four systems: Foundations is the existing all-at-once builder embedded whole. The page's own
+      comment says the per-level flows are owed.
+      **Design:** the slot model from S1–S6 is exactly the substrate — each slot becomes one screen with a
+      live preview panel. Sequence: 5e first (most slots modelled), then PF2, then IG.
+
+---
+
+## Phase 6 — The Homebrew Content Studio
+
+> **The owner's brief, 2026-07-28.** A Content Builder button on the user page → a page to homebrew items,
+> feats, classes and anything else, saved to public or private content; **shareable**; **addable to
+> characters** with **the actual effects showing up on the character sheets for the different systems**,
+> fully integrated with the system engines and represented on the sheet, in the library and on users' lobby
+> pages; **a way to view all custom content**. Pick the KIND and the SYSTEM first, then the building options
+> **totally adjust**. Classes can be **based on another class** or wholly new, built **level by level** with
+> **custom feats authored inline** and offered at chosen levels; a class can stop at any level and be marked
+> **partially built** — save whenever. **On save the AI writes an assessment.** AI can help at **each step**,
+> but everything must be buildable **from scratch** in any system. **Upload a PDF/file** and have AI build
+> from it. **Upload an image** — a creature gets a full statblock beside its art. Later: a **simple sheet for
+> creatures** tracking attacks, abilities, feats and conditions, and a **complete creature builder**. Then a
+> **system translator** that transposes a piece into another system as a variant, which the user
+> **approves / denies / retries with notes**, looping until satisfied, or hand-edits if close.
+
+### What already exists (measured — do not rebuild)
+
+`lib/dnd/homebrew/` is a complete, tested, pure foundation that **nothing is wired to**: `model.ts` (kinds,
+attribution, system scope, `draft/submitted/approved/rejected`, search, browse), `policy.ts` (the campaign DM
+allowlist), `adopt.ts` (`adoptHomebrew` → `ClassDefinition` / `CustomFeat` / `ActiveEffect`, validated through
+the real engine validators, refusing invalid payloads, idempotent), `projection.ts` (library section + AI
+grounding). Its entire data source today is a **two-entry hard-coded array** in `seeds.ts`.
+
+Separately, `dnd_content` + `/api/dnd/content` is an older, working, DB-backed system (9 kinds, campaign or
+global, `data.effects[]` → `engine/content.ts` → real equipment and effects) with no attribution, no system
+scope, no lifecycle, no images and no browse page. And `/build/*` produces a third, character-embedded kind
+of homebrew.
+
+**Decision: `lib/dnd/homebrew/*` becomes THE system.** `dnd_content`'s engine-payload contract is kept
+(`payload.effects`); the `/build/*` designers become authoring modes inside the Studio.
+
+- [x] **P6-1 — The kind registry.** See P0-3. **Shipped 2026-07-28.**
+
+- [ ] **P6-2 — The table.** `seeds/455_dnd_homebrew.sql`: `dnd_homebrew` with `owner_user_id`, `kind`,
+      `system`, `status`, `visibility` (`private` | `unlisted` | `public`), `name`, `summary`, `description`,
+      `tags[]`, `payload jsonb`, `image_url`, `assessment jsonb`, `based_on`, `partial_to_level`,
+      `origin_id` (the piece a transposed variant came from), `created_at`, `updated_at`. Indexed on
+      `(owner_user_id)`, `(system, kind)` and `(visibility, status)`.
+
+- [ ] **P6-3 — The store.** `lib/dnd/homebrew/store.ts` — row ↔ `HomebrewContent` mapping plus the pure
+      visibility rule (`canReadContent(row, viewer)`, `canWriteContent`). DB calls stay in the route.
+
+- [ ] **P6-4 — The API.** `/api/dnd/homebrew` (GET list with kind/system/visibility/query filters, POST
+      create) and `/api/dnd/homebrew/[id]` (GET / PATCH / DELETE). Owner-gated writes, visibility-gated
+      reads. Rate-limited per P2-1.
+
+- [ ] **P6-5 — The Studio: browse.** `/dnd/content` — every piece the viewer may see, with kind, system and
+      visibility filters plus search. Tabs: **Mine · Shared with me · Public**. This is the owner's *"we need
+      a way to view all of the custom content"*.
+
+- [ ] **P6-6 — The Studio: build.** `/dnd/content/new` — the kind picker (grouped: Gear · Magic & powers ·
+      Character options · World, each card carrying its blurb) → the system picker (each option labelled
+      *Full mechanical support* or *Rules text only*, from `kindIsMechanicalIn`) → the adaptive form rendered
+      generically from `fieldsForKind`. `/dnd/content/[id]` views and edits.
+      **The form is generic on purpose:** adding a kind is a data change in `kinds.ts`, never a new component.
+
+- [ ] **P6-7 — The doors.** *(the owner's "content builder button on the user page".)* A **🔨 Content
+      Builder** button on the lobby (`MyTable`), an entry in the header menu, and a **My custom content**
+      section on the lobby showing the viewer's pieces with a link to the Studio.
+
+- [ ] **P6-8 — Adopt onto a character.** `POST /api/dnd/homebrew/[id]/adopt` → the existing `adoptHomebrew`,
+      gated by `canAdoptHomebrew` + the campaign policy, recorded in edit history so it is undoable like any
+      other change. A picker in the sheet's build kit ("Add custom content").
+
+- [ ] **P6-9 — Per-system engine bridges.** *This is the "fully integrate with the system engines" half, and
+      it is one slice per system.* `adopt.ts` speaks 5e shapes. PF2 and IG need converters into their own
+      edit vocabularies (`pf2-edit` / `ig-edit`) so a homebrew item's +1 actually moves a PF2 AC and an IG
+      power lands in the powers panel. Each bridge declares what it can and cannot carry, and
+      `kindIsMechanicalIn` is updated to match — the registry must never claim support a bridge does not have.
+      - [ ] **P6-9a — Pathfinder 2e bridge.** (Depends on P5-1 for anything item-shaped.)
+      - [ ] **P6-9b — Intuitive Games bridge.**
+
+- [ ] **P6-10 — Library + lobby surfacing.** Replace `HOMEBREW_SEEDS` with the live catalog in `library.ts`
+      and `grounding.ts` (keeping the two seeds as data), so published content appears in its system's
+      library and the AI librarian can explain it. Show a creator's public content on their lobby page.
+
+- [ ] **P6-11 — Images.** `POST /api/dnd/homebrew/[id]/image` on the existing `dnd-media` bucket pattern.
+      Rendered on the browse card, the statblock and the library entry. *(The owner's creature-with-artwork
+      case is the acceptance test.)*
+
+- [ ] **P6-12 — The class studio.** The depth pass on the `class` kind: **base-class derivation** ("start
+      from Fighter and modify" — deep-copy its `ClassDefinition` into the draft, recording `based_on`),
+      per-level feature / resource / ASI editing, **inline feat authoring** that saves the feat as its own
+      piece *and* offers it at the chosen level, and `partial_to_level` with an honest PARTIAL badge.
+      Built on the existing `CustomClassDraft` → `buildCustomClass` → `ClassDefinition` pipeline, so a
+      homebrew class levels through the same `snapshotAtLevel` as an official one.
+
+- [ ] **P6-13 — The creature builder + statblock.** Full stat authoring (the `statblock` field type),
+      traits / actions / reactions / legendary actions, and a rendered statblock beside the uploaded art.
+
+- [ ] **P6-14 — The creature sheet.** *(the owner's "simple character sheet for creatures".)* A playable
+      sheet tracking attacks, abilities, feats, conditions and HP — reusing the encounter/initiative model so
+      a creature dropped into a fight and a creature opened from the Studio are the same object.
+
+- [ ] **P6-15 — AI assist, per step.** A "help me with this" on **each field** that drafts only that field,
+      plus a whole-draft assist. **Never auto-applies** — always shows the proposal against the current value
+      and requires an explicit accept. Everything must remain fully buildable with the AI switched off.
+
+- [ ] **P6-16 — File ingest.** Upload a PDF / doc / image describing the thing → AI analysis → a filled draft
+      the user reviews field by field. Reuses `characters/[id]/ingest`'s shape and its storage pattern.
+
+- [ ] **P6-17 — AI assessment on save.** *(the owner's explicit ask.)* On save, an evaluation written to
+      `assessment`: balance against comparable official content, internal consistency, completeness, and what
+      is missing. **Advisory, never blocking** — it is an opinion on the author's work, not a gate.
+
+- [ ] **P6-18 — The system transposer.** `POST /api/dnd/homebrew/[id]/transpose { system, notes }` → a new
+      piece with `origin_id` set, status `draft`, clearly marked AI-generated and unverified.
+      **The review loop is the feature:** approve · deny · **retry with notes** (the notes feed the next
+      attempt alongside the original and the target system's mechanics) · or hand-edit if close. Follows
+      `characters/[id]/system/route.ts`, which already does this for whole characters.
+
+- [ ] **P6-19 — Migrate `dnd_content`.** Once the Studio is proven, move the existing campaign content into
+      `dnd_homebrew` with attribution inferred from `created_by`, and retire the old route. Deliberately last
+      so nothing in active play breaks early.
+
+---
+
+## Phase 7 — The tactical layer (battle maps)
+
+> *(B-1 — the single largest product gap.)* The "Map Maker" is Stardust Map Studio: genuinely impressive 2D/3D
+> stellar cartography with **zero tokens, zero grid, zero fog of war, zero measurement** — the string "token"
+> appears 0 times in its 2,826 lines. Meanwhile initiative, encounter entries with per-instance HP, an NPC
+> library, reveal overlays, token art (`TokenFramer`) and a campaign realtime channel **all already exist**.
+> Every piece of a tactical layer exists except the surface to put it on.
+
+- [ ] **P7-1 — The battle map surface.** A new `/dnd/campaigns/[id]/battle` (React, not the vanilla studio —
+      it needs the realtime channel and the encounter model). Upload an image, set a grid scale by dragging
+      across two known squares, pan/zoom.
+- [ ] **P7-2 — Tokens.** Seeded from the encounter's initiative entries (so HP, conditions and turn order are
+      already correct), drag to move, position broadcast over the existing channel. DM can add/remove.
+- [ ] **P7-3 — Fog of war.** A DM-only paint layer; players see only revealed regions. Reuses the reveal
+      model's mental shape.
+- [ ] **P7-4 — Measurement + templates.** Distance in the map's own units; cone/circle/line templates per
+      system's geometry (5e and PF2 measure diagonals differently — do not average them).
+- [ ] **P7-5 — Turn integration.** The current combatant is highlighted on the map; ending a turn advances
+      both. This is what makes the map a *tool* rather than a picture.
+
+---
+
+## Phase 8 — Content coverage
+
+- [ ] **P8-1 — A bestiary.** *(E-1.)* No monster catalogue exists in any system; NPCs are hand- or AI-built
+      per campaign and reusable only within it. Every other content axis is catalogued — monsters are the
+      conspicuous omission, and they are what a DM needs most between sessions.
+      **Design:** `lib/dnd/monsters/<system>.ts` from the CC-licensed subsets (5e SRD; PF2 Monster Core),
+      sharing the creature model from P6-13 so a homebrew creature and an official one are the same shape.
+- [ ] **P8-2 — Magic items.** *(E-4.)* SRD magic items for 5e; PF2's runes are already modelled and are the
+      equivalent surface there.
+- [ ] **P8-3 — The IG glossary.** *(E-2.)* Intuitive Games has 32 terms — fewer than **every** unbuilt system
+      (Blades 60, Shadowrun 55, CoC 51) and a third of PF2's 96. Another scrape pass of intuitivegames.net.
+      Ground Rule 3: scrape, do not invent.
+- [ ] **P8-4 — PF2 spell coverage + an explicit gaps list.** *(E-3.)* 208 spells against 5e's 382, roughly
+      half of Player Core. Extend the `PF2_*_GAPS` convention to spells so an absent spell reads as "not
+      catalogued yet" in the picker rather than as "does not exist".
+
+---
+
+## Phase 9 — Data lifecycle
+
+- [ ] **P9-1 — JSON import.** *(H-1.)* Export produces a genuinely loss-less JSON; **nothing reads it back**.
+      `/api/dnd/characters/import` is a different thing entirely (file upload → AI ingestion), so a user's own
+      perfect backup can only be re-ingested by having a model guess at it.
+      **Design:** `POST /api/dnd/characters/import-json` validating the exported shape, normalising the
+      system, creating the character with its sidecar intact — **plus a round-trip test** (export → import →
+      deep-equal), which is also the strongest possible guard on the export's completeness claim.
+- [ ] **P9-2 — Campaign export.** *(H-2.)* Roster, session notes, recaps, maps, handouts, NPCs, roll log and
+      chat. With P2-5, this is what makes deleting a campaign a safe action rather than a destructive one.
+- [ ] **P9-3 — Pathbuilder import.** *(H-3.)* A deterministic adapter for Pathbuilder's JSON — fast, exact,
+      free of model cost, and aimed at PF2 players, who are currently the least-served.
+
+---
+
+## Phase 10 — Accessibility, devices & polish
+
+- [ ] **P10-1 — Pointer events + responsive map studio.** *(G-1.)* 18 `mousedown`/`mousemove` handlers,
+      **zero** touch or pointer handlers, **zero** media queries across 2,826 lines — so the DM's only map
+      tool is unusable on a tablet or phone, while the player console it embeds *does* have touch handling.
+      Convert to Pointer Events (largely mechanical) plus `touch-action` CSS; add a breakpoint collapsing the
+      tab rail and inspector into drawers below ~900px.
+- [ ] **P10-2 — Hold the line on inline styles.** *(G-2.)* 3,111 inline `style={{…}}` objects against 658
+      CSS-module class uses — which is why every theming pass has been expensive: an inline colour cannot be
+      reached by a token, a media query, a print stylesheet or a contrast audit. **Not a rewrite:** a lint
+      rule flagging hex literals inside `style={{}}`, and opportunistic migration whenever a file is touched.
+- [ ] **P10-3 — A native print stylesheet for the live sheet.** The HTML export already carries print CSS;
+      applying the same rules to the live sheet makes Ctrl-P produce something real.
+- [ ] **P10-4 — Discord webhook.** Rolls and session reminders out to where tables already are. Nearly free
+      once P3-1 lands.
+- [ ] **P10-5 — Offline / PWA sheet.** Sheets are already client-rendered from one JSON blob, so the hardest
+      part of offline is already true.
+- [ ] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the
+      cheap move now is a `t()` passthrough for new user-facing strings; retrofitting after another 100k
+      lines is materially harder.
+
+---
+
+## Blocked on the owner — data, not effort
+
+Each is pinned by a test that **flips when the data arrives**, so none can be quietly forgotten or quietly
+filled in from the shape of its neighbours.
+
+| Item | Needs | Where |
+|---|---|---|
+| ~~**Pugilist / Street Saint / Down but Not Out**~~ | **UNBLOCKED + SHIPPED 2026-07-28** — see below. | — |
+| **IG Champion** | Champion's powers and specializations. Not in the intuitivegames.net scrape; every other subclass has them verbatim. | `slot-plan-blockers.test.ts` |
+| **Magus / Summoner** | The published *reduced*-caster spell tables. Every full caster is handled. | `slot-plan-blockers.test.ts` |
+| **IG level-1 feat count** | The site says "starting feats" without a number. The builder allows exactly one and errs permissive. | `slot-plan-blockers.test.ts` |
+| **PF2 prepared cap** | A decision, not data: whether to *enforce* it. Everything needed is in place. | — |
+| **Six unbuilt systems** | One scrapeable source per system, one at a time. | `under-construction-gating.test.ts` |
+
+### Pugilist — resolved 2026-07-28, and what it taught
+
+The owner supplied the full 2014 class text, the author's Street Saint PDF, and the 2024 Down but Not Out
+text. Three things shipped, and a fourth is now a recorded conflict rather than a silent guess:
+
+1. **The shipped 2014 data was verified, not changed.** Every feature at every level, the Moxie table
+   (—/2/2/3/3/4/4/5/5/6/6/7/7/8/8/9/9/10/10/12) and the Fisticuffs ladder (1d6 → 1d8@5 → 1d10@11 → 1d12@17)
+   all matched the source exactly. *A source arriving and confirming what you already had is the good
+   outcome, and it is worth writing down that it happened.*
+2. **Street Saint is written out in full.** Transcribed verbatim from `street-saint_redux.pdf` — Channel
+   Divinity (Fists of Faith · Grace of the Gods) + Lay on Hands at 3, Hallowed Hands at 6, Ravaged but
+   Resolute at 11, Aura of Resilience at 17. It is an **eighth 2014 Fight Club**, not a 2024-only one: its
+   features key off Bloodied but Unbowed (3) and Dig Deep (4) and it uses the 2014 ladder.
+   **The pin flipped exactly as designed** — `pugilist-class.test.ts` required the body to say "under
+   construction", and filling it in turned that test red, which is the signal to replace it with assertions
+   on the real thing. That is the pin mechanism paying for itself.
+3. **Down but Not Out was missing from the 2024 class entirely** and is now at level 7.
+4. **A genuine edition divergence, recorded rather than averaged.** The two editions disagree about this
+   feature, and about Street Saint's Channel Divinity:
+
+   | | 2014 (class document) | 2024 (D&D Beyond printing) |
+   |---|---|---|
+   | Down but Not Out | level **9**, adds **proficiency bonus** | level **7**, adds **CON modifier + current exhaustion levels** |
+   | Street Saint CD | Fists of Faith — crit on 19–20 | an earlier note described "+d4 per attack, once per short rest" |
+
+   The 2024 Street Saint wording has **not** been supplied, so its entry carries the 2021 text with an
+   explicit caveat in its own description. **Do not reconcile these by picking the average** — that produces
+   a version matching neither book.
+
+- [ ] **P0-6 — The 2024 Street Saint's own text.** *(Blocked on data.)* Needed to resolve row 4 above.
+      Until it arrives the 2024 entry correctly reuses the 2021 text and says so.
+
+**Author's name corrected repo-wide: Benjamin *Huffman*, not Hoffman** (per the PDF's own credits and the
+community homebrew repo). It was wrong in three files and two tests.
+
+---
+
+## Open questions — answered with a recorded assumption rather than blocking
+
+1. **Who approves public content?** Assumption: **public is self-serve**, with the per-campaign DM allowlist
+   (which already exists) as the gate that actually matters for play. The `submitted`/`approved` states stay
+   in the model for a curator flow if one is ever wanted.
+2. **`'any'` system scope.** Assumption: **offered, but only for kinds whose mechanics are prose** — an
+   `'any'` class is not a meaningful object when every engine's class model differs. Encoded in
+   `KindSpec.allowAnySystem`.
+3. **Milestone vs XP.** Assumption: XP is opt-in per campaign (P3-4), so tables that do not use it never see
+   it.

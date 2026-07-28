@@ -11,10 +11,18 @@
 // at authoring time; this model owns identity, attribution, scope, visibility/approval, search, and gating.
 import { normalizeSystem } from '@/lib/dnd/systems';
 
-/** Every content kind a creator can author + share. */
+/** Every content kind a creator can author + share.
+ *
+ *  Widened 2026-07-28 for the Content Studio: `creature` (statblocks with art), `background`,
+ *  `condition`, `action` and `rule`. The order here is the order the kind picker offers them, grouped
+ *  roughly as gear → magic → character options → world; `lib/dnd/homebrew/kinds.ts` owns the grouping,
+ *  the per-kind field schema and the payload assembly. Adding a kind means adding it here AND giving it
+ *  a spec there — `kinds.test.ts` asserts the two can never drift. */
 export const HOMEBREW_KINDS = [
-  'weapon', 'item', 'potion', 'armor', 'spell', 'stance', 'effect',
-  'ability', 'skill', 'feat', 'race', 'class', 'subclass',
+  'weapon', 'armor', 'item', 'potion',
+  'spell', 'stance', 'effect', 'action',
+  'ability', 'skill', 'feat', 'background', 'race', 'class', 'subclass',
+  'creature', 'condition', 'rule',
 ] as const;
 export type HomebrewKind = (typeof HOMEBREW_KINDS)[number];
 
@@ -51,8 +59,12 @@ export interface HomebrewContent {
 
 const KIND_LABELS: Record<HomebrewKind, string> = {
   weapon: 'Weapon', item: 'Item', potion: 'Potion', armor: 'Armor', spell: 'Spell', stance: 'Stance',
+  // `race` stays "Race", not "Species / Race": the label is projected verbatim into the library entry brief
+  // AND the AI grounding line ("Rangor (Race, by Jacob)"), so it is data, not decoration. Renaming it is a
+  // separate, deliberate change — not a drive-by during a kind-vocabulary widening.
   effect: 'Effect', ability: 'Ability', skill: 'Skill', feat: 'Feat', race: 'Race', class: 'Class',
-  subclass: 'Subclass',
+  subclass: 'Subclass', creature: 'Creature', background: 'Background', condition: 'Condition',
+  action: 'Action', rule: 'Rule',
 };
 
 /** A human label for a kind ('subclass' → 'Subclass'). */

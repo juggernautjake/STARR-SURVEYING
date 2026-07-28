@@ -1,6 +1,6 @@
 // lib/dnd/classes/pugilist.ts — THE PUGILIST, as a real ClassDefinition in both 5e editions.
 //
-// Created by **Benjamin Hoffman** (Sterling Vermin Adventuring Co.). Shipped here as public homebrew,
+// Created by **Benjamin Huffman** (Sterling Vermin Adventuring Co.). Shipped here as public homebrew,
 // credited to its author and to Andrew & Jacob, who brought it to this table (owner 2026-07-27).
 //
 // SOURCING. Everything below is transcribed from material the owner supplied on 2026-07-27: the full 2014
@@ -23,7 +23,7 @@
 // player on either edition should get THEIR Pugilist, not the other one wearing its name.
 import type { ClassDefinition, SubclassDefinition } from './types';
 
-const AUTHOR = { authorName: 'Benjamin Hoffman (Sterling Vermin) · brought to this table by Andrew & Jacob' };
+const AUTHOR = { authorName: 'Benjamin Huffman (Sterling Vermin) · brought to this table by Andrew & Jacob' };
 
 /** The Fisticuffs die by level (2014): 1d6 → 1d8 @5 → 1d10 @11 → 1d12 @17. */
 const FISTICUFFS_2014 = (lvl: number) => (lvl >= 17 ? '1d12' : lvl >= 11 ? '1d10' : lvl >= 5 ? '1d8' : '1d6');
@@ -151,6 +151,17 @@ export const PUGILIST_2014_SUBCLASSES: SubclassDefinition[] = [
     [11, 'Float Like a Butterfly, Sting Like a Bee', 'When you reduce damage to 0 and then hit with Cross Counter, you regain 1 moxie point (to your maximum).'],
     [17, 'Knock Out', "When you hit with an unarmed strike or pugilist weapon, you can spend 1 or more moxie points to try to knock the opponent out instead of dealing damage. Roll 3d12, plus 2d12 for every moxie point after the first, and add your pugilist level; if the total is equal to or greater than the creature's remaining hit points, it falls unconscious for 10 minutes."],
   ]),
+  // STREET SAINT — transcribed 2026-07-28 from the author's own PDF (`street-saint_redux.pdf`, Sterling
+  // Vermin, 2021), which the owner supplied. It is an eighth Fight Club, written for THIS (2014) class:
+  // its features key off Bloodied but Unbowed (level 3) and Dig Deep (level 4), and it uses the 3/6/11/17
+  // fight-club ladder. That is why it lives here rather than only in the 2024 list.
+  sc('street-saint', 'Street Saint', 'Pugilists who rise above adversity with the aid of a deep and abiding faith — they fight to make the world a better place, because wherever corruption is allowed to exist, justice cannot flourish.', [
+    [3, 'Channel Divinity', 'You gain the ability to channel divine energy directly from your deity to fuel magical effects. You start with two such effects: Fists of Faith and Grace of the Gods. When you use your Channel Divinity you choose which effect to create, then must finish a short or long rest to use it again. When an effect requires a saving throw, the DC equals 8 + your proficiency bonus + your Wisdom modifier.\n\n**Fists of Faith.** Bonus action: offer your hands to the will of the divine. For the next minute, your unarmed strikes score a critical hit on a result of 19 or 20.\n\n**Grace of the Gods.** Bonus action: say a prayer and gain temporary hit points equal to 1d10 + your pugilist level. While you have any temporary hit points from this ability you have resistance to all damage. You lose all temporary hit points granted by it after 1 minute.'],
+    [3, 'Lay on Hands', 'Your blessed touch can heal wounds. You have a pool of healing power that replenishes on a long rest, restoring a total number of hit points equal to your pugilist level × 5. As an action you can touch a creature and draw from the pool to restore hit points to it, up to the maximum remaining. Alternatively you can expend 5 hit points from the pool to cure one disease or neutralise one poison affecting the target, curing several with a single use by expending hit points separately for each. This feature has no effect on undead and constructs.'],
+    [6, 'Hallowed Hands', 'When you deal damage to a creature with an unarmed strike you can expend a number of hit points from your Lay on Hands feature, up to your level in this class, to deal additional radiant damage equal to the hit points expended. This damage is doubled if the creature is a fiend or undead. Once you use this feature, you cannot use it again until the start of your next turn.'],
+    [11, 'Ravaged But Resolute', 'When you use your Bloodied But Unbowed feature you can choose to also use this feature. If you do, the pool of hit points your Lay on Hands feature grants you is refilled to its maximum. Once you use this feature, you must finish a long rest before you can use it again.'],
+    [17, 'Aura of Resilience', 'When you use your Dig Deep feature your resilience extends to nearby allies: for the next minute, friendly creatures within 30 feet of you have resistance to bludgeoning, piercing and slashing damage.'],
+  ]),
 ];
 
 // ── 2024 SUBCLASSES THE EXISTING LINE-UP IS MISSING ─────────────────────────────────────────────
@@ -167,24 +178,25 @@ export const PUGILIST_2024_EXTRA_SUBCLASSES: SubclassDefinition[] = [
     const base = PUGILIST_2014_SUBCLASSES.find((s) => s.key === k)!;
     return { ...base, system: 'dnd5e-2024' };
   }),
+  // STREET SAINT, 2024. **Filled in 2026-07-28** from the author's PDF — but read the caveat before
+  // trusting it as the 2024 text.
+  //
+  // What is verified: the full Street Saint, transcribed verbatim from `street-saint_redux.pdf` (Sterling
+  // Vermin, 2021). That document is written for the 2014 class, so it is defined in
+  // `PUGILIST_2014_SUBCLASSES` above and carried across here, exactly as the other four are.
+  //
+  // What is NOT verified, and is recorded rather than smoothed over: the 2024 printing also lists a Street
+  // Saint, and the note this placeholder used to carry described its Channel Divinity as *"adds a d4 to
+  // each attack once per Short Rest"* — which is **not** what the PDF's Fists of Faith does (crit on 19–20).
+  // Two possibilities: the earlier note was wrong, or the 2024 revision genuinely rewrote the subclass. The
+  // supplied material does not settle it. Ground Rule 3 says carry the sourced text and say so, rather than
+  // blend two accounts into one that matches neither — so the 2024 entry is the 2021 text, flagged.
   {
-    key: 'street-saint',
-    name: 'Street Saint',
-    classKey: 'pugilist',
+    ...PUGILIST_2014_SUBCLASSES.find((s) => s.key === 'street-saint')!,
     system: 'dnd5e-2024',
-    custom: AUTHOR,
     description:
-      'Pugilists who rise above the filth of their upbringing to live a life of devotion, gifted with some '
-      + 'measure of divine power. New in the 2024 revision.',
-    features: [{
-      level: 3,
-      name: 'Street Saint',
-      subclass: true,
-      body:
-        '🚧 **Under construction.** This subclass is named in the published 2024 line-up, and is known to '
-        + 'grant a Channel Divinity that can add a d4 to each attack once per Short Rest — but its full '
-        + 'feature text was not in the material supplied. Named here so it is selectable and visibly '
-        + 'incomplete rather than silently missing; the features fill in when the text is to hand.',
-    }],
+      'Pugilists who rise above adversity with the aid of a deep and abiding faith, gifted with some measure '
+      + 'of divine power. ⚠ The text here is the author’s 2021 Street Saint (written for the 2014 class); the '
+      + '2024 printing’s own wording has not been supplied and may differ.',
   },
 ];

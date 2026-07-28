@@ -96,6 +96,24 @@ export const PUGILIST_2024: ClassDefinition = {
       name: 'Slip the Punch',
       body: 'You gain **proficiency in Dexterity saving throws**. When you fail a Dexterity save, you can spend **1 Moxie** to reroll it.',
     },
+    {
+      // DOWN BUT NOT OUT — added 2026-07-28 from material the owner supplied (the D&D Beyond feature text,
+      // corroborated on level by the Dungeon Mister 2024 class guide, which lists it as "Down but not out
+      // (Lv7)"). It was missing from this edition entirely.
+      //
+      // NOTE THE DIVERGENCE, because it is real and it is the interesting part: the 2014 class grants this
+      // at **level 9** and adds your **proficiency bonus**. The 2024 revision grants it at **level 7** and
+      // adds your **Constitution modifier + your current levels of exhaustion** — which is what turns
+      // Dig Deep's self-inflicted exhaustion from a pure cost into a damage engine. Two editions, two
+      // different features wearing one name; each is recorded as its own edition states it.
+      level: 7,
+      name: 'Down but Not Out',
+      body:
+        'When you trigger your **Bloodied but Unbowed** feature while Bloodied, you can also use this '
+        + 'feature. For the next **minute**, your Unarmed Strikes and Pugilist weapon attacks deal extra '
+        + 'damage equal to your **Constitution modifier + your current levels of Exhaustion**. '
+        + 'Once per **Long Rest**.',
+    },
     { level: 8, name: 'Ability Score Improvement', choice: 'asi', body: 'Increase one ability score by 2, or two by 1 (max 20), or take a feat.' },
     {
       level: 9,

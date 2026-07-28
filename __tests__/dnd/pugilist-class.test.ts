@@ -1,6 +1,6 @@
 // __tests__/dnd/pugilist-class.test.ts — the Pugilist is buildable in both editions, with every subclass.
 //
-// Created by Benjamin Hoffman (Sterling Vermin Adventuring Co.); brought to this table by Andrew & Jacob.
+// Created by Benjamin Huffman (Sterling Vermin Adventuring Co.); brought to this table by Andrew & Jacob.
 // Transcribed 2026-07-27 from material the owner supplied: the complete 2014 class text and the 2024
 // revision's schedule.
 //
@@ -26,11 +26,15 @@ describe('2014 — the original, with all seven Fight Clubs', () => {
     expect(progressionTable(PUGILIST_2014)).toHaveLength(20);
   });
 
-  it('offers all SEVEN fight clubs', () => {
+  it('offers the seven core fight clubs PLUS Street Saint', () => {
+    // Seven in the class document; Street Saint is an eighth, published separately on the author's Patreon
+    // and supplied by the owner 2026-07-28. It belongs to THIS edition — its features key off Bloodied but
+    // Unbowed (3) and Dig Deep (4) and it uses the 2014 3/6/11/17 ladder — so it is listed here, not only
+    // under 2024.
     const names = subclassesFor('dnd5e-2014', 'pugilist').map((s) => s.name).sort();
     expect(names).toEqual([
       'Arena Royale', 'Bloodhound Bruisers', 'Dog & Hound', 'Hand of Dread',
-      'Piss & Vinegar', 'The Squared Circle', 'The Sweet Science',
+      'Piss & Vinegar', 'Street Saint', 'The Squared Circle', 'The Sweet Science',
     ]);
   });
 
@@ -76,13 +80,23 @@ describe('2024 — the revision, with all six subclasses', () => {
     ]);
   });
 
-  it('Street Saint is present and HONESTLY marked incomplete', () => {
-    // The owner's instruction for content that is published but not written out: list it and say it is
-    // under construction, rather than omit it or invent its rules.
+  it('Street Saint is fully written out — the pin that recorded the gap has flipped', () => {
+    // This assertion used to require the body to say "under construction", because the subclass was named
+    // in the line-up with no text to hand. The owner supplied the author's PDF on 2026-07-28, so the pin
+    // has done its job and is replaced by assertions on the real thing.
     const ss = subclassesFor('dnd5e-2024', 'pugilist').find((s) => s.key === 'street-saint')!;
-    expect(ss.features[0].body).toMatch(/under construction/i);
-    expect(ss.features[0].body, 'it must say WHAT is known, not just that something is missing')
-      .toMatch(/Channel Divinity/);
+    expect(ss.features.map((f) => `${f.level}:${f.name}`)).toEqual([
+      '3:Channel Divinity', '3:Lay on Hands', '6:Hallowed Hands',
+      '11:Ravaged But Resolute', '17:Aura of Resilience',
+    ]);
+    expect(ss.features.every((f) => f.body.length > 80), 'every feature carries its real rules text').toBe(true);
+    // The two Channel Divinity options are the part a summary would have lost.
+    expect(ss.features[0].body).toMatch(/Fists of Faith/);
+    expect(ss.features[0].body).toMatch(/Grace of the Gods/);
+    // Lay on Hands is the pool everything else in the subclass spends from — the number matters.
+    expect(ss.features[1].body).toMatch(/pugilist level × 5/);
+    // And the 2024 caveat is recorded rather than smoothed over: the supplied text is the 2021 printing.
+    expect(ss.description, 'the 2024 wording was never supplied — say so').toMatch(/2024 printing/i);
   });
 });
 
@@ -92,14 +106,14 @@ describe('attribution travels with the class', () => {
     // tests pin; it is left alone rather than rewritten underneath them. Full authorship is recorded in
     // both files' headers.
     const author = findClass('dnd5e-2014', 'pugilist')!.custom?.authorName ?? '';
-    expect(author).toMatch(/Benjamin Hoffman/);
+    expect(author).toMatch(/Benjamin Huffman/);
     expect(author).toMatch(/Andrew & Jacob/);
     expect(findClass('dnd5e-2024', 'pugilist')!.custom?.authorName).toBeTruthy();
   });
 
   it('and so does every 2014 fight club', () => {
     for (const s of subclassesFor('dnd5e-2014', 'pugilist')) {
-      expect(s.custom?.authorName ?? '', s.name).toMatch(/Benjamin Hoffman/);
+      expect(s.custom?.authorName ?? '', s.name).toMatch(/Benjamin Huffman/);
     }
   });
 });

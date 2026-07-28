@@ -70,7 +70,7 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
 const DND5E_2014_CLASSES: ClassDefinition[] = [
   BARBARIAN_2014, FIGHTER_2014, ROGUE_2014, MONK_2014, RANGER_2014, PALADIN_2014, SORCERER_2014,
   WARLOCK_2014, BARD_2014, CLERIC_2014, DRUID_2014, WIZARD_2014, ARTIFICER_2014,
-  // The 2014 Pugilist (Benjamin Hoffman / Sterling Vermin) — homebrew, authored 1–20 so the level walker
+  // The 2014 Pugilist (Benjamin Huffman / Sterling Vermin) — homebrew, authored 1–20 so the level walker
   // can walk it like any class, and flagged `custom` so the picker badges it and a DM can gate it. The
   // 2024 revision is a genuinely different class (d10 hit die, different Fisticuffs ladder, Bloodied at 2)
   // and lives in `dnd5e-2024/pugilist.ts`. Both are kept because a player on either edition should get

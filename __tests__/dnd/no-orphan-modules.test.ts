@@ -20,6 +20,12 @@ const ROOT = process.cwd();
  * point of the list is that adding to it is a deliberate act, not a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
+  'lib/dnd/homebrew/kinds.ts':
+    'TEMPORARY, and the only entry here that is meant to be DELETED rather than kept. It is the kind ' +
+    'registry for the Content Studio (P0-3 in TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md), ' +
+    'shipped ahead of the UI that renders it because the schema is what the API, the form and the ' +
+    'transposer all have to agree on. Slice P6-6 (`/dnd/content/new`) imports it and this line comes out. ' +
+    'If you are reading this after P6-6 shipped, the exemption is stale — remove it and let the guard run.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +
