@@ -13,6 +13,26 @@ plus the owner's Content Studio brief of the same day.
 > **Do not renumber slices.** IDs are referenced from commits and from the audit. Insert as `P3-4b` rather
 > than shifting everything below.
 
+## ⚑ Priority order — set by the owner, 2026-07-28
+
+> *"For now let's focus on getting all of the classes built, the homebrew building stuff built and surfaced,
+> and fix all of the things you noted before. Let's fully build all of that and then once everything is fully
+> built and formatted like we want, and everything looks good and mechanics are good and the styling is good,
+> then we can work on building a totally interactive map/game session experience."*
+
+**Work the phases in this order**, which is not the order they are written in:
+
+1. **Classes** — P5-8 … P5-12 (below, in Phase 5).
+2. **The Content Studio** — Phase 6, built *and surfaced*. "Surfaced" is the operative word: this
+   project's characteristic defect is finishing something nobody can click.
+3. **The audit findings** — Phases 0 → 5, then 8 → 10.
+4. **Then, and only then, Phase 7** — the live synced session.
+
+**Phase 7 is DEFERRED to a future project by owner directive.** Its design stays in this doc because it was
+worked out with the owner and re-deriving it later would be waste — but **no Phase 7 slice is to be started**
+until the four items above are done and the owner has signed off on mechanics and styling. The stop hook
+should skip Phase 7 entirely.
+
 ---
 
 ## Ground rules (inherited — these bite constantly in this work)
@@ -32,12 +52,26 @@ plus the owner's Content Studio brief of the same day.
 
 ## Phase 0 — Do these first (hours, not days)
 
-- [ ] **P0-1 — Merge the edit-history exposure fix.** Cherry-pick `6a014d6b` onto `main`. A public character's
-      full edit history, editor names included, is readable by anyone who can open the character — confirmed
-      against live data at **72 audit rows across 5 public characters**. The fix (`edits/route.ts` requires
-      `canWrite`) is stranded on `fix/variant-ux-2026-07-25` behind ~250 commits. *This is the only live
-      exposure in the entire audit.* **Done when:** the commit is on `main` and
-      `__tests__/dnd/character-access.test.ts` covers an unauthenticated GET of `edits`.
+- [x] **P0-1 — ~~Merge the edit-history exposure fix.~~ ALREADY DONE — and this slice was written on a false
+      premise. Closed 2026-07-28 with a correction rather than a commit.**
+
+      `git merge-base --is-ancestor 6a014d6b main` → **true**. The gate is live in
+      `edits/route.ts` (GET returns 403 when `!canWrite`, checked before any row is read), and
+      `__tests__/dnd/edit-history-access.test.ts` covers it in eight assertions including the
+      public-character case and the ✎-tooltip consumer's graceful degradation.
+
+      **Where the false premise came from, because it is the interesting part.**
+      `DND_OWNER_DECISIONS_2026-07-27.md` §1 says the commit is *"sitting unmerged on
+      `fix/variant-ux-2026-07-25` behind ~250 others"* and calls it *"the only live exposure"*. The audit
+      restated that verbatim as finding F-4 and ranked it first on the roadmap. **Neither checked git.** It
+      had been merged; the doc simply went stale after it was written.
+
+      That is precisely the defect that same doc warns about twice in its own header — *"a figure that has to
+      be maintained by hand will go stale"* and *"prose kept asserting what the evidence had moved past"* —
+      so the audit reproduced the failure mode it was reading about. **The rule this earns: a planning doc's
+      claim about the state of the code is a lead, never a finding.** Verify against the code or the history
+      before repeating it, especially when the claim is alarming enough to reorder a roadmap.
+      §1 of the decisions doc is corrected in place so the next reader does not inherit it.
 
 - [x] **P0-2 — Widen the homebrew kind vocabulary.** `HOMEBREW_KINDS` gains `creature`, `background`,
       `condition`, `action`, `rule` (13 → 18), with labels. Prerequisite for the whole Studio.
@@ -260,6 +294,39 @@ plus the owner's Content Studio brief of the same day.
 - [ ] **P5-6 — Languages beyond 2024.** *(C-9.)* `lib/dnd/languages/` holds one file. PF2 already carries
       languages inside its ancestry stat lines — surfacing them is nearly free; 2014 and IG need a picker.
 
+### Class completeness — the owner's first priority
+
+**Measured 2026-07-28, before planning any of it.** The headline is better than expected and the remaining
+work is narrow and specific — which is exactly why it was worth measuring rather than assuming:
+
+| System | Classes | State |
+|---|---|---|
+| **5e 2014** | 14 | **Complete.** All 13 official (incl. Artificer) + Pugilist, each authored 1–20 with subclasses. |
+| **5e 2024** | 13 | **Complete for what is published.** All 12 PHB classes × 4 subclasses each + Pugilist × 6 Fight Clubs. |
+| **Pathfinder 2e** | 20 | **All of Player Core + Player Core 2** — Alchemist through Wizard. Gaps are enumerated in `PF2_CLASS_PROGRESSION_GAPS` (11 entries), not hidden. |
+| **Intuitive Games** | 17 | Full taxonomy; **Champion alone lacks powers/specializations** (blocked on the site). |
+
+So "get all the classes built" is **mostly already true**. What is actually left:
+
+- [ ] **P5-8 — IG Champion.** *(Blocked on data — see the blocked table.)* The single genuine content hole in
+      any of the four systems' class lists. Every other IG subclass carries `powers[]` + `specializations[]`
+      verbatim from the scrape.
+- [ ] **P5-9 — Magus and Summoner spell slots.** *(Blocked on data.)* `slotTableModelled: false` for both;
+      `pf2MaxSpellRank` returns 0 until the published reduced-caster tables are supplied. Everything else
+      about both classes is modelled.
+- [ ] **P5-10 — PF2 Cleric doctrine + Monk Path to Perfection tracks.** Not blocked — *chosen*. Both classes'
+      progressions branch on a player choice the builder never asks, so an assembled Cleric or Monk keeps its
+      level-1 base ranks. **Design:** make the choice a slot (the S1–S6 model already does this), then apply
+      the chosen track's increases. The most mechanically wrong thing left in PF2's classes.
+- [ ] **P5-11 — PF2 Fighter weapon-group attack ranks.** The builder advances attack proficiency through
+      unscoped steps only, so a Fighter's general attack rank stays EXPERT past 13. It **under**-counts,
+      which is the safe direction, and the gaps list says so. Needs weapon-group tracking.
+- [ ] **P5-12 — The 2024 Artificer.** *(Blocked on data.)* Published after the 2024 PHB; the repo has the
+      2014 one. Needs the owner to supply the revised text, exactly as the Pugilist was.
+
+Everything above except P5-10 and P5-11 is **blocked on source material, not on effort** — worth saying
+plainly so this priority is not mistaken for a large build. The two unblocked ones are real rules bugs.
+
 - [ ] **P5-7 — The guided builder's per-level flows.** *(C-6.)* `/dnd/characters/[id]/builder` is still B1
       for all four systems: Foundations is the existing all-at-once builder embedded whole. The page's own
       comment says the per-level flows are owed.
@@ -386,25 +453,90 @@ of homebrew.
 
 ---
 
-## Phase 7 — The tactical layer (battle maps)
+## Phase 7 — The live synced session (the Roll20-shaped table)
 
-> *(B-1 — the single largest product gap.)* The "Map Maker" is Stardust Map Studio: genuinely impressive 2D/3D
-> stellar cartography with **zero tokens, zero grid, zero fog of war, zero measurement** — the string "token"
-> appears 0 times in its 2,826 lines. Meanwhile initiative, encounter entries with per-instance HP, an NPC
-> library, reveal overlays, token art (`TokenFramer`) and a campaign realtime channel **all already exist**.
-> Every piece of a tactical layer exists except the surface to put it on.
+> **The owner's vision, 2026-07-28:** *"a Roll20 kind of session thing where people can fully build maps and
+> stuff and add their character tokens to the maps and be able to actually keep track of initiative and hp
+> and stats and movement and all of that in real time for the DM and each player. Everything and everyone in
+> a campaign will be totally synced up."*
+>
+> *(Supersedes audit finding B-1, which described only the missing battle map. The real ask is bigger: the
+> map is the surface, but **synced session state** is the product.)*
 
-- [ ] **P7-1 — The battle map surface.** A new `/dnd/campaigns/[id]/battle` (React, not the vanilla studio —
-      it needs the realtime channel and the encounter model). Upload an image, set a grid scale by dragging
-      across two known squares, pan/zoom.
-- [ ] **P7-2 — Tokens.** Seeded from the encounter's initiative entries (so HP, conditions and turn order are
-      already correct), drag to move, position broadcast over the existing channel. DM can add/remove.
-- [ ] **P7-3 — Fog of war.** A DM-only paint layer; players see only revealed regions. Reuses the reveal
-      model's mental shape.
-- [ ] **P7-4 — Measurement + templates.** Distance in the map's own units; cone/circle/line templates per
-      system's geometry (5e and PF2 measure diagonals differently — do not average them).
-- [ ] **P7-5 — Turn integration.** The current combatant is highlighted on the map; ending a turn advances
-      both. This is what makes the map a *tool* rather than a picture.
+### What exists, and what "totally synced up" actually requires
+
+Nearly every *piece* exists; what is missing is a **shared authoritative session state** and the canvas that
+renders it. Today: `useCampaignChannel` (realtime), `useCampaignPresence`, `dnd_encounters` +
+`dnd_initiative_entries` (per-instance HP, turn order), `NpcLibrary`, `RevealOverlay`/`RevealTrigger`,
+`TokenFramer` (token art), `dnd_roll_log`, `SessionConsole`. The Map Studio is stellar cartography with
+**zero tokens, grid, fog or measurement** — the string "token" appears 0 times in its 2,826 lines — and it is
+a same-origin vanilla iframe, so it cannot reach the realtime channel. **The battle map is a new React
+surface, not an extension of it.**
+
+### The three design decisions everything else follows from
+
+**1. Authority — who owns truth for each piece of state.** Get this wrong and you get two players dragging
+one token forever. The rule:
+
+| State | Authority | Why |
+|---|---|---|
+| Map, grid, fog, DM-hidden tokens | **DM** | Players must not be able to reveal what the DM hid — enforce server-side, not by hiding the UI. |
+| A token's position | **its controller**, DM overrides | The player moving their own character is the whole feel of a VTT; a DM veto covers grapples, forced movement, shoves. |
+| Initiative order, HP, conditions | **server** (`dnd_initiative_entries`) | Already the durable model; two clients must never disagree about whose turn it is. |
+| A character's sheet | **the sheet's existing write gate** | Do not fork sheet state into the session — the map reads the sheet, it does not own it. |
+
+**2. Two transports, deliberately.** Ephemeral high-frequency events (a drag in progress, a cursor, a ping)
+go over **Realtime broadcast only** — never persisted, lost on reload, and that is correct. Durable state
+(committed position, HP, conditions, fog) is a **Postgres write that then broadcasts**. Writing every
+mouse-move to Postgres is the mistake that makes these things unusable.
+
+**3. Optimistic local, reconcile on echo.** The mover sees their token move at 0ms; everyone else sees it on
+the broadcast; the durable write reconciles. A token carries a `version` so a late echo cannot rubber-band a
+newer local move.
+
+### Slices
+
+- [ ] **P7-1 — The session state model.** `seeds/456_dnd_battle.sql`: `dnd_battle_maps` (campaign, name,
+      image, grid size/offset/unit, scale) and `dnd_battle_tokens` (map, character_id or initiative_entry_id,
+      x, y, size, controller_user_id, hidden, version). Plus `lib/dnd/battle/model.ts` — pure: grid
+      snapping, pixel↔grid conversion, and `canControlToken(token, viewer)`. Pure first so the rules are
+      testable without a canvas.
+- [ ] **P7-2 — The map surface.** `/dnd/campaigns/[id]/battle` — upload or pick an image, pan/zoom, and set
+      the grid by **dragging across two known squares** (never by typing a pixel size, which nobody knows).
+      Pointer Events from the start, so it works on a tablet — do not repeat P10-1.
+- [ ] **P7-3 — Tokens on the board.** Seeded from the encounter's initiative entries, so HP, conditions and
+      turn order are correct on arrival rather than re-entered. Portrait/token art from `TokenFramer`. Drag
+      to move with snapping; DM can add, remove, resize and hide.
+- [ ] **P7-4 — Realtime sync.** The two transports above, over the existing campaign channel. Includes the
+      unglamorous parts that decide whether it feels alive: presence (who is looking at this map), a late
+      joiner receiving full state, and reconnect-after-sleep without a stale board.
+- [ ] **P7-5 — Movement tracking.** Distance as you drag, measured in the map's own units, against the
+      creature's speed — with **each system's own diagonal rule** (5e 2014 optional 5-10-5, 2024 flat, PF2's
+      every-other-diagonal). Do not average them into one wrong rule. Shows remaining movement this turn.
+- [ ] **P7-6 — Turn integration.** The current combatant is highlighted on the board; ending a turn advances
+      the tracker and resets that token's movement budget. **This is what makes the map a tool rather than a
+      picture**, and it is the slice most likely to be skipped.
+- [ ] **P7-7 — Fog of war.** A DM-painted reveal layer; players receive only revealed regions — filtered
+      **server-side**, because a client-side mask is a screenshot away from being no mask at all.
+- [ ] **P7-8 — HP, conditions and stats on the board.** Token HP bars (DM sees numbers, players see a band
+      unless the DM opts in), condition icons, and click-through to the full sheet. Two-way: damage applied
+      on the board lands on the sheet through the existing edit path, so it is undoable like any other change.
+- [ ] **P7-9 — Templates and area effects.** Cone / circle / line / emanation per the system's geometry,
+      with the creatures caught in one highlighted.
+- [ ] **P7-10 — Player-side polish.** Pings ("look here"), a shared drawing layer, and per-player token
+      control so a player moves only their own — the difference between a DM demo and a table everyone plays
+      at.
+- [ ] **P7-11 — Map building.** Layers, a stamp/asset palette, and import of the existing published campaign
+      maps so the Map Studio's galaxy maps can be used as battle backdrops. *(The owner's "fully build maps
+      and stuff".)*
+- [ ] **P7-12 — The session shell.** One `/dnd/campaigns/[id]/play` that puts the board, the initiative
+      tracker, the roll feed (P3-1) and chat in a single synced screen for DM and players — the thing the
+      vision actually describes. Everything before this is a component of it.
+
+> **Sequencing note.** P7-1 → P7-4 is the spine; stop there and you have a shared board, which is already
+> most of the value. P7-5/6/8 are what make it a *rules* tool rather than a shared whiteboard. P3-1 (rolls
+> reaching the shared log) should land before P7-12, or the session shell will have a roll feed showing
+> nothing.
 
 ---
 

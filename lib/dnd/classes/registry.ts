@@ -83,7 +83,7 @@ const DND5E_2014_SUBCLASSES: SubclassDefinition[] = [
   ...SORCERER_SUBCLASSES_2014, ...WARLOCK_SUBCLASSES_2014, ...BARD_SUBCLASSES_2014,
   ...CLERIC_SUBCLASSES_2014, ...DRUID_SUBCLASSES_2014, ...WIZARD_SUBCLASSES_2014,
   ...ARTIFICER_SUBCLASSES_2014,
-  ...PUGILIST_2014_SUBCLASSES, // all seven Fight Clubs
+  ...PUGILIST_2014_SUBCLASSES, // seven Fight Clubs + Street Saint
 ];
 
 const BY_SYSTEM: Record<string, { classes: ClassDefinition[]; subclasses: SubclassDefinition[] }> = {

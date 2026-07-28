@@ -16,14 +16,34 @@ itself a piece of work to be done.
 
 ---
 
-## 1. Merge `6a014d6b` — the only item with real-world consequence
+## 1. ~~Merge `6a014d6b`~~ — **RESOLVED. It is on `main`.**
 
-A public character's **full edit history, editor names included**, was readable by anyone who could open
-the character. Confirmed against live data: **72 audit rows, 5 public characters**. Fixed in `6a014d6b`
-(`edits/route.ts` now requires `canWrite`), and that commit is sitting unmerged on
-`fix/variant-ux-2026-07-25` behind ~250 others.
+> **CORRECTED 2026-07-28.** This section said the fix was *"sitting unmerged on `fix/variant-ux-2026-07-25`
+> behind ~250 others"* and that it was a live exposure. **It is neither** — it had already been merged:
+> `git merge-base --is-ancestor 6a014d6b main` returns true, the `canWrite` gate is live in
+> `edits/route.ts` before any row is read, and `__tests__/dnd/edit-history-access.test.ts` pins it in eight
+> assertions including the public-character case.
+>
+> **The stale claim went on to cause real harm**, which is why it is corrected in place rather than deleted.
+> The 2026-07-28 structural audit read this page, restated it verbatim as finding F-4, called it *"the only
+> live exposure in the entire audit"*, and ranked it first on a 76-slice roadmap — all without checking git.
+> Anyone acting on that would have spent their first action re-fixing a fixed bug.
+>
+> The irony is on the nose: this document's own header warns twice about exactly this — *"a figure that has
+> to be maintained by hand will go stale; the fix is to not assert it"* and, of a sibling doc, *"prose kept
+> asserting what the evidence had moved past."* **A status claim is a hand-maintained figure too.** Treat
+> any claim on this page about the state of the code as a lead to verify, not a finding to repeat.
 
-**Nothing else on this page is a live exposure. This one is.**
+**The original text, kept so the correction can be checked against what it corrects:**
+
+> A public character's **full edit history, editor names included**, was readable by anyone who could open
+> the character. Confirmed against live data: **72 audit rows, 5 public characters**. Fixed in `6a014d6b`
+> (`edits/route.ts` now requires `canWrite`), and that commit is sitting unmerged on
+> `fix/variant-ux-2026-07-25` behind ~250 others.
+>
+> **Nothing else on this page is a live exposure. This one is.**
+
+The *defect* description was accurate and the fix is real — only its merge status was wrong.
 
 ---
 

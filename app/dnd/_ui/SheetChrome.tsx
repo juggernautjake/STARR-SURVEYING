@@ -15,6 +15,7 @@ import { useState } from 'react';
 import styles from './hextech.module.css';
 import { SHEET_STYLES } from '@/lib/dnd/sheet-styles';
 import { templatesForSystem } from '@/lib/dnd/sheet-templates';
+import FormatPreview from './FormatPreview';
 import { themeVariantsFor } from '@/app/dnd/_sheet/theme';
 import { rememberLayout } from '@/lib/dnd/layoutChoice';
 
@@ -115,10 +116,44 @@ export default function SheetChrome({
         {SHEET_STYLES.map((s) => chip({ axis: 'style', value: s.id, label: s.label, active: s.id === skin, swatch: s.swatch?.accent ?? s.swatch?.gold }))}
       </div>
 
+      {/* TEMPLATE is the one axis whose difference is SHAPE, not colour — so it is the one axis a coloured
+          pill cannot describe. STYLE and THEME carry a swatch and read fine as chips; a template chip
+          reading "Codex" tells a player nothing about what they are about to get.
+
+          `FormatPreview` was built for exactly this and was reachable only from `TemplateBrowser`, which
+          `SheetChrome` replaced — so deleting that orphan (P0-5) would have silently taken the diagrams with
+          it. They come back here instead, as taller cards that keep the chip idiom (row label, `//`,
+          highlighted selection) while showing the layout. */}
       {templates.length > 1 && (
-        <div style={rowStyle}>
-          <span style={labelStyle}>TEMPLATE //</span>
-          {templates.map((t) => chip({ axis: 'template', value: t.id, label: t.label, active: t.id === activeTemplate }))}
+        <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+          <span style={{ ...labelStyle, paddingTop: 6 }}>TEMPLATE //</span>
+          {templates.map((t) => {
+            const active = t.id === activeTemplate;
+            const key = `template:${t.id}`;
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={!!busy || !canWrite}
+                onClick={() => post('template', t.id)}
+                aria-pressed={active}
+                title={t.blurb ? `${t.label} — ${t.blurb}` : t.label}
+                style={{
+                  width: 96, padding: 5, borderRadius: 8, display: 'grid', gap: 4,
+                  cursor: busy || !canWrite ? 'default' : 'pointer',
+                  border: active ? '1px solid var(--hx-teal-1, #0ac8b9)' : '1px solid var(--hx-line, rgba(255,255,255,0.14))',
+                  background: active ? 'rgba(10,200,185,0.14)' : 'rgba(255,255,255,0.03)',
+                  color: active ? 'var(--hx-teal-1, #0ac8b9)' : 'var(--hx-text, #e8e0cf)',
+                  opacity: active ? 1 : 0.82,
+                }}
+              >
+                <FormatPreview id={t.id} />
+                <span style={{ fontSize: 11.5, lineHeight: 1.2, fontFamily: 'var(--hx-font-display, inherit)', letterSpacing: '0.02em' }}>
+                  {t.label}{busy === key && <span aria-hidden> …</span>}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
