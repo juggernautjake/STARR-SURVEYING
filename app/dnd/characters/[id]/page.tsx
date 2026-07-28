@@ -11,6 +11,7 @@ import { VariantToggleView } from '@/app/dnd/_sheet/components/VariantToggle';
 import SheetEditHistory from '@/app/dnd/_ui/SheetEditHistory';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
+import HomebrewDesignerLinks from '@/app/dnd/_ui/HomebrewDesignerLinks';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetChrome from '@/app/dnd/_ui/SheetChrome';
 import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
@@ -315,6 +316,15 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
+      {/* The homebrew designers (P0-4). They shipped complete and tested with NOTHING linking to them, so
+          this is the door. Gated inside the component on `isSharedEngineSystem`, because they emit 5e
+          shapes a PF2/IG engine cannot resolve — see its header. */}
+      {canWrite && (
+        <HomebrewDesignerLinks
+          characterId={character.id}
+          system={normalizeSystem((character as { system?: string }).system)}
+        />
+      )}
       {/* The unified STYLE · TEMPLATE · THEME chip block (U-4), surfaced right below the Build Kit so all
           three axes sit in the SAME spot on every character — above every sheet (5e engine, PF2, IG all
           render further down), chosen the same way (highlighted chips), for every system. Replaces the old

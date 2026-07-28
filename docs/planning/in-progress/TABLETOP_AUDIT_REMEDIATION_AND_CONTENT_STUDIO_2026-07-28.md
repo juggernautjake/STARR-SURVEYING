@@ -82,7 +82,19 @@ should skip Phase 7 entirely.
       a kind that cannot carry mechanics in a system SAYS SO instead of pretending), `blankDraftFor`,
       `validateDraftFields`, `isPartialBuild`. **Shipped 2026-07-28.**
 
-- [ ] **P0-4 — Link the three homebrew designers.** *(audit A-3 — the highest value-per-hour item found.)*
+- [x] **P0-4 — Link the three homebrew designers. Shipped 2026-07-28.** New `HomebrewDesignerLinks`
+      (server component — three links and a system check need no client JS), mounted on the character sheet
+      page inside the existing `canWrite` guard. Gated on `isSharedEngineSystem`, and the gate ships in the
+      SAME slice as the link on purpose: the designer pages carry no system guard of their own (they never
+      needed one while nothing linked to them), so wiring the link without gating it would have converted a
+      harmless orphan into a live trap — a PF2 character authoring a 5e `ClassDefinition` its engine cannot
+      resolve. PF2/IG get an honest explanation plus a pointer at the escape hatch that does work there.
+      8 assertions in `homebrew-designer-reachability.test.ts`, deliberately about WIRING rather than
+      behaviour: the link exists, the component is *mounted* (the half A-3 was missing — a link component
+      nobody renders is the same defect one level up), and the gate holds in both directions.
+      *Original slice text below.*
+
+- [ ] ~~**P0-4 — Link the three homebrew designers.**~~ *(audit A-3 — the highest value-per-hour item found.)*
       `/build/class`, `/build/subclass` and `/build/feat` are complete, tested, working, and **nothing in the
       codebase links to them**; a repo-wide search returns only their own header comments. Add entries to
       `CharacterBuildKit` and to the escape hatch's homebrew tier.
