@@ -3859,3 +3859,39 @@ DISCOVERABILITY and REACH:
    given they use different words for the same act?
 
 **None of that needs a new grant kind.** Audit the entry points before touching the vocabulary.
+
+**P14-13 AUDIT DONE 2026-07-29 — the DM capability is already built, end to end.**
+
+Traced every entry point rather than reasoning from types (which is what produced the two wrong notes
+above):
+
+| piece | state |
+|---|---|
+| `GiveEntryButton` | mounted in `library/[key]`, `GlossaryList`, `SpellBrowser` |
+| `GiveToCharacter` (the dialog) | fetches `/api/dnd/characters?writable=1` |
+| `?writable=1` | **"owned or played directly, plus every character in a campaign this user DMs"** |
+| `grant-content` gate | `requireCharacterWrite` — owner, assigned player, **or DM of the campaign** |
+| `AdoptContentPanel` (homebrew) | mounted on the character page |
+
+So a DM browsing the library today can already hand a spell, item, weapon, armour, feature/feat or
+condition to **any player's sheet in their campaign**. The route's own comment says it was built for
+exactly this: *"a DM could edit a sheet that appeared in no list they could fetch … anything that needs to
+OFFER a character to write to needs the same set the write path will accept"*.
+
+**My previous note said "the DM has no way in from the campaign side, only from inside each sheet." That
+was wrong too** — the way in is the LIBRARY, not the sheet, and it already lists the players' characters.
+Third correction in a row on this item; each came from reading the code instead of inferring from a type
+or a name. The pattern is now unmistakable and worth stating once more plainly: **in this codebase the
+capability usually exists and the door is the thing missing.**
+
+**What is ACTUALLY left, and it is small:**
+1. **Discoverability from the campaign.** The give button lives only in library surfaces. A DM sitting on
+   the campaign page has to know to go to the library. An entry point there — "give something to a
+   character" — is the whole gap.
+2. **Two vocabularies for one act.** The library says "give", the Studio says "adopt". A player who has
+   used one will not search for the other.
+3. **No verification that any of it works against real data.** `dnd_homebrew` only started existing today,
+   and the grant path has never been exercised end to end in a browser.
+
+**Do (3) before (1).** Building a new entry point onto a path nobody has run is how the last several
+"authored but not wired" defects were born.
