@@ -2654,3 +2654,162 @@ community homebrew repo). It was wrong in three files and two tests.
    `KindSpec.allowAnySystem`.
 3. **Milestone vs XP.** Assumption: XP is opt-in per campaign (P3-4), so tables that do not use it never see
    it.
+
+---
+
+# Part II — the owner's brief, 2026-07-29
+
+> *"Please keep working on the styling on the website … really work on making each character sheet template
+> unique … each style unique for each template … themes unique as well … each template to work for each
+> system … make the profile page better … all pages are full and complete and format really well for mobile
+> … the dice roller and character sheets format to mobile well … library pages are easy to navigate on both
+> pc and mobile … fully create and homebrew feats, classes, items, armor, weapons, abilities, subclasses,
+> creatures, and anything else in any of the systems … start making a catalogue of all kinds of creatures
+> … bosses, woodland creatures, massive creatures, demons, abyssal creatures, sea creatures, birds, common
+> companion animals … full library pages … fully interactive and searchable … DMs able to add them to
+> sessions within campaigns … stat block that is interactive and works similarly to the full blown
+> character sheet … actions and reactions and skill checks and special attacks and abilities … resistances
+> … AI can generate these interactive stat blocks quickly … the user can retry the generation or accept it
+> and edit it … added to their content … share it or make it public or private … add art … transpose it to
+> any system … convert them to any system and have them be balanced usable … modifications to creatures in
+> the library, which would create variant types … three different versions … base, leveled-down, beefed up
+> … only apply to specific creatures … a woodland rabbit would likely not need multiple variants, but for
+> a lion or vampire we might … You would have to determine which creatures would get versioning … the user
+> could browse the creatures and their different versions and they can even modify a version, which will
+> create their own personal version."*
+
+---
+
+## THE SOURCING CONSTRAINT, stated before anything is built on it
+
+The brief says *"Roll20 and some different wiki pages are bound to have massive lists that we can pull
+from."* Two of those cannot be used, and building on them would put licensed text into this repo:
+
+- **Roll20's compendium is licensed content behind their ToS**, which prohibits scraping. Their monster
+  entries are the publishers' text, not Roll20's to relicense.
+- **The 2014 Monster Manual and the 2024 Monster Manual are not openly licensed.** Neither is most of what
+  the fan wikis carry, which is why those wikis are themselves periodically taken down.
+
+What **is** freely usable, and is genuinely enormous:
+
+| Source | Licence | Roughly |
+|---|---|---|
+| **SRD 5.1** (2014 rules) | CC-BY-4.0 | ~320 creatures |
+| **SRD 5.2** (2024 rules) | CC-BY-4.0 | ~340 creatures, 2024 statblock format |
+| **Pathfinder 2e Monster Core + Bestiaries** | ORC / Paizo Community Use, via Archives of Nethys | 1,500+ |
+| **Open5e / 5e-bits API** | CC-BY / OGL aggregations of the above | mirrors, useful for cross-checking |
+
+That covers every category the brief names — bosses, woodland creatures, massive creatures, demons and
+abyssal creatures, sea creatures, birds, companion animals, ghosts, gargoyles, folklore — because the SRDs
+and the PF2 bestiaries are where those creatures come from in the first place. **The AI generator (P13-8)
+is how anything outside that gets into the app**: a robot, a homebrew horror, a named NPC. That is the
+right split anyway — catalogued content is sourced and attributed, generated content is the user's own.
+
+**Ground Rule 3 still binds.** Every creature carries its source and licence. Nothing is transcribed from
+memory: a creature that cannot be sourced is not added.
+
+---
+
+## Phase 11 — Presentation: templates, styles, themes, and mobile
+
+> *"each template to work for each system … each style should look good with each template, and each theme
+> should look good with each template and style combination"*
+
+The matrix is **4 formats × 4 systems × N skins × M colour themes**. It is already wired (the multi-format
+work shipped that); what the brief is asking for is that each cell be *good*, and that the axes have real
+variance rather than one look with different colours.
+
+- [ ] **P11-1 — Audit the matrix, and write down what is actually broken.** A harness page that renders
+      every format × system × skin × theme combination to a screenshot, driven by Playwright, so the list of
+      defects is observed rather than guessed. This is first for the same reason P8-3 and P5-7 taught: half
+      the items in a plan describe a state the code left behind months ago.
+- [ ] **P11-2 — Make the four FORMATS structurally distinct.** Classic / Codex / Dashboard / Play should
+      differ in layout and information density, not in decoration. Today several read as the same grid.
+- [ ] **P11-3 — Make the SKINS distinct.** Type, texture, border treatment, and iconography per skin —
+      not a hue rotation. A skin that is only a colour is a theme.
+- [ ] **P11-4 — Make the THEMES safe across every skin and format.** Contrast-checked pairs, and a token
+      contract each skin must satisfy so a new theme cannot break a format it was never viewed in.
+- [ ] **P11-5 — Mobile: the character sheet.** Every format, every system, at 360 / 390 / 414 px.
+- [ ] **P11-6 — Mobile: the dice roller.** All four rollers, in the dock and full-screen.
+- [ ] **P11-7 — Mobile: the rest of the app.** Hub, campaign, library, Studio, builder, admin-adjacent pages.
+- [ ] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
+      brief calls it out specifically for both PC and mobile.
+- [ ] **P11-9 — The profile page.** Named in the brief. Identity, characters, campaigns, content, activity.
+- [ ] **P11-10 — Fill the thin pages.** Any page that is a heading and a list gets the content it implies.
+
+## Phase 12 — Homebrew completeness
+
+> *"fully create and homebrew feats, classes, items, armor, weapons, abilities, subclasses, creatures, and
+> anything else in any of the systems"*
+
+The Studio has 18 kinds and a registry-driven form. The gap is **per-SYSTEM mechanical depth**: a kind may
+be authored in any system, but `kindIsMechanicalIn` says whether it actually *does* anything there.
+
+- [ ] **P12-1 — Coverage matrix: 18 kinds × 4 systems, each cell marked mechanical / prose / N/A** — derived
+      from the registry, published as a page, so the gaps are visible rather than discovered on save.
+- [ ] **P12-2 — Close the mechanical gaps for 5e (2014 + 2024).**
+- [ ] **P12-3 — Close them for Pathfinder 2e.**
+- [ ] **P12-4 — Close them for Intuitive Games.**
+- [ ] **P12-5 — Subclass authoring, per system.** Named in the brief; today it is a `class`-shaped kind
+      with no parent binding.
+
+## Phase 13 — The Bestiary
+
+> The largest item in the brief, and the one with the most moving parts. Ordered so that each slice is
+> usable on its own.
+
+### The model
+
+- [ ] **P13-1 — The creature model.** Extends P6-13's statblock: senses, languages, CR/level, resistances,
+      immunities, vulnerabilities, conditions, actions / bonus actions / reactions / legendary / lair,
+      traits, spellcasting, skills, saves. System-tagged, because a PF2 creature and a 5e creature are not
+      the same object — shared skeleton, per-system detail, exactly as P6-13 decided.
+- [ ] **P13-2 — `seeds/462_dnd_bestiary.sql`.** `dnd_creatures` (catalogued, immutable, with source +
+      licence), `dnd_creature_variants` (base / weakened / elite), and the user-owned fork path reusing
+      `dnd_homebrew`.
+
+### The catalogue
+
+- [ ] **P13-3 — SRD 5.1 import (2014).** ~320 creatures, CC-BY-4.0, attribution recorded per row.
+- [ ] **P13-4 — SRD 5.2 import (2024).** ~340, the 2024 statblock shape.
+- [ ] **P13-5 — Pathfinder 2e import.** Monster Core via Archives of Nethys, ORC-licensed.
+- [ ] **P13-6 — Taxonomy + tags.** The brief's own categories — bosses, woodland, massive, demons/abyssal,
+      sea, birds, companions, undead, folklore, constructs — derived from type/size/CR/environment rather
+      than hand-tagged, so a new import is categorised automatically.
+
+### The interactive statblock
+
+- [ ] **P13-7 — The playable creature sheet.** The brief: *"works similarly to the full blown character
+      sheet"* — roll its attacks, use actions/reactions, make skill checks and saves, track HP and
+      conditions, show resistances. Reuses the sheet's roller and the roll feed, so a DM's monster rolls
+      land in the shared log like everyone else's.
+
+### Generation, variants and transposition
+
+- [ ] **P13-8 — AI creature generation.** Describe it → statblock → **retry / accept / edit**, then it
+      becomes the user's content: private by default, shareable, publishable, art-attachable. Reuses the
+      Studio's assist + per-field review (P6-15/P6-15b) so review is per-field rather than all-or-nothing.
+- [ ] **P13-9 — Which creatures get variants, decided by RULE not by hand.** The brief is explicit that a
+      woodland rabbit does not need three versions and a vampire might. Eligibility is derived — CR/level
+      above a floor, or a type that scales (dragon, vampire, giant) — and recorded, so 1,500 creatures do
+      not need a human decision each.
+- [ ] **P13-10 — Weakened and elite variants.** Generated by a **stated, testable formula** per system
+      (PF2 already publishes Weak/Elite adjustments; 5e needs an explicit house formula, labelled as ours).
+- [ ] **P13-11 — Fork a creature into your own.** Any catalogued creature or variant → an editable copy in
+      your content, with full statblock editing controls. Provenance kept.
+- [ ] **P13-12 — Transpose a creature to any system.** Reuses P6-18's transposer. The brief's *"balanced
+      usable"* is the hard part and gets its own conversion table per system pair.
+
+### Play
+
+- [ ] **P13-13 — Add a creature to a session/encounter.** Extends P6-14's seam: catalogue + variants +
+      your own forks, searchable, N copies at once.
+- [ ] **P13-14 — Library pages for the bestiary.** Fully interactive and searchable, per system, with the
+      taxonomy as facets — PC and mobile.
+
+### The honest note
+
+**This phase is large and it is data-heavy.** The imports are the long pole, and every one of them depends
+on a source being reachable and parseable. Each import slice therefore ships its **adapter + a recorded
+count + a gaps list** rather than claiming a catalogue is complete, exactly as `PF2_SPELL_GAPS` and
+`PF2_COMPANION_STATUS` do — so a partial import is visibly partial instead of quietly thin.
