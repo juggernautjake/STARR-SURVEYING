@@ -19,6 +19,8 @@ import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import GuidedBuilder, { type GuidedStep } from '@/app/dnd/_ui/builder/GuidedBuilder';
+import BuildPreviewPanel from '@/app/dnd/_ui/builder/BuildPreviewPanel';
+import { buildPreview } from '@/lib/dnd/builder/preview';
 import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
 import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
@@ -242,6 +244,10 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
             systemLabel={SYSTEM_LABEL[system] ?? system}
             steps={steps}
             glossary={glossaryFor(system)}
+            // The live preview the guided builder was designed with (P5-7). Rendered HERE, on the server,
+            // from the character's stored data — so it shows what actually saved, and it re-renders when a
+            // step's `router.refresh()` lands. The shell only places it.
+            preview={<BuildPreviewPanel preview={buildPreview(system, character.name, character.data)} />}
           />
         </div>
       </div>

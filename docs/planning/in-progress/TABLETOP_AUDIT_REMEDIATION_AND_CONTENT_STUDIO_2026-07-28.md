@@ -1369,11 +1369,48 @@ So "get all the classes built" is **mostly already true**. What is actually left
 Everything above except P5-10 / P5-10b and P5-11 is **blocked on source material, not on effort** — worth
 saying plainly so this priority is not mistaken for a large build. The unblocked ones are real rules bugs.
 
-- [ ] **P5-7 — The guided builder's per-level flows.** *(C-6.)* `/dnd/characters/[id]/builder` is still B1
-      for all four systems: Foundations is the existing all-at-once builder embedded whole. The page's own
-      comment says the per-level flows are owed.
+- [x] **P5-7 — The guided builder's live preview.** *(C-6. The remaining per-slot screens are P5-7b.)*
+      ~~`/dnd/characters/[id]/builder` is still B1 for all four systems~~ — **half of this was already
+      done.**
       **Design:** the slot model from S1–S6 is exactly the substrate — each slot becomes one screen with a
       live preview panel. Sequence: 5e first (most slots modelled), then PF2, then IG.
+
+      **Done 2026-07-29.** `lib/dnd/builder/preview.ts` (pure), `BuildPreviewPanel`, and a `preview` slot on
+      the guided shell.
+
+      **Checked the premise first — the P8-3 lesson — and the item was half stale.** The "level by level"
+      screens are wired for **all three** systems, not just 5e: `LevelBuilder`, `PF2LevelBuilder` and
+      `IGLevelBuilder` are each mounted as a step. What never shipped was the design's other half, the **live
+      preview**, so a player walked nine levels of choices watching a form and found out what they had built
+      by leaving the builder.
+
+      **It agrees with the sheet because it delegates.** HP comes through `resolveHp` — the module that
+      already knows each system stores it somewhere different (P1-1) — rather than from a fourth place that
+      computes it slightly differently. A preview that quietly disagrees with the sheet is worse than none,
+      because the disagreement surfaces after the character is built.
+
+      **A field it cannot resolve is omitted, never zeroed.** `AC —` reads as "not set yet", which is true
+      mid-build; `AC 0` reads as a character with no armour class, which is a bug report. Likewise `empty`
+      means *nothing but a name* — a class with no abilities has started, and showing it a grid of dashes
+      would read as broken rather than as unfinished.
+
+      **Server-rendered, deliberately.** A client preview mirroring form state shows what the player is
+      *about to* save — identical right up until a save fails, and then a lie on screen while the character
+      is unchanged. This renders from stored data and updates when a step's `router.refresh()` lands.
+
+      Mounted **once, outside the per-system branches**, and a test pins that: three branches would be three
+      chances to forget one, which is exactly how PF2 and IG went without a level walker in this flow until
+      someone noticed.
+
+      Two small correctness notes: PF2 and IG store ability **modifiers** while 5e stores `{score, mod}`, so
+      both shapes are read — treating a +4 as a score prints −3; and my own test fixture used `combat.hp`
+      where `resolveHp` reads `combat.currentHp`, which failed and was the *test* being wrong.
+
+- [ ] **P5-7b — Per-slot screens inside the Levels step.** *(Split from P5-7.)* The Levels step still embeds
+      each system's whole walker in one screen rather than one screen per outstanding choice. The slot model
+      (`planLevelUp` / `pf2PlanLevelUp` / the IG schedule) already returns exactly the list that would drive
+      it, and the preview panel it would sit beside now exists — so this is a presentation change on top of
+      finished machinery, not new rules work.
 
 ---
 

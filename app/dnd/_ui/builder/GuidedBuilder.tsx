@@ -28,6 +28,7 @@ export default function GuidedBuilder({
   systemLabel,
   steps,
   glossary = [],
+  preview,
 }: {
   characterId: string;
   characterName: string;
@@ -38,6 +39,9 @@ export default function GuidedBuilder({
   /** This system's rules glossary (from `glossaryFor(system)`) — surfaced as a look-up-anything panel so a
    *  new player building a character can find what a term means without leaving the wizard (B2). */
   glossary?: GlossaryEntry[];
+  /** The server-rendered "so far" panel (P5-7). A node, not data, so this shell stays system-agnostic —
+   *  it never learns what a stat is, exactly as it never learns what a mechanic is. */
+  preview?: ReactNode;
 }) {
   const [active, setActive] = useState(0);
   // Resume where you left off (B17). Persist the current step per character so an accidental refresh — or the
@@ -109,6 +113,11 @@ export default function GuidedBuilder({
           </div>
         ))}
       </nav>
+        {/* The live preview (P5-7). Passed in as an already-rendered node rather than built here: it is
+            SERVER-rendered from the character's stored data, so it shows what actually saved and updates
+            when a step's `router.refresh()` lands. Building it in this client shell would mean mirroring
+            form state — the same thing right up until a save fails, and then a lie on screen. */}
+        {preview}
         <BuilderRoller />
         {glossary.length > 0 && <BuilderGlossary glossary={glossary} systemLabel={systemLabel} />}
       </div>
