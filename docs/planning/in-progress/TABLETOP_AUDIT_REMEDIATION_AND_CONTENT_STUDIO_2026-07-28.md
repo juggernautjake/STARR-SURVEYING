@@ -668,9 +668,43 @@ should skip Phase 7 entirely.
       The PATCH path merges **one field** into the existing `meta`: rebuilding `data` from a partial body is
       how a sheet loses everything it did not mention.
 
-- [ ] **P3-4b — The DM's award tool.** "Award XP to the party" / "Level the party" across a mixed-system
+- [x] **P3-4b — The DM's award tool.** "Award XP to the party" / "Level the party" across a mixed-system
       table, plus a notification with a deep link into each character's level walker. The per-character
       model and display are done; this is the DM-facing half.
+
+      **Done 2026-07-28.** `lib/dnd/xp-award.ts` (pure planner), `POST /api/dnd/campaigns/[id]/award-xp`,
+      and `AwardXpControl` on the campaign hub, DM-only.
+
+      **"Across a mixed-system table" is what makes this more than a loop.** The systems disagree about what
+      XP *is*: 5e uses cumulative thresholds, PF2 a flat 1000/level, and **Intuitive Games has no XP table
+      at all** — `xp.ts` says so plainly rather than borrowing 5e's numbers. Writing XP to an IG character
+      would store a value nothing reads and no rule interprets, and it would look real. So the award is
+      **planned before it is written**, and reports per character what happened, including *"Kesh levels by
+      milestone, so no XP was added"*. Silently skipping would leave the DM believing the whole party was
+      awarded; silently writing would be worse. A milestone character is not touched at all — not even
+      written with an unchanged value, which would bump `updated_at` and imply something happened.
+
+      **A real bug caught before it shipped:** my first query filtered `dnd_characters.campaign_id`. The
+      roster is the **join table ∪ that legacy column**, so it would have silently missed every character
+      attached through `dnd_campaign_characters` — most of them — and the DM would have had no way to tell
+      which players were skipped. Now uses the shared `characterIdsInCampaign`, with a test forbidding the
+      narrow filter.
+
+      Smaller decisions, all pinned: NPCs excluded (*"award XP to the party"* never means the monster
+      roster); negatives allowed and floored at 0, since correcting an over-award is real and refusing it
+      sends the DM back to editing sheets by hand; the amount bounded at 100k so a typo cannot jump someone
+      to level 20; and level-up detection compares against the level the XP **already implied**, so a
+      character whose stored level lags their XP is not reported as levelling on an award that changed
+      nothing.
+
+      Each level-up **deep-links into that character's level walker** — telling a DM "Vex levelled up" and
+      leaving them to find Vex's sheet is most of the work still undone.
+
+      One of my tests asserted 1000 XP leaves a 5e character at level 1; it is level 3 (thresholds
+      300/900/2700). The test was wrong, not the code — corrected to assert the two systems land on
+      *different* levels, which is the property that actually matters.
+
+      Suite 1287 files / 18,532 tests green.
 
 - [ ] **P3-5 — Session RSVP + reminders.** Builds on P1-5: members mark yes/no/maybe; the hub shows the
       count. (A Discord webhook is P10-4.)

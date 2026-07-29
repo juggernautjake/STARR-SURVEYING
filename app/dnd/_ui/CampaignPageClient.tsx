@@ -12,6 +12,7 @@ import Soundboard from './Soundboard'
 import CampaignArtControl from './CampaignArtControl'
 import { nextSession, formatSessionTime, relativeSessionTime } from '@/lib/dnd/session-schedule'
 import RollStatsPanel from './RollStatsPanel'
+import AwardXpControl from './AwardXpControl'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
@@ -565,6 +566,16 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   </div>
                 )}
               </section>
+
+              {/* Award XP to the party (P3-4b) — DM only, since a player awarding themselves is the
+                  obvious abuse. The server enforces that too; this just does not render the control. */}
+              {data.campaign.role === 'dm' && (
+                <section className={styles.framedPanel} style={{ padding: '12px 16px', display: 'grid', gap: 8 }}>
+                  <div className={styles.framedPanelTop} />
+                  <h2 className={styles.panelTitle} style={{ margin: 0 }}>Award XP</h2>
+                  <AwardXpControl campaignId={campaignId} />
+                </section>
+              )}
 
               {/* Roll statistics (P3-3). Reads the log P3-1 started filling, computes client-side through
                   the pure module, and renders nothing at all until the table has actually rolled. */}
