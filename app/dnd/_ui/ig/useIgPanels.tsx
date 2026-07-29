@@ -663,8 +663,16 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const Row = ({ s }: { s: (typeof ig.skills)[number] }) => {
       const total = igSkillTotal(s, derived.level, igAbilityMod(ig.abilities[s.ability]));
       // Tap a skill to roll it (R1b): d20 + total through the shared engine, result in the banner.
+      //
+      // THE KIND MATTERS (RO-12). This passed no kind, so every skill fell to `rollLine`'s default of
+      // `ability_check` — and IG's conditions target roll kinds by name. Blind, Deaf, Fascinated and Prone
+      // all impose disadvantage on **`perception`** specifically, so a blinded character rolling Perception
+      // got a clean d20: the condition was on the sheet, the rule was implemented, and the roll never asked
+      // for it. Perception is routed to its own kind; everything else is a `skill`, which is also a kind the
+      // engine knows and was likewise never being sent.
+      const skillKind: IgRollKind = /^perception$/i.test(s.name) ? 'perception' : 'skill';
       return (
-        <button type="button" className="igs-row" onClick={() => rollLine(`${s.name} (${s.ability})`, total)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
+        <button type="button" className="igs-row" onClick={() => rollLine(`${s.name} (${s.ability})`, total, skillKind)} title={`Roll ${s.name} (d20 ${fmt(total)})`}
           style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13.5, fontWeight: 500, padding: '3px 6px', width: '100%', background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', textAlign: 'left' }}>
           <span style={{ color: 'var(--hx-text)' }}>{s.name}{s.proficient ? <span style={{ color: 'var(--hx-teal-1)', fontSize: 12 }}> ●</span> : null}</span>
           <span style={{ color: 'var(--hx-gold-2)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(total)}</span>

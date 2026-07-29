@@ -1569,12 +1569,35 @@ Every slice below serves that one rule.
       and a `.dnd-sheet`-scoped rule renders unstyled there — the exact bug RO-5 fixed for the Dice Core
       stage, and the easiest one to reintroduce.
 
-- [ ] **RO-12 — Catalogue the IG roll kinds and check the roller against each.** *"Look at the rules and
+- [x] **RO-12 — Catalogue the IG roll kinds and check the roller against each.** *"Look at the rules and
       all of the different kinds of rolls that IG has."* IG has skill checks, saves (Fort/Ref/Will),
       attacks, damage, and stance/condition-modified variants with advantage and disadvantage from
       `igStanceRollEffect` / `igConditionRollEffect`. Write the list down FIRST, then verify each renders
       correctly in all four rollers. **Not** a refactor until the list exists — this is the slice that finds
       out whether "revamp" means anything more than RO-10 + RO-11.
+
+      **Done 2026-07-28, and writing the list first is what found the bug.** The catalogue, from
+      `IgRollKind`: `attack · reflex_save · fortitude_save · will_save · save · perception · str_dex_check ·
+      skill · ability_check · any`, where `any` matches every d20 roll and `save` is a bucket over the three
+      specific saves.
+
+      **Nine of the ten were reachable. `skill` and `perception` were not.** The skills list called
+      `rollLine(label, total)` with no kind, so **every skill fell to the default `ability_check`** — and
+      IG's conditions target kinds by name. Blind, Deaf, Fascinated and Prone each impose disadvantage on
+      **`perception`** specifically, so **a blinded character rolling Perception got a clean d20.** The
+      condition was on the sheet, the rule was implemented and unit-tested, and the roll never asked for it.
+
+      That is the same shape as `PF2StrikeResult.notes` in RO-10 and Dice Core's missing sources in RO-11 —
+      three consecutive slices where the engine was right and the caller asked the wrong question. Worth
+      naming as a pattern: **in this codebase, "the rule is implemented" and "the rule applies" are separate
+      claims, and only the second one matters to a player.**
+
+      Perception now routes to its own kind and every other skill to `skill`. A test asserts all ten kinds
+      are either sent by a surface or reached as a bucket, so a new roll surface that forgets its kind fails
+      rather than silently rolling as a generic check.
+
+      **Not a revamp.** With RO-10, RO-11 and this in place, IG's rolls carry the right kind, name their
+      sources, and explain themselves on every template. What remains is visual (RO-13), not structural.
 
 - [ ] **RO-13 — Browser QA the rollers.** Four templates × four systems × idle/rolling/settled. **This is
       the one that cannot be skipped**: RO-7 through RO-9 are verified by tests and by reading, and the
