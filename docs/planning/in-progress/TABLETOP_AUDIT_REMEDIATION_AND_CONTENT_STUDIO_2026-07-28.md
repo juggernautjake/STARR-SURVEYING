@@ -3921,3 +3921,35 @@ The distinction matters: (1) is a typo, (2) is a decision. **Check which before 
 "not found" is exactly the message a scope mismatch produces, and it reads like a bug either way.
 
 **Test data cleaned up**: the Prone condition was removed from Lazzuh Gun directly, since revert would not.
+
+### Diagnosed: the grant's audit rows were never written
+
+Both earlier hypotheses were wrong, and so was my first reading of the symptom.
+
+- **Not a payload typo.** `revert-batch` reads `batchId` from the body and queries `.eq('batch_id', …)`.
+  The shape sent was correct.
+- **Not a scope filter.** That query has no `source` condition at all — it matches any batch for the
+  character.
+- **The rows simply do not exist.** Queried `dnd_sheet_edits` directly for the returned batch id:
+  **0 rows.**
+
+`grant-content` has two branches. The IG one writes no audit row **deliberately**, with a documented
+reason (those rows are SheetEdit-shaped and replaying a 5e op against the IG sidecar would corrupt the
+sheet — "an audit trail that corrupts the sheet when used is worse than no audit trail"). But the grant
+under test was to a **5e** character, so it took the audited branch, which mints a batch id and inserts.
+
+**The insert's error is never checked** (`await supabaseAdmin.from('dnd_sheet_edits').insert(…)` with no
+`{ error }` destructured), so a failing insert is swallowed and the route still answers `ok: true` with a
+batch id that refers to nothing.
+
+**Consequences, in order of seriousness:**
+1. A DM reaching into another player's sheet leaves **no trace in the edit history**. That matters more
+   than the undo button — it is the record of who changed someone else's character.
+2. The response advertises a `batchId` the system cannot honour, so any UI offering "undo that" from it
+   fails with "not found".
+
+**Not fixed here.** The next step is to find out WHY the insert fails — check the error rather than
+assume — since a swallowed database error usually means a column mismatch, and the fix depends on which.
+Then check the error at every `dnd_sheet_edits` insert, not just this one: this is the same
+`{ data, error }`-ignored shape that made the profile page report "0 pieces" for a missing table and the
+rate limiter fail open silently. **Third instance of that pattern today.**
