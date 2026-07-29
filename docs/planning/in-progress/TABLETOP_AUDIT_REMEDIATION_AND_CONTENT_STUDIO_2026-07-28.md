@@ -3802,3 +3802,33 @@ ticked that has not been verified.**
       trigger, upcast scale), **Duo-Dimension** (lasting effect altering size and granting advantage).
       **Step 1 is the payload link shape, and it gets persisted — a wrong shape can only be migrated,
       never changed. Start there, deliberately, with a fresh session.**
+
+**P14-8 DONE 2026-07-29 — the manual dice box now exists.** The check first: `RollFeed.tsx` exports
+`postRoll` and its module header calls the component "the manual dice box", but the file is 94 lines with
+**no form, no button and no input**. Nothing was removed — a control was never built, and the poster was
+sitting there unused. So a roll made with real dice at the table could not reach the feed at all.
+
+Deliberately **label + result**, with an optional note. A formula field would imply the app rolls it, and
+this exists precisely for the rolls it did *not* roll. `actorName` is left to the server session rather
+than typed, so nobody can post as another player from this box.
+
+## QUEUED — P14-13, granting things to a sheet (owner request, 2026-07-29)
+
+> *"make sure that the interface for adding feats and items and spells and stuff to characters is
+> intuitive and straight forward and comprehensive, for both players and dms. Dms need to be able to add
+> stuff to the players' character sheets that are in their campaign."*
+
+**Not started, and the mechanism already exists** — this is a UI/coverage question, not a new capability:
+
+- `/api/dnd/characters/[id]/grant-content` takes a REFERENCE (kind + name + system) and resolves it
+  server-side, so a caller can only ever grant something that genuinely exists. Its gate is
+  `requireCharacterWrite` — **the owner, the assigned player, OR a DM of a campaign the character is in**,
+  so the DM half of the request is already authorized at the API.
+- `GrantKind` is `spell | weapon | armor | item | feature | condition` — **feats are NOT in that list**,
+  and the owner named feats first. Adding one means a resolver, not just a string.
+- `AdoptContentPanel` + `/api/dnd/homebrew/[id]/adopt` cover homebrew; `GiveEntryButton` covers the
+  library. Two entry points with different vocabularies.
+
+**The work:** audit where each entry point is surfaced and to whom, add `feat` to the grant vocabulary,
+and give the DM a way in from the CAMPAIGN side rather than only from inside each sheet — the request is
+explicitly about reaching *the players'* sheets.
