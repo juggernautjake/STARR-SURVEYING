@@ -96,6 +96,11 @@ export default function HubSignIn({ displayName }: { displayName: string | null 
       </div>
       <p style={{ fontSize: 11.5, color: 'var(--hx-muted)', margin: 0 }}>
         Signing in? Use the password you set. Claiming a new name? Passwords need at least 8 characters.
+        {' '}
+        {/* The only entry point to recovery (P2-4). Without a link here, the route exists and nobody
+            locked out could ever find it — which is the same "built but unreachable" failure this audit
+            keeps turning up, in the one place where it costs someone their characters. */}
+        <a href="/dnd/recover" style={{ color: 'var(--hx-teal-1)' }}>Forgotten your password?</a>
       </p>
       <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} type="submit" disabled={busy} style={{ padding: '10px 18px' }}>
         {busy ? 'Signing in…' : 'Sign in / Claim name'}

@@ -111,6 +111,10 @@ function dndGate(req: Parameters<Parameters<typeof auth>[0]>[0]): NextResponse |
   // auth-gated; C6 consolidates it and retires the iframe).
   const isPublic =
     pathname === '/dnd/login' ||
+    // Account recovery (P2-4). MUST be public: everyone who needs it is locked out by definition, so
+    // gating it behind a session would redirect them to the sign-in page they cannot get past — a
+    // recovery route that only works for people who do not need it.
+    pathname === '/dnd/recover' ||
     pathname.startsWith('/dnd/join') ||
     // The RULES LIBRARY is readable by anyone with the link, even when login is enforced
     // (owner 2026-07-20): the owner shares library URLs with people who have no account.

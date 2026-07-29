@@ -2,6 +2,7 @@
 'use client';
 
 import { useRef, useState, type FormEvent } from 'react';
+import AccountSecurity from '@/app/dnd/_ui/AccountSecurity';
 import { useRouter } from 'next/navigation';
 import styles from '../_ui/hextech.module.css';
 
@@ -133,6 +134,10 @@ export default function ProfileForm({ user }: { user: DndUser }) {
             ← Back to Campaign Portal
           </a>
         </form>
+
+        {/* Password change + recovery code (P2-4). OUTSIDE the profile form on purpose: nesting a form
+            inside another is invalid HTML and would make the inner submit buttons post the outer form. */}
+        <AccountSecurity />
       </div>
     </div>
   );

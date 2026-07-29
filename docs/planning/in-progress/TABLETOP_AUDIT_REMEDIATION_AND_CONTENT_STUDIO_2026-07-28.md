@@ -456,13 +456,50 @@ should skip Phase 7 entirely.
       Three tests were re-pointed rather than loosened, one of which was pinning the OLD policy outright
       (`expect(ROUTE).not.toContain('at least 8 characters')`). Suite 1282 files / 18,429 tests green.
 
-- [ ] **P2-4 — Account recovery.** *(F-3.)* Identity is `name:<normalized>` with no email; a forgotten
+- [x] **P2-4 — Account recovery.** *(F-3.)* Identity is `name:<normalized>` with no email; a forgotten
       password means every character, variant and membership on that account is **permanently unreachable**,
       with no admin path.
       **Design:** (a) a change-password control that knows the old one; (b) a one-time recovery code shown
       once at signup and on demand, stored hashed; (c) *optional* recovery email — offered, never required,
       preserving the no-email design. **Done when:** a user who forgets their password has a route back that
       does not involve the owner editing the database.
+
+      **Done 2026-07-28.** `seeds/458_dnd_account_recovery.sql`, `lib/dnd/recovery.ts`, three routes
+      (`auth/password`, `auth/recovery-code`, `auth/recover`), `AccountSecurity` on the profile page, and
+      `/dnd/recover` linked from the sign-in form.
+
+      **(a) shipped, and it was worse than "no reset flow" — there was no way to change a password AT ALL.**
+      Not a missing recovery path; a missing change control, for a signed-in user who knew their password
+      and wanted a different one. It requires the old password anyway: a session on a borrowed machine must
+      not be enough to lock the real owner out.
+
+      **(b) shipped as a single-use hashed code.** The design constraint worth recording: the code must not
+      become a *second password*. Redeeming clears `recovery_hash` **in the same update** that sets the new
+      one, so there is no window where the code has been spent and still works. A permanent secondary
+      credential on every account forever would be strictly worse than no recovery, because it looks
+      responsible.
+
+      Three details that would each be a plausible-looking bug:
+      · **Rejection sampling.** A naive `byte % 27` over 0..255 skews the first few letters. Tested by
+        feeding only bytes from the biased tail and asserting no code is produced.
+      · **Forgiving about layout, strict about content.** Case, hyphens and spaces are normalised; glyphs
+        are never guessed. A typed `0` is not read as `O` — guessing would let a wrong code match.
+      · **Uniform refusal.** Unknown name, no code issued, wrong code and malformed code all return one
+        message. Anything else confirms which names exist and which are recoverable, on an unauthenticated
+        endpoint.
+
+      **`/dnd/recover` is exempted in middleware**, because everyone who needs it is locked out by
+      definition — gating it behind a session would redirect them to the sign-in page they cannot get past.
+      That is a recovery route that only works for people who do not need it, and it is the exact shape of
+      failure this audit keeps finding.
+
+      **(c) optional recovery email — DEFERRED**, and this is a decision rather than an omission: /dnd has
+      no mail infrastructure at all (no sender, no templates, no verification flow), so it is a
+      multi-slice build for a feature whose entire value is duplicated by the code above. The no-email
+      design is preserved either way. **P2-4b** if the owner ever wants it.
+
+      My own P2-3 test caught the three new password routes and failed until they were added to its list —
+      the guard working exactly as intended. Suite 1283 files / 18,453 tests green.
 
 - [x] **P2-5 — Campaign visibility, archive and delete. Shipped 2026-07-28.** *(Audit D-2, the last privacy
       item.)* `seeds/457_dnd_campaign_visibility.sql`, a filtered/bounded/ordered public index, a `DELETE`

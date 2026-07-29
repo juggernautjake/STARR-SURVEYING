@@ -20,12 +20,21 @@ import {
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
-/** Every route that hashes or verifies a password. */
+/**
+ * Every route that hashes or verifies a password.
+ *
+ * The last three were added by P2-4 (change password, issue a recovery code, redeem one) and this list
+ * caught them — which is the test working exactly as intended. A new password door that nobody remembered
+ * to throttle is precisely the state P2-3 found the API in.
+ */
 const PASSWORD_ROUTES = [
   'app/api/dnd/auth/login/route.ts',
   'app/api/dnd/auth/quick/route.ts',
   'app/api/dnd/auth/register/route.ts',
   'app/api/dnd/auth/signup/route.ts',
+  'app/api/dnd/auth/password/route.ts',
+  'app/api/dnd/auth/recover/route.ts',
+  'app/api/dnd/auth/recovery-code/route.ts',
 ];
 
 describe('the floor', () => {
