@@ -20,6 +20,17 @@ const ROOT = process.cwd();
  * point of the list is that adding to it is a deliberate act, not a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
+  // EXPIRES WITH P13-3. The bestiary importer is its only intended caller: it derives
+  // `dnd_creatures.variant_eligible` per row at import time, and P13-10 reads the same reason to pick a
+  // weak/elite formula. Neither exists yet — the tables (seed 462) are written but unapplied, so there is
+  // nothing to import into.
+  //
+  // Exempted rather than deferred because the RULE is the reviewable part and it is complete and tested:
+  // 1,500 creatures cannot be hand-marked, and the argument about which ones ladder is worth settling
+  // before an importer hard-codes it. When P13-3 lands, this test will fail with "now imported and should
+  // be removed from EXEMPT" — which is how the last exemption here got deleted.
+  'lib/dnd/bestiary/eligibility.ts':
+    'P13-9. Consumed by the P13-3 importer (writes variant_eligible) and P13-10 (picks the formula); neither exists yet because seed 462 is unapplied. Remove when P13-3 lands.',
   // `lib/dnd/homebrew/kinds.ts` was exempted here on 2026-07-28 with an expiry note naming the slice that
   // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
   // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got
