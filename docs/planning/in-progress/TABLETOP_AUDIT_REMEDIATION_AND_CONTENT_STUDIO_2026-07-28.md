@@ -2007,12 +2007,40 @@ Every slice below serves that one rule.
 
 ## Phase 9 — Data lifecycle
 
-- [ ] **P9-1 — JSON import.** *(H-1.)* Export produces a genuinely loss-less JSON; **nothing reads it back**.
+- [x] **P9-1 — JSON import.** *(H-1.)* Export produces a genuinely loss-less JSON; **nothing reads it back**.
       `/api/dnd/characters/import` is a different thing entirely (file upload → AI ingestion), so a user's own
       perfect backup can only be re-ingested by having a model guess at it.
       **Design:** `POST /api/dnd/characters/import-json` validating the exported shape, normalising the
       system, creating the character with its sidecar intact — **plus a round-trip test** (export → import →
       deep-equal), which is also the strongest possible guard on the export's completeness claim.
+
+      **Done 2026-07-29.** Built to the design above. `lib/dnd/export/character-import.ts` (pure parser),
+      the route, and an `⇪ Import JSON` button beside **＋ New character** on the characters hub.
+
+      **The round-trip test earns its place twice.** It is the import's correctness test *and* the first
+      thing that has ever checked the export's "literally everything" claim against anything but a person
+      looking at the file. The fixture is built out of the values a helpful normaliser eats: `quantity: 0`,
+      `invested: false`, `notes: ''`, `age: 0`, and a `null` five levels down. A **second** round trip is
+      asserted byte-identical to the first, which is the real guard — a character that degrades slightly
+      with every backup would pass a single-pass test forever.
+
+      Parsing is a **pure module**, not route code, which is the only reason any of that is testable without
+      a database.
+
+      **Three decisions worth their comments.** *Missing* `data` and *damaged* `data` are different errors,
+      because they mean different things to whoever is holding the file — "wrong file" versus "broken file",
+      and collapsing them sends someone hunting the wrong problem. The system goes through
+      `normalizeSystem`, so a hand-edited file cannot create a character in a system the rest of the app
+      does not believe in. And the export's `updatedAt` is **reported, never written** to `updated_at`: a
+      restore claiming last March sorts wrong in every list the user has.
+
+      A restored character lands **private** and campaign-less by default. Restoring a backup when the
+      campaign it belonged to is gone has to work, or the backup is useless in the one situation you
+      actually need it; and un-sharing something already seen is not a thing you can do.
+
+      **`ROUND_TRIP_FIELDS` makes an omission a decision.** `artSrc`/`tokenSrc` are on `CharacterExport` for
+      the HTML path only and `characterToJson` never emits them. The list is asserted against the export's
+      real key set, so if the export grows a field, this fails until someone says whether it round-trips.
 - [ ] **P9-2 — Campaign export.** *(H-2.)* Roster, session notes, recaps, maps, handouts, NPCs, roll log and
       chat. With P2-5, this is what makes deleting a campaign a safe action rather than a destructive one.
 - [ ] **P9-3 — Pathbuilder import.** *(H-3.)* A deterministic adapter for Pathbuilder's JSON — fast, exact,

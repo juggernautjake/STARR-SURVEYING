@@ -17,6 +17,7 @@ import CharacterRowActions from '@/app/dnd/_ui/CharacterRowActions';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { characterCard, characterMatches } from '@/lib/dnd/character-card';
 import { availableSystems, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
+import ImportCharacterJsonButton from '@/app/dnd/_ui/ImportCharacterJsonButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'My Characters | Starr Tabletop' };
@@ -121,6 +122,9 @@ export default async function MyCharactersPage({
             <Link className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} href="/dnd/characters/new" style={{ textDecoration: 'none' }}>
               ＋ New character
             </Link>
+            {/* Next to "New character" because that is what importing is — another way to end up with one,
+                and the one a returning user looks for first (P9-1). */}
+            <ImportCharacterJsonButton />
             <form method="GET" action="/dnd/characters" style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
               {systemFilter && <input type="hidden" name="system" value={systemFilter} />}
               <input className={styles.input} name="q" defaultValue={q} placeholder="Search by name, class…"
