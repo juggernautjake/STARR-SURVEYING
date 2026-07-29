@@ -21,7 +21,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, stripTotalTail } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
@@ -57,7 +57,11 @@ function buildDamageTiles(breakdown: string): StackTile[] {
     })
     return tiles
   }
-  breakdown.split(/\s+/).filter(Boolean).forEach((tok, i) => {
+  // Drop the trailing `= N` summary before tokenising (RO-14) — see `stripTotalTail`. The same phantom
+  // "flat" tile appeared here as in Impact, which is what proved the bug was in the SHARED tokenising
+  // rather than in one roller: these two functions are near-identical, so fixing one would have left the
+  // other looking correct while still being wrong.
+  stripTotalTail(breakdown).split(/\s+/).filter(Boolean).forEach((tok, i) => {
     const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/)
     if (dm) {
       const sign = dm[1] ? -1 : 1

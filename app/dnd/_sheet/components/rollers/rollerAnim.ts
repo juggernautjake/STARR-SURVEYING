@@ -40,3 +40,21 @@ export function shouldAnimateRoller(rollerAnim: boolean | undefined): boolean {
 export function adoptedToken(activeRoll: { token: number } | null | undefined): number {
   return activeRoll?.token ?? -1;
 }
+
+/**
+ * Strip the trailing `= N` summary from a breakdown before parsing it into terms (RO-14).
+ *
+ * `rollDiceExpr` returns `"1d4[1] = 1"` — the total is appended for readability. Every roller then splits
+ * the breakdown on whitespace and treats a bare number as a flat modifier, so that trailing total was read
+ * as a term: a plain d4 rendered a die row AND a phantom `flat +1`.
+ *
+ * Shared rather than duplicated because the bug was in TWO tokenisers at once (`buildDamageRows` in Impact
+ * and `buildDamageTiles` in the Sigil Stack are near-identical), which is exactly how it survived — fixing
+ * one would have left the other, and the Roll Board reads the same strings.
+ *
+ * Only a trailing `= <number>` is removed. A breakdown with no summary is returned untouched, and an `=`
+ * appearing anywhere but the end is left alone rather than guessed at.
+ */
+export function stripTotalTail(breakdown: string): string {
+  return (breakdown ?? '').replace(/\s*=\s*-?\d+\s*$/, '').trim();
+}

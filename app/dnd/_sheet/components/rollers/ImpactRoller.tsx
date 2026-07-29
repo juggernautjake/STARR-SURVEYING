@@ -23,7 +23,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, stripTotalTail } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { dieSides, ngonPoints } from './dieShape'
 import './impactRoller.css'
@@ -51,7 +51,17 @@ function buildDamageRows(breakdown: string): BreakRow[] {
     })
     return rows
   }
-  breakdown.split(/\s+/).filter(Boolean).forEach((tok, i) => {
+  // Drop the trailing `= N` SUMMARY before tokenising (RO-14).
+  //
+  // `rollDiceExpr` returns `"1d4[1] = 1"` — the total is appended to the breakdown for readability. Both
+  // tokenisers split on whitespace and treat any bare number as a flat modifier, so that trailing total was
+  // read as a `+1` term: a bare d4 rendered a die row AND a phantom "flat +1" row. Found by browser QA
+  // (RO-13), and visible in the Sigil Stack too, which is what identified the SHARED tokeniser rather than
+  // one roller.
+  //
+  // The tell was that the phantom contradicted the row beneath it: `1d4[1]` plus `+1` is 2, and the total
+  // row correctly said 1. A term that does not sum with the others was never a term.
+  stripTotalTail(breakdown).split(/\s+/).filter(Boolean).forEach((tok, i) => {
     const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/)
     if (dm) {
       const sign = dm[1] ? -1 : 1

@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adoptedToken } from '@/app/dnd/_sheet/components/rollers/rollerAnim';
+import { adoptedToken, stripTotalTail } from '@/app/dnd/_sheet/components/rollers/rollerAnim';
 
 const CSS = 'app/dnd/_sheet/components/rollers';
 const read = (f: string) => readFileSync(join(process.cwd(), CSS, f), 'utf8');
@@ -187,5 +187,38 @@ describe('every roller can explain a roll (RO-11)', () => {
     const src = readAny('rollers/RollWhy.tsx');
     expect(src).toContain('▲');
     expect(src).toContain('▼');
+  });
+});
+
+describe('a breakdown’s trailing "= N" is a summary, not a term (RO-14)', () => {
+  // FOUND BY BROWSER QA. `rollDiceExpr` returns "1d4[1] = 1" — the total is appended for readability. Both
+  // damage tokenisers split on whitespace and treat a bare number as a flat modifier, so that trailing
+  // total became a `+1` term: a plain d4 rendered a die row AND a phantom "flat +1".
+  //
+  // The tell was that the phantom CONTRADICTED the row beneath it — `1d4[1]` plus `+1` is 2, and the total
+  // row correctly said 1. A term that does not sum with the others was never a term.
+  it('strips only a trailing summary', () => {
+    expect(stripTotalTail('1d4[1] = 1')).toBe('1d4[1]');
+    expect(stripTotalTail('2d6[3,5] + 4 = 12')).toBe('2d6[3,5] + 4');
+    expect(stripTotalTail('d8[7] = -2')).toBe('d8[7]');
+  });
+
+  it('and leaves a breakdown without one untouched', () => {
+    expect(stripTotalTail('1d4[1]')).toBe('1d4[1]');
+    expect(stripTotalTail('d20[14] + 7')).toBe('d20[14] + 7');
+    expect(stripTotalTail('')).toBe('');
+  });
+
+  it('never eats an "=" that is not the trailing summary', () => {
+    // Guessing at a mid-string `=` would silently drop real terms.
+    expect(stripTotalTail('a = b 1d4[1]')).toBe('a = b 1d4[1]');
+  });
+
+  it('and BOTH tokenisers use it — fixing one would have left the other wrong', () => {
+    const dir = 'app/dnd/_sheet/components/rollers';
+    for (const f of ['ImpactRoller.tsx', 'SigilStack.tsx']) {
+      const src = readFileSync(join(process.cwd(), dir, f), 'utf8');
+      expect(src, `${f} must strip the summary before tokenising`).toMatch(/stripTotalTail\(breakdown\)\.split\(/);
+    }
   });
 });

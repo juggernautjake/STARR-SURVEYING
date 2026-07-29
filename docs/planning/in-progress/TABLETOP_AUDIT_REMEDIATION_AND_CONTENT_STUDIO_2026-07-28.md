@@ -1627,8 +1627,26 @@ Every slice below serves that one rule.
       IG (RO-8); the window is 560px and the resize corner is gone; all four template buttons and the dice
       pad render on the IG shell.
 
-- [ ] **RO-14 — Impact renders a phantom `flat` row for a bare die.** Found during RO-13 and deliberately
+- [x] **RO-14 — Impact renders a phantom `flat` row for a bare die.** Found during RO-13 and deliberately
       left open rather than guessed at.
+
+      **Done 2026-07-29, root-caused rather than patched.** `rollDiceExpr` returns
+      **`"1d4[1] = 1"`** — the total is appended to the breakdown for readability. Both damage tokenisers
+      split on whitespace and treat any bare number as a flat modifier, so **the trailing total was read
+      back as a `+1` term**. `stripTotalTail` (shared, in `rollerAnim.ts`) removes only a trailing
+      `= <number>`; an `=` anywhere else is left alone rather than guessed at.
+
+      **What made it findable was the inconsistency, not the duplicate.** `1d4[1]` plus `+1` is 2, and the
+      total row correctly said 1 — so the phantom did not sum with its own siblings. **A term that does not
+      agree with the total was never a term**, which is what ruled out the expression parsers and pointed
+      at render-time tokenising.
+
+      **And it was in TWO places at once.** `buildDamageRows` (Impact) and `buildDamageTiles` (Sigil Stack)
+      are near-identical, and the Sigil Stack showed the same phantom — which is how the shared cause was
+      identified. Fixing only the roller the bug was reported against would have left the other wrong and
+      looking correct. Both now call the shared helper, and a test asserts both do.
+
+      Verified in the browser on the IG sheet: rows are now `1d4 +1` and `Total 1`, with no `flat`.
 
       **The evidence, measured in the DOM** (IG sheet, Impact template, dice pad `d4`):
       ```
