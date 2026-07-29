@@ -42,8 +42,14 @@ describe('the homebrew designers are reachable by clicking', () => {
 
   it('is offered only to people who can edit the character', () => {
     const page = read(SHEET_PAGE);
-    // Rendered inside a `canWrite &&` guard — authoring content onto someone else's sheet is not a thing.
-    expect(page).toMatch(/canWrite && \(\s*<HomebrewDesignerLinks/);
+    // RE-POINTED 2026-07-29 (P4-3b). The designers moved from an inline `canWrite && (…)` above the sheet
+    // into the Build tab, where the same gate is expressed as `node: canWrite ? (…) : null` — and
+    // `SheetSections` drops a section whose node is null, so a read-only viewer gets no Build TAB at all
+    // rather than an empty one. The property is unchanged and slightly stronger: authoring content onto
+    // someone else's sheet is still not a thing.
+    const build = page.slice(page.indexOf("id: 'build',"), page.indexOf("id: 'manage',"));
+    expect(build).toMatch(/node: canWrite \?/);
+    expect(build).toContain('<HomebrewDesignerLinks');
   });
 });
 

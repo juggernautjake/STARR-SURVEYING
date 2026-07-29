@@ -84,3 +84,52 @@ describe('what it groups on the character page', () => {
     expect(page).toMatch(/blurb: 'Who can see this character/);
   });
 });
+
+describe('the Build group (P4-3b)', () => {
+  // MEASURED BEFORE TOUCHING ANYTHING, on a real 2014 sheet in a browser: the sheet — the reason the page
+  // exists — started **1103px** down, more than a full 889px viewport of tools above it. Moving the two
+  // largest movable panels into a tab brought that to **807px**.
+  const page = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
+
+  it('has a Build section', () => {
+    expect(page).toMatch(/id: 'build',/);
+    expect(page).toMatch(/label: 'Build',/);
+  });
+
+  it('holding the designers and adopt-content', () => {
+    const build = page.slice(page.indexOf("id: 'build',"), page.indexOf("id: 'manage',"));
+    expect(build).toContain('<HomebrewDesignerLinks');
+    expect(build).toContain('<AdoptContentPanel');
+  });
+
+  it('and neither still renders above the sheet', () => {
+    // The whole point. If either is reintroduced inline, the page grows back and the tab quietly becomes
+    // a duplicate rather than a home.
+    const beforeSections = page.slice(0, page.indexOf('<SheetSections'));
+    expect(beforeSections, 'designers must not also render inline').not.toContain('<HomebrewDesignerLinks');
+    expect(beforeSections, 'adopt must not also render inline').not.toContain('<AdoptContentPanel');
+  });
+
+  it('Build is NOT the first section', () => {
+    // `SheetSections` opens `live[0]`, so order decides what paints on arrival. The first browser check
+    // showed only 101px saved because Build led and its 214px of designers still rendered. Experience is a
+    // glance; Build is a task you go to.
+    expect(page.indexOf("id: 'xp',")).toBeLessThan(page.indexOf("id: 'build',"));
+  });
+
+  it('and is empty for a viewer who cannot write', () => {
+    // SheetSections drops empty sections, so a read-only viewer gets no Build tab rather than one that
+    // opens onto nothing.
+    const build = page.slice(page.indexOf("id: 'build',"), page.indexOf("id: 'manage',"));
+    expect(build).toMatch(/node: canWrite \?/);
+  });
+
+  it('the Build Kit, chrome and versions deliberately STAY above the sheet', () => {
+    // Not an oversight. The Build Kit is the primary "build this character" action; U-4 requires the
+    // STYLE·TEMPLATE·THEME block to sit in the same spot on every system; VERSIONS is a picker for what you
+    // are looking at, not a tool you visit.
+    const beforeSections = page.slice(0, page.indexOf('<SheetSections'));
+    expect(beforeSections).toContain('{topPanel}');
+    expect(beforeSections).toContain('<SheetChrome');
+  });
+});

@@ -319,23 +319,19 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
   return (
     <>
       {topPanel}
-      {/* The homebrew designers (P0-4). They shipped complete and tested with NOTHING linking to them, so
-          this is the door. Gated inside the component on `isSharedEngineSystem`, because they emit 5e
-          shapes a PF2/IG engine cannot resolve — see its header. */}
-      {canWrite && (
-        <HomebrewDesignerLinks
-          characterId={character.id}
-          system={normalizeSystem((character as { system?: string }).system)}
-        />
-      )}
-      {/* Adopt shared custom content onto this sheet (P6-8) — the Studio's payoff surface. Sits directly
-          under the designers so "make your own" and "use someone else's" read as one idea. */}
-      {canWrite && (
-        <AdoptContentPanel
-          characterId={character.id}
-          system={normalizeSystem((character as { system?: string }).system)}
-        />
-      )}
+      {/* The homebrew designers and adopt-content MOVED into the Build tab below (P4-3b). Measured on a
+          real sheet before touching anything: they were 214px and 58px of always-open panel sitting between
+          the Build Kit and the character, and **the sheet — the reason the page exists — started 1103px
+          down**, more than a full viewport of tools above it. They are not gone; they are one click away,
+          under a tab beside Experience and Manage.
+
+          Deliberately NOT moved, and this is the part the slice warned was riskier than it looks:
+            · the Build Kit stays at the top — it is the primary "build this character" action, and burying
+              the entry point behind a tab to shorten the page trades one discoverability problem for
+              another;
+            · SheetChrome (STYLE · TEMPLATE · THEME) stays, because U-4's whole point is that all three axes
+              sit in the SAME spot on every character and system;
+            · VERSIONS stays, because it is a picker for what you are looking AT, not a tool you visit. */}
       {/* The unified STYLE · TEMPLATE · THEME chip block (U-4), surfaced right below the Build Kit so all
           three axes sit in the SAME spot on every character — above every sheet (5e engine, PF2, IG all
           render further down), chosen the same way (highlighted chips), for every system. Replaces the old
@@ -429,6 +425,37 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
                 canWrite={canWrite}
               />
             ),
+          },
+          {
+            // BUILD (P4-3b). "Make your own content" and "use someone else's" are one idea, so they stay
+            // adjacent — just inside a tab rather than always open above the character. `node` is null for
+            // a viewer who cannot write, and SheetSections drops empty sections rather than offering a tab
+            // that opens onto nothing.
+            //
+            // NOT FIRST, deliberately. `SheetSections` opens `live[0]`, so ordering decides what renders on
+            // arrival — and the first browser check showed the sheet moving up only 101px because Build was
+            // default-open and its 214px of designers still painted. Experience leads because it is a
+            // GLANCE; Build is a task you go to, and Manage is settings. Order here is a default, not a
+            // ranking.
+            id: 'build',
+            label: 'Build',
+            blurb: 'Author a class, subclass or feat for this character — or adopt content someone else has shared.',
+            node: canWrite ? (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {/* The homebrew designers (P0-4). They shipped complete and tested with NOTHING linking to
+                    them, so this is the door. Gated inside the component on `isSharedEngineSystem`, because
+                    they emit 5e shapes a PF2/IG engine cannot resolve — see its header. */}
+                <HomebrewDesignerLinks
+                  characterId={character.id}
+                  system={normalizeSystem((character as { system?: string }).system)}
+                />
+                {/* Adopt shared custom content onto this sheet (P6-8) — the Studio's payoff surface. */}
+                <AdoptContentPanel
+                  characterId={character.id}
+                  system={normalizeSystem((character as { system?: string }).system)}
+                />
+              </div>
+            ) : null,
           },
           {
             id: 'manage',

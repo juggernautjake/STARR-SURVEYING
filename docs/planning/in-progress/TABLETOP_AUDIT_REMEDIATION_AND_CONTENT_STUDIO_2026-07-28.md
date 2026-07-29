@@ -889,10 +889,37 @@ should skip Phase 7 entirely.
       be a choice. A test pins that each moved panel renders **exactly once**, because the failure mode of
       this refactor is leaving the old copy behind.
 
-- [ ] **P4-3b — The Build group.** Build kit, homebrew designers, adopt-content, variants, DM grants and
+- [x] **P4-3b — The Build group.** Build kit, homebrew designers, adopt-content, variants, DM grants and
       build questions into a second section. Left for its own slice because those panels are interleaved
       with the three system sheets in the JSX, and moving them is a genuinely riskier edit than the four
       trailing ones — worth doing with a browser open rather than at the end of a batch.
+
+      **Done 2026-07-29, with the browser open as the slice asked.** Measuring first changed what I built.
+
+      **The number that made the case:** on a real 2014 sheet, **the sheet itself started 1103px down** —
+      more than a full 889px viewport of tools above the character the page exists to show. Moving the two
+      largest movable panels (the designers at 214px, adopt-content at 58px) into a **Build** tab brought
+      that to **807px**, verified by re-measuring rather than by assuming.
+
+      **The browser also corrected my first attempt.** Build was initially the FIRST section, and
+      `SheetSections` opens `live[0]` — so its 214px of designers still painted on arrival and the sheet
+      moved up only 101px. Ordering is a default, not a ranking: Experience leads because it is a *glance*,
+      Build is a task you go to, Manage is settings. That is a mistake a source-level test would have called
+      a pass.
+
+      **Deliberately NOT moved**, against the slice's own list, because burying them trades one
+      discoverability problem for another:
+      · **the Build Kit** — the primary "build this character" action, and the entry point for the whole flow;
+      · **SheetChrome** — U-4's entire point is that STYLE · TEMPLATE · THEME sit in the SAME spot on every
+        character and system;
+      · **VERSIONS** — a picker for what you are looking AT, not a tool you visit.
+      Variants, DM grants and build questions were likewise left where they are; the two panels moved here
+      are the ones that were both large and genuinely "go and do a task".
+
+      A test pins that neither moved panel ALSO renders inline — otherwise the page grows back and the tab
+      quietly becomes a duplicate rather than a home. One existing test was re-pointed: the `canWrite &&
+      (…)` guard became `node: canWrite ? (…) : null`, which is slightly stronger, since `SheetSections`
+      drops a null section entirely and a read-only viewer now gets no Build tab at all.
 
 - [ ] **P4-4 — A ⌘K command palette.** *(D-6.)* The library has excellent search; nothing else does. One
       palette spanning characters, campaigns, NPCs, custom content and library articles, reusing the
