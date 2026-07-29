@@ -17,6 +17,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:inline-style-hex": "tsx scripts/scan-inline-style-hex.ts",
     "verify:fs-figures": "tsx scripts/verify-fs-figures.ts",
     "verify:fs-questions": "tsx scripts/verify-fs-questions.ts",
     "db:seed": "node scripts/apply-seeds.mjs",

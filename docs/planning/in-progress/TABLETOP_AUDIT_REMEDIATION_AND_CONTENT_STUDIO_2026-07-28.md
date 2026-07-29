@@ -2113,10 +2113,39 @@ Every slice below serves that one rule.
       tool is unusable on a tablet or phone, while the player console it embeds *does* have touch handling.
       Convert to Pointer Events (largely mechanical) plus `touch-action` CSS; add a breakpoint collapsing the
       tab rail and inspector into drawers below ~900px.
-- [ ] **P10-2 — Hold the line on inline styles.** *(G-2.)* 3,111 inline `style={{…}}` objects against 658
+- [x] **P10-2 — Hold the line on inline styles.** *(G-2.)* 3,111 inline `style={{…}}` objects against 658
       CSS-module class uses — which is why every theming pass has been expensive: an inline colour cannot be
       reached by a token, a media query, a print stylesheet or a contrast audit. **Not a rewrite:** a lint
       rule flagging hex literals inside `style={{}}`, and opportunistic migration whenever a file is touched.
+
+      **Done 2026-07-29.** `scripts/scan-inline-style-hex.ts` + a per-file baseline + a guard test, and
+      `npm run verify:inline-style-hex`.
+
+      **A ratchet, not a rule.** A file absent from the baseline must have **zero**; a file in it may not
+      get worse. New code cannot add to the pile, old code can only be paid down, and nothing has to be
+      rewritten today. A rule that failed on all 1,662 at once would be switched off within a day.
+
+      **Built as a guard test rather than an ESLint rule, deliberately.** A custom rule under the legacy
+      `.eslintrc.json` needs a plugin package installed to be loadable at all; the repo already enforces
+      several structural invariants this way (`no-orphan-modules`, `hx-token-references`), it runs in the
+      same suite, and it gave up nothing but editor squiggles. Recorded because the plan said "lint rule"
+      and this is not one.
+
+      **The real number is 1,662 across 267 files, not the 14,147 my first scan reported.** That scan
+      reused one global `RegExp` across every file, so `lastIndex` carried between them and the counts were
+      nonsense. Verified against an independent count on the worst file — 173 of its 180 hex literals are
+      inside inline styles. Worth recording: a measurement is a claim, and this one was wrong by 8×.
+
+      The counter **brace-matches** rather than using `style=\{\{[^}]*\}\}`, which stops at the first nested
+      `}` and misses every hex after it — reporting an improvement that never happened, the one way a
+      ratchet lies. `--write` takes the **minimum** of baseline and actual, so the baseline can only tighten;
+      a test asserts it is never looser than the code, because an inflated entry is unused budget that
+      quietly re-opens the door. The failure message names the file, the delta, the reason and the fix, and
+      I confirmed it fires by adding a violation and watching it fail.
+
+      **P10-3 is where this stopped being a preference.** The print stylesheet fixes ink by overriding CSS
+      *variables*; an inline hex is invisible to it and prints as whatever it was on screen. That cost is
+      now written down next to the code that causes it.
 - [x] **P10-3 — A native print stylesheet for the live sheet.** The HTML export already carries print CSS;
       applying the same rules to the live sheet makes Ctrl-P produce something real.
 
