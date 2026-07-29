@@ -26,7 +26,7 @@
 import type { CSSProperties } from 'react';
 import { SHEET_STYLES } from './sheet-styles';
 import type { SheetTheme } from '@/app/dnd/_sheet/theme';
-import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme } from '@/app/dnd/_sheet/theme';
+import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme, THEMES } from '@/app/dnd/_sheet/theme';
 
 /** Each skin's FONT set, keyed by `sheet_type`, so the bespoke PF2/IG sheets get the skin's TYPEFACE — not
  *  only its colours (CS-1). `default` (Hextech) keeps the baseline `--hx-font-*`, so it's absent here. The
@@ -442,7 +442,25 @@ export function shellThemeVars(sheetType: string | undefined): CSSProperties {
 export function skinThemeHxVars(sheetType: string | undefined, theme: SheetTheme | null | undefined): CSSProperties {
   if (!theme) return skinHxVars(sheetType);
   const isDefault = !sheetType || sheetType === 'default' || !SHEET_STYLES.some((s) => s.id === sheetType && s.id !== 'default');
-  if (isDefault) return { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
+  // A SKIN'S OWN THEME MAY SET ITS GROUNDS; a universal one may not.
+  //
+  // P11-3's rule — the skin keeps its grounds, the theme contributes accents — is right for the five
+  // SHARED themes, which are authored for Hextech and would otherwise turn every style deep navy. It is
+  // wrong for a style whose themes are its own: the streamer's Bubblegum/Aqua pair is a palette swap that
+  // drives its `.variant-<id>` art, not an accent change. Under the shared rule both produced an
+  // IDENTICAL background on the bespoke PF2/IG sheets — the 5e sheet reads `themeToCssVars` directly and
+  // so looked correct, which is exactly how the owner described it: "the aqua theme for the dnd editions
+  // seems good, I am mainly talking about the IG and PF2e character sheets".
+  //
+  // `themeVariantsFor` already knows which styles have their own; asking it keeps the two in step rather
+  // Compared against the SHARED list, and NOT against `themeVariantsFor(skin)` — that returns the shared
+  // themes for every non-streamer style, so matching against it made EVERY theme look skin-native and
+  // reverted P11-3 wholesale. Thirteen tests caught it in one run, which is the value of having pinned
+  // "a theme recolours a skin without replacing it" as a property rather than a screenshot.
+  //
+  // A theme is skin-native precisely when it is NOT one of the five shared ones.
+  const skinNative = !THEMES.some((v) => v.theme === theme);
+  if (isDefault || skinNative) return { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
   return skinHxVars(sheetType, {
     accent: theme.colors?.teal || theme.colors?.tealbright,
     gold: theme.colors?.gold,

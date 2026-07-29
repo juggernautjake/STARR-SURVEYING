@@ -239,11 +239,15 @@ export const rangorTheme: SheetTheme = {
 // in theme.css, which swaps the accent triplets + backing colors to match.
 export const streamerThemeBlue: SheetTheme = {
   colors: {
-    void: '#eef5ff',
-    'void-2': '#e2edff',
-    panel: '#f8fbff',
-    'panel-2': '#e8f1ff',
-    'panel-3': '#e2ecff',
+    // Bluer grounds (owner 2026-07-29: "make the aqua theme for the streamer style have a more blue
+    // background"). Every step moves toward the theme's own #2b7fff while staying in the LIGHT family the
+    // streamer skin is built on: its ink is a deep navy (#0d2a5a) clamped against these panels, so pushing
+    // them to a true saturated blue would break the contrast the skin depends on rather than restyle it.
+    void: '#dce9ff',
+    'void-2': '#cadeff',
+    panel: '#eaf2ff',
+    'panel-2': '#d6e6ff',
+    'panel-3': '#cadeff',
     ink: '#0d2a5a',
     muted: '#4f6aa2',
     'muted-2': '#6f88bd',

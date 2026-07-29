@@ -159,6 +159,9 @@ export default async function MyCharactersPage({
                 // inside an anchor — invalid HTML, and a click on "Delete" would also navigate to the sheet.
                 <div
                   key={row.id}
+                  // The delete action hides this card the instant the API confirms, instead of waiting
+                  // for `router.refresh()` to round-trip the whole server page — see CharacterRowActions.
+                  data-character-card={row.id}
                   className={styles.framedPanel}
                   style={{ color: 'inherit', padding: '12px 14px', display: 'grid', gap: 6, alignContent: 'start' }}
                 >

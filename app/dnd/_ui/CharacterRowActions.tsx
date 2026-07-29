@@ -49,6 +49,16 @@ export default function CharacterRowActions({ id, name, canDelete }: {
         setError(j.error ?? 'Could not delete.');
         return;
       }
+      // GONE IMMEDIATELY, then reconcile. `router.refresh()` alone re-fetches the whole server page, so
+      // the card a user just confirmed the deletion of sat there through a full round trip — long enough
+      // to read as "the button did nothing" and be clicked again. The row is removed the moment the API
+      // confirms; the refresh still runs behind it so counts and filters catch up.
+      //
+      // Keyed on `data-character-card` rather than walking up N parents: a DOM shape guess would break
+      // silently the next time the card gains a wrapper, and this cannot.
+      if (typeof document !== 'undefined') {
+        document.querySelector(`[data-character-card="${id}"]`)?.remove();
+      }
       router.refresh();
     } catch { setError('Network error.'); } finally { setBusy(null); }
   }
