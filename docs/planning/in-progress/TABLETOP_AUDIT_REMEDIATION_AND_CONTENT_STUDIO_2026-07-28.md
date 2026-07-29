@@ -3895,3 +3895,29 @@ capability usually exists and the door is the thing missing.**
 
 **Do (3) before (1).** Building a new entry point onto a path nobody has run is how the last several
 "authored but not wired" defects were born.
+
+**P14-13 step (3) DONE 2026-07-29 — the grant path works against real data.** Exercised end to end:
+`POST /api/dnd/characters/<id>/grant-content { kind: 'condition', name: 'Prone', system: 'dnd5e-2014' }`
+returned `{ ok: true, summary: "Applied the condition Prone.", batchId: … }` and the condition was on the
+sheet. `?writable=1` returned four characters, as the chooser expects.
+
+So the capability the owner asked for is real, not just present in the types. **Build the campaign-side
+entry point (step 1) on a path now known to work.**
+
+### ⚠ FOUND WHILE VERIFYING — a grant's batchId cannot be undone
+
+`grant-content` returns a `batchId`, and `POST /edits/revert-batch` with it answers **"That change was not
+found (it may already be undone)."** So the one thing that reaches into someone else's sheet is the one
+thing a DM cannot take back with the undo button — a mis-granted item has to be removed by hand.
+
+Not yet diagnosed. Two candidates, and they need distinguishing before either is "fixed":
+1. **The payload key.** This test sent `{ batchId }`; the route may read `batch_id`. If so the failure is
+   the caller's, and any UI passing the same shape fails identically.
+2. **The scope.** `revert-batch` was built for the AI edit loop (Area C, "undo a whole AI request"). It may
+   deliberately match only `source: 'ai'` rows, in which case a grant is out of scope BY DESIGN and the
+   fix is to widen it knowingly — or to say so in the response instead of "not found".
+
+The distinction matters: (1) is a typo, (2) is a decision. **Check which before changing anything** —
+"not found" is exactly the message a scope mismatch produces, and it reads like a bug either way.
+
+**Test data cleaned up**: the Prone condition was removed from Lazzuh Gun directly, since revert would not.
