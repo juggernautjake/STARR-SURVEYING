@@ -187,7 +187,11 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     //
     // `minmax(0, 1fr)` caps the track at the container and lets it shrink below min-content, which is what
     // makes the wrapping and the inner scroll regions downstream actually engage.
-    <div className={`${styles.framedPanel} ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16 }}>
+    // `bespoke-sheet` is a marker, not a style: it is how `bespokeButtons.css` reaches the CLASSIC view.
+    // That file is scoped to `.sheet-shell` and says it covers every format — but `.sheet-shell` is the
+    // Codex/Dashboard/Play wrapper, so Classic matched none of its rules and its `.btn` controls kept
+    // inheriting `#0f1419`, measuring 1.08:1 on the dark skins (P11-4).
+    <div className={`${styles.framedPanel} ${skin} bespoke-sheet`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16 }}>
       {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
       {artUrl ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>

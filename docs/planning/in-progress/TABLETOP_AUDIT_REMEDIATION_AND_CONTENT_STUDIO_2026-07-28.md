@@ -2840,13 +2840,61 @@ variance rather than one look with different colours.
       Also fixed `shell-light-skin.test.ts`, which pinned the *name* `shellThemeVars(sheetType)` and so
       failed a rename that strengthened the very guarantee it exists to protect.
 
-- [ ] **P11-4 — Make the THEMES safe across every skin and format.** Contrast-checked pairs, and a token
+- [x] **P11-4 — Make the THEMES safe across every skin and format.** Contrast-checked pairs, and a token
       contract each skin must satisfy so a new theme cannot break a format it was never viewed in.
 
-      **Reshaped by P11-3.** The pairs are no longer "theme replaces skin" but "theme's accent, clamped
-      against the skin's ground", so the contrast work is by construction rather than per-pair. What
-      remains: run the sweep across FORMATS (the clamps were verified on Classic) and confirm the
-      streamer's own two variants still behave, since they alone drive an art swap.
+      **Done 2026-07-29 — swept the whole matrix and fixed everything it found bar a 0.04.**
+
+      Folded the repo's own contrast method (`docs/planning/qa-evidence/contrast-sweep.md` — fourteen
+      documented ways a browser colour measurement lies) into `contact-sheet.mjs`, so every cell is
+      measured rather than looked at. Reused rather than rewritten *because* a naive `color` vs
+      `background-color` probe is one of the fourteen.
+
+      **Baseline: 293 failures across 11,858 sampled elements (88 cells). After: 10, in 3 cells of 86.**
+      Three distinct bugs, and **all three were the same mistake** — a colour that assumes one ground:
+
+      · **The jump-nav strip.** `.pf2Nav` hardcoded `background: rgba(9, 20, 40, 0.94)`. The pills on it
+        are `--hx-gold-2`, which `skinHxVars` clamps against the skin's PANEL — so on a light skin the
+        clamp deepens the gold to read on cream, and this rule then painted it onto dark navy.
+        **2.20–2.57:1**, all three light skins, every theme. Now `rgba(var(--hx-panel-rgb), 0.94)`, with
+        the old literal as the fallback so the default skin is unchanged to the pixel.
+      · **The ✎ Edit buttons — and `bespokeButtons.css` said it had already fixed this.** That file is
+        scoped to `.sheet-shell` and its header claims it "reaches the bespoke sheets in every format
+        (Classic/Codex/Dashboard/Play)". `.sheet-shell` is the *shell* wrapper; **Classic is not a shell**,
+        so Classic matched none of its rules and kept inheriting `#0f1419` at **1.08:1** on the dark skins.
+        Fixed with a `.bespoke-sheet` marker class on both Classic roots — not by adding `.sheet-shell`,
+        which also carries the shells' layout.
+      · **The shells' footer hint**, identically: `.footer` is styled under `.dnd-sheet` in theme.css,
+        which the bespoke sheets deliberately do not import. **1.08:1**, 31 of 73 cells.
+
+      Plus one that was half-fixed already: PF2's `− Damage` button painted its LABEL with `--hx-danger`, a
+      border/fill accent (2.94:1 dark, 3.90–4.43 light). The IG sheet had long since split label from
+      border; PF2 never did. `--hx-danger-2` — the text-weight red — was a fixed `#ef8b85` tuned for dark
+      panels, so it is now contrast-clamped per skin exactly like `gold-2` and `teal-1`, in **both**
+      derivations.
+
+      **The pattern is worth naming: each of these read correctly on half the skins by coincidence**, and
+      that coincidence is what hid them. The nav was right on dark skins and wrong on light; the buttons
+      and footer were the exact reverse. Anything that hardcodes a colour inside a themable component is a
+      contrast clamp aimed at a surface the author did not check.
+
+      **Residual, documented rather than fixed:** skill modifiers read **4.46 against a required 4.5** at
+      18px, on **Homebrew Rulebook × Hextech Gold only**, in the three shell formats. `gold-2` is clamped
+      to 4.5 against `inkSurface`, but a shell card is `rgba(var(--panel-rgb), α)` over `--void`, and on
+      that skin `--void` (#e8e4d9) is darker than the panel — so the composite is a shade darker than the
+      surface the clamp aimed at. A 0.04 miss on 1 of 5 skins × 1 of 5 themes; chasing the exact composite
+      across three shells costs more than it returns, and the sweep will report it again the moment it
+      moves. The method doc's own advice applies: a marginal number is not a finding until the surface is
+      checked.
+
+      **Two tests fixed, both pinning a mechanism instead of a guarantee** — the recurring failure mode of
+      this suite. `bespoke-button-contrast` asserted the selector *started with* `.sheet-shell`, matching
+      the whole multi-line group as one string, so appending an unscoped selector would have passed the
+      check meant to prevent exactly that; it now checks each comma-separated part, on a comment-stripped
+      copy (the first attempt read the file's own prose as a selector). `clamped-token-surface` pinned the
+      literal `6` for "3 tokens × 2 derivations" — so adding a fourth clamped token to BOTH copies failed,
+      while moving one clamp from one copy to the other, the actual defect, kept the total at 6 and
+      passed. It now compares the two derivations to each other.
 - [x] **P11-5 — Mobile: the character sheet.** Every format, every system, at 360 / 390 / 414 px.
       **Done 2026-07-29 (commit e3c3d85b).** Measured 521px of content in a 390px viewport on the PF2
       sheet; the IG shell had the identical hole. Both shells wrap the whole sheet in one `display: grid`

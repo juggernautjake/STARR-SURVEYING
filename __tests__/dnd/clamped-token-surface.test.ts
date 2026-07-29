@@ -101,6 +101,15 @@ describe('the derivations say so, in both copies', () => {
     // That is not hypothetical: slice 67's first attempt converted only `skinHxVars`, and THIS assertion
     // is what caught it before it shipped.
     expect(SRC.split('const inkSurface').length - 1).toBe(2);
-    expect(SRC.split('inkSurface, 4.5)').length - 1).toBe(6); // 3 tokens × 2 derivations
+
+    // Counted PER DERIVATION and compared, rather than pinned to a total. The total was `6` for "3 tokens
+    // × 2 derivations", which meant adding a fourth clamped token to BOTH copies — the correct thing, and
+    // exactly what this test wants — failed it, while moving one clamp from one copy to the other (the
+    // actual defect) kept the total at 6 and passed. A magic number cannot tell those apart; parity can.
+    const skinHalf = SRC.slice(SRC.indexOf('export function skinHxVars'), SRC.indexOf('export function themeToHxVars'));
+    const themeHalf = SRC.slice(SRC.indexOf('export function themeToHxVars'));
+    const clamps = (s: string) => s.split('inkSurface, 4.5)').length - 1;
+    expect(clamps(skinHalf)).toBeGreaterThanOrEqual(3);
+    expect(clamps(themeHalf)).toBe(clamps(skinHalf));
   });
 });

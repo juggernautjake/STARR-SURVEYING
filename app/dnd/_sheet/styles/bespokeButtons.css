@@ -14,6 +14,20 @@
  * without reintroducing theme.css's element-level bleed, and written so a shell that already colours its
  * own buttons (`codex.css`, `play.css`) still wins on specificity.
  *
+ * ── 2026-07-29: …except CLASSIC HAS NO `.sheet-shell`, so it never reached it (P11-4) ───────────────
+ *
+ * The sentence above was the intent and not the behaviour. `.sheet-shell` is the wrapper the Codex,
+ * Dashboard and Play SHELLS render into; the Classic view is the bespoke sheet's own `framedPanel` root
+ * and matched none of these rules, so its `.btn` controls went on inheriting `#0f1419` — the same
+ * near-black this file was written to stop. Measured across the matrix: the ✎ Edit buttons on a PF2
+ * Classic sheet at **1.08:1**, on the two DARK skins only (on a light skin a near-black ink happens to
+ * read, which is why it hid here for so long — the same coincidence that hid the jump-nav bug, in the
+ * opposite direction).
+ *
+ * The fix is a marker class rather than adding `.sheet-shell` to the Classic root, because that class
+ * also carries the shells' LAYOUT css and Classic is not a shell. `.bespoke-sheet` means only "a PF2/IG
+ * sheet root, in any format" and carries no styling of its own.
+ *
  * ── 2026-07-26: the same bug, mirrored, on the LIGHT skins ──────────────────────────────────────────
  *
  * A browser sweep found these buttons failing again, the other way round: cream `#f0e6d2` on light fills
@@ -32,7 +46,8 @@
  * fix is preserved by the same expression that fixes the light skins. Hover follows `--gold` for the same
  * reason. Measured after: jack 6.6:1, donata 7.4:1, streamer 6.9:1, PF2/IG dark sheets unchanged.
  */
-.sheet-shell .btn {
+.sheet-shell .btn,
+.bespoke-sheet .btn {
   color: var(--ink, var(--hx-text, #f0e6d2));
   background: var(--hx-inset-soft, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--hx-line, rgba(255, 255, 255, 0.14));
@@ -41,17 +56,40 @@
   font-size: 12px;
   cursor: pointer;
 }
-.sheet-shell .btn.tiny {
+.sheet-shell .btn.tiny,
+.bespoke-sheet .btn.tiny {
   font-size: 11px;
   padding: 3px 8px;
 }
-.sheet-shell .btn:hover:not(:disabled) {
+.sheet-shell .btn:hover:not(:disabled),
+.bespoke-sheet .btn:hover:not(:disabled) {
   border-color: var(--hx-gold-1, #c8aa6e);
   /* `--gold` first for the same reason as the base rule: it is the skin-derived one, and on a light skin the
      raw hextech gold is a pale cream that vanishes on a near-white fill. */
   color: var(--gold, var(--hx-gold-2, #c8aa6e));
 }
-.sheet-shell .btn:disabled {
+.sheet-shell .btn:disabled,
+.bespoke-sheet .btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* ── The shells' footer hint (P11-4) ────────────────────────────────────────────────────────────────
+ *
+ * Same defect as the buttons above, same cause, third location. `.footer` is styled in theme.css under
+ * `.dnd-sheet` — the 5e root — and the Codex/Dashboard/Play shells render into `.sheet-shell`, so on a
+ * bespoke PF2/IG sheet the hint line ("click a stat to roll · double-click to edit · …") matched no
+ * colour rule and inherited `#0f1419`. Measured 1.08:1 on the two DARK skins, across every theme —
+ * 31 of 73 cells in the full sweep, and the only failure left in it.
+ *
+ * Ink from `--muted` first, for the reason the buttons use `--ink`: `shellVarsFromHx` derives it from the
+ * skin, so it tracks the surface in both directions. Layout is left to the shells; this sets colour and
+ * type only, so a shell that positions its own footer is untouched. */
+.sheet-shell .footer,
+.bespoke-sheet .footer {
+  font-family: var(--font-mono, var(--hx-font-mono, ui-monospace, monospace));
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--muted, var(--hx-muted, #a09b8c));
 }

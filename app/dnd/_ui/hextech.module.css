@@ -1565,8 +1565,16 @@ select.input {
   padding: 8px 10px;
   border: 1px solid var(--hx-line);
   border-radius: 8px;
-  /* Near-opaque so rows scrolling underneath don't bleed through the pills. */
-  background: rgba(9, 20, 40, 0.94);
+  /* Near-opaque so rows scrolling underneath don't bleed through the pills — but the SKIN'S panel, not a
+     hardcoded navy (P11-4).
+     This strip is inside the sheet, so the text on it is `--hx-gold-2`, which `skinHxVars` clamps for
+     legibility against the skin's PANEL. On a light skin that clamp deepens the gold to a dark amber so it
+     reads on cream — and then this rule painted it onto a dark navy bar, where dark-on-dark measured
+     2.20–2.57:1 against a required 4.5. The three light skins all failed, on every theme, in Classic; the
+     dark skins passed, which is why it survived: the hardcode agreed with the clamp only by coincidence.
+     A themable component with a literal colour in it is a clamp aimed at the wrong surface by definition.
+     The fallback is the previous literal, so the default skin is unchanged to the pixel. */
+  background: rgba(var(--hx-panel-rgb, 9, 20, 40), 0.94);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }

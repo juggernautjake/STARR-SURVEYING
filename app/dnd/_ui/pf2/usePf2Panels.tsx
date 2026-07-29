@@ -622,7 +622,11 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                 style={{ width: 56, fontSize: 13.5, fontWeight: 600, padding: '3px 6px', textAlign: 'center', background: 'var(--hx-inset-strong)', color: 'var(--hx-text)', border: '1px solid var(--hx-line)', borderRadius: 6 }} />
               <button type="button" disabled={saving || !hpAmt.trim()} title="Take damage"
                 onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { void postEdit({ op: 'apply_damage', amount: n }); setHpAmt(''); } }}
-                style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1, padding: '4px 10px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger)', borderRadius: 6, cursor: 'pointer' }}>− Damage</button>
+                /* Border keeps `--hx-danger` (a border/fill accent); the LABEL takes `--hx-danger-2`, the
+                   text-weight red. Painting label and border with the same token measured 2.94:1 on the
+                   dark skins and 3.90–4.43 on the light ones — under AA on all five, on every theme. The
+                   IG sheet already split these two; PF2 never did. */
+                style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1, padding: '4px 10px', background: 'none', border: '1px solid var(--hx-danger)', color: 'var(--hx-danger-2)', borderRadius: 6, cursor: 'pointer' }}>− Damage</button>
               <button type="button" disabled={saving || !hpAmt.trim()} title="Heal"
                 onClick={() => { const n = parseInt(hpAmt, 10); if (n > 0) { void postEdit({ op: 'heal', amount: n }); setHpAmt(''); } }}
                 style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1, padding: '4px 10px', background: 'none', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-teal-1)', borderRadius: 6, cursor: 'pointer' }}>＋ Heal</button>

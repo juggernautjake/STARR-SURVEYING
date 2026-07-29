@@ -243,6 +243,82 @@ for (const skin of axes.skins) {
       };
     });
 
+    // CONTRAST (P11-4). Lifted from `docs/planning/qa-evidence/contrast-sweep.md`, which is the repo's
+    // hard-won method — fourteen documented ways a browser colour measurement lies, most of them found by
+    // acting on a wrong number. Reused rather than rewritten precisely because a naive `color` vs
+    // `background-color` probe is one of the fourteen: it read `rgba(0,0,0,0.08)` as pure black and
+    // flagged 42 healthy samples.
+    //
+    // Per cell rather than per skin, because P11-3 changed what a theme does: the accents are now clamped
+    // against each SKIN's ground, so the pairing that has to hold is (skin × theme × format), and only a
+    // sweep of the whole matrix can show it does.
+    const contrast = await page.evaluate(() => {
+      const parse = (c) => { const m = (c || '').match(/[\d.]+/g); if (!m || m.length < 3) return null;
+        return { r: +m[0], g: +m[1], b: +m[2], a: m[3] != null ? +m[3] : 1 }; };
+      const over = (t, b) => ({ r: t.r * t.a + b.r * (1 - t.a), g: t.g * t.a + b.g * (1 - t.a), b: t.b * t.a + b.b * (1 - t.a), a: 1 });
+      // (1) `background-image` counts — a gradient surface is opaque, and skipping it composites text onto
+      // whatever sits behind the panel, inventing failures.
+      const fromImage = (bi) => {
+        if (!bi || bi === 'none') return null;
+        const stops = (bi.match(/rgba?\([^)]+\)/g) || []).map(parse).filter((s) => s && s.a > 0.5);
+        return stops.length ? stops[0] : null;
+      };
+      const bgOf = (el) => {
+        const stack = []; let n = el;
+        while (n && n !== document.documentElement) {
+          const s = getComputedStyle(n);
+          const img = fromImage(s.backgroundImage);
+          if (img) { stack.push(img); if (img.a >= 1) break; }
+          const c = parse(s.backgroundColor);
+          if (c && c.a > 0) { stack.push(c); if (c.a >= 1) break; }
+          n = n.parentElement;
+        }
+        let out = { r: 255, g: 255, b: 255, a: 1 };
+        for (let i = stack.length - 1; i >= 0; i -= 1) out = over(stack[i], out); // (2) composite the STACK
+        return out;
+      };
+      const lum = (c) => { const f = [c.r, c.g, c.b].map((v) => { const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+        return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+      const ratio = (fg, bg) => { const a = lum(fg), b = lum(bg);
+        return +(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toFixed(2)); };
+      // (3) rendered means rendered — ancestors, content-visibility and zero-size boxes included. 26–34%
+      // of leaf text nodes on these sheets are NOT on screen; every count taken without this is inflated.
+      const isRendered = (el) => (typeof el.checkVisibility === 'function' ? el.checkVisibility() : true)
+        && el.getClientRects().length > 0;
+      // (6) a CLOSED <details> still yields layout boxes; its contents are on nobody's screen.
+      const inClosedDetails = (el) => {
+        let n = el.parentElement;
+        while (n && n !== document.documentElement) {
+          if (n.tagName === 'DETAILS' && !n.hasAttribute('open') && !el.closest('summary')) return true;
+          n = n.parentElement;
+        }
+        return false;
+      };
+      const rows = [...document.querySelectorAll('*')]
+        .filter((e) => e.children.length === 0 && (e.innerText || '').trim().length > 1)
+        .filter((e) => isRendered(e) && !inClosedDetails(e))
+        .map((e) => { const cs = getComputedStyle(e);
+          // (5) gradient-clipped text: the glyphs are painted by the background, not by `color`.
+          if (cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text') return null;
+          const fg = parse(cs.color); if (!fg) return null;
+          const bg = bgOf(e);
+          const eff = fg.a < 1 ? over(fg, bg) : fg;
+          const size = parseFloat(cs.fontSize) || 16;
+          const bold = (parseInt(cs.fontWeight, 10) || 400) >= 700;
+          // WCAG AA is 4.5 for body but 3 for large (>=24px, or >=18.66px bold) — a 23px headline at 3.85
+          // is a real miss while the same colour at 24px is fine.
+          const need = (size >= 24 || (bold && size >= 18.66)) ? 3 : 4.5;
+          const r = ratio(eff, bg);
+          return { r, need, pass: r >= need, size: Math.round(size), text: (e.innerText || '').trim().slice(0, 28) };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.r - b.r);
+      const fails = rows.filter((x) => !x.pass);
+      // The denominator ships with the verdict: "0 failing" is meaningless if it sampled 0 elements.
+      return { sampled: rows.length, failing: fails.length, worst: fails.slice(0, 4) };
+    });
+
     // Overflow is measured per cell too: a format can be fine at one skin and broken at another, and this
     // is the cheapest place to notice.
     const overflow = await page.evaluate(() => {
@@ -256,8 +332,12 @@ for (const skin of axes.skins) {
       });
       return n;
     });
-    shots.push({ ...cell, file: path.basename(file), overflow, tokens, layout });
-    console.log(overflow ? `OVERFLOW ${overflow}` : 'ok');
+    shots.push({ ...cell, file: path.basename(file), overflow, tokens, layout, contrast });
+    const notes = [
+      overflow ? `OVERFLOW ${overflow}` : '',
+      contrast?.failing ? `contrast ${contrast.failing}/${contrast.sampled}` : '',
+    ].filter(Boolean);
+    console.log(notes.length ? notes.join(' · ') : `ok (${contrast?.sampled ?? 0} sampled)`);
   } catch (e) {
     skipped.push(`${name} — ${e.message.split('\n')[0]}`);
     console.log(`error: ${e.message.split('\n')[0]}`);
@@ -304,6 +384,28 @@ if (skipped.length) {
   for (const s of skipped) console.log(`  ${s}`);
 }
 
+// --- Contrast (P11-4) ---------------------------------------------------------------------------------
+const sampled = shots.reduce((n, s) => n + (s.contrast?.sampled ?? 0), 0);
+const failingCells = shots.filter((s) => s.contrast?.failing);
+console.log(`\nContrast: ${sampled} text elements sampled across ${shots.length} cells.`);
+if (failingCells.length) {
+  console.log(`  ${failingCells.length} cell(s) with at least one element under its WCAG AA threshold:`);
+  for (const s of failingCells) {
+    console.log(`    ${s.skin} · ${s.format}${s.theme ? ` · ${s.theme}` : ''} — ${s.contrast.failing}/${s.contrast.sampled}`);
+    for (const w of s.contrast.worst) console.log(`        ${w.r} (needs ${w.need}, ${w.size}px) "${w.text}"`);
+  }
+  // The signal is the SAME element failing everywhere — that is a token problem, not a theme problem.
+  const byText = new Map();
+  for (const s of failingCells) for (const w of s.contrast.worst) byText.set(w.text, (byText.get(w.text) ?? 0) + 1);
+  const everywhere = [...byText.entries()].filter(([, n]) => n >= Math.max(2, failingCells.length * 0.6));
+  if (everywhere.length) {
+    console.log('  failing across most cells (suspect a TOKEN, not a pairing):');
+    for (const [t, n] of everywhere) console.log(`    "${t}" — ${n} cells`);
+  }
+} else {
+  console.log('  no element below its threshold in any cell.');
+}
+
 // --- What the fingerprints say (P11-3 / P11-4) --------------------------------------------------------
 // Reported, never enforced. Identical tokens across two cells is strong evidence of a gap, but a theme is
 // allowed to differ in ways these seven variables do not capture, so this prints and the human decides.
@@ -321,7 +423,9 @@ const collisions = [...byFingerprint.values()].filter((g) => g.length > 1);
 // anything" is a `git diff` rather than a memory of what the screenshots looked like.
 fs.writeFileSync(
   path.join(OUT, 'tokens.json'),
-  `${JSON.stringify(shots.map(({ skin, format, theme, tokens }) => ({ skin, format, theme, ...tokens })), null, 2)}\n`,
+  `${JSON.stringify(shots.map(({ skin, format, theme, tokens, layout, contrast, overflow }) => ({
+    skin, format, theme, overflow, layout, contrast, ...tokens,
+  })), null, 2)}\n`,
   'utf8',
 );
 
@@ -376,4 +480,4 @@ if (collisions.length) {
   console.log('  no two cells resolve identically.');
 }
 
-process.exitCode = broken.length || skipped.length ? 1 : 0;
+process.exitCode = broken.length || skipped.length || failingCells.length ? 1 : 0;

@@ -31,6 +31,11 @@ import { lazzuhTheme, streamerTheme, donataTheme, rangorTheme } from '@/app/dnd/
 /** Each skin's FONT set, keyed by `sheet_type`, so the bespoke PF2/IG sheets get the skin's TYPEFACE — not
  *  only its colours (CS-1). `default` (Hextech) keeps the baseline `--hx-font-*`, so it's absent here. The
  *  webfonts are loaded on every /dnd page by `_sheet/styles/fonts.css`. */
+/** The red `--hx-danger-2` starts from before it is clamped to the surface it will be read on. Matches the
+ *  `--hx-danger` literal in `hextech.module.css`, so the hue is the platform's one danger red and only its
+ *  LIGHTNESS moves per skin. */
+const DANGER_TEXT_BASE = '#c6403b';
+
 const SKIN_FONTS: Record<string, SheetTheme['fonts']> = {
   lazzuh: lazzuhTheme.fonts,
   streamer: streamerTheme.fonts,
@@ -262,7 +267,13 @@ export function skinHxVars(
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
     // --hx-danger is intentionally left to inherit the default red: it reads on both dark and light panels,
-    // and skins don't ship a "danger" swatch to derive one from.
+    // and skins don't ship a "danger" swatch to derive one from. It is a BORDER and FILL accent.
+    //
+    // `--hx-danger-2` is the same red as TEXT, and that one cannot be a fixed literal. The baseline
+    // `#ef8b85` is a pale pink chosen to clear AA on the dark hextech panel; on a LIGHT skin's cream panel
+    // it is barely there. So it is clamped here exactly like `gold-2` and `teal-1` — same surface, same
+    // 4.5 threshold — which darkens it on light skins and leaves the dark skins alone.
+    '--hx-danger-2': ensureContrast(DANGER_TEXT_BASE, inkSurface, 4.5),
   };
 
   // Recessed "well" fills (stat cells, inputs, section cards). ONLY overridden for LIGHT skins: on dark
@@ -357,6 +368,10 @@ export function themeToHxVars(theme: SheetTheme | null | undefined): CSSProperti
 
     '--hx-panel-rgb': trip(panel),
     '--hx-void-rgb': trip(navy0),
+    // Danger as TEXT, clamped to this theme's surface — the twin of the line in `skinHxVars`. A theme that
+    // supplies its own danger uses it; otherwise the platform red. Kept in both derivations because the two
+    // drifting apart is exactly what `clamped-token-surface.test.ts` exists to catch.
+    '--hx-danger-2': ensureContrast(c.danger || DANGER_TEXT_BASE, inkSurface, 4.5),
   };
   if (light) {
     vars['--hx-inset-soft'] = 'rgba(0, 0, 0, 0.03)';

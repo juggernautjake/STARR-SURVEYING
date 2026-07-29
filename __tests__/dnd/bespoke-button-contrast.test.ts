@@ -27,14 +27,42 @@ describe('the bespoke sheets style their own .btn', () => {
     // skin alongside the surface tokens, so it tracks the surface in BOTH directions; on the dark bespoke
     // sheets it already resolves to `#f0e6d2`, so the original fix is preserved by the same expression.
     // See bespoke-button-ink.test.ts.
-    expect(CSS).toMatch(/\.sheet-shell \.btn\s*\{[^}]*color:\s*var\(--ink,\s*var\(--hx-text,\s*#f0e6d2\)\)/s);
+    // Matched from `.btn {` rather than from `.sheet-shell .btn {`: the rule is now a selector GROUP,
+    // because `.sheet-shell` is the Codex/Dashboard/Play wrapper and never existed on the Classic view —
+    // so Classic matched none of these rules and kept inheriting `#0f1419` at 1.08:1 (P11-4). The
+    // `.bespoke-sheet` marker covers every format; which selectors are in the group is asserted below.
+    expect(CSS).toMatch(/\.btn\s*\{[^}]*color:\s*var\(--ink,\s*var\(--hx-text,\s*#f0e6d2\)\)/s);
+  });
+
+  it('reaches the CLASSIC view too, not only the shells', () => {
+    // The regression this pins is silent: `.sheet-shell` matches nothing on Classic, so the buttons simply
+    // go unstyled and inherit a near-black. Nothing errors; the text is just invisible on a dark skin.
+    expect(CSS).toContain('.bespoke-sheet .btn');
+    for (const file of ['app/dnd/_ui/PF2Sheet.tsx', 'app/dnd/_ui/IGSheet.tsx']) {
+      const src = readFileSync(join(process.cwd(), file), 'utf8');
+      expect(src, `${file} must mark its Classic root`).toContain('bespoke-sheet');
+    }
   });
 
   it('is scoped to .sheet-shell, not to a bare element rule', () => {
     // Scoping is the whole reason theme.css was excluded in the first place — this must not reintroduce
     // the bleed it was avoiding.
-    for (const sel of CSS.match(/^\.[^{]+\{/gm) ?? []) {
-      expect(sel.trim().startsWith('.sheet-shell'), `unscoped selector: ${sel.trim()}`).toBe(true);
+    // Checked per comma-separated PART, not per rule. The old version matched the whole multi-line
+    // selector group as one string and only looked at how it started — so appending an unscoped selector
+    // to an existing group would have sailed through the very check meant to prevent it.
+    // Comments stripped FIRST. This file's header prose contains `{` and lines beginning with `*`, and the
+    // scan happily read one of those as a selector and failed on it. Recurring rule in this repo: a source
+    // assertion runs against a comment-stripped copy, or it ends up asserting things about the prose.
+    const rules = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const group of rules.match(/^[^{}]*\{/gm) ?? []) {
+      for (const sel of group.replace(/\{$/, '').split(',')) {
+        const s = sel.trim();
+        if (!s) continue;
+        expect(
+          s.startsWith('.sheet-shell') || s.startsWith('.bespoke-sheet'),
+          `unscoped selector: ${s}`,
+        ).toBe(true);
+      }
     }
   });
 

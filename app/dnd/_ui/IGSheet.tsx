@@ -193,7 +193,9 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
     // `minmax(0, 1fr)` — the same implicit-`auto`-column overflow the PF2 shell had (P11-5). An undeclared
     // grid column sizes to min-content rather than to its container, so one unbreakable row makes the whole
     // sheet scroll sideways on a phone. See the longer note in PF2Sheet.tsx.
-    <div className={`${styles.framedPanel} igs-root ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
+    // `bespoke-sheet` — the marker `bespokeButtons.css` needs to reach the Classic view, which is not a
+    // `.sheet-shell`. See the note on the PF2 sheet's Classic root; the IG sheet has the identical shape.
+    <div className={`${styles.framedPanel} igs-root ${skin} bespoke-sheet`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
       {/* Scoped interactivity CSS (req 3). Injected once at the top of this component's own subtree; every
           selector is prefixed `.igs-root` so it cannot leak into the PF2 sheet or the rest of the page. */}
       <style dangerouslySetInnerHTML={{ __html: IGS_STYLES }} />
