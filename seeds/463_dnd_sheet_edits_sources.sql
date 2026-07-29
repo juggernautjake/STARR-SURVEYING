@@ -15,10 +15,15 @@
 -- sheet. That distinction is exactly what an audit trail is for; erasing it to satisfy a CHECK would be
 -- fixing the symptom by deleting the evidence.
 --
--- `ig-edit` is included for the same reason, ahead of need: the IG branch of `grant-content` deliberately
--- writes NO audit row today, because those rows are SheetEdit-shaped and replaying a 5e op against the IG
--- sidecar would corrupt the sheet. When IG history is built (a known gap) it will need a source value of
--- its own, and adding it now costs nothing.
+-- `homebrew-adopt` is here for the SAME REASON AS `library-grant`, and it was nearly missed. The first
+-- version of this seed listed `ig-edit` — a value nothing writes — while omitting `homebrew-adopt`, which
+-- `/api/dnd/homebrew/[id]/adopt` inserts on every adoption. Adding a speculative value and missing a real
+-- one is the exact wrong way round, and it was caught only by grepping every `source:` literal in
+-- `app/api/dnd` rather than by reasoning about which ought to exist. **Derive the list from the writers.**
+--
+-- `ig-edit` is kept, ahead of need: the IG branch of `grant-content` deliberately writes NO audit row
+-- today, because those rows are SheetEdit-shaped and replaying a 5e op against the IG sidecar would
+-- corrupt the sheet. When IG history is built (a known gap) it will need a source of its own.
 --
 -- The values stay a CHECK rather than becoming free text: an audit `source` nobody constrains is one that
 -- accumulates typos, and a typo'd source is a row the review queue silently never shows.
@@ -29,9 +34,9 @@ ALTER TABLE dnd_sheet_edits
 
 ALTER TABLE dnd_sheet_edits
   ADD CONSTRAINT dnd_sheet_edits_source_chk
-  CHECK (source IS NULL OR source = ANY (ARRAY['ai', 'manual', 'revert', 'library-grant', 'ig-edit']));
+  CHECK (source IS NULL OR source = ANY (ARRAY['ai', 'manual', 'revert', 'library-grant', 'homebrew-adopt', 'ig-edit']));
 
 COMMENT ON COLUMN dnd_sheet_edits.source IS
-  'How the change was made: ai / manual / revert / library-grant / ig-edit. Constrained, not free text — an unconstrained source accumulates typos, and a typo''d source is a row the review queue silently never shows. `library-grant` was rejected by the previous CHECK, so every DM grant to a 5e sheet went unaudited.';
+  'How the change was made: ai / manual / revert / library-grant / homebrew-adopt / ig-edit. Constrained, not free text — an unconstrained source accumulates typos, and a typo''d source is a row the review queue silently never shows. `library-grant` was rejected by the previous CHECK, so every DM grant to a 5e sheet went unaudited.';
 
 COMMIT;

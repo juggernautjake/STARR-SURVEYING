@@ -3976,3 +3976,21 @@ character is clean.
 "0 pieces" for a missing table, made the rate limiter fail open invisibly, and hid this. A sweep of
 `app/api/dnd` writes for ignored errors is worth its own slice — the failure mode is always the same, and
 always silent.
+
+**⚠ The first version of seed 463 was incomplete, in the wrong direction.** Swept every `source:` literal
+in `app/api/dnd` (rather than reasoning about which values ought to exist) and found **six writers**:
+`ai` ×4, `revert` ×3, `library-grant` ×2, `manual` ×2, and **`homebrew-adopt` ×1**.
+
+That last one was **not** in the constraint I had just written — so adopting a homebrew piece onto a
+character was still failing to audit, silently, for exactly the same reason. Meanwhile I HAD added
+`ig-edit`, which nothing writes at all.
+
+Adding a speculative value while missing a real one is precisely the wrong way round, and the only reason
+it was caught is that the sweep listed the writers instead of asking what the list should contain.
+**Derive a constraint from its callers, never from intent.** Seed 463 corrected and re-applied.
+
+**Remaining from the sweep, not fixed here:** 14 fire-and-forget writes (`.then(() => {}, () => {})`)
+across 8 route files, 8 of which are `dnd_sheet_edits` inserts. Every one is a place a constraint
+violation or column mismatch disappears exactly as this did. The pattern is deliberate — an audit write
+must not fail a user's action — but "do not fail the request" and "discard the error unseen" are
+different things, and only the first was intended.
