@@ -145,7 +145,10 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
 function ChoicePrompt({ choice, subclass, count, busy, onRecord }: { choice: Outstanding; subclass: string; count: number; busy: boolean; onRecord: (c: Record<string, unknown>) => void | Promise<void> }) {
   return (
     <div style={{ border: '1px solid var(--line, #2a3b47)', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-      <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Choice 1 of {count} · level {choice.level}</div>
+      {/* A REMAINING count, not "Choice 1 of N" — see the note in LevelBuilder. */}
+      <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+        {count === 1 ? `Last choice · level ${choice.level}` : `${count} choices left · level ${choice.level}`}
+      </div>
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       {choice.kind === 'ability-boosts'
         ? <BoostsInput count={choice.count ?? 2} busy={busy} onPick={(attributes) => onRecord({ level: choice.level, kind: choice.kind, attributes })} />

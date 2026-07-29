@@ -231,7 +231,9 @@ function ChoicePrompt({
   return (
     <div style={{ border: '1px solid var(--line, #2a3b47)', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
       <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-        Choice 1 of {count} · level {choice.level}
+        {/* A REMAINING count, not "Choice 1 of N" — see the note in LevelBuilder. The literal 1 never
+            moved, so answering a choice looked like nothing had happened. */}
+        {count === 1 ? `Last choice · level ${choice.level}` : `${count} choices left · level ${choice.level}`}
       </div>
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{choice.detail}</div>

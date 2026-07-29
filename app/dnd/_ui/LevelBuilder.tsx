@@ -448,7 +448,14 @@ export default function LevelBuilder({
           <div className={styles.framedPanelTop} />
           <div>
             <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--hx-gold-2)' }}>
-              Choice {1} of {plan.outstanding.length} · level {current.level}
+              {/* NOT "Choice 1 of N" (P5-7b). That read `Choice {1} of {plan.outstanding.length}` — a
+                  hardcoded 1 against a shrinking total, so it said "Choice 1 of 7", then "Choice 1 of 6",
+                  then "Choice 1 of 5". It never counted up, so answering a choice looked like nothing had
+                  happened. `outstanding` is what REMAINS, and the honest sentence for a remaining count is
+                  how many are left — which also counts down visibly as you work. */}
+              {plan.outstanding.length === 1
+                ? `Last choice · level ${current.level}`
+                : `${plan.outstanding.length} choices left · level ${current.level}`}
             </div>
             <h2 className={styles.panelTitle} style={{ margin: '2px 0 0' }}>{current.label}</h2>
             <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '4px 0 0' }}>{current.detail}</p>
