@@ -20,7 +20,7 @@ import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 // builder and any future cap cannot disagree about which casters have countable slots. That module carries
 // the reasoning; this file just honours the answer.
 import { pf2SlotTableModelled, pf2ReducedSlots } from './spell-counts';
-import { pf2AnyFeat, pf2AnySpell, pf2ClassProgression, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
+import { pf2AnyFeat, pf2AnySpell, pf2EffectiveTracks, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
@@ -117,6 +117,95 @@ export function pf2ComputeAttributes(cls: PF2ClassDef | null, anc: PF2AncestryDe
   return a;
 }
 
+/** Every proficiency rank a character of this class, doctrine and level holds. */
+export interface PF2Ranks {
+  perception: PF2Rank; fortitude: PF2Rank; reflex: PF2Rank; will: PF2Rank;
+  defenses: PF2Rank; attacks: PF2Rank; classDc: PF2Rank; spell: PF2Rank;
+}
+
+/**
+ * Resolve every proficiency rank for a class + subclass + level.
+ *
+ * Proficiency ranks ADVANCE with level in PF2 (trained → expert → master → legendary at class-defined
+ * levels); content.ts's `initial` is ONLY the level-1 snapshot. Reading it alone froze every rank at level
+ * 1, so a level-9 Wizard saved and cast as though freshly made — its Reflex (expert at 5), Fortitude
+ * (expert at 9) and spell proficiency (expert at 7) each read two points low.
+ *
+ * The SUBCLASS can replace those tracks outright. The Cleric is the reason: its Fortitude, attack and
+ * spellcasting tracks all carry `increases: []` on the base class, because the two doctrines disagree
+ * about every one of them. Reading the base track was not conservative — it froze a level-20 warpriest at
+ * trained Fortitude (they are expert at 1 and master at 15) and at a trained spell DC (expert at 11,
+ * master at 19). The doctrine was collected by the builder, stored on the character and shown on the sheet
+ * the whole time; nothing ever read it.
+ *
+ * Exported because the BUILDER is not the only place that needs it: `/api/dnd/characters/[id]/pf2-levels`
+ * moves a character's level without rebuilding, so it must re-derive the ranks or the character keeps the
+ * ones it was born with. When a className has no modelled progression (a custom class), fall back to the
+ * level-1 initial — the honest best answer.
+ */
+export function pf2RanksAtLevel(className: string, subclass: string | undefined, rawLevel: number): PF2Ranks {
+  const level = Math.max(1, Math.min(20, Math.round(rawLevel || 1)));
+  const init = pf2Class(className || '')?.initial;
+  const tracks = pf2EffectiveTracks(className || '', subclass);
+  const rankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank =>
+    track ? pf2RankAtLevel(track, level) : fallback;
+  // The ATTACK track is the one exception: a step carrying a per-step `note` advances only a SUBSET
+  // of weapons (the Fighter's level-5 Weapon Mastery raises one chosen weapon group to master, not
+  // every Strike; the warpriest's level-19 master is favored-weapon-only). Applying such a step to the
+  // whole attack proficiency would silently over-count Strikes with weapons outside that group. So
+  // attacks advance through UNSCOPED steps only; a noted step is left unapplied, which UNDER-counts (a
+  // Fighter stays expert past level 13) rather than over-counts. That is the safe direction here — a low
+  // number is visible on the sheet and fixable, a silently high one is neither. See
+  // PF2_CLASS_PROGRESSION_GAPS for the recorded Fighter general-attack gap this leaves open.
+  const attacksRankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank => {
+    if (!track) return fallback;
+    let rank = track.initial;
+    for (const step of track.increases) if (!step.note && step.level <= level) rank = step.rank;
+    return rank;
+  };
+  return {
+    perception: rankAt(tracks.perception, init?.perception ?? 'trained'),
+    fortitude: rankAt(tracks.fortitude, init?.fortitude ?? 'trained'),
+    reflex: rankAt(tracks.reflex, init?.reflex ?? 'trained'),
+    will: rankAt(tracks.will, init?.will ?? 'trained'),
+    defenses: rankAt(tracks.defenses, init?.defense ?? 'trained'),
+    attacks: attacksRankAt(tracks.attacks, init?.attacks ?? 'trained'),
+    classDc: rankAt(tracks.classDc, init?.classDc ?? 'trained'),
+    // The spellcasting DC/attack proficiency has its own track (Expert Spellcaster at 7, Master at 15,
+    // Legendary at 19 for full casters). Frozen at 'trained' before, so every caster's spell DC and
+    // spell attack read low from level 7 on.
+    spell: rankAt(tracks.spellProficiency, 'trained'),
+  };
+}
+
+/**
+ * Re-derive a character's proficiency ranks for a (usually new) level, in place.
+ *
+ * The level walker moves `identity.level` and projects the feats earned, but every rank on the sheet was
+ * written once, at build time — so a Wizard levelled 1→9 through the walker kept level-1 saves and a
+ * level-1 spell DC, the very numbers `pf2RanksAtLevel` exists to fix. The builder path was correct and the
+ * walker path was not, which is worse than both being wrong: the same character reads differently
+ * depending on how it got there.
+ *
+ * Only touches the eight derived ranks. Everything else on the sidecar — chosen skills, items, HP spent,
+ * hero points — is untouched, because none of it is a function of level.
+ */
+export function pf2ReprojectRanks(pf2: PF2Character, level: number): PF2Character {
+  const r = pf2RanksAtLevel(pf2.identity.className || '', pf2.identity.subclass, level);
+  return {
+    ...pf2,
+    perception: { ...pf2.perception, rank: r.perception },
+    saves: {
+      ...pf2.saves,
+      Fortitude: { ...pf2.saves.Fortitude, rank: r.fortitude },
+      Reflex: { ...pf2.saves.Reflex, rank: r.reflex },
+      Will: { ...pf2.saves.Will, rank: r.will },
+    },
+    combat: { ...pf2.combat, armorRank: r.defenses, attackRank: r.attacks, classDcRank: r.classDc },
+    spellcasting: { ...pf2.spellcasting, rank: r.spell },
+  };
+}
+
 /** Build a complete, level-1-legal PF2Character from the picks. */
 export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants): PF2Character {
   const cls = pf2Class(picks.className || '');
@@ -136,45 +225,10 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
     armorPenalty: !!s.armorPenalty,
   }));
 
-  const init = cls?.initial;
-
-  // Proficiency ranks ADVANCE with level in PF2 (trained → expert → master → legendary at
-  // class-defined levels); content.ts's `initial` is ONLY the level-1 snapshot. Reading it alone
-  // froze every rank at level 1, so a level-9 Wizard saved and cast as though freshly made — its
-  // Reflex (expert at 5), Fortitude (expert at 9) and spell proficiency (expert at 7) each read two
-  // points low, exactly the "the data exists but was never wired into the stat" bug this pass hunts.
-  // The full level 1–20 schedule already lives in data/classes.ts; walk it to the character's level
-  // so every derived number downstream (saves, AC, class DC, spell DC/attack) is right for BOTH the
-  // manual builder and the AI, which share this one function. When a className has no modelled
-  // progression (a custom class), fall back to the level-1 initial — the honest best answer.
-  const prog = pf2ClassProgression(picks.className || '');
-  const rankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank =>
-    track ? pf2RankAtLevel(track, level) : fallback;
-  // The ATTACK track is the one exception: a step carrying a per-step `note` advances only a SUBSET
-  // of weapons (the Fighter's level-5 Weapon Mastery raises one chosen weapon group to master, not
-  // every Strike). Applying such a step to the whole attack proficiency would silently over-count a
-  // Fighter's Strikes with weapons outside that group. So attacks advance through UNSCOPED steps
-  // only; a noted step is left unapplied, which UNDER-counts (a Fighter stays expert past level 13)
-  // rather than over-counts. That is the safe direction here — a low number is visible on the sheet
-  // and fixable, a silently high one is neither. See PF2_CLASS_PROGRESSION_GAPS for the recorded
-  // Fighter general-attack gap this leaves open.
-  const attacksRankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank => {
-    if (!track) return fallback;
-    let rank = track.initial;
-    for (const step of track.increases) if (!step.note && step.level <= level) rank = step.rank;
-    return rank;
-  };
-  const perceptionRank = rankAt(prog?.perception, init?.perception ?? 'trained');
-  const fortRank = rankAt(prog?.saves.fortitude, init?.fortitude ?? 'trained');
-  const reflexRank = rankAt(prog?.saves.reflex, init?.reflex ?? 'trained');
-  const willRank = rankAt(prog?.saves.will, init?.will ?? 'trained');
-  const defenseRank = rankAt(prog?.defenses, init?.defense ?? 'trained');
-  const attacksRank = attacksRankAt(prog?.attacks, init?.attacks ?? 'trained');
-  const classDcRank = rankAt(prog?.classDc, init?.classDc ?? 'trained');
-  // The spellcasting DC/attack proficiency has its own track (Expert Spellcaster at 7, Master at 15,
-  // Legendary at 19 for full casters). Frozen at 'trained' before, so every caster's spell DC and
-  // spell attack read low from level 7 on.
-  const spellRank = rankAt(prog?.spellcasting?.proficiency, 'trained');
+  const {
+    perception: perceptionRank, fortitude: fortRank, reflex: reflexRank, will: willRank,
+    defenses: defenseRank, attacks: attacksRank, classDc: classDcRank, spell: spellRank,
+  } = pf2RanksAtLevel(picks.className || '', picks.subclass, level);
 
   const con = attributes.CON;
   const armor = pf2Armor(picks.armor || 'Unarmored');

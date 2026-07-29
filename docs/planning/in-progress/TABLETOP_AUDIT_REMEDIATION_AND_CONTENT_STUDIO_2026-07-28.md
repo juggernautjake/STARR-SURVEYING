@@ -1191,18 +1191,59 @@ So "get all the classes built" is **mostly already true**. What is actually left
 - [ ] **P5-9 — Magus and Summoner spell slots.** *(Blocked on data.)* `slotTableModelled: false` for both;
       `pf2MaxSpellRank` returns 0 until the published reduced-caster tables are supplied. Everything else
       about both classes is modelled.
-- [ ] **P5-10 — PF2 Cleric doctrine + Monk Path to Perfection tracks.** Not blocked — *chosen*. Both classes'
-      progressions branch on a player choice the builder never asks, so an assembled Cleric or Monk keeps its
-      level-1 base ranks. **Design:** make the choice a slot (the S1–S6 model already does this), then apply
-      the chosen track's increases. The most mechanically wrong thing left in PF2's classes.
+- [x] **P5-10 — PF2 Cleric doctrine.** *(Split: the Monk half is now P5-10b.)* Not blocked — *chosen*. Both
+      classes' progressions branch on a player choice, so an assembled Cleric or Monk keeps its level-1 base
+      ranks. **Design:** make the choice a slot (the S1–S6 model already does this), then apply the chosen
+      track's increases. The most mechanically wrong thing left in PF2's classes.
+
+      **Done 2026-07-29.** Structured `tracks` on `PF2Subclass`, filled for both doctrines, read through a
+      new `pf2EffectiveTracks(className, subclass)` that the builder now uses in place of the base tracks.
+
+      **The Cleric never needed a new choice.** The doctrine was collected by the builder, stored on the
+      character, and printed on the sheet — nothing ever *read* it. So a level-20 warpriest sat at trained
+      Fortitude (they are expert at 1 and master at 15) and a trained spell DC (expert at 11, master at 19):
+      a four-point error on the DC of a class that is supposed to be hard to save against. The two doctrines
+      also end at different **ceilings**, not merely different times — a warpriest never reaches legendary
+      spellcasting at all.
+
+      Overrides **replace** the base track rather than merging into it, and the warpriest is why: they are
+      expert in Fortitude *from level 1*. A merge keeps `initial: 'trained'` and reads a rank low forever.
+
+      Only rank-moving steps became data. "Trained in martial weapons at 3" widens *which* weapons, not the
+      rank, so it stays prose in `progression`. The warpriest's level-19 master is favored-weapon-**only**,
+      so it carries a per-step `note` and the builder leaves the general attack rank at expert — the same
+      under-count-rather-than-over-count rule the Fighter's weapon groups already follow.
+
+      **What this slice actually found is worse than what it fixed.** Every proficiency rank on a PF2 sheet
+      was written exactly once, at build time. `/api/dnd/characters/[id]/pf2-levels` moved `identity.level`
+      and projected feats, and left every rank alone — so a Wizard walked from 1 to 9 kept level-1 saves and
+      a level-1 spell DC. Correct if you *built* at 9, stale if you *walked* there. The same character
+      reading differently depending on how it arrived is worse than both paths being wrong, because only one
+      of them looks broken. Fixed by extracting `pf2RanksAtLevel` (shared by both paths) and
+      `pf2ReprojectRanks`, which the route now calls on commit. Pinned by asserting the walked character
+      matches the built one rank for rank.
+
+      And under *that*: the walker accepted a `subclass` choice, wrote it to the ledger, and never touched
+      `identity.subclass` — so a doctrine chosen at level 1 through the level walker never appeared on the
+      sheet, and after this slice could not have driven the ranks either. Now projected, ledger-first.
+      Three layers of the same defect, each one only visible once the one above it worked.
+
+- [ ] **P5-10b — Monk Path to Perfection.** *(Split from P5-10.)* At 7 one save becomes master, at 11 a
+      second, at 15 one of those two becomes legendary — but **which** is the player's choice, it is
+      collected nowhere, and it cannot be guessed, so a level-20 Monk still reads expert in all three.
+      Unlike the Cleric — whose doctrine was already recorded and merely never read — this one needs the
+      choice **captured** first: a new `PF2ChoiceKind` prompted by `pf2PlanLevelUp` at 7/11/15, with the
+      15 prompt constrained to the two saves already mastered. Genuinely a new slot, which is why it is not
+      in the slice above. Recorded in `PF2_CLASS_PROGRESSION_GAPS` and pinned by a test that fails the day
+      someone approximates it.
 - [ ] **P5-11 — PF2 Fighter weapon-group attack ranks.** The builder advances attack proficiency through
       unscoped steps only, so a Fighter's general attack rank stays EXPERT past 13. It **under**-counts,
       which is the safe direction, and the gaps list says so. Needs weapon-group tracking.
 - [ ] **P5-12 — The 2024 Artificer.** *(Blocked on data.)* Published after the 2024 PHB; the repo has the
       2014 one. Needs the owner to supply the revised text, exactly as the Pugilist was.
 
-Everything above except P5-10 and P5-11 is **blocked on source material, not on effort** — worth saying
-plainly so this priority is not mistaken for a large build. The two unblocked ones are real rules bugs.
+Everything above except P5-10 / P5-10b and P5-11 is **blocked on source material, not on effort** — worth
+saying plainly so this priority is not mistaken for a large build. The unblocked ones are real rules bugs.
 
 - [ ] **P5-7 — The guided builder's per-level flows.** *(C-6.)* `/dnd/characters/[id]/builder` is still B1
       for all four systems: Foundations is the existing all-at-once builder embedded whole. The page's own

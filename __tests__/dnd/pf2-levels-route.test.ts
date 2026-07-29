@@ -44,6 +44,23 @@ describe('PF2 levels route (B9)', () => {
 
   it('projects earned feat choices into the pf2e sidecar and keeps the sidecar level in step', () => {
     expect(SRC).toContain('pf2ProjectLevelUpFeats(sidecar.feats ?? [], choices, newLevel, resolveFeat)');
-    expect(SRC).toContain('identity: { ...sidecar.identity, level: newLevel }');
+    // The identity spread grew a `subclass` line (P5-10), so this asserts the two guarantees rather than
+    // the one literal it used to match: the sidecar's own level follows the character's.
+    expect(SRC).toContain('...sidecar.identity,');
+    // `\r?\n`, not `\n` — this repo is CRLF, and a `\n` needle silently matches nothing.
+    expect(SRC).toMatch(/level: newLevel,?\r?\n/);
+  });
+
+  it('and re-derives the proficiency ranks, which it used to leave at build-time values', () => {
+    // Ranks were written once, at build time. Walking a Wizard 1→9 through this route left it with
+    // level-1 saves and a level-1 spell DC — correct if you BUILT at 9, stale if you walked there.
+    expect(SRC).toContain('pf2ReprojectRanks(levelled, newLevel)');
+  });
+
+  it('and projects the SUBCLASS it records, so a doctrine chosen here reaches the sheet', () => {
+    // It accepted a `subclass` choice and wrote it to the ledger only; `identity.subclass` stayed empty,
+    // so the choice was invisible on the sheet and could not drive a Cleric's doctrine-dependent ranks.
+    expect(SRC).toMatch(/c\.kind === 'subclass'/);
+    expect(SRC).toContain('subclass: chosenSubclass || sidecar.identity.subclass');
   });
 });

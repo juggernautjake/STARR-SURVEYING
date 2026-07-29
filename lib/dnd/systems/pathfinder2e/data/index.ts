@@ -29,7 +29,7 @@ import { PF2_SPELLS_R0_3, pf2SpellR0_3 } from './spells-0-3';
 import { PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10 } from './spells-4-10';
 import {
   PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
-  pf2MaxSpellRankFromProgression, PF2_CLASS_PROGRESSION_GAPS,
+  pf2MaxSpellRankFromProgression, PF2_CLASS_PROGRESSION_GAPS, pf2Subclass, pf2EffectiveTracks,
 } from './classes';
 import {
   PF2_ANCESTRIES_FULL, PF2_HERITAGES, PF2_FEATS_ANCESTRY, PF2_BACKGROUNDS_FULL,
@@ -51,7 +51,7 @@ export {
   PF2_SPELLS_R0_3, pf2SpellR0_3,
   PF2_SPELLS_R4_10, PF2_FOCUS_SPELLS, pf2SpellR4_10,
   PF2_CLASS_PROGRESSIONS, pf2ClassProgression, pf2ClassFeatLevels, pf2RankAtLevel,
-  pf2MaxSpellRankFromProgression,
+  pf2MaxSpellRankFromProgression, pf2Subclass, pf2EffectiveTracks,
   PF2_ANCESTRIES_FULL, PF2_HERITAGES, PF2_FEATS_ANCESTRY, PF2_BACKGROUNDS_FULL,
   PF2_ALTERNATE_BOOSTS_RULE,
   pf2AncestryFull, pf2Heritage, pf2AncestryFeat, pf2BackgroundFull,
@@ -59,7 +59,7 @@ export {
 };
 export type {
   PF2ClassProgression, PF2ProficiencyTrack, PF2ProficiencyStep, PF2ClassFeature,
-  PF2ClassSpellcasting, PF2Subclass,
+  PF2ClassSpellcasting, PF2Subclass, PF2SubclassTracks,
 } from './classes';
 export type { PF2AncestryFull, PF2BackgroundFull } from './ancestries';
 

@@ -13,7 +13,7 @@ import { getCharacterAccess, requireCharacterWrite } from '@/lib/dnd/characters'
 import { normalizeSystem } from '@/lib/dnd/systems';
 import { blankCharacter, normalizeCharacter } from '@/app/dnd/_sheet/data/blank';
 import type { Character } from '@/app/dnd/_sheet/types';
-import type { PF2Build } from '@/lib/dnd/systems/pathfinder2e/builder';
+import { pf2ReprojectRanks, type PF2Build } from '@/lib/dnd/systems/pathfinder2e/builder';
 import {
   pf2PlanLevelUp,
   pf2RecordChoice,
@@ -173,11 +173,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // recorded-only; see pf2ProjectLevelUpFeats for why attribute projection waits on partial-boost state.)
   const sidecar = nextData.pf2e;
   if (sidecar) {
-    nextData.pf2e = {
+    // …and RE-DERIVE the proficiency ranks. Every rank on the sheet was written once, at build time, so
+    // walking a Wizard from 1 to 9 through this route left it with level-1 saves and a level-1 spell DC
+    // — the exact numbers `pf2RanksAtLevel` was written to fix, correct on the builder path and stale on
+    // this one. The same character reading differently depending on how it reached level 9 is worse than
+    // both paths being wrong. (It also lands the Cleric doctrine here, which was the slice that found it.)
+    // The SUBCLASS the walker collected was recorded in the ledger and then dropped: `identity.subclass`
+    // was never written, so a doctrine/instinct/racket chosen at level 1 through this route did not appear
+    // on the sheet, and — after this slice — could not drive a Cleric's ranks either. Ledger-first, since
+    // the ledger is the record of what was chosen; an existing identity value wins only if the ledger is
+    // silent, which is the case for a character built in Foundations and levelled here.
+    const chosenSubclass = choices
+      .filter((c) => c.kind === 'subclass' && c.level <= newLevel && (c.value ?? '').trim())
+      .sort((a, b) => a.level - b.level)[0]?.value?.trim();
+    const levelled: PF2Character = {
       ...sidecar,
-      identity: { ...sidecar.identity, level: newLevel },
+      identity: {
+        ...sidecar.identity,
+        level: newLevel,
+        subclass: chosenSubclass || sidecar.identity.subclass || '',
+      },
       feats: pf2ProjectLevelUpFeats(sidecar.feats ?? [], choices, newLevel, resolveFeat),
     };
+    nextData.pf2e = pf2ReprojectRanks(levelled, newLevel);
   }
 
   // The badge, derived from the merged ledger — the same rule every other write path uses, so a PF2

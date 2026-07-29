@@ -72,6 +72,20 @@ export interface PF2ClassFeature {
   effect: string;
 }
 
+/** The tracks a subclass may REPLACE outright. Keyed to match `PF2ClassProgression`'s own fields, so a
+ *  reader can see at a glance which base track each override stands in for. */
+export interface PF2SubclassTracks {
+  fortitude?: PF2ProficiencyTrack;
+  reflex?: PF2ProficiencyTrack;
+  will?: PF2ProficiencyTrack;
+  perception?: PF2ProficiencyTrack;
+  attacks?: PF2ProficiencyTrack;
+  defenses?: PF2ProficiencyTrack;
+  classDc?: PF2ProficiencyTrack;
+  /** Spell attack modifier / spell DC — the Cleric is the only class whose doctrine moves this. */
+  spellProficiency?: PF2ProficiencyTrack;
+}
+
 /** A subclass option. `progression` carries the steps that belong to the SUBCLASS rather than the
  *  class, which is the only honest way to model a Cleric: a cloistered cleric and a warpriest have
  *  different Fortitude, weapon and spell progressions, so neither belongs on the base track. */
@@ -83,6 +97,18 @@ export interface PF2Subclass {
   /** Key attribute, for subclasses that set one (Rogue rackets). */
   keyAttribute?: PF2AttributeKey;
   progression?: { level: number; effect: string }[];
+  /**
+   * Structured form of the same steps `progression` describes in prose, for the tracks the subclass
+   * actually REPLACES. Present only where the subclass changes a rank — a doctrine that merely widens
+   * which weapons you are trained in (the warpriest's martial weapons at 3) changes no rank and so
+   * appears in `progression` only.
+   *
+   * These stand in for the base track entirely rather than merging into it, because that is what the
+   * rules do: a warpriest is not "a cleric who also gets expert Fortitude at 15", they are expert in
+   * Fortitude from level 1. Merging would keep the base `initial: 'trained'` and read one rank low for
+   * fourteen levels.
+   */
+  tracks?: PF2SubclassTracks;
   source: PF2Source;
 }
 
@@ -498,6 +524,20 @@ export const PF2_CLASS_PROGRESSIONS: PF2ClassProgression[] = [
       {
         name: 'Cloistered Cleric',
         source: 'Player Core',
+        // The prose below, made applicable. Every step here is the same sentence as its `progression`
+        // entry — nothing is derived, and nothing in `progression` that does not move a rank appears.
+        tracks: {
+          fortitude: { initial: 'trained', increases: [{ level: 3, rank: 'expert', via: 'Cloistered Cleric Doctrine' }] },
+          attacks: {
+            initial: 'trained',
+            increases: [{ level: 11, rank: 'expert', via: 'Cloistered Cleric Doctrine' }],
+            // Unscoped on purpose: the cleric's whole weapon set IS "the deity's favored weapon, simple
+            // weapons and unarmed attacks", so level 11 raises everything a cloistered cleric can Strike
+            // with. Compare the warpriest's level-19 step, which is favored-weapon-only and carries a note.
+            note: 'The deity’s favored weapon, simple weapons and unarmed attacks — the cleric’s entire weapon set.',
+          },
+          spellProficiency: fullCasterSpellProficiency(),
+        },
         progression: [
           { level: 1, effect: 'The Domain Initiate class feat.' },
           { level: 3, effect: 'Expert Fortitude saves.' },
@@ -510,6 +550,34 @@ export const PF2_CLASS_PROGRESSIONS: PF2ClassProgression[] = [
       {
         name: 'Warpriest',
         source: 'Player Core',
+        tracks: {
+          // Expert from level 1 — this is why an override REPLACES rather than merges. A warpriest is not
+          // trained-then-expert-at-3 like their cloistered sibling; they start there.
+          fortitude: { initial: 'expert', increases: [{ level: 15, rank: 'master', via: 'Warpriest Doctrine' }] },
+          attacks: {
+            initial: 'trained',
+            increases: [
+              { level: 7, rank: 'expert', via: 'Warpriest Doctrine' },
+              {
+                level: 19, rank: 'master', via: 'Warpriest Doctrine',
+                // SCOPED, so the builder leaves it unapplied and a level-19 warpriest reads expert. That
+                // under-counts Strikes with the favored weapon and is exactly right for every other weapon
+                // they own. Same rule, and the same reason, as the Fighter's weapon-group steps.
+                note: 'Only with the deity’s favored weapon; martial, simple and unarmed attacks stay expert.',
+              },
+            ],
+            note: 'Martial weapons are added at level 3 — a widening, not a rank, so it is not a step here.',
+          },
+          // Never legendary. A warpriest's spell DC tops out at master, which is the one place the two
+          // doctrines end at different ceilings rather than merely at different times.
+          spellProficiency: {
+            initial: 'trained',
+            increases: [
+              { level: 11, rank: 'expert', via: 'Warpriest Doctrine' },
+              { level: 19, rank: 'master', via: 'Warpriest Doctrine' },
+            ],
+          },
+        },
         progression: [
           { level: 1, effect: 'Trained in light and medium armor, expert Fortitude saves, and the Shield Block feat.' },
           { level: 3, effect: 'Trained in martial weapons.' },
@@ -1642,6 +1710,50 @@ export function pf2ClassProgression(name: string): PF2ClassProgression | null {
   return PF2_CLASS_PROGRESSIONS.find((c) => norm(c.className) === norm(name)) ?? null;
 }
 
+/** The subclass a character chose, by name, within a class. Null when either is unknown. */
+export function pf2Subclass(className: string, subclassName: string): PF2Subclass | null {
+  if (!norm(subclassName)) return null;
+  const prog = pf2ClassProgression(className);
+  return prog?.subclasses?.find((s) => norm(s.name) === norm(subclassName)) ?? null;
+}
+
+/**
+ * The tracks that actually apply to a character: the class's own, with any the chosen subclass replaces
+ * swapped in.
+ *
+ * **This is the only correct way to read a Cleric's ranks.** Their Fortitude, attack and spellcasting
+ * tracks all carry `increases: []` on the base class, because the two doctrines disagree about every one
+ * of them and writing either doctrine's answer onto the base would be asserting a choice the character
+ * has not made. Reading the base track alone is not a conservative approximation — it is simply the level-1
+ * snapshot, and it stays that way to level 20.
+ *
+ * Returns the base tracks unchanged for the twenty other classes, none of which have a rank-moving
+ * subclass, and for any subclass name that does not resolve.
+ */
+export function pf2EffectiveTracks(className: string, subclassName?: string): {
+  perception: PF2ProficiencyTrack | undefined;
+  fortitude: PF2ProficiencyTrack | undefined;
+  reflex: PF2ProficiencyTrack | undefined;
+  will: PF2ProficiencyTrack | undefined;
+  attacks: PF2ProficiencyTrack | undefined;
+  defenses: PF2ProficiencyTrack | undefined;
+  classDc: PF2ProficiencyTrack | undefined;
+  spellProficiency: PF2ProficiencyTrack | undefined;
+} {
+  const prog = pf2ClassProgression(className);
+  const t = pf2Subclass(className, subclassName ?? '')?.tracks;
+  return {
+    perception: t?.perception ?? prog?.perception,
+    fortitude: t?.fortitude ?? prog?.saves.fortitude,
+    reflex: t?.reflex ?? prog?.saves.reflex,
+    will: t?.will ?? prog?.saves.will,
+    attacks: t?.attacks ?? prog?.attacks,
+    defenses: t?.defenses ?? prog?.defenses,
+    classDc: t?.classDc ?? prog?.classDc,
+    spellProficiency: t?.spellProficiency ?? prog?.spellcasting?.proficiency,
+  };
+}
+
 /** The class-feat schedule to hand `pf2FeatLevelsFor`, or undefined to let it use its default.
  *
  *  Exists so callers never reach into the object and read `classFeatLevels` themselves: undefined
@@ -1681,7 +1793,7 @@ export function pf2MaxSpellRankFromProgression(className: string, level: number)
  *  a gap recorded only in a planning doc is a gap nobody finds. */
 export const PF2_CLASS_PROGRESSION_GAPS: string[] = [
   'Monk save progression is player-CHOSEN (Path to Perfection at 7/11/15), so the three save tracks carry no increases. A sheet must ask which saves were chosen.',
-  'Cleric Fortitude, attack and spellcasting progressions are doctrine-dependent and live on the subclass, not the base tracks.',
+  'Cleric Fortitude, attack and spellcasting progressions are doctrine-dependent and live on the subclass (`tracks`), not the base tracks. Read them through `pf2EffectiveTracks`; the base tracks alone are the level-1 snapshot for all twenty levels.',
   'Magus and Summoner slot tables are NOT modelled (`slotTableModelled: false`); both are reduced casters and both return a spell-rank ceiling of 0 until someone models them.',
   'Summoner `classFeatLevels` is omitted because of the level-1 evolution-feat slot; the even-level default applies.',
   'Eidolon and Summoner subclass options are not enumerated.',
@@ -1690,5 +1802,5 @@ export const PF2_CLASS_PROGRESSION_GAPS: string[] = [
   'Focus-point pools, spell-slot COUNTS per rank, and skill-increase schedules are not modelled here — only which spell ranks unlock when.',
   'Eidolon proficiency tracks (its own attacks and defenses) are described in notes but not modelled as tracks.',
   'Builder attack-rank ceiling: the Fighter\'s attack steps at 5/13/19 carry per-step `note`s (level 5 raises ONE weapon group; 13/19 raise simple/martial/unarmed plus a group). The builder advances the attack proficiency through UNSCOPED steps only, so it cannot tell the group-scoped level-5 bump from the general 13/19 ones and leaves a Fighter\'s general attack rank at its level-1 EXPERT past 13. This UNDER-counts (safe, visible) rather than over-counting the group-only master. Modelling it correctly needs weapon-group tracking, which is not built.',
-  'Builder rank advancement uses each class\'s BASE tracks: Cleric Fortitude/attacks/spell proficiency (doctrine-dependent) and Monk saves (player-chosen via Path to Perfection) carry no structured `increases`, so an assembled Cleric or Monk keeps its level-1 base ranks — the doctrine/choice bumps are prose only and are not applied.',
+  'Monk Path to Perfection (7/11/15) is still unapplied: the choice of WHICH saves reach master and legendary is the player\'s, is not collected anywhere, and cannot be guessed, so an assembled Monk keeps expert in all three saves to level 20. Unlike the Cleric — whose doctrine was already recorded and merely never read — this one needs the choice captured first.',
 ];
