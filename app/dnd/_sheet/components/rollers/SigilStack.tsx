@@ -21,7 +21,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { shouldAnimateRoller } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
@@ -113,12 +113,21 @@ export function SigilStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
-  const [tiles, setTiles] = useState<StackTile[]>([])
-  const [visible, setVisible] = useState(0)
-  const [phase, setPhase] = useState<'idle' | 'assembling' | 'locked'>('idle')
-  const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; tag?: string } | null>(null)
+  // ADOPT the roll already on screen instead of replaying it (RO-7 — see `adoptedToken`). Switching roller
+  // template unmounts one roller and mounts another; seeded with -1 these three lines made the new one treat
+  // the existing roll as brand new, re-running the animation AND re-committing it to the log.
+  //
+  // The initial state is derived from the same roll so it renders SETTLED rather than idle — adopting a roll
+  // and then showing an empty stage would trade one wrong behaviour for another.
+  const initial = useRef(activeRoll ? buildTiles(activeRoll) : []).current
+  const [tiles, setTiles] = useState<StackTile[]>(initial)
+  const [visible, setVisible] = useState(initial.length)
+  const [phase, setPhase] = useState<'idle' | 'assembling' | 'locked'>(activeRoll ? 'locked' : 'idle')
+  const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; tag?: string } | null>(
+    activeRoll ? { crit: activeRoll.crit, fumble: activeRoll.fumble, tag: activeRoll.entry.tag } : null,
+  )
   const timers = useRef<number[]>([])
-  const lastToken = useRef(-1)
+  const lastToken = useRef(adoptedToken(activeRoll))
   const pending = useRef<{ entry: ActiveRoll['entry']; done: boolean } | null>(null)
 
   const clearTimers = () => {

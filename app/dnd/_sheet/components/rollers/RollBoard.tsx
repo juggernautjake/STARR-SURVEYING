@@ -21,7 +21,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
 
@@ -82,19 +82,42 @@ function pickDecoys(lo: number, hi: number, exclude: number): [number, number] {
   return [a, b]
 }
 
+/** Build the settled `Shown` for a roll — used both when a roll ARRIVES and when one is adopted at mount
+ *  (RO-7), so the two paths cannot drift into showing different things for the same roll. */
+function shownFor(roll: ActiveRoll): Shown {
+  const e = roll.entry
+  const data: Shown = {
+    value: e.total, label: e.label, breakdown: e.breakdown, tag: e.tag,
+    crit: roll.crit, fumble: roll.fumble, boosts: e.boosts, penalties: e.penalties,
+    natural: roll.landing, isD20: roll.isD20,
+  }
+  const [lo, hi] = rollBounds(data)
+  data.decoys = pickDecoys(lo, hi, data.value)
+  return data
+}
+
 export function BoardStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
-  const [phase, setPhase] = useState<BoardPhase>('idle')
-  const [shown, setShown] = useState<Shown | null>(null)
-  const [revealIndex, setRevealIndex] = useState(1)
+  const [phase, setPhase] = useState<BoardPhase>(activeRoll ? 'shown' : 'idle')
+  // The roll being adopted at mount, if any (RO-7). Built with the same shape the effect builds so an
+  // adopted hand is indistinguishable from a dealt one — it simply never animated or re-committed.
+  const adopted = useRef(activeRoll ? shownFor(activeRoll) : null).current
+  const [shown, setShown] = useState<Shown | null>(adopted)
+  const [revealIndex, setRevealIndex] = useState(activeRoll ? ((activeRoll.token % 3) + 3) % 3 : 1)
   const [deck, setDeck] = useState(0) // re-keys the cards each roll so the slide-in animation restarts
   const [revealAll, setRevealAll] = useState(false) // flips the other two cards to show what they were
   const [shufN, setShufN] = useState(0) // which random shuffle pattern this roll uses (.rbn-shuf-N)
   const timers = useRef<number[]>([])
-  const lastToken = useRef(-1)
-  const cardUp = useRef(false) // whether a card is currently face-up (drives the opening flip-back)
+  // ADOPT the roll already on screen rather than replaying it (RO-7 — see `adoptedToken`). Seeded with -1,
+  // mounting after a template switch re-dealt the hand AND re-committed the roll to the log.
+  const lastToken = useRef(adoptedToken(activeRoll))
+  // TRUE when a roll was adopted at mount: a card IS face up, so the next roll must flip it back first.
+  const cardUp = useRef(!!activeRoll) // whether a card is currently face-up (drives the opening flip-back)
+  // `firstRoll` stays TRUE when a roll was adopted at mount: the adopted hand is already dealt, so the next
+  // real roll should behave like the first one (shuffle + reveal) rather than sliding off cards that were
+  // never animated in.
   const firstRoll = useRef(true) // the FIRST roll after load just shuffles + reveals; later rolls slide off first
   const pending = useRef<{ entry: ActiveRoll['entry']; done: boolean } | null>(null)
 

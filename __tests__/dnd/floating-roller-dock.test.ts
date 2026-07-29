@@ -11,6 +11,8 @@ import {
   rollerStoreKey,
   loadDockState,
   saveDockState,
+  FIXED_W,
+  FIXED_H,
   type DockState,
 } from '@/app/dnd/_sheet/components/rollers/useFloatingDock'
 
@@ -50,16 +52,22 @@ describe('roller dock — persistence round-trip (a per-character VIEW preferenc
     expect(rollerStoreKey(undefined)).toBe('dnd:roller:v1:anon')
   })
 
-  it('saves and restores position, size, and minimized exactly', () => {
-    const s: DockState = { x: 120, y: 200, w: 360, h: 420, minimized: true }
-    saveDockState('char-1', s)
-    expect(loadDockState('char-1')).toEqual(s)
+  // RE-POINTED 2026-07-28. These asserted that SIZE round-trips, which was correct while the window was
+  // drag-resizable. The owner asked for the opposite: *"the modal when open is a consistent size and is not
+  // resizable… always big enough to show all of the elements… regardless of the roller template chosen."*
+  // Position is still a preference; size is now fixed, and a stored size from before the change must NOT be
+  // restored — that is exactly how a too-small box would survive the fix.
+  it('restores POSITION and minimized exactly', () => {
+    saveDockState('char-1', { x: 120, y: 200, w: 360, h: 420, minimized: true })
+    expect(loadDockState('char-1')).toMatchObject({ x: 120, y: 200, minimized: true })
   })
 
-  it('round-trips a content-fit (null) height', () => {
-    const s: DockState = { x: 10, y: 90, w: 370, h: null, minimized: false }
-    saveDockState('char-h', s)
-    expect(loadDockState('char-h')).toEqual(s)
+  it('but NOT a stored size — the window is fixed now', () => {
+    saveDockState('char-h', { x: 10, y: 90, w: 370, h: null, minimized: false })
+    const back = loadDockState('char-h')
+    expect(back).toMatchObject({ x: 10, y: 90, w: FIXED_W, h: FIXED_H })
+    // The old "fit content" height is what made the window change shape per template.
+    expect(back?.h, 'a content-fit height must not survive').not.toBeNull()
   })
 
   it('does not leak one character’s window onto another', () => {

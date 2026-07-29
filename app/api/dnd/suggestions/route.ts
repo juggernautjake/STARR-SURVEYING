@@ -9,7 +9,32 @@ import { getDndSession, isDndOwner } from '@/lib/dnd/auth';
 const MAX_BODY = 4000;
 const MAX_NAME = 120;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // `?count=1` — just the number of UNREVIEWED requests, for the header badge (P4-2).
+  //
+  // A separate mode rather than a separate route, and rather than having the badge fetch the whole board:
+  // the header mounts on every /dnd page, so shipping every suggestion body to render one integer would put
+  // the entire board on the wire on every navigation.
+  //
+  // OWNER ONLY. Only the owner can action these, and a player shown "12" on a board they cannot touch is
+  // pure noise. A non-owner gets 0, which the badge renders as nothing at all.
+  if (req.nextUrl.searchParams.get('count')) {
+    if (!isDndOwner(getDndSession())) return NextResponse.json({ count: 0 });
+    try {
+      const { count } = await supabaseAdmin
+        .from('dnd_suggestions')
+        .select('id', { count: 'exact', head: true })
+        // `status` is NULL for anything submitted before the review lifecycle existed, and the GET below
+        // already normalises that to 'untouched'. Counting only `eq('untouched')` would silently ignore
+        // every legacy row — the ones most likely to still need reading.
+        .or('status.is.null,status.eq.untouched');
+      return NextResponse.json({ count: count ?? 0 });
+    } catch {
+      // The board is optional infrastructure; a missing table must not break every page's header.
+      return NextResponse.json({ count: 0 });
+    }
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from('dnd_suggestions')

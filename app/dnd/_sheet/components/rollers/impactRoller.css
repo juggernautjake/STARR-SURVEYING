@@ -49,7 +49,12 @@
 /* ───────────────────────────────────────────────────────── the arena (resolution stage) */
 .iroller .ir-arena {
   position: relative;
-  min-height: 210px;
+  /* SHARED ROLLER HEIGHT (owner report 2026-07-28: "some of the digital dice rollers are too tall").
+     The four rollers are interchangeable across every sheet template and every system, so a player
+     switching template saw the panel jump by up to 42px. This was the tallest at 210px against Roll Board's
+     176 and Sigil Stack's 168. The fallback is the shared default; the variable lets a theme override all
+     four at once, and each file keeps its own copy of the rule so its styles still travel with it (RO-5). */
+  min-height: var(--roller-stage-min-h, 176px);
   padding: 14px 10px 10px;
   border-radius: 12px;
   background:
@@ -69,7 +74,10 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 178px;
+  /* The EMPTY state, and the real source of the height difference: this was 178px where Roll Board's cards
+     and Sigil Stack's body both use 118. Since the idle state is what a sheet shows most of the time, that
+     60px was the visible discrepancy, and it is what forced the arena above to 210. */
+  min-height: var(--roller-idle-min-h, 118px);
   color: var(--muted, #9a97ad);
   font-size: 12.5px;
   letter-spacing: 0.04em;

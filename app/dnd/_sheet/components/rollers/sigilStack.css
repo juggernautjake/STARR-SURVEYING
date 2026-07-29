@@ -52,7 +52,8 @@
 /* ───────────────────────────────────────────────────────── the resolution stage */
 .dnd-sheet .sigil-stage {
   position: relative;
-  min-height: 168px;
+  /* Shared roller height — see impactRoller.css for the report this came from. Was 168px. */
+  min-height: var(--roller-stage-min-h, 176px);
   padding: 10px 4px 4px;
   border-radius: 10px;
   background:
@@ -74,7 +75,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 118px;
+  min-height: var(--roller-idle-min-h, 118px);
   color: var(--muted);
   font-size: 12.5px;
   letter-spacing: 0.04em;

@@ -45,6 +45,22 @@ export const DEFAULT_W = 396
 export const MIN_W = 248
 export const MIN_H = 168
 
+/**
+ * The roller window is a FIXED size, and no longer resizable (owner, 2026-07-28: *"the modal when open is
+ * a consistent size and is not resizable. It should always be big enough to show all of the elements of the
+ * dice roller regardless of the roller template chosen."*).
+ *
+ * Before this the height was "fit content" (`h: null`) and drag-resizable, so the window CHANGED SHAPE when
+ * you switched roller template — Impact's tall arena against Sigil Stack's shorter stack — and any size a
+ * player had dragged to was then too small for whichever template needed more room. Two variables (template
+ * and stored size) both fed one dimension, which is why no single value ever looked right.
+ *
+ * 560px clears the tallest composition: header + template bar + the 176px stage + the controls + the
+ * breakdown, with the body's own `overflow: auto` as the backstop rather than the primary mechanism.
+ */
+export const FIXED_W = 396
+export const FIXED_H = 560
+
 export function loadDockState(characterId: string | null | undefined): DockState | null {
   if (typeof window === 'undefined') return null
   try {
@@ -55,8 +71,11 @@ export function loadDockState(characterId: string | null | undefined): DockState
     return {
       x: p.x,
       y: p.y,
-      w: p.w,
-      h: typeof p.h === 'number' ? p.h : null,
+      // POSITION is restored; SIZE is not. A size stored before the window became fixed would otherwise
+      // keep an old drag-resized box alive forever — including boxes too small for the tallest template,
+      // which is the complaint this change answers. Where the player put it is still their preference.
+      w: FIXED_W,
+      h: FIXED_H,
       minimized: p.minimized === true,
     }
   } catch {
@@ -125,10 +144,10 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
     const saved = loadDockState(characterId)
     if (saved) {
       const h = saved.h
-      const { x, y } = clampBox(saved.x, saved.y, saved.w, h ?? 440)
+      const { x, y } = clampBox(saved.x, saved.y, saved.w, h ?? FIXED_H)
       setState({ ...saved, x, y })
     } else {
-      const w = DEFAULT_W
+      const w = FIXED_W
       const { x, y } = defaultPos(w)
       freshDefault.current = true
       // Start MINIMIZED (just the corner dice FAB) rather than open. An open 396px window docked
@@ -136,7 +155,7 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
       // template and system — before the player has moved it. Minimized keeps the sheet unobstructed;
       // the roller pops open on the first roll (useExpandOnRoll) or a click of the FAB, and its
       // position/size/open-state persist per character from then on.
-      setState({ x, y, w, h: null, minimized: true })
+      setState({ x, y, w, h: FIXED_H, minimized: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId])

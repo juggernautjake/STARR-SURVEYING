@@ -51,7 +51,9 @@
 /* ───────────────────────────────────────────────────────── the felt (resolution stage) */
 .rboard .rb-felt {
   position: relative;
-  min-height: 176px;
+  /* Shared roller height — see impactRoller.css for the report. This one was already the reference value,
+     so it is unchanged in effect and now moves with the others. */
+  min-height: var(--roller-stage-min-h, 176px);
   padding: 10px 10px 4px;
   border-radius: 12px;
   /* A card table's felt — a soft green baize evoked from the tokens, ringed by a darker rail. */
@@ -75,7 +77,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 120px;
+  min-height: var(--roller-idle-min-h, 118px);
   color: var(--muted, #9a97ad);
   font-size: 12.5px;
   letter-spacing: 0.04em;
@@ -580,7 +582,7 @@
    All colours are the shared --* tokens (bridged from --hx-* on PF2/IG), so it reads on every system. */
 .dnd-sheet .rbn-cards {
   display: flex; justify-content: center; align-items: center; gap: 16px;
-  perspective: 950px; min-height: 118px; margin: 8px 0 6px;
+  perspective: 950px; min-height: var(--roller-idle-min-h, 118px); margin: 8px 0 6px;
 }
 .dnd-sheet .rbn-card { width: 68px; height: 96px; position: relative; }
 .dnd-sheet .rbn-inner {

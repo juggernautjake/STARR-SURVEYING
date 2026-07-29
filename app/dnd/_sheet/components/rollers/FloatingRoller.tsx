@@ -93,16 +93,11 @@ export default function FloatingRoller({
           </div>
         </div>
         <div className="fld-body">{children}</div>
-        <button
-          type="button"
-          className="fld-resize"
-          onPointerDown={dock.onResizePointerDown}
-          title="Drag to resize"
-          aria-label="Resize roller"
-          tabIndex={-1}
-        >
-          <span aria-hidden>⣶</span>
-        </button>
+        {/* The resize corner is GONE (owner, 2026-07-28: the window should be "a consistent size and is
+            not resizable… always big enough to show all of the elements… regardless of the roller template
+            chosen"). It is still draggable by its header — where the window sits is a preference; how big
+            it is was the thing that kept fighting the template. `onResizePointerDown` remains on the dock
+            for now rather than being ripped out of the hook in the same change. */}
       </div>
     </Ctx.Provider>
   )

@@ -51,9 +51,16 @@ describe('the suggestion routes enforce the owner gate at the right places', () 
     expect(gates.length, 'both managing handlers must gate').toBeGreaterThanOrEqual(2);
     expect(ID_ROUTE).toContain('status: 403');
   });
-  it('managing a request is only reachable via the [id] route — GET/POST are not owner-gated', () => {
-    // The public list + open submit must NOT 403 non-owners; the 403 message lives only in the [id] route.
-    expect(BASE_ROUTE).not.toContain('Only the owner');
+  it('managing a request is only reachable via the [id] route — GET/POST never 403 a non-owner', () => {
+    // The public list + open submit must NOT 403 non-owners; the 403 lives only in the [id] route.
+    //
+    // TIGHTENED 2026-07-28 (P4-2). This asserted the ROUTE FILE never contains the string "Only the owner",
+    // which broke when `?count=1` was added for the header badge — that mode is owner-scoped and says so in
+    // a comment. The property worth guarding was never "this file does not mention owners"; it is that
+    // neither handler REFUSES a non-owner. The count mode returns `{ count: 0 }` to everyone else rather
+    // than a 403, so the board stays open exactly as before.
+    expect(BASE_ROUTE).not.toMatch(/status: 403/);
+    expect(BASE_ROUTE, 'a non-owner gets an empty count, not a refusal').toContain('return NextResponse.json({ count: 0 })');
   });
 
   it('POST requires the request text and captures the submitter name + username (user\'s asks)', () => {

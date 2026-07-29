@@ -23,7 +23,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { dieSides, ngonPoints } from './dieShape'
 import './impactRoller.css'
@@ -100,15 +100,22 @@ export function ImpactStage() {
   const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
   useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
-  const [rows, setRows] = useState<BreakRow[]>([])
-  const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>('idle')
-  const [face, setFace] = useState<number | null>(null)
+  // ADOPT the roll already on screen rather than replaying it (RO-7 — see `adoptedToken`). Seeded with -1,
+  // switching template re-tumbled the die AND re-committed the roll to the log.
+  const adopted = useRef(activeRoll).current
+  const [rows, setRows] = useState<BreakRow[]>(adopted ? buildRows(adopted) : [])
+  const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>(adopted ? 'landed' : 'idle')
+  const [face, setFace] = useState<number | null>(adopted ? adopted.landing : null)
   // How many sides the die SHAPE has, from the die being rolled (D-4). null → the neutral rounded shape.
-  const [sides, setSides] = useState<number | null>(null)
-  const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; landing: number; isD20: boolean; tag?: string } | null>(null)
+  const [sides, setSides] = useState<number | null>(adopted ? dieSides(adopted) : null)
+  const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; landing: number; isD20: boolean; tag?: string } | null>(
+    adopted
+      ? { crit: adopted.crit, fumble: adopted.fumble, total: adopted.entry.total, label: adopted.entry.label, landing: adopted.landing, isD20: adopted.isD20, tag: adopted.entry.tag }
+      : null,
+  )
   const timers = useRef<number[]>([])
   const scrambler = useRef<number | null>(null)
-  const lastToken = useRef(-1)
+  const lastToken = useRef(adoptedToken(activeRoll))
   const pending = useRef<{ entry: ActiveRoll['entry']; done: boolean } | null>(null)
 
   const clearTimers = () => {
