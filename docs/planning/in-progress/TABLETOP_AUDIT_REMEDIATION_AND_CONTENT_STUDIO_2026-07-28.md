@@ -3253,9 +3253,33 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 - [ ] **P13-3 — SRD 5.1 import (2014).** ~320 creatures, CC-BY-4.0, attribution recorded per row.
 - [ ] **P13-4 — SRD 5.2 import (2024).** ~340, the 2024 statblock shape.
 - [ ] **P13-5 — Pathfinder 2e import.** Monster Core via Archives of Nethys, ORC-licensed.
-- [ ] **P13-6 — Taxonomy + tags.** The brief's own categories — bosses, woodland, massive, demons/abyssal,
+- [x] **P13-6 — Taxonomy + tags.** The brief's own categories — bosses, woodland, massive, demons/abyssal,
       sea, birds, companions, undead, folklore, constructs — derived from type/size/CR/environment rather
       than hand-tagged, so a new import is categorised automatically.
+
+      **Done 2026-07-29 — `lib/dnd/bestiary/taxonomy.ts`.** None of these categories is a field in any
+      source book; they are readings of `type`, `size`, `cr` and the name. Derived, and therefore
+      **arguable**: every rule is a claim you can point at, and a re-import re-derives every tag. A
+      hand-tagged bestiary is one nobody can correct in bulk — the moment someone disagrees that an
+      owlbear is woodland, there is no single place to change it.
+
+      **A creature gets as many tags as apply.** A kraken is `sea` **and** `massive` **and** `boss`; a
+      single `category` column would have made every filter lie. `demonic` implies `abyssal` but not the
+      reverse — an abyssal beast is not a demon — so that implication runs one way only. Output order
+      follows the declared list rather than insertion, so a re-import diffs cleanly instead of showing
+      reordered arrays as changes.
+
+      The `boss` threshold is **the same CR 10** P13-9 uses for `boss-tier`, deliberately: the tag a
+      player filters on and the rule that grants variants must not drift apart.
+
+      **Also `lib/dnd/bestiary/derive.ts` — the composition seam.** Taxonomy, eligibility and variants are
+      separate modules because each is a separate argument to have; the importer should still make ONE
+      call. **Order is enforced there and it matters:** tags are derived first, because `variantReason`
+      reads the `boss` tag — deriving eligibility from an untagged row would silently miss every creature
+      that qualifies on the tag rather than on its rating. That ordering is pinned by a test.
+
+      The bestiary now has exactly **one** orphan (`derive.ts`, everything else reaches through it),
+      exempted with an expiry naming P13-3.
 
 ### The interactive statblock
 

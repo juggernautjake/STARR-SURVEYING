@@ -24,16 +24,17 @@ const EXEMPT: Record<string, string> = {
   // test failed with "now imported and should be removed from EXEMPT", and the entry was deleted the same
   // day. The second exemption in this file's history to be honoured rather than accumulate.
   //
-  // EXPIRES WITH P13-3. The bestiary importer is `variants.ts`'s only intended caller: it generates the
-  // `dnd_creature_variants` rows at import time. It does not exist yet because seed 462 — the table those
-  // rows go in — is written but unapplied, so there is nothing to import into.
+  // EXPIRES WITH P13-3. `derive.ts` composes the three bestiary rules (taxonomy, eligibility, variants)
+  // into the single call the importer makes. It is the ONE orphan the bestiary now has: taxonomy,
+  // eligibility and variants are all reached through it, which is the point of a composition seam — the
+  // importer cannot accidentally apply two of the three.
   //
-  // Exempted rather than deferred because the FORMULA is the reviewable part and it is complete and
-  // tested. The plan asks for it to be "stated and testable"; it is both, and settling the arithmetic
-  // before an importer bakes it in is the right order. PF2's half quotes a published adjustment, 5e's is
-  // labelled a house rule on every row it writes.
-  'lib/dnd/bestiary/variants.ts':
-    'P13-10. Consumed by the P13-3 importer, which generates dnd_creature_variants rows; it does not exist yet because seed 462 is unapplied. Remove when P13-3 lands.',
+  // It does not exist yet because seed 462 — the tables the rows go in — is written but unapplied, so
+  // there is nothing to import into. Exempted rather than deferred because the RULES are the reviewable
+  // part and they are complete and tested; settling them before an importer bakes them in is the right
+  // order.
+  'lib/dnd/bestiary/derive.ts':
+    'P13-6/9/10. The single entry point the P13-3 importer calls; it does not exist yet because seed 462 is unapplied. Remove when P13-3 lands.',
   // `lib/dnd/homebrew/kinds.ts` was exempted here on 2026-07-28 with an expiry note naming the slice that
   // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
   // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got
