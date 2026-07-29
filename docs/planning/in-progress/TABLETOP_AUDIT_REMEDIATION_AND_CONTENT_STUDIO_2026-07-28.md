@@ -483,7 +483,22 @@ of homebrew.
       `beforeAll` rather than at module scope.
       **Still owed here:** a creator's public content on their lobby page. Small; folded into P6-11.
 
-- [ ] **P6-11 — Images.** `POST /api/dnd/homebrew/[id]/image` on the existing `dnd-media` bucket pattern.
+- [x] **P6-11 — Images. Shipped 2026-07-28.** `POST`/`DELETE /api/dnd/homebrew/[id]/image` on the existing
+      `dnd-media` bucket pattern, the `image` field wired in the builder, and rendering on the browse card,
+      the detail page and the lobby strip. Also closes P6-10's remainder: `MyContentStrip` puts a creator's
+      six most recent pieces on the lobby, and renders **nothing** when they have authored nothing — an
+      empty "you have no content" section would just repeat the Content Builder button three inches above it.
+      **Two orderings are pinned by test, because reversing either silently loses artwork:** the row is
+      updated *before* the old file is deleted (reversed, a failed update leaves the piece pointing at an
+      object that no longer exists — an orphan costs storage, a broken reference costs the picture), and the
+      image is uploaded *after* the piece is created, never staged before it. A failed image upload reports
+      as "saved, but the image did not upload" rather than as a failed save, because the content is already
+      in the database and saying otherwise would have the author redo stored work.
+      **`delete-route-authorization.test.ts` caught a real weakness.** The first version put the permission
+      check inside a shared loader, invisible to a guard that scans each DELETE handler's own body. The guard
+      is right on the substance too — on a destructive handler the authorization should be readable at the
+      point of use, not one indirection away — so the check was inlined in both handlers rather than the
+      guard being widened.
       Rendered on the browse card, the statblock and the library entry. *(The owner's creature-with-artwork
       case is the acceptance test.)*
 

@@ -8,6 +8,7 @@ import CampaignDashboard from './_ui/CampaignDashboard';
 import CampaignsHome from './_ui/CampaignsHome';
 import HubSignIn from './_ui/HubSignIn';
 import MyTable from './_ui/MyTable';
+import MyContentStrip from './_ui/MyContentStrip';
 import NotificationsPanel from './_ui/NotificationsPanel';
 import styles from './_ui/hextech.module.css';
 import { loadAllCampaignSummaries, loadUserProfile } from '@/lib/dnd/campaign-summary';
@@ -33,6 +34,10 @@ export default async function DndHubPage() {
             <HubSignIn displayName={session?.displayName ?? null} />
             {session && <NotificationsPanel />}
             {profile && <MyTable profile={profile} />}
+            {/* The creator's own custom content (P6-11). Below MyTable so the campaigns and characters they
+                PLAY come first — authoring is a thing you do between sessions, not the reason you opened
+                the lobby. Renders nothing at all when they have authored nothing. */}
+            {session && <MyContentStrip userId={session.userId} />}
             <CampaignsHome campaigns={await loadAllCampaignSummaries()} embedded />
           </div>
         </div>

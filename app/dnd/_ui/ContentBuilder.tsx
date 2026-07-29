@@ -25,11 +25,11 @@ import {
 import type { HomebrewKind } from '@/lib/dnd/homebrew/model';
 
 /** Field types with a real editor today. Everything else is declared, shown, and marked as owed. */
-const IMPLEMENTED = new Set(['text', 'textarea', 'number', 'select', 'tags', 'abilities', 'skills', 'dice']);
+const IMPLEMENTED = new Set(['text', 'textarea', 'number', 'select', 'tags', 'abilities', 'skills', 'dice', 'image']);
 
 /** Which slice builds each of the remaining editors — named so the placeholder is a pointer, not an apology. */
 const OWED_BY: Record<string, string> = {
-  effects: 'P6-8', levels: 'P6-12', statblock: 'P6-13', image: 'P6-11', list: 'P6-12',
+  effects: 'P6-9', levels: 'P6-12', statblock: 'P6-13', list: 'P6-12',
 };
 
 export default function ContentBuilder({
@@ -52,6 +52,8 @@ export default function ContentBuilder({
   const [visibility, setVisibility] = useState('private');
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  /** Artwork chosen before the piece exists. Uploaded immediately after creation — see the `image` branch. */
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
 
   const set = (k: string, v: unknown) => setValues((s) => ({ ...s, [k]: v }));
   const prose = proseOnlyNotice(kind, sys);
@@ -73,6 +75,20 @@ export default function ContentBuilder({
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setProblems(j.problems ?? [j.error ?? 'Could not save that.']); setSaving(false); return; }
+
+      // The piece exists now, so the artwork has somewhere to go. A failed IMAGE upload must not read as a
+      // failed SAVE — the content is already stored, and telling the author otherwise would have them redo
+      // work that is safely in the database. Report it and continue to the piece, where they can retry.
+      if (pendingImage) {
+        const fd = new FormData();
+        fd.append('file', pendingImage);
+        const ir = await fetch(`/api/dnd/homebrew/${j.content.id}/image`, { method: 'POST', body: fd });
+        if (!ir.ok) {
+          const ij = await ir.json().catch(() => ({}));
+          setProblems([`Saved, but the image did not upload: ${ij.error ?? 'unknown error'}. You can add it again from the piece.`]);
+        }
+      }
+
       router.push(`/dnd/content/${j.content.id}`);
     } catch {
       setProblems(['Network error — please try again.']); setSaving(false);
@@ -132,6 +148,26 @@ export default function ContentBuilder({
           <input {...common} value={Array.isArray(v) ? (v as string[]).join(', ') : String(v ?? '')}
             placeholder={f.placeholder ?? 'comma, separated'}
             onChange={(e) => set(f.key, e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
+        )}
+        {f.type === 'image' && (
+          // The upload endpoint is per-piece, so it needs an id — which does not exist until the first
+          // save. Rather than fake it (a staged file that silently vanishes if the save fails, which is the
+          // exact "looks like it worked" failure the placeholders exist to avoid), the file is picked here
+          // and POSTed straight after the piece is created. `pendingImage` carries it across that boundary.
+          <div style={{ display: 'grid', gap: 5 }}>
+            <input
+              id={`hb-${f.key}`}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => setPendingImage(e.target.files?.[0] ?? null)}
+              style={{ fontSize: 12.5, color: 'var(--hx-text)' }}
+            />
+            {pendingImage && (
+              <span style={{ ...help, color: 'var(--hx-teal-1)' }}>
+                “{pendingImage.name}” uploads when you save.
+              </span>
+            )}
+          </div>
         )}
         {(f.type === 'abilities' || f.type === 'skills') && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
