@@ -86,9 +86,17 @@ export default function HubSignIn({ displayName }: { displayName: string | null 
         </label>
         <label className={styles.field} style={{ flex: '1 1 180px', margin: 0 }}>
           <span className={styles.label}>Password</span>
+          {/* minLength stays 4 (P2-3). This one form both signs in and claims a name, and it cannot know
+              which until the server answers — so raising it to 8 here would block existing players with a
+              four-character password from reaching their own account, in the browser, before any request
+              was made. The 8-character floor is enforced server-side on the CREATE path only, and the hint
+              below says so rather than leaving the refusal to arrive as a surprise. */}
           <input className={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete="current-password" required />
         </label>
       </div>
+      <p style={{ fontSize: 11.5, color: 'var(--hx-muted)', margin: 0 }}>
+        Signing in? Use the password you set. Claiming a new name? Passwords need at least 8 characters.
+      </p>
       <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} type="submit" disabled={busy} style={{ padding: '10px 18px' }}>
         {busy ? 'Signing in…' : 'Sign in / Claim name'}
       </button>

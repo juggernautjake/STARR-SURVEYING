@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { verifyPassword, setDndSession, nameToKey } from '@/lib/dnd/auth';
-import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/dnd/rate-limit';
+import { loginSubjects, callerIp } from '@/lib/dnd/password-policy';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,8 +23,10 @@ export async function POST(req: NextRequest) {
     //
     // Counted BEFORE the password is verified. Counting only failures would let an attacker with one
     // correct credential reset their own budget, and the cost being controlled is the guess itself.
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
-    for (const subject of [rateLimitSubject({ ip }), `name:${(name || email).toLowerCase()}`]) {
+    // Re-pointed at the shared `loginSubjects` (P2-3): this route was the ONLY one counting attempts, and
+    // three other password doors had to be given the same treatment. Four hand-rolled copies of "which
+    // subjects does a sign-in count against" is how they drift into limiting different things.
+    for (const subject of loginSubjects(name || email, callerIp(req.headers))) {
       const gate = await checkRateLimit('login', subject);
       if (!gate.allowed) {
         return NextResponse.json({ error: gate.message }, { status: 429, headers: rateLimitHeaders(gate, 'login') });

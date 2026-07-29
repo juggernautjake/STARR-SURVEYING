@@ -20,9 +20,15 @@ describe('the invite register route is name+password-only (Slice 36 convention)'
     expect(ROUTE).toContain('An invite code is required.');
     expect(ROUTE).not.toContain("!email");
   });
-  it('applies the platform 4-char minimum, matching signup', () => {
-    expect(ROUTE).toContain('const MIN = 4');
-    expect(ROUTE).not.toContain('at least 8 characters');
+  it('applies the platform minimum, matching signup', () => {
+    // RE-POINTED 2026-07-28 (P2-3). This asserted the literal `const MIN = 4` and, more pointedly, that the
+    // route did NOT say "at least 8 characters" — so it was pinning the old policy rather than the intent.
+    // The intent survives unchanged: register and signup apply the SAME floor as each other. What changed
+    // is that the floor is now 8, lives in `lib/dnd/password-policy.ts`, and applies only where an account
+    // is created (never on `auth/quick`'s sign-in branch, which would lock existing players out).
+    expect(ROUTE).toContain('checkNewPassword(');
+    expect(ROUTE).toContain('checkName(');
+    expect(ROUTE, 'the floor must not be re-hard-coded here').not.toContain('const MIN =');
   });
   it('still validates + consumes the invite and attaches the member', () => {
     expect(ROUTE).toContain("from('dnd_invites')");

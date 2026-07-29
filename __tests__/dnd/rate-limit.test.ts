@@ -152,10 +152,17 @@ describe('the routes that cost money are actually limited', () => {
   it('login is limited on BOTH the address and the name being attempted', () => {
     // Address alone misses a distributed attack on one account; name alone misses someone spraying one
     // password across many accounts.
+    // RE-POINTED 2026-07-28 (P2-3). The inline `rateLimitSubject({ ip })` became the shared
+    // `loginSubjects(name, ip)` — because this route was the ONLY one counting attempts, while `quick`,
+    // `signup` and `register` all verified or set passwords with no throttle at all. Four hand-rolled
+    // copies of "what does a sign-in count against" is how they drift; `password-policy.test.ts` now
+    // asserts all four use this one.
     const src = read('app/api/dnd/auth/login/route.ts');
     expect(src).toContain("checkRateLimit('login'");
-    expect(src).toContain('rateLimitSubject({ ip })');
-    expect(src).toMatch(/`name:\$\{/);
+    expect(src).toContain('loginSubjects(');
+    // The `name:` subject moved WITH the helper, so it is asserted where it now lives rather than in the
+    // route that no longer builds it.
+    expect(read('lib/dnd/password-policy.ts')).toMatch(/return \[`ip:\$\{[^}]+\}`, `name:\$\{who\}`\]/);
   });
 
   it('and counts the attempt BEFORE verifying the password', () => {

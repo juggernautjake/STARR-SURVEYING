@@ -8,8 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword, setDndSession, nameToKey } from '@/lib/dnd/auth';
-
-const MIN = 4; // the user's rule for the pseudo-login: name + password each ≥ 4 characters.
+import { checkName, checkNewPassword, loginSubjects, callerIp } from '@/lib/dnd/password-policy';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,8 +18,21 @@ export async function POST(req: NextRequest) {
     const name = String(body?.name ?? body?.displayName ?? '').trim();
     const password = String(body?.password ?? '');
     if (!code) return NextResponse.json({ error: 'An invite code is required.' }, { status: 400 });
-    if (name.length < MIN) return NextResponse.json({ error: `Name must be at least ${MIN} characters.` }, { status: 400 });
-    if (password.length < MIN) return NextResponse.json({ error: `Password must be at least ${MIN} characters.` }, { status: 400 });
+    // This route ONLY creates accounts, so the new-password floor applies unconditionally — unlike
+    // `auth/quick`, where the same check would have caught existing players signing in (P2-3).
+    const nameCheck = checkName(name);
+    if (!nameCheck.ok) return NextResponse.json({ error: nameCheck.error }, { status: 400 });
+    const pwCheck = checkNewPassword(password);
+    if (!pwCheck.ok) return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+
+    // Invite codes are guessable in principle, and this route creates accounts — so it gets the same
+    // counter as the sign-in paths rather than being the one unthrottled door left standing.
+    for (const subject of loginSubjects(name, callerIp(req.headers))) {
+      const gate = await checkRateLimit('login', subject);
+      if (!gate.allowed) {
+        return NextResponse.json({ error: gate.message }, { status: 429, headers: rateLimitHeaders(gate, 'login') });
+      }
+    }
 
     // validate invite
     const { data: invite } = await supabaseAdmin

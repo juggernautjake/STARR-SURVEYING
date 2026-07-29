@@ -11,8 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword, verifyPassword, setDndSession } from '@/lib/dnd/auth';
-
-const MIN = 4;
+import { checkName, checkNewPassword, loginSubjects, callerIp } from '@/lib/dnd/password-policy';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 
 /** Normalize a display name into the stable unique key (trim, collapse ws, lowercase). */
 function quickKey(name: string): string {
@@ -25,11 +25,24 @@ export async function POST(req: NextRequest) {
     const name = typeof body?.name === 'string' ? body.name.trim().replace(/\s+/g, ' ') : '';
     const password = typeof body?.password === 'string' ? body.password : '';
 
-    if (name.length < MIN) {
-      return NextResponse.json({ error: 'Name must be at least 4 characters.' }, { status: 400 });
-    }
-    if (password.length < MIN) {
-      return NextResponse.json({ error: 'Password must be at least 4 characters.' }, { status: 400 });
+    const nameCheck = checkName(name);
+    if (!nameCheck.ok) return NextResponse.json({ error: nameCheck.error }, { status: 400 });
+
+    // NOTE: the PASSWORD length is deliberately NOT checked here. This one handler both claims a name and
+    // signs in to an existing one, and the check used to run before that branch — so raising the floor from
+    // 4 to 8 in place would have rejected every existing player whose password is four characters, at
+    // sign-in, on their own account. The floor is applied on the create path below, where it belongs.
+    if (!password) return NextResponse.json({ error: 'Password is required.' }, { status: 400 });
+
+    // Brute-force control (P2-3, audit F-2). This route verifies a password against a stored bcrypt hash
+    // and had NO throttle: P2-1 limited `auth/login`, the legacy email route, while every real sign-in
+    // comes through here. Counted BEFORE verification, so a correct guess cannot refund the attempt.
+    const ip = callerIp(req.headers);
+    for (const subject of loginSubjects(name, ip)) {
+      const gate = await checkRateLimit('login', subject);
+      if (!gate.allowed) {
+        return NextResponse.json({ error: gate.message }, { status: 429, headers: rateLimitHeaders(gate, 'login') });
+      }
     }
 
     const key = quickKey(name);
@@ -54,7 +67,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // First use of this name → claim it.
+    // First use of this name → claim it. THE floor applies here and only here (P2-3): this is the one
+    // branch that sets a password, so it is the one branch entitled to have an opinion about its length.
+    const pwCheck = checkNewPassword(password);
+    if (!pwCheck.ok) return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+
     const password_hash = await hashPassword(password);
     const { data: created, error } = await supabaseAdmin
       .from('dnd_users')

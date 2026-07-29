@@ -10,8 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword, setDndSession, nameToKey } from '@/lib/dnd/auth';
-
-const MIN = 4;
+import { checkName, checkNewPassword, loginSubjects, callerIp } from '@/lib/dnd/password-policy';
+import { checkRateLimit, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,11 +20,19 @@ export async function POST(req: NextRequest) {
     const pw = String(password ?? '');
 
     // Both at least four characters — the only rule the user asked for.
-    if (displayName.length < MIN) {
-      return NextResponse.json({ error: `Name must be at least ${MIN} characters.` }, { status: 400 });
-    }
-    if (pw.length < MIN) {
-      return NextResponse.json({ error: `Password must be at least ${MIN} characters.` }, { status: 400 });
+    // Create-only, so the new-password floor applies unconditionally (P2-3).
+    const nameCheck = checkName(displayName);
+    if (!nameCheck.ok) return NextResponse.json({ error: nameCheck.error }, { status: 400 });
+    const pwCheck = checkNewPassword(pw);
+    if (!pwCheck.ok) return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+
+    // The fourth and last door that touches a password. Throttled like the rest — an account-creation
+    // endpoint that anyone can loop is how a name-squatting or resource-exhaustion problem starts.
+    for (const subject of loginSubjects(displayName, callerIp(req.headers))) {
+      const gate = await checkRateLimit('login', subject);
+      if (!gate.allowed) {
+        return NextResponse.json({ error: gate.message }, { status: 429, headers: rateLimitHeaders(gate, 'login') });
+      }
     }
 
     const key = nameToKey(displayName);

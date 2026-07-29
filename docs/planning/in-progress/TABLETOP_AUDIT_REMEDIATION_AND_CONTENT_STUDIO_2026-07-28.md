@@ -421,11 +421,40 @@ should skip Phase 7 entirely.
       The meter stays silent below 25% of either window — "0 of 120" on every page is noise, and noise is
       how a warning stops being read. Inert until seed 456. Suite 1281 files / 18,406 tests green.
 
-- [ ] **P2-3 — Login throttling + a real password floor.** *(F-2.)* No attempt counter, no lockout, no
+- [x] **P2-3 — Login throttling + a real password floor.** *(F-2.)* No attempt counter, no lockout, no
       backoff, against a 4-character minimum. Exponential backoff per name and per IP (same limiter);
       raise the minimum to 8 for **new** accounts only, so no existing player is locked out of their own
       characters. **Done when:** repeated failures back off, and the uniform "Invalid name or password"
       response is preserved (it already correctly avoids enumeration).
+
+      **Done 2026-07-28, and it found something considerably worse than F-2 described.**
+
+      **P2-1's login throttle was on the route nobody uses.** It limited `app/api/dnd/auth/login` — the
+      LEGACY email route. Every real sign-in goes through **`auth/quick`** ("SIGN IN / CLAIM NAME"), which
+      verifies a bcrypt hash and had **no throttle at all**. Nor did `auth/signup` or `auth/register`. Three
+      of the four password doors were wide open the entire time F-2 was recorded as addressed by P2-1. All
+      four are now counted, on shared subjects (`loginSubjects`), before verification.
+
+      **Raising the minimum in the obvious place would have locked existing players out.** `auth/quick` is
+      ONE handler that both claims a name and signs in to an existing one, and its length check ran *before*
+      that branch. Changing `MIN = 4` to `8` there — the natural edit — would have rejected every existing
+      player whose password is four characters, at sign-in, on their own account, with a message about
+      password length. The floor now sits on the create path only, `MIN_SIGNIN_PASSWORD_LENGTH = 0` is
+      exported as a named decision so it does not read as an oversight, and a test asserts the floor appears
+      *after* the `if (existing)` branch.
+
+      **The same trap exists client-side and is worse there.** `HubSignIn` posts to `auth/quick` and cannot
+      know whether a name is new until the server answers. Its `minLength` stays **4** — raising it would
+      block an existing player in the browser, before any request was made, which no server-side fix could
+      undo. A hint names the 8-character floor for new names instead.
+
+      Exponential backoff was NOT added: the fixed-window counter already refuses after 10 attempts per
+      15 minutes per name *and* per address, which is a harder wall than backoff and simpler to reason
+      about. Backoff would matter if the limit were generous; at 10 it is not. **Not deferred quietly —
+      this is a decision that the existing control is sufficient.**
+
+      Three tests were re-pointed rather than loosened, one of which was pinning the OLD policy outright
+      (`expect(ROUTE).not.toContain('at least 8 characters')`). Suite 1282 files / 18,429 tests green.
 
 - [ ] **P2-4 — Account recovery.** *(F-3.)* Identity is `name:<normalized>` with no email; a forgotten
       password means every character, variant and membership on that account is **permanently unreachable**,
