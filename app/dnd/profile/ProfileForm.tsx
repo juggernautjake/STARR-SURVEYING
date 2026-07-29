@@ -13,7 +13,13 @@ interface DndUser {
   avatar_url: string | null;
 }
 
-export default function ProfileForm({ user }: { user: DndUser }) {
+export default function ProfileForm({ user, sections }: {
+  user: DndUser;
+  /** Server-rendered panels (P11-9) — characters, tables, content, activity. Passed in rather than
+   *  fetched here because they need the database and this is a client component; this file owns the
+   *  page's `root > screen` wrapper, so they have to be handed to it to land inside the layout. */
+  sections?: React.ReactNode;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [displayName, setDisplayName] = useState(user.display_name);
@@ -79,6 +85,14 @@ export default function ProfileForm({ user }: { user: DndUser }) {
   return (
     <div className={styles.root}>
       <div className={styles.screen}>
+        {/* A COLUMN INSIDE `.screen`. That class is `display: flex` with `align-items/justify-content:
+            center` and no direction — it exists to centre ONE card, which is right for /dnd/login and
+            /dnd/recover and was right here while this page was a single form. Adding siblings to it laid
+            them out in a ROW: the panels marched across the viewport and pushed the form off the left
+            edge. Fixed here rather than in `.screen`, because the other two pages still want exactly
+            what it does. Width matches `.panel`'s own 420px cap so the form and the panels below it share
+            one edge instead of stepping in and out. */}
+        <div style={{ display: 'grid', width: '100%', maxWidth: 420, alignContent: 'start' }}>
         <form className={styles.panel} onSubmit={saveName}>
           <p className={styles.brand}>Starr Tabletop</p>
           <h1 className={styles.title}>Profile</h1>
@@ -127,17 +141,21 @@ export default function ProfileForm({ user }: { user: DndUser }) {
             {busy ? 'Saving…' : 'Save Profile'}
           </button>
 
-          <div className={styles.divider}>
-            <span className={styles.diamond} />
-          </div>
-          <a className={styles.buttonGhost} href="/dnd">
-            ← Back to Campaign Portal
-          </a>
         </form>
 
-        {/* Password change + recovery code (P2-4). OUTSIDE the profile form on purpose: nesting a form
-            inside another is invalid HTML and would make the inner submit buttons post the outer form. */}
-        <AccountSecurity />
+        {/* OUTSIDE the form, like AccountSecurity below: these panels contain links, and a link inside a
+            form is fine, but keeping every non-form block out of it means no future control can
+            accidentally submit the profile. */}
+        {sections}
+
+        <a className={styles.buttonGhost} href="/dnd">
+          ← Back to Campaign Portal
+        </a>
+
+          {/* Password change + recovery code (P2-4). OUTSIDE the profile form on purpose: nesting a form
+              inside another is invalid HTML and would make the inner submit buttons post the outer form. */}
+          <AccountSecurity />
+        </div>
       </div>
     </div>
   );

@@ -2951,7 +2951,40 @@ variance rather than one look with different colours.
       `baseline 0 · +real 1 · +decoys 1 → PASS`.
 - [ ] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
       brief calls it out specifically for both PC and mobile.
-- [ ] **P11-9 — The profile page.** Named in the brief. Identity, characters, campaigns, content, activity.
+- [x] **P11-9 — The profile page.** Named in the brief. Identity, characters, campaigns, content, activity.
+
+      **Done 2026-07-29.** The page was 22 lines: a display-name field, an avatar picker and a password
+      form — everything about your ACCOUNT and nothing about your PLAY. It now also answers "what do I
+      have here": a 2×2 count strip, then Your characters / Your tables / Your content / Recent activity.
+
+      **Each panel states a count, shows a handful, and links out** rather than reimplementing the page
+      that already does the job — `/dnd/characters` and `/dnd/content` have real search, filters and sort,
+      and a profile trying to be them would be a worse copy of both.
+
+      · `lib/dnd/profile-summary.ts` — the aggregation, extracted so the SHAPING is unit-testable (a
+        server component is not). Reuses `loadUserProfile` rather than re-querying, because that function
+        encodes a rule already got wrong once: a character is yours if you own it **or are the assigned
+        player of it**. A second query is a second place for that to drift.
+      · `activityLine` — most audit rows carry a written summary; the ones that do not are machine edits
+        known only by `field_path`, and `combat.hp` is not a sentence. It also splits the `section[slug]`
+        shape `editPath` writes (`inventory[oak-shield]` → "Changed inventory: oak shield") and translates
+        the internal `revert-batch:<uuid>` marker into "Undid an earlier change". Its one hard guarantee,
+        tested: it never returns an empty string, because a blank bullet reads as a rendering bug.
+
+      **Two layout bugs the browser found and the typecheck could not**, both worth recording because
+      neither is visible in the diff:
+      · `.screen` is `display: flex` with `align-items/justify-content: center` and **no direction** — it
+        exists to centre ONE card, which is right for `/dnd/login` and `/dnd/recover` and was right here
+        while this page was a single form. Adding siblings laid them out in a **row**: the panels marched
+        across the viewport and shoved the form off the left edge. Fixed with a column wrapper on this
+        page, not by touching `.screen`, which the other two pages still want exactly as it is.
+      · The count tiles broke **3 + 1**. A 120px floor fit three at the 420px column cap, and a 92px floor
+        still fit three at 390px — a stranded fourth tile reads as a wrap accident rather than a set. The
+        floor is now chosen so three can never fit, giving a deliberate 2×2 at every width.
+
+      Verified signed-in at 360/390/414/768: no overflow. One thing checked and NOT a defect — a 404 on
+      `/api/dnd/suggestions?count=1` in the console was a transient dev-server recompile; the route
+      answers 200.
 - [ ] **P11-10 — Fill the thin pages.** Any page that is a heading and a list gets the content it implies.
 
 ## Phase 12 — Homebrew completeness
