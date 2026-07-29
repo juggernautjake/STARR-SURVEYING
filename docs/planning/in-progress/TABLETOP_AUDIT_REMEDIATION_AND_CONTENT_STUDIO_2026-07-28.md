@@ -1672,9 +1672,42 @@ of homebrew.
       Temperature 0.8, above the transposer's 0.7: pressing "Another" must give a genuinely different
       option, not the same sentence reworded.
 
-- [ ] **P6-15b — Whole-draft assist.** *(Split from P6-15.)* "Fill in everything from the name and a
+- [x] **P6-15b — Whole-draft assist.** *(Split from P6-15.)* "Fill in everything from the name and a
       sentence." Deferred because a multi-field proposal needs a per-field accept/reject UI to stay honest —
       one all-or-nothing button would quietly become the auto-apply this slice exists to avoid.
+
+      **Done 2026-07-29.** `lib/dnd/homebrew/draft-assist.ts`, `POST /api/dnd/homebrew/draft`, and
+      `DraftAssistPanel` beside the file ingest.
+
+      **The split's warning is the design, and it is enforced in the module rather than promised in the UI.**
+      The unit of decision is the **field**: the route returns reviewable **rows**, not a values blob, and
+      `applyDraftChoices` takes an explicit list of accepted keys. There is deliberately **no `applyAll`** —
+      the moment the module offers one, the UI grows a button for it and the per-field review becomes
+      decoration. A test asserts the export does not exist, because that is the kind of convenience someone
+      adds in good faith six months from now.
+
+      **A row that would OVERWRITE says so and shows what it would replace,** struck through. Filling an
+      empty box and replacing a paragraph someone typed are different decisions, and a review screen that
+      presents them identically is a review screen that gets clicked through. Blank rows sort first, so the
+      ones needing real thought are not buried under twelve obvious yeses.
+
+      There is **"Use all N empty ones" and no "Use everything."** Bulk-filling blanks is low-stakes;
+      bulk-overwriting an author's prose is not, and collapsing the two is exactly the slide the split was
+      made to prevent.
+
+      **The contrast with `mergeIngest` is deliberate.** Ingest fills only what is *empty* — it can add and
+      never overwrite, which is right for a document you uploaded and have not read. Whole-draft assist is
+      asked for by name, so it must be able to replace; the safety comes from the author ticking the row,
+      not from the merge refusing.
+
+      Smaller things: the builder owns the merge, so the form keeps one writer; the free-text idea is
+      bounded at 2000 characters because it is interpolated straight into a prompt; the route writes nothing,
+      so "you review it first" is structural; temperature 0.8, matching P6-15 and well above ingest's 0.1,
+      because a first draft at near-zero reads like a form letter.
+
+      **Recorded because it keeps happening:** a negative source assertion matched the panel's own comment
+      arguing *against* a "Use everything" button — the **fifth** time this pass. The rule is now simply
+      that negative source assertions run against a comment-stripped copy.
 
 - [x] **P6-16 — File ingest. Shipped 2026-07-28.** `lib/dnd/homebrew/ingest.ts` (pure prompt + normalizer +
       merge), `POST /api/dnd/homebrew/ingest`, and an upload at the top of the builder.

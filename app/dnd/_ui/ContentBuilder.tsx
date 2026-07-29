@@ -32,6 +32,8 @@ import {
 import { fieldAcceptsAssist } from '@/lib/dnd/homebrew/assist';
 import AiBudgetMeter from './AiBudgetMeter';
 import { mergeIngest, INGEST_ACCEPT } from '@/lib/dnd/homebrew/ingest';
+import { applyDraftChoices } from '@/lib/dnd/homebrew/draft-assist';
+import DraftAssistPanel from '@/app/dnd/_ui/DraftAssistPanel';
 
 /** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
  *  placeholder branch below is now unreachable. It is kept, not deleted: the next field type someone adds
@@ -685,6 +687,24 @@ export default function ContentBuilder({
           {ingestNote && (
             <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--hx-teal-1)' }}>{ingestNote}</p>
           )}
+
+          {/* Whole-draft assist (P6-15b), in the same panel as ingest because they answer the same question
+              — "I do not want to start from an empty form" — by different routes. The builder owns the
+              merge: a panel that wrote into `values` itself would be a second writer of this form's state. */}
+          <DraftAssistPanel
+            kind={spec.kind}
+            /* `sys`, not `values.system` — the builder tracks the chosen system in its own state, and
+               reading it off `values` would send the model whatever the blank draft happened to hold. */
+            system={sys}
+            name={String(values.name ?? '')}
+            values={values}
+            onApply={(rows, accepted) => {
+              const { values: next, applied } = applyDraftChoices(spec.kind, values, rows, accepted);
+              if (!applied.length) return;
+              setValues(next);
+              setIngestNote(`Took ${applied.length} suggestion${applied.length === 1 ? '' : 's'}. Nothing is saved until you press Save.`);
+            }}
+          />
         </section>
       )}
 
