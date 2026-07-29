@@ -2516,9 +2516,43 @@ Every slice below serves that one rule.
       keyed to the signed-in user and **purged on sign-out**, or a shared device leaks a sheet to whoever
       opens the app next. The worker refuses to cache authenticated responses today precisely so that
       decision has to be made deliberately rather than inherited.
-- [ ] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the
+- [x] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the
       cheap move now is a `t()` passthrough for new user-facing strings; retrofitting after another 100k
       lines is materially harder.
+
+      **Done 2026-07-29.** `lib/i18n/index.ts`, `scripts/scan-untranslated.ts` /
+      `npm run scan:untranslated`, and one real component rendering through it.
+
+      **The key IS the English string**, and that one decision is what keeps a passthrough from being
+      ceremony. `t('Save')` returns `'Save'` with no catalogue, no config and no build step — the default
+      locale is not a lookup that happens to resolve, there is genuinely nothing to look up. Nobody has to
+      invent `settings.buttons.save.label`, which is a second name for a string that already has one, drifts
+      from the text it names, and is the tax that makes teams abandon i18n a month in. And a missing
+      translation falls back to text that **reads correctly**: the failure mode of a synthetic catalogue is
+      `settings.buttons.save.label` rendered on a button; the failure mode of this one is English.
+
+      **The retrofit now has a number instead of a feeling: ~11,900 user-facing strings**, and **8,845 of
+      them (74%) are in `app/admin`** — the single-tenant surveying business, the surface least likely ever
+      to need a second language. `/dnd` is 1,961. That is the figure the owner actually needs to decide
+      whether a second locale is worth it, and it did not exist before.
+
+      **The scanner is a sizing tool, not a gate** — no baseline, nothing fails. Deliberately unlike P10-2's
+      ratchet: a hard-coded colour has a concrete cost *today* (the print stylesheet cannot reach it), while
+      an untranslated string costs nothing until there is a translation to be missing.
+
+      Smaller decisions: interpolation is **named**, never positional, because a translator reordering a
+      sentence — the entire reason word order is a translation problem — cannot tell `{0}` from `{1}`; an
+      unknown placeholder is **left alone** rather than blanked, because `Hello {nmae}` is a typo somebody
+      notices and `Hello ` is one that ships; and `plural` is its own function because plural rules are
+      per-*language* (Polish has four forms, Japanese one) and pretending otherwise is how "1 items" reaches
+      production.
+
+      **`I18N_STATUS` records what was not built** — browser-language detection, a persisted preference,
+      server-side negotiation, RTL, date/number formatting — because every one of those is real work that
+      does nothing until a second locale exists. That is why this is a passthrough and not an i18n system.
+
+      **Sixth time noted:** two of my own assertions matched the source's comments explaining the very
+      things they argued against. Both now assert behaviour or run on comment-stripped code.
 
 ---
 
