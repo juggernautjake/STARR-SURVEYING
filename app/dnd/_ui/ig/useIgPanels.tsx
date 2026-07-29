@@ -249,7 +249,29 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
     const total = r.total + (dmg?.bonus ?? 0);
     const breakdown = dmg ? `${r.breakdown} + ${dmg.bonus} (${dmg.source})` : r.breakdown;
     setLastRoll({ label, total, detail: breakdown, tone: 'normal' });
-    setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label, total, breakdown }));
+    setActiveRoll(buildDamageActiveRoll({
+      token: ++rollTokenRef.current, label, total, breakdown,
+      // NAME the source so every roller can explain where the extra came from, rather than leaving the
+      // player to reverse-engineer it from the total.
+      boosts: dmg ? [`${dmg.source} (+${dmg.bonus} damage)`] : undefined,
+    }));
+  };
+
+  /**
+   * A RAW dice-pad roll — no stance bonus, no modifiers (owner report: *"I am rolling a 1d4 and getting a
+   * 5"*).
+   *
+   * The dice pad used to call `rollDamage`, so pressing "d4" folded in the Offensive stance's advanced tier
+   * (+half your level to DAMAGE ROLLS). At level 8 that turned a natural 1 into a 5 with no visible cause.
+   * The stance rule is real and correctly applied to a weapon's damage — but a bare d4 off the dice pad is
+   * not a damage roll, and nothing in the system says an arbitrary die gains it.
+   *
+   * The label says "raw" so the distinction is visible in the log next to the weapon rolls that DO carry it.
+   */
+  const rollRaw = (label: string, expr: string) => {
+    const r = rollDiceExpr(expr);
+    setLastRoll({ label, total: r.total, detail: r.breakdown, tone: 'normal' });
+    setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label, total: r.total, breakdown: r.breakdown }));
   };
   // Incremental edit (enter/leave a stance, add/remove a condition) via the write-gated ig-edit route.
   // Available only to a viewer who can write this character; refreshes the sheet on success.
@@ -1232,7 +1254,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={pickRoller} />
         {rollerStageFor(rollerId)}

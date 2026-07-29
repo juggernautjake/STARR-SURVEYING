@@ -42,7 +42,13 @@ export function buildD20ActiveRoll(o: {
 
 /** A resolved damage/dice-expression roll → an `ActiveRoll`. The stages parse `entry.breakdown` for the
  *  per-die cards/rows, so pass the engine's breakdown verbatim; the headline total stays authoritative. */
-export function buildDamageActiveRoll(o: { token: number; label: string; total: number; breakdown: string }): ActiveRoll {
+export function buildDamageActiveRoll(o: {
+  token: number; label: string; total: number; breakdown: string;
+  /** Named sources that ADDED to this roll — e.g. "Offensive stance (+4 damage)". */
+  boosts?: string[];
+  /** Named sources that SUBTRACTED from it. */
+  penalties?: string[];
+}): ActiveRoll {
   return {
     token: o.token,
     landing: o.total,
@@ -51,6 +57,15 @@ export function buildDamageActiveRoll(o: { token: number; label: string; total: 
     isD20: false,
     crit: false,
     fumble: false,
-    entry: { label: o.label, kind: 'damage', total: o.total, breakdown: o.breakdown },
+    // `boosts`/`penalties` are carried through because EVERY roller renders them (the Sigil Stack as ▲/▼
+    // tiles, the Roll Board as cards, Impact as breakdown rows). Damage rolls previously dropped them, so a
+    // flat bonus folded into the total — an IG stance's "+half your level to damage", say — appeared as an
+    // unexplained number and the player had to reverse-engineer where it came from. The total was right;
+    // the EXPLANATION was missing, which is its own kind of wrong on a rules engine.
+    entry: {
+      label: o.label, kind: 'damage', total: o.total, breakdown: o.breakdown,
+      ...(o.boosts?.length ? { boosts: o.boosts } : {}),
+      ...(o.penalties?.length ? { penalties: o.penalties } : {}),
+    },
   };
 }
