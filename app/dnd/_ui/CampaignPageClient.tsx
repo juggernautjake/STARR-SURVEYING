@@ -13,6 +13,7 @@ import CampaignArtControl from './CampaignArtControl'
 import { nextSession, formatSessionTime, relativeSessionTime } from '@/lib/dnd/session-schedule'
 import RollStatsPanel from './RollStatsPanel'
 import AwardXpControl from './AwardXpControl'
+import SessionRsvp from './SessionRsvp'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
@@ -528,18 +529,27 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   const next = nextSession(data.sessions)
                   if (!next) return null
                   return (
-                    <button
-                      onClick={() => router.push(`/dnd/campaigns/${campaignId}/sessions/${next.id}`)}
-                      style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', width: '100%', marginBottom: 8, padding: '9px 12px', background: 'rgba(var(--hx-teal-1-rgb),0.08)', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-text)', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-teal-1)' }}>
-                        {next.status === 'live' ? 'Live now' : 'Next session'}
-                      </span>
-                      <strong style={{ fontSize: 13 }}>{next.title}</strong>
-                      <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-                        {formatSessionTime(next.scheduled_at)} · {relativeSessionTime(next.scheduled_at)}
-                      </span>
-                    </button>
+                    // A DIV wrapping a button, not a button wrapping buttons (P3-5). The banner used to be
+                    // one big <button>; adding the RSVP controls inside it would have nested interactive
+                    // elements, which is invalid HTML and behaves unpredictably — a click on "Going" also
+                    // navigates in some browsers. The heading is the link; the RSVP row is its sibling.
+                    <div style={{ marginBottom: 8, padding: '9px 12px', background: 'rgba(var(--hx-teal-1-rgb),0.08)', border: '1px solid var(--hx-teal-1)' }}>
+                      <button
+                        onClick={() => router.push(`/dnd/campaigns/${campaignId}/sessions/${next.id}`)}
+                        style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', width: '100%', padding: 0, background: 'transparent', border: 'none', color: 'var(--hx-text)', cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-teal-1)' }}>
+                          {next.status === 'live' ? 'Live now' : 'Next session'}
+                        </span>
+                        <strong style={{ fontSize: 13 }}>{next.title}</strong>
+                        <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+                          {formatSessionTime(next.scheduled_at)} · {relativeSessionTime(next.scheduled_at)}
+                        </span>
+                      </button>
+                      {/* "Are you coming?" belongs HERE — a player who has just read when the session is, is
+                          exactly the person who can answer. In the session console only the DM would see it. */}
+                      <SessionRsvp sessionId={next.id} />
+                    </div>
                   )
                 })()}
                 {data.sessions.length === 0 ? (

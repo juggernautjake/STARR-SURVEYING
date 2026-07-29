@@ -706,8 +706,39 @@ should skip Phase 7 entirely.
 
       Suite 1287 files / 18,532 tests green.
 
-- [ ] **P3-5 — Session RSVP + reminders.** Builds on P1-5: members mark yes/no/maybe; the hub shows the
+- [x] **P3-5 — Session RSVP + reminders.** Builds on P1-5: members mark yes/no/maybe; the hub shows the
       count. (A Discord webhook is P10-4.)
+
+      **Done 2026-07-28.** `seeds/460_dnd_session_rsvps.sql`, `lib/dnd/rsvp.ts` (pure),
+      `GET|POST /api/dnd/sessions/[id]/rsvp`, and `SessionRsvp` on the next-session banner.
+
+      **"Hasn't answered" is not "no", and most of the design follows from that.** A player who has not
+      replied and one who has said they cannot come are different facts; collapsing them lets the banner
+      claim a decision nobody made. So: no rows are pre-seeded (a member with no row simply has not
+      answered), `awaiting` is computed by comparing against campaign membership rather than against the
+      RSVP rows, and clearing an answer **deletes the row** rather than storing "no". Pressing your current
+      answer again clears it — without that, "maybe" is a one-way door.
+
+      **Membership is passed in, not derived from the rows**, because the useful number is the one the rows
+      cannot contain. A tally built only from RSVPs can never say *"two people haven't answered"*, which is
+      the single thing a DM most wants from this.
+
+      Safety falls out of the shape rather than needing a check: the route takes **no user id** — you can
+      only answer for yourself — so campaign membership is a sufficient gate. Upsert on
+      `(session_id, user_id)` with a matching unique constraint, or a player who reconsiders twice is
+      counted three times and the tally only ever grows.
+
+      **A structural bug fixed rather than worked around:** the P1-5 banner was one large `<button>`, so
+      putting the RSVP controls inside it would have nested interactive elements — invalid HTML, and in some
+      browsers a click on "Going" also navigates. My first attempt reached for `stopPropagation`; the right
+      fix was to make the banner a `<div>` with the heading as its link and the RSVP row as a sibling. A
+      test now counts JSX button tags in that region.
+
+      **Reminders are NOT included** and this is a scope decision, not an oversight: there is no delivery
+      channel. Email does not exist here by design (P2-4), and the Discord webhook is already scheduled as
+      P10-4 — which is where a reminder belongs, since it needs somewhere to send one.
+
+      Suite 1288 files / 18,552 tests green.
 
 - [ ] **P3-6 — Encounter builder with a difficulty budget.** Add N copies of a creature at once; compute the
       encounter's difficulty against the party using each system's own budget. Depends on P8-1 (bestiary).
