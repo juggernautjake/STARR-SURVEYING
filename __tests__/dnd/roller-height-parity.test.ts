@@ -87,12 +87,21 @@ describe('switching template does not re-roll (RO-7)', () => {
   // it. The animation was the visible half; the invisible half was that the same path calls
   // `commitRoll(activeRoll.entry)`, logging the roll a SECOND time — and P3-1 publishes committed rolls to
   // the shared campaign feed, so a duplicate reached the DM's log and skewed the P3-3 statistics.
-  const TSX = 'app/dnd/_sheet/components/rollers';
-  const readTs = (f: string) => readFileSync(join(process.cwd(), TSX, f), 'utf8');
-  const ROLLERS = ['SigilStack.tsx', 'RollBoard.tsx', 'ImpactRoller.tsx'];
+  const readTs = (f: string) => readFileSync(join(process.cwd(), 'app/dnd/_sheet/components', f), 'utf8');
+  // ALL FOUR, including Dice Core. The first pass of this fix covered the three bespoke rollers and MISSED
+  // `RollStage` — which is the default template, so the most-used roller kept the bug while the test went
+  // green. Sweeping every roller rather than listing the ones I happened to edit is the whole point.
+  const ROLLERS = [
+    'rollers/SigilStack.tsx',
+    'rollers/RollBoard.tsx',
+    'rollers/ImpactRoller.tsx',
+    'RollStage.tsx',
+  ];
 
   it.each(ROLLERS)('%s seeds its token from the roll already on screen', (file) => {
-    expect(readTs(file)).toContain('useRef(adoptedToken(activeRoll))');
+    // `useRef<number>(...)` as well as `useRef(...)` — RollStage annotates the type, and a bare substring
+    // check silently excused it.
+    expect(readTs(file)).toMatch(/useRef(<number>)?\(adoptedToken\(activeRoll\)\)/);
   });
 
   it('and none is still seeded with -1', () => {
@@ -114,9 +123,10 @@ describe('switching template does not re-roll (RO-7)', () => {
   it('and each roller renders the adopted roll SETTLED rather than idle', () => {
     // Adopting the token without adopting the display would fix the reroll and replace it with a roller that
     // goes blank every time you switch template.
-    expect(readTs('SigilStack.tsx')).toMatch(/useState<'idle' \| 'assembling' \| 'locked'>\(activeRoll \? 'locked' : 'idle'\)/);
-    expect(readTs('RollBoard.tsx')).toMatch(/useState<BoardPhase>\(activeRoll \? 'shown' : 'idle'\)/);
-    expect(readTs('ImpactRoller.tsx')).toMatch(/useState<'idle' \| 'tumbling' \| 'landed'>\(adopted \? 'landed' : 'idle'\)/);
+    expect(readTs('rollers/SigilStack.tsx')).toMatch(/useState<'idle' \| 'assembling' \| 'locked'>\(activeRoll \? 'locked' : 'idle'\)/);
+    expect(readTs('rollers/RollBoard.tsx')).toMatch(/useState<BoardPhase>\(activeRoll \? 'shown' : 'idle'\)/);
+    expect(readTs('rollers/ImpactRoller.tsx')).toMatch(/useState<'idle' \| 'tumbling' \| 'landed'>\(adopted \? 'landed' : 'idle'\)/);
+    expect(readTs('RollStage.tsx')).toMatch(/useState<'idle' \| 'spinning' \| 'crit' \| 'fumble' \| 'done'>\(activeRoll \? 'done' : 'idle'\)/);
   });
 });
 
@@ -142,5 +152,40 @@ describe('the roller window is a fixed, consistent size', () => {
   it('while dragging to REPOSITION still works', () => {
     // Where the window sits is a preference worth keeping; only its size was fighting the template.
     expect(win).toContain('onHeaderPointerDown');
+  });
+});
+
+describe('every roller can explain a roll (RO-11)', () => {
+  // OWNER: "tool tips or something… to explain exactly why certain things are added and where certain
+  // bonuses/buffs/penalties/debuffs are coming from… with any system and any template."
+  //
+  // Three rollers already rendered `boosts`/`penalties` in their own idiom. DICE CORE — the default
+  // template — rendered none of it, so the promise was already false on the roller most people use.
+  const readAny = (f: string) => readFileSync(join(process.cwd(), 'app/dnd/_sheet/components', f), 'utf8');
+
+  it('Dice Core now carries the named sources into its reveal', () => {
+    const src = readAny('RollStage.tsx');
+    expect(src).toContain('boosts: entry.boosts, penalties: entry.penalties');
+    expect(src).toContain('<RollWhy');
+  });
+
+  it('the shared component is scoped for the bespoke shells, not just .dnd-sheet', () => {
+    // PF2 and IG deliberately do not import theme.css. A `.dnd-sheet`-scoped rule renders unstyled there —
+    // the exact bug RO-5 fixed for the Dice Core stage, and the easiest one to reintroduce.
+    const css = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/rollWhy.css'), 'utf8');
+    expect(css).not.toMatch(/\.dnd-sheet\s+\.rw/);
+    expect(css).toMatch(/^\.rw\b/m);
+  });
+
+  it('and says nothing when there is nothing to explain', () => {
+    // A plain d6 off the dice pad must not grow an empty "sources" box.
+    const src = readAny('rollers/RollWhy.tsx');
+    expect(src).toMatch(/if \(!hasSources && !entry\.tag\) return null/);
+  });
+
+  it('marking boosts and penalties with glyphs, not colour alone', () => {
+    const src = readAny('rollers/RollWhy.tsx');
+    expect(src).toContain('▲');
+    expect(src).toContain('▼');
   });
 });

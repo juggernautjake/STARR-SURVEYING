@@ -1,0 +1,66 @@
+/* rollWhy.css — the shared "why?" disclosure (RO-11).
+ *
+ * TOKEN-ONLY, scoped to `.rw`, and NOT under `.dnd-sheet` — the same rule the Roll Board's CSS states, and
+ * for the same reason: this mounts on the 5e engine (`.dnd-sheet`) AND the bespoke PF2/IG shells
+ * (`.sheet-shell` / `.igs-root`), which deliberately do not import theme.css. Scoping it to `.dnd-sheet`
+ * would leave it unstyled on two of the four systems — the exact bug RO-5 fixed for the Dice Core stage. */
+
+.rw {
+  display: grid;
+  gap: 4px;
+}
+
+.rw-toggle {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #9a97ad);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rw-toggle:hover {
+  color: var(--ink, #e8e6f0);
+  border-color: var(--line-strong, rgba(255, 255, 255, 0.28));
+}
+
+.rw-body {
+  display: grid;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
+  background: rgba(var(--void-rgb, 6, 5, 12), 0.4);
+}
+
+.rw-line {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink, #e8e6f0);
+}
+
+/* The arithmetic reads quieter than the reasons — it is the "what", and the reasons are the "why". */
+.rw-math {
+  color: var(--muted, #9a97ad);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+
+/* Boosts read non-red and penalties red — the contract every roller already keeps. The ▲/▼ glyphs in the
+   markup carry the same information for anyone who cannot rely on the colour. */
+.rw-boost {
+  color: var(--good, var(--tealbright, #4fd39c));
+}
+.rw-penalty {
+  color: var(--danger, #ff6b6b);
+}
+.rw-tag {
+  color: var(--gold, var(--tealbright, #c8aa6e));
+  font-size: 11px;
+}

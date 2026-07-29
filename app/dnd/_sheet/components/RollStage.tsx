@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import './rollers/rollStage.css' // Dice Core styles travel WITH the stage, so it renders styled on PF2/IG too (RO-5 fix)
 import type { RollEntry } from '../state/store'
 import { tick, blip, errorBuzz, tada, whoosh, isMuted, primeAudio } from '../lib/audio'
-import { shouldAnimateRoller } from './rollers/rollerAnim'
+import { shouldAnimateRoller, adoptedToken } from './rollers/rollerAnim'
+import RollWhy from './rollers/RollWhy'
 import { useRollFeed } from './rollers/rollFeed'
 import { useExpandOnRoll } from './rollers/FloatingRoller'
 
@@ -53,10 +54,24 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
   const animate = shouldAnimateRoller(rollerAnim)
   const [display, setDisplay] = useState<number | string>('—')
   const [style, setStyle] = useState<DisplayStyle>({ color: 'var(--tealbright)', fontFamily: "'Orbitron'", fontWeight: 800, rotate: 0 })
-  const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>('idle')
-  const [reveal, setReveal] = useState<{ total: number; breakdown: string; label: string; tag?: string; isD20: boolean } | null>(null)
+  // `boosts`/`penalties` join the reveal (RO-11). Dice Core is the DEFAULT roller and rendered no named
+  // sources at all, so "the fully explained breakdown… any system and any template" was already false on
+  // the template most people use — the other three had each grown their own version of this.
+  type Reveal = { total: number; breakdown: string; label: string; tag?: string; isD20: boolean; boosts?: string[]; penalties?: string[] }
+  const [phase, setPhase] = useState<'idle' | 'spinning' | 'crit' | 'fumble' | 'done'>(activeRoll ? 'done' : 'idle')
+  const [reveal, setReveal] = useState<Reveal | null>(
+    activeRoll
+      ? {
+        total: activeRoll.entry.total, breakdown: activeRoll.entry.breakdown, label: activeRoll.entry.label,
+        tag: activeRoll.entry.tag, isD20: activeRoll.isD20,
+        boosts: activeRoll.entry.boosts, penalties: activeRoll.entry.penalties,
+      }
+      : null,
+  )
   const timer = useRef<number | null>(null)
-  const lastToken = useRef<number>(-1)
+  // ADOPT rather than replay (RO-7). Dice Core has the same `-1` seed the other three had — I fixed those
+  // and missed this one, which is exactly why the guard test sweeps all four rather than naming three.
+  const lastToken = useRef<number>(adoptedToken(activeRoll))
   const pending = useRef<{ entry: Omit<RollEntry, 'id'>; done: boolean } | null>(null)
 
   // commit any not-yet-logged roll (called before starting a new spin so rapid
@@ -109,7 +124,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
       if (fumble) { setPhase('fumble'); errorBuzz(roller) }
       else if (crit) { setPhase('crit'); tada(roller) }
       else { setPhase('done'); blip(roller) }
-      setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20 })
+      setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20, boosts: entry.boosts, penalties: entry.penalties })
       timer.current = window.setTimeout(() => {
         commitRoll(entry)
         if (pending.current) pending.current.done = true
@@ -162,7 +177,7 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
           setPhase('done')
           blip(roller)
         }
-        setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20 })
+        setReveal({ total: entry.total, breakdown: entry.breakdown, label: entry.label, tag: entry.tag, isD20: activeRoll.isD20, boosts: entry.boosts, penalties: entry.penalties })
         timer.current = window.setTimeout(() => {
           commitRoll(entry)
           if (pending.current) pending.current.done = true
@@ -225,6 +240,9 @@ export default function RollStage({ roller = 'futuristic' }: { roller?: string }
               {reveal.isD20 && reveal.total !== display && <span className="rv-total">= {reveal.total}</span>}
             </div>
             {reveal.tag && <div className="rv-tag">{reveal.tag}</div>}
+            {/* The named sources behind the number (RO-11). Dice Core printed the arithmetic and the tag but
+                never WHERE an adjustment came from — the one roller with no answer to "why is this +4". */}
+            <RollWhy entry={{ boosts: reveal.boosts, penalties: reveal.penalties }} />
           </>
         ) : (
           <span className="rv-idle">{phase === 'spinning' ? '· · ·' : 'tap a stat to roll'}</span>

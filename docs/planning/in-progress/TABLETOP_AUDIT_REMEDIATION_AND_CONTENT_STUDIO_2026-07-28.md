@@ -1544,11 +1544,30 @@ Every slice below serves that one rule.
       which gained its third argument. The properties they guard (tap-to-roll, and rolling the RESOLVED
       expression rather than the stored die) are unchanged.
 
-- [ ] **RO-11 — A "why?" affordance on the total.** The owner asked for *tool tips… to explain exactly why
+- [x] **RO-11 — A "why?" affordance on the total.** The owner asked for *tool tips… to explain exactly why
       certain things are added*. The breakdown string answers *what*; this answers *where from*. One shared
       component reading `entry.boosts` / `entry.penalties` / `entry.tag`, mounted by all four rollers, so
       the explanation cannot differ per template. **Done when:** hovering (or tapping) the total on any
       roller, on any system, names every contributing source.
+
+      **Done 2026-07-28.** `RollWhy` + `rollWhy.css`, a disclosure that renders the arithmetic, then the
+      NAMED sources with ▲/▼ glyphs, then the system tag — and nothing at all when there is nothing to
+      explain, so a plain d6 does not grow an empty box.
+
+      **The find: Dice Core — the DEFAULT roller — rendered no named sources at all.** Sigil Stack, Roll
+      Board and Impact had each grown their own version; the template most people use had none, so *"any
+      system and any template"* was already false where it mattered most. Its `reveal` state did not even
+      carry `boosts`/`penalties` from the entry.
+
+      **And I found a bug in my own RO-7 fix while doing it.** RO-7 fixed the re-roll-on-template-switch in
+      the three bespoke rollers and **missed `RollStage`**, which had the identical `useRef(-1)` seed. The
+      test passed because it listed the three files I had edited rather than sweeping every roller. Both are
+      fixed: Dice Core adopts too, and the guard now covers all four — including allowing `useRef<number>(…)`,
+      since the bare substring check would have excused the annotated form anyway.
+
+      The CSS is scoped to `.rw`, deliberately NOT under `.dnd-sheet`: PF2 and IG do not import theme.css,
+      and a `.dnd-sheet`-scoped rule renders unstyled there — the exact bug RO-5 fixed for the Dice Core
+      stage, and the easiest one to reintroduce.
 
 - [ ] **RO-12 — Catalogue the IG roll kinds and check the roller against each.** *"Look at the rules and
       all of the different kinds of rolls that IG has."* IG has skill checks, saves (Fort/Ref/Will),
