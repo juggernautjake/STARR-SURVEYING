@@ -112,13 +112,21 @@ function readEntries(raw: Record<string, unknown>): StatblockEntry[] {
     for (const item of list) {
       if (!item || typeof item !== 'object') continue;
       const e = item as Record<string, unknown>;
-      const name = asText(pick(e, ['name'])) ?? '';
+      const rawName = asText(pick(e, ['name'])) ?? '';
       const body = asText(pick(e, ['desc', 'description', 'body'])) ?? '';
-      if (!name && !body) continue;
+      if (!rawName && !body) continue;
+      // PUBLISHED STAT BLOCKS BURY THE LIMIT IN THE NAME — "Legendary Resistance (3/Day)", "Fire Breath
+      // (Recharge 5-6)". Split it out, because a use limit is a resource a DM SPENDS, not part of the
+      // title: three refused saves is the whole difference between one boss fight and another. Anything
+      // unrecognised stays in the name rather than being dropped.
+      const limit = rawName.match(/^(.*?)\s*\((\d+\s*\/\s*(?:day|turn|round|rest|short rest|long rest)|recharge[^)]*)\)\s*$/i);
+      const name = limit ? limit[1].trim() : rawName;
+      const uses = limit ? limit[2].trim() : asText(pick(e, ['uses', 'usage_limit', 'usageLimit']));
       out.push({
         kind,
         name,
         body,
+        ...(uses ? { uses } : {}),
         ...(asText(pick(e, ['attack_bonus', 'attackBonus', 'toHit'])) !== undefined
           ? { toHit: formatSigned(asNum(pick(e, ['attack_bonus', 'attackBonus', 'toHit']))) }
           : {}),

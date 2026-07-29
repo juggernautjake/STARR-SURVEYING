@@ -207,6 +207,9 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
                     {list.map((e, i) => (
                       <div key={`${e.name}-${i}`} style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.6 }}>
                         {e.name && <strong>{e.name}.</strong>}{' '}
+                        {/* A use limit reads as part of the name at the table ("Legendary Resistance
+                            (3/Day)") but is stored separately because it is a resource, not a label. */}
+                        {e.uses && <span style={{ color: 'var(--hx-gold-2)', fontWeight: 600 }}>({e.uses}) </span>}
                         {e.cost && <em style={{ color: 'var(--hx-muted)' }}>({e.cost}) </em>}
                         {e.toHit && <span style={{ color: 'var(--hx-teal-1)' }}>{e.toHit} to hit. </span>}
                         {e.damage && <span style={{ color: 'var(--hx-teal-1)' }}>{e.damage}. </span>}

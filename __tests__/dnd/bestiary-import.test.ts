@@ -99,3 +99,35 @@ describe('slug and sort', () => {
     expect(crSort(undefined)).toBeUndefined();
   });
 });
+
+describe('use limits are a resource, not part of the name', () => {
+  // Owner: "shouldn't creatures also have access to legendary resistances in some cases? Like final
+  // bosses and stuff?" — yes, and "3/Day" is the whole mechanic. A boss that can refuse three failed
+  // saves plays completely differently from one that cannot, and buried in the name it is something a DM
+  // tracks on paper beside the screen.
+  const withLimits = {
+    name: 'Ancient Thing', type: 'dragon', challenge_rating: '20',
+    special_abilities: [{ name: 'Legendary Resistance (3/Day)', desc: 'Choose to succeed instead.' }],
+    actions: [{ name: 'Fire Breath (Recharge 5-6)', desc: 'Exhales fire.' }],
+  };
+
+  it('splits a per-day limit out of the name', () => {
+    const e = srdCreatureToRow(withLimits, PROV)!.row.statblock.entries!.find((x) => x.kind === 'trait')!;
+    expect(e.name).toBe('Legendary Resistance');
+    expect(e.uses).toBe('3/Day');
+  });
+
+  it('splits a recharge out of the name', () => {
+    const e = srdCreatureToRow(withLimits, PROV)!.row.statblock.entries!.find((x) => x.kind === 'action')!;
+    expect(e.name).toBe('Fire Breath');
+    expect(e.uses).toBe('Recharge 5-6');
+  });
+
+  it('leaves an unrecognised parenthetical in the name rather than dropping it', () => {
+    // A name is authored text. Guessing at "(Humanoid Form Only)" and discarding it would lose meaning.
+    const r = srdCreatureToRow({ ...withLimits, actions: [{ name: 'Bite (Humanoid Form Only)', desc: 'Bites.' }] }, PROV)!;
+    const e = r.row.statblock.entries!.find((x) => x.kind === 'action')!;
+    expect(e.name).toBe('Bite (Humanoid Form Only)');
+    expect(e.uses).toBeUndefined();
+  });
+});

@@ -105,6 +105,20 @@ export interface StatblockEntry {
   damage?: string;
   /** PF2/IG action cost, where the system has one: 1, 2, 3, 'reaction', 'free'. */
   cost?: string;
+  /**
+   * How often it can be used — `"3/Day"`, `"Recharge 5–6"`, `"1/Turn"` (owner question 2026-07-29:
+   * *"shouldn't creatures also have access to legendary resistances in some cases?"*).
+   *
+   * Its own field rather than left inside the name, because this is a RESOURCE A DM SPENDS mid-fight, not
+   * a label. Legendary Resistance is the clearest case: "3/Day" is the whole mechanic — a boss that can
+   * refuse three failed saves plays completely differently from one that can refuse none — and printed
+   * inside `name` it is something you track on paper beside the screen.
+   *
+   * Free text, like `cost` and for the same reason: 5e writes "3/Day" and "Recharge 5-6", PF2 writes
+   * frequency traits, and a picker would be wrong more often than helpful. P13-7's playable sheet is what
+   * turns this into a counter you click down; storing it now is what makes that possible later.
+   */
+  uses?: string;
 }
 
 const num = (v: unknown, min: number, max: number): number | undefined => {
@@ -181,6 +195,7 @@ function readEntries(raw: unknown): StatblockEntry[] {
       ...(str(e.toHit) ? { toHit: str(e.toHit) } : {}),
       ...(str(e.damage) ? { damage: str(e.damage) } : {}),
       ...(str(e.cost) ? { cost: str(e.cost) } : {}),
+      ...(str(e.uses) ? { uses: str(e.uses) } : {}),
     });
   }
   return out;
