@@ -2770,11 +2770,36 @@ variance rather than one look with different colours.
       skins look distinct, because the identifier differed even though nothing visible did. Identity and
       appearance are now reported separately.
 
-- [ ] **P11-2 — Make the four FORMATS structurally distinct.** Classic / Codex / Dashboard / Play should
+- [x] **P11-2 — Make the four FORMATS structurally distinct.** Classic / Codex / Dashboard / Play should
       differ in layout and information density, not in decoration. Today several read as the same grid.
 
-      **Partial evidence 2026-07-29:** the contact sheet shows Dashboard IS structurally distinct from
-      Classic (a four-column card grid vs a stacked single column). Codex and Play still need judging.
+      **Closed 2026-07-29 — the premise was wrong, and this is the fourth plan item this pass to describe
+      a state the code had already left behind.** "Today several read as the same grid" is not what the
+      page does. Added a LAYOUT fingerprint to `contact-sheet.mjs` — the structural twin of the token
+      fingerprint — measuring columns × multi-column grids × panels-on-screen-at-once, and ran it across
+      all five styles at 1280px:
+
+      | format | cols | grids | visible panels | page height |
+      |---|---|---|---|---|
+      | Classic | 12 | 3 | 7 / 7 | 2986 |
+      | Codex | 6 | 4 | 5 / 5 | 2965 |
+      | Dashboard | 6 | 4 | 9 / 9 | 2549 |
+      | Play mode | 12 | 1 | 3 / 3 | 1949 |
+
+      **No two formats share a shape, on any style** — the run prints `SAME SHAPE` when they do, and it
+      printed none. Panels-on-screen-at-once is the measure that matters and the one a colour fingerprint
+      cannot see: a tabbed format shows a few, a dashboard shows all nine, Play shows three and drawers
+      the rest. Page height is deliberately excluded from the shape key — two formats differing only in
+      length are the same arrangement.
+
+      **What the measurement DID find was a false promise.** Classic's picker blurb read *"One section at
+      a time, tabs across the top"* — true of the 5e sheet, false on the other three systems, and shown
+      for all of them. The bespoke PF2/IG sheets render Classic as one continuous column with a sticky
+      jump index, which is deliberate (those sheets are long; the jump bar is the platform idiom from
+      Slice 37) and confirmed by the 7-of-7 reading. So the **blurb** was corrected, not the layout: a
+      picker card that describes one system's implementation as if it were the format's definition is
+      wrong three times out of four. The other three blurbs check out against the same numbers —
+      Dashboard's "see everything at once" is 9/9, Play's "reference tucked into a drawer" is 3.
 
 - [x] **P11-3 — Make the SKINS distinct.** Type, texture, border treatment, and iconography per skin —
       not a hue rotation. A skin that is only a colour is a theme.

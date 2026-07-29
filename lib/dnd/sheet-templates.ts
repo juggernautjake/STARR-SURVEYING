@@ -30,8 +30,18 @@ export interface SheetTemplate {
 export const SHEET_TEMPLATES: SheetTemplate[] = [
   {
     id: 'classic',
+    // "One section at a time, tabs across the top" was true of the 5e sheet and FALSE everywhere else, and
+    // this blurb is shown for every system. The bespoke PF2/IG sheets render Classic as one continuous
+    // column with a sticky jump index — deliberately, since those sheets are long and the jump bar is the
+    // platform idiom (Slice 37); measured at 1280px, PF2's Classic shows 7 of 7 sections at once.
+    //
+    // So the promise is rewritten to the property Classic actually holds on ALL FOUR systems: a single
+    // column you scroll, with a bar across the top that takes you straight to a block. Whether that bar
+    // swaps the pane (5e) or scrolls to it (PF2/IG) is a system's business; a picker card that describes
+    // one system's implementation as if it were the format's definition is just wrong three times out
+    // of four. Found by the P11-2 layout fingerprint in `scripts/contact-sheet.mjs`.
     label: 'Classic',
-    blurb: 'One section at a time, tabs across the top, stats in a header. Compact and phone-friendly.',
+    blurb: 'One column with a section bar across the top, stats in a header. Compact and phone-friendly.',
     wireframe: '▂▂▂▂▂▂\n[·|·|·]\n██████\n██████',
   },
   {

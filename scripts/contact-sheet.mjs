@@ -210,6 +210,39 @@ for (const skin of axes.skins) {
       return out;
     });
 
+    // THE LAYOUT FINGERPRINT (P11-2) — the structural twin of the token fingerprint above. "Do Classic,
+    // Codex, Dashboard and Play actually differ in LAYOUT, or only in decoration" is answerable the same
+    // way: measure the arrangement rather than squinting at it. Two formats that put the same panels in
+    // the same number of columns at the same page height ARE the same format wearing two names.
+    const layout = await page.evaluate(() => {
+      const root = document.querySelector('[class*="skin-"]') ?? document.body;
+      const tracks = (el) => {
+        const t = getComputedStyle(el).gridTemplateColumns;
+        return t && t !== 'none' ? t.split(' ').length : 0;
+      };
+      // The widest multi-column grid anywhere in the sheet: a card grid and a two-pane rail differ here
+      // even when the outermost wrapper is a single column in both.
+      let maxCols = 0;
+      let grids = 0;
+      root.querySelectorAll('*').forEach((el) => {
+        const n = tracks(el);
+        if (n > 1) { grids += 1; maxCols = Math.max(maxCols, n); }
+      });
+      const vis = (el) => el.getBoundingClientRect().height > 0;
+      const sections = [...root.querySelectorAll('section')];
+      return {
+        rootCols: tracks(root),
+        maxCols,
+        multiColGrids: grids,
+        sections: sections.length,
+        // How many panels are on screen AT ONCE. This is the real difference between a tabbed format
+        // (one at a time) and a dashboard (all of them) — and it is invisible to a colour fingerprint.
+        visibleSections: sections.filter(vis).length,
+        // Page height stands in for density: stacking everything is tall, tiling it is short.
+        height: document.documentElement.scrollHeight,
+      };
+    });
+
     // Overflow is measured per cell too: a format can be fine at one skin and broken at another, and this
     // is the cheapest place to notice.
     const overflow = await page.evaluate(() => {
@@ -223,7 +256,7 @@ for (const skin of axes.skins) {
       });
       return n;
     });
-    shots.push({ ...cell, file: path.basename(file), overflow, tokens });
+    shots.push({ ...cell, file: path.basename(file), overflow, tokens, layout });
     console.log(overflow ? `OVERFLOW ${overflow}` : 'ok');
   } catch (e) {
     skipped.push(`${name} — ${e.message.split('\n')[0]}`);
@@ -294,6 +327,32 @@ fs.writeFileSync(
 
 console.log('\nToken fingerprints:');
 console.log(`  ${byFingerprint.size} distinct across ${shots.length} cells`);
+
+// P11-2: HOLDING THE SKIN FIXED, do the formats differ STRUCTURALLY? Reported per skin because a format
+// is allowed to collapse to one column on a narrow viewport — at 1280px it should not.
+const skinsSeen = [...new Set(shots.map((s) => s.skin))];
+if (shots.some((s) => s.layout)) {
+  console.log('\nLayout (P11-2) — per skin, one line per format:');
+  for (const sk of skinsSeen) {
+    const group = shots.filter((s) => s.skin === sk && s.layout);
+    if (group.length < 2) continue;
+    console.log(`  ${sk}`);
+    for (const s of group) {
+      const l = s.layout;
+      console.log(`    ${String(s.format).padEnd(11)} cols=${l.maxCols} grids=${l.multiColGrids} sections=${l.visibleSections}/${l.sections} height=${l.height}`);
+    }
+    const shapes = new Map();
+    for (const s of group) {
+      // Height is excluded: it varies with content, and two formats differing only in page length are
+      // the same arrangement. Arrangement is columns × grid count × how many panels are on screen.
+      const k = `${s.layout.maxCols}|${s.layout.multiColGrids}|${s.layout.visibleSections}`;
+      shapes.set(k, [...(shapes.get(k) ?? []), s.format]);
+    }
+    for (const g of [...shapes.values()].filter((x) => x.length > 1)) {
+      console.log(`      SAME SHAPE: ${g.join(', ')}`);
+    }
+  }
+}
 
 // The sharper question than "are all cells distinct": HOLDING THE THEME FIXED, do the skins differ? A
 // skin that only moves when the theme moves is not a skin.
