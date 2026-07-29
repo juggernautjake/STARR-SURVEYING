@@ -3580,3 +3580,34 @@ forgivable place for this. Now labelled, alongside the character-creation name a
 surrounding markup I could not read carefully enough at this point in the session to label ACCURATELY. A
 wrong label is worse than a missing one — it tells a screen-reader user something false with confidence —
 so they are recorded here rather than guessed at.
+
+## NEXT UP — streamer-style parity on the bespoke sheets (owner request, 2026-07-29)
+
+> *"I would like for the IG and PF2 versions of the magical streamer style to also have the same background
+> animation and the same effects and the same styles and stuff as the dnd editions. It should also have the
+> go live functionality with chat and everything. Please update them to match."*
+
+**Not started.** Scoped rather than begun, because it is a feature port and not a slice, and starting it
+without the capacity to finish or verify it is how half-wired work gets created — the exact defect this
+pass has spent days removing.
+
+**The cause is already known and is the same one found three times today.** `theme.css` carries **85
+selectors** beginning `.dnd-sheet.skin-streamer` — the CRT scanlines, the pixel faces, the glow, the
+`::before`/`::after` overlays, the variant art swap. `.dnd-sheet` is the **5e** root. The bespoke PF2/IG
+sheets render `framedPanel skin-streamer bespoke-sheet` and never match a single one of those rules, so
+they get the skin's colours (via `skinHxVars`) and none of its character. Identical in shape to the
+`.btn` and `.footer` gaps fixed under P11-4.
+
+**Two halves, and they are not equally hard:**
+1. **The look.** Extend those 85 selectors to match the bespoke roots too — most plausibly by scoping to
+   `.skin-streamer` alone where the rule is self-contained, and pairing `.dnd-sheet`/`.bespoke-sheet`
+   where it is not. The risk is that many of the 85 target 5e-specific ELEMENT structures (`.stat .big`,
+   `.ab .score`, `.res-head .rn`) which do not exist on a PF2 sheet — those need a bespoke equivalent, not
+   a wider selector. **Audit which of the 85 are structural before widening any of them.**
+2. **Go-live + chat.** `Soundboard`, `PartyAudio`, `SessionConsole`, `StreamWatchClient` and the influence
+   meter are wired to the campaign/stream surfaces, not to a sheet. This is a mounting question — where
+   the bespoke sheets provide their own `RollFeedProvider`, they can provide these too — rather than a
+   styling one.
+
+**Do the audit in step 1 first.** Widening a selector that assumes 5e markup produces rules that match
+nothing, which looks identical to rules that were never added.
