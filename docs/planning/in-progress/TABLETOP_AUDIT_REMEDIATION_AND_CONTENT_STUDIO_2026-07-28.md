@@ -435,11 +435,26 @@ should skip Phase 7 entirely.
       AC — the most-used defensive action in the game), no Shield Block, no shield damage, no broken
       threshold. Depends on P5-1.
 
-- [ ] **P5-3 — Pathfinder 2e multiclass.** *(C-4.)* 5e gets true multiclassing; IG gets a flagged house rule;
-      PF2 gets nothing — and PF2's version is **core**, not optional: multiclass archetype dedication feats
-      taken at a class-feat slot the builder already computes via `pf2LevelBreakdown`.
-      **Design:** model dedication as a class-feat-slot option with PF2's own follow-up rule (two more feats
-      from an archetype before a second dedication). Content is authored in `feats-class.ts`.
+- [x] **P5-3 — PF2 archetype multiclassing. Shipped 2026-07-28.** *(Audit C-4, the last PF2 finding.)*
+      **The finding was half wrong, and checking first saved most of the work.** The audit said PF2 "gets
+      nothing" for multiclassing. In fact the dedication feats were fully catalogued with `archetype` tags,
+      the tracks were modelled, and rule 5 of `pf2FeatEligibility` already required a Dedication before any
+      of its archetype's feats. What was genuinely missing was the **commitment rule** — *"you can't select
+      another dedication feat until you have gained two other feats from the archetype you already have"* —
+      so nothing stopped a character collecting six Dedications and following through on none of them,
+      which is exactly the buffet that rule exists to prevent.
+      **It counts through the CATALOGUE, not through names**, and that is the whole difficulty. Barbarian
+      Dedication's follow-ups include **"Basic Fury"**: a name-prefix test would miss it entirely and
+      under-count every archetype whose feats are named for their effect rather than their class — which is
+      most of them. The tests guard that fixture explicitly, so the rule cannot start passing for the wrong
+      reason.
+      The Dedication does not count toward its own two, and another archetype's feats do not pay the debt.
+      Re-taking a dedication you hold is still caught by the pre-existing duplicate rule, not this one — a
+      test pins *which* rule refuses it, because two rules that both say no are indistinguishable until one
+      of them is wrong.
+
+> **Every Pathfinder 2e audit finding is now closed** — C-1 (inventory + Bulk), C-2 (shields), C-3
+> (currency) and C-4 (multiclassing), plus the P6-9a engine bridge.
 
 - [ ] **P5-4 — PF2 companions, familiars and eidolons.** *(C-7.)* Companions exist for 5e 2024 and IG only.
       PF2 animal companions are a compact three-tier data shape and close most of the gap; the Summoner's

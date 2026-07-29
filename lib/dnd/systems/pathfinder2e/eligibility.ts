@@ -16,6 +16,7 @@
 import type { PF2FeatFull, PF2SpellFull, PF2Prereq, PF2FeatTrack } from './defs';
 import type { PF2AttributeKey } from './model';
 import { pf2Class } from './content';
+import { pf2ClassOrArchetypeFeat } from './data/feats-class';
 import { pf2SpellSlots } from './rules';
 import { pf2FreeArchetypeFeatCount, type PF2RulesVariants } from './variants';
 
@@ -152,6 +153,44 @@ export function pf2FeatEligibility(feat: PF2FeatFull, ctx: PF2EligibilityContext
     const ded = `${feat.archetype} Dedication`;
     if (!(ctx.featNames ?? []).some((f) => norm(f) === norm(ded))) {
       return { ok: false, reason: `${feat.name} requires the ${ded} feat first.` };
+    }
+  }
+
+  // 5b. THE DEDICATION COMMITMENT RULE (P5-3, audit C-4).
+  //
+  //     "You can't select another dedication feat until you have gained two other feats from the archetype
+  //      you already have." This is the rule that makes multiclassing in PF2 a *commitment* rather than a
+  //     buffet — and it was the missing half of archetype support here: rule 5 above already required a
+  //     Dedication before its archetype's feats, but nothing stopped a character collecting six Dedications
+  //     and never following through on any of them.
+  //
+  //     Counted per archetype, and the Dedication itself does not count toward its own two.
+  if (feat.track === 'archetype' && feat.archetype && norm(feat.name).endsWith('dedication')) {
+    const held = ctx.featNames ?? [];
+    const heldDedications = held.filter((f) => norm(f).endsWith('dedication'));
+    // Only OTHER archetypes are in question; re-taking one you have is caught by rule 4 above.
+    const owed = heldDedications
+      .map((d) => norm(d).replace(/\s*dedication$/, ''))
+      .filter((a) => a !== norm(feat.archetype!))
+      .filter((archetypeName) => {
+        // Which feats belong to that archetype is a CATALOGUE question, not a naming one. Barbarian
+        // Dedication's follow-ups are "Basic Fury" and "Barbarian Resiliency" — a name-prefix test would
+        // count the second and miss the first, and quietly under-count every archetype whose feats are
+        // named for their effect rather than their class. Which is most of them.
+        const followUps = held.filter((f) => {
+          if (norm(f).endsWith('dedication')) return false;
+          const def = pf2ClassOrArchetypeFeat(f);
+          return !!def?.archetype && norm(def.archetype) === archetypeName;
+        });
+        return followUps.length < 2;
+      });
+
+    if (owed.length > 0) {
+      const name = owed[0].replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        ok: false,
+        reason: `${feat.name} can't be taken yet — you need two more ${name} feats before starting another archetype.`,
+      };
     }
   }
 
