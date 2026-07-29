@@ -2213,10 +2213,35 @@ Every slice below serves that one rule.
       `var(--hx-danger, #ff6b6b)` fallback. I removed the hex rather than raising the baseline, which is the
       only response that keeps a ratchet meaningful.
 
-- [ ] **P10-4b — Discord session reminders.** *(Split from P10-4.)* Needs a cron entry and a schedule, not
+- [x] **P10-4b — Discord session reminders.** *(Split from P10-4.)* Needs a cron entry and a schedule, not
       just a webhook: `app/api/cron/` already has the pattern (Bearer `CRON_SECRET`, a `vercel.json`
-      schedule) and `dnd_sessions.scheduled_at` already exists, so this is a self-contained follow-on rather
-      than a blocked one. The webhook plumbing, validation and masking are all in place for it.
+      schedule) and `dnd_sessions.scheduled_at` already exists.
+
+      **Done 2026-07-29.** `lib/dnd/session-reminder.ts` (pure), `app/api/cron/dnd-session-reminders`, and a
+      `0 15 * * *` entry in `vercel.json`. Day-before and day-of, with the RSVP tally attached.
+
+      **"Tomorrow" is a calendar word, not a 24-hour interval,** and that is the whole substance of the
+      decision logic. A session at 7pm Friday is "tomorrow" from *any* time on Thursday, including 11pm —
+      twenty hours away. A `< 24h` comparison files that under "today" and tells the table they play
+      tonight. So bucketing is done on the **local calendar date** in `America/Chicago`, and the test that
+      matters sits at 11pm on the eve. The timezone is a parameter with a recorded default rather than a
+      constant, so a future per-campaign timezone is an argument and not a rewrite.
+
+      **The RSVP line is the reason to send this at all.** "We play tomorrow" is a calendar's job; "two of
+      you haven't answered" is what gets a reply. It is **omitted rather than faked** when the tally is
+      unavailable, because "0 yes" reads as nobody coming — a different and much worse message than saying
+      nothing about attendance.
+
+      **Idempotency is the schedule, not a stored flag** — running twice in a day sends two reminders.
+      `phase-reminders` has the same property and has been fine. Written into both the module and the route
+      rather than left to be discovered; a `reminded_at` column is the fix if anything ever needs it.
+
+      Pure/impure split as usual: the cron fetches and sends, the module decides. The sending is
+      deliberately unobservable, so the *choosing* had to be testable against a fixed clock.
+
+      **One guard worth keeping:** a test parses `vercel.json` and asserts every cron path has a route file.
+      A schedule pointing at a deleted route fails silently, forever — the scheduled form of this audit's
+      recurring "authored but not wired". All existing entries pass.
 - [ ] **P10-5 — Offline / PWA sheet.** Sheets are already client-rendered from one JSON blob, so the hardest
       part of offline is already true.
 - [ ] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the
