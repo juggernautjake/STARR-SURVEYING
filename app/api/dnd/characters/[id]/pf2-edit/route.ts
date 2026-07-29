@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       field_path: bespokeFieldPath('pathfinder2e', gate.edit.op), old_value: null, new_value: null,
       scope: 'permanent', source: 'manual',
       summary: describePf2Edit(gate.edit) + (off ? ` — off-rules: ${off}` : ''),
-    }).then(() => {}, () => {});
+    }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
   }
 
   return NextResponse.json({

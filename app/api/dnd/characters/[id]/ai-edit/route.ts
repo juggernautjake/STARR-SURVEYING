@@ -344,7 +344,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
       field_path: `revert-batch:${target.batchId}`, old_value: null, new_value: null, scope: 'permanent',
       source: 'revert', summary: `Undid a change of ${audited.length} edit(s)${target.summary ? `: ${target.summary}` : ''}`,
-    }).then(() => {}, () => {});
+    }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
     return NextResponse.json({ ok: true, kind: 'undo', reverted: audited.length, batchId: target.batchId, summary: `Undone — reverted my last change${target.summary ? ` (${target.summary})` : ''}. Your character is back to how it was.` });
   }
 
@@ -374,7 +374,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
         field_path: `ig:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
         source: 'ai', summary: describeIgEdit(parsed.edit) + (igGate.offRules ? ` — off-rules: ${igGate.offRules}` : ''),
-      }).then(() => {}, () => {});
+      }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
     }
     return NextResponse.json({
       ok: true, kind: 'ig-edit',
@@ -415,7 +415,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
         field_path: `pf2:${parsed.edit.op}`, old_value: null, new_value: null, scope: 'permanent',
         source: 'ai', summary: describePf2Edit(parsed.edit),
-      }).then(() => {}, () => {});
+      }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
     }
     return NextResponse.json({ ok: true, kind: 'pf2-edit', summary: describePf2Edit(parsed.edit), currentHp: nextPf2.combat.currentHp, dyingValue: nextPf2.combat.dyingValue, savedTo: saveTarget, variantSlotId: pf2Save.variantSlotId });
   }
@@ -434,7 +434,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         character_id: params.id, editor_user_id: session.userId, is_dm: isDM,
         field_path: `level:${draft.toLevel}`, old_value: null, new_value: null, scope: 'permanent',
         source: 'ai', summary,
-      }).then(() => {}, () => {});
+      }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
     }
     return NextResponse.json({ ok: true, kind: 'level-up', fromLevel, toLevel: draft.toLevel, mode: draft.mode, hpGained: draft.hpGained, featuresAdded: draft.features.map((f) => f.name), summary, savedTo: saveTarget, variantSlotId: luSave.variantSlotId });
   }
@@ -527,7 +527,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (batchId) {
     await supabaseAdmin.from('dnd_sheet_edits').insert(
       edits.map((e) => ({ character_id: params.id, editor_user_id: session.userId, is_dm: isDM, field_path: editPath(e), old_value: (editOldValue(current, e) ?? null) as unknown, new_value: e as unknown, scope: 'permanent', batch_id: batchId, source: 'ai', summary: batchSummary })),
-    ).then(() => {}, () => {});
+    ).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
   }
 
   // Safety net (Slice 3): flag anything that doesn't belong to the character's system so a wrong-system

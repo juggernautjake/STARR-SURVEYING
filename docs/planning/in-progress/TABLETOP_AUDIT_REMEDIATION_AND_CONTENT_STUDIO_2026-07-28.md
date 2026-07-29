@@ -3994,3 +3994,22 @@ across 8 route files, 8 of which are `dnd_sheet_edits` inserts. Every one is a p
 violation or column mismatch disappears exactly as this did. The pattern is deliberate — an audit write
 must not fail a user's action — but "do not fail the request" and "discard the error unseen" are
 different things, and only the first was intended.
+
+### FIXED — background writes now say when they fail (2026-07-29)
+
+All **14** fire-and-forget writes across 8 route files carried `.then(() => {}, () => {})`. The intent was
+right and stays: an audit write must never fail a user's action. But **"do not fail the request" and
+"discard the error unseen" are different things**, and only the first was ever intended — the second is
+what let a CHECK constraint reject every `library-grant` row for months in total silence.
+
+Each rejection handler now logs. Nothing else changes: the promise still cannot throw, the request still
+cannot fail because of it.
+
+**A test had to be corrected, and it is the seventh of these.** `bespoke-edit-audit` asserted the literal
+`.then(() => {}, () => {})`, so it FAILED a change that strengthened the very property it guards. The
+guarantee is "the audit write has a rejection handler and cannot fail the edit" — not "the handler is
+empty". A test that forbids logging an error it is not allowed to throw is protecting the wrong thing.
+
+**What this does not do:** logs are only useful if someone reads them. The real end state is these
+failures reaching the review queue or an error reporter, not `console.error` on a server nobody tails.
+This is the smallest change that ends the silence; it is not the end of the work.

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     old_value: edit.new_value as unknown,
     new_value: null,
     scope: 'permanent',
-  }).then(() => {}, () => {});
+  }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
 
   return NextResponse.json({ ok: true });
 }

@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       field_path: `revert-batch:${bid}`, old_value: null, new_value: null, scope: 'permanent',
       source: 'revert', summary: `Rolled back as part of restoring to an earlier version`,
     })),
-  ).then(() => {}, () => {});
+  ).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
 
   return NextResponse.json({ ok: true, restored: batchIds.length, editCount: audited.length });
 }

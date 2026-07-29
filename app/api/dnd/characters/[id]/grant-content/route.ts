@@ -177,7 +177,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       source: 'library-grant',
       summary: outcome.summary,
     })),
-  ).then(() => {}, () => {});
+  ).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
 
   return NextResponse.json({
     ok: true,

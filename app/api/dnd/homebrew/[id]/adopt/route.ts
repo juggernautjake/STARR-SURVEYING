@@ -149,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     batch_id: randomUUID(),
     source: 'homebrew-adopt',
     summary,
-  }).then(() => {}, () => {});
+  }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
 
   // The notes matter: "your item is on the sheet, but its effects were written for D&D 5e" is a useful
   // sentence, and silence in its place is how someone concludes the feature is broken.

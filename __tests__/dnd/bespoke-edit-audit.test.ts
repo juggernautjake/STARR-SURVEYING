@@ -125,7 +125,12 @@ describe('both manual routes actually write the row', () => {
       const audit = route.indexOf("from('dnd_sheet_edits')");
       expect(save).toBeGreaterThan(-1);
       expect(audit).toBeGreaterThan(save);
-      expect(route).toMatch(/\}\)\.then\(\(\) => \{\}, \(\) => \{\}\);/);
+      // The GUARANTEE is that the audit write has a rejection handler, so it can never fail the edit —
+      // not that the handler is spelled `() => {}`. Pinning the empty literal failed the change that gave
+      // these handlers a `console.error`, which STRENGTHENED the property: a swallowed audit failure is
+      // how `library-grant` rows were rejected by a CHECK constraint for months without anyone noticing.
+      // A test that forbids logging an error it is not allowed to throw is protecting the wrong thing.
+      expect(route).toMatch(/\}\)\.then\(\(\) => \{\},\s*\(/);
     });
 
     it(`${name} describes the edit that was APPLIED, not the one requested`, () => {

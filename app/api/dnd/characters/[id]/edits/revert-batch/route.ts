@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     scope: 'permanent',
     source: 'revert',
     summary: `Undid a change of ${audited.length} edit(s)`,
-  }).then(() => {}, () => {});
+  }).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
 
   return NextResponse.json({ ok: true, reverted: audited.length });
 }

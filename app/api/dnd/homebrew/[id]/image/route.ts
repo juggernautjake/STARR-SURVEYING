@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const old = found.row.image_url;
     if (old) {
       const oldKey = storageKeyFromUrl(old, BUCKET);
-      if (oldKey && oldKey !== key) await supabaseAdmin.storage.from(BUCKET).remove([oldKey]).then(() => {}, () => {});
+      if (oldKey && oldKey !== key) await supabaseAdmin.storage.from(BUCKET).remove([oldKey]).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
     }
 
     return NextResponse.json({ imageUrl: image_url });
@@ -115,7 +115,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const old = found.row.image_url;
   if (old) {
     const oldKey = storageKeyFromUrl(old, BUCKET);
-    if (oldKey) await supabaseAdmin.storage.from(BUCKET).remove([oldKey]).then(() => {}, () => {});
+    if (oldKey) await supabaseAdmin.storage.from(BUCKET).remove([oldKey]).then(() => {}, (e: unknown) => { console.error('[dnd] background write failed', e); });
   }
   return NextResponse.json({ ok: true });
 }
