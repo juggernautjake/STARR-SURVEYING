@@ -40,11 +40,19 @@ describe('the unbuilt systems are gated at every surface, not just labelled', ()
     expect(form).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))');
   });
 
-  it('the versions/system switcher will not let you select an unbuilt system', () => {
-    // …except the character's OWN current system, so a legacy character already on one still renders
-    // rather than showing an empty picker.
-    const sw = read('app/dnd/_ui/SystemSwitcher.tsx');
-    expect(sw).toMatch(/const selectable = \(system: string\) => system === SYSTEM_AMBIGUOUS \|\| system === active \|\| isSystemAvailable\(system\)/);
+  it('the versions/system picker is never OFFERED an unbuilt system', () => {
+    // RE-POINTED 2026-07-28 (P4-6b), and the reason matters. This read `SystemSwitcher.tsx` — retired from
+    // the sheet page at consolidation C3 and rendered by nothing — so this assertion has been verifying a
+    // client-side gate on **code that never runs**. The unbuilt-system guard looked complete and had a hole
+    // exactly where an orphan sat, which is the audit's whole thesis in one test.
+    //
+    // The live picker is `VariantBrowser`'s transpose control, and the gate there is a better shape: the
+    // page only ever passes it `availableSystems()`, so it cannot offer an unbuilt system even by mistake.
+    // There is nothing to filter, because nothing unbuilt ever arrives.
+    const page = read('app/dnd/characters/[id]/page.tsx');
+    expect(page).toContain('const transposeSystems = availableSystems()');
+    expect(page).toMatch(/transposeSystems=\{transposeSystems\}/);
+    expect(page, 'the picker must not be handed the raw registry').not.toMatch(/transposeSystems = GAME_SYSTEMS/);
   });
 
   it('the public library hides an unbuilt system’s page (404, and not pre-rendered)', () => {
@@ -60,7 +68,9 @@ describe('the unbuilt systems are gated at every surface, not just labelled', ()
     for (const k of BUILT) expect(isSystemAvailable(k), `${k} should be open`).toBe(true);
     for (const f of [
       'app/dnd/_ui/NewCharacterForm.tsx',
-      'app/dnd/_ui/SystemSwitcher.tsx',
+      // Was SystemSwitcher.tsx until P4-6b — an orphan, so it proved nothing. The character page is where
+      // the live picker is fed from.
+      'app/dnd/characters/[id]/page.tsx',
       'app/dnd/library/[key]/page.tsx',
       'app/api/dnd/characters/[id]/system/route.ts',
       'app/dnd/_ui/LibrarySearch.tsx',

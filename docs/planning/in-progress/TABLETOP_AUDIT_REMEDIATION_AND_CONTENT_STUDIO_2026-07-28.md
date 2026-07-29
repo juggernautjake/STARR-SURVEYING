@@ -400,10 +400,24 @@ should skip Phase 7 entirely.
       orphan. Restored and exempted rather than rushing a re-point of the gating suite while removing dead
       code.
 
-- [ ] **P4-6b — Re-point the four tests that pin `SystemSwitcher`, then delete it.** `hidden-systems` and
-      `under-construction-gating` should assert the unbuilt-system gate against the surfaces that actually
-      ship (the VERSIONS picker, `EditFlow`, `VariantBrowser`); `mv-route` already knows the component is
-      retired and asserts against it anyway.
+- [x] **P4-6b — Re-point the gating tests that pinned `SystemSwitcher`. Shipped 2026-07-28, and it found
+      something.** The two safety-critical tests — `hidden-systems` and `under-construction-gating` — were
+      asserting that the *system switcher* refuses an unbuilt system, by reading `SystemSwitcher.tsx`. That
+      component has been **rendered by nothing** since consolidation C3. **So the client-side unbuilt-system
+      gate has been verified against code that never runs**, and the guard looked complete with a hole
+      exactly where an orphan sat — the audit's whole thesis, inside the gating suite itself.
+      What is actually live is better in shape: the character page passes `VariantBrowser` only
+      `availableSystems()`, so the picker **cannot offer an unbuilt system even by mistake** — there is
+      nothing to filter because nothing unbuilt ever arrives. Both tests now assert that, and the
+      hard-coded-keys sweep reads the character page instead of the orphan.
+      (The server route was, and remains, the gate that actually matters — every UI above it can be
+      bypassed with a direct POST, and that assertion never moved.)
+
+- [ ] **P4-6c — Re-point the three transpose tests, then delete `SystemSwitcher`.** `mv-route`,
+      `transpose-custom` and `transpose-progress` still read its source, but they assert its **transpose UI**
+      rather than a gate — behaviour that moved to `VariantBrowser`/`EditFlow` and needs each assertion
+      checked against its new home rather than sed-ed across. **Nothing unsafe rides on it now**, which is
+      why this is a tidy-up rather than the blocker it was yesterday.
 
 ---
 

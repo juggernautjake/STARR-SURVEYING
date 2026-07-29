@@ -34,8 +34,17 @@ describe('the system-listing surfaces filter to available (no hidden system offe
     expect(camp).not.toContain('under construction'); // the disabled "coming later" group is gone
   });
 
-  it('the system switcher only lists available systems (+ ambiguous / the active one)', () => {
-    expect(read('app/dnd/_ui/SystemSwitcher.tsx')).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key) || s.key === active)');
+  it('the system picker on a sheet only ever SEES available systems', () => {
+    // RE-POINTED 2026-07-28 (P4-6b). This read `SystemSwitcher.tsx`, which has been retired from the sheet
+    // page since consolidation C3 and is rendered by nothing — so it was verifying a gate on code that
+    // never runs. The live picker is `VariantBrowser`'s transpose control, and the gate is now stronger in
+    // shape: rather than the component filtering, **the page only ever hands it available systems**, so it
+    // cannot offer an unbuilt one even by accident.
+    const page = read('app/dnd/characters/[id]/page.tsx');
+    expect(page).toContain('const transposeSystems = availableSystems()');
+    expect(page).toMatch(/transposeSystems=\{transposeSystems\}/);
+    // And `availableSystems` is itself the status filter, so this is one hop from the flag.
+    expect(read('lib/dnd/systems.ts')).toContain("GAME_SYSTEMS.filter((s) => s.status === 'available')");
   });
 
   it('the per-system library page 404s a hidden system', () => {

@@ -33,11 +33,13 @@ const EXEMPT: Record<string, string> = {
   'app/dnd/_ui/SystemSwitcher.tsx':
     'RETIRED from the sheet page at consolidation C3 — its capabilities moved to the VERSIONS picker, ' +
     'EditFlow and VariantBrowser, and the character page says so in a comment. It is genuinely dead UI. ' +
-    'It is NOT deleted yet because FOUR test files read its source as a proxy for "the system switcher ' +
-    'surface", two of them (hidden-systems, under-construction-gating) asserting the unbuilt-system gate — ' +
-    'a real safety property. Deleting it in this slice turned those red, and re-pointing them at the live ' +
-    'surfaces is its own piece of work, not something to rush while removing dead code. This is the same ' +
-    'shape as format-preview.test.ts guarding TemplateBrowser: a test pinning an orphan. Slice P4-6b.',
+    'NARROWED 2026-07-28 (P4-6b): the two GATING tests that pinned it — hidden-systems and ' +
+    'under-construction-gating — now assert the live surface instead, and finding that out was worth the ' +
+    'slice on its own: they had been verifying a client-side unbuilt-system gate on code that never runs. ' +
+    'What still reads its source is mv-route / transpose-custom / transpose-progress, which assert its ' +
+    'TRANSPOSE UI rather than a gate — behaviour that moved to VariantBrowser and EditFlow, and needs each ' +
+    'assertion checked against its new home rather than sed-ed across. Slice P4-6c; nothing unsafe is ' +
+    'riding on it now.',
 
   'app/dnd/_ui/SystemLibrary.tsx':
     'GAP, found by this guard on its first run. Its header says "Used by the builder so a DM/player can ' +
