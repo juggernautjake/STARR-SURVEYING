@@ -46,16 +46,32 @@ describe('the shared identity fields are kind-specific', () => {
 });
 
 describe('coverage', () => {
-  it('reports which kind-specific fields still lack an example', () => {
-    // NOT asserted at zero yet — 35 kind-specific fields (a weapon's `properties`, a class's `asiLevels`)
-    // are still bare, and pretending otherwise would be worse than counting them. This pins the direction:
-    // the number may fall, never rise.
+  it('EVERY text, textarea and dice field across all 18 kinds has an example', () => {
+    // Was a ceiling of 35 when only the shared fields were done; now exact. A new field added to any kind
+    // without an example fails here, which is the only way "all of the input fields" stays true after the
+    // slice that made it true.
     const bare: string[] = [];
     for (const kind of HOMEBREW_KINDS) {
       for (const f of fieldsForKind(kind)) {
         if (NEEDS_EXAMPLE.includes(f.type) && !f.placeholder) bare.push(`${kind}.${f.key}`);
       }
     }
-    expect(bare.length, `still bare: ${bare.join(', ')}`).toBeLessThanOrEqual(35);
+    expect(bare, `no placeholder: ${bare.join(', ')}`).toEqual([]);
+  });
+
+  it('a kind-specific example is not reused across kinds', () => {
+    // Same reasoning as the summary check: a pasted example is a generic one wearing a costume. Compared
+    // within field KEY, since `senses` legitimately differs between a race and a creature but should not
+    // be identical.
+    const byKey = new Map<string, string[]>();
+    for (const kind of HOMEBREW_KINDS) {
+      for (const f of fieldsForKind(kind)) {
+        if (!f.placeholder || !NEEDS_EXAMPLE.includes(f.type)) continue;
+        byKey.set(f.key, [...(byKey.get(f.key) ?? []), f.placeholder]);
+      }
+    }
+    for (const [key, values] of byKey) {
+      expect(new Set(values).size, `"${key}" reuses an example across kinds`).toBe(values.length);
+    }
   });
 });

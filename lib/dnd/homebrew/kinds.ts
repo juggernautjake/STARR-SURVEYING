@@ -555,8 +555,59 @@ export function proseOnlyNotice(kind: HomebrewKind, system: string): string | nu
 
 /** The full ordered field list the builder renders for a kind: identity first, then the kind's own schema. */
 export function fieldsForKind(kind: HomebrewKind): FieldSpec[] {
-  return [...commonFieldsFor(kind), ...SPECS[kind].fields];
+  // A kind's own fields get their examples from `FIELD_EXAMPLES` unless the spec already declares one.
+  // Applied here rather than written into each of the 35 definitions so every worked example lives in one
+  // readable block — the spec above stays about SHAPE (type, section, required) and the examples stay
+  // about VOICE, which are edited by different people for different reasons.
+  const own = SPECS[kind].fields.map((f) => {
+    if (f.placeholder) return f;
+    const ex = FIELD_EXAMPLES[kind]?.[f.key];
+    return ex ? { ...f, placeholder: ex } : f;
+  });
+  return [...commonFieldsFor(kind), ...own];
 }
+
+/**
+ * A worked example for each kind's OWN fields (owner request 2026-07-29). Same rule as the shared ones: a
+ * placeholder shows what a good answer looks like, it does not restate the label. Written in the voice of
+ * the thing — a weapon's properties read as a weapon's properties, a class's ASI levels as a real ladder.
+ *
+ * Only fields where an example TEACHES something appear here. A `select` shows its own options and a
+ * checkbox has nothing to exemplify, so neither is listed; padding those would be noise dressed as help.
+ */
+const FIELD_EXAMPLES: Partial<Record<HomebrewKind, Record<string, string>>> = {
+  weapon: { properties: 'finesse, light, thrown (20/60)', weight: '3' },
+  armor: { baseAc: '14', dexCap: '2', strengthRequirement: '13', weight: '20' },
+  item: { charges: '3', weight: '1' },
+  spell: { level: '3', components: 'V, S, M (a pinch of iron filings)', higherLevels: 'The damage increases by 1d6 for each slot level above 3rd.' },
+  stance: { improved: 'At 9th level the stance also grants resistance to the damage type you last took.' },
+  action: { traits: 'press, flourish', trigger: 'A creature within reach ends its movement next to you.' },
+  skill: { usage: 'Judge a vessel’s speed and crew from a distance, or sabotage its rigging unseen.' },
+  background: {
+    tools: 'navigator’s tools, carpenter’s tools',
+    languages: 'one of your choice',
+    equipment: 'a signal lantern, 50 ft of rope, a logbook, 8 gp',
+    featureName: 'Keeper of the Light',
+    featureBody: 'Any sailor who has worked this coast will hear you out once, whatever they think of you.',
+  },
+  race: { speed: '30 ft., swim 30 ft.', senses: 'darkvision 60 ft.', languages: 'Common and one coastal tongue' },
+  class: {
+    skillCount: '2',
+    armorProficiencies: 'light armor, medium armor, shields',
+    weaponProficiencies: 'simple weapons, rapiers, shortswords',
+    startingEquipment: 'a rapier, a gambler’s kit, an explorer’s pack, 10 gp',
+    subclassLevel: '3',
+    asiLevels: '4, 8, 12, 16, 19',
+  },
+  subclass: { parentClass: 'Monk' },
+  creature: {
+    alignment: 'chaotic neutral',
+    senses: 'tremorsense 60 ft., passive Perception 11',
+    languages: 'understands Draconic but cannot speak',
+    resistances: 'piercing and slashing from nonmagical attacks',
+  },
+  rule: { replaces: 'the standard critical hit rule' },
+};
 
 /**
  * The shared identity fields, with EXAMPLES DRAWN FROM THE KIND (owner request 2026-07-29: *"all of the
