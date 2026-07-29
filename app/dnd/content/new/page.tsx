@@ -15,6 +15,7 @@ import ContentBuilder from '@/app/dnd/_ui/ContentBuilder';
 import { isHomebrewKind, homebrewKindLabel } from '@/lib/dnd/homebrew/model';
 import { KIND_GROUPS, kindsInGroup, kindIsMechanicalIn, normalizeContentSystem } from '@/lib/dnd/homebrew/kinds';
 import { availableSystems } from '@/lib/dnd/systems';
+import { dndAiConfigured } from '@/lib/dnd/ai';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Build custom content | Starr Tabletop' };
@@ -43,7 +44,7 @@ export default function NewContentPage({
                 New {homebrewKindLabel(kind).toLowerCase()}
               </h1>
             </div>
-            <ContentBuilder kind={kind} system={system} availableSystems={systems} />
+            <ContentBuilder kind={kind} system={system} availableSystems={systems} aiConfigured={dndAiConfigured()} />
           </div>
         </div>
       </div>

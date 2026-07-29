@@ -583,9 +583,28 @@ of homebrew.
       sheet tracking attacks, abilities, feats, conditions and HP — reusing the encounter/initiative model so
       a creature dropped into a fight and a creature opened from the Studio are the same object.
 
-- [ ] **P6-15 — AI assist, per step.** A "help me with this" on **each field** that drafts only that field,
-      plus a whole-draft assist. **Never auto-applies** — always shows the proposal against the current value
-      and requires an explicit accept. Everything must remain fully buildable with the AI switched off.
+- [x] **P6-15 — AI assist, per field. Shipped 2026-07-28.** `lib/dnd/homebrew/assist.ts` (pure prompts +
+      output cleaning), `POST /api/dnd/homebrew/assist`, and a ✨ button on each prose field.
+      **Stateless, and that constraint shaped the design.** Assist matters most while writing the *first*
+      draft — before the piece exists and therefore before it has an id — so the route takes the
+      draft-in-progress in the body and loads nothing. A pleasant side-effect: it **writes nothing**, so
+      "never auto-applies" is true at the API level rather than only in the component.
+      **The proposal is held outside `values`.** A suggestion living in the form state is one refresh away
+      from becoming the author's own text. It renders above the field with their existing content still
+      visible, and they choose: *Use it · Replace mine · Add to mine · Another · Dismiss*.
+      **Offered only on prose fields.** A number or a dropdown is faster to type than to review, and an
+      assist button on every field turns a form into a slot machine. The route re-checks the field against
+      the **registry** rather than trusting the client, or `field` is an arbitrary string interpolated into
+      a prompt whenever the UI misbehaves.
+      **The buttons are hidden, not disabled, when AI is unconfigured** — a disabled control says "you are
+      missing something"; an absent one says "this form is complete". The owner's second half ("the user can
+      fully build everything from scratch") is a requirement, not a fallback.
+      Temperature 0.8, above the transposer's 0.7: pressing "Another" must give a genuinely different
+      option, not the same sentence reworded.
+
+- [ ] **P6-15b — Whole-draft assist.** *(Split from P6-15.)* "Fill in everything from the name and a
+      sentence." Deferred because a multi-field proposal needs a per-field accept/reject UI to stay honest —
+      one all-or-nothing button would quietly become the auto-apply this slice exists to avoid.
 
 - [ ] **P6-16 — File ingest.** Upload a PDF / doc / image describing the thing → AI analysis → a filled draft
       the user reviews field by field. Reuses `characters/[id]/ingest`'s shape and its storage pattern.

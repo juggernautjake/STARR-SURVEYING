@@ -29,6 +29,7 @@ import {
 import {
   findTarget, targetsInGroup, validateEffect, TARGET_GROUPS, TARGET_GROUP_LABELS,
 } from '@/lib/dnd/effects/targets';
+import { fieldAcceptsAssist } from '@/lib/dnd/homebrew/assist';
 
 /** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
  *  placeholder branch below is now unreachable. It is kept, not deleted: the next field type someone adds
@@ -76,10 +77,13 @@ export default function ContentBuilder({
   kind,
   system,
   availableSystems,
+  aiConfigured,
 }: {
   kind: HomebrewKind;
   system: string;
   availableSystems: { key: string; name: string }[];
+  /** Hides the assist buttons entirely when false — everything stays buildable from scratch. */
+  aiConfigured: boolean;
 }) {
   const router = useRouter();
   const spec = kindSpec(kind);
@@ -97,6 +101,36 @@ export default function ContentBuilder({
   /** Classes this system offers as a starting point, and which one is being loaded (P6-12). */
   const [baseClasses, setBaseClasses] = useState<{ key: string; name: string; custom?: boolean }[]>([]);
   const [derivingFrom, setDerivingFrom] = useState<string | null>(null);
+  /** Per-field AI suggestions awaiting the author's decision (P6-15). Held OUTSIDE `values` on purpose:
+   *  a proposal that lives in the form state is one refresh away from becoming the author's own text. */
+  const [proposals, setProposals] = useState<Record<string, string>>({});
+  const [assisting, setAssisting] = useState<string | null>(null);
+
+  const clearProposal = (k: string) => setProposals((p) => {
+    const next = { ...p };
+    delete next[k];
+    return next;
+  });
+
+  /** Draft one field. Returns a PROPOSAL — nothing is written until the author picks an action. */
+  async function assist(fieldKey: string) {
+    if (assisting) return;
+    setAssisting(fieldKey); setProblems([]);
+    try {
+      const r = await fetch('/api/dnd/homebrew/assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, system: sys, field: fieldKey, values: { ...values, name: values.name } }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setProblems([j.error ?? 'Could not draft that.']); return; }
+      setProposals((p) => ({ ...p, [fieldKey]: j.text as string }));
+    } catch {
+      setProblems(['Network error — please try again.']);
+    } finally {
+      setAssisting(null);
+    }
+  }
 
   const set = (k: string, v: unknown) => setValues((s) => ({ ...s, [k]: v }));
   const prose = proseOnlyNotice(kind, sys);
@@ -217,10 +251,53 @@ export default function ContentBuilder({
       );
     }
 
+    const proposal = proposals[f.key];
+
     return (
       <div key={f.key} style={{ display: 'grid', gap: 4 }}>
-        <label htmlFor={`hb-${f.key}`} style={label}>{f.label}{f.required && <span style={{ color: 'var(--hx-teal-1)' }}> *</span>}</label>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+          <label htmlFor={`hb-${f.key}`} style={label}>{f.label}{f.required && <span style={{ color: 'var(--hx-teal-1)' }}> *</span>}</label>
+          {/* Per-field AI help (P6-15). Offered only on prose fields, and only when AI is configured —
+              hidden rather than disabled, because everything here must remain fully buildable from
+              scratch with the AI switched off. */}
+          {aiConfigured && fieldAcceptsAssist(f) && (
+            <button type="button" onClick={() => assist(f.key)} disabled={assisting === f.key}
+              title={`Draft ${f.label.toLowerCase()} from what you have written so far. You review it before anything changes.`}
+              style={{ ...rowBtn, color: 'var(--hx-teal-1)', fontSize: 11 }}>
+              {assisting === f.key ? '…' : '✨ help me'}
+            </button>
+          )}
+        </div>
         {f.help && <span style={help}>{f.help}</span>}
+
+        {/* The proposal. It NEVER lands in the field on its own — the author accepts it, and can see their
+            existing text underneath while deciding. An assist that overwrites what you wrote is not help. */}
+        {proposal && (
+          <div style={{ border: '1px solid var(--hx-teal-1)', background: 'rgba(10,200,185,0.06)', padding: '9px 11px', borderRadius: 3, display: 'grid', gap: 7 }}>
+            <span style={{ fontSize: 10.5, letterSpacing: '0.11em', textTransform: 'uppercase', color: 'var(--hx-teal-1)' }}>Suggestion</span>
+            <div style={{ whiteSpace: 'pre-wrap', fontSize: 12.5, lineHeight: 1.55, color: 'var(--hx-text)' }}>{proposal}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className={styles.hexBtn} style={{ padding: '4px 11px', fontSize: 12 }}
+                onClick={() => { set(f.key, proposal); clearProposal(f.key); }}>
+                {String(values[f.key] ?? '').trim() ? 'Replace mine' : 'Use it'}
+              </button>
+              {String(values[f.key] ?? '').trim() && (
+                <button type="button" className={styles.hexBtn} style={{ padding: '4px 11px', fontSize: 12 }}
+                  onClick={() => { set(f.key, `${String(values[f.key])}\n\n${proposal}`); clearProposal(f.key); }}>
+                  Add to mine
+                </button>
+              )}
+              <button type="button" className={styles.hexBtn} style={{ padding: '4px 11px', fontSize: 12 }}
+                onClick={() => assist(f.key)} disabled={assisting === f.key}>
+                Another
+              </button>
+              <button type="button" className={styles.hexBtn} style={{ padding: '4px 11px', fontSize: 12 }}
+                onClick={() => clearProposal(f.key)}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {f.type === 'textarea' && (
           <textarea {...common} rows={6} value={String(v ?? '')} placeholder={f.placeholder}
