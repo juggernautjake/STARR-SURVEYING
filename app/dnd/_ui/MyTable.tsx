@@ -6,6 +6,59 @@ import styles from './hextech.module.css';
 import type { UserProfile } from '@/lib/dnd/campaign-summary';
 import NewCampaignButton from './NewCampaignButton';
 
+/**
+ * One labelled group of hub actions (P11-1).
+ *
+ * These were two bare `flex-wrap` rows. Flex-wrap gives every button its own intrinsic width, so seven
+ * buttons of seven different lengths wrapped into a ragged staircase — four uneven rows on a phone, two
+ * lopsided ones on a desktop — and "＋ New campaign" floated on a line of its own above them, orphaned
+ * from the actions it belongs with.
+ *
+ * An auto-fit GRID instead: every button in a group is the same width, the columns reflow by viewport
+ * rather than by how long the words happen to be, and the two groups get the headings the old code only
+ * described in a comment ("the row above is about CONTENT you author, this one is about YOU"). A reader
+ * should not have to infer the grouping from the wrap points.
+ */
+function ActionGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section style={{ display: 'grid', gap: 7 }}>
+      <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 12 }}>{label}</h2>
+      <div style={{
+        display: 'grid',
+        // 150px keeps two columns on a 390px phone and four on a desktop; `min(…, 100%)` collapses to one
+        // column on anything narrower rather than overflowing. A label that still wraps costs a line, not
+        // the row's alignment — see the equal-height rule in ActionLink.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))',
+        gap: 8,
+      }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/** Every hub action looks the same and fills its cell — the grid decides the width, not the text. */
+function ActionLink({ href, title, primary, children }: { href: string; title: string; primary?: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className={primary ? `${styles.hexBtn} ${styles.hexBtnPrimary}` : styles.hexBtn}
+      title={title}
+      style={{
+        textDecoration: 'none', padding: '10px 14px', textAlign: 'center',
+        // Flex + `height: 100%` so a label that wraps to two lines ("Everyone's content" at 390px) does not
+        // make its row ragged again — the whole row grows together and the text stays centred. The grid was
+        // only half the fix; equal WIDTH without equal HEIGHT is a different staircase.
+        display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%',
+        // 44px is the smallest reliable touch target. These are the hub's primary actions on a phone.
+        minHeight: 44, lineHeight: 1.25,
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
 function CampaignRow({ id, name, tag }: { id: string; name: string; tag: string }) {
   return (
     <Link
@@ -27,79 +80,26 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
   return (
     <div style={{ display: 'grid', gap: 18 }}>
       {/* Anyone signed in can start a campaign (and as many as they like). Becomes theirs to DM. */}
-      <NewCampaignButton />
-
-      {/* The Content Studio door (P6-7). The owner asked for "a content builder button on the user page",
-          and this is the user page. It sits beside "new campaign" rather than inside a menu because
-          authoring content is a top-level thing you DO here, not a setting — and because this project's
-          recurring defect is finishing a feature nobody can find. */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <Link
-          href="/dnd/content/new"
-          className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Build a class, feat, item, creature or anything else — for any system — and keep it private or share it."
-        >
-          🔨 Content Builder
-        </Link>
-        <Link
-          href="/dnd/content?tab=mine"
-          className={styles.hexBtn}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Everything you have made."
-        >
-          My custom content
-        </Link>
-        <Link
-          href="/dnd/content"
-          className={styles.hexBtn}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Browse what everyone has published."
-        >
-          Browse everyone’s
-        </Link>
-      </div>
-
-      {/* P4-5. The lobby could START a campaign and BUILD content, but not make a character, reach your
-          profile, or open the library — the three things a signed-in player most often wants from the page
-          that is supposed to be their home. All three existed; none was linked from the page body.
-
-          A second row rather than one long wrap: the row above is about CONTENT you author, this one is
-          about YOU and your characters. Same visual weight, different question. */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <Link
-          href="/dnd/characters/new"
-          className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Build a character in any system — guided, manual, or from a file."
-        >
+      <ActionGroup label="Start something">
+        <NewCampaignButton />
+        <ActionLink href="/dnd/characters/new" primary title="Build a character in any system — guided, manual, or from a file.">
           ＋ Character
-        </Link>
-        <Link
-          href="/dnd/characters"
-          className={styles.hexBtn}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Every character you own or play."
-        >
-          My characters
-        </Link>
-        <Link
-          href="/dnd/library"
-          className={styles.hexBtn}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Rules, classes, spells and conditions for every playable system."
-        >
-          📖 Rules library
-        </Link>
-        <Link
-          href="/dnd/profile"
-          className={styles.hexBtn}
-          style={{ textDecoration: 'none', padding: '10px 16px' }}
-          title="Your display name, avatar, password and recovery code."
-        >
-          Profile
-        </Link>
-      </div>
+        </ActionLink>
+        <ActionLink href="/dnd/content/new" primary title="Build a class, feat, item, creature or anything else — for any system — and keep it private or share it.">
+          🔨 Content Builder
+        </ActionLink>
+      </ActionGroup>
+
+      <ActionGroup label="Yours">
+        <ActionLink href="/dnd/characters" title="Every character you own or play.">My characters</ActionLink>
+        <ActionLink href="/dnd/content?tab=mine" title="Everything you have made.">My content</ActionLink>
+        <ActionLink href="/dnd/profile" title="Your display name, avatar, password and recovery code.">Profile</ActionLink>
+      </ActionGroup>
+
+      <ActionGroup label="Browse">
+        <ActionLink href="/dnd/library" title="Rules, classes, spells and conditions for every playable system.">📖 Rules library</ActionLink>
+        <ActionLink href="/dnd/content" title="Browse what everyone has published.">Everyone’s content</ActionLink>
+      </ActionGroup>
 
       {nothing && (
         <p style={{ color: 'var(--hx-muted)', textAlign: 'center', fontSize: 13 }}>

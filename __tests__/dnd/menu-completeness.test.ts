@@ -98,15 +98,34 @@ describe('the lobby body reaches them too (P4-5)', () => {
     expect(table).toContain(`href="${href}"`);
   });
 
-  it('and "＋ Character" is the primary action of its row', () => {
+  it('and "＋ Character" is a PRIMARY action', () => {
     // Making a character is the thing a new player is there to do; the rest are navigation.
-    expect(table).toMatch(/href="\/dnd\/characters\/new"[\s\S]{0,120}hexBtnPrimary/);
+    //
+    // This used to match `hexBtnPrimary` within 120 characters of the href, which pinned the old inline
+    // `className={...}` rather than the guarantee. P11-1 moved every hub action through `ActionLink`, which
+    // takes a `primary` flag and computes the class — so the guarantee survived and the assertion did not.
+    // Asserting the flag is asserting the intent.
+    expect(table).toMatch(/href="\/dnd\/characters\/new" primary/);
+    // …and `primary` still means what it says.
+    expect(table).toMatch(/primary \? `\$\{styles\.hexBtn\} \$\{styles\.hexBtnPrimary\}` : styles\.hexBtn/);
   });
 
-  it('kept as a SECOND row rather than lengthening the content row', () => {
-    // The existing row is about content you author; this one is about you and your characters. Same visual
-    // weight, different question — merging them would make a seven-button wrap with no grouping.
-    const rows = table.match(/display: 'flex', gap: 10, flexWrap: 'wrap'/g) ?? [];
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+  it('the actions are GROUPED, not one undifferentiated wrap', () => {
+    // The guarantee: authoring content, your own things, and browsing are different questions and must not
+    // read as one pile of buttons. This used to be checked by counting two `flexWrap: 'wrap'` rows — the
+    // old mechanism, and a weaker version of the promise, since a wrap row has no visible label at all.
+    // P11-1 made them labelled `ActionGroup`s, so the grouping is now stated on screen rather than implied
+    // by where the buttons happen to wrap.
+    const labels = table.match(/<ActionGroup label="/g) ?? [];
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    expect(table).toContain('<ActionGroup label="Start something">');
+    expect(table).toContain('<ActionGroup label="Yours">');
+  });
+
+  it('and every action is the same size, with a real touch target', () => {
+    // Flex-wrap sized each button to its own text, which is what produced the ragged staircase on a phone.
+    // A grid sizes them by column, and 44px is the smallest reliable touch target.
+    expect(table).toMatch(/gridTemplateColumns: 'repeat\(auto-fit, minmax\(min\(150px, 100%\), 1fr\)\)'/);
+    expect(table).toMatch(/minHeight: 44/);
   });
 });

@@ -2719,7 +2719,7 @@ The matrix is **4 formats × 4 systems × N skins × M colour themes**. It is al
 work shipped that); what the brief is asking for is that each cell be *good*, and that the axes have real
 variance rather than one look with different colours.
 
-- [ ] **P11-1 — Audit the matrix, and write down what is actually broken.** A harness page that renders
+- [~] **P11-1 — Audit the matrix, and write down what is actually broken.** A harness page that renders
       every format × system × skin × theme combination to a screenshot, driven by Playwright, so the list of
       defects is observed rather than guessed. This is first for the same reason P8-3 and P5-7 taught: half
       the items in a plan describe a state the code left behind months ago.

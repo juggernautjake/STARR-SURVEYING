@@ -11,7 +11,15 @@ function CampaignGrid({ campaigns, heading }: { campaigns: CampaignCard[]; headi
     <section style={{ display: 'grid', gap: 10 }}>
       {heading && <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 13 }}>{heading}</h2>}
       {campaigns.length === 0 ? (
-        <p style={{ color: 'var(--hx-muted)', textAlign: 'center' }}>No campaigns yet.</p>
+        // NOT "No campaigns yet." (P11-1). This grid is the PUBLIC index — since P2-5 it lists public,
+        // non-archived tables only, and every existing campaign was backfilled to `unlisted`. So a signed-in
+        // player with a campaign of their own, listed two inches higher under "Campaigns you're in", read
+        // "All campaigns — No campaigns yet." directly beneath it. Both halves were wrong: it is not "all",
+        // and they plainly do have one. The heading is fixed below; this says what is actually true.
+        <p style={{ color: 'var(--hx-muted)', textAlign: 'center', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+          No public tables right now. Campaigns are <strong>unlisted</strong> by default — yours are above,
+          and a DM can list one from its manage page.
+        </p>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {campaigns.map((c) => (
@@ -39,7 +47,7 @@ function CampaignGrid({ campaigns, heading }: { campaigns: CampaignCard[]; headi
 }
 
 export default function CampaignsHome({ campaigns, embedded = false }: { campaigns: CampaignCard[]; embedded?: boolean }) {
-  if (embedded) return <CampaignGrid campaigns={campaigns} heading="All campaigns" />;
+  if (embedded) return <CampaignGrid campaigns={campaigns} heading="Public tables" />;
 
   return (
     <div className={styles.root}>

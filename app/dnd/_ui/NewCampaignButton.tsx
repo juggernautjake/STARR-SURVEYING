@@ -50,17 +50,24 @@ export default function NewCampaignButton() {
   }
 
   if (!open) {
+    // No wrapper and no alignment of its own (P11-1): this now sits in the hub's action GRID, so the cell
+    // decides its width and the row decides its position. The old `justify-content: flex-end` wrapper is
+    // what put "＋ New Campaign" on a line by itself, floated right, above the actions it belongs with.
     return (
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={() => setOpen(true)}>
-          ＋ New Campaign
-        </button>
-      </div>
+      <button
+        className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+        onClick={() => setOpen(true)}
+        style={{ padding: '10px 14px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 44, width: '100%', lineHeight: 1.25 }}
+      >
+        ＋ New Campaign
+      </button>
     )
   }
 
   return (
-    <form className={styles.framedPanel} onSubmit={create}>
+    // Spans every column of the action grid while it is open — a create form squeezed into a one-third
+    // column would be unusable, and it is a whole task rather than one of three peers.
+    <form className={styles.framedPanel} onSubmit={create} style={{ gridColumn: '1 / -1' }}>
       <div className={styles.framedPanelTop} />
       <h2 className={styles.panelTitle}>New Campaign</h2>
       <p style={{ color: 'var(--hx-muted)', fontSize: 12.5, margin: '0 0 6px' }}>
