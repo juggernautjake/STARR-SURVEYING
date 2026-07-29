@@ -3182,10 +3182,38 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 
 ### The model
 
-- [ ] **P13-1 — The creature model.** Extends P6-13's statblock: senses, languages, CR/level, resistances,
+- [x] **P13-1 — The creature model.** Extends P6-13's statblock: senses, languages, CR/level, resistances,
       immunities, vulnerabilities, conditions, actions / bonus actions / reactions / legendary / lair,
       traits, spellcasting, skills, saves. System-tagged, because a PF2 creature and a 5e creature are not
       the same object — shared skeleton, per-system detail, exactly as P6-13 decided.
+
+      **Done 2026-07-29 — `lib/dnd/homebrew/statblock.ts`.** Every field added is optional, so a statblock
+      saved before today parses byte-identically (asserted). **The model is already persisted inside
+      `payload`, so it can only ever grow** — that constraint, not tidiness, is why nothing was renamed or
+      restructured.
+
+      **Free text where the systems disagree, structure where they do not.** `senses`, `languages`,
+      `resistances`, `immunities`, `conditionImmunities` and `spellcasting` are strings for the same
+      reason `acNote` and `saves` already were: which damage types exist and how they are qualified
+      ("bludgeoning, piercing and slashing from nonmagical attacks") is a per-system question, and a picker
+      would be wrong more often than helpful. `cr` is a **string** — 5e's is fractional below 1, and PF2's
+      level is not the same scale at all.
+
+      **Entries are one tagged list, not six fields.** `trait | action | bonus | reaction | legendary |
+      lair` in authored order, so rendering is a single loop and a category we have not thought of can be
+      added without another top-level field. `toHit` and `damage` are kept OUT of `body` deliberately:
+      P13-8's interactive stat block has to offer the roll without parsing prose, and folding them in
+      would make every future roll a regex.
+
+      Two defensive rules, both chosen against losing content: an entry with neither name nor body is
+      dropped (a half-parsed action is worse than a missing one — a DM reads it mid-combat and cannot tell
+      it is incomplete), but an **unrecognised `kind` falls back to `action` rather than being discarded**,
+      because losing authored rules text is the greater harm.
+
+      **And `isStatblockEmpty` had to grow with it.** Adding fields to a model without adding them to its
+      emptiness test is how "it saved but nothing showed" bugs are born: a hazard or swarm token written
+      with actions but no AC and no HP would have reported empty, and the renderer omits the block
+      entirely. Pinned, along with the existing falsy-zero rule that keeps **AC 0** from reading as blank.
 - [ ] **P13-2 — `seeds/462_dnd_bestiary.sql`.** `dnd_creatures` (catalogued, immutable, with source +
       licence), `dnd_creature_variants` (base / weakened / elite), and the user-owned fork path reusing
       `dnd_homebrew`.

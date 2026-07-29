@@ -43,6 +43,68 @@ export interface Statblock {
    *  which saves exist, and how they are named, is a per-system question. */
   saves?: string;
   skills?: string;
+
+  // ── P13-1: the rest of a creature ──────────────────────────────────────────────────────────────────
+  //
+  // Everything below is OPTIONAL and additive: a statblock saved before this existed still parses, and a
+  // homebrew item that only ever had AC and HP renders exactly as it did. That is the whole design
+  // constraint — this model is already persisted inside `payload`, so it can only ever grow.
+  //
+  // FREE TEXT WHERE THE SYSTEMS DISAGREE, structure where they do not. `senses`, `languages`,
+  // `resistances` and friends are strings for the same reason `saves` and `acNote` already are: which
+  // damage types exist, and how they are named and qualified ("bludgeoning, piercing and slashing from
+  // nonmagical attacks"), is a per-system question, and a picker would be wrong more often than helpful.
+  // Actions ARE structured, because a sheet has to render and roll them individually.
+
+  /** "darkvision 60 ft., passive Perception 13". */
+  senses?: string;
+  /** "Common, Draconic" — or "understands Common but can't speak". */
+  languages?: string;
+  /** 5e challenge rating or PF2/IG creature level, as written: "1/4", "13", "-1". A string because CR is
+   *  not a number in 5e (fractions below 1) and the systems do not share a scale. */
+  cr?: string;
+  /** XP award where the system prints one separately from CR. */
+  xp?: number;
+  resistances?: string;
+  immunities?: string;
+  vulnerabilities?: string;
+  /** Condition immunities — "charmed, frightened, prone". Named separately from `immunities` because 5e
+   *  and PF2 both print them as their own line, and folding them together loses that. */
+  conditionImmunities?: string;
+  /** Spellcasting as written — the full block, including DC, attack bonus and the prepared list. Prose
+   *  because a creature's casting is not a character's: it rarely follows a class progression. */
+  spellcasting?: string;
+  /** Traits, actions, reactions and the rest, in one list, each tagged with `kind`. One list rather than
+   *  six fields so ordering is authored and rendering is a single loop — and so a system with a category
+   *  we have not thought of can be added without another top-level field. */
+  entries?: StatblockEntry[];
+}
+
+/** Which block an entry prints under. `trait` is the unheaded material above Actions in a 5e statblock. */
+export const STATBLOCK_ENTRY_KINDS = ['trait', 'action', 'bonus', 'reaction', 'legendary', 'lair'] as const;
+export type StatblockEntryKind = (typeof STATBLOCK_ENTRY_KINDS)[number];
+
+export const ENTRY_KIND_LABELS: Record<StatblockEntryKind, string> = {
+  trait: 'Traits',
+  action: 'Actions',
+  bonus: 'Bonus Actions',
+  reaction: 'Reactions',
+  legendary: 'Legendary Actions',
+  lair: 'Lair Actions',
+};
+
+export interface StatblockEntry {
+  kind: StatblockEntryKind;
+  name: string;
+  /** Full rules text, as printed. */
+  body: string;
+  /** An attack's to-hit, where it has one — "+7". Kept separate from `body` so a sheet can offer the roll
+   *  without parsing prose, which is how a stat block becomes clickable rather than merely readable. */
+  toHit?: string;
+  /** "2d6 + 4 slashing". Same reasoning as `toHit`. */
+  damage?: string;
+  /** PF2/IG action cost, where the system has one: 1, 2, 3, 'reaction', 'free'. */
+  cost?: string;
 }
 
 const num = (v: unknown, min: number, max: number): number | undefined => {
@@ -65,6 +127,7 @@ export function normalizeStatblock(raw: unknown): Statblock {
   const r = raw as Record<string, unknown>;
   const abilitiesRaw = (r.abilities && typeof r.abilities === 'object' ? r.abilities : {}) as Record<string, unknown>;
   const abilities: Partial<Record<StatblockAbility, number>> = {};
+  const entries = readEntries(r.entries);
   for (const k of STATBLOCK_ABILITIES) {
     const v = num(abilitiesRaw[k], 1, 99);
     if (v !== undefined) abilities[k] = v;
@@ -79,7 +142,53 @@ export function normalizeStatblock(raw: unknown): Statblock {
     ...(num(r.proficiencyBonus, 0, 20) !== undefined ? { proficiencyBonus: num(r.proficiencyBonus, 0, 20) } : {}),
     ...(str(r.saves) ? { saves: str(r.saves) } : {}),
     ...(str(r.skills) ? { skills: str(r.skills) } : {}),
+    ...(str(r.senses) ? { senses: str(r.senses) } : {}),
+    ...(str(r.languages) ? { languages: str(r.languages) } : {}),
+    ...(str(r.cr) ? { cr: str(r.cr) } : {}),
+    ...(num(r.xp, 0, 1000000) !== undefined ? { xp: num(r.xp, 0, 1000000) } : {}),
+    ...(str(r.resistances) ? { resistances: str(r.resistances) } : {}),
+    ...(str(r.immunities) ? { immunities: str(r.immunities) } : {}),
+    ...(str(r.vulnerabilities) ? { vulnerabilities: str(r.vulnerabilities) } : {}),
+    ...(str(r.conditionImmunities) ? { conditionImmunities: str(r.conditionImmunities) } : {}),
+    ...(str(r.spellcasting) ? { spellcasting: str(r.spellcasting) } : {}),
+    ...(entries.length ? { entries } : {}),
   };
+}
+
+/**
+ * Read the entry list defensively. An entry with no name AND no body is DROPPED — same rule as every other
+ * field here: a half-parsed action is worse than a missing one, because a DM reads it off the page
+ * mid-combat and cannot tell it is incomplete. An unrecognised `kind` falls back to `action` rather than
+ * being discarded, since the text is real content and losing it would be the greater harm.
+ */
+function readEntries(raw: unknown): StatblockEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: StatblockEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const e = item as Record<string, unknown>;
+    const name = str(e.name) ?? '';
+    const body = str(e.body) ?? '';
+    if (!name && !body) continue;
+    const kindRaw = typeof e.kind === 'string' ? e.kind : '';
+    const kind = (STATBLOCK_ENTRY_KINDS as readonly string[]).includes(kindRaw)
+      ? (kindRaw as StatblockEntryKind)
+      : 'action';
+    out.push({
+      kind,
+      name,
+      body,
+      ...(str(e.toHit) ? { toHit: str(e.toHit) } : {}),
+      ...(str(e.damage) ? { damage: str(e.damage) } : {}),
+      ...(str(e.cost) ? { cost: str(e.cost) } : {}),
+    });
+  }
+  return out;
+}
+
+/** Entries of one kind, in authored order — the renderer's loop, one heading at a time. */
+export function entriesOfKind(s: Statblock, kind: StatblockEntryKind): StatblockEntry[] {
+  return (s.entries ?? []).filter((e) => e.kind === kind);
 }
 
 /** True when there is nothing to render. The detail page omits the block entirely rather than printing a
@@ -94,7 +203,15 @@ export function isStatblockEmpty(s: Statblock): boolean {
     && s.hp === undefined
     && s.proficiencyBonus === undefined
     && !s.speed && !s.hitDice && !s.saves && !s.skills && !s.acNote
-    && !s.abilities;
+    && !s.abilities
+    // P13-1's fields count too. Without this a creature described entirely by its ACTIONS — no AC, no HP,
+    // which is exactly how a hazard or a swarm token is written — reports empty and the renderer omits the
+    // block, silently hiding everything the author typed. Adding fields to the model without adding them
+    // here is how "it saved but nothing showed" bugs are born.
+    && s.xp === undefined
+    && !s.senses && !s.languages && !s.cr && !s.resistances && !s.immunities
+    && !s.vulnerabilities && !s.conditionImmunities && !s.spellcasting
+    && !(s.entries && s.entries.length);
 }
 
 /**
