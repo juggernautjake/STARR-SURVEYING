@@ -86,7 +86,14 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
 
       {profile.characters.length > 0 && (
         <section style={{ display: 'grid', gap: 8 }}>
-          <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 13 }}>Your characters</h2>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 13 }}>Your characters</h2>
+            {/* This grid shows name + portrait only. Anyone with more than a handful needs the real index,
+                which is what P4-1 built — and until it existed there was nowhere to send them. */}
+            <Link href="/dnd/characters" style={{ fontSize: 12, color: 'var(--hx-teal-1)', textDecoration: 'none' }}>
+              See all →
+            </Link>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             {profile.characters.map((ch) => (
               <Link

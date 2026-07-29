@@ -283,12 +283,26 @@ should skip Phase 7 entirely.
 
 ## Phase 4 — Navigation & information architecture
 
-- [ ] **P4-1 — `/dnd/characters` — a real character index.** *(D-1.)* No such page exists; the only list is
-      a card grid in `MyTable` showing name, portrait and campaign — **no system, class or level** — with no
-      search, filter, sort, duplicate or delete.
-      **Design:** system badge, class/level, campaign, last-edited; search + filter by system and campaign;
-      per-row actions (open, duplicate, new variant, export, delete) consolidated from where they are
-      scattered across the sheet page today.
+- [x] **P4-1 — `/dnd/characters`, a real character index. Shipped 2026-07-28.** *(Audit D-1.)* A server page
+      with URL-driven filters and no client JavaScript — system chips with counts, free-text search over
+      name/class/subclass/system, newest first, campaign name resolved in one batched lookup.
+      **The obstacle was never the page.** "What class is this and what level" lives in three different
+      places depending on the system (`data.meta`, `data.pf2e.identity`, `data.ig.identity`), so every
+      surface that wanted it re-derived it inline — which is why the lobby grid showed name and portrait
+      and nothing else. `lib/dnd/character-card.ts` reads all three and returns one shape.
+      It reads the **sidecar first**, so a stale `system` column cannot mislabel a character, and it is
+      defensive throughout: it is pointed at raw jsonb, and a listing that dies on one malformed row shows
+      the user *nothing*, which is worse than a name with no class beside it. The summary line is built from
+      what is present rather than a template with holes, so a half-built character reads "Level 1" or
+      "Fighter" and never "Level  ()".
+      Filter counts come from the **unfiltered** set, or a chip reading "Pathfinder 2e · 3" would say "· 0"
+      the moment you filtered to another system.
+      **Also closes most of P4-2 / D-3:** the header menu now points at *My Characters* and at **Profile**,
+      which was linked only from `CampaignDashboard` — the branch that does not run in open-access mode, so
+      in the default configuration nothing pointed at it at all.
+
+- [ ] **P4-1b — Per-row actions on the index.** Duplicate, new variant, export and delete, consolidated from
+      where they are scattered across the sheet page. The index lists and finds; it does not yet manage.
 
 - [ ] **P4-2 — Menu completeness.** *(D-3.)* The header offers five links. `/dnd/profile` is linked **only**
       from `CampaignDashboard`, the branch that does not run in open-access mode — so in the default

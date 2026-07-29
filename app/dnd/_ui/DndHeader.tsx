@@ -80,8 +80,13 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
           {userName ? (
             <>
               <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>
+              {/* P4-1/D-3: there was no way to reach a list of your own characters from anywhere. */}
+              <Link href="/dnd/characters" className={styles.siteNavLink} onClick={() => setOpen(false)}>My Characters</Link>
               <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Character</Link>
               <Link href="/dnd/content/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>🔨 Content Builder</Link>
+              {/* D-3: linked ONLY from CampaignDashboard, the branch that does not run in open-access mode —
+                  so in the default configuration nothing pointed at it at all. */}
+              <Link href="/dnd/profile" className={styles.siteNavLink} onClick={() => setOpen(false)}>Profile</Link>
               <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
               {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
                   pick which campaign to make a map for. */}
