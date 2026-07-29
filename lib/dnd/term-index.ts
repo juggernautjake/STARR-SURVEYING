@@ -20,7 +20,7 @@ import { CONDITION_MECHANICS_5E } from './conditions/dnd5e';
 import { spellsForSystem } from './spells';
 import { glossaryAnchorId } from './library-anchors';
 import { spellMechanicsFor } from './spells/mechanics';
-import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
+import { companionSetsFor } from './companions';
 import { glossaryFor } from './glossary';
 import { FEATS_2024 } from './feats/dnd5e-2024';
 import { RULES_2024 } from './mechanics/dnd5e-2024';
@@ -130,12 +130,15 @@ export function termIndexFor(system: string): LibraryTerm[] {
     out.push({ term: m.title, kind: 'mechanic', short: abbreviate(m.rule), href: `${lib}#spells` });
   }
 
+  // Companion terms, for every system that has them — the third caller of the same dispatch, which is
+  // why the dispatch lives in `./companions` rather than being written out three times.
+  for (const c of companionSetsFor(system)) {
+    out.push({ term: c.name, kind: 'companion', short: abbreviate(c.rules[0] ?? c.grantedBy), href: `${lib}#classes` });
+  }
+
   if (system === 'dnd5e-2024') {
     for (const f of FEATS_2024) {
       out.push({ term: f.name, kind: 'feat', short: abbreviate(f.benefit), href: `${lib}#feats` });
-    }
-    for (const c of COMPANION_RULE_SETS) {
-      out.push({ term: c.name, kind: 'companion', short: abbreviate(c.rules[0] ?? c.grantedBy), href: `${lib}#classes` });
     }
     // Core rules — cover, surprise, death saves, the action list. These are the terms that
     // appear constantly inside other entries' text ("gains the Prone condition", "takes the

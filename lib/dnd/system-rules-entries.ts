@@ -7,8 +7,7 @@ import { rulesForSystem } from './system-rules';
 import type { CharacterSystem } from './systems';
 import { spellCatalog } from './spells';
 import { spellMechanicsFor } from './spells/mechanics';
-import { COMPANION_RULE_SETS } from './companions/dnd5e-2024';
-import { PF2_COMPANION_RULE_SETS } from './companions/pathfinder2e';
+import { companionSetsFor } from './companions';
 import { tagsForSpell } from './library-tags';
 import { RULES_2024 } from './mechanics/dnd5e-2024';
 import { WEAPONS_2024, ARMOR_2024, weaponPropertyLine, masteryEffect } from './equipment/dnd5e-2024';
@@ -105,15 +104,23 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
     });
   }
 
+  // Companions, for every system that has them catalogued. This was a 2024-only block, then briefly a
+  // 2024 block plus a PF2 one, which is two copies of the same dispatch — the shape that let the PF2
+  // walker drift against a stale hand-copy. `companionSetsFor` is now the one place that answers it, and
+  // it returns [] rather than another system's rules for anything uncatalogued.
+  for (const c of companionSetsFor(system)) {
+    entries.push({
+      kind: 'rule',
+      name: `${c.name} (${c.grantedBy})`,
+      body:
+        `${c.rules.join(' ')}` +
+        `${c.classes.length ? ` Available to: ${c.classes.join(', ')}.` : ''}` +
+        `${c.editionNote ? ` 2024 vs 2014: ${c.editionNote}` : ''}`,
+      source: src,
+    });
+  }
+
   if (system === 'dnd5e-2024') {
-    for (const c of COMPANION_RULE_SETS) {
-      entries.push({
-        kind: 'rule',
-        name: `${c.name} (${c.grantedBy})`,
-        body: `${c.rules.join(' ')}${c.editionNote ? ` 2024 vs 2014: ${c.editionNote}` : ''}`,
-        source: src,
-      });
-    }
     // Core rules — cover, surprise, death saves, resting, the action list (S8). Each carries
     // its worked example AND its edition note, so "did surprise change?" is answerable.
     for (const r of RULES_2024) {
@@ -143,21 +150,6 @@ export function systemRulesEntries(system: CharacterSystem): SystemEntryInput[] 
         body: `${ar.category} armor. ${ar.category === 'shield' ? `+${ar.baseAC} AC` : `Base AC ${ar.baseAC}`}${ar.dexCap === null ? ' plus full Dex' : ar.dexCap > 0 ? ` plus Dex (max ${ar.dexCap})` : ' with no Dex'}.${ar.strengthReq ? ` Requires Strength ${ar.strengthReq}.` : ''}${ar.stealthDisadvantage ? ' Disadvantage on Stealth.' : ''} Weight ${ar.weight} lb, cost ${ar.cost} GP.`,
         source: src,
         data: { tags: [`type:armor`, `category:${ar.category}`] },
-      });
-    }
-  }
-
-  // PF2's companion ladders (P5-4). Same shape as the 2024 block above, and it goes into the same store,
-  // so "how does my animal companion advance" is answerable for Pathfinder for the first time. One entry
-  // per rule set rather than per rung: the four rungs are one progression and a player asking about the
-  // level-8 one wants to see where it sits.
-  if (system === 'pathfinder2e') {
-    for (const c of PF2_COMPANION_RULE_SETS) {
-      entries.push({
-        kind: 'rule',
-        name: `${c.name} (${c.grantedBy})`,
-        body: `${c.rules.join(' ')} Available to: ${c.classes.join(', ') || 'no catalogued class'}.`,
-        source: src,
       });
     }
   }

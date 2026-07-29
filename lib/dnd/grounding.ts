@@ -18,8 +18,7 @@ import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
 import { spellsForSystem, type SpellDef } from './spells';
 import { tagsForSpell } from './library-tags';
 import { spellMechanicsFor, type SpellMechanic } from './spells/mechanics';
-import { COMPANION_RULE_SETS, type CompanionRuleSet } from './companions/dnd5e-2024';
-import { PF2_COMPANION_RULE_SETS } from './companions/pathfinder2e';
+import { companionSetsFor, type CompanionRuleSet } from './companions';
 import { CONDITION_MECHANICS_5E, type ConditionMechanics } from './conditions/dnd5e';
 import { statGenGuidanceFor } from './statgen/guidance';
 
@@ -137,14 +136,6 @@ function matchSpellMechanics(system: string, keywords: string, limit: number): S
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((x) => x.m);
-}
-
-/** The companion rule sets a system has. Empty for a system with none catalogued — never a fallback to
- *  another system's, which would answer a PF2 question with 5e's familiar rules. */
-function companionSetsFor(system: string): CompanionRuleSet[] {
-  if (system === 'dnd5e-2024') return COMPANION_RULE_SETS;
-  if (system === 'pathfinder2e') return PF2_COMPANION_RULE_SETS;
-  return [];
 }
 
 /** Familiar / steed / companion rule sets matching the query. */

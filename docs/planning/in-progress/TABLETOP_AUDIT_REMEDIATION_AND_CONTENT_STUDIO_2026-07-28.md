@@ -1180,7 +1180,35 @@ should skip Phase 7 entirely.
       a dozen statblocks from memory is exactly what Ground Rule 3 forbids — the numbers would look right,
       feed a sheet that computes from them, and be wrong in ways nobody would catch.
 
-- [ ] **P5-5 — 5e 2014 companions.** Find Familiar, the Ranger's beast, the Paladin's steed.
+- [x] **P5-5 — 5e 2014 companions.** Find Familiar, the Ranger's beast, the Paladin's steed.
+
+      **Done 2026-07-29.** `lib/dnd/companions/dnd5e-2014.ts` — familiar, steed, Ranger's Companion and
+      Wild Shape, plus a shared `companions/index.ts` dispatcher.
+
+      **The 2024 list was not reused, and that was the whole risk.** Copying it is the obvious shortcut and
+      it is wrong in precisely the places a player looks the rule up for: 2024 made touch-spell delivery a
+      **Reaction**, made Wild Shape a Bonus Action granting **temporary** hit points rather than replacing
+      your statistics, and swapped the Beast Master's "any beast of CR 1/4 or lower" for three fixed Primal
+      Companion shapes. Each of those three differences is now asserted against **both** modules at once, so
+      a future "tidy these into one file" fails loudly.
+
+      Unlike P5-6's languages, no refusal was needed — **2014's own text was already in the repo.** Every
+      rule string is either a 2014 SRD spell summary or a 2014 class-feature body, each carrying its own
+      source. Deriving the Beast Master's rules from the subclass is what keeps its levels at 3/7/11/15,
+      which is the single most likely 2014-vs-2024 confusion in this area.
+
+      **One gap 2024 does not have, and it is the rules' fault rather than ours:** 2014 defines its familiar
+      and beast companion by a *constraint* ("any beast of CR 1/4 or lower"), not by an enumerable list. A
+      form list here would be a choice made by this file rather than by the book, so `formListsComplete` is
+      `false` and says why.
+
+      **The dispatch moved before it could drift.** Three callers now need "which companion rules does this
+      system have?" — grounding, the rules store, the term index — and each had (or was about to grow) its
+      own `if (system === …)` chain. That is exactly the shape that left `PF2LevelBuilder` type-checking
+      against a stale hand-copy in P5-10b. It lives in `companions/index.ts` now, returns `[]` rather than
+      another edition's rules, and a test asserts PF2's ladders never appear in a 5e system's entries —
+      because the failure that matters here is not "nothing appears" but "the **wrong** thing appears", and
+      a 2014 player reading Pathfinder's Incredible Companion has no way to know it is not theirs.
 
 - [x] **P5-6 — Languages beyond 2024.** *(C-9.)* `lib/dnd/languages/` holds one file. PF2 already carries
       languages inside its ancestry stat lines — surfacing them is nearly free; 2014 and IG need a picker.

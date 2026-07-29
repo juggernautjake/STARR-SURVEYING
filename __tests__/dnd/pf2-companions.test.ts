@@ -16,6 +16,7 @@ import {
   pf2AnimalCompanionLadder, pf2FamiliarFeats, pf2CompanionsForClass,
 } from '@/lib/dnd/companions/pathfinder2e';
 import { PF2_FEATS_CLASS_ARCHETYPE } from '@/lib/dnd/systems/pathfinder2e/data/feats-class';
+import { companionSetsFor } from '@/lib/dnd/companions';
 import { systemRulesEntries } from '@/lib/dnd/system-rules-entries';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
@@ -106,11 +107,15 @@ describe('the coverage statement is honest, and derivation is what made it so', 
 
 describe('IT IS WIRED — the repeated defect of this audit is working code with no door', () => {
   it('grounding no longer answers "companion" for 2024 only', () => {
-    const g = read('lib/dnd/grounding.ts');
-    expect(g).toContain("if (system === 'pathfinder2e') return PF2_COMPANION_RULE_SETS;");
+    // The dispatch moved to `companions/index.ts` in P5-5, once a third caller wanted it. That is the
+    // point of asserting behaviour where it can: `companionSetsFor` is imported here rather than pinned
+    // by source, so this test follows the code instead of the file it happened to live in.
+    expect(read('lib/dnd/grounding.ts')).toContain("companionSetsFor(system)");
+    expect(companionSetsFor('pathfinder2e')).toBe(PF2_COMPANION_RULE_SETS);
     // And it must never fall back to another system's sets — answering a PF2 question with 5e's familiar
     // rules is worse than answering nothing.
-    expect(g).toMatch(/function companionSetsFor[\s\S]{0,400}return \[\];/);
+    expect(companionSetsFor('starfinder1e')).toEqual([]);
+    expect(companionSetsFor('')).toEqual([]);
   });
 
   it('the query matches the RUNGS, not just the set name', () => {
@@ -132,9 +137,18 @@ describe('IT IS WIRED — the repeated defect of this audit is working code with
   });
 
   it('a system with no catalogued companions still gets none', () => {
-    for (const sys of ['dnd5e-2014', 'intuitive-games'] as const) {
-      const entries = systemRulesEntries(sys);
-      expect(entries.some((e) => e.name.includes('Animal Companion')), sys).toBe(false);
+    // 2014 gained its own sets in P5-5, so it is no longer the example here. Intuitive Games has a
+    // companion model of its own with a different shape and is deliberately not adapted into this one.
+    expect(companionSetsFor('intuitive-games')).toEqual([]);
+    expect(systemRulesEntries('intuitive-games').some((e) => e.name.includes('Companion ('))).toBe(false);
+  });
+
+  it('and PF2’s ladders never leak into another system’s entries', () => {
+    // The failure this guards is not "nothing appears" but "the WRONG thing appears" — a 2014 player
+    // reading Pathfinder's Incredible Companion would have no way to know it was not theirs.
+    for (const sys of ['dnd5e-2014', 'dnd5e-2024'] as const) {
+      const bodies = systemRulesEntries(sys).map((e) => e.body).join('\n');
+      expect(bodies, sys).not.toMatch(/Incredible Companion/);
     }
   });
 });
