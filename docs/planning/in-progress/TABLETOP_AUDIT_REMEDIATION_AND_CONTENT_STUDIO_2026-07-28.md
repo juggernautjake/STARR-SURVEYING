@@ -546,8 +546,23 @@ of homebrew.
       A test asserts no effect leaks into a PF2 edit, and that the route preserves the rest of `data` when
       writing the sidecar back — rebuilding from the sidecar alone would delete the 5e projection and the
       custom sections stored beside it.
-- [ ] **P6-9b — Intuitive Games engine bridge.** The same, into `ig-edit`, so a homebrew power lands in the
-      powers panel rather than as text.
+- [x] **P6-9b — Intuitive Games engine bridge. Shipped 2026-07-28.**
+      `lib/dnd/systems/intuitive-games/adopt.ts` + two equipment ops. **All three systems now resolve
+      adopted homebrew natively** — the adopt route branches PF2 → IG → 5e on the sidecar.
+      **Not the PF2 file twice**, and the differences are the point: IG has **stances**, which land natively
+      here and are meaningless in either other system; its gear is a loose `equipment.other` list rather
+      than a Bulk-tracked inventory (**no weight field, deliberately** — Bulk is a Pathfinder concept and
+      importing it would invent a rule IG does not use); and its **powers and spells are one list**, so both
+      kinds converge on `add_power`.
+      A stance is **learned, not entered** — adopting one adds it to the known set and must not silently
+      change what the character is currently holding. Pinned by test.
+      Same refusals as PF2 (class/subclass, prose-only kinds), phrased in **IG's own terms** — "per-level
+      schedule of powers and specializations" rather than Pathfinder's feat tracks — and the same
+      flag-don't-translate rule for 5e `effects[]`.
+
+> **Homebrew now works on every playable system.** Author it, share it, adopt it, and it resolves as real
+> mechanics on a 5e, Pathfinder 2e or Intuitive Games sheet — or is refused with a reason and a pointer at
+> the transposer. That closes the owner's second priority ("the homebrew building stuff built and surfaced").
 
 - [x] **P6-10 — Library + grounding surfacing. Shipped 2026-07-28.** Published content now appears in its
       system's library page, in library search, and in the AI librarian's grounding.

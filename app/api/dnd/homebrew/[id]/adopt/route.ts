@@ -31,6 +31,9 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { applyPf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
 import { pf2AdoptEdits, pf2AdoptRefusal } from '@/lib/dnd/systems/pathfinder2e/adopt';
+import { isIGCharacter, type IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
+import { applyIgEdit } from '@/lib/dnd/systems/intuitive-games/edit';
+import { igAdoptEdits, igAdoptRefusal } from '@/lib/dnd/systems/intuitive-games/adopt';
 
 // NOTE: no helper is exported from this file. A route module may only export recognised handlers — an
 // extra export typechecks and then fails `next build`. `CAMPAIGN_HOMEBREW_THEME_KEY` lives in policy.ts.
@@ -104,6 +107,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let pf2 = rawData.pf2e as PF2Character;
     for (const e of conv.edits) pf2 = applyPf2Edit(pf2, e);
     nextData = { ...rawData, pf2e: pf2 };
+    adopted = conv.adopted;
+    extraNotes = conv.notes;
+  } else if (isIGCharacter(rawData.ig)) {
+    // The same story as PF2 (P6-9b): IG keeps its state in `data.ig`, so the 5e path wrote nowhere.
+    const conv = igAdoptEdits(piece);
+    if (!conv) return NextResponse.json({ error: igAdoptRefusal(piece) }, { status: 400 });
+    let ig = rawData.ig as IGCharacter;
+    for (const e of conv.edits) ig = applyIgEdit(ig, e);
+    nextData = { ...rawData, ig };
     adopted = conv.adopted;
     extraNotes = conv.notes;
   } else {

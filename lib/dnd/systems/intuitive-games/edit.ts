@@ -39,10 +39,15 @@ export type IGEdit =
   // build time. `damage` is the base die; the sheet's own maths adds ability and bonuses.
   | { op: 'add_attack'; name: string; weaponType?: string; ability?: IGAbilityKey; damage?: string; properties?: string; proficient?: boolean; bonusToHit?: number; bonusDamage?: number }
   | { op: 'update_attack'; name: string; to?: string; weaponType?: string; ability?: IGAbilityKey; damage?: string; properties?: string; proficient?: boolean; bonusToHit?: number; bonusDamage?: number }
-  | { op: 'remove_attack'; name: string };
+  | { op: 'remove_attack'; name: string }
+  // Equipment (P6-9b). IG models gear as five worn SLOTS plus a loose `other` list; these ops manage that
+  // list, which is where anything not worn in a named slot belongs. Deliberately no weight or Bulk field:
+  // that is a Pathfinder concept, and importing it here would be inventing a rule IG does not use.
+  | { op: 'add_equipment'; name: string }
+  | { op: 'remove_equipment'; name: string };
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'add_equipment', 'remove_equipment'] as const;
 
 /** The IG ability keys + the sane bounds a set_ability edit clamps to. */
 const IG_ABILITY_KEYS: readonly IGAbilityKey[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
@@ -89,6 +94,26 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       combat.conditions = combat.conditions.filter((c) => !eq(c, name));
       return { ...ig, combat };
     }
+    case 'add_equipment': {
+      const name = edit.name.trim();
+      if (!name) return ig;
+      const other = [...(ig.equipment.other ?? [])];
+      // Already carried → unchanged. IG's `other` is a list of NAMES with no quantity, so the only honest
+      // options are "add it" and "it is already there"; appending a duplicate would make a list nobody
+      // wants to reconcile mid-session.
+      if (other.some((x) => eq(x, name))) return ig;
+      return { ...ig, equipment: { ...ig.equipment, other: [...other, name] } };
+    }
+
+    case 'remove_equipment': {
+      const name = edit.name.trim();
+      if (!name) return ig;
+      const other = (ig.equipment.other ?? []).filter((x) => !eq(x, name));
+      // Unchanged when nothing matched, so a typo'd removal is a visible no-op rather than a silent one.
+      if (other.length === (ig.equipment.other ?? []).length) return ig;
+      return { ...ig, equipment: { ...ig.equipment, other } };
+    }
+
     case 'add_feat': {
       const name = edit.name.trim();
       if (!name) return ig;
@@ -330,6 +355,8 @@ export function describeIgEdit(edit: IGEdit): string {
     case 'add_stance': return `Learned the ${edit.name} Stance.`;
     case 'add_condition': return `Applied the ${edit.name} condition.`;
     case 'remove_condition': return `Removed the ${edit.name} condition.`;
+    case 'add_equipment': return `Added ${edit.name} to your equipment.`;
+    case 'remove_equipment': return `Removed ${edit.name} from your equipment.`;
     case 'add_feat': return `Added the ${edit.name} feat.`;
     case 'remove_feat': return `Removed the ${edit.name} feat.`;
     case 'add_power': return `Learned the ${edit.name} power.`;
