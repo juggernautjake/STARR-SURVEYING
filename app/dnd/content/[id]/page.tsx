@@ -22,6 +22,7 @@ import AssessmentPanel from '@/app/dnd/_ui/AssessmentPanel';
 import TransposePanel from '@/app/dnd/_ui/TransposePanel';
 import { normalizeAssessment } from '@/lib/dnd/homebrew/assess';
 import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
+import StatblockEntryRoll from '@/app/dnd/_ui/StatblockEntryRoll';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,6 +211,9 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
                         {e.toHit && <span style={{ color: 'var(--hx-teal-1)' }}>{e.toHit} to hit. </span>}
                         {e.damage && <span style={{ color: 'var(--hx-teal-1)' }}>{e.damage}. </span>}
                         {e.body}
+                        {/* P13-8. Rollable straight off the stat block — the thing a DM reaches for most,
+                            and previously numbers you read off and typed into a roller by hand. */}
+                        <StatblockEntryRoll toHit={e.toHit} damage={e.damage} />
                       </div>
                     ))}
                   </div>

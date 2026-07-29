@@ -3326,10 +3326,34 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 
 ### The interactive statblock
 
-- [ ] **P13-7 — The playable creature sheet.** The brief: *"works similarly to the full blown character
+- [~] **P13-7 — The playable creature sheet.** The brief: *"works similarly to the full blown character
       sheet"* — roll its attacks, use actions/reactions, make skill checks and saves, track HP and
       conditions, show resistances. Reuses the sheet's roller and the roll feed, so a DM's monster rolls
       land in the shared log like everyone else's.
+
+      **Rolling shipped 2026-07-29; the full sheet has not.** Owner, mid-session: *"the dice roller needs
+      to work with creatures and stuff too"*. A creature's attacks are what a DM rolls most at the table,
+      and a stat block was previously numbers you read off and re-typed into a roller.
+      `lib/dnd/bestiary/rolls.ts` + `StatblockEntryRoll` make every action on a stat block rollable in
+      place, on `/dnd/content/[id]`.
+
+      **This is a parse of two short fields, not of prose** — which is the whole reason P13-1 kept `toHit`
+      and `damage` out of `body`. It reads the shapes real stat blocks use (`2d10 + 8`, `2d10+8`, `1d6`,
+      `d20`, `7 (2d6)`, `1d8 - 1`) and returns **null** for a line with no dice in it — "half the target's
+      current hit points" is a real damage line, and inventing dice for it would be worse than leaving the
+      DM to read the sentence. A malformed modifier offers **no button**, because a button that rolls a
+      lie is worse than no button. An attack is always one d20 at the modifier, encoded once so `+14` can
+      never be rolled as anything else.
+
+      Rolls show their PARTS (`28 = 10 + 10 + 8`), not just a total: a number nobody can check is a number
+      nobody trusts at a table. The RNG is injected, which is the only way the tests can assert a modifier
+      is actually added rather than merely looking plausible.
+
+      **What remains for the full item, and why it was not forced now:** the animated roller stages read
+      `useRollFeed()`, which only exists inside a sheet's `RollFeedProvider`. The content page is a server
+      page with no character and no store, so wiring the dock there would mean standing up a feed for a
+      sheet that does not exist. These helpers are the seam the real creature sheet will use — HP and
+      condition tracking, saves, skill checks and the shared roll log all still to build.
 
 ### Generation, variants and transposition
 
