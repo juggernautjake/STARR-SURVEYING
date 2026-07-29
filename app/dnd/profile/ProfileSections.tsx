@@ -110,7 +110,11 @@ export default function ProfileSections({ summary }: { summary: ProfileSummary }
       </Panel>
 
       <Panel title="Your content" href="/dnd/content?tab=mine" hrefLabel={counts.pieces > pieces.length ? `All ${counts.pieces}` : 'Browse'}>
-        {pieces.length === 0
+        {summary.unavailable.includes('content')
+          // "Couldn't load" rather than "you have none" — the two look identical from a `?? 0`, and the
+          // wrong one of them is quietly, plausibly false.
+          ? <p style={empty}>Your content could not be loaded just now.</p>
+          : pieces.length === 0
           ? <p style={empty}>Nothing homebrewed yet — <Link href="/dnd/content/new" style={link}>author a feat, class or item</Link>.</p>
           : pieces.map((p) => (
             <div key={p.id} style={row}>
@@ -124,7 +128,9 @@ export default function ProfileSections({ summary }: { summary: ProfileSummary }
       </Panel>
 
       <Panel title="Recent activity">
-        {activity.length === 0
+        {summary.unavailable.includes('activity')
+          ? <p style={empty}>Your recent activity could not be loaded just now.</p>
+          : activity.length === 0
           ? <p style={empty}>No sheet changes logged yet. Every edit you make is recorded here, and can be undone from the sheet.</p>
           : activity.map((a, i) => (
             <div key={`${a.createdAt}-${i}`} style={{ ...row, alignItems: 'flex-start' }}>

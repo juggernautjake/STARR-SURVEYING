@@ -44,6 +44,16 @@ export interface ProfileSummary {
     /** Total audit rows, not the length of `activity` — the list is capped and the tile is not. */
     edits: number;
   };
+  /**
+   * Sources that FAILED rather than came back empty.
+   *
+   * supabase-js resolves `{ data: null, error }` instead of throwing, so `count ?? 0` quietly turns "this
+   * query failed" into "you have none". That is not hypothetical: this page reported **0 Homebrew
+   * pieces** against a `dnd_homebrew` table that does not exist yet, and the zero was convincing enough
+   * to make me believe a pending seed had been applied. A count nobody can distinguish from a failure is
+   * worse than an error message, because it is quietly, plausibly wrong.
+   */
+  unavailable: string[];
 }
 
 /** How many of each thing, and a recent handful of each — one round trip per source, run together. */
@@ -114,6 +124,11 @@ export async function loadProfileSummary(userId: string, limit = 6): Promise<Pro
       pieces: pieceCountRes.count ?? pieceRows.length,
       edits: editCountRes.count ?? editRows.length,
     },
+    // Reported, not swallowed. The panel says "unavailable" rather than "none" for these.
+    unavailable: [
+      ...(piecesRes.error || pieceCountRes.error ? ['content'] : []),
+      ...(editsRes.error || editCountRes.error ? ['activity'] : []),
+    ],
   };
 }
 

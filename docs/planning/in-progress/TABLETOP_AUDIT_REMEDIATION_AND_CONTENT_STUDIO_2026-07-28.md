@@ -3027,6 +3027,15 @@ variance rather than one look with different colours.
       Verified signed-in at 360/390/414/768: no overflow. One thing checked and NOT a defect — a 404 on
       `/api/dnd/suggestions?count=1` in the console was a transient dev-server recompile; the route
       answers 200.
+
+      **⚠ Follow-up 2026-07-29: the page reported "0 Homebrew pieces" for a table that does not exist.**
+      supabase-js resolves `{ data: null, error }` rather than throwing, so `count ?? 0` turned "this
+      query failed" into "you have none" — and the zero was convincing enough that I later cited it as
+      evidence seed 455 had been applied. It has not: a direct `information_schema` query found only
+      `dnd_suggestions` present, with `dnd_homebrew` absent entirely.
+      `loadProfileSummary` now returns `unavailable[]`, and the panels say "could not be loaded" instead
+      of "nothing yet". **A count nobody can distinguish from a failure is worse than an error, because it
+      is quietly, plausibly wrong** — and this one misled its own author.
 - [x] **P11-10 — Fill the thin pages.** Any page that is a heading and a list gets the content it implies.
 
       **Done 2026-07-29 — measured first, and the answer was mostly "these are not thin, they are empty".**
