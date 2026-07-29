@@ -614,8 +614,36 @@ should skip Phase 7 entirely.
       **Still owed:** the same feed on the sheet's floating dock (P3-2b), so a player sees the table without
       leaving their character.
 
-- [ ] **P3-3 — Roll statistics.** Falls out of P3-1 for almost nothing: per-player nat-20s, average d20,
+- [x] **P3-3 — Roll statistics.** Falls out of P3-1 for almost nothing: per-player nat-20s, average d20,
       luckiest session. High delight per line.
+
+      **Done 2026-07-28.** `lib/dnd/roll-stats.ts` (pure) + `RollStatsPanel` on the campaign hub. The "almost
+      nothing" held: **no migration and no new route** — `dnd_roll_log` already had every column, and
+      `/api/dnd/rolls` is already campaign-scoped, membership-gated and capped, so the panel computes
+      client-side from the existing endpoint.
+
+      **"Average d20" is the statistic that is easy to get wrong, and it fails silently.** `result` is the
+      TOTAL — after ability modifier, proficiency, bless, guidance. Averaging it produces a number that
+      *rises when a character levels up* and says nothing about luck. The natural face lives in the
+      breakdown, so it is parsed from there and `averageD20` is **null**, never a guess, when no face can be
+      read. A luck number quietly derived from totals is worse than none, because it looks right.
+
+      **Two real bugs, both mine, both found by writing the tests:**
+      · **Advantage rolls were silently dropped.** The breakdown has two shapes — `d20[14]` straight,
+        `d20[7,18]→18` for adv/dis — and my first regex required `]` immediately after the digits. Most
+        attacks at most tables are made with advantage, so this was not a rounding error: it was a biased
+        sample still rendering a confident number. Now reads the KEPT die, matching `SigilStack`'s existing
+        parse of the same format.
+      · **`\bd20\b` cannot match `1d20`.** There is no word boundary between the digit and the `d`, so
+        every DM-typed `1d20+5` was excluded. `dieShape.ts` documents this exact trap — second time it has
+        bitten this repo.
+
+      Two smaller judgement calls, both pinned: `crit`/`fumble` are the authoritative flags but are counted
+      **only on d20 rolls**, or a critical hit's damage roll reports a second nat-20 for one lucky attack;
+      and "luckiest session" is a **count** (nat-20s − nat-1s, min 5 rolls) rather than a rate, because the
+      memorable night is the one where the 20s kept coming, not a two-roll session that went well.
+
+      The panel renders nothing until the table has actually rolled. Suite 1286 files / 18,510 tests green.
 
 - [x] **P3-4 — Experience points. Shipped 2026-07-28** *(the per-character half; the DM award tool is
       P3-4b).* `lib/dnd/xp.ts`, `meta.xp` (optional — no migration), a narrow merge path on the character

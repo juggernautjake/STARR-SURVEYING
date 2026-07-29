@@ -11,6 +11,7 @@ import Chat from './Chat'
 import Soundboard from './Soundboard'
 import CampaignArtControl from './CampaignArtControl'
 import { nextSession, formatSessionTime, relativeSessionTime } from '@/lib/dnd/session-schedule'
+import RollStatsPanel from './RollStatsPanel'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
@@ -564,6 +565,10 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   </div>
                 )}
               </section>
+
+              {/* Roll statistics (P3-3). Reads the log P3-1 started filling, computes client-side through
+                  the pure module, and renders nothing at all until the table has actually rolled. */}
+              <RollStatsPanel campaignId={campaignId} />
 
               {/* Party chat + private whispers to individual players — DM only surface
                   here (players use their own hub). Direct channel = private message. */}
