@@ -14,6 +14,7 @@ import { nextSession, formatSessionTime, relativeSessionTime } from '@/lib/dnd/s
 import RollStatsPanel from './RollStatsPanel'
 import AwardXpControl from './AwardXpControl'
 import SessionRsvp from './SessionRsvp'
+import PartyOverview from './PartyOverview'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
@@ -576,6 +577,10 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   </div>
                 )}
               </section>
+
+              {/* The DM's at-a-glance party table (P3-7). DM-only, and computed server-side so nobody's
+                  full sheet blob crosses the wire to render a row of numbers. */}
+              {data.campaign.role === 'dm' && <PartyOverview campaignId={campaignId} />}
 
               {/* Award XP to the party (P3-4b) — DM only, since a player awarding themselves is the
                   obvious abuse. The server enforces that too; this just does not render the control. */}

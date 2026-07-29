@@ -743,9 +743,51 @@ should skip Phase 7 entirely.
 - [ ] **P3-6 — Encounter builder with a difficulty budget.** Add N copies of a creature at once; compute the
       encounter's difficulty against the party using each system's own budget. Depends on P8-1 (bestiary).
 
-- [ ] **P3-7 — The DM party overview.** Every PC's AC, passive Perception, saves, HP and conditions on one
+      **BLOCKED, not deferred — checked 2026-07-28.** Two independent reasons, either of which is
+      sufficient:
+      · **Its stated dependency is unbuilt.** P8-1 (the bestiary) is still unchecked. "Add N copies of a
+        creature" needs creatures to copy; without a catalogue this is a form with nothing to put in it.
+      · **The 5e budget data is not licensed to us.** Encounter-building — the XP thresholds by character
+        level and the multipliers for group size — is **Dungeon Master's Guide** content and is *not* in
+        SRD 5.1. Ground Rule 3 applies exactly as it did to the 2014 feat list: we would be inventing
+        numbers that look authoritative. PF2's encounter budget *is* available, so a PF2-only version is
+        possible later, but shipping a difficulty rating for half the systems and silence for the other
+        half is worse than waiting.
+      Revisit after P8-1. Nothing here is a cost judgement, so it stays unchecked rather than being marked
+      done or deferred.
+
+- [x] **P3-7 — The DM party overview.** Every PC's AC, passive Perception, saves, HP and conditions on one
       screen. All of it is already computed by the per-system resolvers — this is a new arrangement of
       existing data, and it is the single most-used DM screen in every comparable tool.
+
+      **Done 2026-07-28.** `lib/dnd/party-overview.ts`, `GET /api/dnd/campaigns/[id]/party`, and
+      `PartyOverview` on the campaign hub, DM-only.
+
+      **"A new arrangement of existing data" is true, and the arrangement was the hard part**, because the
+      systems do not share columns. The slice's own wording — "every PC's AC" — does not survive contact
+      with the roster: **Intuitive Games has no armour class at all.** `IGCombat` carries
+      `damageReduction` and a `defensivePower`; there is no to-hit target. A fixed AC column would print
+      blanks for IG (reads as missing data) or a number derived from something else (Ground Rule 3). So
+      defence is a **labelled** value — "AC 17" / "DR 3" — and the save columns are the **union** across the
+      party, or a lone 5e character would lose four of their six saves to the presence of a PF2 one.
+
+      **Three real bugs, all mine, all caught before shipping:**
+      · **The 5e proficiency model is not a boolean.** Skills store `{ prof: 'none' | 'proficient' |
+        'expertise' }`; I read `.proficient` and `.expertise` as booleans, which would have reported every
+        skilled character as unproficient — passive Perception 13 instead of 16, plausible and wrong. Now
+        uses the sheet's own `profContribution`/`profBonusForLevel`, so panel and sheet cannot disagree.
+        Saves genuinely DO use a boolean `proficient`: two shapes in one character.
+      · **PF2 conditions are an array of `{ name, value? }`, not a record.** `Object.entries` over it
+        iterates indices and renders `"0 [object Object]"`. It typechecked, because the blob arrives as
+        `unknown`.
+      · **The panel crashed on a half-built PF2 sidecar.** `pf2PerceptionTotal` does `char.perception.rank`
+        with no guard, so one malformed character took down the ENTIRE table rather than one row. Guarded,
+        and non-finite results are now stopped at the boundary — "AC NaN" mid-combat is worse than "—".
+
+      Computed **server-side** so no full sheet blob crosses the wire: a client-side version would have
+      shipped every player's private notes, backstory and inventory to render a row of numbers.
+
+      Suite 1289 files / 18,574 tests green.
 
 ---
 
