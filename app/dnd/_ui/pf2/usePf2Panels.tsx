@@ -297,7 +297,32 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       penalties: penalties.length ? penalties : undefined,
     }));
   };
-  const rollDamage = (name: string, expr: string) => {
+  /**
+   * A damage roll, with the reasons it came out that way (RO-10).
+   *
+   * `sources` are `PF2StrikeResult.notes`, whose own doc comment says they exist *"so the roller can show
+   * its work like the IG sheet does"* — and nothing had ever passed them. The striking rune, the potency
+   * bonus, the attribute that applied to damage: all resolved, all named, all invisible. A d20 roll here
+   * has named its modifiers since AO-2; damage never did, so "why is this 2d6+4" had no answer on screen.
+   */
+  const rollDamage = (name: string, expr: string, sources?: string[]) => {
+    const r = rollDiceExpr(expr);
+    const detail = sources?.length ? `${r.breakdown} · ${sources.join(' · ')}` : r.breakdown;
+    setLastRoll({ label: name, total: r.total, detail, tone: 'normal' });
+    setActiveRoll(buildDamageActiveRoll({
+      token: ++rollTokenRef.current, label: name, total: r.total, breakdown: r.breakdown,
+      boosts: sources?.length ? sources : undefined,
+    }));
+  };
+
+  /**
+   * A RAW dice-pad roll — no weapon context, no notes (RO-10, mirroring the IG fix).
+   *
+   * The pad used to call `rollDamage`, labelling an arbitrary die as damage. PF2 folds nothing extra in, so
+   * unlike IG the NUMBER was never wrong — but the log said "damage" for a roll that was not one, and the
+   * two paths should differ for the same reason on both systems.
+   */
+  const rollRaw = (name: string, expr: string) => {
     const r = rollDiceExpr(expr);
     setLastRoll({ label: name, total: r.total, detail: r.breakdown, tone: 'normal' });
     setActiveRoll(buildDamageActiveRoll({ token: ++rollTokenRef.current, label: name, total: r.total, breakdown: r.breakdown }));
@@ -417,7 +442,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollDamage(`${n}d${sides}`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           🎲 Target DC
@@ -808,7 +833,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                     <button type="button" onClick={() => rollLine(`${a.name} Strike${strikeIndex ? ` (${strikeIndex + 1}${strikeIndex === 1 ? 'nd' : 'rd+'})` : ''}`, resolved)} title={`Roll ${a.name} Strike (d20 ${fmt(bonus)})\n${resolved.breakdown}`} className={`${styles.pf2RollBtn} ${styles.pf2RollBtnAtk}`}>{fmt(bonus)} 🎲</button>
                     <span style={{ color: 'var(--hx-muted)' }}>·</span>
                     <button
-                      type="button" onClick={() => rollDamage(`${a.name} damage`, strike.damage)}
+                      type="button" onClick={() => rollDamage(`${a.name} damage`, strike.damage, strike.notes)}
                       // The crit line is on the tooltip rather than always-visible: PF2 crits double
                       // the whole total and THEN add deadly/fatal dice, which is exactly the number
                       // a player is most likely to compute wrong by hand.

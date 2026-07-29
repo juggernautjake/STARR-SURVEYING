@@ -77,7 +77,9 @@ describe('the sheet resolves traits instead of rendering a stored string', () =>
   });
 
   it('rolls the resolved expression, not the stored die', () => {
-    expect(sheet).toContain("rollDamage(`${a.name} damage`, strike.damage)");
+    // RO-10 added the third argument (`strike.notes`); the property this guards — that the roll uses the
+    // RESOLVED expression rather than the stored die — is unchanged.
+    expect(sheet).toContain("rollDamage(`${a.name} damage`, strike.damage, strike.notes)");
   });
 
   it('shows the Strikes block to an editor even with no weapons yet', () => {

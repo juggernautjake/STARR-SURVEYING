@@ -32,7 +32,10 @@ describe('PF2 sheet is interactive — tap to roll (R1b)', () => {
     // Damage now rolls the RESOLVED expression, not the raw stored die (S15d). `a.damage` is the
     // base die; traits, striking runes and the attribute modifier are applied by pf2ResolveStrike,
     // so rolling `a.damage` directly would ignore every one of them.
-    expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, strike\.damage\)/);
+    // RO-10: the call gained a third argument — the strike's NAMED sources. `PF2StrikeResult.notes` has
+    // always documented itself as existing "so the roller can show its work", and nothing passed them.
+    // Still tap-to-roll; now it also explains itself.
+    expect(sheet).toMatch(/rollDamage\(`\$\{a\.name\} damage`, strike\.damage, strike\.notes\)/);
   });
 
   it('AO-2 — offers all four roller templates via the on-roller picker', () => {

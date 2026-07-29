@@ -101,3 +101,27 @@ describe('when a bonus IS folded in, it is NAMED', () => {
     expect(roll.landing).toBe(9);
   });
 });
+
+describe('PF2 damage names its sources too (RO-10)', () => {
+  const pf2 = read('app/dnd/_ui/pf2/usePf2Panels.tsx');
+
+  it('passes the strike notes to the roller', () => {
+    // `PF2StrikeResult.notes` documents itself as "Human-readable reasons, so the roller can show its work
+    // like the IG sheet does" — and nothing had ever passed them. The striking rune, the potency bonus and
+    // the damage attribute were all resolved, all named, and all invisible.
+    expect(pf2).toContain('rollDamage(`${a.name} damage`, strike.damage, strike.notes)');
+    expect(pf2).toMatch(/boosts: sources\?\.length \? sources : undefined/);
+  });
+
+  it('and its dice pad rolls raw, like IG’s', () => {
+    // PF2 folds nothing extra into damage, so unlike IG the NUMBER was never wrong here — but the log said
+    // "damage" for a roll that was not one, and the two systems should not differ on that.
+    expect(pf2).toMatch(/rollDice: \(sides, n\) => rollRaw\(/);
+    expect(pf2).not.toMatch(/rollDice: \(sides, n\) => rollDamage\(/);
+  });
+
+  it('the raw path stays free of weapon context', () => {
+    const fn = pf2.slice(pf2.indexOf('const rollRaw ='), pf2.indexOf('const idBits'));
+    expect(fn).not.toContain('sources');
+  });
+});

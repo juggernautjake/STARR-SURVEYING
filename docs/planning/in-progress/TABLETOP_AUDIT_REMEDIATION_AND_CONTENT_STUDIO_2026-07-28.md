@@ -1489,6 +1489,83 @@ newer local move.
 
 ---
 
+## Phase RO — The roller: every roll fully explained, on every system and template
+
+> **Owner, 2026-07-28**, across four messages while the audit work was running:
+> *"I am rolling a 1d4 and getting a 5… Maybe characters get a bonus on every roll at certain levels or
+> whatever. Please figure it out. Make sure to have tool tips or something that come along with the dice
+> roller to explain exactly why certain things are added and where certain bonuses/buffs/penalties/debuffs
+> are coming from. We should be able to see the fully explained breakdown of a given roll with any system
+> and any template if we want."*
+>
+> Plus: *"re-evaluate the sigil stacker to make sure it makes sense for each system"*, *"make sure the
+> impact version… animates properly"*, and *"look at the rules and all of the different kinds of rolls that
+> IG has"*.
+
+**THE ORGANISING PRINCIPLE, learned from the 1d4 bug.** That roll was not wrong by accident — it was the
+Offensive stance's real *"+half your level to damage rolls"* applied to a dice-pad roll that is not a damage
+roll. The number was defensible and the **explanation was absent**, so it read as a bug. On a rules engine
+those are the same failure: *a total nobody can trace is indistinguishable from a total that is wrong.*
+Every slice below serves that one rule.
+
+- [x] **RO-7 — Switching template must not re-roll.** Shipped 2026-07-28 (`3775a53e`). Each roller seeded
+      `lastToken` with `-1`, so a freshly-mounted roller replayed the roll sitting in the store — and
+      re-committed it, duplicating rolls in the shared feed and skewing P3-3. Now seeds from
+      `adoptedToken(activeRoll)` and renders the adopted roll settled.
+
+- [x] **RO-8 — One window size; no resizing.** Shipped 2026-07-28. Fixed 396×560, resize corner removed,
+      stored sizes discarded on load. Height tokens unified the three bespoke stages.
+
+- [x] **RO-9 — A raw die is raw.** Shipped 2026-07-28 (`d9dc75ca`). The dice pad routed through
+      `rollDamage`; it now uses `rollRaw`. `buildDamageActiveRoll` gained `boosts`/`penalties` so a folded
+      bonus is NAMED — the foundation everything below builds on.
+
+- [x] **RO-10 — Damage rolls name their sources on EVERY system.** The gap RO-9 exposed is not IG-specific:
+      **d20 rolls pass `boosts`/`penalties`; damage rolls pass neither.** `usePf2Panels.rollDamage` and the
+      5e store's damage path both drop them, so a striking rune, a weapon specialisation, a rage bonus or a
+      stance appears only as an unexplained term inside the breakdown string. All three rollers already
+      RENDER these (▲/▼ tiles, cards, rows) — the plumbing exists and nothing feeds it. **Done when:** each
+      system's damage path passes the named sources it already knows about, with a test per system.
+
+      **Done 2026-07-28 for IG and PF2.** The find worth recording: **`PF2StrikeResult.notes` documents
+      itself as *"Human-readable reasons, so the roller can show its work like the IG sheet does"* — and
+      nothing had ever passed it anywhere.** The striking rune, the potency bonus, the attribute applying to
+      damage: all resolved, all named, all invisible. One extra argument surfaced the lot. PF2's dice pad
+      also routed through `rollDamage` like IG's; unlike IG the NUMBER was never wrong there (PF2 folds
+      nothing extra in) but the log called an arbitrary die "damage", so both now use `rollRaw`.
+
+      **Still open, deliberately: IG weapon damage's own ability modifier.** `igResolveAttack` folds it into
+      the expression string (`1d6+3`) and returns no name for it, so surfacing it means widening a tested
+      rules function's return type. That is a real change to the engine rather than to the roller, and it
+      belongs in its own slice rather than riding along here. The stance bonus — the one that caused the
+      1d4→5 report — IS named. **RO-10b.**
+
+      Two tests re-pointed rather than loosened: both pinned the exact `rollDamage(...)` call signature,
+      which gained its third argument. The properties they guard (tap-to-roll, and rolling the RESOLVED
+      expression rather than the stored die) are unchanged.
+
+- [ ] **RO-11 — A "why?" affordance on the total.** The owner asked for *tool tips… to explain exactly why
+      certain things are added*. The breakdown string answers *what*; this answers *where from*. One shared
+      component reading `entry.boosts` / `entry.penalties` / `entry.tag`, mounted by all four rollers, so
+      the explanation cannot differ per template. **Done when:** hovering (or tapping) the total on any
+      roller, on any system, names every contributing source.
+
+- [ ] **RO-12 — Catalogue the IG roll kinds and check the roller against each.** *"Look at the rules and
+      all of the different kinds of rolls that IG has."* IG has skill checks, saves (Fort/Ref/Will),
+      attacks, damage, and stance/condition-modified variants with advantage and disadvantage from
+      `igStanceRollEffect` / `igConditionRollEffect`. Write the list down FIRST, then verify each renders
+      correctly in all four rollers. **Not** a refactor until the list exists — this is the slice that finds
+      out whether "revamp" means anything more than RO-10 + RO-11.
+
+- [ ] **RO-13 — Browser QA the rollers.** Four templates × four systems × idle/rolling/settled. **This is
+      the one that cannot be skipped**: RO-7 through RO-9 are verified by tests and by reading, and the
+      owner's reports were all VISUAL — "too tall", "animates properly", "seems like something is off".
+      A green suite has repeatedly missed exactly this class of defect in this repo. Needs a working
+      `dnd_session` cookie; the mint attempt during RO-9 kept redirecting and was abandoned rather than
+      faked.
+
+---
+
 ## Phase 8 — Content coverage
 
 - [ ] **P8-1 — A bestiary.** *(E-1.)* No monster catalogue exists in any system; NPCs are hand- or AI-built
