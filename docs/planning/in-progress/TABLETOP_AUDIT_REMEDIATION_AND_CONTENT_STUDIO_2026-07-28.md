@@ -3403,3 +3403,32 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 on a source being reachable and parseable. Each import slice therefore ships its **adapter + a recorded
 count + a gaps list** rather than claiming a catalogue is complete, exactly as `PF2_SPELL_GAPS` and
 `PF2_COMPANION_STATUS` do — so a partial import is visibly partial instead of quietly thin.
+
+---
+
+## Follow-up sweep — "empty" vs "failed" (2026-07-29)
+
+Prompted by the profile page reporting **0 Homebrew pieces** for a table that does not exist (see P11-9).
+The root cause is a property of the client, not of that page: **supabase-js resolves `{ data: null, error }`
+rather than throwing**, so any call site that destructures only `data` cannot tell a failed query from an
+empty result. Swept `lib/dnd`, `app/dnd` and `app/api/dnd` for the shape.
+
+**Most hits were legitimate** — `unread_count ?? 0` on a nullable column is a default, not a swallowed
+error. Two were not:
+
+- **`lib/dnd/profile-summary.ts`** — fixed under P11-9. Now returns `unavailable[]`; the panels say
+  "could not be loaded" rather than "nothing yet".
+- **`lib/dnd/rate-limit.ts` — `checkRateLimit`, the ENFORCEMENT path.** It ignored `.error`, so a failed
+  read gave `data === null` → `next = 1` → an upsert that also failed silently → `decide()` seeing the
+  first request of a fresh window. **Every request.** The limiter would have been off indefinitely,
+  without ever reaching the `catch` that documents the fail-open trade-off, and with nothing to say so.
+  `.error` is now checked and routed into that catch.
+
+  **Fail-open remains the decision** — the module's header is explicit that a broken limiter must not take
+  the API down. This only makes the failure take the *stated* path instead of masquerading as normal
+  operation: `allowed: true` from the catch is a reasoned outcome; `allowed: true` from a silent miscount
+  is an outage nobody can see.
+
+  `peekRateLimit` was checked and left alone: it is display-only, and its fail-open ("a missing table
+  reports a full budget rather than telling a player they are out of AI when they are not") is both
+  documented and right for a function that shows a number.

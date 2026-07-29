@@ -135,13 +135,25 @@ export async function checkRateLimit(
     // Read-then-write rather than an atomic increment, because PostgREST has no `count = count + 1`
     // expression. The race costs at most a few extra requests through the wall under heavy concurrency —
     // irrelevant for a throttle, and not worth an RPC function that would need its own migration to change.
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('dnd_rate_limits')
       .select('count')
       .eq('bucket', bucket)
       .eq('subject', subject)
       .eq('window_start', start.toISOString())
       .maybeSingle();
+
+    // `.error` IS CHECKED, and that is not pedantry. supabase-js RESOLVES `{ data: null, error }` rather
+    // than throwing, so a failed read — a missing table, a permissions change — produced `data === null`,
+    // `next = 1`, an upsert that also failed silently, and a `decide()` that saw the first request of a
+    // fresh window. Every request. The limiter would have been off, indefinitely, without ever reaching
+    // the catch below that documents the fail-open trade-off, and with nothing anywhere to say so.
+    //
+    // Fail-open is still the decision — see the header, a broken limiter must not take the API down. This
+    // only makes the failure take the STATED path instead of masquerading as normal operation. The
+    // difference matters: `allowed: true` from the catch is a known, reasoned outcome; `allowed: true`
+    // from a silent miscount is an outage nobody can see.
+    if (error) throw error;
 
     const next = ((data as { count?: number } | null)?.count ?? 0) + 1;
 
