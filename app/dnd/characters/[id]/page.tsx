@@ -228,7 +228,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
     const pf2Data = (character.data as { pf2e?: unknown } | null)?.pf2e;
     if (isPF2Character(pf2Data)) pf2Sheet = (
       <PF2Sheet
-        pf2={pf2Data} characterId={character.id} canEdit={canWrite} isDM={isDM}
+        pf2={pf2Data} characterId={character.id} campaignId={character.campaign_id} canEdit={canWrite} isDM={isDM}
         variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
         sheetType={character.sheet_type}
         layout={(character.data as { sheetLayout?: string } | null)?.sheetLayout}

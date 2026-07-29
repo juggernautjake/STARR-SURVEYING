@@ -20,6 +20,7 @@
 
 import { useState, useRef, useCallback, useMemo, useReducer } from 'react';
 import { useRouter } from 'next/navigation';
+import { publishRoll } from '@/lib/dnd/roll-publish';
 import OffRulesMark from '@/app/dnd/_sheet/components/ui/OffRulesMark';
 import PF2ContentPicker from '../PF2ContentPicker';
 import PF2ElementEditor, { type PF2EditableElement } from '../PF2ElementEditor';
@@ -45,7 +46,7 @@ import type { EffectivePreferences } from '@/lib/dnd/preferences';
 import { resolveD20Roll, rollNaturalD20, rollDiceExpr, degreeLabel, rollTone } from '@/lib/dnd/roll';
 import { pf2ConditionMechanics, PF2_CONDITION_MECHANICS } from '@/lib/dnd/conditions/pathfinder2e';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
-import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
+import type { ActiveRoll, RollEntry } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
 import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
@@ -136,6 +137,9 @@ function SectionHead({ title, note, children }: { title: React.ReactNode; note?:
 export interface UsePf2PanelsArgs {
   pf2: PF2Character;
   characterId?: string;
+  /** The table this character sits at, so its rolls reach the campaign feed. Absent for a character with
+   *  no campaign — publishing is skipped rather than guessed. */
+  campaignId?: string | null;
   canEdit?: boolean;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
@@ -176,7 +180,7 @@ export interface Pf2PanelSet {
  * The PF2 panel set for THIS character. Owns all shared state and returns everything a format shell
  * needs to render the sheet. The Classic shell reproduces the previous `PF2Sheet` DOM exactly.
  */
-export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences }: UsePf2PanelsArgs): Pf2PanelSet {
+export function usePf2Panels({ pf2, characterId, campaignId, canEdit, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences }: UsePf2PanelsArgs): Pf2PanelSet {
   const router = useRouter();
   const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // The GM Core rules variants in force for this character (S-4b). Derived once and threaded into every
@@ -250,7 +254,13 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   // so the same Dice Core / Sigil Stack / Roll Board / Impact stages (with animations + sounds) render it.
   const [activeRoll, setActiveRoll] = useState<ActiveRoll | null>(null);
   const rollTokenRef = useRef(0);
-  const noopCommit = useCallback(() => {}, []);
+  // PUBLISH TO THE CAMPAIGN FEED when a roll lands. This was a no-op, and that is why a Pathfinder 2e
+  // player rolled, watched it animate, and nothing ever appeared in the table Recent Rolls — the 5e store
+  // called publishRoll and the bespoke sheets never did.
+  const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
+    if (!campaignId) return;
+    publishRoll(entry as never, { characterId, campaignId, actorName: id.name });
+  }, [campaignId, characterId, id.name]);
   // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
   const [targetDc, setTargetDc] = useState('');
   // Which Strike of the turn the Strikes block is showing: 0 = first, 1 = second, 2 = third or
@@ -443,7 +453,7 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           🎲 Target DC

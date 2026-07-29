@@ -3711,3 +3711,41 @@ what would put a roll on the wrong table.
 **Worth stating plainly:** my earlier note called this "small". It is not — I had checked that
 `publishRoll` swallows its own errors, which is true, and mistook that for the call site being trivial.
 The requirement that failed to register was `campaignId`, sitting in the interface the whole time.
+
+**PF2 rolls now reach the campaign feed (2026-07-29).** `campaignId` threaded from
+`characters/[id]/page.tsx` → `PF2Sheet` → `usePf2Panels`, and `noopCommit` replaced with a commit that
+calls `publishRoll`. Publishing is skipped when there is no campaign — a character with no table has
+nowhere to publish to, and guessing one is how a roll lands on the wrong table.
+
+**IG is NOT done.** `useIgPanels` needs the identical change and is left for a session that can verify it;
+half of a two-system fix is worse than none, because the feed then looks fixed while still dropping a
+third of the players.
+
+## QUEUED — composable spells (owner request, 2026-07-29)
+
+> *"say a spell is a summoning spell that summons a creature or weapon, we need to be able to connect the
+> spell to that creature or weapon … when the spell is cast then we get access to that creature's stat
+> block or … that weapon for however long the duration is … the user might want to link it to an already
+> existing thing in the library, or … a homebrewed thing, maybe even something they would need to create
+> right then … what if a spell creates a condition or effect."*
+
+Examples given: **Presper's Moonbow** (summons a weapon with its own attack, damage, a `Lighted` condition
+it applies, and 5 charges over 1 hour), **Blade of Doom** (a lingering summon with a trigger and an
+upcast scale), **Duo-Dimension** (applies a lasting effect that changes size and grants advantage).
+
+**Not started.** This is the largest structural request yet, and it is a MODEL change before it is a UI
+one. What it needs, in order:
+
+1. **A link type on the spell payload** — `summons: { kind: 'creature' | 'weapon' | 'item', ref }`,
+   `applies: { kind: 'condition' | 'effect', ref }` — where `ref` is either a catalogue id, a
+   `dnd_homebrew` id, or an inline payload authored in place. The three cases are the hard part: the
+   owner explicitly wants "link existing / link homebrew / create it right here" all available.
+2. **Duration as data, not prose.** "for 1 hour", "until activated", "5 charges" have to be trackable,
+   which is the same `uses` problem solved for stat block entries — reuse that shape rather than invent a
+   second one.
+3. **Casting has to GRANT the linked thing** onto the sheet for its duration. That is the adopt path
+   (`adoptHomebrew`) applied on cast and reverted on expiry, not a new mechanism.
+4. **Transposition** must carry the links across systems, which P6-18's transposer does not model yet.
+
+**Do not start this at the end of a session.** Step 1 alone decides how every later piece behaves, and a
+wrong link shape would be persisted into `payload` where it can only ever be migrated, not changed.

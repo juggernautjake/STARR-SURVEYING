@@ -34,8 +34,11 @@ import '@/app/dnd/_sheet/styles/play.css';
 import '@/app/dnd/_sheet/styles/bespokeButtons.css';
 import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
-export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
+export default function PF2Sheet({ pf2, characterId, campaignId, canEdit, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   pf2: PF2Character; characterId?: string; canEdit?: boolean;
+  /** The table this character sits at. Carried so its rolls reach the campaign's Recent Rolls — the 5e
+   *  store has always published; the bespoke sheets never did, so PF2 players were invisible in the feed. */
+  campaignId?: string | null;
   isDM?: boolean;
   /** Vanilla characters are held to class and level; custom ones are flagged, not blocked. Defaults
    *  to vanilla — the safe direction, matching the server. */
@@ -68,7 +71,7 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // template pick re-renders this sheet into the new shell instantly — no full reload. Falls back to the
   // saved `layout` prop (and 'classic') until a pick is made, matching the server render.
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
+  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, campaignId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
   // Defenses and Conditions, the modals between Strikes and Feats. Gated panels are simply absent
   // from `panels`, so their `section(...)` renders nothing, matching the old conditional sections.
