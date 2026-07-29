@@ -1732,6 +1732,16 @@ select.input {
   .pf2Nav { top: 48px; }
   .pf2Section { scroll-margin-top: 96px; }
   .pf2StatVal { font-size: 20px; }
+
+  /* P11-5. `.pf2SectionTitle` is `white-space: nowrap` so a heading reads as one solid scan-anchor — right
+     on a desktop, and the last cause of horizontal overflow on a phone once the grid track was capped.
+     A heading that carries a note ("Conditions · folded into rolls (worst applies)") measured 478px inside
+     a 358px column and pushed the page 131px wide, so the whole sheet scrolled sideways to read it.
+     On a phone the head wraps instead: the note drops to its own line and nothing is off-screen. */
+  .pf2SectionHead { flex-wrap: wrap; }
+  .pf2SectionTitle { white-space: normal; }
+  /* The gold hairline is decoration — with a wrapped head it would otherwise claim a whole row to itself. */
+  .pf2SectionRule { flex-basis: 0; }
 }
 
 /* ── Interactive chips, cells & cards ──────────────────────────────────────────

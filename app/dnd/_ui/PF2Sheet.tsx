@@ -173,7 +173,19 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
     // `shellTokens` (the `--void`/`--gold`/… bridge) rides here too so the floating animated roller — which
     // styles from those 5e tokens — renders correctly on the Classic view; the PF2 panels use `--hx-*`, so
     // these extra vars don't touch them (RO-5 roller-styling fix).
-    <div className={`${styles.framedPanel} ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gap: 16 }}>
+    //
+    // `gridTemplateColumns: minmax(0, 1fr)` is load-bearing on a phone (P11-5), and its absence was a
+    // measured 131px of horizontal overflow at 390px: the whole sheet scrolled sideways.
+    //
+    // A grid with no declared columns gets ONE IMPLICIT `auto` COLUMN, and an `auto` track is sized to its
+    // content MIN-CONTENT — not to its container. So the widest unbreakable thing anywhere in the sheet set
+    // a 504px floor, the column became 504px inside a 375px panel, and every child inherited the overflow.
+    // The jump-nav has `flex-wrap: wrap` and still never wrapped, because from its point of view there was
+    // always room.
+    //
+    // `minmax(0, 1fr)` caps the track at the container and lets it shrink below min-content, which is what
+    // makes the wrapping and the inner scroll regions downstream actually engage.
+    <div className={`${styles.framedPanel} ${skin}`} style={{ ...hxVars, ...shellTokens, margin: '10px 0', padding: '14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16 }}>
       {/* Portrait beside the header so uploaded PF2 art is visible on the Classic view too (CX-R4). */}
       {artUrl ? (
         <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
