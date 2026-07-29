@@ -1999,9 +1999,37 @@ Every slice below serves that one rule.
 - [ ] **P8-3 — The IG glossary.** *(E-2.)* Intuitive Games has 32 terms — fewer than **every** unbuilt system
       (Blades 60, Shadowrun 55, CoC 51) and a third of PF2's 96. Another scrape pass of intuitivegames.net.
       Ground Rule 3: scrape, do not invent.
-- [ ] **P8-4 — PF2 spell coverage + an explicit gaps list.** *(E-3.)* 208 spells against 5e's 382, roughly
+- [x] **P8-4 — PF2 spell coverage + an explicit gaps list.** *(E-3.)* 208 spells against 5e's 382, roughly
       half of Player Core. Extend the `PF2_*_GAPS` convention to spells so an absent spell reads as "not
       catalogued yet" in the picker rather than as "does not exist".
+
+      **Done 2026-07-29.** `data/spell-gaps.ts` — `PF2_SPELL_GAPS`, a derived `pf2SpellCoverage()`, and
+      `pf2SpellSearchMiss()`; the PF2 content picker now uses all three.
+
+      **The data layer was already honest; nothing carried it to a person.** Both spell status blocks have
+      said it outright since they were written — *"a missing spell here means 'not catalogued yet', NEVER
+      'does not exist in Pathfinder 2e'"* — and the one place a user could have discovered that said
+      **"Nothing matches that search."** That is a claim about Pathfinder. The replacement is a claim about
+      *us*, which is the only one we can actually make, and it carries the count. The feat picker got the
+      same sentence, and the gaps list is now reachable from the picker behind a **what's missing?**
+      disclosure — the feat, ancestry and class-progression gaps lists have existed since those catalogues
+      were written and were reachable only by reading the source.
+
+      **Every number is counted, not recorded** — a hand-written coverage summary is right the day it is
+      written and quietly wrong afterwards, which is worse than none because it reads authoritative.
+
+      **Two ways a derived number still misled, both caught before commit and both now pinned.** Counting
+      focus spells in `byRank` made rank 1 read **125** against rank 2's 12 — most focus spells are rank 1,
+      so it looked like superb first-rank coverage and was nothing of the sort. And the focus-spell gap
+      derived over content.ts's `PF2_CLASSES`, which holds 14 of the 21 classes, so it emitted *"Every
+      spellcasting class has catalogued focus spells"* — **flatly false**, since Magus and Summoner are
+      exactly the ones missing and the catalogue's own note has said so all along. A derived claim is only
+      as honest as the set it derives over. An earlier draft also listed Alchemist, Barbarian, Fighter and
+      Rogue as missing focus spells; they have none to be missing, and a gaps list carrying four non-gaps
+      teaches the reader to distrust the rest of it.
+
+      Reads now: 208 spells (117 slot-cast, 91 focus); no focus spells for **Magus, Summoner**; ranks 3 and
+      5–10 under ten slot-cast entries each.
 
 ---
 

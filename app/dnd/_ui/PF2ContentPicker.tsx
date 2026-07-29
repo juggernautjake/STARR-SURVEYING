@@ -15,7 +15,7 @@
 // sends). This exists so a player learns at pick-time rather than at save-time.
 import { useMemo, useState } from 'react';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { PF2_ALL_FEATS, PF2_ALL_SPELLS, PF2_CATALOG_STATUS } from '@/lib/dnd/systems/pathfinder2e/data';
+import { PF2_ALL_FEATS, PF2_ALL_SPELLS, PF2_CATALOG_STATUS, PF2_SPELL_GAPS, pf2SpellSearchMiss } from '@/lib/dnd/systems/pathfinder2e/data';
 import { pf2FeatEligibility, pf2SpellEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 import { pf2ContextFor } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
 import { isRulesEnforcedKind, type SheetVariantKind } from '@/lib/dnd/system-variants';
@@ -70,6 +70,10 @@ export default function PF2ContentPicker({
   }, [kind, q, ctx]);
 
   const status = kind === 'feat' ? PF2_CATALOG_STATUS.feats : PF2_CATALOG_STATUS.spells;
+  const [showGaps, setShowGaps] = useState(false);
+  // Spells get the structured list built in P8-4; feats fall back to their catalogue note, which is the
+  // same information in one paragraph. Neither is invented here — both come from the data layer.
+  const gaps = useMemo(() => (kind === 'spell' ? PF2_SPELL_GAPS : [PF2_CATALOG_STATUS.feats.note]), [kind]);
 
   return (
     <div
@@ -104,8 +108,13 @@ export default function PF2ContentPicker({
 
         <div style={{ overflowY: 'auto', padding: '8px 14px 14px' }}>
           {rows.length === 0 && (
+            // "Nothing matches that search" is a claim about PATHFINDER; this is a claim about US, which
+            // is the only one we can actually make. The data layer has always known the catalogue is a
+            // confidence-gated subset — both spell status blocks say a missing entry means "not
+            // catalogued yet, NEVER does not exist" — and none of that reached the person searching.
+            // Someone typing a real spell and being told nothing matches concludes the app is broken.
             <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '12px 0' }}>
-              Nothing matches that search.
+              {kind === 'spell' ? pf2SpellSearchMiss(q) : `No catalogued feat matches “${q.trim()}”. ${PF2_CATALOG_STATUS.feats.count} feats are catalogued so far, so this may be one we have not added yet.`}
             </p>
           )}
           {rows.map((r) => {
@@ -147,7 +156,22 @@ export default function PF2ContentPicker({
             "Pathfinder has no such spell". */}
         {!status.complete && (
           <div style={{ padding: '8px 14px', borderTop: '1px solid var(--hx-line)', fontSize: 11.5, color: 'var(--hx-muted)' }}>
-            {status.count} {kind}s catalogued so far — not the full list yet.
+            {status.count} {kind}s catalogued so far — not the full list yet.{' '}
+            {/* The gaps list has existed for feats, ancestries and class progressions since those
+                catalogues were written, and was reachable only by reading the source. Spells got theirs
+                in P8-4. Behind a disclosure so the picker stays a picker. */}
+            <button
+              type="button"
+              onClick={() => setShowGaps((v) => !v)}
+              style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--hx-gold-2)', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              {showGaps ? 'hide what’s missing' : 'what’s missing?'}
+            </button>
+            {showGaps && (
+              <ul style={{ margin: '6px 0 0', paddingLeft: 16, display: 'grid', gap: 3 }}>
+                {gaps.map((g) => <li key={g}>{g}</li>)}
+              </ul>
+            )}
           </div>
         )}
       </div>
