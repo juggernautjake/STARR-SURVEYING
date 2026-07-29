@@ -3521,3 +3521,14 @@ Probe rows were deleted after each run; `dnd_homebrew` is back to 0.
 
 **Not yet exercised:** the builder UI itself. This drove the API directly, so it proves the save path and
 the payload assembly, not the form's field wiring.
+
+### Builder form, browser-verified (2026-07-29)
+
+The round-trip above drove the API directly, which proves the save path but not the form. Loaded
+`/dnd/content/new?kind=creature&system=dnd5e-2014` in a browser: the kind-specific placeholders reach the
+real inputs — the creature form's summary reads *"A drake that nests in collapsed mineshafts."*, its
+description *"Territorial and deaf, it hunts by vibration…"*. 18 of 29 inputs carry a placeholder; the
+remainder are selects, checkboxes and numbers, where an example teaches nothing.
+
+**Still not verified:** filling the form and pressing save. That is the one path a real user takes, and it
+is the obvious next check — the API round-trip and the form render are each half of it.
