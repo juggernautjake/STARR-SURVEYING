@@ -7,6 +7,7 @@
 // HP note: PF2's stored `currentHp` uses 0 to mean "full/unset" (the sheet renders maxHp then). Damage/heal
 // therefore resolve against the EFFECTIVE current (currentHp || maxHp) and write a real value back.
 import type { PF2Character, PF2AttributeKey, PF2Feat, PF2KnownSpell, PF2Rank } from './model';
+import { resolveShield, shieldBlock } from './shield';
 import { PF2_ATTRIBUTES } from './model';
 import { pf2MaxHp } from './rules';
 import type { DownedDamageModel } from '@/lib/dnd/preferences';
@@ -53,7 +54,12 @@ export type PF2Edit =
   // Armor is a single worn set, not a list, so this SETS rather than adds. Every field feeds
   // `pf2ArmorClass` directly, which is why the editor exists at all: armor that displays but does
   // not move AC is worse than no armor field.
-  | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank; runes?: string[] };
+  | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank; runes?: string[] }
+  // Shields (P5-2). Split into "which shield" and "is it up right now", because they change on completely
+  // different timescales: you pick a shield once and raise it every round.
+  | { op: 'set_shield'; name?: string; currentHp?: number; acBonus?: number; hardness?: number; hp?: number; bt?: number }
+  | { op: 'set_shield_raised'; raised: boolean }
+  | { op: 'apply_shield_block'; damage: number };
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -64,7 +70,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'set_shield', 'set_shield_raised', 'apply_shield_block'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -318,6 +324,48 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       // Same reasoning as IG-S1's "an emptied override CLEARS": absent means "don't touch", empty
       // means "there are none", and collapsing the two makes a removal impossible to express.
       if (edit.runes !== undefined) combat.armorRunes = edit.runes;
+      return { ...pf2, combat };
+    }
+
+    // ── Shields (P5-2) ───────────────────────────────────────────────────────────────────────────
+    case 'set_shield': {
+      // An empty name REMOVES the shield: absent means "don't touch", empty means "there is none" —
+      // the same distinction `set_armor`'s rune list draws, and collapsing it would make putting a
+      // shield away impossible to express.
+      if (edit.name !== undefined && !edit.name.trim()) {
+        delete combat.shield;
+        return { ...pf2, combat };
+      }
+      const prev = combat.shield ?? { name: '' };
+      combat.shield = {
+        ...prev,
+        ...(edit.name !== undefined ? { name: edit.name.trim() } : {}),
+        ...(edit.currentHp !== undefined && Number.isFinite(edit.currentHp) ? { currentHp: Math.max(0, Math.round(edit.currentHp)) } : {}),
+        ...(edit.acBonus !== undefined && Number.isFinite(edit.acBonus) ? { acBonus: Math.max(0, Math.min(5, Math.round(edit.acBonus))) } : {}),
+        ...(edit.hardness !== undefined && Number.isFinite(edit.hardness) ? { hardness: Math.max(0, Math.round(edit.hardness)) } : {}),
+        ...(edit.hp !== undefined && Number.isFinite(edit.hp) ? { hp: Math.max(0, Math.round(edit.hp)) } : {}),
+        ...(edit.bt !== undefined && Number.isFinite(edit.bt) ? { bt: Math.max(0, Math.round(edit.bt)) } : {}),
+      };
+      return { ...pf2, combat };
+    }
+
+    case 'set_shield_raised': {
+      if (!combat.shield) return pf2; // nothing to raise; refusing beats inventing a shield
+      combat.shield = { ...combat.shield, raised: !!edit.raised };
+      return { ...pf2, combat };
+    }
+
+    case 'apply_shield_block': {
+      const resolved = resolveShield(combat.shield);
+      const result = shieldBlock(resolved, edit.damage);
+      // `shieldBlock` returns null when the shield cannot block (absent, lowered, broken, destroyed).
+      // Falling through to "apply the damage anyway" would silently turn a refused block into a normal
+      // hit, so this returns unchanged and lets the caller see nothing happened.
+      if (!result || !combat.shield) return pf2;
+      combat.shield = { ...combat.shield, currentHp: result.shieldHpAfter };
+      // The overflow still reaches the character — Hardness reduces the damage for BOTH, which is why
+      // blocking a big hit still hurts.
+      combat.currentHp = Math.max(0, (combat.currentHp ?? 0) - result.damageTaken);
       return { ...pf2, combat };
     }
     default: {

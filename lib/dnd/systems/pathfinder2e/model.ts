@@ -7,6 +7,7 @@
 // in rules.ts. Data only — no services — so it is testable everywhere.
 
 import type { PF2Item } from './inventory';
+import type { PF2ShieldState } from './shield';
 import type { Currency } from '@/lib/dnd/currency';
 
 export const PF2_ATTRIBUTES = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
@@ -101,6 +102,10 @@ export interface PF2Combat {
    *  penalties into rolls under PF2's non-stacking rule (worst status + worst circumstance). Optional so
    *  legacy sidecars read as an empty list. */
   conditions?: { name: string; value?: number }[];
+  /** The shield being carried, if any (P5-2). Its AC bonus is applied by `pf2ArmorClass` only while
+   *  RAISED, and never through `acItemBonus` — a shield's bonus is a CIRCUMSTANCE bonus, and PF2's bonus
+   *  types do not stack with themselves. Optional, so no stored character needs migrating. */
+  shield?: PF2ShieldState;
 }
 
 export interface PF2Attack {

@@ -32,6 +32,7 @@ import {
   normalizeInventory, totalBulk, bulkLimit, bulkPenalty, formatBulk, investedCount, INVESTED_LIMIT,
 } from '@/lib/dnd/systems/pathfinder2e/inventory';
 import { defaultCurrencies } from '@/lib/dnd/currency';
+import { resolveShield, describeShield } from '@/lib/dnd/systems/pathfinder2e/shield';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2Proficiency, pf2MaxHp } from '@/lib/dnd/systems/pathfinder2e/rules';
 import {
@@ -491,6 +492,9 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   // Equipment (P5-1). Both read defensively so every character stored before this slice renders as
   // "carrying nothing, holding this system's default coins" rather than needing a migration.
   const inventory = normalizeInventory(pf2.inventory);
+  // The shield, resolved against the catalogue (P5-2). Null for the vast majority of characters, which is
+  // why every use below is guarded rather than the panel assuming one exists.
+  const shield = resolveShield(pf2.combat.shield);
   const currencies = pf2.currencies?.length ? pf2.currencies : defaultCurrencies('pathfinder2e');
 
   const gated: (SheetPanel & { show: boolean })[] = [
@@ -527,6 +531,38 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
       render: () => (
         <>
           <SectionHead title="Defenses & Vitals" />
+
+          {/* RAISE A SHIELD (P5-2, audit C-2). The single most-used defensive action in the game, and it
+              did not exist: `PF2_SHIELDS` was catalogued with hardness/HP/BT and `pf2Shield()` was
+              exported and never called. The bonus is a CIRCUMSTANCE bonus applied only while raised —
+              see `pf2ArmorClass` for why it is not folded into `acItemBonus`. */}
+          {shield && (
+            <div style={{
+              display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10,
+              padding: '7px 10px', borderRadius: 3, border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.3)',
+            }}>
+              <span style={{ fontSize: 12.5, color: 'var(--hx-text)' }}>🛡 {describeShield(shield)}</span>
+              {canDoEdit && !shield.broken && !shield.destroyed && (
+                <button
+                  type="button" disabled={saving}
+                  onClick={() => void postEdit({ op: 'set_shield_raised', raised: !shield.raised })}
+                  className={styles.hexBtn}
+                  style={{ padding: '3px 11px', fontSize: 12 }}
+                  title={shield.raised
+                    ? 'Lower it. The circumstance bonus stops applying immediately.'
+                    : `Raise it — +${shield.acBonus} circumstance bonus to AC until the start of your next turn.`}
+                >
+                  {shield.raised ? 'Lower shield' : `Raise shield (+${shield.acBonus} AC)`}
+                </button>
+              )}
+              {shield.broken && !shield.destroyed && (
+                <span style={{ fontSize: 11.5, color: 'var(--hx-gold-2)' }}>
+                  Broken — no AC bonus until repaired.
+                </span>
+              )}
+            </div>
+          )}
+
           <div className={styles.pf2StatStrip}>
             {/* AC is clickable for an editor — armor is the one headline stat with no other way to
                 change it, and it was previously settable only at build time. */}

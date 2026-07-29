@@ -7,6 +7,7 @@ import {
   type PF2Attack,
 } from './model';
 import { pf2ProficiencyTerm, pf2AdjustLevelDc, type PF2RulesVariants } from './variants';
+import { resolveShield, shieldAcBonus } from './shield';
 
 /** Clamp a level to the PF2 1–20 range. */
 export function pf2Level(level: number): number {
@@ -60,11 +61,26 @@ export function pf2MaxHp(char: PF2Character): number {
   return Math.max(1, char.combat.ancestryHp + (char.combat.classHpPerLevel + con) * level);
 }
 
-/** Armor Class: 10 + capped Dex + armor proficiency + item bonus. Unarmored (dexCap = null) uncapped. */
+/**
+ * Armor Class: 10 + capped Dex + armor proficiency + item bonus, plus a RAISED shield.
+ *
+ * The shield term is added here rather than folded into `acItemBonus` (P5-2), for two reasons that are
+ * both silently wrong if you take the shortcut:
+ *
+ *  · It applies **only while raised**. Folding it into the stored item bonus would hand every shield user
+ *    a permanent +2 they have not earned, and quietly shift every DC they face.
+ *  · It is a **circumstance** bonus, not an item bonus. PF2's bonus types do not stack with themselves, so
+ *    putting it in the item slot would let it stack with things it must not.
+ *
+ * `shieldAcBonus` returns 0 for an unraised, broken or destroyed shield, so this is a no-op for every
+ * character that has none — which is all of them stored before this slice.
+ */
 export function pf2ArmorClass(char: PF2Character, variants?: PF2RulesVariants): number {
   const dex = char.attributes.DEX ?? 0;
   const cappedDex = char.combat.dexCap == null ? dex : Math.min(dex, char.combat.dexCap);
-  return 10 + cappedDex + pf2Proficiency(char.combat.armorRank, char.identity.level, variants) + (char.combat.acItemBonus || 0);
+  const shield = shieldAcBonus(resolveShield(char.combat.shield));
+  return 10 + cappedDex + pf2Proficiency(char.combat.armorRank, char.identity.level, variants)
+    + (char.combat.acItemBonus || 0) + shield;
 }
 
 /** Class DC: 10 + key attribute modifier + class-DC proficiency. */

@@ -325,7 +325,24 @@ should skip Phase 7 entirely.
 - [ ] **P5-1b — PF2 item picker + sheet-side inventory editing.** Wire the existing weapon/armour/shield/
       rune/item catalogue into an add-item control, and allow quantity/location/invested edits in place.
 
-- [ ] **P5-2 — Pathfinder 2e shields.** *(C-2.)* `PF2_SHIELDS` is catalogued with hardness/HP/BT and
+- [x] **P5-2 — Pathfinder 2e shields. Shipped 2026-07-28.** `lib/dnd/systems/pathfinder2e/shield.ts` (pure),
+      `PF2Combat.shield` (optional — no migration), three edit ops, the bonus wired into `pf2ArmorClass`,
+      and a Raise/Lower control on the Defenses panel. `pf2Shield()` finally has a caller.
+      **The bonus is added in `pf2ArmorClass`, NOT folded into `acItemBonus`** — the tempting shortcut,
+      since that field already exists. Two reasons, both silently wrong if you take it: the bonus applies
+      **only while raised** (folding it in hands every shield user a permanent +2 and shifts every DC they
+      face), and it is a **circumstance** bonus, which PF2 does not stack with itself — putting it in the
+      *item* slot would let it stack with things it must not.
+      **Broken means no bonus**, which is what makes Shield Block a real decision rather than free damage
+      reduction. Hardness reduces the damage for *both* the shield and its bearer, so blocking a big hit
+      still hurts — and a refused block (lowered, broken, destroyed) changes **nothing** rather than falling
+      through to a normal hit the player never chose to take.
+      **A guard caught the op name.** `shield_block` was refused by `assertCharacterScopedOps` — correctly,
+      since op names must read as sheet mutations. Renamed to `apply_shield_block` rather than widening the
+      rule, which is the fix that keeps the boundary meaningful.
+      *Original slice text below.*
+
+- [ ] ~~**P5-2 — Pathfinder 2e shields.**~~ *(C-2.)* `PF2_SHIELDS` is catalogued with hardness/HP/BT and
       `pf2Shield()` is exported and **never called**; the rules engine has no Raise a Shield (+2 circumstance
       AC — the most-used defensive action in the game), no Shield Block, no shield damage, no broken
       threshold. Depends on P5-1.
