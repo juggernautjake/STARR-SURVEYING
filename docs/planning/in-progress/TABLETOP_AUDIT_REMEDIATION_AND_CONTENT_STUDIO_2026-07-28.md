@@ -1811,9 +1811,41 @@ of homebrew.
       Needs only READ on the source: translating someone's *published* content into your system is
       reasonable, the result is yours with the original credited, and nothing modifies the source.
 
-- [ ] **P6-19 — Migrate `dnd_content`.** Once the Studio is proven, move the existing campaign content into
-      `dnd_homebrew` with attribution inferred from `created_by`, and retire the old route. Deliberately last
-      so nothing in active play breaks early.
+- [x] **P6-19 — Migrate `dnd_content`.** *(Code done; the CUTOVER is an owner action — see below.)* Once the
+      Studio is proven, move the existing campaign content into `dnd_homebrew` with attribution inferred
+      from `created_by`, and retire the old route. Deliberately last so nothing in active play breaks early.
+
+      **Done 2026-07-29.** `lib/dnd/homebrew/migrate-content.ts` (pure mapping) and
+      `scripts/migrate-dnd-content.ts` / `npm run migrate:dnd-content`.
+
+      **The old route is still serving, on purpose.** The item has two halves and only one of them is code:
+      the mapping and the script are ready, the migration has **not been run**, and `/api/dnd/content` still
+      backs live play. Seed 455 (`dnd_homebrew`) is unapplied on the owner's deployment, so retiring the old
+      route now would break the feature it replaces. `CONTENT_MIGRATION_STATUS` carries all four flags and
+      the cutover order — **apply seed 455 → run the script → read the skipped list → retire the route** —
+      and a test asserts the route still exports its handlers, so "still serving" cannot become true by
+      accident.
+
+      **The rows it refuses are the interesting part.** `dnd_homebrew.owner_user_id` is NOT NULL and
+      `dnd_content.created_by` is `ON DELETE SET NULL`, so a row whose author's account is gone has nobody
+      to own it. Those are **refused and listed**, not assigned to whoever runs the script — which would
+      silently make one person the author of other people's work. Every skipped row is printed in full;
+      a migration that reports "12 skipped" and moves on is how content disappears.
+
+      **Three kind mappings are inexact, and each is recorded as data rather than performed silently:**
+      `magic_item → item` (rarity and attunement survive in the payload), `feature → ability` (a granted
+      thing, kept distinct from `feat`, which is *chosen* — collapsing them would make a class feature look
+      like an ASI option), and `attack → action`. A test asserts every target is a real Studio kind, because
+      a typo there would migrate nine rows into a kind that does not exist.
+
+      Two things carried deliberately: the engine payload goes through **verbatim** — `engine/content.ts`
+      reads `data.stats` and `data.effects`, and a migrated +1-AC ring has to change the same number or the
+      migration is data loss with extra steps — and everything lands **private**, because mapping "the
+      campaign could see it" to "everyone can" is a migration that publishes other people's work.
+
+      The script is **dry-run by default** and idempotent through a stamped `payload.migratedFrom.id`, which
+      is what makes a half-finished run safe to repeat. It never touches the source rows: they are the
+      rollback.
 
 ---
 
