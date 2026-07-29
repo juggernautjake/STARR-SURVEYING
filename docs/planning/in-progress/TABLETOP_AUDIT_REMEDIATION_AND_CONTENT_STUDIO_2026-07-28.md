@@ -4026,3 +4026,27 @@ them — a worse outcome than the missing link, because it fails at the end inst
 
 The capability itself is verified working (see the grant round-trip above), so this is genuinely just
 placement.
+
+### ⚠ Caveat on the PF2/IG roll-publishing fix — it cannot be verified with current data
+
+Checked which characters sit at a campaign, because publishing is (correctly) skipped without one:
+
+| system | characters | at a table? |
+|---|---|---|
+| dnd5e-2024 | Lazzuh Gun, xxRainbowKittenUwU37xx | **yes** |
+| dnd5e-2024 | Flame, Newcomer | no |
+| pathfinder2e | Orin Sallowmere | **no** |
+| intuitive-games | Vashti Kelln | **no** |
+
+**The only PF2 character and the only IG character are not in any campaign.** So the fix changes nothing
+observable today, and — more to the point — a PF2 or IG player's rolls still will not appear in a campaign
+feed until one of those characters joins a table. The code is right; the data cannot exercise it.
+
+**This was typechecked and shipped without being run.** The session's own repeated lesson is that reading
+a path proves nothing: the discarded homebrew payloads, the unaudited grants and the rejecting CHECK
+constraint were all invisible until something was exercised against real data. This fix is in exactly that
+untested state.
+
+**To verify:** put Orin or Vashti in a campaign, roll on the sheet, and confirm a row appears in
+`dnd_roll_log` with that campaign id. Until someone does, treat "PF2 and IG rolls reach the feed" as
+implemented but UNPROVEN.
