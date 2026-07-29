@@ -509,8 +509,22 @@ of homebrew.
       Built on the existing `CustomClassDraft` → `buildCustomClass` → `ClassDefinition` pipeline, so a
       homebrew class levels through the same `snapshotAtLevel` as an official one.
 
-- [ ] **P6-13 — The creature builder + statblock.** Full stat authoring (the `statblock` field type),
-      traits / actions / reactions / legendary actions, and a rendered statblock beside the uploaded art.
+- [x] **P6-13 — The creature builder + statblock. Shipped 2026-07-28.** `lib/dnd/homebrew/statblock.ts`
+      (pure model + normalizer), the `statblock` and `list` editors in the builder, and a rendered statblock
+      beside the uploaded art on the detail page. With P6-11's images, **the owner's creature case now works
+      end to end**: stats, abilities, actions, description and artwork on one page.
+      **Building the `list` editor for creatures also unlocked species lineages/traits and class resources**
+      — the payoff of a registry-driven form, and the detail page renders list sections from
+      `fieldsForKind` rather than naming creature fields, so a new list field on any kind prints with no
+      change to that page.
+      **The statblock DROPS what it cannot trust rather than clamping it.** A statblock is read off the page
+      mid-combat, so a typo'd AC must render as absent, not as a plausible number the DM will use.
+      **A test I wrote caught a real falsy-zero bug in my own code:** `isStatblockEmpty` used `!s.ac`, which
+      treats **AC 0** as an empty statblock — legal, unusual, and invisible until the one creature that has
+      it renders blank. Every numeric field now tests `=== undefined`.
+      **Deliberately system-neutral:** only the shared skeleton (AC, HP, speeds, six abilities) is modelled;
+      size, type, CR, senses and the rest stay their own fields, because the four systems disagree about
+      what those numbers mean and a universal creature model would be subtly wrong for all of them.
 
 - [ ] **P6-14 — The creature sheet.** *(the owner's "simple character sheet for creatures".)* A playable
       sheet tracking attacks, abilities, feats, conditions and HP — reusing the encounter/initiative model so
