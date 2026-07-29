@@ -33,6 +33,10 @@ import { fieldAcceptsAssist } from '@/lib/dnd/homebrew/assist';
 import AiBudgetMeter from './AiBudgetMeter';
 import { mergeIngest, INGEST_ACCEPT } from '@/lib/dnd/homebrew/ingest';
 import { applyDraftChoices } from '@/lib/dnd/homebrew/draft-assist';
+import {
+  validatePendingFeats, pendingFeatBody, mergePendingFeatRows, type PendingFeat,
+} from '@/lib/dnd/homebrew/inline-feats';
+import PendingFeatsEditor from '@/app/dnd/_ui/PendingFeatsEditor';
 import DraftAssistPanel from '@/app/dnd/_ui/DraftAssistPanel';
 
 /** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
@@ -102,6 +106,9 @@ export default function ContentBuilder({
   const [saving, setSaving] = useState(false);
   /** Artwork chosen before the piece exists. Uploaded immediately after creation — see the `image` branch. */
   const [pendingImage, setPendingImage] = useState<File | null>(null);
+  /** Feats written inside this class draft (P6-12b). Held here rather than in `values`: they are not a
+   *  field of the class, they are separate pieces waiting on the class to exist. */
+  const [pendingFeats, setPendingFeats] = useState<PendingFeat[]>([]);
   /** Classes this system offers as a starting point, and which one is being loaded (P6-12). */
   const [baseClasses, setBaseClasses] = useState<{ key: string; name: string; custom?: boolean }[]>([]);
   const [derivingFrom, setDerivingFrom] = useState<string | null>(null);
@@ -220,7 +227,14 @@ export default function ContentBuilder({
 
   async function save() {
     const name = String(values.name ?? '').trim();
-    const errs = [...(name ? [] : ['A name is required.']), ...validateDraftFields(kind, values)];
+    // Pending feats are validated BEFORE the class is written (P6-12b). A feat that fails its own POST
+    // after the class row exists leaves a saved class referencing a feat that does not — the one failure
+    // this arrangement is built to avoid, and it would look like a partial success.
+    const errs = [
+      ...(name ? [] : ['A name is required.']),
+      ...validateDraftFields(kind, values),
+      ...validatePendingFeats(pendingFeats),
+    ];
     if (errs.length) { setProblems(errs); return; }
     setSaving(true); setProblems([]);
     try {
@@ -243,6 +257,27 @@ export default function ContentBuilder({
           const ij = await ir.json().catch(() => ({}));
           setProblems([`Saved, but the image did not upload: ${ij.error ?? 'unknown error'}. You can add it again from the piece.`]);
         }
+      }
+
+      // The feats written inside this draft, now that the class exists (P6-12b). Same placement and same
+      // reasoning as the image above: created AFTER the piece, and a failure here is reported without
+      // pretending the class did not save — the class is safely stored and redoing it would be worse.
+      const featFailures: string[] = [];
+      for (const feat of pendingFeats) {
+        const fr = await fetch('/api/dnd/homebrew', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pendingFeatBody(feat, { system: sys, visibility })),
+        });
+        if (!fr.ok) {
+          const fj = await fr.json().catch(() => ({}));
+          featFailures.push(`${feat.name}: ${fj.problems?.join(' ') ?? fj.error ?? 'could not be saved'}`);
+        }
+      }
+      if (featFailures.length) {
+        setProblems([`The class saved, but these feats did not: ${featFailures.join('; ')}. You can add them from the Studio.`]);
+        setSaving(false);
+        return;
       }
 
       router.push(`/dnd/content/${j.content.id}`);
@@ -489,6 +524,21 @@ export default function ContentBuilder({
                 onClick={() => set(f.key, [...rows, { level: Math.min(20, reach + 1), name: '', body: '', choice: '' }])}>
                 ＋ Add a feature at level {Math.min(20, reach + 1)}
               </button>
+
+              {/* Feats written HERE, inside the class draft (P6-12b). They are held in the builder's own
+                  state and created only after the class row exists — abandon the draft and the feat never
+                  existed. The alternative (write it now so it survives) quietly litters the Studio with
+                  orphan feats from every class somebody started and closed. */}
+              <PendingFeatsEditor
+                feats={pendingFeats}
+                nextLevel={Math.min(20, reach + 1)}
+                onChange={(next) => {
+                  setPendingFeats(next);
+                  // The level rows are re-derived from the feats every time, so renaming a pending feat
+                  // moves its row rather than leaving the old one behind.
+                  set(f.key, mergePendingFeatRows(rows, next, pendingFeats));
+                }}
+              />
             </div>
           );
         })()}

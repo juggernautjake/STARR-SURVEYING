@@ -1592,11 +1592,45 @@ of homebrew.
       because overwriting a name they had already typed with "Fighter" would be actively hostile.
       **`effects` is now the only placeholder left in the builder** — it ships with P6-9's engine bridges.
 
-- [ ] **P6-12b — Inline feat authoring inside the class studio.** *(Split from P6-12.)* The owner's *"they
+- [x] **P6-12b — Inline feat authoring inside the class studio.** *(Split from P6-12.)* The owner's *"they
       might even be able to homebrew custom feats while making the class to make those feats available at
       certain levels."* Deliberately separate because it is a genuinely different problem from the rest of
       P6-12: it creates a SECOND piece from inside an unsaved draft, which needs a decision about what
       happens to that feat if the class is never saved. Cheap to build, easy to get wrong quietly.
+
+      **Done 2026-07-29.** `lib/dnd/homebrew/inline-feats.ts`, `PendingFeatsEditor` inside the levels editor,
+      and creation folded into the class's save.
+
+      **The decision: the feat shares the class's fate.** It lives in the builder's own state, is never
+      written, and is created only after the class row exists — abandon the draft and the feat never existed.
+      The alternative (write it now so it survives) is the easier implementation and wrong in a way nobody
+      would ever report: a Studio quietly accumulating orphan feats from every class draft somebody opened
+      and closed, with no way to tell an abandoned fragment from something they meant. `pendingImage` in the
+      same save function already works this way, so this is the house pattern rather than a new invention.
+
+      **Validation runs BEFORE the class is written.** A pending feat missing a required field would fail its
+      own POST *after* the class row existed, leaving a saved class referencing a feat that does not — a
+      partial success, which is the worst outcome available here. The required set is read from the feat's
+      own schema rather than listed, so a new required field is covered automatically.
+
+      **Two bugs this slice found in itself, both worth recording:**
+
+      · **The category was guessed.** The first version hardcoded `category: 'class'`, reasoning that a feat
+        written in a class studio is obviously a class feat. The registry's options are
+        origin / general / fighting-style / epic-boon — there is no `class`. That would have failed
+        validation *after* the class was saved: the exact failure above, arriving through the one door the
+        validator could not see, because the validator did not check the category. It is now an authored
+        choice, its options read from the registry, and validated against the registry.
+      · **A rename orphaned the level row.** `mergePendingFeatRows` matched rows by the *current* feats'
+        names, so renaming "Riposte" to "Parry" left the Riposte row behind — nothing claimed it, so the
+        filter kept it as though hand-written, and the class granted a feat that would never be created. It
+        takes the previous list now. Caught by a test, which is about right for a bug that only appears on
+        the second edit of the same feat.
+
+      The level row is what makes the feature real rather than decorative — a feat authored beside a class
+      and never referenced by it is just a feat that happened to be typed in the same form. The row is not a
+      `choice`: the class *grants* this feat, so marking it would make the level walker prompt for something
+      already decided.
 
 - [x] **P6-13 — The creature builder + statblock. Shipped 2026-07-28.** `lib/dnd/homebrew/statblock.ts`
       (pure model + normalizer), the `statblock` and `list` editors in the builder, and a rendered statblock
