@@ -310,13 +310,25 @@ should skip Phase 7 entirely.
       Add Profile, My Characters, My Content (P6-7) and Requests; badge the toggle with the notification
       count.
 
-- [ ] **P4-3 — Tab the character page.** *(D-4.)* One 454-line page stacks ~20 always-mounted panels
-      vertically. The sheet inside it is tabbed; the page around it is not, so the further down a control
-      lives the less likely it is ever found.
-      **Design:** three tabs around the sheet — **Play** (sheet + rollers) · **Build** (build kit, variants,
-      level walker, grants, Studio links) · **Manage** (history, export, visibility, campaigns, settings).
-      Every existing component is kept; only what is mounted changes. Deep links must still land on the right
-      tab.
+- [x] **P4-3 — Group the character page's surrounding panels. Shipped 2026-07-28 (first group).**
+      *(Audit D-4.)* `SheetSections` takes **already-rendered server nodes**, so every panel keeps its own
+      server-side data fetching and gains a tab strip without becoming a client component. **Only the active
+      section is mounted** — twenty always-mounted panels is also twenty panels' worth of effects and
+      fetches on every visit to a sheet.
+      **The sheet is deliberately NOT tabbed**, and a test enforces it: the sheet is why the page exists and
+      stays exactly where it is. Only the surrounding panels are grouped, which is where the twenty were.
+      First group is **Manage** — visibility, campaigns, the campaign-override promote, and export: the four
+      that all answer *"who can see and use this character, and how do I get a copy out"*, and all four sat
+      below the sheet where nobody found them.
+      An empty section is dropped rather than offered as a tab onto nothing (a read-only viewer has no
+      Manage content), and the strip hides itself at one section — a single tab is furniture pretending to
+      be a choice. A test pins that each moved panel renders **exactly once**, because the failure mode of
+      this refactor is leaving the old copy behind.
+
+- [ ] **P4-3b — The Build group.** Build kit, homebrew designers, adopt-content, variants, DM grants and
+      build questions into a second section. Left for its own slice because those panels are interleaved
+      with the three system sheets in the JSX, and moving them is a genuinely riskier edit than the four
+      trailing ones — worth doing with a browser open rather than at the end of a batch.
 
 - [ ] **P4-4 — A ⌘K command palette.** *(D-6.)* The library has excellent search; nothing else does. One
       palette spanning characters, campaigns, NPCs, custom content and library articles, reusing the

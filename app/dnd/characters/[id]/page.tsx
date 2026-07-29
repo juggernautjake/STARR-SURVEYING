@@ -13,6 +13,7 @@ import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import HomebrewDesignerLinks from '@/app/dnd/_ui/HomebrewDesignerLinks';
 import AdoptContentPanel from '@/app/dnd/_ui/AdoptContentPanel';
+import SheetSections from '@/app/dnd/_ui/SheetSections';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetChrome from '@/app/dnd/_ui/SheetChrome';
 import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
@@ -403,20 +404,37 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           vanilla-vs-homebrew choice in the Edit dialog, the build report after a transpose, and finally
           level-up-to-match. Two panels doing the same job was the redundancy this consolidation set out to
           remove; the component file stays until the branch merges, in case QA wants it back in one revert. */}
-      {/* Private/Public is the creator's call — only the owner sees this control (the DM always sees the
-          character regardless; other players' view is governed by this flag). */}
-      {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}
-      {/* Which campaigns this character is in, with a way in and out (S11 — owner: "make sure there is a
-          clear and easy way to take character into and out of a campaign"). Sits beside the visibility
-          toggle because both answer "who can see and use this character". It renders for anyone who can view
-          the sheet: the panel itself only offers the actions that caller may actually perform. */}
-      <CharacterCampaigns characterId={character.id} />
-      {campaignOverridePending && character.campaign_id && (
-        <PromoteCampaignVersionButton campaignId={character.campaign_id} characterId={character.id} />
-      )}
-      {/* Export the whole sheet — PDF (via print), self-contained HTML, or JSON. Anyone who can view the sheet
-          can export it (the export route is read-gated the same as opening it). */}
-      <ExportSheetButton characterId={character.id} />
+      {/* MANAGE (P4-3, audit D-4). These four all answer "who can see and use this character, and how do I
+          get it out" — visibility, campaigns, the campaign-override promote, and export. Grouped into a tab
+          rather than stacked, because a page of ~20 always-mounted panels buries whatever is furthest down,
+          and every one of these sat below the sheet.
+
+          The sheet itself is NOT tabbed: it is why the page exists and stays exactly where it is. */}
+      <SheetSections
+        sections={[
+          {
+            id: 'manage',
+            label: 'Manage',
+            blurb: 'Who can see this character, which tables it is at, and how to get a copy out.',
+            node: (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {/* Private/Public is the creator's call — only the owner sees this control (the DM always
+                    sees the character regardless; other players' view is governed by this flag). */}
+                {isOwner && <SheetVisibilityToggle characterId={character.id} current={character.visibility} />}
+                {/* Which campaigns this character is in, with a way in and out (S11). Renders for anyone who
+                    can view the sheet: the panel itself only offers the actions that caller may perform. */}
+                <CharacterCampaigns characterId={character.id} />
+                {campaignOverridePending && character.campaign_id && (
+                  <PromoteCampaignVersionButton campaignId={character.campaign_id} characterId={character.id} />
+                )}
+                {/* Export the whole sheet — PDF (via print), self-contained HTML, or JSON. Anyone who can
+                    view the sheet can export it (the route is read-gated the same as opening it). */}
+                <ExportSheetButton characterId={character.id} />
+              </div>
+            ),
+          },
+        ]}
+      />
       {/* (Sheet style + template pickers moved UP to just below the Build Kit — see above — so they sit
           in the same spot on every template, for both 5e and the bespoke PF2/IG sheets.) */}
       {/* The shared 5e engine — the tabbed sheet, ability rail, dice tray, build toggle and
