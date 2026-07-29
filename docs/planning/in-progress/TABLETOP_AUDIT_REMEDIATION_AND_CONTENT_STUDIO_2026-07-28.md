@@ -846,11 +846,33 @@ should skip Phase 7 entirely.
 
       Suite 1290 files / 18,589 tests green.
 
-- [ ] **P4-2 — Menu completeness.** *(D-3.)* The header offers five links. `/dnd/profile` is linked **only**
+- [x] **P4-2 — Menu completeness.** *(D-3.)* The header offers five links. `/dnd/profile` is linked **only**
       from `CampaignDashboard`, the branch that does not run in open-access mode — so in the default
       configuration nothing links to it. `/dnd/suggestions` is linked only from a footer control.
       Add Profile, My Characters, My Content (P6-7) and Requests; badge the toggle with the notification
       count.
+
+      **Done 2026-07-29.** Profile, My Characters and Custom Content were linked by P4-1; this closes the
+      last two — a **Requests** link with an unreviewed badge.
+
+      **The badge is owner-only, decided on the SERVER.** `?count=1` returns `{ count: 0 }` to everyone
+      else rather than the badge being hidden client-side, because hiding it locally would still SEND every
+      player the number. A player shown "12" on a board they cannot action is handed a number they can do
+      nothing with; the owner is the only person for whom it is a to-do list.
+
+      Three smaller decisions: the count includes rows whose `status` is NULL (legacy submissions predating
+      the review lifecycle — the ones most likely to still need reading, and an `eq('untouched')` would have
+      silently skipped them); it uses `head: true` so the header does not ship the whole board on every
+      navigation; and it fails to 0 rather than erroring, because the header mounts on every /dnd page and a
+      nav item that errors is worse than one with no badge.
+
+      **The token guard caught a real mistake.** I wrote `var(--hx-void, #06050c)` — a token that does not
+      exist anywhere in the palette. A `var()` with a fallback fails **silently**, so the badge would have
+      rendered in the fallback colour forever and looked deliberate. That is precisely why
+      `hx-token-references` sweeps for undefined tokens instead of trusting fallbacks. Now `--hx-navy-0`.
+
+      Verified in the browser: the menu renders ten links including Requests → `/dnd/suggestions`, with no
+      badge for a non-owner — which is the server-side rule working.
 
 - [x] **P4-3 — Group the character page's surrounding panels. Shipped 2026-07-28 (first group).**
       *(Audit D-4.)* `SheetSections` takes **already-rendered server nodes**, so every panel keeps its own

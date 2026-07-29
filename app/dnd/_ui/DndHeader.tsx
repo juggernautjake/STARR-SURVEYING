@@ -9,6 +9,7 @@
 // AND the menu closes; (b) on a click anywhere outside the menu; (c) on Escape; (d) whenever the route changes
 // (belt-and-braces, since the header persists in the layout across client-side navigations).
 import { useEffect, useRef, useState } from 'react';
+import RequestsNavLink from './RequestsNavLink';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import styles from './hextech.module.css';
@@ -87,6 +88,11 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
               {/* D-3: linked ONLY from CampaignDashboard, the branch that does not run in open-access mode —
                   so in the default configuration nothing pointed at it at all. */}
               <Link href="/dnd/profile" className={styles.siteNavLink} onClick={() => setOpen(false)}>Profile</Link>
+              {/* D-3, the other half: `/dnd/suggestions` was linked ONLY from the "View all suggestions →"
+                  anchor inside the SuggestionBox footer control — so the board collecting everyone's
+                  requests was reachable only by someone already looking at the box that submits them. The
+                  unreviewed badge is owner-only, enforced server-side rather than hidden here. */}
+              <RequestsNavLink className={styles.siteNavLink} onNavigate={() => setOpen(false)} />
               <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
               {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
                   pick which campaign to make a map for. */}
