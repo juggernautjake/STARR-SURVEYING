@@ -110,6 +110,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.blurb === 'string') patch.blurb = body.blurb;
   // Custom-content policy (IG builder Slice 5): false = vanilla-only campaign.
   if ('allow_custom' in body) patch.allow_custom = !!body.allow_custom;
+  // Who can find this campaign (P2-5). Unknown values are DROPPED rather than stored: the column has a
+  // CHECK constraint, so a typo would 500 on write — and silently failing closed is better than either.
+  if (typeof body.visibility === 'string' && ['public', 'unlisted', 'private'].includes(body.visibility)) {
+    patch.visibility = body.visibility;
+  }
+  // Un-archiving is a PATCH, not a resurrection endpoint: `archived: false` restores.
+  if ('archived' in body) patch.archived_at = body.archived ? new Date().toISOString() : null;
 
   // Art banner, campaign notes, and the DM's campaign preferences (Area P2) all live in the `theme` jsonb.
   // `notes` is the player-visible campaign info; `dmNotes` is the DM's private prep (never sent to players);
@@ -138,4 +145,45 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Update failed.' }, { status: 500 });
   return NextResponse.json({ campaign: data, preferences: readCampaignPreferences((data as { theme?: unknown }).theme) });
+}
+
+/**
+ * Archive a campaign, or delete it outright (P2-5, audit D-2).
+ *
+ * Until this existed, a campaign — once created — could never be removed or hidden by anyone, so every
+ * abandoned test table was permanent public furniture on the /dnd hub.
+ *
+ * ARCHIVE IS THE DEFAULT, and a hard delete needs `?hard=1`. A campaign cascades to its sessions, recaps,
+ * roll history, invites and roster; the row is small and the consequences are not. Archiving takes it off
+ * every list and out of every query while leaving the door open, which is what "delete" means to almost
+ * everyone almost all of the time.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = getDndSession();
+  if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // DM only — and specifically THIS campaign's DM, which `getCampaignRole` resolves per campaign rather
+  // than "is a DM somewhere".
+  if ((await getCampaignRole(params.id)) !== 'dm') {
+    return NextResponse.json({ error: 'Only the DM can remove this campaign.' }, { status: 403 });
+  }
+
+  const hard = req.nextUrl.searchParams.get('hard') === '1';
+
+  if (!hard) {
+    const { error } = await supabaseAdmin
+      .from('dnd_campaigns')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', params.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, archived: true });
+  }
+
+  // The real thing. Characters are deliberately NOT destroyed with it: they belong to their owners, live
+  // in `dnd_characters` with their own `campaign_id`, and a DM closing their table must not delete other
+  // people's characters. Detach them first so the cascade cannot reach them.
+  await supabaseAdmin.from('dnd_characters').update({ campaign_id: null }).eq('campaign_id', params.id);
+
+  const { error } = await supabaseAdmin.from('dnd_campaigns').delete().eq('id', params.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, deleted: true });
 }

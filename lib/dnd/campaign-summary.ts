@@ -170,9 +170,34 @@ async function nameMap(userIds: string[]): Promise<Map<string, string>> {
 }
 
 /** One card per campaign for the public hub. */
-export async function loadAllCampaignSummaries(): Promise<CampaignCard[]> {
-  const { data: camps } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb').order('created_at', { ascending: true });
-  const campaigns = (camps ?? []) as { id: string; name: string; blurb: string | null }[];
+export async function loadAllCampaignSummaries(opts: { viewerId?: string | null; limit?: number } = {}): Promise<CampaignCard[]> {
+  // P2-5 (audit D-2). This used to select EVERY campaign, unfiltered and unpaginated, and return the DM's
+  // name, every player's name and every character's name — to anyone opening /dnd in open-access mode.
+  //
+  // Now: public, non-archived campaigns, newest first, bounded. A viewer additionally sees their OWN
+  // campaigns whatever their visibility, because "where did my table go" is a worse experience than a
+  // slightly longer list — and it is their data.
+  const limit = Math.max(1, Math.min(100, opts.limit ?? 24));
+  const { data: camps } = await supabaseAdmin
+    .from('dnd_campaigns')
+    .select('id, name, blurb, dm_user_id, visibility, archived_at')
+    .is('archived_at', null)
+    .eq('visibility', 'public')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  let campaigns = (camps ?? []) as { id: string; name: string; blurb: string | null; dm_user_id?: string }[];
+
+  if (opts.viewerId) {
+    const { data: mine } = await supabaseAdmin
+      .from('dnd_campaigns')
+      .select('id, name, blurb, dm_user_id, visibility, archived_at')
+      .is('archived_at', null)
+      .eq('dm_user_id', opts.viewerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    const seen = new Set(campaigns.map((c) => c.id));
+    campaigns = [...campaigns, ...((mine ?? []) as typeof campaigns).filter((c) => !seen.has(c.id))];
+  }
   if (campaigns.length === 0) return [];
   const ids = campaigns.map((c) => c.id);
 

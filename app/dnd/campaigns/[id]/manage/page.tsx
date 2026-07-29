@@ -4,6 +4,8 @@
 import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
 import CampaignPageClient from '@/app/dnd/_ui/CampaignPageClient';
+import CampaignVisibilityControl from '@/app/dnd/_ui/CampaignVisibilityControl';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,5 +15,23 @@ export default async function CampaignManagePage({ params }: { params: { id: str
   if (role !== 'dm') {
     redirect(`/dnd/campaigns/${params.id}`);
   }
-  return <CampaignPageClient campaignId={params.id} />;
+  // Visibility + archive/delete (P2-5). Read the stored value here rather than in the client control, so
+  // the DM sees the state that is ACTUALLY saved on first paint instead of a default that might be wrong.
+  const { data: camp } = await supabaseAdmin
+    .from('dnd_campaigns')
+    .select('visibility')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  return (
+    <>
+      <CampaignPageClient campaignId={params.id} />
+      <div style={{ maxWidth: 960, margin: '16px auto 40px', padding: '0 12px' }}>
+        <CampaignVisibilityControl
+          campaignId={params.id}
+          current={(camp as { visibility?: string } | null)?.visibility ?? null}
+        />
+      </div>
+    </>
+  );
 }

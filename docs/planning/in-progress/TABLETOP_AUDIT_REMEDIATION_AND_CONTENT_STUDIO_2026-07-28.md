@@ -203,16 +203,23 @@ should skip Phase 7 entirely.
       preserving the no-email design. **Done when:** a user who forgets their password has a route back that
       does not involve the owner editing the database.
 
-- [ ] **P2-5 — Campaign visibility, archive and delete.** *(D-2.)* `loadAllCampaignSummaries()` selects
-      **every** campaign with no filter, no pagination and no recency ordering, and returns the DM's name,
-      every player's name and every character's name — to anyone who opens `/dnd` in open-access mode. There
-      is no `visibility` column, no `archived_at`, and no `DELETE` route: **a campaign can never be removed
-      or hidden by anyone.**
-      **Design:** add `visibility` (`public` | `unlisted` | `private`, default `unlisted`) and `archived_at`;
-      a DM-gated `DELETE` that soft-deletes (archive) with a hard-delete confirmation path; paginate the hub
-      (20/page) ordered by recent activity; the hub lists `public` only, plus your own regardless.
-      **Done when:** a DM can hide and delete their own table, a stranger sees only public ones, and the hub
-      issues a bounded query.
+- [x] **P2-5 — Campaign visibility, archive and delete. Shipped 2026-07-28.** *(Audit D-2, the last privacy
+      item.)* `seeds/457_dnd_campaign_visibility.sql`, a filtered/bounded/ordered public index, a `DELETE`
+      handler, and a DM control on the manage page.
+      **The backfill decision is what makes this real rather than decorative.** Existing campaigns become
+      **`unlisted`, not `public`** — backfilling to public would preserve the exact leak the column exists
+      to close. And `unlisted` is not destructive: every link keeps working, members see no change, and only
+      strangers stop reading a roster off a public index. New campaigns default to unlisted too.
+      **The index was worse than "unfiltered":** it also ordered *ascending*, so a growing site pushed every
+      live table below years of abandoned ones, and it had no bound at all. Now public + non-archived,
+      newest first, capped — **plus the viewer's own campaigns whatever their visibility**, because "where
+      did my table go" is a worse experience than a slightly longer list, and it is their data.
+      **Archive is the default; the hard delete needs `?hard=1` and a second confirmation** that names what
+      it destroys. A campaign cascades to sessions, recaps, roll history, invites and the roster — and the
+      hard delete **detaches characters first**, because they belong to their owners and the FK cascade
+      would otherwise let a DM closing their table delete other people's characters. Pinned by test.
+      The control rolls its highlight back if a save fails: a toggle showing the state you *asked for*
+      rather than the state that *saved* is how someone believes their campaign is private when it is not.
 
 - [ ] **P2-6 — A route-gate guard test.** *(F-5.)* RLS is enabled on the D&D tables with **zero policies**,
       so all authorization is app-code-only across 113 routes with no database backstop. Writing real

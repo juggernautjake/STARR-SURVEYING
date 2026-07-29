@@ -38,7 +38,7 @@ export default async function DndHubPage() {
                 PLAY come first — authoring is a thing you do between sessions, not the reason you opened
                 the lobby. Renders nothing at all when they have authored nothing. */}
             {session && <MyContentStrip userId={session.userId} />}
-            <CampaignsHome campaigns={await loadAllCampaignSummaries()} embedded />
+            <CampaignsHome campaigns={await loadAllCampaignSummaries({ viewerId: session?.userId })} embedded />
           </div>
         </div>
       </div>
