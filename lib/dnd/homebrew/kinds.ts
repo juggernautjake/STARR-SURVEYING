@@ -655,6 +655,36 @@ const COMMON_EXAMPLES: Record<HomebrewKind, KindExamples> = {
   rule: { summary: 'Critical hits maximise dice instead of doubling them.', description: 'On a critical hit, deal the maximum of each damage die rather than rolling twice.', tags: 'house-rule, combat' },
 };
 
+/**
+ * Assemble a kind's `payload` from a posted body (P6-2 bug, found 2026-07-29).
+ *
+ * THE BUILDER POSTS FIELD VALUES AT THE TOP LEVEL — `{ ...values, kind, system, name, visibility }` — and
+ * the server validated them there (`validateDraftFields(kind, body)`) but persisted only what
+ * `pickCreatorWritable` allows, which is the identity columns plus `payload`. Nothing ever assembled one.
+ * So a weapon's damage, a creature's statblock and a class's hit die were each **validated and then
+ * discarded**: the piece saved successfully carrying nothing but its name, summary, description and tags.
+ *
+ * It stayed invisible because `dnd_homebrew` did not exist until the seed backlog was applied, so no save
+ * had ever been read back. The first round-trip after applying it surfaced this immediately.
+ *
+ * Identity fields are EXCLUDED: `summary`, `description`, `tags` and `image` are real columns on the row,
+ * and copying them into the payload too would create a second copy that drifts the moment one is edited.
+ */
+export function draftPayloadFrom(kind: HomebrewKind, body: Record<string, unknown>): Record<string, unknown> | undefined {
+  const identity = new Set(COMMON_FIELDS.map((f) => f.key));
+  const out: Record<string, unknown> = {};
+  // An explicitly-posted payload wins as the base, so a caller that already sends the assembled shape
+  // (the AI draft route, an import) keeps working exactly as before.
+  const given = body.payload;
+  if (given && typeof given === 'object' && !Array.isArray(given)) Object.assign(out, given);
+  for (const f of SPECS[kind].fields) {
+    if (identity.has(f.key)) continue;
+    const v = body[f.key];
+    if (v !== undefined) out[f.key] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /** The distinct section headings for a kind, in first-appearance order. Fields with no section sort first
  *  under an empty heading. */
 export function sectionsForKind(kind: HomebrewKind): string[] {

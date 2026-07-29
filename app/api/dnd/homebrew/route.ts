@@ -12,7 +12,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { isHomebrewKind, homebrewMatchesSearch, validateHomebrew } from '@/lib/dnd/homebrew/model';
 import { validateHomebrewPayload } from '@/lib/dnd/homebrew/adopt';
-import { normalizeContentSystem, validateDraftFields, isPartialBuild, draftLevelReach } from '@/lib/dnd/homebrew/kinds';
+import { normalizeContentSystem, validateDraftFields, isPartialBuild, draftLevelReach, draftPayloadFrom } from '@/lib/dnd/homebrew/kinds';
 import {
   rowToHomebrew, homebrewToRow, pickCreatorWritable, visibleHomebrew, statusForVisibility,
   normalizeVisibility, type HomebrewRow, type StoredHomebrew,
@@ -83,6 +83,9 @@ export async function POST(req: NextRequest) {
   if (!isHomebrewKind(kind)) return NextResponse.json({ error: 'Pick what kind of thing you are making.' }, { status: 400 });
 
   const draft = pickCreatorWritable(body);
+  // The builder posts the kind's own fields at the TOP LEVEL, and nothing assembled them into a payload —
+  // so every mechanical field was validated and then dropped on save. See draftPayloadFrom.
+  draft.payload = draftPayloadFrom(kind, body);
   const system = normalizeContentSystem(kind, body.system);
   const name = String(body.name ?? '').trim();
 

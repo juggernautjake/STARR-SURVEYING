@@ -8,7 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { validateHomebrewPayload } from '@/lib/dnd/homebrew/adopt';
 import { isHomebrewKind } from '@/lib/dnd/homebrew/model';
-import { normalizeContentSystem, validateDraftFields, isPartialBuild, draftLevelReach } from '@/lib/dnd/homebrew/kinds';
+import { normalizeContentSystem, validateDraftFields, isPartialBuild, draftLevelReach , draftPayloadFrom } from '@/lib/dnd/homebrew/kinds';
 import {
   rowToHomebrew, homebrewToRow, pickCreatorWritable, canReadHomebrew, canWriteHomebrew,
   statusForVisibility, type HomebrewRow, type StoredHomebrew,
@@ -54,6 +54,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const kind = isHomebrewKind(patch.kind) ? patch.kind : piece.kind;
   const system = patch.system !== undefined ? normalizeContentSystem(kind, patch.system) : piece.system;
   const merged = { ...(piece.payload as Record<string, unknown> ?? {}), ...body };
+  // THE SAME DEFECT AS THE POST PATH, and it hid the same way: `merged` above is assembled for VALIDATION
+  // from the body's top-level fields, but only `patch.payload` was ever persisted — so an edit validated
+  // the author's changes and then saved the payload untouched. Merged over the existing payload rather
+  // than replacing it, so a PATCH that carries one field does not wipe the rest.
+  const nextPayload = draftPayloadFrom(kind, body);
+  if (nextPayload) patch.payload = { ...(piece.payload as Record<string, unknown> ?? {}), ...nextPayload };
 
   const problems = [
     ...validateDraftFields(kind, merged),
