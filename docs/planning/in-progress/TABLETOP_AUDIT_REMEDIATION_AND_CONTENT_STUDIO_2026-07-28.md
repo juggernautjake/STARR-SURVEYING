@@ -552,8 +552,40 @@ should skip Phase 7 entirely.
       scales with route count. Real RLS policies remain the fuller answer and are **not** this slice;
       logged as **P2-6b**. Suite 1284 files / 18,462 tests green.
 
-- [ ] **P2-7 — Per-user storage quota.** *(F-6.)* No cap on total stored bytes; one account can fill the
+- [x] **P2-7 — Per-user storage quota.** *(F-6.)* No cap on total stored bytes; one account can fill the
       media bucket. A total-bytes check on upload with a clear message.
+
+      **Done 2026-07-28 — Phase 2 complete.** `seeds/459_dnd_storage_ledger.sql`, `lib/dnd/storage-quota.ts`
+      (pure) + `lib/dnd/storage-ledger.ts` (I/O), wired into all seven upload routes and all three delete
+      paths. 500 MB per account.
+
+      **A ledger, not a column.** Neither `dnd_media` nor `dnd_character_uploads` records a byte count, and
+      they are not the only writers — avatars, homebrew art and soundboard audio land elsewhere or are not
+      recorded at all. Summing what those tables happen to know would undercount by construction and drift
+      further with every new upload surface.
+
+      **THE RELEASE PATH IS THE POINT.** A quota that only counts upward looks perfectly healthy for months
+      and then locks every active account out permanently, all at once — a failure a reviewer never sees and
+      a user cannot work around. So `releaseStorage` is wired into every delete path, it sits **outside** the
+      try/catch around the storage removal (the row is gone and the user cannot reach the file, so
+      continuing to charge them is the worse error), and it gets more tests than the ceiling itself.
+
+      Three decisions that would each be a plausible bug the other way:
+      · **The incoming size is included** in the check. `used >= limit` alone lets every account overshoot
+        by one file — at a 25 MB per-file ceiling that is not a rounding error.
+      · **`object_path` is UNIQUE and the ledger upserts on it**, so a retried upload updates one row rather
+        than double-counting bytes that exist once. A duplicate would leak quota nothing could free, because
+        release deletes by path.
+      · **Fails OPEN**, consistent with `rate-limit.ts`. A broken cost control that blocks every upload is
+        worse than a brief window with no ceiling, and `recordStorage` never throws — the bytes are already
+        in the bucket by then, so failing would show an error for an upload that worked.
+
+      **A wiring mistake worth recording:** my first pass put the quota guard beside the rate-limit guard,
+      which runs *before* the multipart form is parsed — `file` was not in scope and it did not compile. The
+      check belongs beside the per-file size test, the first point the size exists, and a test now pins that
+      ordering. Typecheck caught it; no test would have.
+
+      Suite 1285 files / 18,488 tests green; lint clean.
 
 ---
 

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
+import { checkStorageQuota, recordStorage } from '@/lib/dnd/storage-ledger';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
@@ -35,6 +36,12 @@ export async function POST(req: NextRequest) {
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
     if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
+    // Total-bytes ceiling (P2-7). The per-file limit above caps how BIG one upload is; this caps how many.
+    // Checked with the incoming size included, so the refusal lands before the bytes are stored rather than
+    // one file after.
+    const overQuota = await checkStorageQuota(session.userId, file.size);
+    if (overQuota) return NextResponse.json({ error: overQuota }, { status: 413 });
+
     await ensureStorageBucket(BUCKET, { public: true });
 
     const key = `avatars/${session.userId}/${crypto.randomUUID()}.${ext}`;
@@ -43,6 +50,7 @@ export async function POST(req: NextRequest) {
       .from(BUCKET)
       .upload(key, bytes, { contentType: file.type, upsert: true });
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    await recordStorage({ userId: session.userId, bucket: BUCKET, objectPath: key, bytes: file.size, kind: 'avatar' });
 
     const { data: pub } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(key);
     const avatar_url = pub.publicUrl;

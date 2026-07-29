@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getCharacterAccess } from '@/lib/dnd/characters';
 import { getDndSession } from '@/lib/dnd/auth';
+import { releaseStorage, objectPathFromUrl } from '@/lib/dnd/storage-ledger';
 
 const BUCKET = 'dnd-media';
 const MAX_BYTES = UPLOAD_LIMITS.LARGE_FILE;
@@ -121,13 +122,17 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   await supabaseAdmin.from('dnd_character_uploads').delete().eq('id', uploadId);
   // Best-effort: strip the stored object too (derive the key after the bucket segment).
+  // Re-pointed at `objectPathFromUrl` (P2-7), which is the same derivation this hand-rolled — a DELETE
+  // handler holds the stored URL, not the storage key it was uploaded under, so recovering one from the
+  // other is the shared step every release path needs.
+  const objectPath = objectPathFromUrl((row as { url: string }).url, BUCKET);
   try {
-    const url = (row as { url: string }).url;
-    const marker = `/${BUCKET}/`;
-    const idx = url.indexOf(marker);
-    if (idx >= 0) await supabaseAdmin.storage.from(BUCKET).remove([url.slice(idx + marker.length)]);
+    if (objectPath) await supabaseAdmin.storage.from(BUCKET).remove([objectPath]);
   } catch {
     /* leave the orphaned object; the row is gone which is what matters */
   }
+  // Free the bytes even if the storage removal above failed: the row is gone and the user can no longer
+  // reach the file, so continuing to charge them for it would be the worse error.
+  await releaseStorage(objectPath ? [objectPath] : []);
   return NextResponse.json({ ok: true });
 }

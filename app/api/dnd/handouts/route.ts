@@ -2,6 +2,7 @@
 // reusable images/maps that persist across sessions and feed reveals (H1/H2) + the
 // DM hotbar (H4). POST uploads a handout (DM); GET lists the campaign's handouts.
 import { NextRequest, NextResponse } from 'next/server';
+import { checkStorageQuota, recordStorage } from '@/lib/dnd/storage-ledger';
 import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
@@ -37,10 +38,16 @@ export async function POST(req: NextRequest) {
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
     if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
+    // Total-bytes ceiling (P2-7): the per-file limit above caps how BIG one upload is; this caps how
+    // many. The incoming size is included, so the refusal lands before the bytes are stored.
+    const overQuota = await checkStorageQuota(session.userId, file.size);
+    if (overQuota) return NextResponse.json({ error: overQuota }, { status: 413 });
+
     await ensureStorageBucket(BUCKET, { public: true });
     const key = `handouts/${campaignId}/${crypto.randomUUID()}.${ext}`;
     const bytes = Buffer.from(await file.arrayBuffer());
     const { error: upErr } = await supabaseAdmin.storage.from(BUCKET).upload(key, bytes, { contentType: file.type, upsert: true });
+    await recordStorage({ userId: session.userId, bucket: BUCKET, objectPath: key, bytes: file.size });
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
     const url = supabaseAdmin.storage.from(BUCKET).getPublicUrl(key).data.publicUrl;
 

@@ -3,6 +3,7 @@
 //   ?campaignId=…   → the campaign's images (members only) — powers the campaign gallery
 // Newest first. Art/token uploads (D1/D2) already write dnd_media rows.
 import { NextRequest, NextResponse } from 'next/server';
+import { checkStorageQuota, recordStorage, releaseStorage } from '@/lib/dnd/storage-ledger';
 import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
@@ -88,12 +89,18 @@ export async function POST(req: NextRequest) {
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
     if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
+
+    // Total-bytes ceiling (P2-7): the per-file limit above caps how BIG one upload is; this caps how
+    // many. The incoming size is included, so the refusal lands before the bytes are stored.
+    const overQuota = await checkStorageQuota(session.userId, file.size);
+    if (overQuota) return NextResponse.json({ error: overQuota }, { status: 413 });
     const mediaKind = KINDS.has(kindRaw) ? kindRaw : 'art';
 
     await ensureStorageBucket(BUCKET, { public: true });
     const key = `campaign/${campaignId}/${crypto.randomUUID()}.${ext}`;
     const bytes = Buffer.from(await file.arrayBuffer());
     const { error: upErr } = await supabaseAdmin.storage.from(BUCKET).upload(key, bytes, { contentType: file.type, upsert: true });
+    await recordStorage({ userId: session.userId, bucket: BUCKET, objectPath: key, bytes: file.size });
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
     const url = supabaseAdmin.storage.from(BUCKET).getPublicUrl(key).data.publicUrl;
 
@@ -185,6 +192,8 @@ export async function DELETE(req: NextRequest) {
   // gone, and a storage hiccup shouldn't turn a successful delete into an error.
   const key = storageKeyFromUrl(media.url);
   if (key) await supabaseAdmin.storage.from(BUCKET).remove([key]).catch(() => {});
+  // Free the bytes (P2-7) — a quota that only counts upward locks everyone out eventually.
+  await releaseStorage(key ? [key] : []);
 
   return NextResponse.json({ ok: true });
 }
