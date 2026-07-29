@@ -3669,3 +3669,27 @@ everywhere else, and nothing in the type system or the test suite can see it.
 **Not started.** Two halves: every roll carrying its REASON (the feed already shows "Resist the Chat
 (DC 25)" for stream rolls, so the field exists on some paths and not others — audit which rolls reach the
 campaign feed and which are dropped), and a manual-entry control for rolls made with physical dice.
+
+**AUDIT DONE 2026-07-29 — two-thirds of the systems never reach the feed.**
+
+`publishRoll` (`lib/dnd/roll-publish.ts`) is the only writer to `dnd_roll_log`, and it is called from
+exactly one place: `app/dnd/_sheet/state/store.tsx` — the **5e store**. The bespoke PF2 and IG sheets call
+`commitRoll` (their own RO-5 feed, which drives the animated roller) and **never `publishRoll`**.
+
+So a Pathfinder 2e or Intuitive Games player rolls, watches it animate on their own sheet, and it never
+appears in the campaign's Recent Rolls. The DM sees a feed containing only the 5e players. That is the
+whole of *"make sure that all rolls and their reason is recorded"* — the reason field is fine, the
+**publishing** is what is missing.
+
+**The same architectural split found three times today**: the 5e path has something, the bespoke sheets
+were built alongside it and were never wired to it (`.btn` colours, the `.footer` hint, the 85
+`.dnd-sheet.skin-streamer` selectors, now the roll log).
+
+**The fix is small and deliberately NOT applied here** — it needs `characterId`, `campaignId` and the
+actor name threaded into the two panel hooks, and doing that blind at the end of a long session is how a
+roll ends up published against the wrong campaign. `publishRoll` already swallows every error and returns
+void, so the call site cannot break a roll.
+
+**Manual entry:** `RollFeed.tsx` posts to `/api/dnd/rolls` directly, and `roll-publish.ts`'s header calls
+that component "the manual dice box" — so an entry path exists, but there is no visible "manual"
+affordance in it today. Confirm whether it was removed or lives elsewhere before building a second one.
