@@ -3693,3 +3693,21 @@ void, so the call site cannot break a roll.
 **Manual entry:** `RollFeed.tsx` posts to `/api/dnd/rolls` directly, and `roll-publish.ts`'s header calls
 that component "the manual dice box" — so an entry path exists, but there is no visible "manual"
 affordance in it today. Confirm whether it was removed or lives elsewhere before building a second one.
+
+**CORRECTION to "the fix is small" (same day).** Looked at what it actually needs, and it is a threading
+job across four files, not a one-line call:
+
+1. **`campaignId` is REQUIRED** by `RollPublishBody` and is **not in scope** in either panel hook.
+   `usePf2Panels` takes `characterId` but no campaign; it would have to be threaded from the sheet, which
+   means `PF2Sheet`/`IGSheet` must receive it too. `publishRoll` returns null-and-does-nothing without it,
+   so a half-done version fails silently — the exact failure mode this whole audit exists to expose.
+2. **`commitRoll` is `noopCommit`** on the PF2 roller provider. The bespoke sheets never log a roll even
+   locally, so there is no existing commit path to hang publishing off — one has to be built, not extended.
+
+So the work is: thread `campaignId` into both sheets and both hooks, replace `noopCommit` with a real
+commit that records the entry, then call `publishRoll` from it. Each step is ordinary; doing them blind is
+what would put a roll on the wrong table.
+
+**Worth stating plainly:** my earlier note called this "small". It is not — I had checked that
+`publishRoll` swallows its own errors, which is true, and mistook that for the call site being trivial.
+The requirement that failed to register was `campaignId`, sitting in the interface the whole time.
