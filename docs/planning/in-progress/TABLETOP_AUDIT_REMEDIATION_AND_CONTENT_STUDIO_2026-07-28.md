@@ -240,9 +240,31 @@ should skip Phase 7 entirely.
 
       Suite 1276 files / 18,280 tests green; typecheck and lint clean.
 
-- [ ] **P1-4 — Gate the dev routes.** *(D-5.)* `/dnd/hextech-demo`, `/dnd/preview/edit-flow` (self-described
+- [x] **P1-4 — Gate the dev routes.** *(D-5.)* `/dnd/hextech-demo`, `/dnd/preview/edit-flow` (self-described
       DEV-ONLY), `/dnd/Lazzuh_Gun` and `/dnd/login` all ship to production unlisted and indexable. Gate the
       two harnesses behind `NEXT_PUBLIC_E2E_HARNESS`; add `noindex` metadata to all four.
+
+      **Done 2026-07-28 — but D-5 was mostly wrong, and the corrections are the valuable part.** Checked
+      against the source, three of the four named routes dissolved and so did the "indexable" claim:
+
+      · **`/dnd/hextech-demo` — the one real defect.** Its own header read *"Auth-gated with the rest of
+        /dnd (it's an internal style guide)"*, and that stopped being true on **2026-07-06**, when the owner
+        made /dnd public by direct link — `dndGate` returns `NextResponse.next()` for everything unless
+        `DND_REQUIRE_LOGIN=1`. An internal style guide, live to anyone with the URL, describing itself as
+        protected. The stale comment is precisely why nobody re-checked. Now gated + comment corrected.
+      · **`/dnd/preview/edit-flow` — already gated**, and more strictly than this slice proposed
+        (`NODE_ENV === 'production'` → `notFound()`). Re-pointed at the shared rule so the two harnesses
+        cannot drift, which also gives it the `NEXT_PUBLIC_E2E_HARNESS` escape for deployed screenshots.
+      · **`/dnd/login` — not a page.** A four-line `redirect('/dnd')` kept so old bookmarks resolve.
+      · **`/dnd/Lazzuh_Gun` — not a dev route.** The owner's personal sheet, deliberately public and
+        localStorage-backed, explicitly exempted in `middleware.ts`. **Gating it would have broken it**, so
+        there is now a test asserting it stays ungated — the opposite of what the slice asked for.
+      · **"indexable" was wrong for all four.** `app/dnd/layout.tsx` sets `robots: { index: false, follow:
+        false }` on the whole subtree, and the two pages that could matter re-declare it themselves.
+
+      `lib/dnd/dev-routes.ts` holds the rule once. This is the second time this audit has had a finding
+      largely evaporate under checking (after F-4), and the standing lesson holds: **a planning doc's claim
+      about the state of the code is a lead, never a finding.** Suite 1277 files / 18,291 tests green.
 
 - [ ] **P1-5 — Session scheduling, surfaced.** *(B-5.)* `dnd_sessions.scheduled_at` exists in the schema and
       is in the PATCH route's `WRITABLE` list. **Nothing sets it and nothing renders it.**

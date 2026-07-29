@@ -1,8 +1,17 @@
 // app/dnd/hextech-demo/page.tsx — living style guide for the Hextech DM design
 // system (E1, §6.19). Renders every primitive so DM pages can compose from them.
-// Auth-gated with the rest of /dnd (it's an internal style guide).
+//
+// CORRECTED 2026-07-28 (P1-4, audit D-5). This header used to say "Auth-gated with the rest of /dnd (it's
+// an internal style guide)". That stopped being true on 2026-07-06, when the owner made /dnd public by
+// direct link — `dndGate` returns `NextResponse.next()` for everything unless `DND_REQUIRE_LOGIN=1`. So an
+// internal style guide has been live to anyone with the URL while describing itself as protected, which is
+// the worst version of this: the comment is why nobody re-checked.
+//
+// Now gated by `devRouteVisible()`, the same rule `preview/edit-flow` uses.
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import styles from '../_ui/hextech.module.css';
+import { devRouteVisible } from '@/lib/dnd/dev-routes';
 
 export const metadata: Metadata = {
   title: 'Hextech Design System',
@@ -10,6 +19,7 @@ export const metadata: Metadata = {
 };
 
 export default function HextechDemoPage() {
+  if (!devRouteVisible()) notFound();
   return (
     <div className={styles.root}>
       <div className={styles.screen} style={{ alignItems: 'flex-start' }}>

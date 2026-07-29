@@ -1,6 +1,7 @@
 // app/dnd/preview/edit-flow/page.tsx — DEV-ONLY visual harness route for the unified edit/build UI.
 // Gated to non-production so it's never exposed live. Builds mock version cards and renders the components.
 import { notFound } from 'next/navigation';
+import { devRouteVisible } from '@/lib/dnd/dev-routes';
 import EditFlowPreview from '@/app/dnd/_ui/EditFlowPreview';
 import { buildVariantCards } from '@/lib/dnd/variant-view';
 import { availableSystems } from '@/lib/dnd/systems';
@@ -9,7 +10,10 @@ import type { ActiveSheet, SystemVariants } from '@/lib/dnd/system-variants';
 export const dynamic = 'force-dynamic';
 
 export default function EditFlowPreviewPage() {
-  if (process.env.NODE_ENV === 'production') notFound();
+  // Re-pointed at the shared rule (P1-4) — it was already gated, and correctly. Sharing it with
+  // `hextech-demo` means the two dev harnesses cannot drift, and it adds the `NEXT_PUBLIC_E2E_HARNESS`
+  // escape so a deployed preview can still be screenshotted.
+  if (!devRouteVisible()) notFound();
 
   const active: ActiveSheet = {
     system: 'dnd5e-2024', sheet_type: 'default', slotId: 'dnd5e-2024', kind: 'vanilla', artUrl: null,
