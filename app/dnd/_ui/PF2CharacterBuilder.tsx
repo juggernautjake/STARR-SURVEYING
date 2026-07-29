@@ -16,6 +16,7 @@ import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, P
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2LevelBreakdown } from '@/lib/dnd/systems/pathfinder2e/levelup';
+import { languageNamesFor, pf2BonusLanguageSlots } from '@/lib/dnd/languages';
 import { unlockOffer } from '@/lib/dnd/slots/entitlement';
 import type { SheetVariantKind } from '@/lib/dnd/system-variants';
 
@@ -50,6 +51,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   const [keyAttribute, setKeyAttribute] = useState<PF2AttributeKey>('STR');
   const [attributes, setAttributes] = useState<Record<PF2AttributeKey, number>>({ STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 });
   const [trainedSkills, setTrainedSkills] = useState<string[]>([]);
+  const [languages, setLanguages] = useState<string[]>([]);
   // Feats and spells at BUILD time (S16). The builder could not offer these at all, so a PF2
   // character could only gain them afterwards via the sheet or the AI.
   const [feats, setFeats] = useState<string[]>([]);
@@ -92,6 +94,24 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   const toggleSkill = (s: string) =>
     setTrainedSkills((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
 
+  // ── Languages (P5-6, audit C-9) ──────────────────────────────────────────────────────────────────
+  //
+  // `builder.ts` has ALWAYS accepted `picks.languages` and unioned them over the ancestry's own — line 289,
+  // `[...new Set([...(anc?.languages ?? ['Common']), ...(picks.languages ?? [])])]`. Nothing ever sent any.
+  // This repo's signature defect, one more time: working support with no door.
+  //
+  // What is sent is only the EXTRA picks. The ancestry's languages are the builder's job, not the form's —
+  // if the form posted them too they would silently become stale the moment the ancestry data changed.
+  const grantedLanguages = anc?.languages ?? [];
+  const bonusLanguageSlots = pf2BonusLanguageSlots(attributes.INT);
+  const languageChoices = languageNamesFor('pathfinder2e').filter((l) => !grantedLanguages.includes(l));
+  const toggleLanguage = (l: string) =>
+    setLanguages((prev) => prev.includes(l)
+      ? prev.filter((x) => x !== l)
+      // Over-budget picks are refused rather than silently trimmed later — the same "block, don't fix up"
+      // stance the feat picker takes, so the count on screen is always the count that will be built.
+      : (prev.length >= bonusLanguageSlots ? prev : [...prev, l]));
+
   async function post(url: string, payload: unknown, setSpin: (b: boolean) => void) {
     setSpin(true); setMsg(null);
     try {
@@ -104,7 +124,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
   }
 
   const build = () => post(`/api/dnd/characters/${characterId}/pf2-build`, {
-    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, armor, weapon, feats, spells },
+    picks: { name, level, ancestry, heritage, background, className, subclass, deity, keyAttribute, attributes, trainedSkills, languages, armor, weapon, feats, spells },
     exceptions,
   }, setBusy);
 
@@ -235,6 +255,36 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             </div>
           </>
         );
+        const languagesBlock = (
+          <>
+            <div style={label}>LANGUAGES <span style={{ fontWeight: 400, color: 'var(--hx-muted)' }}>
+              {ancestry
+                ? `(${grantedLanguages.join(', ') || 'none'} from ${ancestry}${bonusLanguageSlots ? `, + ${languages.length} of ${bonusLanguageSlots} from INT` : '; INT grants no extras'})`
+                : '(pick an ancestry first — it grants your starting languages)'}
+            </span></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {/* The ancestry's own languages, shown but not togglable — they are not a choice. */}
+              {grantedLanguages.map((l) => (
+                <span key={l} title={`Granted by ${ancestry}`} style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 12, border: '1px solid var(--hx-teal-1)', background: 'rgba(10,200,185,0.15)', color: 'var(--hx-teal-1)' }}>
+                  {l} ●
+                </span>
+              ))}
+              {languageChoices.map((l) => {
+                const active = languages.includes(l);
+                // Greyed rather than hidden when the budget is spent, so the limit is visible instead of the
+                // options just vanishing — the same reason the feat picker greys ineligible feats.
+                const full = !active && languages.length >= bonusLanguageSlots;
+                return (
+                  <button key={l} type="button" onClick={() => toggleLanguage(l)} disabled={full}
+                    title={full ? `Your Intelligence grants ${bonusLanguageSlots} extra language${bonusLanguageSlots === 1 ? '' : 's'}` : l}
+                    style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 12, cursor: full ? 'not-allowed' : 'pointer', opacity: full ? 0.4 : 1, border: `1px solid ${active ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`, background: active ? 'rgba(10,200,185,0.15)' : 'transparent', color: active ? 'var(--hx-teal-1)' : 'var(--hx-muted)' }}>
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
         // How many feat slots the class owes by this level (across all tracks), from the tested schedule —
         // gives the picker the "X of N owed by level L" budget context, like 5e's per-level slots.
         const featsOwed = className ? pf2LevelBreakdown(className, level).reduce((n, s) => n + s.featTracks.length, 0) : 0;
@@ -278,7 +328,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             { title: 'Identity', help: 'Name, level, and your ancestry / heritage / background — who your character is.', body: <div style={{ display: 'grid', gap: 10 }}>{nameLevelRow}{idRow}</div> },
             { title: 'Class & kit', help: 'Your class and subclass set your proficiencies and features; pick your key attribute, armor, and a weapon. Expand the progression to see what you gain each level.', body: <div style={{ display: 'grid', gap: 10 }}>{classRow}{classSummary}{progressionPreview}{combatKitRow}</div> },
             { title: 'Attribute boosts', help: 'PF2 tracks modifiers: everyone starts +0, then applies ancestry / background / class / free boosts (partial >+4).', body: <div style={{ display: 'grid', gap: 8 }}>{boostsBlock}</div> },
-            { title: 'Skills', help: 'Train your class’s skill count plus INT free picks; class-fixed skills are always trained.', body: <div style={{ display: 'grid', gap: 8 }}>{skillsBlock}</div> },
+            { title: 'Skills & languages', help: 'Train your class’s skill count plus INT free picks; class-fixed skills are always trained. Your ancestry grants its languages, and Intelligence adds one more per point.', body: <div style={{ display: 'grid', gap: 8 }}>{skillsBlock}{languagesBlock}</div> },
             { title: 'Feats, spells & finish', help: 'Pick feats (and spells, for casters) legal for your class/ancestry/level — ineligible ones are greyed with the reason — then build.', body: <div style={{ display: 'grid', gap: 10 }}>{featsBlock}{spellsBlock}{buildRow}</div> },
           ];
           const idx = Math.min(pstep, stepDefs.length - 1);
@@ -318,6 +368,7 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
             {combatKitRow}
             {boostsBlock}
             {skillsBlock}
+            {languagesBlock}
             {featsBlock}
             {spellsBlock}
             {buildRow}

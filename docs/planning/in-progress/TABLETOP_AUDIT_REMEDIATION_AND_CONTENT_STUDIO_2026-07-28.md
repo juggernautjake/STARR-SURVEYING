@@ -495,8 +495,34 @@ should skip Phase 7 entirely.
 
 - [ ] **P5-5 — 5e 2014 companions.** Find Familiar, the Ranger's beast, the Paladin's steed.
 
-- [ ] **P5-6 — Languages beyond 2024.** *(C-9.)* `lib/dnd/languages/` holds one file. PF2 already carries
+- [x] **P5-6 — Languages beyond 2024.** *(C-9.)* `lib/dnd/languages/` holds one file. PF2 already carries
       languages inside its ancestry stat lines — surfacing them is nearly free; 2014 and IG need a picker.
+
+      **Done 2026-07-28.** `lib/dnd/languages/index.ts` — `languageCatalogFor(system)` / `languageNamesFor`
+      / `pf2BonusLanguageSlots`. Three things worth recording:
+
+      · **PF2's catalogue is DERIVED, not authored.** It aggregates `PF2_ANCESTRIES_FULL[].languages`, which
+        is already verbatim Player Core data. Two tests lock the derivation in *both* directions — every
+        granted language is offered, and nothing is offered that no ancestry grants — so the list cannot be
+        hand-extended without a real source. Each entry names the ancestries it came from, so a wrong entry
+        is visible rather than merely wrong.
+      · **2014 gets NOTHING, deliberately, and the estimate above was wrong to imply otherwise.** The plan
+        said 2014 "needs a picker"; what it needs first is a *source*. Reusing the 2024 list would have been
+        the easy move and would have been wrong in four places — 2024 added Common Sign Language, made Orc
+        standard, and counts Druidic and Thieves' Cant as languages where 2014 treats them as class
+        features. Those four wrong entries would have looked completely plausible in a picker. So 2014 and
+        IG return `catalogued: false` with a note saying exactly why, same as `xp.ts` does for IG's missing
+        XP table. **P5-6b** if a 2014 list is ever sourced.
+      · **The actual C-9 defect was a missing door, not missing data.** `parsePF2Picks` has always parsed
+        `picks.languages` and `assemblePF2VanillaCharacter` has always unioned them over the ancestry's own
+        — the entire server path worked. `PF2CharacterBuilder`'s POST body just never included the field.
+        A unit test of the builder function would have passed throughout. This is the fourth time this
+        audit has found working code with no way to reach it, and it is why the tests here assert the
+        *wire* (the field is in `picks:`, the block renders in **both** layouts) rather than the logic.
+
+      The picker shows ancestry-granted languages as fixed chips and offers extras up to
+      `pf2BonusLanguageSlots(INT)`, greying the rest when the budget is spent rather than hiding them.
+      Suite 1273 files / 18,231 tests green; typecheck and lint clean.
 
 ### Class completeness — the owner's first priority
 
