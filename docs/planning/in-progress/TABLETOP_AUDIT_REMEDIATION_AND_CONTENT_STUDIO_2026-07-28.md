@@ -2178,8 +2178,45 @@ Every slice below serves that one rule.
       stylesheet's own comments, which quote `color: #000` and `header, footer {` while arguing *against*
       them. That is the fourth time this pass has written a test that matched a file's explanation of
       itself. The negative assertions now run against a comment-stripped copy.
-- [ ] **P10-4 — Discord webhook.** Rolls and session reminders out to where tables already are. Nearly free
-      once P3-1 lands.
+- [x] **P10-4 — Discord webhook: rolls.** *(Session reminders split to P10-4b.)* Rolls out to where tables
+      already are. Nearly free once P3-1 lands.
+
+      **Done 2026-07-29.** `seeds/461_dnd_discord_webhook.sql`, `lib/dnd/discord.ts`, a fire-and-forget
+      mirror in the rolls POST, and a DM-only control on the manage page.
+
+      **Most of the work is the URL guard, and that is proportionate.** A "webhook URL" field makes the
+      *server* issue a POST to an address a user typed in. Unvalidated, that is a request-forgery primitive
+      aimed at anything the server can reach — the cloud metadata endpoint, an internal route, a port scan.
+      The check is an **allowlist** of Discord's own hosts plus the webhook path shape, over https only,
+      because a blocklist of internal addresses has no end. Most of the test file is attempts to get past
+      it: `https://evil.com/discord.com/…`, `https://discord.com.evil.com/…`, `https://discord.com@evil.com/…`
+      — every one contains the string "discord.com", and the obvious substring implementation passes all
+      three. It is re-checked immediately before the request leaves, so a caller that skipped validation
+      cannot turn this into an arbitrary POST.
+
+      **The URL is a credential and is treated as one.** Its own column, not a `theme` key — `theme` is
+      selected wholesale by several routes, and a column can be left out of a select where a jsonb key
+      inside a selected blob cannot. Never returned in full: masked on the campaign GET and DM-only, masked
+      **server-side** before it reaches a client prop (a raw value passed to a client component lands in the
+      RSC payload and is readable in view-source), and **redacted from the campaign export** — which selects
+      `*`, so P9-2 would have written it into a file a DM downloads and might forward. That one was found
+      by wiring this, not by the export slice.
+
+      Same first rule as `roll-publish.ts`: **a roll must never fail because the network did.**
+      `sendToDiscord` returns `void`, not a promise, so there is nothing to await by accident; it fires
+      after the insert, so the shared log stays authoritative and Discord is a copy.
+
+      Two smaller things worth recording. The manage page reads the column in a **second query**: asking for
+      it alongside `visibility, allow_custom` meant that until seed 461 is applied PostgREST rejects the
+      whole statement and *two unrelated shipped controls* silently fall back to defaults. And the P10-2
+      ratchet — shipped one slice earlier — **caught this slice's own new file** on its first day, over a
+      `var(--hx-danger, #ff6b6b)` fallback. I removed the hex rather than raising the baseline, which is the
+      only response that keeps a ratchet meaningful.
+
+- [ ] **P10-4b — Discord session reminders.** *(Split from P10-4.)* Needs a cron entry and a schedule, not
+      just a webhook: `app/api/cron/` already has the pattern (Bearer `CRON_SECRET`, a `vercel.json`
+      schedule) and `dnd_sessions.scheduled_at` already exists, so this is a self-contained follow-on rather
+      than a blocked one. The webhook plumbing, validation and masking are all in place for it.
 - [ ] **P10-5 — Offline / PWA sheet.** Sheets are already client-rendered from one JSON blob, so the hardest
       part of offline is already true.
 - [ ] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the

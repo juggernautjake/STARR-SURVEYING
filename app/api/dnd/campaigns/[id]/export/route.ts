@@ -14,6 +14,7 @@ import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import {
   CAMPAIGN_EXPORT_TABLES, buildCampaignExport, campaignExportToJson, campaignExportFileBase,
 } from '@/lib/dnd/export/campaign-export';
+import { redactCampaignSecrets } from '@/lib/dnd/discord';
 
 export const runtime = 'nodejs';
 
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   const doc = buildCampaignExport({
-    campaign: campaign as Record<string, unknown>,
+    campaign: redactCampaignSecrets(campaign as Record<string, unknown>),
     tables,
     exportedAt: new Date().toISOString(),
   });

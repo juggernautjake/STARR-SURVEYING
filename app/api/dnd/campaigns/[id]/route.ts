@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { isDiscordWebhookUrl, maskWebhookUrl } from '@/lib/dnd/discord';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
 import { readCampaignPreferences, writeCampaignPreferencesToTheme } from '@/lib/dnd/campaign-preferences';
 import { rosterRoleOf } from '@/lib/dnd/roster';
@@ -92,7 +93,23 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       approval: approvalByChar.get(c.id) ?? null,
     })),
     sessions: sessions ?? [],
+    // MASKED, and DM-only (P10-4). The DM needs to know whether a webhook is configured and roughly which
+    // one; nobody needs the token, including them — they have it already, in Discord. A separate query so
+    // the column never joins the payload above by accident, and `maskWebhookUrl` so a screenshot of this
+    // page is not a credential leak.
+    discordWebhook: role === 'dm' ? maskWebhookUrl(await readWebhook(params.id)) : undefined,
   });
+}
+
+/** The raw webhook, read in exactly one place. Returns '' if the column does not exist yet (seed 461). */
+async function readWebhook(campaignId: string): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('dnd_campaigns').select('discord_webhook_url').eq('id', campaignId).maybeSingle();
+    return (data as { discord_webhook_url?: string | null } | null)?.discord_webhook_url ?? '';
+  } catch {
+    return '';
+  }
 }
 
 // PATCH — DM-only campaign edits (Phase P): name, blurb, and the campaign art banner
@@ -117,6 +134,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
   // Un-archiving is a PATCH, not a resurrection endpoint: `archived: false` restores.
   if ('archived' in body) patch.archived_at = body.archived ? new Date().toISOString() : null;
+
+  // The Discord webhook (P10-4). Its own column rather than a `theme` key, because `theme` is selected
+  // wholesale by several routes and this is a credential — anyone holding it can post to that channel as
+  // the campaign until it is rotated.
+  //
+  // Validated against Discord's own hosts as an ALLOWLIST, not merely parsed: this value becomes a URL the
+  // SERVER makes a POST to, so an unvalidated one is a request-forgery primitive pointed at anything the
+  // server can reach. An empty string clears it, which is how a DM turns the feature off.
+  if ('discordWebhookUrl' in body) {
+    const raw = typeof body.discordWebhookUrl === 'string' ? body.discordWebhookUrl.trim() : '';
+    if (!raw) {
+      patch.discord_webhook_url = null;
+    } else if (isDiscordWebhookUrl(raw)) {
+      patch.discord_webhook_url = raw;
+    } else {
+      return NextResponse.json(
+        { error: 'That is not a Discord webhook URL. It should look like https://discord.com/api/webhooks/…' },
+        { status: 400 },
+      );
+    }
+  }
 
   // Art banner, campaign notes, and the DM's campaign preferences (Area P2) all live in the `theme` jsonb.
   // `notes` is the player-visible campaign info; `dmNotes` is the DM's private prep (never sent to players);
@@ -144,7 +182,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .select('id, name, blurb, theme')
     .single();
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Update failed.' }, { status: 500 });
-  return NextResponse.json({ campaign: data, preferences: readCampaignPreferences((data as { theme?: unknown }).theme) });
+  return NextResponse.json({
+    campaign: data,
+    preferences: readCampaignPreferences((data as { theme?: unknown }).theme),
+    // Echoed MASKED so the control can confirm what it just saved without ever holding the token.
+    ...('discord_webhook_url' in patch ? { discordWebhook: maskWebhookUrl(patch.discord_webhook_url as string | null) } : {}),
+  });
 }
 
 /**

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { sendToDiscord, rollToDiscordMessage } from '@/lib/dnd/discord';
 
 export async function POST(req: NextRequest) {
   const session = getDndSession();
@@ -35,6 +36,27 @@ export async function POST(req: NextRequest) {
       .select('*')
       .single();
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not record roll.' }, { status: 500 });
+
+    // Mirror to Discord, if the DM configured a webhook (P10-4). AFTER the insert, so the shared log is
+    // authoritative and Discord is a copy — and fire-and-forget, so a roll never waits on, or fails
+    // because of, someone else's chat service. Same rule as `publishRoll`, for the same reason.
+    //
+    // The webhook column is read here and NOWHERE ELSE on a read path: it is a credential, and the only
+    // thing that should ever hold it is the code about to use it.
+    try {
+      const { data: camp } = await supabaseAdmin
+        .from('dnd_campaigns').select('discord_webhook_url').eq('id', campaignId).maybeSingle();
+      const hook = (camp as { discord_webhook_url?: string | null } | null)?.discord_webhook_url;
+      if (hook) {
+        sendToDiscord(hook, rollToDiscordMessage({
+          actorName, label: String(label), result: result == null ? null : Number(result),
+          breakdown: breakdown ? String(breakdown) : null, crit: !!crit, fumble: !!fumble,
+        }));
+      }
+    } catch {
+      /* the column may not exist until seed 461 is applied — a roll must not care */
+    }
+
     return NextResponse.json({ roll: data });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Post failed.' }, { status: 500 });
