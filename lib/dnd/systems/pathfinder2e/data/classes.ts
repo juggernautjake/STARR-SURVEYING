@@ -53,9 +53,25 @@ export interface PF2ProficiencyStep {
   rank: PF2Rank;
   /** The class feature granting it, as the class names it. */
   via: string;
-  /** Scope, when the bump does not apply to the whole track (e.g. one weapon group only). */
+  /** Free-text commentary. PURELY DOCUMENTATION — see `limitedTo` for the mechanical version. */
   note?: string;
+  /**
+   * Names the SUBSET this step advances, when it does not advance the whole track: the Fighter's chosen
+   * weapon group, the warpriest's deity's favored weapon. A step carrying this is not applied to the
+   * general proficiency, because doing so would over-count every weapon outside the subset.
+   *
+   * This used to be inferred from `note` being present, which quietly conflated documentation with
+   * mechanics: adding a purely explanatory note to a step would have suppressed a real, general rank bump
+   * and nothing would have failed. The Fighter's level-13 and level-19 steps were exactly that case — both
+   * genuinely raise simple, martial and unarmed attacks for everyone, and both were being skipped because
+   * their notes also mentioned the group-scoped half of the same feature.
+   */
+  limitedTo?: string;
 }
+
+/** PF2's four weapon proficiency categories, which advance at different rates for the Fighter. */
+export const PF2_WEAPON_CATEGORIES = ['unarmed', 'simple', 'martial', 'advanced'] as const;
+export type PF2WeaponCategory = (typeof PF2_WEAPON_CATEGORIES)[number];
 
 /** A proficiency from level 1 to 20. `increases` is ordered ascending and may be empty. */
 export interface PF2ProficiencyTrack {
@@ -163,6 +179,15 @@ export interface PF2ClassProgression {
   perception: PF2ProficiencyTrack;
   saves: { fortitude: PF2ProficiencyTrack; reflex: PF2ProficiencyTrack; will: PF2ProficiencyTrack };
   attacks: PF2ProficiencyTrack;
+  /**
+   * Per-category attack tracks, for the classes where `attacks` is not the whole story.
+   *
+   * Only the Fighter needs this: it is the one class whose ADVANCED weapon proficiency follows its own
+   * schedule (trained at 1, expert at 13, master at 19 — a rank behind everything else the whole way).
+   * Every other class either never trains advanced weapons or advances them with the rest, so `attacks`
+   * covers them and this is absent. A category with no entry here falls back to `attacks`.
+   */
+  attacksByCategory?: Partial<Record<PF2WeaponCategory, PF2ProficiencyTrack>>;
   /** Armor and unarmored defense. PF2 advances them together for almost every class. */
   defenses: PF2ProficiencyTrack;
   /** Optional because two classes here genuinely have no class DC (Magus, Summoner). */
@@ -590,10 +615,11 @@ export const PF2_CLASS_PROGRESSIONS: PF2ClassProgression[] = [
               { level: 7, rank: 'expert', via: 'Warpriest Doctrine' },
               {
                 level: 19, rank: 'master', via: 'Warpriest Doctrine',
-                // SCOPED, so the builder leaves it unapplied and a level-19 warpriest reads expert. That
+                // LIMITED, so the builder leaves it unapplied and a level-19 warpriest reads expert. That
                 // under-counts Strikes with the favored weapon and is exactly right for every other weapon
-                // they own. Same rule, and the same reason, as the Fighter's weapon-group steps.
-                note: 'Only with the deity’s favored weapon; martial, simple and unarmed attacks stay expert.',
+                // they own. Same rule, and the same reason, as the Fighter's weapon-group step.
+                limitedTo: 'the deity’s favored weapon',
+                note: 'Martial, simple and unarmed attacks stay expert.',
               },
             ],
             note: 'Martial weapons are added at level 3 — a widening, not a rank, so it is not a step here.',
@@ -708,11 +734,31 @@ export const PF2_CLASS_PROGRESSIONS: PF2ClassProgression[] = [
     attacks: {
       initial: 'expert',
       increases: [
-        { level: 5, rank: 'master', via: 'Fighter Weapon Mastery', note: 'One chosen weapon group only; advanced weapons in that group reach expert.' },
-        { level: 13, rank: 'master', via: 'Weapon Legend', note: 'Simple, martial and unarmed reach master and advanced reach expert; one chosen group goes legendary (advanced in it, master).' },
-        { level: 19, rank: 'legendary', via: 'Versatile Legend', note: 'Simple weapons, martial weapons and unarmed attacks; advanced weapons reach master.' },
+        {
+          level: 5, rank: 'master', via: 'Fighter Weapon Mastery',
+          limitedTo: 'one chosen weapon group',
+          note: 'Advanced weapons in that group reach expert.',
+        },
+        // NOT limited: Weapon Legend and Versatile Legend raise simple, martial and unarmed for everyone.
+        // Both were being skipped because their notes ALSO described the group-scoped half of the same
+        // feature, and the old rule read "has a note ⇒ scoped". A Fighter therefore stayed expert in
+        // attacks from level 1 to 20 — a two-rank, four-point under-count on every Strike past 19.
+        { level: 13, rank: 'master', via: 'Weapon Legend' },
+        { level: 19, rank: 'legendary', via: 'Versatile Legend' },
       ],
-      note: 'The only class that starts expert in attacks. Advanced weapons start trained, one rank behind the rest.',
+      note: 'Simple weapons, martial weapons and unarmed attacks. The only class that starts expert. Advanced weapons run a rank behind — see `attacksByCategory`. A chosen weapon group runs a rank AHEAD (master at 5, legendary at 13), which needs the group choice and is not modelled.',
+    },
+    attacksByCategory: {
+      // Advanced weapons: trained at 1, then Weapon Legend and Versatile Legend carry them up a rank
+      // behind everything else, exactly as the two features' own text says.
+      advanced: {
+        initial: 'trained',
+        increases: [
+          { level: 13, rank: 'expert', via: 'Weapon Legend' },
+          { level: 19, rank: 'master', via: 'Versatile Legend' },
+        ],
+        note: 'A Fighter is the only class that trains advanced weapons at level 1, and they stay one rank behind simple/martial/unarmed for all twenty levels.',
+      },
     },
     defenses: {
       initial: 'trained',
@@ -1805,6 +1851,18 @@ export function pf2EffectiveTracks(className: string, subclassName?: string): {
   };
 }
 
+/**
+ * The attack proficiency track for one weapon CATEGORY.
+ *
+ * Falls back to the class's general `attacks` track, which is the right answer for twenty of the
+ * twenty-one classes: they either never train advanced weapons or advance them alongside everything else.
+ * The Fighter is the exception, and its advanced track lives in `attacksByCategory`.
+ */
+export function pf2AttackTrackFor(className: string, category: PF2WeaponCategory): PF2ProficiencyTrack | undefined {
+  const prog = pf2ClassProgression(className);
+  return prog?.attacksByCategory?.[category] ?? prog?.attacks;
+}
+
 /** A player's Path-to-Perfection picks: the level a step was taken at, and the save it landed on. */
 export interface PF2ChosenSavePick {
   level: number;
@@ -1914,6 +1972,6 @@ export const PF2_CLASS_PROGRESSION_GAPS: string[] = [
   'Per-subclass feature text is summarised, not itemised: only the Cleric doctrines carry a level-by-level `progression`, because only they change the base tracks.',
   'Focus-point pools, spell-slot COUNTS per rank, and skill-increase schedules are not modelled here — only which spell ranks unlock when.',
   'Eidolon proficiency tracks (its own attacks and defenses) are described in notes but not modelled as tracks.',
-  'Builder attack-rank ceiling: the Fighter\'s attack steps at 5/13/19 carry per-step `note`s (level 5 raises ONE weapon group; 13/19 raise simple/martial/unarmed plus a group). The builder advances the attack proficiency through UNSCOPED steps only, so it cannot tell the group-scoped level-5 bump from the general 13/19 ones and leaves a Fighter\'s general attack rank at its level-1 EXPERT past 13. This UNDER-counts (safe, visible) rather than over-counting the group-only master. Modelling it correctly needs weapon-group tracking, which is not built.',
+  'Weapon GROUPS are not tracked. A Fighter chooses a weapon group at 5 (master, and expert with advanced weapons in it) and again at 13 (legendary, master with advanced in it), and a warpriest\'s level-19 master applies to their deity\'s favored weapon only. Every such step is marked `limitedTo` and left unapplied, so those weapons read one rank LOW — the safe direction, and visible on the sheet. Closing it needs a per-character weapon-group choice, which is a slot, not a data fix. Note this is now the ONLY Fighter attack gap: the general simple/martial/unarmed track (master at 13, legendary at 19) and the advanced track (expert at 13, master at 19) are both applied.',
   'Chosen-save picks are collected ONLY by the level walker (`/api/dnd/characters/[id]/pf2-levels`). The Foundations builder assembles a character at a level without walking to it, so a monk built directly at 15 has no Path-to-Perfection picks and reads expert in all three saves until the walker is used. `pf2RanksAtLevel` accepts the picks, so closing this is a builder-UI change, not a rules one.',
 ];

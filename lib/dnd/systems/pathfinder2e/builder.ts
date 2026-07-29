@@ -20,8 +20,11 @@ import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 // builder and any future cap cannot disagree about which casters have countable slots. That module carries
 // the reasoning; this file just honours the answer.
 import { pf2SlotTableModelled, pf2ReducedSlots } from './spell-counts';
-import { pf2AnyFeat, pf2AnySpell, pf2EffectiveTracks, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
-import { pf2ApplyChosenSaves, type PF2ChosenSavePick } from './data/classes';
+import { pf2AnyFeat, pf2AnySpell, pf2EffectiveTracks, pf2RankAtLevel, pf2WeaponFull, type PF2ProficiencyTrack } from './data';
+import {
+  pf2ApplyChosenSaves, pf2ClassProgression, PF2_WEAPON_CATEGORIES,
+  type PF2ChosenSavePick, type PF2WeaponCategory,
+} from './data/classes';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
@@ -79,6 +82,18 @@ const DAMAGE_TYPE: Record<'B' | 'P' | 'S', string> = { B: 'bludgeoning', P: 'pie
 
 /** Turn a weapon into a Strike: ranged weapons and finesse melee use DEX when it beats STR; melee adds
  *  STR to damage, ranged shows the die alone. The attack RANK is the character's class attack proficiency. */
+/**
+ * Resolve a weapon name against the FULL catalogue, then the starter seed.
+ *
+ * `pf2Weapon` reads content.ts's ~30-row seed, which contains no advanced weapons at all — so the one
+ * class that trains advanced weapons at level 1 could not equip one, and the advanced attack track it
+ * follows for twenty levels had nothing to apply to. The full table has been in `data/equipment.ts` the
+ * whole time; only the door was missing.
+ */
+function resolveWeapon(name: string): PF2WeaponDef | null {
+  return pf2WeaponFull(name) ?? pf2Weapon(name);
+}
+
 export function pf2WeaponStrike(w: PF2WeaponDef, attributes: Record<PF2AttributeKey, number>, rank: PF2Rank): PF2Attack {
   const ranged = w.range > 0;
   const finesse = w.traits.includes('finesse');
@@ -122,6 +137,9 @@ export function pf2ComputeAttributes(cls: PF2ClassDef | null, anc: PF2AncestryDe
 export interface PF2Ranks {
   perception: PF2Rank; fortitude: PF2Rank; reflex: PF2Rank; will: PF2Rank;
   defenses: PF2Rank; attacks: PF2Rank; classDc: PF2Rank; spell: PF2Rank;
+  /** Attack rank per weapon category. `attacks` is the simple/martial/unarmed one; a Fighter's ADVANCED
+   *  weapons run a rank behind it for all twenty levels, which is the only place these disagree today. */
+  attacksByCategory: Record<PF2WeaponCategory, PF2Rank>;
 }
 
 /**
@@ -157,18 +175,21 @@ export function pf2RanksAtLevel(
   const tracks = pf2EffectiveTracks(className || '', subclass);
   const rankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank =>
     track ? pf2RankAtLevel(track, level) : fallback;
-  // The ATTACK track is the one exception: a step carrying a per-step `note` advances only a SUBSET
-  // of weapons (the Fighter's level-5 Weapon Mastery raises one chosen weapon group to master, not
-  // every Strike; the warpriest's level-19 master is favored-weapon-only). Applying such a step to the
-  // whole attack proficiency would silently over-count Strikes with weapons outside that group. So
-  // attacks advance through UNSCOPED steps only; a noted step is left unapplied, which UNDER-counts (a
-  // Fighter stays expert past level 13) rather than over-counts. That is the safe direction here — a low
-  // number is visible on the sheet and fixable, a silently high one is neither. See
-  // PF2_CLASS_PROGRESSION_GAPS for the recorded Fighter general-attack gap this leaves open.
+  // The ATTACK track is the one exception: a step marked `limitedTo` advances only a SUBSET of weapons
+  // (the Fighter's level-5 Weapon Mastery raises one chosen weapon group; the warpriest's level-19 master
+  // is favored-weapon-only). Applying one to the whole attack proficiency would over-count Strikes with
+  // every weapon outside that subset, so a limited step is left unapplied — which UNDER-counts, the safe
+  // direction, since a low number is visible on the sheet and fixable and a silently high one is neither.
+  //
+  // The test was `!step.note` until P5-11, which conflated documentation with mechanics: any step carrying
+  // an explanatory note was treated as scoped. The Fighter's Weapon Legend (13) and Versatile Legend (19)
+  // are the case that mattered — both genuinely raise simple, martial and unarmed for everyone, and both
+  // were skipped because their notes also described the group-scoped half of the same feature. A Fighter
+  // was expert in attacks from level 1 to 20.
   const attacksRankAt = (track: PF2ProficiencyTrack | undefined, fallback: PF2Rank): PF2Rank => {
     if (!track) return fallback;
     let rank = track.initial;
-    for (const step of track.increases) if (!step.note && step.level <= level) rank = step.rank;
+    for (const step of track.increases) if (!step.limitedTo && step.level <= level) rank = step.rank;
     return rank;
   };
   // The Monk raises saves the player names, so its three tracks are empty and the picks are the only
@@ -179,13 +200,21 @@ export function pf2RanksAtLevel(
     reflex: rankAt(tracks.reflex, init?.reflex ?? 'trained'),
     will: rankAt(tracks.will, init?.will ?? 'trained'),
   }, savePicks);
+  const generalAttack = attacksRankAt(tracks.attacks, init?.attacks ?? 'trained');
   return {
     perception: rankAt(tracks.perception, init?.perception ?? 'trained'),
     fortitude: saves.fortitude,
     reflex: saves.reflex,
     will: saves.will,
     defenses: rankAt(tracks.defenses, init?.defense ?? 'trained'),
-    attacks: attacksRankAt(tracks.attacks, init?.attacks ?? 'trained'),
+    attacks: generalAttack,
+    // A subclass that replaces the attack track (a Cleric doctrine) replaces it for every category — none
+    // of them carries a per-category override — so the category tracks are read from the class, and only
+    // the categories the class actually distinguishes differ from the general rank.
+    attacksByCategory: Object.fromEntries(PF2_WEAPON_CATEGORIES.map((c) => {
+      const own = pf2ClassProgression(className || '')?.attacksByCategory?.[c];
+      return [c, own ? attacksRankAt(own, generalAttack) : generalAttack];
+    })) as Record<PF2WeaponCategory, PF2Rank>,
     classDc: rankAt(tracks.classDc, init?.classDc ?? 'trained'),
     // The spellcasting DC/attack proficiency has its own track (Expert Spellcaster at 7, Master at 15,
     // Legendary at 19 for full casters). Frozen at 'trained' before, so every caster's spell DC and
@@ -244,7 +273,11 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
   const {
     perception: perceptionRank, fortitude: fortRank, reflex: reflexRank, will: willRank,
     defenses: defenseRank, attacks: attacksRank, classDc: classDcRank, spell: spellRank,
+    attacksByCategory,
   } = pf2RanksAtLevel(picks.className || '', picks.subclass, level);
+  /** The rank for one weapon category, falling back to the general one for an unrecognised category. */
+  const attackRankFor = (category: string): PF2Rank =>
+    attacksByCategory[category as PF2WeaponCategory] ?? attacksRank;
 
   const con = attributes.CON;
   const armor = pf2Armor(picks.armor || 'Unarmored');
@@ -306,8 +339,13 @@ export function buildPF2Character(picks: PF2Picks, variants?: PF2RulesVariants):
       classDcRank, classDcAttribute: keyAttr,
     },
     attacks: [
-      ...(picks.weapon && pf2Weapon(picks.weapon) ? [pf2WeaponStrike(pf2Weapon(picks.weapon)!, attributes, attacksRank)] : []),
-      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: attacksRank, weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
+      // Each Strike takes the rank for ITS weapon's category. A level-13 Fighter is master with a
+      // longsword and expert with an elven curve blade, and a single `attackRank` could only ever tell one
+      // of those two truths — it told the martial one, so an advanced weapon read a full rank high.
+      ...(picks.weapon && resolveWeapon(picks.weapon)
+        ? [pf2WeaponStrike(resolveWeapon(picks.weapon)!, attributes, attackRankFor(resolveWeapon(picks.weapon)!.category))]
+        : []),
+      { id: 'unarmed', name: 'Fist', attribute: 'STR', rank: attackRankFor('unarmed'), weaponBonus: 0, damage: '1d4 bludgeoning', traits: ['agile', 'finesse', 'nonlethal', 'unarmed'] },
     ],
     spellcasting: cls?.spellcasting
       ? {

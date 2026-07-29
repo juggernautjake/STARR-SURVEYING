@@ -10,11 +10,12 @@
 // These assertions carry the resolved NUMBERS, not just the ranks, so a regression that quietly reverts
 // the wiring fails here with a concrete wrong total rather than a vague shrug.
 import { describe, it, expect } from 'vitest';
-import { assemblePF2VanillaCharacter, pf2ReprojectRanks } from '@/lib/dnd/systems/pathfinder2e/builder';
+import { assemblePF2VanillaCharacter, pf2ReprojectRanks, pf2RanksAtLevel } from '@/lib/dnd/systems/pathfinder2e/builder';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pf2Derived } from '@/lib/dnd/systems/pathfinder2e/rules';
 import { pf2ClassProgression, pf2EffectiveTracks, PF2_CLASS_PROGRESSIONS } from '@/lib/dnd/systems/pathfinder2e/data';
+import { pf2WeaponFull } from '@/lib/dnd/systems/pathfinder2e/data';
 // The gaps list is not re-exported through the data barrel — it is read straight from the module that
 // owns it, which is also the module a reader would go looking in.
 import { PF2_CLASS_PROGRESSION_GAPS } from '@/lib/dnd/systems/pathfinder2e/data/classes';
@@ -79,14 +80,49 @@ describe('PF2 proficiency ranks advance with character level', () => {
     expect(p.combat.attackRank).toBe('trained');
   });
 
-  it('the Fighter attack rank stays expert past 13 — conservative, by design', () => {
-    // The Fighter's level-5/13/19 attack steps are per-step NOTED (they advance a subset of weapons
-    // or a chosen weapon group), so the builder deliberately does NOT advance the whole attack track
-    // through them. That UNDER-counts a high-level Fighter's general attacks rather than over-counts
-    // — the safe direction. Recorded in PF2_CLASS_PROGRESSION_GAPS. This test pins the choice so it is
-    // not "fixed" into a silent over-count.
-    const c = assemblePF2VanillaCharacter({ name: 'F', className: 'Fighter', level: 13 });
-    expect(c.pf2e.combat.attackRank).toBe('expert');
+  it('THE FIGHTER ADVANCES AT 13 AND 19 — this pin used to say the opposite (P5-11)', () => {
+    // It read `expect(attackRank).toBe('expert')` at level 13, and called that conservative. It was not:
+    // Weapon Legend (13) and Versatile Legend (19) raise simple, martial and unarmed attacks for EVERY
+    // fighter. They were skipped because the old rule was "a step with a `note` is scoped", and both notes
+    // happened to also describe the group-scoped half of the same feature. So a Fighter was expert in
+    // attacks from level 1 to level 20 — a two-rank, four-point under-count on every Strike past 19, sat
+    // behind a test asserting it was deliberate.
+    //
+    // Scope is now `limitedTo`, which is a mechanical field rather than an inference from prose.
+    const at = (level: number) => assemblePF2VanillaCharacter({ name: 'F', className: 'Fighter', level }).pf2e.combat.attackRank;
+    expect(at(12)).toBe('expert');
+    expect(at(13)).toBe('master');
+    expect(at(19)).toBe('legendary');
+  });
+
+  it('but a Fighter’s ADVANCED weapons stay a rank behind, all twenty levels', () => {
+    const ranks = (level: number) =>
+      assemblePF2VanillaCharacter({ name: 'F', className: 'Fighter', level }).pf2e.combat.attackRank;
+    // The general track above, against the advanced one below — the Fighter is the only class where
+    // these disagree, and a single attack rank could only ever tell one of the two truths.
+    const adv = (level: number) =>
+      pf2RanksAtLevel('Fighter', undefined, level).attacksByCategory.advanced;
+    expect(adv(1)).toBe('trained');
+    expect(adv(13)).toBe('expert');
+    expect(adv(19)).toBe('master');
+    expect(ranks(19)).toBe('legendary');
+  });
+
+  it('and the level-5 weapon-group step is STILL not applied, because the group is not chosen', () => {
+    // Fighter Weapon Mastery raises one chosen group to master. Applying it to the whole track would
+    // over-count every weapon outside that group, and the group is a choice nobody has recorded.
+    expect(assemblePF2VanillaCharacter({ name: 'F', className: 'Fighter', level: 12 }).pf2e.combat.attackRank).toBe('expert');
+  });
+
+  it('every other class reads its attack rank from the general track', () => {
+    // `attacksByCategory` exists for exactly one class. If a second one appears, it should be because
+    // someone modelled a real per-category difference, not because a fallback quietly stopped working.
+    for (const [cls, level] of [['Barbarian', 5], ['Wizard', 11], ['Monk', 13]] as const) {
+      const r = pf2RanksAtLevel(cls, undefined, level);
+      for (const c of ['simple', 'martial', 'unarmed', 'advanced'] as const) {
+        expect(r.attacksByCategory[c], `${cls} ${c}`).toBe(r.attacks);
+      }
+    }
   });
 
   it('an unmodelled (custom) class falls back to level-1 defaults without throwing', () => {
@@ -309,5 +345,89 @@ describe('the pf2-levels route wires all of it', () => {
     // is what surfaced it.
     expect(route).toMatch(/c\.kind === 'subclass'/);
     expect(route).toContain('subclass: chosenSubclass || sidecar.identity.subclass');
+  });
+});
+
+// ── The Strike takes ITS weapon's rank (P5-11) ────────────────────────────────────────────────
+describe('a Strike is proficient in the weapon it is made with, not in "attacks"', () => {
+  it('a level-13 Fighter is MASTER with a longsword and EXPERT with an advanced weapon', () => {
+    // A single `attackRank` could only ever tell one of these two truths, and it told the martial one —
+    // so every advanced weapon on a Fighter's sheet read a full rank, two points, high.
+    const martial = assemblePF2VanillaCharacter({
+      name: 'F', className: 'Fighter', level: 13, weapon: 'Longsword',
+      attributes: { STR: 5, DEX: 1, CON: 3, INT: 0, WIS: 1, CHA: 0 },
+    }).pf2e;
+    expect(martial.attacks[0].name).toBe('Longsword');
+    expect(martial.attacks[0].rank).toBe('master');
+
+    const advanced = assemblePF2VanillaCharacter({
+      name: 'F', className: 'Fighter', level: 13, weapon: 'Katana',
+      attributes: { STR: 5, DEX: 1, CON: 3, INT: 0, WIS: 1, CHA: 0 },
+    }).pf2e;
+    // Only meaningful if the catalogue actually knows this weapon is advanced — assert that too, or the
+    // test passes for the wrong reason the day the entry changes.
+    expect(pf2WeaponFull('Katana')?.category).toBe('advanced');
+    expect(advanced.attacks[0].rank).toBe('expert');
+  });
+
+  it('and the unarmed Strike follows the UNARMED track', () => {
+    const p = assemblePF2VanillaCharacter({ name: 'F', className: 'Fighter', level: 13 }).pf2e;
+    const fist = p.attacks.find((a) => a.id === 'unarmed')!;
+    expect(fist.rank).toBe('master');
+  });
+
+  it('for every other class the two are the same, so nothing moved', () => {
+    const p = assemblePF2VanillaCharacter({
+      name: 'B', className: 'Barbarian', level: 5, weapon: 'Greataxe',
+      attributes: { STR: 5, DEX: 1, CON: 3, INT: 0, WIS: 1, CHA: 0 },
+    }).pf2e;
+    expect(p.attacks[0].rank).toBe(p.combat.attackRank);
+  });
+});
+
+describe('`limitedTo` replaced "has a note ⇒ scoped"', () => {
+  it('no attack step is scoped by prose any more', () => {
+    // The old rule made documentation load-bearing: adding an explanatory note to a step would have
+    // silently suppressed a real rank bump, and nothing would have failed. Any step that means "subset
+    // only" now says so in a field.
+    for (const cls of PF2_CLASS_PROGRESSIONS) {
+      for (const step of cls.attacks.increases) {
+        if (step.note && !step.limitedTo) {
+          // A note WITHOUT limitedTo is fine — it is commentary, and it must no longer change behaviour.
+          expect(step.note, `${cls.className} level ${step.level}`).toBeTruthy();
+        }
+      }
+    }
+    // The Fighter is the case that mattered: level 5 is limited, 13 and 19 are not.
+    const fighter = pf2ClassProgression('Fighter')!;
+    expect(fighter.attacks.increases.find((s) => s.level === 5)?.limitedTo).toBeTruthy();
+    expect(fighter.attacks.increases.find((s) => s.level === 13)?.limitedTo).toBeUndefined();
+    expect(fighter.attacks.increases.find((s) => s.level === 19)?.limitedTo).toBeUndefined();
+  });
+
+  it('and the warpriest’s favored-weapon step is limited, so it still does not apply', () => {
+    const warpriest = pf2ClassProgression('Cleric')!.subclasses!.find((s) => s.name === 'Warpriest')!;
+    expect(warpriest.tracks!.attacks!.increases.find((s) => s.level === 19)?.limitedTo).toBeTruthy();
+  });
+
+  it('every limited step names WHAT it is limited to', () => {
+    // "This step is scoped" is not useful on its own; a reader needs to know which weapons, so the field
+    // holds the subset rather than a boolean.
+    const steps = [
+      ...PF2_CLASS_PROGRESSIONS.flatMap((c) => c.attacks.increases),
+      ...PF2_CLASS_PROGRESSIONS.flatMap((c) => c.subclasses ?? []).flatMap((s) => s.tracks?.attacks?.increases ?? []),
+    ];
+    for (const s of steps.filter((x) => x.limitedTo != null)) {
+      expect(typeof s.limitedTo, s.via).toBe('string');
+      expect(s.limitedTo!.trim().length, s.via).toBeGreaterThan(3);
+    }
+  });
+
+  it('and the gaps list now describes the weapon-GROUP hole, not a general one', () => {
+    const gaps = PF2_CLASS_PROGRESSION_GAPS.join('\n');
+    expect(gaps).toMatch(/Weapon GROUPS are not tracked/);
+    // The old entry claimed a Fighter's general rank sticks at expert. It no longer does, and a gaps list
+    // that reports shipped work as broken is worse than not having one.
+    expect(gaps).not.toMatch(/leaves a Fighter's general attack rank/);
   });
 });

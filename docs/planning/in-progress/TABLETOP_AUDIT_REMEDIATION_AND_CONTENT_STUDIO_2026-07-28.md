@@ -1263,9 +1263,38 @@ So "get all the classes built" is **mostly already true**. What is actually left
       picks. Foundations assembles a character *at* a level without walking to it, so a monk built directly
       at 15 has no picks and reads expert in all three. `pf2RanksAtLevel` already accepts them — closing it
       is a builder-UI change, not a rules one.
-- [ ] **P5-11 — PF2 Fighter weapon-group attack ranks.** The builder advances attack proficiency through
+- [x] **P5-11 — PF2 Fighter weapon-group attack ranks.** The builder advances attack proficiency through
       unscoped steps only, so a Fighter's general attack rank stays EXPERT past 13. It **under**-counts,
       which is the safe direction, and the gaps list says so. Needs weapon-group tracking.
+
+      **Done 2026-07-29.** And the premise above was wrong, which is the finding.
+
+      **The Fighter's level-13 and level-19 steps were never group-scoped.** Weapon Legend and Versatile
+      Legend raise simple, martial and unarmed attacks for *every* fighter. They were being skipped because
+      the rule was **"a step carrying a `note` is scoped"** — and both notes happened to also describe the
+      group-scoped half of the same feature. So a Fighter was expert in attacks from level 1 to level 20: a
+      two-rank, four-point under-count on every Strike past 19, sitting behind a **test that asserted it was
+      deliberate**. That test is rewritten; it now pins the correct ranks and says why it changed.
+
+      Scope is now `limitedTo` — a field naming the subset, not an inference from prose. The old rule made
+      documentation load-bearing: adding an explanatory note to any step would have silently suppressed a
+      real rank bump and nothing would have failed.
+
+      **Advanced weapons got their own track.** A Fighter is the only class that trains them at level 1 and
+      they stay exactly one rank behind for all twenty levels — so a single `attackRank` could only ever
+      tell one of the two truths, and it told the martial one. Each Strike now takes the rank for *its*
+      weapon's category.
+
+      **Which exposed that you could not equip one.** The builder resolved weapon names against content.ts's
+      ~30-row starter seed, which contains **no advanced weapons at all** — so the class that trains them
+      could not pick one, and the track they follow had nothing to apply to. The full table has been in
+      `data/equipment.ts` the whole time; only the door was missing. The picker now offers it, grouped by
+      proficiency category, which is not cosmetic — the group *is* the thing that decides your attack rank.
+
+      **Still open, and now the only Fighter attack gap:** weapon GROUPS. A Fighter picks a group at 5
+      (master) and again at 13 (legendary); a warpriest's level-19 master is favored-weapon-only. Every such
+      step is marked `limitedTo` and left unapplied, so those weapons read one rank low — the safe
+      direction. Closing it needs a per-character weapon-group choice, which is a slot, not a data fix.
 - [ ] **P5-12 — The 2024 Artificer.** *(Blocked on data.)* Published after the 2024 PHB; the repo has the
       2014 one. Needs the owner to supply the revised text, exactly as the Pugilist was.
 

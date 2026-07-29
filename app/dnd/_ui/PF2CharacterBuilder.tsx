@@ -12,7 +12,8 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import PF2BuildPicks from './PF2BuildPicks';
 import { pf2SpellCountsFor } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
-import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS, PF2_WEAPONS } from '@/lib/dnd/systems/pathfinder2e/content';
+import { PF2_ANCESTRIES, PF2_CLASSES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS } from '@/lib/dnd/systems/pathfinder2e/content';
+import { PF2_WEAPONS_FULL } from '@/lib/dnd/systems/pathfinder2e/data';
 import Pf2BoostAllocator from './Pf2BoostAllocator';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2LevelBreakdown } from '@/lib/dnd/systems/pathfinder2e/levelup';
@@ -228,7 +229,24 @@ export default function PF2CharacterBuilder({ characterId, initialName, aiConfig
               <span style={label}>WEAPON</span>
               <select value={weapon} onChange={(e) => setWeapon(e.target.value)} style={{ ...input, minWidth: 160 }} title="Adds a Strike (alongside your Fist)">
                 <option value="">No weapon (Fist only)</option>
-                {PF2_WEAPONS.map((w) => <option key={w.name} value={w.name}>{w.name} ({w.damageDie} {w.damageType}{w.range ? `, ${w.range}ft` : ''})</option>)}
+                {/* The FULL catalogue, grouped by proficiency category. This offered the ~30-row seed
+                    list, which contains no advanced weapons at all — so a Fighter, the one class that
+                    trains advanced weapons at level 1, could not equip one, and the advanced attack track
+                    they follow for twenty levels had nothing to apply to. Grouping by category is not
+                    cosmetic either: it is the thing that decides your attack rank. */}
+                {(['simple', 'martial', 'advanced', 'unarmed'] as const).map((cat) => {
+                  const rows = PF2_WEAPONS_FULL.filter((w) => w.category === cat);
+                  if (!rows.length) return null;
+                  return (
+                    <optgroup key={cat} label={cat.charAt(0).toUpperCase() + cat.slice(1)}>
+                      {rows.map((w) => (
+                        <option key={w.name} value={w.name}>
+                          {w.name} ({w.damageDie} {w.damageType}{w.range ? `, ${w.range}ft` : ''})
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
             </span>
           </div>
