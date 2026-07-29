@@ -272,6 +272,14 @@ export const TARGET_GROUP_LABELS: Record<TargetGroup, string> = {
   meta: 'Special',
 };
 
+/** The groups in PICKER ORDER — abilities first, oddities last.
+ *
+ *  Derived from `TARGET_GROUP_LABELS` rather than written out again, so the order and the labels cannot
+ *  drift and a new group cannot appear in one without appearing in the other. Exported because a menu that
+ *  hard-codes its own group list is precisely the "hand-written menu" this file's header warns about:
+ *  someone adds a group, forgets the picker, and every target in it is unreachable forever. */
+export const TARGET_GROUPS = Object.keys(TARGET_GROUP_LABELS) as TargetGroup[];
+
 /** Is this operation legal on this target? The builder offers only legal ops; this enforces it. */
 export function isOperationAllowed(targetKey: string, op: EffectOperation): boolean {
   const t = BY_KEY.get(targetKey);

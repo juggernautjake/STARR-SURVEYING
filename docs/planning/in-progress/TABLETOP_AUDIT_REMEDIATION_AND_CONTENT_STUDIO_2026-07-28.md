@@ -455,13 +455,27 @@ of homebrew.
       The client never predicts a gate — it asks and shows the server's message verbatim, because each of
       the three refusals needs a different action from the player.
 
-- [ ] **P6-9 — Per-system engine bridges.** *This is the "fully integrate with the system engines" half, and
-      it is one slice per system.* `adopt.ts` speaks 5e shapes. PF2 and IG need converters into their own
-      edit vocabularies (`pf2-edit` / `ig-edit`) so a homebrew item's +1 actually moves a PF2 AC and an IG
-      power lands in the powers panel. Each bridge declares what it can and cannot carry, and
-      `kindIsMechanicalIn` is updated to match — the registry must never claim support a bridge does not have.
-      - [ ] **P6-9a — Pathfinder 2e bridge.** (Depends on P5-1 for anything item-shaped.)
-      - [ ] **P6-9b — Intuitive Games bridge.**
+- [x] **P6-9 — The effects editor. Shipped 2026-07-28.** *(The per-system bridges are split out below.)*
+      The `effects` field now has a real editor, so homebrew stops being prose and starts changing numbers
+      on a 5e sheet — `adoptHomebrew` already converts a validated payload into an `ActiveEffect` the ledger
+      resolves. **Generated entirely from `lib/dnd/effects/targets.ts`**, which its own header calls "a
+      contract, not a list" precisely so a hand-written menu can never leave a capability unreachable; a
+      test asserts no target key is hard-coded here and that every group is reachable from the picker.
+      Changing a target **resets the operation** to one the new target allows, or switching from an ability
+      (add/set/set_base) to a roll (add/advantage/disadvantage) would leave an illegal pair that only fails
+      at save. The engine's own `validateEffect` runs live in the form, so what the form accepts and what a
+      sheet will apply cannot disagree. Added `TARGET_GROUPS` to the registry, derived from the labels.
+      **Every field type any kind declares now has an editor** — `OWED_BY` is empty, and a test asserts the
+      set of declared types is covered rather than trusting the list. The placeholder branch is *kept*, so
+      the next field type someone adds lands there instead of silently rendering nothing.
+      Flipped the P6-12 pin that said "effects is the only placeholder left".
+
+- [ ] **P6-9a — Pathfinder 2e engine bridge.** `adopt.ts` speaks 5e shapes; a homebrew item's +1 does not
+      move a PF2 AC. Needs a converter into the `pf2-edit` vocabulary, and `kindIsMechanicalIn` updated to
+      match what it can actually carry — the registry must never claim support a bridge does not have.
+      Depends on P5-1 for anything item-shaped.
+- [ ] **P6-9b — Intuitive Games engine bridge.** The same, into `ig-edit`, so a homebrew power lands in the
+      powers panel rather than as text.
 
 - [x] **P6-10 — Library + grounding surfacing. Shipped 2026-07-28.** Published content now appears in its
       system's library page, in library search, and in the AI librarian's grounding.

@@ -10,12 +10,11 @@
 // the only way eighteen kinds × four systems stays maintainable, and the single design decision the
 // Studio rests on.
 //
-// HONEST ABOUT WHAT IT CANNOT YET DO. `image`, `list`, `statblock` and `levels` all have real editors now;
-// **`effects` is the last one owed** (P6-9, where it lands with the per-system engine bridges). It renders a
-// labelled placeholder naming that slice rather than a text box that *looks* like it captures mechanics and
-// silently drops them — a form that appears to accept input it discards is worse than one that admits the
-// gap, since the author only finds out after saving. `OWED_BY` is the list; keep it accurate, and delete an
-// entry the moment its editor ships. A placeholder that outlives its fix is its own kind of lie.
+// EVERY declared field type now has a real editor (P6-9 shipped the last one, `effects`). The placeholder
+// branch and its `OWED_BY` list are kept rather than deleted, so the next field type someone adds to the
+// registry lands there automatically: a form that appears to accept input it discards is worse than one
+// that admits the gap, because the author only finds out after saving. Keep `OWED_BY` accurate, and delete
+// an entry the moment its editor ships — a placeholder that outlives its fix is its own kind of lie.
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
@@ -27,16 +26,36 @@ import type { HomebrewKind } from '@/lib/dnd/homebrew/model';
 import {
   normalizeStatblock, abilityModifier, formatModifier, STATBLOCK_ABILITIES, ABILITY_LABELS,
 } from '@/lib/dnd/homebrew/statblock';
+import {
+  findTarget, targetsInGroup, validateEffect, TARGET_GROUPS, TARGET_GROUP_LABELS,
+} from '@/lib/dnd/effects/targets';
 
-/** Field types with a real editor today. Everything else is declared, shown, and marked as owed. */
+/** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
+ *  placeholder branch below is now unreachable. It is kept, not deleted: the next field type someone adds
+ *  to the registry lands here automatically, and admitting a gap is better than rendering a box that
+ *  silently discards what is typed into it. */
 const IMPLEMENTED = new Set([
   'text', 'textarea', 'number', 'select', 'tags', 'abilities', 'skills', 'dice', 'image', 'list',
-  'statblock', 'levels',
+  'statblock', 'levels', 'effects',
 ]);
 
-/** Which slice builds each of the remaining editors — named so the placeholder is a pointer, not an apology. */
-const OWED_BY: Record<string, string> = {
-  effects: 'P6-9',
+/** Which slice builds each remaining editor. Empty — every declared field type has one. */
+const OWED_BY: Record<string, string> = {};
+
+/** Human labels for the engine's operations. The keys are `EffectOperation`; a missing one falls back to
+ *  the raw value rather than being hidden, so a new operation is visibly unlabelled instead of invisible. */
+const OPERATION_LABELS: Record<string, string> = {
+  add: 'adds', set: 'sets to', set_base: 'sets base to',
+  advantage: 'gives advantage', disadvantage: 'gives disadvantage',
+  grant_proficiency: 'grants proficiency', resistance: 'grants resistance',
+  immunity: 'grants immunity', vulnerability: 'causes vulnerability',
+  condition_advantage: 'advantage against',
+};
+
+/** What to type, per the registry's `valueType`. */
+const VALUE_PLACEHOLDER: Record<string, string> = {
+  number: '2', dice: '2d6+3', text: 'a note', damage_type: 'fire',
+  proficiency: 'longswords', sense: 'darkvision 60', ref: 'the id of a feature or spell',
 };
 
 /** What a level grants that the engine treats as a CHOICE rather than a fixed feature. Mirrors
@@ -229,6 +248,79 @@ export default function ContentBuilder({
             placeholder={f.placeholder ?? 'comma, separated'}
             onChange={(e) => set(f.key, e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
         )}
+        {f.type === 'effects' && (() => {
+          // Generated from `lib/dnd/effects/targets.ts`, which its own header calls "a contract, not a
+          // list" — the picker, the AI tool schema, the ledger's resolver and the star tooltips are all
+          // built from it. Hand-writing a menu here is exactly what that file exists to prevent: someone
+          // adds a target to the engine, forgets this dropdown, and the capability is unreachable forever.
+          const rows = (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+          return (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {rows.map((rowV, i) => {
+                const target = findTarget(String(rowV.target ?? ''));
+                const ops = target?.ops ?? [];
+                return (
+                  <div key={i} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.3)', padding: '10px 11px', borderRadius: 3, display: 'grid', gap: 7 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <select className={styles.input} style={{ flex: '2 1 190px', padding: '5px 8px', fontSize: 12.5 }}
+                        value={String(rowV.target ?? '')}
+                        onChange={(e) => {
+                          // Changing the target can invalidate the operation, so reset it to the first one
+                          // the NEW target actually allows rather than leaving an illegal pair the
+                          // validator would refuse on save.
+                          const next = findTarget(e.target.value);
+                          set(f.key, rows.map((r, x) => (x === i ? { ...r, target: e.target.value, operation: next?.ops[0] ?? 'add' } : r)));
+                        }}>
+                        <option value="">Pick what it changes…</option>
+                        {TARGET_GROUPS.map((g) => (
+                          <optgroup key={g} label={TARGET_GROUP_LABELS[g]}>
+                            {targetsInGroup(g).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <select className={styles.input} style={{ flex: '1 1 120px', padding: '5px 8px', fontSize: 12.5 }}
+                        value={String(rowV.operation ?? '')} disabled={!target}
+                        onChange={(e) => set(f.key, replaceAt(rows, i, 'operation', e.target.value))}>
+                        {ops.map((o) => <option key={o} value={o}>{OPERATION_LABELS[o] ?? o}</option>)}
+                      </select>
+                      <button type="button" title="Remove this effect" style={{ ...rowBtn, color: '#ff6b6b' }}
+                        onClick={() => set(f.key, rows.filter((_, x) => x !== i))}>✕</button>
+                    </div>
+
+                    {/* A `flag` target IS the whole effect — offering it a value box would invite one that
+                        is then ignored. Everything else takes the value type the registry declares. */}
+                    {target && target.valueType !== 'flag' && (
+                      <input className={styles.input} style={{ width: '100%', padding: '5px 8px', fontSize: 12.5 }}
+                        type={target.valueType === 'number' ? 'number' : 'text'}
+                        placeholder={VALUE_PLACEHOLDER[target.valueType] ?? ''}
+                        value={String(rowV.value ?? '')}
+                        onChange={(e) => set(f.key, replaceAt(rows, i, 'value', target.valueType === 'number' ? Number(e.target.value) : e.target.value))} />
+                    )}
+
+                    {target && <span style={help}>{target.help} · shows on the sheet at <strong>{target.rendersAt}</strong></span>}
+                    {/* The engine's own verdict, live. The same validator the adopt converters run, so what
+                        the form accepts and what a sheet will apply cannot disagree. */}
+                    {target && validateEffect(rowV as { target?: unknown; operation?: unknown; value?: unknown }) && (
+                      <span style={{ ...help, color: 'var(--hx-danger, #ff6b6b)' }}>
+                        {validateEffect(rowV as { target?: unknown; operation?: unknown; value?: unknown })?.reason}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              <button type="button" className={styles.hexBtn} style={{ padding: '6px 14px', fontSize: 12.5, justifySelf: 'start' }}
+                onClick={() => set(f.key, [...rows, { target: '', operation: 'add', value: 0 }])}>
+                ＋ Add an effect
+              </button>
+              {!rows.length && (
+                <span style={help}>
+                  Leave this empty for prose-only content — plenty of good homebrew is rules text a table
+                  applies by hand.
+                </span>
+              )}
+            </div>
+          );
+        })()}
         {f.type === 'levels' && (() => {
           const rows = (Array.isArray(v) ? (v as Record<string, unknown>[]) : [])
             .slice()

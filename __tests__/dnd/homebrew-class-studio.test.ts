@@ -107,10 +107,13 @@ describe('the levels editor is built and no longer owed', () => {
     expect(builder).toMatch(/IMPLEMENTED[\s\S]{0,260}'levels'/);
   });
 
-  it('and effects is the ONLY placeholder left', () => {
+  it('and NO placeholder is left — this assertion has now flipped twice', () => {
+    // Written at P6-12 as "effects is the ONLY placeholder left", which was true for one slice. P6-9 built
+    // the effects editor and emptied the list entirely, turning it red. That is what these are for.
+    // The stronger, drift-proof version of this claim lives in `homebrew-effects-editor.test.ts`: every
+    // field type any kind DECLARES must have an editor. This one just keeps the list honest.
     const owed = builder.slice(builder.indexOf('const OWED_BY'), builder.indexOf('const OWED_BY') + 160);
-    expect(owed).toContain('effects:');
-    for (const gone of ['levels:', 'statblock:', 'list:', 'image:']) {
+    for (const gone of ['effects:', 'levels:', 'statblock:', 'list:', 'image:']) {
       expect(owed, `${gone} should have been removed when its editor shipped`).not.toContain(gone);
     }
   });
