@@ -574,6 +574,13 @@ export default function ContentBuilder({
                 <div key={k} style={{ display: 'grid', gap: 3 }}>
                   <span style={{ ...help, color: 'var(--hx-gold-2)' }}>{lbl}</span>
                   <input
+                    // The visible label above is a <span>, not a <label>, so it is never ASSOCIATED with
+                    // this input: a screen reader announced the whole statblock grid as "edit text,
+                    // blank" — AC, HP, hit dice, speed, all of it. Measured on the creature builder: 15
+                    // of 29 inputs had no id, no name, no aria-label and no wrapping label.
+                    // A placeholder is not a substitute; it disappears the moment you type and is not a
+                    // reliable accessible name.
+                    aria-label={lbl}
                     className={styles.input} type={kind === 'number' ? 'number' : 'text'}
                     style={{ width: '100%', padding: '6px 8px', fontSize: 12.5 }}
                     value={String((sb()[k] as unknown) ?? '')}
@@ -588,6 +595,9 @@ export default function ContentBuilder({
                 <div key={a} style={{ display: 'grid', gap: 3 }}>
                   <span style={{ ...help, color: 'var(--hx-gold-2)', textAlign: 'center' }}>{ABILITY_LABELS[a]}</span>
                   <input
+                    // Same reason as the statblock grid above: the STR/DEX/CON headings are spans, so
+                    // without this a screen reader reads six identical unlabelled number fields.
+                    aria-label={`${ABILITY_LABELS[a]} score`}
                     className={styles.input} type="number" min={1} max={99}
                     style={{ width: '100%', padding: '6px 4px', fontSize: 12.5, textAlign: 'center' }}
                     value={String(sb().abilities?.[a] ?? '')}
@@ -609,6 +619,7 @@ export default function ContentBuilder({
                 <div key={k} style={{ display: 'grid', gap: 3 }}>
                   <span style={{ ...help, color: 'var(--hx-gold-2)' }}>{lbl}</span>
                   <input className={styles.input} style={{ width: '100%', padding: '6px 8px', fontSize: 12.5 }}
+                    aria-label={lbl}
                     value={String(sb()[k] ?? '')} placeholder={ph}
                     onChange={(e) => setSb(k, e.target.value)} />
                 </div>

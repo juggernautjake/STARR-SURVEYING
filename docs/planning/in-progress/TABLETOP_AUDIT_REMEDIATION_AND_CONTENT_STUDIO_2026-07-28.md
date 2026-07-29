@@ -3542,3 +3542,20 @@ save before it reaches the API, and says why. `dnd_homebrew` stayed at 0 rows.
 its repeating action rows, then saving. The two halves now proven are "the API persists a full payload"
 and "the form validates and refuses an incomplete one"; the join between them is the remaining gap, and
 the statblock sub-editor is the part of the builder with the most moving pieces.
+
+### The statblock editor was unusable with a screen reader (2026-07-29)
+
+Found while trying to drive the builder form: **15 of 29 inputs on the creature builder had no `id`, no
+`name`, no `aria-label` and no wrapping `<label>`**. AC, HP, hit dice, speed, the six ability scores, saves
+and skills — a screen reader announces every one of them as "edit text, blank".
+
+The cause is a pattern, not a typo: each field renders its visible label as a **`<span>`**, which is never
+ASSOCIATED with the input beside it. It looks correct on screen and is invisible to assistive tech.
+
+**A placeholder is not a substitute.** It disappears the moment you type, and is not a reliable accessible
+name — which matters most here, because the placeholders were only just added (owner request, same day)
+and could easily be mistaken for having solved this.
+
+`aria-label` added to the statblock grid, the ability scores (`"STR score"`, not a bare `"STR"`) and the
+saves/skills row. **Re-measured: 15 unlabelled → 3**, and those three are the file picker and two fields
+outside the statblock editor, left for a pass that can verify them properly rather than guessed at now.
