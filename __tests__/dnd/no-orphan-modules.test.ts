@@ -33,8 +33,15 @@ const EXEMPT: Record<string, string> = {
   // there is nothing to import into. Exempted rather than deferred because the RULES are the reviewable
   // part and they are complete and tested; settling them before an importer bakes them in is the right
   // order.
-  'lib/dnd/bestiary/derive.ts':
-    'P13-6/9/10. The single entry point the P13-3 importer calls; it does not exist yet because seed 462 is unapplied. Remove when P13-3 lands.',
+  // `derive.ts`'s exemption lasted one slice too: P13-3's transform imports it, and the guard failed with
+  // "now imported and should be removed from EXEMPT". Third honoured expiry in this file's history.
+  //
+  // EXPIRES WHEN SEED 462 IS APPLIED. `import.ts` is the PURE half of P13-3 — one raw SRD entry to one
+  // `dnd_creatures` row — split from the writer deliberately, because the transform is testable today and
+  // the INSERT needs a table that does not exist. Its caller is the writer loop, which is the one thing
+  // here that genuinely cannot be built or verified yet.
+  'lib/dnd/bestiary/import.ts':
+    'P13-3 (pure half). Consumed by the import writer, which needs dnd_creatures — seed 462 is unapplied. Remove when the writer lands.',
   // `lib/dnd/homebrew/kinds.ts` was exempted here on 2026-07-28 with an expiry note naming the slice that
   // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
   // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got

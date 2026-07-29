@@ -3273,7 +3273,24 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 
 ### The catalogue
 
-- [ ] **P13-3 — SRD 5.1 import (2014).** ~320 creatures, CC-BY-4.0, attribution recorded per row.
+- [~] **P13-3 — SRD 5.1 import (2014).** ~320 creatures, CC-BY-4.0, attribution recorded per row.
+
+      **Transform half done 2026-07-29 — . The WRITER half is blocked on seed
+      462 being applied.** Split deliberately: one raw SRD entry → one  row is pure and
+      testable today, while the INSERT needs a table that does not exist. Building both together would
+      have produced a file nothing could exercise.
+
+      **Shape-tolerant on purpose.** The 5.1 SRD is published as JSON by several projects and they
+      disagree —  vs , a number vs ,  vs .
+      Every field reads through a list of candidate paths, so the importer is not bound to one publisher.
+      A missing field stays **undefined, never 0**: a defaulted AC prints a number nobody wrote, on a page
+      a DM reads mid-combat. An entry with no name is refused outright rather than imported as Unnamed,
+      which would put a row in the bestiary nobody can search for or fix.
+
+      It calls , so tags, variant-eligibility and the weak/elite statblocks all arrive
+      from one call — an importer cannot apply two of the three. That also **cleared 's orphan
+      exemption**, the third honoured expiry in that guard's history;  now holds one in its
+      place, expiring when the writer lands.
 - [ ] **P13-4 — SRD 5.2 import (2024).** ~340, the 2024 statblock shape.
 - [ ] **P13-5 — Pathfinder 2e import.** Monster Core via Archives of Nethys, ORC-licensed.
 - [x] **P13-6 — Taxonomy + tags.** The brief's own categories — bosses, woodland, massive, demons/abyssal,
