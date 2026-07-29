@@ -18,12 +18,15 @@ import AiNotesBox from './AiNotesBox'
 import RecapPanel from './RecapPanel'
 import Soundboard from './Soundboard'
 import PartyAudio from './PartyAudio'
+import { toLocalInputValue, fromLocalInputValue } from '@/lib/dnd/session-schedule'
 
 export interface SessionInfo {
   id: string
   title: string
   status: 'prep' | 'live' | 'done' | string
   dm_notes?: string | null
+  /** UTC instant. Stored since the schema was written; nothing set or rendered it until P1-5. */
+  scheduled_at?: string | null
   role?: string
 }
 
@@ -105,6 +108,21 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
       body: JSON.stringify({ dm_notes }),
     }).catch(() => {})
     setSession((s) => (s ? { ...s, dm_notes } : s))
+  }
+
+  // Scheduling (P1-5, audit B-5). The column and the PATCH route's WRITABLE list were both ready; this is
+  // the first thing that ever sent a value. Local wall clock in, UTC out — see `session-schedule.ts`.
+  async function saveSchedule(localValue: string) {
+    const scheduled_at = fromLocalInputValue(localValue)
+    setSession((s) => (s ? { ...s, scheduled_at } : s))
+    await fetch(`/api/dnd/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduled_at }),
+    }).catch(() => {})
+    // The campaign hub reads the same column for its "Next session" banner, so it has to re-fetch or the
+    // two surfaces disagree until a hard reload.
+    router.refresh()
   }
 
   async function setStatus(status: 'prep' | 'live' | 'done') {
@@ -202,6 +220,22 @@ export default function SessionConsole({ campaignId, sessionId, selfId, initialS
                 )}
                 {session.status === 'done' && (
                   <button className={styles.hexBtn} disabled={busy} onClick={() => setStatus('prep')}>Reopen</button>
+                )}
+                {/* When the session is (P1-5). DM-only, because scheduling is a DM's call — everyone else
+                    reads it on the campaign hub's "Next session" banner. Saves on change rather than behind
+                    a Save button: it is one field, and a half-set date nobody committed is worse than an
+                    immediate one. Clearing the field unschedules, which `fromLocalInputValue` maps to null. */}
+                {session.role === 'dm' && (
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--hx-muted)' }}>
+                    Scheduled
+                    <input
+                      type="datetime-local"
+                      value={toLocalInputValue(session.scheduled_at)}
+                      onChange={(e) => saveSchedule(e.target.value)}
+                      disabled={busy}
+                      style={{ padding: '5px 7px', fontSize: 12, background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 4 }}
+                    />
+                  </label>
                 )}
                 {session.role === 'dm' && (
                   <>

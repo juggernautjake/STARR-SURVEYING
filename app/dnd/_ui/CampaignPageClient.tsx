@@ -10,6 +10,7 @@ import InvitesPanel from './InvitesPanel'
 import Chat from './Chat'
 import Soundboard from './Soundboard'
 import CampaignArtControl from './CampaignArtControl'
+import { nextSession, formatSessionTime, relativeSessionTime } from '@/lib/dnd/session-schedule'
 import CampaignGalleryDm from './CampaignGalleryDm'
 import CampaignNotesDm from './CampaignNotesDm'
 import CampaignMapsDm from './CampaignMapsDm'
@@ -26,7 +27,9 @@ export interface CampaignDetail {
     ownerUserId?: string | null; ownerName?: string | null; playedByUserId?: string | null; playedByName?: string | null;
     approval?: import('@/lib/dnd/campaign-approval').CampaignApproval | null; // DM approval into this campaign
   }[]
-  sessions: { id: string; title: string; status: string; sort_order: number }[]
+  // `scheduled_at` was already being SELECTed by the campaign GET and passed through untouched — only this
+  // type omitted it, so it was invisible to every consumer here (P1-5).
+  sessions: { id: string; title: string; status: string; sort_order: number; scheduled_at?: string | null }[]
   /** Normalized campaign DM preferences (Area P) — returned by the campaign GET. */
   preferences?: import('@/lib/dnd/preferences').CampaignPreferences
 }
@@ -515,6 +518,28 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                     <button className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} onClick={createSession}>+ Add Session</button>
                   </div>
                 )}
+                {/* "Next session" (P1-5, audit B-5) — for EVERY member, not just the DM. Only the DM can set
+                    a time, but knowing when to show up is the one scheduling fact a player needs, and until
+                    now the column that held it was rendered nowhere at all. Absent when nothing upcoming is
+                    scheduled, rather than nominating an arbitrary session. */}
+                {(() => {
+                  const next = nextSession(data.sessions)
+                  if (!next) return null
+                  return (
+                    <button
+                      onClick={() => router.push(`/dnd/campaigns/${campaignId}/sessions/${next.id}`)}
+                      style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', width: '100%', marginBottom: 8, padding: '9px 12px', background: 'rgba(var(--hx-teal-1-rgb),0.08)', border: '1px solid var(--hx-teal-1)', color: 'var(--hx-text)', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-teal-1)' }}>
+                        {next.status === 'live' ? 'Live now' : 'Next session'}
+                      </span>
+                      <strong style={{ fontSize: 13 }}>{next.title}</strong>
+                      <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
+                        {formatSessionTime(next.scheduled_at)} · {relativeSessionTime(next.scheduled_at)}
+                      </span>
+                    </button>
+                  )
+                })()}
                 {data.sessions.length === 0 ? (
                   <p style={{ color: 'var(--hx-muted)' }}>No sessions yet.</p>
                 ) : (
@@ -525,7 +550,14 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                         onClick={() => router.push(`/dnd/campaigns/${campaignId}/sessions/${s.id}`)}
                         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'rgba(1,10,19,0.4)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', cursor: 'pointer', textAlign: 'left' }}
                       >
-                        <span>{s.title}</span>
+                        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span>{s.title}</span>
+                          {/* Rendered per row too, so the list answers "when is the one after next?" without
+                              opening each session. Silent when unscheduled. */}
+                          {s.scheduled_at && (
+                            <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>{formatSessionTime(s.scheduled_at)}</span>
+                          )}
+                        </span>
                         <span style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: STATUS_COLOR[s.status] ?? 'var(--hx-muted)' }}>{s.status}</span>
                       </button>
                     ))}

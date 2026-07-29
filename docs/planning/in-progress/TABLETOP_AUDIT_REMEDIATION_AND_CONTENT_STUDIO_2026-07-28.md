@@ -266,10 +266,30 @@ should skip Phase 7 entirely.
       largely evaporate under checking (after F-4), and the standing lesson holds: **a planning doc's claim
       about the state of the code is a lead, never a finding.** Suite 1277 files / 18,291 tests green.
 
-- [ ] **P1-5 — Session scheduling, surfaced.** *(B-5.)* `dnd_sessions.scheduled_at` exists in the schema and
+- [x] **P1-5 — Session scheduling, surfaced.** *(B-5.)* `dnd_sessions.scheduled_at` exists in the schema and
       is in the PATCH route's `WRITABLE` list. **Nothing sets it and nothing renders it.**
       **Design:** a datetime field on session create/edit; a "Next session" banner on the campaign hub for all
       members; store UTC, render in the viewer's locale. RSVP is out of scope (P3-5).
+
+      **Done 2026-07-28**, and B-5 was accurate — a welcome change after D-5. The column was even further
+      along than the entry says: the campaign GET already `SELECT`ed it and passed it through untouched.
+      **The client type simply omitted it**, so it was invisible to every consumer on that page. Adding one
+      optional field to an interface is what made the data appear. Fourth "ready and unreachable" find in
+      this audit, after the currency fields, `FEATS_2014_STATUS`, and the PF2 builder's `picks.languages`.
+
+      `lib/dnd/session-schedule.ts` holds the logic, pure, because the timezone half is what fails quietly:
+      · `toLocalInputValue` deliberately does NOT use `toISOString().slice(0,16)` — that renders the UTC
+        wall clock into a control that means local time, so a 19:00 session shows as 18:00 for half the year
+        in London and nobody notices until someone arrives an hour early. Tested as a round-trip so it holds
+        in whatever zone CI runs in, plus one explicit wall-clock assertion.
+      · An empty field maps to `null`, which is what lets a DM UNSCHEDULE rather than being stuck with
+        whatever they first picked.
+      · `nextSession` excludes `done` (a session finished early is not what the party is doing next) but
+        keeps a `live` session whose start time has passed — that is the one happening right now, and hiding
+        it is exactly when the banner matters most.
+
+      The control is DM-only; the banner is for **every** member, since knowing when to show up is the one
+      scheduling fact a player needs. Suite 1278 files / 18,311 tests green; typecheck and lint clean.
 
 - [ ] **P1-6 — One upload-limit module.** *(F-6.)* Six different ceilings (5/8/12/15/20/25 MB) hard-coded
       across eight routes. One constants module; keep the per-route values, stop duplicating them.
