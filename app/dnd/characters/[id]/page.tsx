@@ -200,7 +200,7 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
       // sheet's authoring hint can never disagree with the gate that actually decides (IG-S2).
       igSheet = (
         <IGSheet
-          ig={igData} elements={summary.elements} canEdit={canWrite} characterId={character.id}
+          ig={igData} elements={summary.elements} canEdit={canWrite} characterId={character.id} campaignId={character.campaign_id}
           isDM={isDM}
           variantKind={readActiveSlotMeta((character as { system_variants?: unknown }).system_variants).kind ?? 'vanilla'}
           sheetType={character.sheet_type}

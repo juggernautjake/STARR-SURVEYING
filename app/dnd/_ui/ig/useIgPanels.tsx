@@ -15,8 +15,9 @@
 // (never the 5e store). This is a pure EXTRACTION — the rendered DOM and every interaction are byte-for-byte
 // what the monolith produced; the Classic shell (IGSheet) just calls this and places the pieces in order.
 import { useMemo, useState, useRef, useCallback, useReducer, type ReactNode } from 'react';
+import { publishRoll } from '@/lib/dnd/roll-publish';
 import { useRouter } from 'next/navigation';
-import type { ActiveRoll } from '@/app/dnd/_sheet/state/store';
+import type { ActiveRoll, RollEntry } from '@/app/dnd/_sheet/state/store';
 import { RollFeedProvider } from '@/app/dnd/_sheet/components/rollers/rollFeed';
 import { buildD20ActiveRoll, buildDamageActiveRoll } from '@/app/dnd/_sheet/components/rollers/rollFeedBuild';
 import { rollerStageFor } from '@/app/dnd/_sheet/components/rollers/rollerFor';
@@ -142,6 +143,8 @@ export interface UseIgPanelsArgs {
   elements: Tagged[];
   canEdit?: boolean;
   characterId?: string;
+  /** The table this character sits at, so its rolls reach the campaign feed. */
+  campaignId?: string | null;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
@@ -173,7 +176,7 @@ export interface IgPanelSet {
   overlays: ReactNode;
 }
 
-export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences: _preferences }: UseIgPanelsArgs): IgPanelSet {
+export function useIgPanels({ ig, elements, canEdit, characterId, campaignId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences: _preferences }: UseIgPanelsArgs): IgPanelSet {
   const derived = useMemo(() => igDerived(ig), [ig]);
   const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
@@ -193,7 +196,13 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   // the same Dice Core / Sigil Stack / Roll Board / Impact stages (with animations + sounds) render it.
   const [activeRoll, setActiveRoll] = useState<ActiveRoll | null>(null);
   const rollTokenRef = useRef(0);
-  const noopCommit = useCallback(() => {}, []); // IG keeps its own toast; the stage's log-on-land is a no-op here
+  // PUBLISH TO THE CAMPAIGN FEED when a roll lands. IG keeps its own toast, which is why this was a
+  // no-op — but the toast is local to the sheet, so an Intuitive Games roll never reached the table's
+  // Recent Rolls. Same gap as PF2 had; the 5e store has published all along.
+  const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
+    if (!campaignId) return;
+    publishRoll(entry as never, { characterId, campaignId, actorName: ig.identity?.name });
+  }, [campaignId, characterId, ig.identity?.name]);
   // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
   const [targetDc, setTargetDc] = useState('');
   // Quick in-play HP adjust (Area SQ4) — the apply_damage/heal ig-edit ops exist for the AI; this wires a manual
@@ -1262,7 +1271,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll: noopCommit, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={pickRoller} />
         {rollerStageFor(rollerId)}

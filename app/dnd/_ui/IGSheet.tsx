@@ -66,8 +66,10 @@ const IGS_STYLES = `
 }
 `;
 
-export default function IGSheet({ ig, elements, canEdit, characterId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
+export default function IGSheet({ ig, elements, canEdit, characterId, campaignId, isDM, variantKind = 'vanilla', sheetType, layout, artUrl, name, skinVariant, rollerTemplate, rollerAnim, customSections, preferences }: {
   ig: IGCharacter; elements: Tagged[]; canEdit?: boolean; characterId?: string;
+  /** The table this character sits at — carried so its rolls reach the campaign feed, like PF2 and 5e. */
+  campaignId?: string | null;
   isDM?: boolean;
   /** Vanilla characters are held to their class; custom ones are flagged, not blocked. Defaults to
    *  vanilla — the safe direction, matching the server. */
@@ -99,7 +101,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // TEMPLATE read reactively (CM-1): the SheetChrome chip pings this cache, so a template pick re-renders
   // into the new shell instantly — no reload. Falls back to the saved `layout` prop (then 'classic').
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
+  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, campaignId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   const byId = new Map(panels.map((p) => [p.id, p]));
   const render = (id: string) => byId.get(id)?.render() ?? null;
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`
