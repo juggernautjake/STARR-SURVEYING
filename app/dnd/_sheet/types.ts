@@ -375,6 +375,10 @@ export interface Character {
      *  describe the single class exactly as before, so every existing character is unchanged. `level` above
      *  stays the character TOTAL level. */
     classes?: import('@/lib/dnd/classes/types').ClassLevel[]
+    /** Experience points (P3-4). Optional, so every stored character is unchanged and a table that levels
+     *  by milestone simply never sets it. `level` above stays authoritative for what the sheet IS — XP
+     *  says what it has EARNED, and `xpProgress` reports the two disagreeing rather than picking one. */
+    xp?: number
     chips: { text: string; tone?: 'pink' | 'teal' | 'gold' }[]
     /** Descriptive identity fields (Slice 11) — optional, shown in the Bio "Details" line and
      *  overlayable by an identity effect (a potion that changes your recorded profession). */

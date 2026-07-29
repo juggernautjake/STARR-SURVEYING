@@ -286,13 +286,32 @@ should skip Phase 7 entirely.
 - [ ] **P3-3 — Roll statistics.** Falls out of P3-1 for almost nothing: per-player nat-20s, average d20,
       luckiest session. High delight per line.
 
-- [ ] **P3-4 — Experience points.** *(B-4.)* No XP anywhere — no field, no award, no milestone tool, no
-      trigger telling a player it is time to level. Levels are typed by hand.
-      **Design:** `meta.xp` on the character plus a per-system threshold table (5e's is in the SRD; PF2 uses
-      a flat 1000/level; IG has its own; `ambiguous` gets milestone-only). One DM control — "Award XP" /
-      "Level the party" — which drops a notification with a deep link into that character's level walker.
-      Milestone mode is a campaign preference, so tables that do not use XP never see it.
-      **Done when:** awarding XP to a party of mixed systems levels each correctly, or prompts them to.
+- [x] **P3-4 — Experience points. Shipped 2026-07-28** *(the per-character half; the DM award tool is
+      P3-4b).* `lib/dnd/xp.ts`, `meta.xp` (optional — no migration), a narrow merge path on the character
+      PATCH, and an Experience section on the sheet.
+      **The finding was not "no XP field" — it was that nothing ever told a player it was time to level.**
+      Levelling is the moment the builders exist for, and the level walker had no route in from a sheet
+      other than knowing it was there. So the panel is two things, and the second is the part that was
+      missing: a number you can set, and a **link that appears only when the XP has genuinely outrun the
+      sheet**. Never a permanent "level up!" button, which would train people to ignore it.
+      **Ground Rule 3 did real work here.** A threshold table is easy to write from memory and subtly
+      wrong, and a wrong one silently levels a whole campaign at the wrong time. 5e's is the SRD table,
+      tested at **every one of its twenty boundaries** rather than spot-checked — a transposed row is
+      exactly what a hand-typed table gets wrong — and shared by both editions from one array so two copies
+      cannot drift. PF2 is a flat 1000/level. **Intuitive Games has no sourced table, so it is milestone and
+      says so**, rather than borrowing 5e's numbers; its cap is IG's own 10, not 20.
+      **Milestone is a first-class answer, not a degraded one.** Plenty of tables never touch XP, so those
+      get one explanatory line and no bar rather than an empty gauge implying someone forgot to fill it in.
+      And `levelForXp` **refuses to derive a level** on a milestone system: that XP is not a level, and
+      inferring one from a number nobody agreed on is worse than ignoring it.
+      When the sheet's level and the XP disagree — a milestone table, or a character built above their XP —
+      the label **says so** instead of silently preferring either. The player is the one who knows which.
+      The PATCH path merges **one field** into the existing `meta`: rebuilding `data` from a partial body is
+      how a sheet loses everything it did not mention.
+
+- [ ] **P3-4b — The DM's award tool.** "Award XP to the party" / "Level the party" across a mixed-system
+      table, plus a notification with a deep link into each character's level walker. The per-character
+      model and display are done; this is the DM-facing half.
 
 - [ ] **P3-5 — Session RSVP + reminders.** Builds on P1-5: members mark yes/no/maybe; the hub shows the
       count. (A Discord webhook is P10-4.)

@@ -3,6 +3,7 @@
 // `data` (+ a whitelist of top-level fields) — owner or DM only.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { normalizeXp } from '@/lib/dnd/xp';
 import { getCharacterAccess, campaignsForCharacter } from '@/lib/dnd/characters';
 import { isSelectableSheetStyle } from '@/lib/dnd/sheet-styles';
 import { isRosterRole } from '@/lib/dnd/roster';
@@ -38,6 +39,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   for (const key of WRITABLE) {
     if (key in body) patch[key] = body[key];
   }
+
+  // XP (P3-4). It lives in `data.meta.xp`, not in a column, so it cannot ride the `WRITABLE` allowlist —
+  // which is itself the reason to handle it narrowly here rather than widening that list to "anything in
+  // `data`". This merges ONE field into the existing `meta` and touches nothing else: rebuilding `data`
+  // from a partial body is how a sheet loses everything it did not mention.
+  if ('xp' in body) {
+    const { data: cur } = await supabaseAdmin.from('dnd_characters').select('data').eq('id', params.id).maybeSingle();
+    const data = ((cur as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
+    const meta = (data.meta && typeof data.meta === 'object' ? data.meta : {}) as Record<string, unknown>;
+    patch.data = { ...data, meta: { ...meta, xp: normalizeXp(body.xp) } };
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No writable fields in body.' }, { status: 400 });
   }

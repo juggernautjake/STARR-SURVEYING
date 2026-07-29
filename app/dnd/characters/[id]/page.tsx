@@ -14,6 +14,7 @@ import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import HomebrewDesignerLinks from '@/app/dnd/_ui/HomebrewDesignerLinks';
 import AdoptContentPanel from '@/app/dnd/_ui/AdoptContentPanel';
 import SheetSections from '@/app/dnd/_ui/SheetSections';
+import XpPanel from '@/app/dnd/_ui/XpPanel';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetChrome from '@/app/dnd/_ui/SheetChrome';
 import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
@@ -412,6 +413,23 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           The sheet itself is NOT tabbed: it is why the page exists and stays exactly where it is. */}
       <SheetSections
         sections={[
+          {
+            // XP (P3-4). Its own section rather than buried with Manage: the thing that was missing was not
+            // a number, it was anything that ever said "you have earned a level" — so it needs to be
+            // somewhere a player looks, not filed under settings.
+            id: 'xp',
+            label: 'Experience',
+            blurb: 'Track XP and level up when you have earned it — or ignore it entirely and level by milestone.',
+            node: (
+              <XpPanel
+                characterId={character.id}
+                system={normalizeSystem((character as { system?: string }).system)}
+                currentXp={((character.data as { meta?: { xp?: number } } | null)?.meta?.xp) ?? 0}
+                currentLevel={((character.data as { meta?: { level?: number } } | null)?.meta?.level) ?? 1}
+                canWrite={canWrite}
+              />
+            ),
+          },
           {
             id: 'manage',
             label: 'Manage',
