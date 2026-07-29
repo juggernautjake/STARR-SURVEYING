@@ -3084,11 +3084,46 @@ variance rather than one look with different colours.
 The Studio has 18 kinds and a registry-driven form. The gap is **per-SYSTEM mechanical depth**: a kind may
 be authored in any system, but `kindIsMechanicalIn` says whether it actually *does* anything there.
 
-- [ ] **P12-1 — Coverage matrix: 18 kinds × 4 systems, each cell marked mechanical / prose / N/A** — derived
+- [x] **P12-1 — Coverage matrix: 18 kinds × 4 systems, each cell marked mechanical / prose / N/A** — derived
       from the registry, published as a page, so the gaps are visible rather than discovered on save.
-- [ ] **P12-2 — Close the mechanical gaps for 5e (2014 + 2024).**
-- [ ] **P12-3 — Close them for Pathfinder 2e.**
-- [ ] **P12-4 — Close them for Intuitive Games.**
+
+      **Done 2026-07-29 — `/dnd/content/coverage`, linked from the content page.** Entirely derived from
+      the kind registry: build a bridge and the cell changes on the next request; add a system and a
+      column appears. A hardcoded grid would be a second source of truth, which is the failure this pass
+      has spent days finding elsewhere.
+
+      **72 cells: 57 resolved · 8 gaps · 7 prose by design.** And the eight are now a named work list:
+
+      | kind | rules text only in |
+      |---|---|
+      | Feat | Pathfinder 2e, Intuitive Games |
+      | Background | Pathfinder 2e, Intuitive Games |
+      | Class | Pathfinder 2e, Intuitive Games |
+      | Subclass | Pathfinder 2e, Intuitive Games |
+
+      **THE THIRD STATE WAS NOT DECORATION — the first version reported ELEVEN gaps, three of which were
+      work nobody should ever do.** `mechanicalIn` cannot distinguish "we have not built the bridge" from
+      "this system has no such thing", so a Stance came out as a gap in 5e and PF2. A Stance is Intuitive
+      Games' signature mechanic — its own blurb says so — and a 5e Stance is a category error, not an
+      unbuilt bridge. Added `nativeTo` to `KindSpec` to say that in data; N/A is evaluated first, and
+      `complete` means "nothing outstanding", not "mechanical everywhere", or Stance would be permanently
+      unfinished.
+
+      **The P11-5 grid bug, a third time, in code I had just written.** The page wrapper was `display:
+      grid` with no declared columns, so the implicit `auto` track sized to the coverage table's
+      `minWidth: 560` — and at 360px the whole page went 562 wide, with the intro paragraph and the
+      summary panel measured overflowing, not just the table. `minmax(0, 1fr)` again. The table is
+      supposed to scroll inside its own container; the page is not.
+
+      Also added `.srOnly` to `hextech.module.css`: the cell glyphs are `aria-hidden` decoration, so each
+      cell carries its state as real text ("Rules text only — a bridge we have not built") for a screen
+      reader rather than announcing "white circle".
+
+- [ ] **P12-2 — Close the mechanical gaps for 5e (2014 + 2024).** *(P12-1 measured this as **zero** — every
+      kind that 5e has a concept of already resolves. Nothing to do unless a new kind is added; left open
+      rather than ticked because "no gaps today" is a measurement, not a commitment.)*
+- [ ] **P12-3 — Close them for Pathfinder 2e.** *(4 gaps, named above.)*
+- [ ] **P12-4 — Close them for Intuitive Games.** *(4 gaps, named above.)*
 - [ ] **P12-5 — Subclass authoring, per system.** Named in the brief; today it is a `class`-shaped kind
       with no parent binding.
 

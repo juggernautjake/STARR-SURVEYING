@@ -131,6 +131,13 @@ export default async function ContentBrowsePage({
             <Link className={`${styles.hexBtn} ${styles.hexBtnPrimary}`} href="/dnd/content/new" style={{ textDecoration: 'none' }}>
               🔨 Build something
             </Link>
+            {/* P12-1. Linked from here because this is where you arrive before authoring: "will my
+                Pathfinder feat actually do anything" is a question worth answering BEFORE the form, not
+                as a hint you meet halfway down it. A page nothing links to is a page nobody finds — the
+                most common defect in this repo. */}
+            <Link className={styles.hexBtn} href="/dnd/content/coverage" style={{ textDecoration: 'none' }}>
+              ▦ What resolves where
+            </Link>
             {viewer.userId && (
               <>
                 {chip('Everyone’s', hrefWith(query, { tab: undefined }), query.tab === 'public')}

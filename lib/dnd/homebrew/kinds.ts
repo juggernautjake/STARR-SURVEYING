@@ -166,6 +166,16 @@ export interface KindSpec {
   /** The systems where this kind assembles a real engine payload. `'*'` = every system.
    *  Anywhere else the piece is authored as prose — shareable and searchable, but not adopted as numbers. */
   mechanicalIn: readonly string[] | '*';
+  /**
+   * The systems this kind is a CONCEPT in at all. Omitted = every system.
+   *
+   * Distinct from `mechanicalIn`, and the distinction is the whole point of the coverage matrix (P12-1):
+   * "we have not built the bridge yet" and "this system has no such thing" look identical from
+   * `mechanicalIn` alone, and conflating them invents work. A Stance is Intuitive Games' signature
+   * mechanic — its own blurb says so — so a 5e Stance is not an unbuilt bridge, it is a category error.
+   * A Feat in Pathfinder 2e, by contrast, is very much a thing we simply do not resolve yet.
+   */
+  nativeTo?: readonly string[];
   /** May this kind be scoped to `'any'` (all systems at once)? True only where the mechanics are prose,
    *  because an `'any'` class is not a meaningful object — every engine's class model differs. */
   allowAnySystem: boolean;
@@ -256,7 +266,10 @@ const SPECS: Record<HomebrewKind, KindSpec> = {
     ],
   },
   stance: {
+    // `nativeTo` matches `mechanicalIn` here: a stance is not a 5e or PF2 concept at all, so those cells
+    // are N/A on the coverage matrix rather than gaps waiting to be closed.
     kind: 'stance', group: 'Magic & powers', icon: '◈', allowAnySystem: false, mechanicalIn: ['intuitive-games'],
+    nativeTo: ['intuitive-games'],
     blurb: 'A stance you enter and hold — Intuitive Games’ signature mechanic.',
     fields: [
       { key: 'enterCost', label: 'Cost to enter', type: 'select', options: ACTION_COST, section: 'Mechanics' },
