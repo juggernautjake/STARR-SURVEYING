@@ -3749,3 +3749,56 @@ one. What it needs, in order:
 
 **Do not start this at the end of a session.** Step 1 alone decides how every later piece behaves, and a
 wrong link shape would be persisted into `payload` where it can only ever be migrated, not changed.
+
+---
+
+# Phase 14 — the owner's 2026-07-29 requests
+
+Gathered from a run of mid-session messages so they are a work list rather than scattered notes. Ordered
+so each slice is usable on its own. **Anything already shipped is marked and dated; nothing here is
+ticked that has not been verified.**
+
+## Shipped this session
+
+- [x] **P14-1 — Characters delete immediately on confirm.** The card is removed the moment the API
+      confirms rather than after a full `router.refresh()` round trip. Keyed on `data-character-card`.
+- [x] **P14-2 — `SYSTEM //` no longer overlaps the panel border.** `.framedPanelTop`'s `-18px` side
+      margins made it a flex item that dragged the next item left. `flex: 0 0 100%`.
+- [x] **P14-3 — The white "Party" panel.** `PartyRoster` used `.card`, a 5e-sheet class, on the campaign
+      page — so it inherited `globals.css`'s marketing `background: white`. Restyled onto hextech tokens.
+- [x] **P14-4 — Placeholders for every homebrew field**, kind-specific, with tests forbidding reuse.
+- [x] **P14-5 — Aqua reads blue on the bespoke sheets.** A skin's OWN theme may now set its grounds;
+      the five shared themes still may not. Aqua's grounds are bluer besides.
+- [x] **P14-6 — All rolls reach the campaign feed.** PF2 and IG published nothing; only the 5e store
+      called `publishRoll`. Both now do.
+- [x] **P14-7 — Statblock `uses`** ("3/Day", "Recharge 5–6") so legendary resistance is a resource.
+
+## Outstanding
+
+- [ ] **P14-8 — Manual roll entry.** *"users can record manual rolls if they want"*. `RollFeed.tsx`
+      already posts to `/api/dnd/rolls` and `roll-publish.ts` calls it "the manual dice box", but there is
+      no visible manual affordance in it today. **Confirm whether one was removed before building a
+      second.**
+- [ ] **P14-9 — Roller legibility across systems, themes and styles.** *"some of the styling for the
+      rollers … is hard to read and understand. And some of the animations and roller templates look
+      bad."* A screen recording was supplied that I cannot open. **Do not guess from the description** —
+      `scripts/contact-sheet.mjs` already drives skin × theme × format and measures contrast; extend it to
+      open the roller dock and capture each of the four templates per theme. The four stages are
+      `DiceCore` / `SigilStack` / `RollBoard` / `Impact` under `_sheet/components/rollers/`.
+- [ ] **P14-10 — Campaign thumbnail.** A DM-set image, shown *"everywhere the campaign shows up"*. Needs
+      a column on `dnd_campaigns`, an upload path (storage landed with seed 459), a DM-gated control, and
+      rendering at every listing: hub cards, `CampaignsHome`, character rows naming a table, campaign
+      header. The "everywhere" half is the half that gets forgotten.
+- [ ] **P14-11 — Streamer parity on IG/PF2.** Background animation, effects and go-live/chat. 85
+      `.dnd-sheet.skin-streamer` selectors, many targeting 5e-specific markup (`.stat .big`, `.ab .score`)
+      that needs bespoke equivalents, not wider selectors. **Audit which are structural first.**
+- [ ] **P14-12 — Composable spells.** The largest request. A spell must be able to LINK to the thing it
+      summons or applies — a creature, a weapon, a condition, an effect — resolving to a catalogue entry,
+      an existing homebrew piece, or one authored inline in the spell builder. Casting grants it for the
+      duration; the duration and any charges are trackable data, not prose; transposition carries the
+      links across systems.
+      Worked examples supplied: **Presper's Moonbow** (summons a weapon with its own attack and damage,
+      applies a `Lighted` condition, 5 charges over 1 hour), **Blade of Doom** (lingering summon, chosen
+      trigger, upcast scale), **Duo-Dimension** (lasting effect altering size and granting advantage).
+      **Step 1 is the payload link shape, and it gets persisted — a wrong shape can only be migrated,
+      never changed. Start there, deliberately, with a fresh session.**
