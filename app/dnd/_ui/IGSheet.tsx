@@ -21,7 +21,7 @@
 import { Fragment } from 'react';
 import styles from './hextech.module.css';
 import type { IGCharacter } from '@/lib/dnd/systems/intuitive-games/model';
-import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
+import { skinThemeHxVars, skinThemeShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { useIgPanels, type Tagged } from './ig/useIgPanels';
 import { useLayoutChoice } from '@/lib/dnd/layoutChoice';
@@ -108,11 +108,11 @@ export default function IGSheet({ ig, elements, canEdit, characterId, isDM, vari
   // `background: var(--hx-navy-0)` is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)`
   // translucent, so without an opaque skin-base behind them they blend with the dark page — which made
   // LIGHT skins render dark. The base is the skin's own page tone, so every skin reads correctly.
-  // The chosen colour theme (U-2), if any: its --hx-* palette layers OVER the skin's, and its shell tokens
-  // recolour the format shells the same way. Unset → the skin's native colours.
+  // The chosen colour theme (U-2), if any — see `skinThemeHxVars`: a theme contributes its ACCENT hues,
+  // re-derived against this skin's grounds, and leaves the grounds, ink and typeface to the skin.
   const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
-  const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
-  const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
+  const hxVars: React.CSSProperties = skinThemeHxVars(sheetType, theme);
+  const shellTokens: React.CSSProperties = skinThemeShellVars(sheetType, theme);
   const skin = skinClass(sheetType); // the skin-<id> hook for per-skin surface textures (CS-2)
   const shellStyle = {
     ...hxVars,

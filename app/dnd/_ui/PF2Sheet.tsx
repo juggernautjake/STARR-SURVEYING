@@ -15,7 +15,7 @@
 
 import styles from './hextech.module.css';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
-import { skinHxVars, shellThemeVars, themeToHxVars, themeToShellVars, skinClass } from '@/lib/dnd/skin-tokens';
+import { skinThemeHxVars, skinThemeShellVars, skinClass } from '@/lib/dnd/skin-tokens';
 import { resolveThemeVariant } from '@/app/dnd/_sheet/theme';
 import { usePf2Panels } from './pf2/usePf2Panels';
 import { useLayoutChoice } from '@/lib/dnd/layoutChoice';
@@ -82,11 +82,13 @@ export default function PF2Sheet({ pf2, characterId, canEdit, isDM, variantKind 
   // is load-bearing: the shell's panels are `rgba(var(--panel-rgb), …)` translucent, so WITHOUT an
   // opaque skin-base behind them they blend with the dark page — which made LIGHT skins (jack/donata)
   // render dark. The base is the skin's own page tone, so every skin reads correctly.
-  // The chosen colour theme (U-2), if any: its --hx-* palette layers OVER the skin's so the theme wins,
-  // and its shell tokens recolour the format shells the same way. Unset → the skin's native colours.
+  // The chosen colour theme (U-2), if any. `skinThemeHxVars` decides what a theme may change: its ACCENT
+  // hues, re-derived against this skin's own grounds — not the grounds, ink or typeface, which stay the
+  // skin's. Layering the theme's whole token set over the skin's (what this did) made four of the five
+  // styles resolve identically and rendered the two light styles dark; see that function for the numbers.
   const theme = skinVariant ? resolveThemeVariant(sheetType, skinVariant).theme : null;
-  const hxVars: React.CSSProperties = { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
-  const shellTokens: React.CSSProperties = theme ? themeToShellVars(theme) : shellThemeVars(sheetType);
+  const hxVars: React.CSSProperties = skinThemeHxVars(sheetType, theme);
+  const shellTokens: React.CSSProperties = skinThemeShellVars(sheetType, theme);
   const skin = skinClass(sheetType); // the skin-<id> hook for per-skin surface textures (CS-2)
   const shellWrap: React.CSSProperties = {
     ...hxVars,

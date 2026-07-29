@@ -2740,16 +2740,88 @@ variance rather than one look with different colours.
       The screenshot half of this item — every format × system × skin × theme rendered for visual review —
       is **not** built; this covers layout overflow only. Split as **P11-1b**.
 
-- [ ] **P11-1b — The visual contact sheet.** *(Split from P11-1.)* Render every format × system × skin ×
+- [x] **P11-1b — The visual contact sheet.** *(Split from P11-1.)* Render every format × system × skin ×
       theme to an image grid so the *look* can be judged, not just the geometry. Overflow is machine-checkable
       and now is; "does this theme look good on this skin" is not, and P11-2/3/4 need something to look at.
 
+      **Done 2026-07-29 — `scripts/contact-sheet.mjs`.** Drives the sheet's own STYLE/TEMPLATE/THEME
+      pickers, screenshots each cell, writes a browsable `index.html` + a `tokens.json` fingerprint per
+      cell. It found P11-3's defect within an hour of existing.
+
+      **THE MATRIX IS NOT RECTANGULAR.** Each style brings its own theme list — four share the five
+      universal themes, Magical Streamer has its own two (Bubblegum, Aqua), because its variants drive an
+      art swap and not just a palette. "5 skins × 5 themes" is a shape that does not exist; themes are
+      re-read after each skin is applied.
+
+      **Three bugs in the tool, each of which made it LIE, and the lesson is the same every time — a
+      measurement that misses does not return nothing, it returns a confident wrong answer:**
+      · It clicked and waited 500ms. A cell written to `candy-bazaar__classic.jpeg` actually showed
+        *Magical Streamer* selected. Now every pick is confirmed via the chip's own `aria-pressed`, and a
+        cell whose pickers did not take is **skipped and reported**, never photographed.
+      · `button:text-is("Classic")` matched **zero** buttons while `:text-is("Hextech")` matched fine —
+        `:text-is` only sees text held *directly* by the element, and the TEMPLATE chips wrap their label
+        in a child. A selector that finds four of five pickers is worse than one that finds none.
+      · Choosing a theme **refreshes the route**, so a single long-lived `waitForFunction` died with
+        "Execution context was destroyed" exactly when the choice was applied. Polling re-asks instead.
+
+      **And one in my own analysis:** the first fingerprint probed `.sheet-shell`, which does not exist on
+      that page, so all 22 cells fell back to `document.body` and reported five visibly different skins as
+      identical. The second included `skinClass` in the fingerprint — which made four *byte-identical*
+      skins look distinct, because the identifier differed even though nothing visible did. Identity and
+      appearance are now reported separately.
+
 - [ ] **P11-2 — Make the four FORMATS structurally distinct.** Classic / Codex / Dashboard / Play should
       differ in layout and information density, not in decoration. Today several read as the same grid.
-- [ ] **P11-3 — Make the SKINS distinct.** Type, texture, border treatment, and iconography per skin —
+
+      **Partial evidence 2026-07-29:** the contact sheet shows Dashboard IS structurally distinct from
+      Classic (a four-column card grid vs a stacked single column). Codex and Play still need judging.
+
+- [x] **P11-3 — Make the SKINS distinct.** Type, texture, border treatment, and iconography per skin —
       not a hue rotation. A skin that is only a colour is a theme.
+
+      **Done 2026-07-29 — and the item had it backwards.** The skins were not "only a colour": with any
+      theme chosen they were not even that. Measured on a live PF2 sheet, holding the theme at Noxus
+      Crimson, Hextech / Neon Odyssey / Candy Bazaar / Homebrew Rulebook resolved to **byte-identical**
+      tokens — same gold `#b68a37`, same accent `#d98a45`, same `Cinzel`. Four of five styles were inert,
+      and the two LIGHT styles rendered dark navy.
+
+      **The cause.** The sheet's own stated model is *"the Style sets the structure; a Theme recolours
+      it"*, but the code did something stronger — `{...skinHxVars(skin), ...themeToHxVars(theme)}` let the
+      theme win on every token, and the five shared themes are authored **for Hextech**: they hardcode
+      `HEXTECH_GROUNDS` (deep-navy grounds, parchment ink) *and* `fonts: hextechTheme.fonts`. So choosing
+      a theme replaced a style's grounds, its ink and its typeface. The only thing still telling the
+      styles apart was the `::before` texture in `skinAccents.css`.
+
+      **The fix — `skinThemeHxVars` (lib/dnd/skin-tokens.ts).** A theme now contributes its two ACCENT
+      hues and nothing else, and they are re-derived **through `skinHxVars` against the skin's real
+      panel**. Composing at the *hue* level rather than the *token* level is what preserves the existing
+      contrast work: every clamp in that function (gold-2, teal-1, text, muted) still runs, and still runs
+      against the surface the text is actually read on. Pasting a theme's already-clamped tokens onto
+      different grounds would have clamped them against the wrong colour.
+
+      `default` is deliberately exempt — the shared themes ARE Hextech's, grounds and all, so there the
+      whole-theme path is correct and stays pixel-identical.
+
+      Re-measured after: **4 distinct palettes at every one of the five themes**, with `skinClass`
+      excluded from the fingerprint. Candy Bazaar under Noxus is now a cream sheet with dark ink, warm
+      amber accents and Baloo 2; Homebrew Rulebook keeps Zilla Slab; Neon Odyssey keeps Oswald.
+
+      **One thing that legitimately moves and should:** on a DARK style the ink is `lighten(gold, 0.85)`,
+      a near-white warmed by the style's gold — so once the theme supplies the gold, the ink picks up the
+      theme's warmth (lazzuh's `#defafa` → `#f7f2e9` under Hextech Gold). A tint of near-white, not a
+      change of side. `skin-theme-composition.test.ts` therefore asserts the ink stays on the same side of
+      its panel rather than pinning a hex, which would break on any swatch retune.
+
+      Also fixed `shell-light-skin.test.ts`, which pinned the *name* `shellThemeVars(sheetType)` and so
+      failed a rename that strengthened the very guarantee it exists to protect.
+
 - [ ] **P11-4 — Make the THEMES safe across every skin and format.** Contrast-checked pairs, and a token
       contract each skin must satisfy so a new theme cannot break a format it was never viewed in.
+
+      **Reshaped by P11-3.** The pairs are no longer "theme replaces skin" but "theme's accent, clamped
+      against the skin's ground", so the contrast work is by construction rather than per-pair. What
+      remains: run the sweep across FORMATS (the clamps were verified on Classic) and confirm the
+      streamer's own two variants still behave, since they alone drive an art swap.
 - [x] **P11-5 — Mobile: the character sheet.** Every format, every system, at 360 / 390 / 414 px.
       **Done 2026-07-29 (commit e3c3d85b).** Measured 521px of content in a 390px viewport on the PF2
       sheet; the IG shell had the identical hole. Both shells wrap the whole sheet in one `display: grid`

@@ -99,3 +99,7 @@ dev-server.log
 
 .playwright-mcp/
 *.png
+
+# Local audit artefacts — screenshots + token dumps from scripts/contact-sheet.mjs and audit-mobile.mjs.
+# Evidence for a slice, not source: regenerate with `node scripts/contact-sheet.mjs`.
+.audit/

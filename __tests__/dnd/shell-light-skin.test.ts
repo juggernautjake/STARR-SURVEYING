@@ -13,9 +13,15 @@ describe('bespoke shell wrappers carry an opaque skin-base background (light-ski
   for (const file of ['app/dnd/_ui/PF2Sheet.tsx', 'app/dnd/_ui/IGSheet.tsx']) {
     it(`${file} sets background: var(--hx-navy-0) on its shell wrapper`, () => {
       const src = read(file);
-      // The shell wrapper style must carry BOTH the skin-panel tokens (skinHxVars/shellThemeVars) and
-      // an opaque base; without the base the translucent shell panels go muddy on light skins.
-      expect(src).toContain('shellThemeVars(sheetType)');
+      // The shell wrapper style must carry BOTH the skin-derived shell tokens and an opaque base; without
+      // the base the translucent shell panels go muddy on light skins.
+      //
+      // Matched on "shell tokens derived FROM `sheetType`" rather than on one function name. The bridge
+      // was `shellThemeVars(sheetType)` and is now `skinThemeShellVars(sheetType, theme)` — a rename that
+      // strengthened the light-skin guarantee (the theme no longer replaces the skin's grounds, which is
+      // what turned the light skins dark in the first place) while this test failed it for changing
+      // spelling. Pin the property, not the mechanism.
+      expect(src).toMatch(/(shellThemeVars|skinThemeShellVars)\(sheetType/);
       expect(src).toMatch(/background:\s*'var\(--hx-navy-0\)'/);
     });
   }

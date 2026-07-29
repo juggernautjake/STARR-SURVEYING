@@ -132,12 +132,20 @@ function ensureContrast(fg: string, bg: string, ratio: number): string {
  * Typed `CSSProperties` (with a cast) so it drops straight into a sheet's `style={{ ...skinHxVars(t) }}`;
  * TS doesn't model `--custom` keys on CSSProperties, hence the single cast at the return.
  */
-export function skinHxVars(sheetType: string | undefined): CSSProperties {
+export function skinHxVars(
+  sheetType: string | undefined,
+  /** Accent hues to use INSTEAD of the skin's own — how a colour theme recolours a skin (P11-3). The
+   *  grounds, ink and typeface stay the skin's; only these two hues come from elsewhere, and they are run
+   *  through the same clamps below against the skin's real panel. */
+  accents?: { accent?: string; gold?: string },
+): CSSProperties {
   const style = SHEET_STYLES.find((s) => s.id === sheetType);
   // default IS the baseline; unknown ids fall back to the baseline too (fail safe, not blank).
   if (!style || style.id === 'default') return {};
 
-  const { bg, panel, accent, gold } = style.swatch;
+  const { bg, panel } = style.swatch;
+  const accent = accents?.accent ?? style.swatch.accent;
+  const gold = accents?.gold ?? style.swatch.gold;
   const light = style.light === true;
 
   // Background steps. The screen/panel gradients read navy-1 (top) → navy-0 (bottom); we want a subtle,
@@ -391,6 +399,45 @@ const HX_DEFAULTS = {
  */
 export function shellThemeVars(sheetType: string | undefined): CSSProperties {
   return shellVarsFromHx(skinHxVars(sheetType) as Record<string, string>);
+}
+
+/**
+ * THE SKIN × THEME COMPOSITION (P11-3) — one place that decides what a colour theme is allowed to change.
+ *
+ * The sheet's own model, stated in `themeVariantsFor`, is "the Style sets the structure; a Theme
+ * recolours it". The implementation did something stronger: `{...skinHxVars(skin), ...themeToHxVars(theme)}`
+ * let the theme win on EVERY token, and the five shared themes are authored for Hextech — they hardcode
+ * `HEXTECH_GROUNDS` (deep-navy grounds, parchment ink) and `fonts: hextechTheme.fonts`. So picking any
+ * theme replaced a skin's grounds, its ink AND its typeface.
+ *
+ * Measured on a live PF2 sheet: holding the theme fixed at Noxus Crimson, Hextech / Neon Odyssey /
+ * Candy Bazaar / Homebrew Rulebook resolved to BYTE-IDENTICAL tokens — same gold, same accent, same
+ * `Cinzel`. Four of five styles were inert, and the two light styles rendered dark. The only thing left
+ * distinguishing them was the `::before` texture from `skinAccents.css`.
+ *
+ * So a theme now contributes its two ACCENT hues and nothing else, and they are re-derived through
+ * `skinHxVars` against the skin's real panel — which means every contrast clamp in that function
+ * (gold-2, teal-1, text, muted) still runs, and still runs against the surface the text is actually read
+ * on. Composing at the hue level rather than the token level is what keeps that guarantee: pasting the
+ * theme's already-clamped tokens over a different ground would be clamped against the wrong colour.
+ *
+ * `default` is deliberately exempt. The shared themes ARE Hextech's, grounds and all, so on the default
+ * skin the old whole-theme path is the correct one and stays pixel-identical.
+ */
+export function skinThemeHxVars(sheetType: string | undefined, theme: SheetTheme | null | undefined): CSSProperties {
+  if (!theme) return skinHxVars(sheetType);
+  const isDefault = !sheetType || sheetType === 'default' || !SHEET_STYLES.some((s) => s.id === sheetType && s.id !== 'default');
+  if (isDefault) return { ...skinHxVars(sheetType), ...themeToHxVars(theme) };
+  return skinHxVars(sheetType, {
+    accent: theme.colors?.teal || theme.colors?.tealbright,
+    gold: theme.colors?.gold,
+  });
+}
+
+/** The shell-token half of `skinThemeHxVars`, so the Codex/Dashboard/Play shells recolour with it. */
+export function skinThemeShellVars(sheetType: string | undefined, theme: SheetTheme | null | undefined): CSSProperties {
+  const hx = skinThemeHxVars(sheetType, theme) as Record<string, string>;
+  return shellVarsFromHx(hx);
 }
 
 /** The shell token set (`--gold`/`--panel-rgb`/…) for a chosen THEME (U-2), so the format shells
