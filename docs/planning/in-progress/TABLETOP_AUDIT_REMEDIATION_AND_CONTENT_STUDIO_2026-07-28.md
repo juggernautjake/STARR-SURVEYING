@@ -3639,3 +3639,33 @@ handling (`dnd_storage_objects` landed with seed 459), a DM-gated control on the
 thumbnail rendered at every place a campaign is listed — the hub's campaign cards, `CampaignsHome`, the
 character rows that name a table, and the campaign page header. The second sentence is the important half:
 a thumbnail added in one place and rendered in one place is the "authored but not wired" shape again.
+
+### The white "Party" panel on the campaign page (owner report, 2026-07-29)
+
+**Third instance today of the MARKETING stylesheet bleeding into /dnd**, after the bare-heading ink
+(P11-10). `PartyRoster` used `className="card"` with `.sec-head`/`.sec-num` — `theme.css` classes scoped
+under `.dnd-sheet`. Its only mount is `CampaignHub`, the campaign page, which is hextech chrome and never
+a 5e sheet, so none of those rules ever matched and `.card` fell through to `globals.css`:
+`background: white`, with `.card:hover { border-color: var(--brand-red) }` — the white panel and red
+border in the screenshot exactly. Its text tokens (`--muted`, `--ink`, `--line`, `--font-display`) were
+5e's too, which is why the names rendered washed-out grey.
+
+Restyled onto the hextech tokens it actually sits in.
+
+**Swept for the same trap:** every `_sheet/components` file using `className="card"`, cross-referenced
+against mounts in `app/dnd/_ui`. `PartyRoster` was the **only** sheet component rendered outside a sheet —
+one instance, not a pattern. (One apparent second hit, `Features` in `GlossaryList`, is the word as a
+label, not a mount.)
+
+**The general shape, worth naming:** a component written for the sheet and mounted outside it inherits a
+stylesheet nobody expected to be in scope. It looks fine in the context it was written for and wrong
+everywhere else, and nothing in the type system or the test suite can see it.
+
+## QUEUED — recent rolls (owner request, 2026-07-29)
+
+> *"fully flesh out the recent rolls section in the campaign … all rolls and their reason is recorded and
+> that users can record manual rolls if they want."*
+
+**Not started.** Two halves: every roll carrying its REASON (the feed already shows "Resist the Chat
+(DC 25)" for stream rolls, so the field exists on some paths and not others — audit which rolls reach the
+campaign feed and which are dropped), and a manual-entry control for rolls made with physical dice.
