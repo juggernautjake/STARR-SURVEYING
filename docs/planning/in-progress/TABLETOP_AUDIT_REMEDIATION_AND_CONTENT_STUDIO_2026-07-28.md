@@ -519,12 +519,38 @@ should skip Phase 7 entirely.
       The control rolls its highlight back if a save fails: a toggle showing the state you *asked for*
       rather than the state that *saved* is how someone believes their campaign is private when it is not.
 
-- [ ] **P2-6 — A route-gate guard test.** *(F-5.)* RLS is enabled on the D&D tables with **zero policies**,
+- [x] **P2-6 — A route-gate guard test.** *(F-5.)* RLS is enabled on the D&D tables with **zero policies**,
       so all authorization is app-code-only across 113 routes with no database backstop. Writing real
       policies is the fuller answer; the cheap 90% is a test that every `route.ts` under `app/api/dnd`
       references one of the known gate helpers (`getDndSession`, `getCampaignRole`, `getCharacterAccess`,
       `requireCharacterWrite`, `isDndOwner`), failing loudly on a new ungated route.
       **Done when:** adding an ungated route turns the suite red.
+
+      **Done 2026-07-28.** `__tests__/dnd/route-gate-sweep.test.ts` scans all 126 routes.
+
+      **The "done when" was VERIFIED, not assumed.** I dropped a deliberately ungated
+      `app/api/dnd/__gate_probe/route.ts` that calls `supabaseAdmin...delete()` with no auth, confirmed the
+      suite went red naming that exact file, then removed it. A guard nobody has watched fail is a guard
+      nobody knows works — and this repo has already shipped two tests (`hidden-systems`,
+      `under-construction-gating` in P4-6b) that passed while asserting against dead code.
+
+      **Good news from the sweep: there are no ungated routes.** Nine are exempted, every one an auth
+      endpoint or public read-only catalog, each with its reason recorded. Three secondary assertions keep
+      the exemption list from rotting into permission to skip the check: exemptions must be auth-or-catalog
+      paths (a `characters/` entry appearing there would be a bug), the public ones must never write, and
+      every auth exemption must be **rate limited instead** — trading a session gate for no control at all
+      is the failure this would otherwise hide.
+
+      **My first draft produced a false positive**, and the fix mattered. `isDndOpenAccess` was missing from
+      the helper list, so `dev/enter` was reported ungated. Reading it showed the opposite: it requires
+      open-access mode, restricts to the demo roster or a real campaign member, *and* refuses any
+      password-protected account. An incomplete helper list makes this test cry wolf, and a test that cries
+      wolf gets exemptions added to silence it rather than bugs fixed.
+
+      Scope: this proves a gate is PRESENT, never that it is correct — `character-mutation-authorization`,
+      `delete-route-authorization` and the other targeted tests do that. Presence is the failure mode that
+      scales with route count. Real RLS policies remain the fuller answer and are **not** this slice;
+      logged as **P2-6b**. Suite 1284 files / 18,462 tests green.
 
 - [ ] **P2-7 — Per-user storage quota.** *(F-6.)* No cap on total stored bytes; one account can fill the
       media bucket. A total-bytes check on upload with a clear message.
