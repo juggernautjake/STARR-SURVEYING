@@ -16,9 +16,10 @@ import {
   normalizeStatblock, isStatblockEmpty, abilityModifier, formatModifier,
   STATBLOCK_ABILITIES, ABILITY_LABELS,
 } from '@/lib/dnd/homebrew/statblock';
-import { systemLabel, normalizeSystem } from '@/lib/dnd/systems';
+import { systemLabel, normalizeSystem, availableSystems } from '@/lib/dnd/systems';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 import AssessmentPanel from '@/app/dnd/_ui/AssessmentPanel';
+import TransposePanel from '@/app/dnd/_ui/TransposePanel';
 import { normalizeAssessment } from '@/lib/dnd/homebrew/assess';
 
 export const dynamic = 'force-dynamic';
@@ -253,6 +254,16 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
 
           {/* The AI's read (P6-17) — creator-only. Putting "Needs work" on a public page under a stranger's
               name would be a different feature entirely, and one nobody asked for. */}
+          {/* Translate into another system (P6-18). Offered to anyone who can READ the piece — translating
+              someone else's published content into your system is a reasonable thing to want, and the
+              result is yours with the original credited. Nothing here modifies the source. */}
+          <TransposePanel
+            contentId={piece.id}
+            currentSystem={piece.system}
+            systems={availableSystems().map((s) => ({ key: s.key, name: s.name }))}
+            aiConfigured={dndAiConfigured()}
+          />
+
           {mine && (
             <AssessmentPanel
               contentId={piece.id}

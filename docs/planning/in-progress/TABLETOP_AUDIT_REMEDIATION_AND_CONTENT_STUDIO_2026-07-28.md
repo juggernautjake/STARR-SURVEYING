@@ -611,11 +611,26 @@ of homebrew.
       An unusable response is refused rather than stored as a fragment — a half-parsed review is worse than
       none, because it is shown as a considered opinion.
 
-- [ ] **P6-18 — The system transposer.** `POST /api/dnd/homebrew/[id]/transpose { system, notes }` → a new
-      piece with `origin_id` set, status `draft`, clearly marked AI-generated and unverified.
-      **The review loop is the feature:** approve · deny · **retry with notes** (the notes feed the next
-      attempt alongside the original and the target system's mechanics) · or hand-edit if close. Follows
-      `characters/[id]/system/route.ts`, which already does this for whole characters.
+- [x] **P6-18 — The system transposer. Shipped 2026-07-28.** `lib/dnd/homebrew/transpose.ts` (pure prompts
+      + normalizer), `POST /api/dnd/homebrew/[id]/transpose`, and a review panel with all four exits the
+      owner described: **Keep it · Try again with notes · Open & edit · Discard**.
+      **The loop is the feature, not the generation.** A retry sends the model *its own previous attempt*
+      alongside the notes — without that it cannot tell what the author is reacting to and reliably
+      reproduces the thing they just rejected — and it **rewrites the same draft** rather than stacking
+      another, so a fussy author ends with one variant they like instead of nine they rejected. It runs
+      hotter than the design review (0.7 vs 0.3), because a retry returning nearly the same text is useless
+      to someone who just asked for something different.
+      **The loop needed no new lifecycle:** approve is "it is already your private draft, stop reviewing",
+      discard is the ordinary DELETE, retry is this route again. Bespoke endpoints would have meant two sets
+      of rules about who may edit what.
+      **`variantId` is guarded as the write primitive it is** — the target draft must be *yours* and must
+      actually descend from *this* source, or "retry" becomes an arbitrary-row overwrite.
+      **Provenance travels in the DESCRIPTION**, not just the UI: the description is what reaches the
+      library, an export and the AI grounding, so a note living in one component is not provenance. The
+      draft is created **private**, so a machine translation cannot reach a library or a sheet before a
+      human has read it — the worst outcome here is a bad translation nobody knows is a translation.
+      Needs only READ on the source: translating someone's *published* content into your system is
+      reasonable, the result is yours with the original credited, and nothing modifies the source.
 
 - [ ] **P6-19 — Migrate `dnd_content`.** Once the Studio is proven, move the existing campaign content into
       `dnd_homebrew` with attribution inferred from `created_by`, and retire the old route. Deliberately last
