@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "verify:inline-style-hex": "tsx scripts/scan-inline-style-hex.ts",
     "scan:untranslated": "tsx scripts/scan-untranslated.ts",
+    "audit:mobile": "node scripts/audit-mobile.mjs",
     "migrate:dnd-content": "tsx scripts/migrate-dnd-content.ts",
     "verify:fs-figures": "tsx scripts/verify-fs-figures.ts",
     "verify:fs-questions": "tsx scripts/verify-fs-questions.ts",

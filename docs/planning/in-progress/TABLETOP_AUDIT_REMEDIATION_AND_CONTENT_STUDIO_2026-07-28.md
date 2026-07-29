@@ -2719,18 +2719,59 @@ The matrix is **4 formats × 4 systems × N skins × M colour themes**. It is al
 work shipped that); what the brief is asking for is that each cell be *good*, and that the axes have real
 variance rather than one look with different colours.
 
-- [~] **P11-1 — Audit the matrix, and write down what is actually broken.** A harness page that renders
+- [x] **P11-1 — Audit the matrix, and write down what is actually broken.** A harness page that renders
       every format × system × skin × theme combination to a screenshot, driven by Playwright, so the list of
       defects is observed rather than guessed. This is first for the same reason P8-3 and P5-7 taught: half
       the items in a plan describe a state the code left behind months ago.
+
+      **Done 2026-07-29 — `scripts/audit-mobile.mjs` / `npm run audit:mobile`.** Sweeps pages × widths in a
+      real browser and exits non-zero on real overflow, so every later P11 slice starts from evidence
+      rather than from a guess.
+
+      **The detector is the whole value, and getting it wrong is how you "fix" working code.** An element
+      counts only if it escapes the viewport **and** no ancestor is a horizontal scroll container. A first
+      version without that second clause reported **152 offenders on the rules library** — every cell of
+      five `overflow-x: auto` data tables that scroll perfectly well. Wide tables on a phone are *supposed*
+      to scroll. `position: fixed` is skipped too: a dock anchored to the viewport is not a layout defect.
+
+      Two false alarms it now prevents, both of which I nearly acted on: a **full-page screenshot** that
+      appeared to clip the hub's right edge (`scrollWidth` proved it did not), and those 152 library rows.
+
+      The screenshot half of this item — every format × system × skin × theme rendered for visual review —
+      is **not** built; this covers layout overflow only. Split as **P11-1b**.
+
+- [ ] **P11-1b — The visual contact sheet.** *(Split from P11-1.)* Render every format × system × skin ×
+      theme to an image grid so the *look* can be judged, not just the geometry. Overflow is machine-checkable
+      and now is; "does this theme look good on this skin" is not, and P11-2/3/4 need something to look at.
+
 - [ ] **P11-2 — Make the four FORMATS structurally distinct.** Classic / Codex / Dashboard / Play should
       differ in layout and information density, not in decoration. Today several read as the same grid.
 - [ ] **P11-3 — Make the SKINS distinct.** Type, texture, border treatment, and iconography per skin —
       not a hue rotation. A skin that is only a colour is a theme.
 - [ ] **P11-4 — Make the THEMES safe across every skin and format.** Contrast-checked pairs, and a token
       contract each skin must satisfy so a new theme cannot break a format it was never viewed in.
-- [ ] **P11-5 — Mobile: the character sheet.** Every format, every system, at 360 / 390 / 414 px.
-- [ ] **P11-6 — Mobile: the dice roller.** All four rollers, in the dock and full-screen.
+- [x] **P11-5 — Mobile: the character sheet.** Every format, every system, at 360 / 390 / 414 px.
+      **Done 2026-07-29 (commit e3c3d85b).** Measured 521px of content in a 390px viewport on the PF2
+      sheet; the IG shell had the identical hole. Both shells wrap the whole sheet in one `display: grid`
+      panel with **no declared columns**, so the implicit `auto` track sized to its content's min-content
+      rather than to its container — a 504px floor inside a 375px panel, inherited by every child.
+      `minmax(0, 1fr)` caps it. The last remaining offender was `.pf2SectionTitle`'s `white-space: nowrap`
+      on a heading carrying a note; it wraps below 640px now.
+
+      Verified after: `scrollWidth` 375 ≤ viewport 390, zero offenders — and re-verified across all four
+      FORMATS (Classic / Codex / Dashboard / Play), since every format renders inside that same panel.
+
+- [x] **P11-6 — Mobile: the dice roller.** All four rollers, in the dock and full-screen.
+
+      **Verified 2026-07-29, already correct — no change needed.** All four templates (Dice Core, Sigil
+      Stack, Roll Board, Impact) measured at 390px inside the dock: **zero overflowing children each**,
+      `scrollWidth === clientWidth`, no clipping. The dock itself clamps to 378×560 inside a 390px viewport
+      rather than using its 396px preferred width.
+
+      The item's premise — that a fixed 396px dock would exceed a 390px phone — was **mine, written hours
+      earlier in the same session**, and the clamp in `useFloatingDock` had already solved it. Recorded
+      rather than quietly dropped: an item closed with evidence is worth more than one that disappears.
+
 - [ ] **P11-7 — Mobile: the rest of the app.** Hub, campaign, library, Studio, builder, admin-adjacent pages.
 - [ ] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
       brief calls it out specifically for both PC and mobile.
