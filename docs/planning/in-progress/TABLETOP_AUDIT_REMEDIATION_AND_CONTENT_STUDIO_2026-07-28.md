@@ -1228,14 +1228,41 @@ So "get all the classes built" is **mostly already true**. What is actually left
       sheet, and after this slice could not have driven the ranks either. Now projected, ledger-first.
       Three layers of the same defect, each one only visible once the one above it worked.
 
-- [ ] **P5-10b — Monk Path to Perfection.** *(Split from P5-10.)* At 7 one save becomes master, at 11 a
+- [x] **P5-10b — Monk Path to Perfection.** *(Split from P5-10.)* At 7 one save becomes master, at 11 a
       second, at 15 one of those two becomes legendary — but **which** is the player's choice, it is
       collected nowhere, and it cannot be guessed, so a level-20 Monk still reads expert in all three.
       Unlike the Cleric — whose doctrine was already recorded and merely never read — this one needs the
       choice **captured** first: a new `PF2ChoiceKind` prompted by `pf2PlanLevelUp` at 7/11/15, with the
-      15 prompt constrained to the two saves already mastered. Genuinely a new slot, which is why it is not
-      in the slice above. Recorded in `PF2_CLASS_PROGRESSION_GAPS` and pinned by a test that fails the day
-      someone approximates it.
+      15 prompt constrained to the two saves already mastered.
+
+      **Done 2026-07-29.** `chosenSaves` on the class table, a prompted `save` choice, a picker, a
+      server-side value gate, and `pf2ApplyChosenSaves` folding the picks into the ranks.
+
+      **The third step is the whole reason this needed modelling rather than approximating.** At 15 a monk
+      raises one of the two saves they already **mastered**. A picker offering all three lets a player build
+      a monk who is legendary in a save they are only expert in — a state the rules cannot reach and the
+      sheet cannot depict as wrong. So each step records the rank it upgrades **from**, and the legal set is
+      computed from the picks as they stand.
+
+      That `from` also removes the special case nobody would have maintained. Nothing anywhere says "not the
+      save you picked at 7" — the level-11 step wants a save standing at *expert*, and the level-7 save is
+      master by then, so it drops out on its own. The rule and the model came out the same shape.
+
+      And it is re-checked at **apply** time, not only at record time. A ledger goes stale: change the
+      level-7 answer and a previously legal level-15 pick is suddenly sitting on an expert save. Re-checking
+      means the ranks are legal for the picks *as they stand*, in whatever order they arrived.
+
+      **The walker was type-checking against a hand-copy of the plan.** `PF2LevelBuilder` declared its own
+      `Outstanding` interface instead of importing `PF2OutstandingChoice`, and the copy had already drifted —
+      widening `PF2ChoiceKind` left the component's union at three kinds, so the new branch compiled as
+      *unreachable* and the `options` the server sends did not exist there at all. It now aliases the real
+      type. A duplicated type is a type that stops agreeing the first time the original changes, and it
+      fails silently in the direction of "this code is dead".
+
+      **Honest remaining gap, recorded in `PF2_CLASS_PROGRESSION_GAPS`:** only the *walker* collects these
+      picks. Foundations assembles a character *at* a level without walking to it, so a monk built directly
+      at 15 has no picks and reads expert in all three. `pf2RanksAtLevel` already accepts them — closing it
+      is a builder-UI change, not a rules one.
 - [ ] **P5-11 — PF2 Fighter weapon-group attack ranks.** The builder advances attack proficiency through
       unscoped steps only, so a Fighter's general attack rank stays EXPERT past 13. It **under**-counts,
       which is the safe direction, and the gaps list says so. Needs weapon-group tracking.

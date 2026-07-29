@@ -299,7 +299,7 @@ describe('the pf2-levels route wires all of it', () => {
   const route = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/pf2-levels/route.ts'), 'utf8');
 
   it('re-derives ranks when it commits a level', () => {
-    expect(route).toContain('pf2ReprojectRanks(levelled, newLevel)');
+    expect(route).toContain('pf2ReprojectRanks(levelled, newLevel');
   });
 
   it('and PROJECTS THE SUBCLASS, which it recorded and then dropped', () => {

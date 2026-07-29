@@ -21,6 +21,7 @@ import { pf2MaxHp, pf2ArmorClass, pf2Derived, pf2SpellSlots } from './rules';
 // the reasoning; this file just honours the answer.
 import { pf2SlotTableModelled, pf2ReducedSlots } from './spell-counts';
 import { pf2AnyFeat, pf2AnySpell, pf2EffectiveTracks, pf2RankAtLevel, type PF2ProficiencyTrack } from './data';
+import { pf2ApplyChosenSaves, type PF2ChosenSavePick } from './data/classes';
 import { PF2_VANILLA_VARIANTS, type PF2RulesVariants } from './variants';
 
 /** Apply a sequence of attribute boosts to a base modifier map, honoring the +4 partial-boost rule
@@ -143,7 +144,14 @@ export interface PF2Ranks {
  * ones it was born with. When a className has no modelled progression (a custom class), fall back to the
  * level-1 initial — the honest best answer.
  */
-export function pf2RanksAtLevel(className: string, subclass: string | undefined, rawLevel: number): PF2Ranks {
+export function pf2RanksAtLevel(
+  className: string,
+  subclass: string | undefined,
+  rawLevel: number,
+  /** The Monk's Path-to-Perfection picks (P5-10b). Absent ⇒ no step is applied, which leaves the saves
+   *  where the class put them — the only honest answer for a choice nobody has made. */
+  savePicks?: PF2ChosenSavePick[],
+): PF2Ranks {
   const level = Math.max(1, Math.min(20, Math.round(rawLevel || 1)));
   const init = pf2Class(className || '')?.initial;
   const tracks = pf2EffectiveTracks(className || '', subclass);
@@ -163,11 +171,19 @@ export function pf2RanksAtLevel(className: string, subclass: string | undefined,
     for (const step of track.increases) if (!step.note && step.level <= level) rank = step.rank;
     return rank;
   };
-  return {
-    perception: rankAt(tracks.perception, init?.perception ?? 'trained'),
+  // The Monk raises saves the player names, so its three tracks are empty and the picks are the only
+  // thing that moves them. Applied AFTER the class tracks, and never downward, so a class that both
+  // schedules a save and offers a chosen one would take whichever is higher rather than the later.
+  const saves = pf2ApplyChosenSaves(className || '', level, {
     fortitude: rankAt(tracks.fortitude, init?.fortitude ?? 'trained'),
     reflex: rankAt(tracks.reflex, init?.reflex ?? 'trained'),
     will: rankAt(tracks.will, init?.will ?? 'trained'),
+  }, savePicks);
+  return {
+    perception: rankAt(tracks.perception, init?.perception ?? 'trained'),
+    fortitude: saves.fortitude,
+    reflex: saves.reflex,
+    will: saves.will,
     defenses: rankAt(tracks.defenses, init?.defense ?? 'trained'),
     attacks: attacksRankAt(tracks.attacks, init?.attacks ?? 'trained'),
     classDc: rankAt(tracks.classDc, init?.classDc ?? 'trained'),
@@ -190,8 +206,8 @@ export function pf2RanksAtLevel(className: string, subclass: string | undefined,
  * Only touches the eight derived ranks. Everything else on the sidecar — chosen skills, items, HP spent,
  * hero points — is untouched, because none of it is a function of level.
  */
-export function pf2ReprojectRanks(pf2: PF2Character, level: number): PF2Character {
-  const r = pf2RanksAtLevel(pf2.identity.className || '', pf2.identity.subclass, level);
+export function pf2ReprojectRanks(pf2: PF2Character, level: number, savePicks?: PF2ChosenSavePick[]): PF2Character {
+  const r = pf2RanksAtLevel(pf2.identity.className || '', pf2.identity.subclass, level, savePicks);
   return {
     ...pf2,
     perception: { ...pf2.perception, rank: r.perception },

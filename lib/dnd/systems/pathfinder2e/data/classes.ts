@@ -133,6 +133,28 @@ export interface PF2ClassSpellcasting {
   note?: string;
 }
 
+/** The three saving throws, in the order PF2's own class tables list them. */
+export const PF2_SAVE_KEYS = ['fortitude', 'reflex', 'will'] as const;
+export type PF2SaveKey = (typeof PF2_SAVE_KEYS)[number];
+
+/**
+ * One "raise a save of your choice" step: the Monk's Path to Perfection.
+ *
+ * `from` is what makes the third step legal to model at all. At 15 the monk raises one of the saves they
+ * ALREADY mastered to legendary — it is not a free pick among three, and a picker that offered all three
+ * would let a player build an illegal monk. So the step records the rank it upgrades FROM, and the planner
+ * offers only saves standing at that rank.
+ */
+export interface PF2ChosenSaveStep {
+  level: number;
+  /** The rank the chosen save is raised to. */
+  rank: PF2Rank;
+  /** Only saves currently at this rank may be chosen. Omitted ⇒ any save not already at `rank`. */
+  from?: PF2Rank;
+  name: string;
+  effect: string;
+}
+
 export interface PF2ClassProgression {
   className: string;
   /** Some classes offer a choice; the array holds every legal option, best-known first. */
@@ -155,6 +177,14 @@ export interface PF2ClassProgression {
   /** The levels at which the subclass grants something. */
   subclassLevels?: number[];
   subclasses?: PF2Subclass[];
+  /**
+   * Levels where the class raises a saving throw the PLAYER picks, rather than one the class names.
+   *
+   * The Monk's Path to Perfection is the only such feature in PF2, but it is modelled as data rather than
+   * as a `className === 'Monk'` branch because a homebrew class copying the pattern should work, and
+   * because a hardcoded class name is invisible to anyone reading the class table.
+   */
+  chosenSaves?: PF2ChosenSaveStep[];
   source: PF2Source;
   /** Anything a reader must know that the fields cannot carry, including our own known gaps. */
   notes?: string[];
@@ -1000,6 +1030,27 @@ export const PF2_CLASS_PROGRESSIONS: PF2ClassProgression[] = [
       note: 'The same two features raise a monk’s qi spell attack modifier and spell DC, where they have qi spells.',
     },
     classFeatLevels: ONE_AND_EVEN_LEVELS,
+    // Path to Perfection, as data. The three save tracks above stay empty on purpose — these are the
+    // increases, and which save each one lands on is the player's to say.
+    chosenSaves: [
+      {
+        level: 7, rank: 'master', from: 'expert',
+        name: 'Path to Perfection',
+        effect: 'Master in ONE saving throw of your choice; a success on it becomes a critical success.',
+      },
+      {
+        level: 11, rank: 'master', from: 'expert',
+        name: 'Second Path to Perfection',
+        // `from: 'expert'` is also what makes this a DIFFERENT save from the level-7 pick: the first one
+        // is master by now, so it is no longer standing at expert and drops out of the offer by itself.
+        effect: 'Master in a SECOND saving throw of your choice.',
+      },
+      {
+        level: 15, rank: 'legendary', from: 'master',
+        name: 'Third Path to Perfection',
+        effect: 'Raise one of your two mastered saves to LEGENDARY; a critical failure on it becomes a failure and failed saves against damage are halved.',
+      },
+    ],
     features: [
       { level: 1, name: 'Flurry of Blows', effect: 'Two unarmed Strikes for one action, counting as one attack for the multiple attack penalty.' },
       { level: 1, name: 'Powerful Fist', effect: 'Your fist deals a larger die than an ordinary one and you take no penalty for unarmed lethal damage.' },
@@ -1754,6 +1805,68 @@ export function pf2EffectiveTracks(className: string, subclassName?: string): {
   };
 }
 
+/** A player's Path-to-Perfection picks: the level a step was taken at, and the save it landed on. */
+export interface PF2ChosenSavePick {
+  level: number;
+  save: PF2SaveKey;
+}
+
+const RANK_ORDER: PF2Rank[] = ['untrained', 'trained', 'expert', 'master', 'legendary'];
+const rankIndex = (r: PF2Rank) => RANK_ORDER.indexOf(r);
+
+/**
+ * Apply a class's chosen-save steps to the three base save ranks.
+ *
+ * Takes the ranks the class's own tracks produced and returns them with each step the player has actually
+ * MADE applied. An unmade step changes nothing — a monk who has not chosen at 7 keeps expert Fortitude,
+ * because guessing which save they meant is the one thing worse than leaving it alone.
+ *
+ * Never lowers a rank, and never applies a step above the character's level. A pick recorded against a
+ * step that no longer exists (a level edited downward, a class swapped) is ignored rather than trusted.
+ */
+export function pf2ApplyChosenSaves(
+  className: string,
+  level: number,
+  base: Record<PF2SaveKey, PF2Rank>,
+  picks: PF2ChosenSavePick[] | undefined,
+): Record<PF2SaveKey, PF2Rank> {
+  const steps = pf2ClassProgression(className)?.chosenSaves;
+  if (!steps?.length || !picks?.length) return base;
+  const out = { ...base };
+  for (const step of steps) {
+    if (step.level > level) continue;
+    const pick = picks.find((p) => p.level === step.level);
+    if (!pick || !PF2_SAVE_KEYS.includes(pick.save)) continue;
+    // The `from` guard is not belt-and-braces: a stale pick (recorded, then the level-7 choice changed
+    // underneath it) can leave a level-15 legendary sitting on a save that is only expert. Re-checking it
+    // here means the ranks are always legal for the picks as they stand NOW, whatever order they arrived in.
+    if (step.from && out[pick.save] !== step.from) continue;
+    if (rankIndex(step.rank) > rankIndex(out[pick.save])) out[pick.save] = step.rank;
+  }
+  return out;
+}
+
+/**
+ * The saves a chosen-save step may legally land on, given the picks already made.
+ *
+ * The planner and the UI both need this, and it is the difference between a picker that enforces the rule
+ * and one that lets a player make an illegal monk: at 15 only the two saves already MASTERED may be raised,
+ * and at 11 the level-7 save is excluded — not by a special case, but because it is no longer at expert.
+ */
+export function pf2ChosenSaveOptions(
+  className: string,
+  stepLevel: number,
+  base: Record<PF2SaveKey, PF2Rank>,
+  picks: PF2ChosenSavePick[] | undefined,
+): PF2SaveKey[] {
+  const step = pf2ClassProgression(className)?.chosenSaves?.find((s) => s.level === stepLevel);
+  if (!step) return [];
+  // Ranks as they stand with every OTHER step applied — including later ones, so re-answering an early
+  // step does not silently offer a save a later step has already moved past.
+  const now = pf2ApplyChosenSaves(className, 20, base, (picks ?? []).filter((p) => p.level !== stepLevel));
+  return PF2_SAVE_KEYS.filter((s) => (step.from ? now[s] === step.from : rankIndex(now[s]) < rankIndex(step.rank)));
+}
+
 /** The class-feat schedule to hand `pf2FeatLevelsFor`, or undefined to let it use its default.
  *
  *  Exists so callers never reach into the object and read `classFeatLevels` themselves: undefined
@@ -1792,7 +1905,7 @@ export function pf2MaxSpellRankFromProgression(className: string, level: number)
 /** What this tranche does NOT cover. Kept next to the data for the same reason PF2_KNOWN_GAPS is:
  *  a gap recorded only in a planning doc is a gap nobody finds. */
 export const PF2_CLASS_PROGRESSION_GAPS: string[] = [
-  'Monk save progression is player-CHOSEN (Path to Perfection at 7/11/15), so the three save tracks carry no increases. A sheet must ask which saves were chosen.',
+  'Monk save progression is player-CHOSEN (Path to Perfection at 7/11/15), so the three save tracks carry no increases — the steps live in `chosenSaves` and are applied by `pf2ApplyChosenSaves` from the player\'s recorded picks. A monk with no picks recorded is expert in all three saves at every level, which is the honest reading of a choice nobody has made, not a bug.',
   'Cleric Fortitude, attack and spellcasting progressions are doctrine-dependent and live on the subclass (`tracks`), not the base tracks. Read them through `pf2EffectiveTracks`; the base tracks alone are the level-1 snapshot for all twenty levels.',
   'Magus and Summoner slot tables are NOT modelled (`slotTableModelled: false`); both are reduced casters and both return a spell-rank ceiling of 0 until someone models them.',
   'Summoner `classFeatLevels` is omitted because of the level-1 evolution-feat slot; the even-level default applies.',
@@ -1802,5 +1915,5 @@ export const PF2_CLASS_PROGRESSION_GAPS: string[] = [
   'Focus-point pools, spell-slot COUNTS per rank, and skill-increase schedules are not modelled here — only which spell ranks unlock when.',
   'Eidolon proficiency tracks (its own attacks and defenses) are described in notes but not modelled as tracks.',
   'Builder attack-rank ceiling: the Fighter\'s attack steps at 5/13/19 carry per-step `note`s (level 5 raises ONE weapon group; 13/19 raise simple/martial/unarmed plus a group). The builder advances the attack proficiency through UNSCOPED steps only, so it cannot tell the group-scoped level-5 bump from the general 13/19 ones and leaves a Fighter\'s general attack rank at its level-1 EXPERT past 13. This UNDER-counts (safe, visible) rather than over-counting the group-only master. Modelling it correctly needs weapon-group tracking, which is not built.',
-  'Monk Path to Perfection (7/11/15) is still unapplied: the choice of WHICH saves reach master and legendary is the player\'s, is not collected anywhere, and cannot be guessed, so an assembled Monk keeps expert in all three saves to level 20. Unlike the Cleric — whose doctrine was already recorded and merely never read — this one needs the choice captured first.',
+  'Chosen-save picks are collected ONLY by the level walker (`/api/dnd/characters/[id]/pf2-levels`). The Foundations builder assembles a character at a level without walking to it, so a monk built directly at 15 has no Path-to-Perfection picks and reads expert in all three saves until the walker is used. `pf2RanksAtLevel` accepts the picks, so closing this is a builder-UI change, not a rules one.',
 ];

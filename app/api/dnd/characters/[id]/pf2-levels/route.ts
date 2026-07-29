@@ -18,11 +18,16 @@ import {
   pf2PlanLevelUp,
   pf2RecordChoice,
   pf2ProjectLevelUpFeats,
+  pf2BaseSaveRanks,
+  pf2SavePicks,
   type PF2RecordedChoice,
   type PF2ChoiceKind,
   type PF2FeatResolution,
 } from '@/lib/dnd/systems/pathfinder2e/levelup';
 import { PF2_ALL_FEATS } from '@/lib/dnd/systems/pathfinder2e/data';
+import {
+  PF2_CLASS_PROGRESSIONS, PF2_SAVE_KEYS, pf2ChosenSaveOptions,
+} from '@/lib/dnd/systems/pathfinder2e/data/classes';
 import type { PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2FeatEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 import { pf2ContextFor } from '@/lib/dnd/systems/pathfinder2e/rules-gate';
@@ -67,11 +72,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 function readChoice(raw: unknown): PF2RecordedChoice | null {
   const c = (raw ?? {}) as Record<string, unknown>;
   const kind = c.kind as PF2ChoiceKind;
-  if (kind !== 'subclass' && kind !== 'feat' && kind !== 'boosts') return null;
+  if (kind !== 'subclass' && kind !== 'feat' && kind !== 'boosts' && kind !== 'save') return null;
   const level = clampLevel(c.level);
   if (kind === 'boosts') {
     const attributes = Array.isArray(c.attributes) ? c.attributes.filter((a): a is string => typeof a === 'string') : [];
     return { level, kind, attributes: attributes as PF2RecordedChoice['attributes'] };
+  }
+  if (kind === 'save') {
+    // Normalised here rather than trusted: the picker sends lower-case keys, but a hand-rolled request or
+    // an older client may send 'Fortitude'. A value that is not one of the three is rejected outright —
+    // storing it would leave a `save` choice that satisfies the planner's prompt and then moves no rank,
+    // which reads as "answered" on a sheet that is silently still expert.
+    const save = String(c.value ?? '').trim().toLowerCase();
+    if (!(PF2_SAVE_KEYS as readonly string[]).includes(save)) return null;
+    return { level, kind, value: save };
   }
   const value = typeof c.value === 'string' ? c.value : '';
   const track = kind === 'feat' && typeof c.track === 'string' ? (c.track as PF2RecordedChoice['track']) : undefined;
@@ -144,6 +158,39 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
       }
     }
+    // A chosen SAVE is gated the same way, and it needs it more than a feat does: the level-15 Path to
+    // Perfection raises one of the two saves already MASTERED, so an unchecked pick produces a monk who is
+    // legendary in a save they are only expert in — a state the rules have no way to reach and the sheet
+    // has no way to show as wrong. `pf2ChosenSaveOptions` computes the legal set from the picks as they
+    // stand, so this stays right however the player re-answers earlier steps.
+    if (choice.kind === 'save' && choice.value) {
+      const prog = PF2_CLASS_PROGRESSIONS.find((p) => p.className === className);
+      const step = prog?.chosenSaves?.find((s) => s.level === choice.level);
+      if (!step) {
+        return NextResponse.json({ error: `A ${className || 'character'} has no save to choose at level ${choice.level}.` }, { status: 400 });
+      }
+      const legal = pf2ChosenSaveOptions(
+        className, choice.level, pf2BaseSaveRanks(prog),
+        pf2SavePicks(choices.filter((c) => c.level !== choice.level)),
+      );
+      if (!legal.includes(choice.value as (typeof legal)[number])) {
+        const accepted = body.acceptException === true && offer.offered;
+        if (!accepted && isRulesEnforcedKind(buildVariant) && !access.access.isDM) {
+          return NextResponse.json({
+            error: step.from
+              ? `${step.name} raises a save that is currently ${step.from}. Choose one of: ${legal.join(', ') || 'none available'}.`
+              : `${choice.value} is not available for ${step.name}.`,
+            canTakeAnyway: offer.offered,
+          }, { status: 400 });
+        }
+        choice.exception = {
+          name: `${step.name}: ${choice.value}`,
+          reason: `not one of ${legal.join(', ') || 'the legal saves'} at level ${choice.level}`,
+          entitlement: offer.stamps,
+          level: choice.level,
+        };
+      }
+    }
     choices = pf2RecordChoice(choices, choice);
   }
 
@@ -195,7 +242,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
       feats: pf2ProjectLevelUpFeats(sidecar.feats ?? [], choices, newLevel, resolveFeat),
     };
-    nextData.pf2e = pf2ReprojectRanks(levelled, newLevel);
+    nextData.pf2e = pf2ReprojectRanks(levelled, newLevel, pf2SavePicks(choices));
   }
 
   // The badge, derived from the merged ledger — the same rule every other write path uses, so a PF2

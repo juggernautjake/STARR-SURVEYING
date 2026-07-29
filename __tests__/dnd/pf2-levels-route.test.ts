@@ -54,7 +54,7 @@ describe('PF2 levels route (B9)', () => {
   it('and re-derives the proficiency ranks, which it used to leave at build-time values', () => {
     // Ranks were written once, at build time. Walking a Wizard 1→9 through this route left it with
     // level-1 saves and a level-1 spell DC — correct if you BUILT at 9, stale if you walked there.
-    expect(SRC).toContain('pf2ReprojectRanks(levelled, newLevel)');
+    expect(SRC).toContain('pf2ReprojectRanks(levelled, newLevel');
   });
 
   it('and projects the SUBCLASS it records, so a doctrine chosen here reaches the sheet', () => {

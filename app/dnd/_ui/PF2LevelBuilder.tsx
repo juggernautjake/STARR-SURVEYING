@@ -15,21 +15,15 @@ import styles from './hextech.module.css';
 import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2WalkerFeatOptions } from '@/lib/dnd/slots/walker-options';
+import type { PF2OutstandingChoice, PF2LevelUpPlan } from '@/lib/dnd/systems/pathfinder2e/levelup';
 
-export interface Outstanding {
-  level: number;
-  kind: 'subclass' | 'feat' | 'boosts';
-  track?: 'ancestry' | 'class' | 'skill' | 'general' | 'archetype';
-  label: string;
-  detail: string;
-  pick?: number;
-}
-interface Plan {
-  from: number;
-  to: number;
-  outstanding: Outstanding[];
-  ready: boolean;
-}
+// The plan's shape comes from the planner that PRODUCES it, not from a hand-copy here. It was hand-copied,
+// and the copy had already drifted: adding the Monk's `save` choice to `PF2ChoiceKind` left this file's
+// union at three kinds, so the new branch typechecked as unreachable and the `options` the server sends
+// simply did not exist as far as this component was concerned. A duplicated type is a type that stops
+// agreeing the first time the original changes.
+export type Outstanding = PF2OutstandingChoice;
+type Plan = PF2LevelUpPlan;
 
 export default function PF2LevelBuilder({
   characterId,
@@ -244,6 +238,7 @@ function ChoicePrompt({
       {choice.kind === 'subclass' && <SubclassInput className={className} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: 'subclass', value })} />}
       {choice.kind === 'feat' && <FeatInput choice={choice} className={className} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: 'feat', track: choice.track, value })} />}
       {choice.kind === 'boosts' && <BoostsInput busy={busy} onPick={(attributes) => onRecord({ level: choice.level, kind: 'boosts', attributes })} />}
+      {choice.kind === 'save' && <SaveInput choice={choice} busy={busy} onPick={(value) => onRecord({ level: choice.level, kind: 'save', value })} />}
     </div>
   );
 }
@@ -272,6 +267,45 @@ function SubclassInput({ className, busy, onPick }: { className: string; busy: b
         />
       )}
       <button className={styles.hexBtn} disabled={busy || !value.trim()} onClick={() => onPick(value.trim())}>
+        Record
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The Monk's Path to Perfection (P5-10b) — pick which saving throw this step raises.
+ *
+ * Unlike the feat picker three functions down, this one FILTERS rather than showing refusals, and the
+ * asymmetry is deliberate: an ineligible feat is a real choice a table might allow, so it stays visible
+ * and reachable through the escape hatch. A save that is not at the step's starting rank is not a choice
+ * at all — raising an expert save to legendary is a state the rules cannot produce and the sheet cannot
+ * depict as wrong. There are three options; showing one greyed out teaches nothing.
+ *
+ * The legal set comes from the PLAN, not from this component. The server computes it from the picks as
+ * they stand and re-checks it on the way in, so a stale page cannot record an illegal step.
+ */
+function SaveInput({ choice, busy, onPick }: { choice: Outstanding; busy: boolean; onPick: (v: string) => void }) {
+  const options = choice.options ?? [];
+  const [value, setValue] = useState('');
+  if (!options.length) {
+    return (
+      <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
+        No save is eligible for this step yet — answer the earlier Path to Perfection first.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <select value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} style={selStyle}>
+        <option value="">— choose —</option>
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o.charAt(0).toUpperCase() + o.slice(1)}
+          </option>
+        ))}
+      </select>
+      <button className={styles.hexBtn} disabled={busy || !value} onClick={() => onPick(value)}>
         Record
       </button>
     </div>

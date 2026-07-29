@@ -8,13 +8,17 @@
 // DELIBERATELY OMITTED for now: the universal chassis every class shares is surfaced via the feat tracks
 // (ancestry/skill/general feats), but ability boosts (levels 5/10/15/20) and skill increases (odd levels
 // from 3) are character rules, not class rules, and the proficiency-increase caveats
-// (`PF2_CLASS_PROGRESSION_GAPS`: Monk player-chosen saves, Cleric doctrines) mean per-track rank steps are
-// left to a later slice rather than shown partially.
-import { PF2_CLASS_PROGRESSIONS } from './data/classes';
+// (`PF2_CLASS_PROGRESSION_GAPS`) meant per-track rank steps were left to a later slice rather than shown
+// partially. Both caveats are now closed: the Cleric's doctrine drives its tracks (P5-10) and the Monk's
+// Path to Perfection is a prompted `save` choice below (P5-10b).
+import {
+  PF2_CLASS_PROGRESSIONS, PF2_SAVE_KEYS, pf2ChosenSaveOptions,
+  type PF2ClassProgression, type PF2ChosenSavePick, type PF2SaveKey,
+} from './data/classes';
 import { pf2FeatLevelsFor } from './eligibility';
 import type { SlotException } from '../../slots/entitlement';
 import type { PF2FeatTrack } from './defs';
-import type { PF2AttributeKey } from './model';
+import type { PF2AttributeKey, PF2Rank } from './model';
 
 /** The feat tracks that follow a fixed level schedule (archetype feats ride the class schedule). */
 const FEAT_TRACKS: PF2FeatTrack[] = ['ancestry', 'class', 'skill', 'general'];
@@ -64,13 +68,17 @@ export function pf2LevelBreakdown(className: string, toLevel: number): PF2LevelS
 // schedules (vary by class; showing a fixed one would be wrong) and the concrete subclass OPTIONS (not
 // reliably modelled): the subclass prompt names the moment, the picker supplies the legal list.
 
-// `other` is never PROMPTED for — `pf2PlanLevelUp` only ever emits subclass/feat/boosts. It exists so a
+// `other` is never PROMPTED for — `pf2PlanLevelUp` only ever emits subclass/feat/boosts/save. It exists so a
 // pick taken through the escape hatch that occupies no real slot still has somewhere to be recorded
 // (slot plan S6). Inert by construction: the planner looks choices up by (level, kind, track) and never
 // asks for this one, and every `choice.kind` switch in the UI runs on OUTSTANDING choices, which the
 // planner produces. Widening a union is where gates silently change behaviour — see the `SheetVariantKind`
 // note in system-variants.ts — so this one was added only after checking each consumer.
-export type PF2ChoiceKind = 'subclass' | 'feat' | 'boosts' | 'other';
+// `save` is the Monk's Path to Perfection (P5-10b), the one PF2 feature that raises a saving throw the
+// PLAYER names. It IS prompted, unlike `other`, so every consumer of this union had to be checked — the
+// route's `readChoice` whitelist, `PF2LevelBuilder`'s `choice.kind` switch, and the rank projection — and
+// each one now handles it explicitly rather than falling through to a default.
+export type PF2ChoiceKind = 'subclass' | 'feat' | 'boosts' | 'save' | 'other';
 
 /** A choice the player has already made, persisted on `data.pf2e.build.choices`. */
 export interface PF2RecordedChoice {
@@ -78,7 +86,7 @@ export interface PF2RecordedChoice {
   kind: PF2ChoiceKind;
   /** feat → which track the slot belongs to (a level can grant more than one). */
   track?: PF2FeatTrack;
-  /** subclass → the chosen subclass name/key · feat → the chosen feat name. */
+  /** subclass → the chosen subclass name/key · feat → the chosen feat name · save → 'fortitude'|'reflex'|'will'. */
   value?: string;
   /** boosts → the (up to 4) attributes raised this boost level. */
   attributes?: PF2AttributeKey[];
@@ -96,6 +104,10 @@ export interface PF2OutstandingChoice {
   detail: string;
   /** boosts → how many distinct attributes to raise (4). */
   pick?: number;
+  /** save → the saves this step may legally land on, already narrowed by the picks made so far. The UI
+   *  must offer these and only these: at 15 a monk raises one of the two saves they already MASTERED, and
+   *  a picker showing all three lets a player build a monk the rules do not allow. */
+  options?: string[];
 }
 
 export interface PF2LevelUpPlan {
@@ -113,6 +125,29 @@ const TRACK_LABEL: Record<PF2FeatTrack, string> = {
   general: 'General feat',
   archetype: 'Archetype feat',
 };
+
+/** The class's own save ranks before any chosen-save step — for the Monk, expert across the board. */
+export function pf2BaseSaveRanks(prog: { saves: PF2ClassProgression['saves'] } | undefined): Record<PF2SaveKey, PF2Rank> {
+  return {
+    fortitude: prog?.saves.fortitude.initial ?? 'trained',
+    reflex: prog?.saves.reflex.initial ?? 'trained',
+    will: prog?.saves.will.initial ?? 'trained',
+  };
+}
+
+/**
+ * The chosen-save picks recorded in a ledger, in the shape the rules layer wants.
+ *
+ * Ignores anything that is not one of the three save keys rather than coercing it: a value that is not a
+ * save is a corrupt or hand-edited ledger entry, and the honest reading of it is "no pick here" — which
+ * leaves the rank where the class put it.
+ */
+export function pf2SavePicks(recorded: PF2RecordedChoice[] | undefined): PF2ChosenSavePick[] {
+  return (recorded ?? [])
+    .filter((r) => r.kind === 'save')
+    .map((r) => ({ level: r.level, save: String(r.value ?? '').trim().toLowerCase() as PF2SaveKey }))
+    .filter((p) => (PF2_SAVE_KEYS as readonly string[]).includes(p.save));
+}
 
 /** Is a recorded choice actually resolved (not just a placeholder)? */
 function pf2Satisfied(rec: PF2RecordedChoice | undefined, kind: PF2ChoiceKind): boolean {
@@ -157,6 +192,18 @@ export function pf2PlanLevelUp(args: {
       if (!pf2FeatLevelsFor(track, level, prog?.classFeatLevels).includes(level)) continue;
       if (pf2Satisfied(has(level, 'feat', track), 'feat')) continue;
       outstanding.push({ level, kind: 'feat', track, label: TRACK_LABEL[track], detail: `Pick a ${track} feat you qualify for.` });
+    }
+    // A save the player names — the Monk's Path to Perfection at 7/11/15.
+    const saveStep = prog?.chosenSaves?.find((s) => s.level === level);
+    if (saveStep && !pf2Satisfied(has(level, 'save'), 'save')) {
+      const options = pf2ChosenSaveOptions(args.className, level, pf2BaseSaveRanks(prog), pf2SavePicks(recorded));
+      outstanding.push({
+        level,
+        kind: 'save',
+        label: saveStep.name,
+        detail: saveStep.effect,
+        options,
+      });
     }
     // Universal 4-attribute boosts.
     if (ABILITY_BOOST_LEVELS.has(level) && !pf2Satisfied(has(level, 'boosts'), 'boosts')) {
