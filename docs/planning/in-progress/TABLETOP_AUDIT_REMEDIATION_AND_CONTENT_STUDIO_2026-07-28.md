@@ -4013,3 +4013,16 @@ empty". A test that forbids logging an error it is not allowed to throw is prote
 **What this does not do:** logs are only useful if someone reads them. The real end state is these
 failures reaching the review queue or an error reporter, not `console.error` on a server nobody tails.
 This is the smallest change that ends the silence; it is not the end of the work.
+
+**P14-13 step 1, scouted not built.** Looked for where a DM's "give something to a character" entry point
+belongs and found it is NOT `CampaignHub` — that file's own header says *"the players' view … The DM gets
+the richer control panel instead — see the campaign route."* `PartyGallery` renders there, which is what
+made it look like the DM surface at a glance; it is not.
+
+So the entry point goes on the DM's campaign route / manage page, and the next session should confirm
+which of those a DM actually sits on before adding a link. Recorded rather than guessed: putting it on the
+player view would give every player a button phrased for a DM, on a path whose API would then refuse
+them — a worse outcome than the missing link, because it fails at the end instead of the start.
+
+The capability itself is verified working (see the grant round-trip above), so this is genuinely just
+placement.
