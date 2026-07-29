@@ -61,6 +61,10 @@ export type PF2Edit =
   // a player and the AI both refer to gear — an id would have to be looked up before it could be used.
   | { op: 'add_inventory_item'; name: string; quantity?: number; bulk?: string | number; location?: 'worn' | 'held' | 'stowed'; invested?: boolean; notes?: string }
   | { op: 'remove_inventory_item'; name: string }
+  // Edit an item IN PLACE (P5-1b). Add/remove alone meant changing a quantity was delete-and-retype, which
+  // loses the notes and the Bulk you had already recorded. Every field is optional: an op that only carries
+  // `quantity` changes only the quantity.
+  | { op: 'update_inventory_item'; name: string; to?: string; quantity?: number; bulk?: string | number; location?: 'worn' | 'held' | 'stowed'; invested?: boolean; notes?: string }
   // Shields (P5-2). Split into "which shield" and "is it up right now", because they change on completely
   // different timescales: you pick a shield once and raise it every round.
   | { op: 'set_shield'; name?: string; currentHp?: number; acBonus?: number; hardness?: number; hp?: number; bt?: number }
@@ -81,7 +85,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'add_inventory_item', 'remove_inventory_item', 'set_shield', 'set_shield_raised', 'apply_shield_block', 'add_currency', 'set_currency', 'remove_currency'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'add_inventory_item', 'remove_inventory_item', 'update_inventory_item', 'set_shield', 'set_shield_raised', 'apply_shield_block', 'add_currency', 'set_currency', 'remove_currency'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -373,6 +377,29 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       return next.length === items.length ? pf2 : { ...pf2, inventory: next };
     }
 
+    case 'update_inventory_item': {
+      const name = edit.name?.trim().toLowerCase();
+      if (!name) return pf2;
+      const items = normalizeInventory(pf2.inventory);
+      const idx = items.findIndex((i) => i.name.toLowerCase() === name);
+      if (idx < 0) return pf2; // nothing matched — a visible no-op, same as remove
+      const cur = items[idx];
+      items[idx] = {
+        ...cur,
+        ...(edit.to?.trim() ? { name: edit.to.trim() } : {}),
+        // A quantity of 0 is meaningful — it is how you keep an item you have run out of — so this floors
+        // at 0 rather than treating 0 as "unset" and skipping the update.
+        ...(edit.quantity != null && Number.isFinite(edit.quantity) ? { quantity: Math.max(0, Math.round(edit.quantity)) } : {}),
+        ...(edit.bulk != null ? { bulk: edit.bulk } : {}),
+        ...(edit.location ? { location: edit.location } : {}),
+        // `invested` is a BOOLEAN, so `!= null` rather than truthiness — otherwise un-investing an item
+        // would be impossible, since `false` would read as "no change".
+        ...(edit.invested != null ? { invested: edit.invested } : {}),
+        ...(edit.notes != null ? { notes: edit.notes } : {}),
+      };
+      return { ...pf2, inventory: items };
+    }
+
     // ── Shields (P5-2) ───────────────────────────────────────────────────────────────────────────
     case 'set_shield': {
       // An empty name REMOVES the shield: absent means "don't touch", empty means "there is none" —
@@ -571,6 +598,36 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
         ...(Number.isFinite(bonus) ? { weaponBonus: Math.max(0, Math.min(3, Math.round(bonus))) } : {}),
         ...(STRIKING.includes(striking) ? { striking } : {}),
         ...(Array.isArray(o.runes) ? { runes: o.runes.map((r) => String(r ?? '').trim()).filter(Boolean) } : {}),
+      } as PF2Edit,
+    };
+  }
+  // ── Inventory (P5-1b) ─────────────────────────────────────────────────────────────────────────
+  //
+  // These had NO parser branch at all. `parsePf2Edit` is a per-op whitelist, so `add_inventory_item` passed
+  // the enum check and then reached the engine with every field except `op` stripped — a "Rope" with no
+  // quantity, no Bulk and no location. The op existed, the engine handled it, and nothing could ever send
+  // it a complete payload. Same shape as the currency ops in P1-2, found the same way: by adding a sibling
+  // op and looking for where it would be parsed.
+  if (op === 'add_inventory_item' || op === 'update_inventory_item' || op === 'remove_inventory_item') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: `The "${op}" edit needs an item "name".` };
+    if (op === 'remove_inventory_item') return { edit: { op, name } };
+
+    const LOCATIONS = ['worn', 'held', 'stowed'];
+    const location = String(o.location ?? '').trim().toLowerCase();
+    const quantity = Number(o.quantity);
+    return {
+      edit: {
+        op, name,
+        ...(op === 'update_inventory_item' && typeof o.to === 'string' && o.to.trim() ? { to: o.to.trim() } : {}),
+        // Quantity 0 is meaningful — an item you have run out of but still track — so this checks finiteness
+        // rather than truthiness.
+        ...(Number.isFinite(quantity) ? { quantity: Math.max(0, Math.round(quantity)) } : {}),
+        ...(o.bulk != null && o.bulk !== '' ? { bulk: typeof o.bulk === 'number' ? o.bulk : String(o.bulk).trim() } : {}),
+        ...(LOCATIONS.includes(location) ? { location: location as 'worn' | 'held' | 'stowed' } : {}),
+        // A boolean, so `typeof` rather than truthiness — otherwise un-investing an item is unsendable.
+        ...(typeof o.invested === 'boolean' ? { invested: o.invested } : {}),
+        ...(typeof o.notes === 'string' ? { notes: o.notes.trim() } : {}),
       } as PF2Edit,
     };
   }

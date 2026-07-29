@@ -1065,8 +1065,33 @@ should skip Phase 7 entirely.
       (P5-1b). The model, the maths and the display are done; adding gear currently goes through the edit
       flow. **P6-9a (the PF2 engine bridge) is now unblocked.**
 
-- [ ] **P5-1b — PF2 item picker + sheet-side inventory editing.** Wire the existing weapon/armour/shield/
+- [x] **P5-1b — PF2 item picker + sheet-side inventory editing.** Wire the existing weapon/armour/shield/
       rune/item catalogue into an add-item control, and allow quantity/location/invested edits in place.
+
+      **Done 2026-07-29.** An `＋ Add gear…` picker over `PF2_ITEMS` and per-row quantity / location /
+      invested / drop controls on the Equipment panel, plus a new `update_inventory_item` op.
+
+      **THE PARSER HAD NO INVENTORY BRANCH AT ALL.** `parsePf2Edit` is a per-op whitelist, and neither
+      `add_inventory_item` nor `remove_inventory_item` was in it — so `add_inventory_item` passed the enum
+      check and reached the engine with **every field except `op` stripped**: a "Rope" with no quantity, no
+      Bulk, no location. The op existed, the engine handled it correctly, and nothing could ever send it a
+      complete payload. Exactly the currency-op shape from P1-2, and found the same way — by adding a
+      sibling op and asking where it would be parsed.
+
+      **Why the picker rather than a text field:** choosing from the catalogue carries the item's REAL Bulk
+      across, and Bulk is what the encumbrance line above it computes from. Hand-typed gear is how a sheet
+      ends up with a rope of unknown weight and an encumbrance number that quietly means nothing.
+
+      Two boolean/zero traps, both avoided deliberately and pinned: quantity `0` is a real value (an item
+      you have run out of but still track), so the op checks `Number.isFinite` rather than truthiness; and
+      `invested` is checked with `!= null`, because a truthiness check makes un-investing an item
+      unsendable.
+
+      **NOT visually verified, and I want that on the record.** The PF2 shells mount panels lazily and I
+      could not get the Equipment section into the DOM in the time available — the sheet rendered, but only
+      `pf2-defenses` and `pf2-strikes` were present. The wiring is verified by typecheck and tests, which
+      after today's run of browser findings is *weaker evidence than it sounds*. Worth opening a PF2 sheet
+      and clicking through the Equipment panel before trusting it.
 
 - [x] **P5-2 — Pathfinder 2e shields. Shipped 2026-07-28.** `lib/dnd/systems/pathfinder2e/shield.ts` (pure),
       `PF2Combat.shield` (optional — no migration), three edit ops, the bonus wired into `pf2ArmorClass`,

@@ -179,3 +179,68 @@ describe('the sheet actually shows it', () => {
     expect(panels).toContain('defaultCurrencies');
   });
 });
+
+describe('the item picker and in-place editing (P5-1b)', () => {
+  const panels = readFileSync(join(process.cwd(), 'app/dnd/_ui/pf2/usePf2Panels.tsx'), 'utf8');
+  const edit = readFileSync(join(process.cwd(), 'lib/dnd/systems/pathfinder2e/edit.ts'), 'utf8');
+
+  it('adds gear from the CATALOGUE, carrying its real Bulk', () => {
+    // The sheet's instruction was "add gear from the edit flow" — you left the sheet to record picking up a
+    // rope. Choosing from `PF2_ITEMS` brings the item's real Bulk across, which is the number the
+    // encumbrance line depends on; typing gear by hand is how a sheet ends up with a rope of unknown weight.
+    expect(panels).toContain("from '@/lib/dnd/systems/pathfinder2e/data/equipment'");
+    expect(panels).toMatch(/op: 'add_inventory_item', name: def\.name, quantity: 1, bulk: def\.bulk/);
+  });
+
+  it('edits quantity, location and invested in place', () => {
+    // Before this, changing a quantity meant delete-and-retype, which silently discarded the notes and Bulk
+    // already recorded against the item.
+    expect(panels).toMatch(/op: 'update_inventory_item', name: it\.name, quantity:/);
+    expect(panels).toMatch(/op: 'update_inventory_item', name: it\.name, location:/);
+    expect(panels).toMatch(/op: 'update_inventory_item', name: it\.name, invested: !it\.invested/);
+  });
+
+  it('and the controls are gated on canEdit', () => {
+    // Line-based rather than character-span or literal-newline matching: the comment block between the
+    // guard and the control is long, and the file is CRLF — a `\n` in the needle matches nothing here.
+    const lines = panels.split(/\r?\n/);
+    const pickerLine = lines.findIndex((l) => l.includes('Add an item from the catalogue'));
+    expect(pickerLine).toBeGreaterThan(-1);
+    // The nearest preceding `canEdit &&` guard is the one wrapping it.
+    const guardLine = lines.slice(0, pickerLine).map((l, i) => ({ l, i })).reverse().find((x) => x.l.includes('canEdit && ('))?.i ?? -1;
+    expect(guardLine, 'the add-gear control must sit inside a canEdit guard').toBeGreaterThan(-1);
+    expect(pickerLine - guardLine).toBeLessThan(12);
+  });
+});
+
+describe('the update op itself', () => {
+  const edit = readFileSync(join(process.cwd(), 'lib/dnd/systems/pathfinder2e/edit.ts'), 'utf8');
+
+  it('is registered and handled', () => {
+    expect(edit).toContain("'update_inventory_item'");
+    expect(edit).toContain("case 'update_inventory_item': {");
+  });
+
+  it('treats quantity 0 as a real value, not "unset"', () => {
+    // 0 is how you keep an item you have run out of. `if (edit.quantity)` would make it unsettable.
+    expect(edit).toMatch(/edit\.quantity != null && Number\.isFinite\(edit\.quantity\)/);
+  });
+
+  it('and lets `invested` be turned OFF', () => {
+    // A boolean checked for truthiness can only ever be set to true — un-investing would be impossible.
+    expect(edit).toMatch(/edit\.invested != null \? \{ invested: edit\.invested \}/);
+  });
+
+  it('is a visible no-op when nothing matches, like remove', () => {
+    expect(edit).toMatch(/if \(idx < 0\) return pf2;/);
+  });
+
+  it('THE PARSER now handles inventory ops at all', () => {
+    // `parsePf2Edit` is a per-op whitelist, and inventory had NO branch: `add_inventory_item` passed the
+    // enum check and reached the engine with every field except `op` stripped — a "Rope" with no quantity,
+    // no Bulk and no location. Same shape as the currency ops in P1-2, found the same way.
+    expect(edit).toMatch(/if \(op === 'add_inventory_item' \|\| op === 'update_inventory_item' \|\| op === 'remove_inventory_item'\)/);
+    expect(edit).toMatch(/LOCATIONS\.includes\(location\)/);
+    expect(edit).toMatch(/typeof o\.invested === 'boolean'/);
+  });
+});

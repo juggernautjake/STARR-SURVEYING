@@ -31,6 +31,7 @@ import type { PF2Character, PF2ActionCost } from '@/lib/dnd/systems/pathfinder2e
 import {
   normalizeInventory, totalBulk, bulkLimit, bulkPenalty, formatBulk, investedCount, INVESTED_LIMIT,
 } from '@/lib/dnd/systems/pathfinder2e/inventory';
+import { PF2_ITEMS } from '@/lib/dnd/systems/pathfinder2e/data/equipment';
 import { defaultCurrencies } from '@/lib/dnd/currency';
 import { resolveShield, describeShield } from '@/lib/dnd/systems/pathfinder2e/shield';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
@@ -1045,9 +1046,35 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
               </p>
             )}
 
+            {/* ADD GEAR from the catalogue (P5-1b). `PF2_ITEMS` has shipped with Bulk and price since the
+                library work; the sheet's only instruction was "add gear from the edit flow", which meant
+                leaving the sheet to record that you picked up a rope. Choosing from the catalogue carries
+                the item's REAL Bulk across, which is the number the encumbrance line above depends on —
+                typing gear by hand is how a sheet ends up with a rope of unknown weight. */}
+            {canEdit && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const def = PF2_ITEMS.find((i) => i.name === e.target.value);
+                    if (!def) return;
+                    void postEdit({ op: 'add_inventory_item', name: def.name, quantity: 1, bulk: def.bulk, location: 'stowed' });
+                  }}
+                  aria-label="Add an item from the catalogue"
+                  style={{ padding: '5px 8px', fontSize: 12.5, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 4, maxWidth: 240 }}
+                >
+                  <option value="">＋ Add gear…</option>
+                  {PF2_ITEMS.map((i) => (
+                    <option key={i.name} value={i.name}>{i.name} — Bulk {i.bulk ?? '—'}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}>Bulk comes from the catalogue.</span>
+              </div>
+            )}
+
             {inventory.length === 0 ? (
               <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-muted)' }}>
-                Nothing carried yet.{canEdit ? ' Add gear from the edit flow.' : ''}
+                Nothing carried yet.{canEdit ? ' Pick something from ＋ Add gear above.' : ''}
               </p>
             ) : (
               <div style={{ display: 'grid', gap: 5 }}>
@@ -1066,6 +1093,51 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
                     <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', whiteSpace: 'nowrap' }}>
                       {it.location ?? 'stowed'} · Bulk {it.bulk == null || it.bulk === '' ? '—' : String(it.bulk)}
                     </span>
+
+                    {/* IN-PLACE edits (P5-1b). Before this, changing a quantity meant delete-and-retype,
+                        which silently discarded the notes and Bulk already recorded against the item.
+                        Quantity and location are the two that change constantly in play; `invested` is here
+                        because PF2 caps it at 10/day and the header counts it. */}
+                    {canEdit && (
+                      <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}>
+                        <input
+                          type="number" min={0} value={it.quantity}
+                          aria-label={`Quantity of ${it.name}`}
+                          onChange={(e) => void postEdit({ op: 'update_inventory_item', name: it.name, quantity: Number(e.target.value) })}
+                          style={{ width: 52, padding: '2px 5px', fontSize: 11.5, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 3 }}
+                        />
+                        <select
+                          value={it.location ?? 'stowed'}
+                          aria-label={`Where ${it.name} is carried`}
+                          onChange={(e) => void postEdit({ op: 'update_inventory_item', name: it.name, location: e.target.value })}
+                          style={{ padding: '2px 4px', fontSize: 11.5, background: 'rgba(1,10,19,0.55)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', borderRadius: 3 }}
+                        >
+                          <option value="worn">worn</option>
+                          <option value="held">held</option>
+                          <option value="stowed">stowed</option>
+                        </select>
+                        <button
+                          type="button"
+                          title={it.invested ? 'Stop investing this item' : 'Invest this item (PF2 allows 10 per day)'}
+                          onClick={() => void postEdit({ op: 'update_inventory_item', name: it.name, invested: !it.invested })}
+                          style={{
+                            fontSize: 11, padding: '2px 7px', borderRadius: 3, cursor: 'pointer',
+                            border: `1px solid ${it.invested ? 'var(--hx-teal-1)' : 'var(--hx-line)'}`,
+                            background: it.invested ? 'rgba(var(--hx-teal-1-rgb),0.14)' : 'transparent',
+                            color: it.invested ? 'var(--hx-teal-1)' : 'var(--hx-muted)',
+                          }}
+                        >
+                          invested
+                        </button>
+                        <button
+                          type="button" title={`Drop ${it.name}`}
+                          onClick={() => void postEdit({ op: 'remove_inventory_item', name: it.name })}
+                          style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, cursor: 'pointer', border: '1px solid var(--hx-line)', background: 'transparent', color: 'var(--hx-danger)' }}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
