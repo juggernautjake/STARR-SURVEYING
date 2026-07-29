@@ -2101,8 +2101,46 @@ Every slice below serves that one rule.
 
       The export is offered **again inside the delete confirmation**. Someone who reached that dialog did
       not read the toolbar, and one extra line is the difference between a warning and a way out.
-- [ ] **P9-3 — Pathbuilder import.** *(H-3.)* A deterministic adapter for Pathbuilder's JSON — fast, exact,
+- [x] **P9-3 — Pathbuilder import.** *(H-3.)* A deterministic adapter for Pathbuilder's JSON — fast, exact,
       free of model cost, and aimed at PF2 players, who are currently the least-served.
+
+      **Done 2026-07-29.** `lib/dnd/systems/pathfinder2e/pathbuilder.ts`, `POST
+      /api/dnd/characters/import-pathbuilder`, and route selection folded into the existing import button.
+
+      **The design rule is that it never guesses.** Pathbuilder's JSON has no published schema: some of it
+      is stable and obvious, some is not. So the adapter reads what it recognises, records everything else
+      in `unmapped`, and the route **returns** both. An importer that silently drops half a character is
+      worse than one that refuses — the player finds out weeks later, at a table — and one that invents the
+      half it did not understand is worse still. Reporting the gaps is the entire advantage a deterministic
+      importer has over the AI path; hiding them throws it away.
+
+      Three specific refusals-to-guess, each pinned:
+
+      · **The subclass is not imported.** Pathbuilder stores it under a different key per class —
+        `bloodline`, `instinct`, `doctrine` — and reading the wrong one sets a Cleric's doctrine from a
+        Barbarian field. Since P5-10 a doctrine drives four proficiency tracks, so a wrong one is wrong
+        everywhere and *looks right*. Picking it on the sheet is one dropdown.
+      · **Feats are read from element 0 only.** Each is an array — `["Fleet", null, "Ancestry Feat", 1]` —
+        and the order after the name has not been stable across versions. The catalogue re-derives the
+        level anyway, and that answer is the correct one.
+      · **Ability SCORES become MODIFIERS.** Pathbuilder stores 18; the builder wants +4. This is the single
+        most consequential line in the file: importing the score as a modifier gives a character +22 to hit
+        and a spell DC in the thirties, and it reads as a data problem rather than a units problem.
+
+      **Assembled through `assemblePF2VanillaCharacter`, not by writing a sidecar** — which is what makes an
+      imported character indistinguishable from a built one. It picks up the level-appropriate proficiency
+      ranks, the doctrine tracks, the HP formula and the Strike ranks from the one place that owns them; an
+      importer that hand-assembles a sidecar drifts from the builder within a slice or two.
+
+      **No second button.** The existing **⇪ Import JSON** control picks the route from the *file* — a
+      Pathbuilder export is recognisable on sight — because asking players to classify their own file is
+      asking them to know something we can just look at, and a wrong guess costs nothing since each route
+      validates its own shape.
+
+      **Not verified against a real Pathbuilder file.** The field names are a best-effort reading of a
+      third-party format, and the adapter is built so that a wrong guess degrades to "unmapped" rather than
+      to bad data — but the first real export may well surface keys this misses. That is the expected
+      outcome, not a failure, and the `unmapped` list is how it will be visible.
 
 ---
 
