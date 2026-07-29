@@ -50,6 +50,31 @@ should skip Phase 7 entirely.
 
 ---
 
+## ⚑ QA log
+
+- [x] **QA-1 — First browser/server pass over everything shipped on this branch. 2026-07-28.**
+      Run because ~30 slices had shipped verified only by `tsc` + vitest, and this repo's own record is that
+      a green suite misses rendering-condition bugs. Dev server on :3011 (3000–3009 are dead zombie
+      sockets), session minted rather than creating live test data — both per the project's QA notes.
+      **Result: clean. No defects found**, across 8 compiled routes and 0 server errors or warnings.
+      Verified: `/dnd`, `/dnd/library`, `/dnd/content` (+ `?tab=mine`, `?kind=`), `/dnd/content/new` (+ 4
+      kinds), `/dnd/characters` (+ system and query filters). The kind picker renders **all 18** kinds; the
+      creature form renders the **statblock**, **list** and **effects** editors and the artwork field; the
+      class form renders **Level by level**, **Build from scratch** and the partial-build message; a
+      prose-only kind shows the **"not adopted onto a sheet"** notice. All four new header doors
+      (`/dnd/characters`, `/dnd/content`, `/dnd/content/new`, `/dnd/profile`) and all three lobby content
+      buttons are in the rendered HTML.
+      **One genuinely useful negative result:** `/dnd/content` returns 200 and shows "No custom content has
+      been published yet" against a database where **`dnd_homebrew` does not exist** (seed 455 unapplied).
+      The defensive loaders degrade exactly as designed rather than 500-ing the page.
+      **What this pass did NOT cover, and it matters:** it drove HTTP and read rendered HTML. **No
+      JavaScript executed and nothing was clicked.** Tab switching, the AI "help me" button, file upload,
+      the transposer's retry loop, adopt, and every form submission are unverified. That is QA-2.
+
+- [ ] **QA-2 — Interaction pass.** Drive the same surfaces with a real browser: switch a sheet tab, press
+      "help me", upload a file, save a piece, adopt it onto a character, run a transpose and retry it. Needs
+      seeds 455–457 applied to a scratch database first, since most of these write.
+
 ## Phase 0 — Do these first (hours, not days)
 
 - [x] **P0-1 — ~~Merge the edit-history exposure fix.~~ ALREADY DONE — and this slice was written on a false
