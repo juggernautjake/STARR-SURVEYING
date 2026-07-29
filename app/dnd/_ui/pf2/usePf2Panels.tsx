@@ -28,6 +28,10 @@ import PF2WeaponEditor, { type PF2EditableWeapon } from '../PF2WeaponEditor';
 import PF2ArmorEditor from '../PF2ArmorEditor';
 import styles from '../hextech.module.css';
 import type { PF2Character, PF2ActionCost } from '@/lib/dnd/systems/pathfinder2e/model';
+import {
+  normalizeInventory, totalBulk, bulkLimit, bulkPenalty, formatBulk, investedCount, INVESTED_LIMIT,
+} from '@/lib/dnd/systems/pathfinder2e/inventory';
+import { defaultCurrencies } from '@/lib/dnd/currency';
 import { PF2_ATTRIBUTES, PF2_SAVES } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2Proficiency, pf2MaxHp } from '@/lib/dnd/systems/pathfinder2e/rules';
 import {
@@ -320,6 +324,10 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
     ...(showStrikes ? [{ id: 'pf2-strikes', label: 'Strikes' }] : []),
     ...(showFeats ? [{ id: 'pf2-feats', label: 'Feats' }] : []),
     ...(showSpells ? [{ id: 'pf2-spells', label: 'Spells' }] : []),
+    // Always listed, like Attributes and Defenses: Bulk applies whether or not you are carrying anything,
+    // and a hidden Equipment section is how a player concludes PF2 has no inventory — which it did not,
+    // until P5-1.
+    { id: 'pf2-equipment', label: 'Equipment' },
   ];
   const jump = (e: React.MouseEvent, anchor: string) => {
     e.preventDefault();
@@ -480,6 +488,11 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
   );
 
   // ── Panels ────────────────────────────────────────────────────────────────────────────────────
+  // Equipment (P5-1). Both read defensively so every character stored before this slice renders as
+  // "carrying nothing, holding this system's default coins" rather than needing a migration.
+  const inventory = normalizeInventory(pf2.inventory);
+  const currencies = pf2.currencies?.length ? pf2.currencies : defaultCurrencies('pathfinder2e');
+
   const gated: (SheetPanel & { show: boolean })[] = [
     {
       id: 'pf2-attributes', label: 'Attributes', emoji: '⬡', show: true,
@@ -938,6 +951,80 @@ export function usePf2Panels({ pf2, characterId, canEdit, isDM, variantKind = 'v
           </div>
         </>
       ),
+    },
+    {
+      // EQUIPMENT (P5-1, audit C-1). PF2 had no inventory at all — a character could not record that they
+      // were carrying a rope, while `data/equipment.ts` shipped the full catalogue to the library only.
+      //
+      // Bulk is the reason this is a panel and not a text box. It is a core mechanic with real combat
+      // consequences (Encumbered costs 10 feet of Speed and −1 to Str/Dex checks), and it is precisely what
+      // 5e's pounds cannot express.
+      id: 'pf2-equipment', label: 'Equipment', emoji: '❖', show: true, count: inventory.length,
+      render: () => {
+        const carried = totalBulk(inventory);
+        const penalty = bulkPenalty(carried, pf2.attributes.STR);
+        const invested = investedCount(inventory);
+        return (
+          <>
+            <SectionHead
+              title="Equipment"
+              note={`Bulk ${formatBulk(carried)} / ${bulkLimit(pf2.attributes.STR)}${invested ? ` · ${invested}/${INVESTED_LIMIT} invested` : ''}`}
+            />
+
+            {/* The penalty in the game's own words, not a colour. A player needs to know what encumbered
+                COSTS them, and "your bar is orange" does not say that. */}
+            {penalty.state !== 'ok' && (
+              <p style={{
+                margin: '0 0 10px', fontSize: 12.5, lineHeight: 1.55, padding: '8px 10px', borderRadius: 3,
+                border: `1px solid ${penalty.state === 'overloaded' ? 'var(--hx-danger, #ff6b6b)' : 'var(--hx-gold-1)'}`,
+                background: penalty.state === 'overloaded' ? 'rgba(255,107,107,0.08)' : 'rgba(200,155,60,0.07)',
+                color: 'var(--hx-text)',
+              }}>
+                {penalty.note}
+              </p>
+            )}
+
+            {inventory.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-muted)' }}>
+                Nothing carried yet.{canEdit ? ' Add gear from the edit flow.' : ''}
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: 5 }}>
+                {inventory.map((it) => (
+                  <div key={it.id} style={{
+                    display: 'flex', gap: 10, alignItems: 'baseline', justifyContent: 'space-between',
+                    padding: '6px 9px', border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.3)',
+                    borderRadius: 3, flexWrap: 'wrap',
+                  }}>
+                    <span style={{ flex: '1 1 160px', fontSize: 13, color: 'var(--hx-text)' }}>
+                      {it.quantity > 1 && <span style={{ color: 'var(--hx-muted)' }}>{it.quantity}× </span>}
+                      {it.name}
+                      {it.invested && <span style={{ color: 'var(--hx-teal-1)', fontSize: 11 }}> · invested</span>}
+                      {it.notes && <span style={{ color: 'var(--hx-muted)', fontSize: 11.5 }}> — {it.notes}</span>}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', whiteSpace: 'nowrap' }}>
+                      {it.location ?? 'stowed'} · Bulk {it.bulk == null || it.bulk === '' ? '—' : String(it.bulk)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Money (P1-2 / audit C-3). The shared currency model was built system-agnostic and already
+                ships PF2's coins — it had simply never been wired to anything but 5e. */}
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--hx-line)', paddingTop: 9 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {currencies.map((c) => (
+                  <span key={c.id} style={{ fontSize: 13, color: 'var(--hx-text)' }}>
+                    <strong style={{ color: 'var(--hx-gold-2)' }}>{c.amount}</strong>{' '}
+                    <span style={{ color: 'var(--hx-muted)', fontSize: 11.5 }}>{c.abbrev || c.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      },
     },
     {
       // Player-authored custom sections (D-13) — the SAME renderer + editor as 5e/IG, persisted via the

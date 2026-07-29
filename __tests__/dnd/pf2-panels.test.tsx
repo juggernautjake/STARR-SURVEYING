@@ -31,7 +31,10 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
   it('a bare, non-editable character shows only the always-on sections, in order', () => {
     // Attributes, Defenses and Skills always render; Conditions/Strikes/Feats/Spells are gated off.
     const set = capture({ pf2: blankPF2Character('T'), canEdit: false });
-    expect(ids(set)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills']);
+    // Equipment joined the ALWAYS-ON set in P5-1: Bulk applies whether or not you are carrying anything,
+    // and a hidden Equipment section is how a player concludes PF2 has no inventory — which it did not have
+    // at all until that slice (audit C-1).
+    expect(ids(set)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-skills', 'pf2-equipment']);
   });
 
   it('Conditions: hidden for a non-editor with none, but an EDITOR always sees it — add the first one (S7c)', () => {
@@ -40,7 +43,7 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
     // S7c: an editor sees the panel even with no conditions, so they can add the FIRST one from the sheet.
     expect(ids(capture({ pf2: c, canEdit: true, characterId: 'x' }))).toContain('pf2-conditions');
     const withCond = { ...c, combat: { ...c.combat, conditions: [{ name: 'Frightened', value: 2 }] } };
-    expect(ids(capture({ pf2: withCond }))).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills']);
+    expect(ids(capture({ pf2: withCond }))).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills', 'pf2-equipment']);
   });
 
   it('no Strikes/Feats panel when empty and not editable; both appear once the viewer can edit', () => {
@@ -52,7 +55,7 @@ describe('usePf2Panels — the ordered, gated PF2 panel set', () => {
     const editable = capture({ pf2: c, canEdit: true, characterId: 'x' });
     // The custom-sections panel (D-13) is always offered to an owner, so it trails the editable set. The
     // conditions panel is also always offered to an editor now (S7c), sitting after Defenses.
-    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills', 'pf2-strikes', 'pf2-feats', 'pf2-custom']);
+    expect(ids(editable)).toEqual(['pf2-attributes', 'pf2-defenses', 'pf2-conditions', 'pf2-skills', 'pf2-strikes', 'pf2-feats', 'pf2-equipment', 'pf2-custom']);
   });
 
   it('the Spells panel is gated on being a caster, independent of edit rights', () => {

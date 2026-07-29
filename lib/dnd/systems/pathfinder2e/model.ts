@@ -6,6 +6,9 @@
 // (like `systems/intuitive-games/`), stored as a sidecar on `character.data.pf2e`; the pure math lives
 // in rules.ts. Data only — no services — so it is testable everywhere.
 
+import type { PF2Item } from './inventory';
+import type { Currency } from '@/lib/dnd/currency';
+
 export const PF2_ATTRIBUTES = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 export type PF2AttributeKey = typeof PF2_ATTRIBUTES[number];
 
@@ -195,6 +198,19 @@ export interface PF2Character {
   languages: string[];
   /** Special senses from ancestry/heritage (e.g. "Darkvision", "Low-light vision"). Display only. */
   senses?: string[];
+  /**
+   * What the character is carrying (P5-1, audit C-1). Optional so every stored character stays valid with
+   * no migration — an absent inventory reads as an empty one.
+   *
+   * Bulk arithmetic lives in `inventory.ts`, not here: this is the shape, that is the rule.
+   */
+  inventory?: PF2Item[];
+  /**
+   * Money. Uses the SHARED `lib/dnd/currency.ts` model rather than three `gp`/`sp`/`cp` numbers, because
+   * that module was built system-agnostic (it already ships `DEFAULT_CURRENCIES_PF2`) and was simply never
+   * wired to anything but 5e — audit finding C-3. A campaign renaming its coins works here for free.
+   */
+  currencies?: Currency[];
 }
 
 /** A valid, empty PF2 character — level 1, all modifiers 0, untrained in everything.

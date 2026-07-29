@@ -302,14 +302,28 @@ should skip Phase 7 entirely.
 
 ## Phase 5 — Cross-system parity
 
-- [ ] **P5-1 — Pathfinder 2e inventory + Bulk.** *(C-1 — the largest parity hole.)* PF2 has **no inventory
-      at all**: no `inventory`/`items`/`bulk` field on the model, no equipment panel among its nine, no
-      coins. A PF2 character cannot record that they are carrying a rope. Meanwhile `data/equipment.ts`
-      ships full weapon/armour/shield/rune/item tables that reach only the library and the armour editor.
-      **Design:** `PF2Character.inventory[]` (name, qty, bulk, invested, worn/held/stowed, notes);
-      `pf2BulkLimit = 5 + STR mod`, encumbered above it, max at limit + 5; an Equipment panel modelled on
-      the IG one; an item picker fed by the existing catalogue; currency from P1-2.
-      **Done when:** a PF2 character can equip from the catalogue and the sheet shows Bulk and encumbrance.
+- [x] **P5-1 — Pathfinder 2e inventory + Bulk. Shipped 2026-07-28.**
+      `lib/dnd/systems/pathfinder2e/inventory.ts` (pure), `PF2Character.inventory` + `.currencies` — both
+      optional, so every stored character stays valid with no migration — and an Equipment panel.
+      **Bulk is modelled properly rather than stored as pounds**, because it is a core mechanic with combat
+      consequences — Encumbered costs 10 feet of Speed and −1 to Str/Dex checks — and that is exactly what
+      5e's weight number cannot express. The penalty is returned as DATA in the game's own words, so the
+      sheet renders it and a future engine bridge can apply it without either writing its own sentence.
+      **Two arithmetic traps, both pinned by test.** Ten Light items must make exactly **1.0** Bulk — summing
+      0.1 ten times in floating point gives 0.9999999999999999, so a character with ten torches would read
+      0.9 and sit one rounding error from the wrong encumbrance; summing first and rounding once fixes it.
+      And PF2 encumbers you for carrying **more than** 5 + Str, so `>` not `>=` — a `>=` would penalise a
+      legal load, which is the kind of off-by-one nobody notices until a player argues about it mid-session.
+      **Equipment is ALWAYS in the nav**, not gated on carrying something: Bulk applies either way, and a
+      hidden Equipment section is precisely how a player concludes PF2 has no inventory.
+      **Also closes P1-2 / audit C-3 for PF2**: `lib/dnd/currency.ts` was built system-agnostic and already
+      shipped `DEFAULT_CURRENCIES_PF2` — it had simply never been wired to anything but 5e.
+      **Still owed:** the item PICKER fed from `data/equipment.ts`, and editing inventory from the sheet
+      (P5-1b). The model, the maths and the display are done; adding gear currently goes through the edit
+      flow. **P6-9a (the PF2 engine bridge) is now unblocked.**
+
+- [ ] **P5-1b — PF2 item picker + sheet-side inventory editing.** Wire the existing weapon/armour/shield/
+      rune/item catalogue into an add-item control, and allow quantity/location/invested edits in place.
 
 - [ ] **P5-2 — Pathfinder 2e shields.** *(C-2.)* `PF2_SHIELDS` is catalogued with hardness/HP/BT and
       `pf2Shield()` is exported and **never called**; the rules engine has no Raise a Shield (+2 circumstance
