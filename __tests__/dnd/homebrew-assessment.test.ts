@@ -143,7 +143,8 @@ describe('the route keeps the assessment advisory', () => {
   });
 
   it('is rate-limited and creator-only', () => {
-    expect(route).toContain("checkRateLimit('ai'");
+    // P2-2: the hourly-only check became enforceAiLimits, which applies the hourly AND daily windows.
+    expect(route).toContain('await enforceAiLimits(');
     expect(route).toContain('canWriteHomebrew');
   });
 

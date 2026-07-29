@@ -140,6 +140,7 @@ describe('everything stays buildable with the AI off', () => {
   });
 
   it('is rate-limited like every other AI route', () => {
-    expect(route).toContain("checkRateLimit('ai'");
+    // P2-2: the hourly-only check became enforceAiLimits, which applies the hourly AND daily windows.
+    expect(route).toContain('await enforceAiLimits(');
   });
 });

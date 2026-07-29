@@ -154,7 +154,8 @@ describe('the route', () => {
   });
 
   it('is rate-limited, and says something useful when it finds nothing', () => {
-    expect(route).toContain("checkRateLimit('ai'");
+    // P2-2: the hourly-only check became enforceAiLimits, which applies the hourly AND daily windows.
+    expect(route).toContain('await enforceAiLimits(');
     expect(route).toMatch(/If it is a scan/);
   });
 });

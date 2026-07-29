@@ -387,9 +387,39 @@ should skip Phase 7 entirely.
       `sessions/[id]/{ai-notes,recap}`, `stream/{direct,mood-refresh,spam}`, and every Studio AI route.
       **Done when:** an over-budget caller gets a 429 that says when to retry, and a test proves the window.
 
-- [ ] **P2-2 — A per-user AI spend ceiling.** Building on P2-1: a daily token/call budget per user, surfaced
+- [x] **P2-2 — A per-user AI spend ceiling.** Building on P2-1: a daily token/call budget per user, surfaced
       honestly in the UI ("AI assists: 34 of 50 today") rather than failing opaquely. **Done when:** the
       ceiling is visible before it is hit, not only after.
+
+      **Done 2026-07-28.** An `ai-daily` bucket (120/24h), `enforceAiLimits` on all ten AI routes,
+      `GET /api/dnd/ai/budget`, and `AiBudgetMeter` mounted on the librarian and the Content Studio.
+
+      **"Visible before it is hit" is what forced the design.** A meter cannot be built on `checkRateLimit`,
+      because that function INCREMENTS — it is the enforcement path. A UI calling it would spend a unit of
+      allowance every time the number rendered, and a component that polled would exhaust the budget by
+      displaying it. Hence `peekRateLimit`, a non-consuming read, and a test asserting the budget endpoint
+      never calls the enforcing form. That bug writes itself if the only available function is the
+      enforcing one.
+
+      **Why a daily bucket is a second control, not a tighter one.** Someone pacing themselves at the
+      hourly limit spends 30 × 24 = **720 calls a day** without ever tripping it. The test asserts
+      `daily.limit < hourly.limit * 24`, so this can never quietly become decoration. Checked hourly-first,
+      because "give it a few minutes" is actionable and "wait 24 hours" is not.
+
+      **A bug found while writing it:** the opportunistic sweep deleted rows older than a hard-coded 24h,
+      which exactly EQUALLED the new `ai-daily` window. A sweep firing late in a day would have been minutes
+      from deleting the row it was still counting against — silently refunding someone's whole daily budget.
+      `SWEEP_RETAIN_SEC` is now derived as twice the longest bucket, so a future weekly bucket cannot
+      outgrow it.
+
+      Seven tests failed correctly and were **re-pointed, not loosened** — five named `checkRateLimit('ai',
+      …)`, which would now fail against code that is strictly *more* limited than before, and the `status:
+      429` assertion had to follow the literal into the wrapper (asserting it per-route would be asserting
+      the duplication came back). My own P2-1b guard also needed widening: it listed two call shapes and
+      `enforceAiLimits` was a third, so it reported eleven false positives.
+
+      The meter stays silent below 25% of either window — "0 of 120" on every page is noise, and noise is
+      how a warning stops being read. Inert until seed 456. Suite 1281 files / 18,406 tests green.
 
 - [ ] **P2-3 — Login throttling + a real password floor.** *(F-2.)* No attempt counter, no lockout, no
       backoff, against a 4-character minimum. Exponential backoff per name and per IP (same limiter);

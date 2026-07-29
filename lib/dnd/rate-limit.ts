@@ -17,7 +17,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 /** What is being limited. Each bucket is a separate counter, so a burst of saves cannot exhaust the AI
  *  allowance and vice versa. */
-export type RateBucket = 'ai' | 'login' | 'write';
+export type RateBucket = 'ai' | 'ai-daily' | 'login' | 'write';
 
 export interface BucketPolicy {
   /** Requests allowed per window. */
@@ -36,6 +36,19 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
     windowSec: 3600,
     message: 'You’ve used a lot of AI help in the last hour. Give it a few minutes and try again.',
   },
+  // The DAILY ceiling (P2-2), which is a different control from the hourly one above and not a replacement
+  // for it. The hourly bucket stops a burst; this stops a slow grind that never trips it — 30/hour is 720 a
+  // day if someone paces themselves, and that is real money. Both apply, and the tighter one wins naturally
+  // because each is checked independently.
+  //
+  // 120 is set so that a heavy authoring day never notices: the whole Content Studio flow (assist per
+  // field, an assessment, a transpose, a retry or two) is well inside it, and a player using chat help all
+  // evening is nowhere near. It is a cost ceiling, not a usage policy.
+  'ai-daily': {
+    limit: 120,
+    windowSec: 86400,
+    message: 'You’ve reached today’s AI limit. It resets within 24 hours — everything else still works.',
+  },
   // Brute-force control. Deliberately tight — a person who has genuinely forgotten their password tries a
   // handful of times, not fifteen, and there is no account recovery yet (P2-4), so the value of slowing an
   // attacker here is unusually high.
@@ -51,6 +64,14 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
     message: 'That’s a lot of changes very quickly. Give it a moment and try again.',
   },
 };
+
+/**
+ * How long a counter row is kept before the opportunistic sweep may delete it.
+ *
+ * Derived from the buckets rather than hard-coded, so adding a longer window can never leave the sweep
+ * eating live rows. Twice the longest window: one full window of slack past expiry.
+ */
+export const SWEEP_RETAIN_SEC = 2 * Math.max(...Object.values(RATE_LIMIT_BUCKETS).map((b) => b.windowSec));
 
 /** The subject a limit is counted against. `user:` when someone is signed in; `ip:` for routes that run
  *  before there is a user (login). */
@@ -133,8 +154,13 @@ export async function checkRateLimit(
 
     // Opportunistic sweep, ~1 request in 200, so old windows never accumulate and nothing has to be
     // scheduled. A cron that silently stops running is a worse failure than an occasional extra DELETE.
+    //
+    // The cutoff MUST stay comfortably longer than the longest window. It was 24h, which exactly equalled
+    // the `ai-daily` window added in P2-2 — a sweep firing late in a day would have been within minutes of
+    // deleting the window it was still counting against, silently refunding someone's daily budget. Twice
+    // the longest window is the invariant, and a test pins it.
     if (Math.random() < 0.005) {
-      const cutoff = new Date(atMs - 24 * 3600 * 1000).toISOString();
+      const cutoff = new Date(atMs - SWEEP_RETAIN_SEC * 1000).toISOString();
       await supabaseAdmin.from('dnd_rate_limits').delete().lt('window_start', cutoff).then(() => {}, () => {});
     }
 
@@ -175,4 +201,61 @@ export async function enforceRateLimit(
   const result = await checkRateLimit(bucket, rateLimitSubject({ userId, ip: opts.ip }), { now: opts.now });
   if (result.allowed) return null;
   return NextResponse.json({ error: result.message }, { status: 429, headers: rateLimitHeaders(result, bucket) });
+}
+
+/** What a caller has left, without spending any of it. */
+export interface BudgetStatus {
+  bucket: RateBucket;
+  used: number;
+  limit: number;
+  remaining: number;
+  /** When this window resets, as an ISO instant — so the UI can say "resets at 9pm", not "soon". */
+  resetsAt: string;
+}
+
+/**
+ * Read a bucket's usage WITHOUT counting a request against it (P2-2).
+ *
+ * This is the whole reason the slice's "visible before it is hit" clause is achievable. `checkRateLimit`
+ * increments — it has to, it is the enforcement path — so a UI that called it to render "34 of 120 today"
+ * would consume a unit of budget every time the number appeared on screen, and a page that polled would
+ * exhaust the allowance by displaying it. That bug writes itself if the only available function is the
+ * enforcing one.
+ *
+ * Fails OPEN like everything else here: a missing table reports a full budget rather than telling a player
+ * they are out of AI when they are not.
+ */
+export async function peekRateLimit(bucket: RateBucket, subject: string, opts: { now?: number } = {}): Promise<BudgetStatus> {
+  const atMs = opts.now ?? Date.now();
+  const policy = RATE_LIMIT_BUCKETS[bucket];
+  const start = windowStart(atMs, policy.windowSec);
+  const resetsAt = new Date(start.getTime() + policy.windowSec * 1000).toISOString();
+
+  try {
+    const { data } = await supabaseAdmin
+      .from('dnd_rate_limits')
+      .select('count')
+      .eq('bucket', bucket)
+      .eq('subject', subject)
+      .eq('window_start', start.toISOString())
+      .maybeSingle();
+    const used = (data as { count?: number } | null)?.count ?? 0;
+    return { bucket, used, limit: policy.limit, remaining: Math.max(0, policy.limit - used), resetsAt };
+  } catch {
+    return { bucket, used: 0, limit: policy.limit, remaining: policy.limit, resetsAt };
+  }
+}
+
+/**
+ * The guard every AI route wants: hourly AND daily, in one call.
+ *
+ * Checked in that order deliberately — the hourly window is the one a person is most likely to hit and its
+ * message ("give it a few minutes") is far more actionable than the daily one. Reporting the 24-hour wall
+ * to someone who merely burst would be true and useless.
+ */
+export async function enforceAiLimits(
+  userId: string | null | undefined,
+  opts: { ip?: string | null; now?: number } = {},
+): Promise<NextResponse | null> {
+  return (await enforceRateLimit('ai', userId, opts)) ?? (await enforceRateLimit('ai-daily', userId, opts));
 }

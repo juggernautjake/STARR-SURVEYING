@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { dndCompleteJSON, dndAiConfigured } from '@/lib/dnd/ai';
-import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
+import { enforceAiLimits } from '@/lib/dnd/rate-limit';
 import { rowToHomebrew, canReadHomebrew, homebrewToRow, type HomebrewRow } from '@/lib/dnd/homebrew/store';
 import { normalizeContentSystem } from '@/lib/dnd/homebrew/kinds';
 import { isSystemAvailable } from '@/lib/dnd/systems';
@@ -54,10 +54,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'That system is not playable yet.' }, { status: 400 });
   }
 
-  const limit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limit.message }, { status: 429, headers: rateLimitHeaders(limit, 'ai') });
-  }
+  // Hourly AND daily (P2-2): the hourly window stops a burst, the daily one stops a slow grind that
+  // never trips it. Checked hourly-first so the actionable message wins.
+  const aiLimited = await enforceAiLimits(session.userId);
+  if (aiLimited) return aiLimited;
 
   // ── the draft being retried, if any ──────────────────────────────────────────────────────────
   let previous: TransposedDraft | null = null;

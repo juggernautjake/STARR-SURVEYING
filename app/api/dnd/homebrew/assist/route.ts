@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDndSession } from '@/lib/dnd/auth';
 import { dndComplete, dndAiConfigured } from '@/lib/dnd/ai';
-import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
+import { enforceAiLimits } from '@/lib/dnd/rate-limit';
 import { isHomebrewKind } from '@/lib/dnd/homebrew/model';
 import { normalizeContentSystem } from '@/lib/dnd/homebrew/kinds';
 import {
@@ -35,10 +35,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That field cannot be drafted.' }, { status: 400 });
   }
 
-  const limit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limit.message }, { status: 429, headers: rateLimitHeaders(limit, 'ai') });
-  }
+  // Hourly AND daily (P2-2): the hourly window stops a burst, the daily one stops a slow grind that
+  // never trips it. Checked hourly-first so the actionable message wins.
+  const aiLimited = await enforceAiLimits(session.userId);
+  if (aiLimited) return aiLimited;
 
   const system = normalizeContentSystem(kind, body.system);
   const values = (body.values && typeof body.values === 'object' ? body.values : {}) as Record<string, unknown>;

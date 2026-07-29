@@ -138,7 +138,8 @@ describe('the loop', () => {
 
 describe('gates', () => {
   it('is rate-limited', () => {
-    expect(route).toContain("checkRateLimit('ai'");
+    // P2-2: the hourly-only check became enforceAiLimits, which applies the hourly AND daily windows.
+    expect(route).toContain('await enforceAiLimits(');
   });
 
   it('needs only READ on the source — translating public content is reasonable', () => {

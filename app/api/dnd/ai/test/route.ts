@@ -3,7 +3,7 @@
 // (low max_tokens) so it's a cheap health check, not a feature surface.
 import { NextResponse } from 'next/server';
 import { getDndSession } from '@/lib/dnd/auth';
-import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
+import { enforceAiLimits } from '@/lib/dnd/rate-limit';
 import { dndComplete, dndAiConfigured, DND_AI_MODEL } from '@/lib/dnd/ai';
 
 export async function GET() {
@@ -12,10 +12,10 @@ export async function GET() {
 
   // Rate limit (P2-1): this route calls a paid model. The whole /dnd API had no throttling of any
   // kind, which with open-access signup is an unbounded cost exposure. See lib/dnd/rate-limit.ts.
-  const aiLimit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
-  if (!aiLimit.allowed) {
-    return NextResponse.json({ error: aiLimit.message }, { status: 429, headers: rateLimitHeaders(aiLimit, 'ai') });
-  }
+  // Hourly AND daily (P2-2): the hourly window stops a burst, the daily one stops a slow grind that
+  // never trips it. Checked hourly-first so the actionable message wins.
+  const aiLimited = await enforceAiLimits(session.userId);
+  if (aiLimited) return aiLimited;
   if (!dndAiConfigured()) return NextResponse.json({ ok: false, error: 'AI is not configured (missing ANTHROPIC_API_KEY).' }, { status: 503 });
 
   try {

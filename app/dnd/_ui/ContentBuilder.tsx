@@ -30,6 +30,7 @@ import {
   findTarget, targetsInGroup, validateEffect, TARGET_GROUPS, TARGET_GROUP_LABELS,
 } from '@/lib/dnd/effects/targets';
 import { fieldAcceptsAssist } from '@/lib/dnd/homebrew/assist';
+import AiBudgetMeter from './AiBudgetMeter';
 import { mergeIngest, INGEST_ACCEPT } from '@/lib/dnd/homebrew/ingest';
 
 /** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
@@ -666,7 +667,11 @@ export default function ContentBuilder({
       {aiConfigured && (
         <section className={styles.framedPanel} style={{ padding: '12px 16px', display: 'grid', gap: 7 }}>
           <div className={styles.framedPanelTop} />
-          <span style={label}>Already have it written down?</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={label}>Already have it written down?</span>
+            {/* The AI budget (P2-2), on the Studio's heaviest AI surface. Quiet until a quarter spent. */}
+            <AiBudgetMeter />
+          </div>
           <span style={help}>
             Upload a PDF, a screenshot, or a text file and it fills the form in from that — using the
             document’s own wording. Nothing is saved until you review it and press Save.

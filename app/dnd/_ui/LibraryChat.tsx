@@ -9,6 +9,7 @@
 // the focused one and asks — and we surface a one-tap "switch focus and re-ask" affordance here,
 // so acting on that question costs nothing.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import AiBudgetMeter from './AiBudgetMeter';
 import styles from './hextech.module.css';
 import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
 import { useResizable } from './useResizable';
@@ -153,8 +154,11 @@ export default function LibraryChat({
       {!embedded && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <h2 className={styles.panelTitle} style={{ margin: 0 }}>{title}</h2>
-          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
-            {characterName ? `Reading ${characterName}’s sheet · ` : ''}Answers are grounded in the focused system only
+          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)', display: 'inline-flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            {/* The AI budget, shown BEFORE it is hit (P2-2). Renders nothing until a quarter of a window is
+                spent, so it is not noise on a fresh session. */}
+            <AiBudgetMeter />
+            <span>{characterName ? `Reading ${characterName}’s sheet · ` : ''}Answers are grounded in the focused system only</span>
           </span>
         </div>
       )}

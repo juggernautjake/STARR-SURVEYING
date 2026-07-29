@@ -130,15 +130,23 @@ describe('the routes that cost money are actually limited', () => {
   ];
 
   it('every AI route calls the limiter', () => {
+    // RE-POINTED 2026-07-28 (P2-2). This named `checkRateLimit('ai', …)`, the hand-rolled four-line form.
+    // Those routes now call `enforceAiLimits`, which applies the hourly AND the new daily window — so the
+    // old assertion would fail on code that is strictly *more* limited than before. The property being
+    // guarded is unchanged: a route that costs money is throttled.
     for (const r of AI_ROUTES) {
-      expect(read(r), `${r} calls a paid model and must be limited`).toContain("checkRateLimit('ai'");
+      expect(read(r), `${r} calls a paid model and must be limited`).toContain('await enforceAiLimits(');
     }
   });
 
   it('and returns a 429 rather than failing some other way', () => {
+    // The 429 moved INTO the wrapper, so asserting the literal in each route would now be asserting that
+    // the duplication came back. Check the guard is returned at the call site, and that the wrapper is
+    // where the status lives — one assertion for the shape, one for the substance.
     for (const r of AI_ROUTES) {
-      expect(read(r), `${r} should answer 429`).toContain('status: 429');
+      expect(read(r), `${r} must return the limiter's refusal`).toContain('if (aiLimited) return aiLimited;');
     }
+    expect(read('lib/dnd/rate-limit.ts'), 'the wrapper must answer 429').toContain('status: 429');
   });
 
   it('login is limited on BOTH the address and the name being attempted', () => {

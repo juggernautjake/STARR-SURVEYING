@@ -90,8 +90,10 @@ describe('no route imports the limiter without using it', () => {
     for (const f of allRouteFiles()) {
       const src = read(f);
       if (!src.includes("from '@/lib/dnd/rate-limit'")) continue;
-      // `checkRateLimit` is the older hand-rolled form the AI routes use; either counts as using it.
-      const uses = src.includes('enforceRateLimit(') || src.includes('checkRateLimit(');
+      // Any of the four call shapes counts: the two enforcing wrappers, the raw counter, and the
+      // non-consuming read. Listing only some of them is how this guard would start reporting a false
+      // positive the next time a new wrapper lands — which is exactly what `enforceAiLimits` did in P2-2.
+      const uses = /(enforceRateLimit|checkRateLimit|enforceAiLimits|peekRateLimit)\(/.test(src);
       if (!uses) offenders.push(f);
     }
     expect(
