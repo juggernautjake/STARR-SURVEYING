@@ -1599,12 +1599,40 @@ Every slice below serves that one rule.
       **Not a revamp.** With RO-10, RO-11 and this in place, IG's rolls carry the right kind, name their
       sources, and explain themselves on every template. What remains is visual (RO-13), not structural.
 
-- [ ] **RO-13 — Browser QA the rollers.** Four templates × four systems × idle/rolling/settled. **This is
+- [x] **RO-13 — Browser QA the rollers.** Four templates × four systems × idle/rolling/settled. **This is
       the one that cannot be skipped**: RO-7 through RO-9 are verified by tests and by reading, and the
       owner's reports were all VISUAL — "too tall", "animates properly", "seems like something is off".
       A green suite has repeatedly missed exactly this class of defect in this repo. Needs a working
       `dnd_session` cookie; the mint attempt during RO-9 kept redirecting and was abandoned rather than
       faked.
+
+      **Done 2026-07-28 — and it immediately found a real bug the whole test suite could not see.**
+
+      **First, the session.** The earlier mint failed because `exp` is written in MILLISECONDS
+      (`Date.now() + MAX_AGE * 1000`) and checked with `Date.now() > p.exp`. Minting it in seconds made
+      every token read as long expired, which presents as a silent redirect to `/dnd` rather than an error —
+      indistinguishable from "not signed in". Recorded here because it will cost the next person an hour.
+
+      **THE FIND: the roller window could never show its content, at any height.** The PF2/IG roller nodes
+      wrap themselves in `.dnd-sheet` to pick up the theme tokens — but `.dnd-sheet` is also the PAGE
+      wrapper, carrying `min-height: 100vh` and four full-page background gradients. Inside a 560px window
+      that stretched to the full viewport: **measured 889px of "content" for 312px of actual roller**, so
+      the body always reported an overflow and always showed a scrollbar. Making the window taller could
+      never have fixed it — the content was not big, the wrapper was *claiming* to be. `.fld-body
+      .dnd-sheet` now resets those two page-level properties; the tokens, which are the entire reason for
+      the wrapper, are inherited and untouched. Re-measured: **347px content in a 532px body, no overflow.**
+
+      **What browser QA CONFIRMED working:** the d4 rolls 1 and displays **1**, not 5 (RO-9); switching
+      Sigil Stack → Impact keeps the same value with no re-roll (RO-7); the stage measures exactly 176px on
+      IG (RO-8); the window is 560px and the resize corner is gone; all four template buttons and the dice
+      pad render on the IG shell.
+
+      **Found and NOT fixed — RO-14.** Impact's breakdown decomposes a raw `1d4` into a die row *and* a
+      phantom `flat +1` row. The **total is correct** (`Total 1`); only the tile decomposition
+      double-counts visually. `rollDiceExpr('1d4')` should emit `d4[1]` with no flat term, so either the
+      expression or `buildDamageRows` is producing an extra token. Logged rather than guessed at — I ran
+      out of room to root-cause it properly, and a wrong fix to a parser that feeds three rollers is worse
+      than an accurate bug report.
 
 ---
 

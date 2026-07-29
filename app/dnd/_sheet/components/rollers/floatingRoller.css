@@ -97,6 +97,22 @@
   overflow: auto;
   scrollbar-width: thin;
 }
+
+/* `.dnd-sheet` inside the roller is a TOKEN SCOPE, not a page (found by browser QA, RO-13).
+ *
+ * The PF2/IG roller nodes wrap their content in `.dnd-sheet` so the stages' `.dnd-sheet`-scoped CSS
+ * resolves. But `.dnd-sheet` is also the PAGE wrapper in theme.css — `min-height: 100vh` plus four
+ * full-page background gradients. Inside a 560px window that stretched the wrapper to the full viewport
+ * height: measured at 889px of "content" for 312px of actual roller, so the body always reported an
+ * overflow and always showed a scrollbar, no matter how tall the window was made.
+ *
+ * That is why the window never looked "big enough to show all of the elements" — the content was not big,
+ * the wrapper was claiming to be. Reset the page-level properties here only; the tokens, which are what the
+ * wrapper is actually for, are inherited and untouched. */
+.fld-body .dnd-sheet {
+  min-height: 0;
+  background: none;
+}
 /* A generic roller node (PF2/IG: a Target-DC control + result banner) has no frame of its own, so
    give it breathing room inside the window. The two self-framed rollers below are excluded. */
 .fld-body > div:not(.tray):not(.sigil) {
