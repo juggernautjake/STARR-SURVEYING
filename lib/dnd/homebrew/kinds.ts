@@ -555,8 +555,54 @@ export function proseOnlyNotice(kind: HomebrewKind, system: string): string | nu
 
 /** The full ordered field list the builder renders for a kind: identity first, then the kind's own schema. */
 export function fieldsForKind(kind: HomebrewKind): FieldSpec[] {
-  return [...COMMON_FIELDS, ...SPECS[kind].fields];
+  return [...commonFieldsFor(kind), ...SPECS[kind].fields];
 }
+
+/**
+ * The shared identity fields, with EXAMPLES DRAWN FROM THE KIND (owner request 2026-07-29: *"all of the
+ * place holder text should relate to the type of thing that is being homebrewed"*).
+ *
+ * `summary`, `description` and `tags` are the same three questions for every kind, which is why they live
+ * in `COMMON_FIELDS` — but "what should I type here" is a completely different question for a Weapon than
+ * for a Rule. A single shared example is either wrong for seventeen kinds or so vague it teaches nothing
+ * ("Describe it…"), and a blank field is worse still: the commonest reason a creator writes a one-word
+ * summary is not knowing what shape of answer is wanted.
+ *
+ * A placeholder here is therefore a WORKED EXAMPLE, not a restatement of the label. `help` already says
+ * what the field means; this shows what a good answer looks like.
+ */
+export function commonFieldsFor(kind: HomebrewKind): FieldSpec[] {
+  const ex = COMMON_EXAMPLES[kind];
+  return COMMON_FIELDS.map((f) => {
+    const placeholder = ex?.[f.key as keyof KindExamples];
+    return placeholder ? { ...f, placeholder } : f;
+  });
+}
+
+interface KindExamples { summary?: string; description?: string; tags?: string }
+
+/** One worked example per kind, per shared field. Written as the thing itself would be written — a
+ *  creature's description reads like a stat block's flavour text, a rule's like a table ruling. */
+const COMMON_EXAMPLES: Record<HomebrewKind, KindExamples> = {
+  weapon: { summary: 'A greatsword that drinks the light around it.', description: 'On a hit, the wielder takes 1 necrotic damage and the blade sheds no light until dawn.', tags: 'martial, cursed, two-handed' },
+  armor: { summary: 'Plate grown from living coral.', description: 'While submerged, you have a swim speed equal to your walking speed and do not need to breathe.', tags: 'heavy, aquatic, magical' },
+  item: { summary: 'A lantern that burns memories instead of oil.', description: 'Burn one hour of remembered time to shed bright light for 8 hours. The memory does not return.', tags: 'wondrous, attunement, cursed' },
+  potion: { summary: 'A draught that trades your weight for speed.', description: 'For 1 minute your speed doubles, and any effect that would push or pull you moves you twice as far.', tags: 'consumable, movement' },
+  spell: { summary: 'Freeze a single heartbeat in place.', description: 'The target’s next turn is delayed until the end of the round. On a successful save, nothing happens.', tags: 'transmutation, control' },
+  stance: { summary: 'A grounded guard that trades reach for footing.', description: 'While in this stance you cannot be moved against your will, and your attacks lose the reach trait.', tags: 'defensive, martial' },
+  effect: { summary: '+2 to AC while bloodied.', description: 'A lingering blessing that hardens the skin as the fight turns against you.', tags: 'buff, conditional' },
+  action: { summary: 'Shove a foe into the space you just left.', description: 'Make an Athletics check against the target’s Fortitude DC; on a success it swaps places with you.', tags: 'movement, martial' },
+  ability: { summary: 'Once per rest, refuse a hit that would drop you.', description: 'When reduced to 0 hit points, you instead drop to 1 and cannot use this again until you rest.', tags: 'defensive, once-per-rest' },
+  skill: { summary: 'Reading a ship’s rigging at a glance.', description: 'Used to judge a vessel’s speed, cargo and crew from a distance, or to sabotage it quietly.', tags: 'exploration, nautical' },
+  feat: { summary: 'You fight better with your back to a wall.', description: 'While no ally is within 10 feet of you, you gain a +1 bonus to AC and to damage rolls.', tags: 'combat, defensive' },
+  background: { summary: 'You kept the lighthouse nobody visits.', description: 'You know the coast’s moods, and every wrecker who works it. You are owed one favour on any shore.', tags: 'coastal, solitary' },
+  race: { summary: 'A people who remember water’s every shape.', description: 'Born in the tidepools, they carry the sea’s patience and its sudden violence in equal measure.', tags: 'aquatic, long-lived' },
+  class: { summary: 'A duelist who wagers luck on every strike.', description: 'Spends and regains a pool of fate dice, betting them on attacks, saves and the occasional coin toss.', tags: 'martial, gambler, half-caster' },
+  subclass: { summary: 'The path that trades armour for omens.', description: 'You read the fight before it happens, gaining features that reward calling your shot in advance.', tags: 'divination, martial' },
+  creature: { summary: 'A drake that nests in collapsed mineshafts.', description: 'Territorial and deaf, it hunts by vibration and will not follow prey onto open ground.', tags: 'dragon, subterranean, ambusher' },
+  condition: { summary: 'Waterlogged — heavy, slow and sinking.', description: 'Your speed is halved and you have disadvantage on Dexterity saves until you spend an action to drain.', tags: 'debuff, environmental' },
+  rule: { summary: 'Critical hits maximise dice instead of doubling them.', description: 'On a critical hit, deal the maximum of each damage die rather than rolling twice.', tags: 'house-rule, combat' },
+};
 
 /** The distinct section headings for a kind, in first-appearance order. Fields with no section sort first
  *  under an empty heading. */
