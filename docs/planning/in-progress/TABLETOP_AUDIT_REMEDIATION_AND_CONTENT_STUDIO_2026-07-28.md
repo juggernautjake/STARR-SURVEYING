@@ -3832,3 +3832,30 @@ than typed, so nobody can post as another player from this box.
 **The work:** audit where each entry point is surfaced and to whom, add `feat` to the grant vocabulary,
 and give the DM a way in from the CAMPAIGN side rather than only from inside each sheet — the request is
 explicitly about reaching *the players'* sheets.
+
+**⚠ CORRECTION to the P14-13 note above, same day.** I wrote that "feats are NOT in that list" and that
+adding one "means a resolver, not just a string". **Both wrong.** `library-grant.ts` says so in as many
+words at the `feature` branch:
+
+> *"Feats are modelled as FEATURES on the sheet — there is no `add_feat` op, and inventing one would fork
+> the vocabulary the AI and the manual route already share."*
+
+So a feat IS grantable today, deliberately routed through `kind: 'feature'`. I read the `GrantKind` union,
+did not see the word `feat`, and concluded a capability was missing — the same "asserting a name I assumed
+rather than read" mistake made four times earlier in this session. Adding an `add_feat` op would have
+FORKED a vocabulary the codebase keeps deliberately shared.
+
+**What the real gap is**, having read the code instead of the type: `grantKindForGlossary` maps a glossary
+entry to a grant kind, and returns `null` for everything except `condition`, `feature` and `class`. So the
+give button is offered on some library entries and not others by design — mechanics and terms are not
+things you can be given, which is correct. The question the owner actually raises is therefore about
+DISCOVERABILITY and REACH:
+
+1. Does a player browsing the library know that "Give to a character" exists at all?
+2. Can a DM reach *another player's* sheet from the campaign, or only from inside that sheet? The API gate
+   (`requireCharacterWrite`) already admits a DM of the character's campaign, so the authorization is
+   there and only the entry point is missing.
+3. Is the homebrew path (`AdoptContentPanel`) discoverable next to the library path (`GiveEntryButton`),
+   given they use different words for the same act?
+
+**None of that needs a new grant kind.** Audit the entry points before touching the vocabulary.
