@@ -3214,9 +3214,39 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       emptiness test is how "it saved but nothing showed" bugs are born: a hazard or swarm token written
       with actions but no AC and no HP would have reported empty, and the renderer omits the block
       entirely. Pinned, along with the existing falsy-zero rule that keeps **AC 0** from reading as blank.
-- [ ] **P13-2 — `seeds/462_dnd_bestiary.sql`.** `dnd_creatures` (catalogued, immutable, with source +
+- [x] **P13-2 — `seeds/462_dnd_bestiary.sql`.** `dnd_creatures` (catalogued, immutable, with source +
       licence), `dnd_creature_variants` (base / weakened / elite), and the user-owned fork path reusing
       `dnd_homebrew`.
+
+      **Written 2026-07-29 — ⚠ NEEDS THE OWNER TO APPLY IT.** Queued behind seeds 455–461, which are also
+      unapplied; 462 depends on 455 for `dnd_homebrew` (it adds the fork columns to it). Nothing
+      downstream — the SRD imports, the library pages, the session integration — can be verified against
+      real rows until then.
+
+      **Why two tables, and why neither is `dnd_homebrew`.** A catalogued creature has **no owner** to
+      scope it to, no lifecycle to advance, and a legal attribution that authored content does not carry.
+      Putting 320 SRD rows in `dnd_homebrew` would mean making `owner_user_id` nullable — the column every
+      visibility rule in `policy.ts` keys off — to serve rows that are always public.
+
+      **Forking writes an ordinary `dnd_homebrew` row**, not a third table and not a mutation of the
+      catalogue: so a forked creature is editable, shareable, public/private and adoptable by every
+      mechanism the Studio already has, for free, and the catalogue stays immutable — which is what lets
+      an import be re-run without clobbering someone's work. `forked_from` is deliberately **not** a
+      foreign key: a fork must outlive its ancestor leaving the catalogue, keeping `forked_from_label` as
+      readable provenance. A FK with `ON DELETE CASCADE` there would delete someone's work.
+
+      **Variants are rows, not columns**, because the brief is explicit that versioning is selective — "a
+      woodland rabbit would likely not need multiple variant stat blocks … but for a lion or vampire, we
+      might have multiple versions". `variant_eligible` defaults **false**, the honest majority, and
+      `derivation` is `NOT NULL`: a variant's numbers have to be traceable to a stated rule, or they are
+      an invented mechanic.
+
+      Other decisions pinned by `bestiary-schema.test.ts`: `UNIQUE (slug, system)` so a corrected import
+      UPSERTs instead of duplicating the bestiary; `cr` as **text** with a nullable `cr_sort` companion,
+      since 5e CR is fractional below 1 and PF2 level is a different scale and no numeric column is honest
+      for both; `source`/`licence`/`attribution` all `NOT NULL` so an import cannot quietly drop a
+      provenance; RLS on both tables; GIN indexes for the tag and environment filters the brief's
+      categories need, which btree cannot serve.
 
 ### The catalogue
 
