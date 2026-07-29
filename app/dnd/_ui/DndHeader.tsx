@@ -74,10 +74,14 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
               CREATES something and needs an account — "＋ Character" used to show signed-out and
               would have dead-ended a visitor who tapped it. Reading is open; creating is gated. */}
           <Link href="/dnd/library" className={styles.siteNavLink} onClick={() => setOpen(false)}>Library</Link>
+          {/* Custom content is READABLE by anyone, like the library — so it sits above the sign-in split
+              with it, not below. Building is what needs an account, and that link lives inside. */}
+          <Link href="/dnd/content" className={styles.siteNavLink} onClick={() => setOpen(false)}>Custom Content</Link>
           {userName ? (
             <>
               <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>
               <Link href="/dnd/characters/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Character</Link>
+              <Link href="/dnd/content/new" className={styles.siteNavLink} onClick={() => setOpen(false)}>🔨 Content Builder</Link>
               <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
               {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
                   pick which campaign to make a map for. */}

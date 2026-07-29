@@ -29,6 +29,37 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
       {/* Anyone signed in can start a campaign (and as many as they like). Becomes theirs to DM. */}
       <NewCampaignButton />
 
+      {/* The Content Studio door (P6-7). The owner asked for "a content builder button on the user page",
+          and this is the user page. It sits beside "new campaign" rather than inside a menu because
+          authoring content is a top-level thing you DO here, not a setting — and because this project's
+          recurring defect is finishing a feature nobody can find. */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <Link
+          href="/dnd/content/new"
+          className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Build a class, feat, item, creature or anything else — for any system — and keep it private or share it."
+        >
+          🔨 Content Builder
+        </Link>
+        <Link
+          href="/dnd/content?tab=mine"
+          className={styles.hexBtn}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Everything you have made."
+        >
+          My custom content
+        </Link>
+        <Link
+          href="/dnd/content"
+          className={styles.hexBtn}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Browse what everyone has published."
+        >
+          Browse everyone’s
+        </Link>
+      </div>
+
       {nothing && (
         <p style={{ color: 'var(--hx-muted)', textAlign: 'center', fontSize: 13 }}>
           You&apos;re signed in, but you&apos;re not in any campaigns yet. Start one above, ask your DM to add you, or browse the tables below.

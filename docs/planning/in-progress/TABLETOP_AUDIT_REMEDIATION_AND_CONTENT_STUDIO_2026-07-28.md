@@ -411,19 +411,33 @@ of homebrew.
       exempt and is now the only piece owed — P6-8 is its only intended caller.
       **Still to do here:** rate-limiting (P2-1) — the routes ship ungated like the other 113.
 
-- [ ] **P6-5 — The Studio: browse.** `/dnd/content` — every piece the viewer may see, with kind, system and
-      visibility filters plus search. Tabs: **Mine · Shared with me · Public**. This is the owner's *"we need
-      a way to view all of the custom content"*.
+- [x] **P6-5 — The Studio: browse. Shipped 2026-07-28.** `/dnd/content` + `/dnd/content/[id]`. A **server**
+      page with `searchParams`-driven filters and **no client JavaScript**: the filters are links and search
+      is a plain GET form, so the page works on first paint and — the part that matters — a filtered view is
+      *linkable*, so a DM can paste "every public PF2 creature" into their table's chat. It queries Postgres
+      directly rather than fetching its own API (an RSC calling its own route pays a round trip to redo work
+      it could do inline), but shares the authorization: both call `visibleHomebrew`, the module with the 27
+      tests, so page and API can never disagree about who sees what. A system filter includes `'any'`-scoped
+      pieces, or system-agnostic content vanishes from exactly the lists it was scoped to appear in.
 
-- [ ] **P6-6 — The Studio: build.** `/dnd/content/new` — the kind picker (grouped: Gear · Magic & powers ·
-      Character options · World, each card carrying its blurb) → the system picker (each option labelled
-      *Full mechanical support* or *Rules text only*, from `kindIsMechanicalIn`) → the adaptive form rendered
-      generically from `fieldsForKind`. `/dnd/content/[id]` views and edits.
-      **The form is generic on purpose:** adding a kind is a data change in `kinds.ts`, never a new component.
+- [x] **P6-6 — The Studio: build. Shipped 2026-07-28 (form; the five bespoke editors are still owed).**
+      `/dnd/content/new` is the picker with no `?kind=` and the form with one. Both are **generated from the
+      registry** — the picker from `KIND_GROUPS`/`kindsInGroup`, the form from `fieldsForKind` — with a test
+      asserting no kind is hard-coded in either, because a hand-written list is how a new kind gets added to
+      `kinds.ts` and silently never appears.
+      **Honest about the gap:** `effects`, `levels`, `statblock`, `image` and `list` need bespoke editors
+      (P6-8/11/12/13). Each renders a labelled placeholder naming the slice that builds it, rather than a
+      text box that looks like it captures a statblock and silently drops it — a form that appears to accept
+      input it discards is worse than one that admits the gap, since the author only finds out after saving.
+      The prose-only notice from the registry shows *before* an author starts, not after.
 
-- [ ] **P6-7 — The doors.** *(the owner's "content builder button on the user page".)* A **🔨 Content
-      Builder** button on the lobby (`MyTable`), an entry in the header menu, and a **My custom content**
-      section on the lobby showing the viewer's pieces with a link to the Studio.
+- [x] **P6-7 — The doors. Shipped 2026-07-28.** 🔨 Content Builder + "My custom content" + "Browse
+      everyone's" on the lobby (`MyTable` — the user page the owner meant), and header-menu entries with
+      browsing above the sign-in split (reading is open, like the library) and building below it.
+      **Caught mid-slice:** the lobby buttons were added pointing at `/dnd/content/new` *before that page
+      existed* — the exact defect this whole plan is about, nearly reintroduced while fixing it. Both pages
+      shipped in the same commit, and `content-studio-reachability.test.ts` now asserts every link the browse
+      page emits points at a page that exists.
 
 - [ ] **P6-8 — Adopt onto a character.** `POST /api/dnd/homebrew/[id]/adopt` → the existing `adoptHomebrew`,
       gated by `canAdoptHomebrew` + the campaign policy, recorded in edit history so it is undoable like any
