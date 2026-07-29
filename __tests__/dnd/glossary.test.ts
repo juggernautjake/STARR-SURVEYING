@@ -5,6 +5,7 @@
 // and they must never cross systems — the same word means different things in different games.
 import { describe, it, expect } from 'vitest';
 import { glossaryFor, findTerm, searchGlossary, searchAllGlossaries, systemsWithGlossary, termsMentionedIn } from '@/lib/dnd/glossary';
+import { GLOSSARY_KINDS } from '@/lib/dnd/glossary/types';
 
 const SYSTEMS = systemsWithGlossary();
 
@@ -35,7 +36,10 @@ describe.each(SYSTEMS)('%s glossary', (system) => {
       expect(e.short.trim().length, `${e.term} short`).toBeGreaterThan(15);
       // The whole point: a lookup must return a real explanation.
       expect(e.body.trim().length, `${e.term} body`).toBeGreaterThan(120);
-      expect(['condition', 'mechanic', 'action', 'term', 'class', 'feature', 'stat'], `${e.term} kind`).toContain(e.kind);
+      // The vocabulary is imported, not restated. This line used to hold its own copy of the seven kinds,
+      // so widening the union failed the TEST rather than the code — and the tempting fix was to edit the
+      // copy. Two lists of one vocabulary is the hand-copy problem again.
+      expect(GLOSSARY_KINDS as readonly string[], `${e.term} kind`).toContain(e.kind);
     }
   });
 

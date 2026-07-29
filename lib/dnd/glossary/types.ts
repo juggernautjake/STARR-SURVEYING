@@ -8,14 +8,27 @@
 // edge cases people argue about. One per term, per system — never shared across systems, because
 // the same word means different things in different games (a Blades "score" is not a D&D score, and
 // PF2's Frightened is numeric where 5e's is binary).
-export type GlossaryKind =
-  | 'condition'
-  | 'mechanic'   // core resolution, advantage, degrees of success, stress…
-  | 'action'     // what you can do on a turn
-  | 'term'       // vocabulary: AC, DC, initiative, Sanity…
-  | 'class'      // a class/playbook/role's actual identity
-  | 'feature'    // a notable class/species feature
-  | 'stat';      // an attribute and what it governs
+/**
+ * The vocabulary, as a runtime array so nothing has to restate it.
+ *
+ * It was a bare type union, and a test then hardcoded its own copy of the seven names — so widening the
+ * union failed that test rather than the code, and the fix would have been to edit the copy. Two lists of
+ * one vocabulary is the hand-copy problem the PF2 level walker already demonstrated: the copy stops
+ * agreeing the first time the original changes.
+ *
+ * The vocabulary itself is unchanged — seven kinds, exactly as before. Only the duplication went.
+ */
+export const GLOSSARY_KINDS = [
+  'condition',
+  'mechanic',   // core resolution, advantage, degrees of success, stress…
+  'action',     // what you can do on a turn
+  'term',       // vocabulary: AC, DC, initiative, Sanity…
+  'class',      // a class/playbook/role's actual identity
+  'feature',    // a notable class/species feature
+  'stat',       // an attribute and what it governs
+] as const;
+
+export type GlossaryKind = (typeof GLOSSARY_KINDS)[number];
 
 export interface GlossaryEntry {
   /** The canonical term, exactly as the rulebook writes it (e.g. "Off-Guard", not "off guard"). */

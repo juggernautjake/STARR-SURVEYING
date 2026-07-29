@@ -2129,9 +2129,40 @@ Every slice below serves that one rule.
       sharing the creature model from P6-13 so a homebrew creature and an official one are the same shape.
 - [ ] **P8-2 — Magic items.** *(E-4.)* SRD magic items for 5e; PF2's runes are already modelled and are the
       equivalent surface there.
-- [ ] **P8-3 — The IG glossary.** *(E-2.)* Intuitive Games has 32 terms — fewer than **every** unbuilt system
-      (Blades 60, Shadowrun 55, CoC 51) and a third of PF2's 96. Another scrape pass of intuitivegames.net.
-      Ground Rule 3: scrape, do not invent.
+- [x] **P8-3 — The IG glossary.** *(E-2.)* ~~Intuitive Games has 32 terms — fewer than **every** unbuilt
+      system (Blades 60, Shadowrun 55, CoC 51) and a third of PF2's 96. Another scrape pass of
+      intuitivegames.net.~~ **Every number in that sentence was stale.**
+
+      **Closed 2026-07-29 by measurement, not by a scrape.** `__tests__/dnd/ig-glossary-coverage.test.ts`
+      pins what is actually there.
+
+      | The item said | Actually |
+      |---|---|
+      | 32 glossary terms | **103** — 25 authored plus 78 derived from the content module |
+      | a third of PF2's | PF2 has 140; IG is comparable, not a third |
+      | needs a scrape | tooltip demand is **78/78 covered, zero missing** — the same bar PF2 meets at 74/74 |
+      | powers/feats absent | 151 feats, 63 powers, 6 defensive powers, 10 ancestries, all **already searchable** |
+
+      **I found this out by building it, and the build was a regression.** I extended the derived glossary
+      to cover powers, feats, defensive powers and ancestries — and `library.test.ts` failed, because
+      `library.ts` has surfaced all four in search since the IG buildout, with **richer bodies** than my
+      derived articles. The glossary entries were *shadowing* them. Reverted. The existing test caught a
+      change that would have made search worse while looking like a content win, which is the whole
+      argument for pinning behaviour rather than counting rows.
+
+      Two real things fell out and were kept:
+
+      · **`content.ts`'s `IG_FEATS` is a trap.** It lists 20 feats as name + category with **no rules text
+        at all**; the real set is `igAllFeats()` — 151 feats with prerequisites and effects, four
+        directories away, and already what grounding feeds the AI. My first pass read the thin one and a
+        hollow-entry guard dropped all 20 silently. A test now asserts every feat carries text.
+      · **`GlossaryKind` was a bare type union with a hand-copy of its seven names inside a test**, so
+        touching the vocabulary failed the *test* rather than the code — and the tempting fix was to edit
+        the copy. It is now a runtime `GLOSSARY_KINDS` array the test imports. The vocabulary itself is
+        unchanged.
+
+      **Nothing was scraped and nothing was invented**, which is the right outcome for an item whose
+      premise did not survive contact with the code.
 - [x] **P8-4 — PF2 spell coverage + an explicit gaps list.** *(E-3.)* 208 spells against 5e's 382, roughly
       half of Player Core. Extend the `PF2_*_GAPS` convention to spells so an absent spell reads as "not
       catalogued yet" in the picker rather than as "does not exist".
