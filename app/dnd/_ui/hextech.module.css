@@ -48,6 +48,19 @@
   font-family: var(--hx-font-body);
 }
 
+/* A BARE HEADING ON A DARK PAGE MUST NOT INHERIT THE MARKETING SITE'S INK (P11-10).
+   `app/styles/globals.css` sets `h1…h6 { color: var(--brand-dark) }` for the main Starr Surveying site,
+   where headings sit on white. That rule reaches every /dnd page too, so any `<h2>` written without a
+   class renders `#0f1419` on navy — the level walker's panel title measured **1.17:1**, which is the same
+   near-black that hid the sheet's buttons and footer, in a fourth place.
+   `color: inherit` rather than a fixed cream, so it follows the skin like everything else here. Scoped to
+   headings with NO class of their own: anything deliberately styled — a `.title`, a gradient-clipped
+   masthead — is untouched, because a heading that carries a class is one someone has already decided
+   about. Inline styles still win, as they should. */
+.root :is(h1, h2, h3, h4, h5, h6):not([class]) {
+  color: inherit;
+}
+
 /* Full-viewport dark screen with a radial gold + teal glow. */
 .screen {
   min-height: 100dvh;

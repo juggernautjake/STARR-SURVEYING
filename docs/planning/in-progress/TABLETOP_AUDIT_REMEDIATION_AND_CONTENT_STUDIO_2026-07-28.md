@@ -3027,7 +3027,54 @@ variance rather than one look with different colours.
       Verified signed-in at 360/390/414/768: no overflow. One thing checked and NOT a defect — a 404 on
       `/api/dnd/suggestions?count=1` in the console was a transient dev-server recompile; the route
       answers 200.
-- [ ] **P11-10 — Fill the thin pages.** Any page that is a heading and a list gets the content it implies.
+- [x] **P11-10 — Fill the thin pages.** Any page that is a heading and a list gets the content it implies.
+
+      **Done 2026-07-29 — measured first, and the answer was mostly "these are not thin, they are empty".**
+      Ranked all 13 signed-in `/dnd` pages by rendered `main` text (header and shared footer excluded, or
+      every page flatters itself):
+
+      | page | chars | words | headings | links |
+      |---|---|---|---|---|
+      | /dnd/suggestions | 250 | 47 | 1 | 1 |
+      | /dnd/recover | 326 | 61 | 1 | 1 |
+      | …/levels | 449 | 88 | 2 | 1 |
+      | /dnd | 566 | 99 | 7 | 14 |
+      | /dnd/content | 608 | 114 | 1 | 29 |
+      | /dnd/characters | 616 | 108 | 1 | 17 |
+      | /dnd/profile | 864 | 156 | 6 | 12 | *(was ~300 before P11-9)* |
+      | /dnd/library | 1326 | 225 | 2 | 5 |
+      | /dnd/content/new | 2067 | 373 | 5 | 19 |
+      | /dnd/campaigns/… | 4601 | 794 | 8 | 3 |
+
+      **Each of the three thinnest was checked in the browser, and none is an unfinished page:**
+      · `/dnd/suggestions` already has status filters, an owner gate, copy and delete. It is an **empty
+        board** in this environment, and its empty state names the next action. Its footer even carries
+        the compose box the empty state points at.
+      · `/dnd/recover` is a recovery-code form. A form is as long as its fields.
+      · `…/levels` is a **guided** walker: "the sheet will not move to the next level until then". Showing
+        one choice at a time is the design, not a gap — a list of all fifteen would fight it.
+
+      Padding these with invented content would have made the pages worse, so the item is closed on the
+      measurement rather than on new prose. `/dnd/profile` was the one genuinely thin page and P11-9
+      fixed it.
+
+      **What the sweep DID find is a real defect, and a fourth instance of one root cause.**
+      `app/styles/globals.css` colours `h1…h6` with `var(--brand-dark)` for the main Starr Surveying site,
+      where headings sit on white — and that rule reaches every `/dnd` page, so any heading written
+      without a class rendered near-black on navy. The level walker's panel title measured **1.17:1**.
+      Same `#0f1419` that hid the sheet's `.btn` controls and the shells' `.footer`; the fourth place a
+      colour meant for one background met another.
+
+      Fixed with `.root :is(h1…h6):not([class]) { color: inherit }` — `inherit` so it follows the skin,
+      and scoped to UNCLASSED headings so anything deliberately styled (a `.title`, a gradient-clipped
+      masthead) is untouched. Verified both directions in the browser: the heading went
+      `rgb(15, 20, 25)` → `rgb(240, 230, 210)`, while a deliberately classed heading planted in the same
+      root **stayed dark** — the scope working rather than a blunt override. Re-scanned all 13 pages: no
+      heading anywhere still carries the marketing ink.
+
+      **One false positive named rather than acted on:** the page masthead reports `rgba(0, 0, 0, 0)` at
+      ratio 1.00. That is gradient-clipped text — lie #5 in the method doc — and it renders correctly in
+      gold. The ad-hoc probe used here omitted that exclusion; the one in `contact-sheet.mjs` has it.
 
 ## Phase 12 — Homebrew completeness
 
