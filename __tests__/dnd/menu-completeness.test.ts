@@ -79,3 +79,34 @@ describe('the count endpoint cannot break navigation', () => {
     expect(route).toContain("{ count: 'exact', head: true }");
   });
 });
+
+describe('the lobby body reaches them too (P4-5)', () => {
+  // The header menu is one route in; the lobby is the page a signed-in player LANDS on, and it could start
+  // a campaign and build content but not make a character, reach a profile, or open the library. All three
+  // pages existed; none was linked from the page body.
+  //
+  // This matters separately from the header because the menu is behind a toggle: a player who has never
+  // opened it has, from the lobby, no visible way to make their first character.
+  const table = read('app/dnd/_ui/MyTable.tsx');
+
+  it.each([
+    ['/dnd/characters/new', 'make a character'],
+    ['/dnd/characters', 'the character index'],
+    ['/dnd/library', 'the rules library'],
+    ['/dnd/profile', 'the profile page'],
+  ])('links %s (%s)', (href) => {
+    expect(table).toContain(`href="${href}"`);
+  });
+
+  it('and "＋ Character" is the primary action of its row', () => {
+    // Making a character is the thing a new player is there to do; the rest are navigation.
+    expect(table).toMatch(/href="\/dnd\/characters\/new"[\s\S]{0,120}hexBtnPrimary/);
+  });
+
+  it('kept as a SECOND row rather than lengthening the content row', () => {
+    // The existing row is about content you author; this one is about you and your characters. Same visual
+    // weight, different question — merging them would make a seven-button wrap with no grouping.
+    const rows = table.match(/display: 'flex', gap: 10, flexWrap: 'wrap'/g) ?? [];
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+  });
+});

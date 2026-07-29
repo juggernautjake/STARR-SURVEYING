@@ -925,8 +925,22 @@ should skip Phase 7 entirely.
       palette spanning characters, campaigns, NPCs, custom content and library articles, reusing the
       library's keyword engine as the index.
 
-- [ ] **P4-5 — Lobby depth.** `MyTable` has no "＋ Character" button of its own, no Profile link, and no
+- [x] **P4-5 — Lobby depth.** `MyTable` has no "＋ Character" button of its own, no Profile link, and no
       link to the library from the page body. Fix all three while P4-1 and P6-7 are in flight.
+
+      **Done 2026-07-29.** A second button row on `MyTable`: **＋ Character** (primary), My characters,
+      Rules library, Profile. Taken ahead of P4-4 because it is the smaller slice — third time in this phase
+      I have gone out of numeric order, and each time for the same reason: the hook asks for the *smallest
+      meaningful* slice, and P4-4 is a cross-entity search build rather than a tidy-up.
+
+      **Why this matters separately from P4-2's header work.** The menu is behind a toggle. A player who has
+      never opened it had, from the lobby — the page they LAND on — no visible way to make their first
+      character. The lobby could start a campaign and build content but not make a character, reach a
+      profile, or open the library; all three pages existed and none was linked from the page body.
+
+      Kept as a **second row** rather than lengthening the existing one: that row is about CONTENT you
+      author, this one is about YOU and your characters. Merging them makes a seven-button wrap with no
+      grouping. Verified in the browser — all four render in the lobby body, outside the header.
 
 - [x] **P4-6 — An orphan-component guard. Shipped 2026-07-28.** `__tests__/dnd/no-orphan-components.test.ts`
       — the `lib/dnd` orphan guard, applied to components. **A unit test proves a component renders; this

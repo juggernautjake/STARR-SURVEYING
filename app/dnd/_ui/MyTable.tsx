@@ -60,6 +60,47 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
         </Link>
       </div>
 
+      {/* P4-5. The lobby could START a campaign and BUILD content, but not make a character, reach your
+          profile, or open the library — the three things a signed-in player most often wants from the page
+          that is supposed to be their home. All three existed; none was linked from the page body.
+
+          A second row rather than one long wrap: the row above is about CONTENT you author, this one is
+          about YOU and your characters. Same visual weight, different question. */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <Link
+          href="/dnd/characters/new"
+          className={`${styles.hexBtn} ${styles.hexBtnPrimary}`}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Build a character in any system — guided, manual, or from a file."
+        >
+          ＋ Character
+        </Link>
+        <Link
+          href="/dnd/characters"
+          className={styles.hexBtn}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Every character you own or play."
+        >
+          My characters
+        </Link>
+        <Link
+          href="/dnd/library"
+          className={styles.hexBtn}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Rules, classes, spells and conditions for every playable system."
+        >
+          📖 Rules library
+        </Link>
+        <Link
+          href="/dnd/profile"
+          className={styles.hexBtn}
+          style={{ textDecoration: 'none', padding: '10px 16px' }}
+          title="Your display name, avatar, password and recovery code."
+        >
+          Profile
+        </Link>
+      </div>
+
       {nothing && (
         <p style={{ color: 'var(--hx-muted)', textAlign: 'center', fontSize: 13 }}>
           You&apos;re signed in, but you&apos;re not in any campaigns yet. Start one above, ask your DM to add you, or browse the tables below.
