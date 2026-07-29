@@ -526,10 +526,26 @@ of homebrew.
       the next field type someone adds lands there instead of silently rendering nothing.
       Flipped the P6-12 pin that said "effects is the only placeholder left".
 
-- [ ] **P6-9a — Pathfinder 2e engine bridge.** `adopt.ts` speaks 5e shapes; a homebrew item's +1 does not
-      move a PF2 AC. Needs a converter into the `pf2-edit` vocabulary, and `kindIsMechanicalIn` updated to
-      match what it can actually carry — the registry must never claim support a bridge does not have.
-      Depends on P5-1 for anything item-shaped.
+- [x] **P6-9a — Pathfinder 2e engine bridge. Shipped 2026-07-28.**
+      `lib/dnd/systems/pathfinder2e/adopt.ts` + two inventory edit ops, and the adopt route now branches on
+      the **sidecar** (`isPF2Character`) rather than the system column, because the column can disagree with
+      what is actually stored.
+      **The bug it fixes looked like it worked**, which is the worst shape a bug can have: `adoptHomebrew`
+      writes 5e shapes onto the shared `Character`, so adopting onto a PF2 character wrote into a blank 5e
+      projection — the save succeeded, the sheet showed nothing, and nothing said why.
+      **Carries:** gear → an inventory line (possible only since P5-1; before it there was nowhere to put a
+      rope), a weapon with damage → a Strike, a feat → the **archetype** track (not `class`, or it would be
+      counted against a budget it was never granted by), a spell → a known spell.
+      **Refuses, loudly:** a class or subclass, because PF2 advancement is four feat tracks and proficiency
+      ranks rather than a hit die and an ASI ladder — converting produces something that *levels wrongly*,
+      which is worse than a refusal. The refusal explains itself and points at the transposer.
+      **The interesting decision: 5e `effects[]` are NOT translated, only flagged.** A `str_score +2` is a
+      statement about ability *scores*, which PF2 does not have in play; mapping it would silently rebalance
+      every piece that crossed. The player is told in plain words and pointed at P6-18, which is the honest
+      route between systems and says out loud that it produces a new variant.
+      A test asserts no effect leaks into a PF2 edit, and that the route preserves the rest of `data` when
+      writing the sidecar back — rebuilding from the sidecar alone would delete the 5e projection and the
+      custom sections stored beside it.
 - [ ] **P6-9b — Intuitive Games engine bridge.** The same, into `ig-edit`, so a homebrew power lands in the
       powers panel rather than as text.
 

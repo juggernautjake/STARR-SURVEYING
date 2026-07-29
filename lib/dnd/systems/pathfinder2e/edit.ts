@@ -8,6 +8,7 @@
 // therefore resolve against the EFFECTIVE current (currentHp || maxHp) and write a real value back.
 import type { PF2Character, PF2AttributeKey, PF2Feat, PF2KnownSpell, PF2Rank } from './model';
 import { resolveShield, shieldBlock } from './shield';
+import { normalizeInventory } from './inventory';
 import { PF2_ATTRIBUTES } from './model';
 import { pf2MaxHp } from './rules';
 import type { DownedDamageModel } from '@/lib/dnd/preferences';
@@ -55,6 +56,10 @@ export type PF2Edit =
   // `pf2ArmorClass` directly, which is why the editor exists at all: armor that displays but does
   // not move AC is worse than no armor field.
   | { op: 'set_armor'; name?: string; acBonus?: number; dexCap?: number | null; checkPenalty?: number; rank?: PF2Rank; runes?: string[] }
+  // Inventory (P5-1 gave PF2 one; P6-9a needs to put things in it). Add/remove by NAME, because that is how
+  // a player and the AI both refer to gear — an id would have to be looked up before it could be used.
+  | { op: 'add_inventory_item'; name: string; quantity?: number; bulk?: string | number; location?: 'worn' | 'held' | 'stowed'; invested?: boolean; notes?: string }
+  | { op: 'remove_inventory_item'; name: string }
   // Shields (P5-2). Split into "which shield" and "is it up right now", because they change on completely
   // different timescales: you pick a shield once and raise it every round.
   | { op: 'set_shield'; name?: string; currentHp?: number; acBonus?: number; hardness?: number; hp?: number; bt?: number }
@@ -70,7 +75,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'set_shield', 'set_shield_raised', 'apply_shield_block'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'add_inventory_item', 'remove_inventory_item', 'set_shield', 'set_shield_raised', 'apply_shield_block'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -325,6 +330,41 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       // means "there are none", and collapsing the two makes a removal impossible to express.
       if (edit.runes !== undefined) combat.armorRunes = edit.runes;
       return { ...pf2, combat };
+    }
+
+    // ── Inventory (P5-1 / P6-9a) ─────────────────────────────────────────────────────────────────
+    case 'add_inventory_item': {
+      const name = edit.name?.trim();
+      if (!name) return pf2;
+      const items = normalizeInventory(pf2.inventory);
+      const qty = Number.isFinite(edit.quantity) ? Math.max(1, Math.round(edit.quantity as number)) : 1;
+      // Adding something you already carry increases the COUNT rather than making a second line — an
+      // inventory with "Rope" twice is a list nobody wants to reconcile mid-session.
+      const existing = items.findIndex((i) => i.name.toLowerCase() === name.toLowerCase());
+      if (existing >= 0) {
+        items[existing] = { ...items[existing], quantity: items[existing].quantity + qty };
+        return { ...pf2, inventory: items };
+      }
+      items.push({
+        id: `hb-${Date.now().toString(36)}-${items.length}`,
+        name,
+        quantity: qty,
+        ...(edit.bulk != null && edit.bulk !== '' ? { bulk: edit.bulk } : {}),
+        ...(edit.location ? { location: edit.location } : {}),
+        ...(edit.invested ? { invested: true } : {}),
+        ...(edit.notes?.trim() ? { notes: edit.notes.trim() } : {}),
+      });
+      return { ...pf2, inventory: items };
+    }
+
+    case 'remove_inventory_item': {
+      const name = edit.name?.trim().toLowerCase();
+      if (!name) return pf2;
+      const items = normalizeInventory(pf2.inventory);
+      const next = items.filter((i) => i.name.toLowerCase() !== name);
+      // Unchanged when nothing matched, so a typo'd removal is a visible no-op rather than a silent one
+      // that looks like it worked.
+      return next.length === items.length ? pf2 : { ...pf2, inventory: next };
     }
 
     // ── Shields (P5-2) ───────────────────────────────────────────────────────────────────────────

@@ -28,6 +28,9 @@ import { rowToHomebrew, canReadHomebrew, type HomebrewRow } from '@/lib/dnd/home
 import { blankCharacter } from '@/app/dnd/_sheet/data/blank';
 import { normalizeSystem } from '@/lib/dnd/systems';
 import type { Character } from '@/app/dnd/_sheet/types';
+import { isPF2Character, type PF2Character } from '@/lib/dnd/systems/pathfinder2e/model';
+import { applyPf2Edit } from '@/lib/dnd/systems/pathfinder2e/edit';
+import { pf2AdoptEdits, pf2AdoptRefusal } from '@/lib/dnd/systems/pathfinder2e/adopt';
 
 // NOTE: no helper is exported from this file. A route module may only export recognised handlers — an
 // extra export typechecks and then fails `next build`. `CAMPAIGN_HOMEBREW_THEME_KEY` lives in policy.ts.
@@ -85,17 +88,39 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // own provenance still marks it as custom on the sheet, so this is not a way to sneak content past a table.
 
   // ── gate 3: does it actually resolve? ────────────────────────────────────────────────────────
-  const current = ((character.data as unknown as Character | null) ?? blankCharacter(character.name)) as Character;
-  const result = adoptHomebrew(current, piece);
-  if (!result) {
-    return NextResponse.json({
-      error: `“${piece.name}” has no mechanics this sheet can apply — it is written as rules text. Read it on its page and apply it at the table.`,
-    }, { status: 400 });
+  //
+  // PF2 takes a DIFFERENT PATH (P6-9a), and it is the reason this branch exists. A Pathfinder 2e character
+  // keeps its real state in the `data.pf2e` sidecar; `adoptHomebrew` writes 5e shapes onto the shared
+  // `Character`. Sending a PF2 character down that path made the save succeed, the sheet show nothing, and
+  // nothing explain why — the worst shape a bug can have, because it looks like it worked.
+  const rawData = (character.data ?? {}) as Record<string, unknown>;
+  let nextData: unknown;
+  let adopted: string;
+  let extraNotes: string[] = [];
+
+  if (isPF2Character(rawData.pf2e)) {
+    const conv = pf2AdoptEdits(piece);
+    if (!conv) return NextResponse.json({ error: pf2AdoptRefusal(piece) }, { status: 400 });
+    let pf2 = rawData.pf2e as PF2Character;
+    for (const e of conv.edits) pf2 = applyPf2Edit(pf2, e);
+    nextData = { ...rawData, pf2e: pf2 };
+    adopted = conv.adopted;
+    extraNotes = conv.notes;
+  } else {
+    const current = (rawData as unknown as Character | null) ?? blankCharacter(character.name);
+    const result = adoptHomebrew(current as Character, piece);
+    if (!result) {
+      return NextResponse.json({
+        error: `“${piece.name}” has no mechanics this sheet can apply — it is written as rules text. Read it on its page and apply it at the table.`,
+      }, { status: 400 });
+    }
+    nextData = result.char;
+    adopted = result.adopted;
   }
 
   const { error: upErr } = await supabaseAdmin
     .from('dnd_characters')
-    .update({ data: result.char, updated_at: new Date().toISOString() })
+    .update({ data: nextData, updated_at: new Date().toISOString() })
     .eq('id', characterId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
@@ -105,14 +130,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     character_id: characterId,
     editor_user_id: session.userId,
     is_dm: isDM,
-    field_path: `homebrew.${result.adopted}`,
+    field_path: `homebrew.${adopted}`,
     old_value: null,
-    new_value: { homebrewId: piece.id, name: piece.name, kind: piece.kind, adopted: result.adopted } as unknown,
+    new_value: { homebrewId: piece.id, name: piece.name, kind: piece.kind, adopted } as unknown,
     scope: 'permanent',
     batch_id: randomUUID(),
     source: 'homebrew-adopt',
     summary,
   }).then(() => {}, () => {});
 
-  return NextResponse.json({ ok: true, adopted: result.adopted, summary });
+  // The notes matter: "your item is on the sheet, but its effects were written for D&D 5e" is a useful
+  // sentence, and silence in its place is how someone concludes the feature is broken.
+  return NextResponse.json({ ok: true, adopted, summary, notes: extraNotes });
 }
