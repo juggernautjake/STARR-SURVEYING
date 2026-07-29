@@ -69,6 +69,9 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
       rows: (Array.isArray(payload[f.key]) ? payload[f.key] : []) as Record<string, unknown>[],
     }))
     .filter((s) => s.rows.length > 0);
+  // The `levels` field, wherever the kind declares it (class and subclass both do).
+  const levelsKey = fieldsForKind(piece.kind).find((f) => f.type === 'levels')?.key;
+  const levelRows = (levelsKey && Array.isArray(payload[levelsKey]) ? payload[levelsKey] : []) as Record<string, unknown>[];
   const scope = piece.system === 'any' ? 'Any system' : systemLabel(normalizeSystem(piece.system));
   const mechanical = piece.system !== 'any' && kindIsMechanicalIn(piece.kind, piece.system);
 
@@ -160,6 +163,40 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
                   </div>
                 ) : null;
               })}
+            </section>
+          )}
+
+          {/* The level ladder (P6-12). Grouped by level so it reads like a class table rather than a flat
+              list of features. Ordered numerically — an author adds them in whatever order occurs to them. */}
+          {levelRows.length > 0 && (
+            <section className={styles.framedPanel} style={{ padding: '14px 16px' }}>
+              <div className={styles.framedPanelTop} />
+              <h2 className={styles.panelTitle} style={{ marginTop: 0 }}>
+                Level by level
+                {piece.partialToLevel != null && (
+                  <span style={{ fontSize: 11.5, color: 'var(--hx-gold-2)', marginLeft: 8, letterSpacing: 0 }}>
+                    partial — to level {piece.partialToLevel}
+                  </span>
+                )}
+              </h2>
+              <div style={{ display: 'grid', gap: 12 }}>
+                {[...new Set(levelRows.map((r) => Number(r.level) || 0))].sort((a, b) => a - b).map((lvl) => (
+                  <div key={lvl}>
+                    <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--hx-teal-1)', marginBottom: 4 }}>
+                      Level {lvl}
+                    </div>
+                    {levelRows.filter((r) => (Number(r.level) || 0) === lvl).map((r, i) => (
+                      <div key={i} style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--hx-text)', marginBottom: 6 }}>
+                        <strong style={{ color: 'var(--hx-gold-2)' }}>{String(r.name ?? '—')}</strong>
+                        {r.choice ? (
+                          <span style={{ fontSize: 11, color: 'var(--hx-muted)' }}> · a choice ({String(r.choice)})</span>
+                        ) : null}
+                        {r.body ? <div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{String(r.body)}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 

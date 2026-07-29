@@ -502,12 +502,26 @@ of homebrew.
       Rendered on the browse card, the statblock and the library entry. *(The owner's creature-with-artwork
       case is the acceptance test.)*
 
-- [ ] **P6-12 — The class studio.** The depth pass on the `class` kind: **base-class derivation** ("start
-      from Fighter and modify" — deep-copy its `ClassDefinition` into the draft, recording `based_on`),
-      per-level feature / resource / ASI editing, **inline feat authoring** that saves the feat as its own
-      piece *and* offers it at the chosen level, and `partial_to_level` with an honest PARTIAL badge.
-      Built on the existing `CustomClassDraft` → `buildCustomClass` → `ClassDefinition` pipeline, so a
-      homebrew class levels through the same `snapshotAtLevel` as an official one.
+- [x] **P6-12 — The class studio. Shipped 2026-07-28** *(inline feat authoring split out as P6-12b).*
+      The `levels` editor (per-level name, rules text and choice-kind, with the choice kinds matching
+      `ClassFeature['choice']` so marking a level "asi" genuinely tells the walker to prompt there), the
+      partial-build state surfaced **while authoring** rather than discovered on save, and base-class
+      derivation via `GET /api/dnd/homebrew/base-class`.
+      **Derivation is a route, not shipped data:** `classesForSystem('dnd5e-2024')` is thirteen classes with
+      full rules text at twenty levels — hundreds of kilobytes to fill one dropdown. It returns
+      **draft-shaped keys** matching the `class` field schema, so there is no translation layer to drift.
+      Three deliberate omissions, each pinned by test: **subclass features are excluded** (copying them in
+      produces a class that grants one subclass's features to every character who takes it); **the source
+      description is not inherited** (every derived class reading "The Fighter is a master of martial
+      combat…" is worse than a blank one); and the **author's own name and prose survive a derivation**,
+      because overwriting a name they had already typed with "Fighter" would be actively hostile.
+      **`effects` is now the only placeholder left in the builder** — it ships with P6-9's engine bridges.
+
+- [ ] **P6-12b — Inline feat authoring inside the class studio.** *(Split from P6-12.)* The owner's *"they
+      might even be able to homebrew custom feats while making the class to make those feats available at
+      certain levels."* Deliberately separate because it is a genuinely different problem from the rest of
+      P6-12: it creates a SECOND piece from inside an unsaved draft, which needs a decision about what
+      happens to that feat if the class is never saved. Cheap to build, easy to get wrong quietly.
 
 - [x] **P6-13 — The creature builder + statblock. Shipped 2026-07-28.** `lib/dnd/homebrew/statblock.ts`
       (pure model + normalizer), the `statblock` and `list` editors in the builder, and a rendered statblock

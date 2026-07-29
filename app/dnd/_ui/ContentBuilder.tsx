@@ -10,12 +10,13 @@
 // the only way eighteen kinds × four systems stays maintainable, and the single design decision the
 // Studio rests on.
 //
-// HONEST ABOUT WHAT IT CANNOT YET DO. Five field types in the registry need bespoke editors (`effects`,
-// `levels`, `statblock`, `image`, `list`). Those are later slices. Rather than render a text box that
-// *looks* like it captures a statblock and silently drops it, each renders a labelled placeholder saying
-// which slice builds it. A form that appears to accept input it discards is worse than one that admits the
-// gap — the author would only find out after saving.
-import { useMemo, useState } from 'react';
+// HONEST ABOUT WHAT IT CANNOT YET DO. `image`, `list`, `statblock` and `levels` all have real editors now;
+// **`effects` is the last one owed** (P6-9, where it lands with the per-system engine bridges). It renders a
+// labelled placeholder naming that slice rather than a text box that *looks* like it captures mechanics and
+// silently drops them — a form that appears to accept input it discards is worse than one that admits the
+// gap, since the author only finds out after saving. `OWED_BY` is the list; keep it accurate, and delete an
+// entry the moment its editor ships. A placeholder that outlives its fix is its own kind of lie.
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import {
@@ -29,13 +30,28 @@ import {
 
 /** Field types with a real editor today. Everything else is declared, shown, and marked as owed. */
 const IMPLEMENTED = new Set([
-  'text', 'textarea', 'number', 'select', 'tags', 'abilities', 'skills', 'dice', 'image', 'list', 'statblock',
+  'text', 'textarea', 'number', 'select', 'tags', 'abilities', 'skills', 'dice', 'image', 'list',
+  'statblock', 'levels',
 ]);
 
 /** Which slice builds each of the remaining editors — named so the placeholder is a pointer, not an apology. */
 const OWED_BY: Record<string, string> = {
-  effects: 'P6-9', levels: 'P6-12',
+  effects: 'P6-9',
 };
+
+/** What a level grants that the engine treats as a CHOICE rather than a fixed feature. Mirrors
+ *  `ClassFeature['choice']` — the level walker prompts on exactly these, so an author picking one here is
+ *  telling the builder to ask the player at that level. */
+const CHOICE_KINDS: { value: string; label: string }[] = [
+  { value: '', label: 'A fixed feature' },
+  { value: 'asi', label: 'Ability Score Improvement / feat' },
+  { value: 'subclass', label: 'Choose a subclass' },
+  { value: 'fighting-style', label: 'Choose a fighting style' },
+  { value: 'expertise', label: 'Choose expertise' },
+  { value: 'cantrip', label: 'Learn a cantrip' },
+  { value: 'epic-boon', label: 'Choose an epic boon' },
+  { value: 'other', label: 'Another choice' },
+];
 
 export default function ContentBuilder({
   kind,
@@ -59,9 +75,50 @@ export default function ContentBuilder({
   const [saving, setSaving] = useState(false);
   /** Artwork chosen before the piece exists. Uploaded immediately after creation — see the `image` branch. */
   const [pendingImage, setPendingImage] = useState<File | null>(null);
+  /** Classes this system offers as a starting point, and which one is being loaded (P6-12). */
+  const [baseClasses, setBaseClasses] = useState<{ key: string; name: string; custom?: boolean }[]>([]);
+  const [derivingFrom, setDerivingFrom] = useState<string | null>(null);
 
   const set = (k: string, v: unknown) => setValues((s) => ({ ...s, [k]: v }));
   const prose = proseOnlyNotice(kind, sys);
+
+  // The classes this system can be derived from. Re-fetched when the SYSTEM changes, because a class list
+  // is per-system and offering Fighter to a Pathfinder draft would be a category error. Only kinds with a
+  // `basedOn` field ask.
+  const wantsBaseClass = useMemo(() => fields.some((f) => f.key === 'basedOn'), [fields]);
+  useEffect(() => {
+    if (!wantsBaseClass) return;
+    let cancelled = false;
+    fetch(`/api/dnd/homebrew/base-class?system=${encodeURIComponent(sys)}`)
+      .then((r) => (r.ok ? r.json() : { classes: [] }))
+      .then((j) => { if (!cancelled) setBaseClasses(j.classes ?? []); })
+      .catch(() => { if (!cancelled) setBaseClasses([]); });
+    return () => { cancelled = true; };
+  }, [sys, wantsBaseClass]);
+
+  /**
+   * "Start from Fighter and modify." Loads the official class flattened into this form's own field shape
+   * and merges it over the current values.
+   *
+   * NAME AND DESCRIPTION ARE PRESERVED, deliberately — they are the author's, and a derivation that
+   * overwrote the name they had already typed with "Fighter" would be actively hostile. The route omits
+   * the description for the same reason: every derived class reading "The Fighter is a master of martial
+   * combat…" would be worse than a blank one.
+   */
+  async function deriveFrom(classKey: string) {
+    if (!classKey) { set('basedOn', ''); return; }
+    setDerivingFrom(classKey); setProblems([]);
+    try {
+      const r = await fetch(`/api/dnd/homebrew/base-class?system=${encodeURIComponent(sys)}&key=${encodeURIComponent(classKey)}`);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.draft) { setProblems([j.error ?? 'Could not load that class.']); return; }
+      setValues((s) => ({ ...s, ...j.draft, name: s.name, description: s.description, summary: s.summary }));
+    } catch {
+      setProblems(['Could not load that class — check your connection and try again.']);
+    } finally {
+      setDerivingFrom(null);
+    }
+  }
 
   /** `showWhen` gives one hop of conditionality — enough for "spellcasting ability only if it casts". */
   const visible = (f: FieldSpec) =>
@@ -158,7 +215,8 @@ export default function ContentBuilder({
             value={v == null ? '' : String(v)}
             onChange={(e) => set(f.key, e.target.value === '' ? undefined : Number(e.target.value))} />
         )}
-        {f.type === 'select' && (
+        {/* `basedOn` has its own server-fed branch below; excluded here so it does not render twice. */}
+        {f.type === 'select' && f.key !== 'basedOn' && (
           <select {...common} value={String(v ?? '')} onChange={(e) => set(f.key, e.target.value)}>
             <option value="">—</option>
             {(f.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -170,6 +228,78 @@ export default function ContentBuilder({
           <input {...common} value={Array.isArray(v) ? (v as string[]).join(', ') : String(v ?? '')}
             placeholder={f.placeholder ?? 'comma, separated'}
             onChange={(e) => set(f.key, e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
+        )}
+        {f.type === 'levels' && (() => {
+          const rows = (Array.isArray(v) ? (v as Record<string, unknown>[]) : [])
+            .slice()
+            .sort((a, b) => Number(a.level ?? 0) - Number(b.level ?? 0));
+          const reach = rows.reduce((m, r) => Math.max(m, Number(r.level) || 0), 0);
+          return (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {/* The partial-build promise, stated where the author is working rather than discovered on
+                  save. The owner's ask: "the user can build a class to any level they choose and the class
+                  will just be marked as partially built … build level by level and just hit save and be
+                  done whenever." */}
+              <div style={{ ...help, padding: '7px 10px', borderRadius: 3, border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.3)' }}>
+                {reach === 0
+                  ? 'No levels yet. Add as many as you like — you can save at any point.'
+                  : reach >= 20
+                    ? '✓ Written to level 20 — a complete class.'
+                    : `Written to level ${reach}. Saving now marks this a PARTIAL build, which is a normal state, not an error — come back and keep going whenever.`}
+              </div>
+
+              {rows.map((rowV, i) => (
+                <div key={i} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.3)', padding: '10px 11px', borderRadius: 3, display: 'grid', gap: 7 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ ...help, color: 'var(--hx-gold-2)' }}>Level</span>
+                    <input className={styles.input} type="number" min={1} max={20}
+                      style={{ width: 68, padding: '5px 7px', fontSize: 12.5 }}
+                      value={String(rowV.level ?? '')}
+                      onChange={(e) => set(f.key, replaceAt(rows, i, 'level', Number(e.target.value)))} />
+                    <input className={styles.input} placeholder="Feature name"
+                      style={{ flex: '1 1 160px', padding: '5px 8px', fontSize: 12.5 }}
+                      value={String(rowV.name ?? '')}
+                      onChange={(e) => set(f.key, replaceAt(rows, i, 'name', e.target.value))} />
+                    <button type="button" title="Remove this level's feature" style={{ ...rowBtn, color: '#ff6b6b' }}
+                      onClick={() => set(f.key, rows.filter((_, x) => x !== i))}>✕</button>
+                  </div>
+                  <select className={styles.input} style={{ width: '100%', padding: '5px 8px', fontSize: 12.5 }}
+                    value={String(rowV.choice ?? '')}
+                    onChange={(e) => set(f.key, replaceAt(rows, i, 'choice', e.target.value))}>
+                    {CHOICE_KINDS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                  <textarea className={styles.input} rows={3} placeholder="What it does, in full."
+                    style={{ width: '100%', padding: '6px 8px', fontSize: 12.5, resize: 'vertical' }}
+                    value={String(rowV.body ?? '')}
+                    onChange={(e) => set(f.key, replaceAt(rows, i, 'body', e.target.value))} />
+                </div>
+              ))}
+
+              <button type="button" className={styles.hexBtn} style={{ padding: '6px 14px', fontSize: 12.5, justifySelf: 'start' }}
+                onClick={() => set(f.key, [...rows, { level: Math.min(20, reach + 1), name: '', body: '', choice: '' }])}>
+                ＋ Add a feature at level {Math.min(20, reach + 1)}
+              </button>
+            </div>
+          );
+        })()}
+        {f.type === 'select' && f.key === 'basedOn' && (
+          // "Start from an existing class and modify it." Populated from the server so the browser never
+          // receives thirteen classes' worth of rules text to fill one dropdown.
+          <div style={{ display: 'grid', gap: 5 }}>
+            <select {...common} value={String(v ?? '')} disabled={derivingFrom !== null}
+              onChange={(e) => deriveFrom(e.target.value)}>
+              <option value="">Build from scratch</option>
+              {baseClasses.map((c) => (
+                <option key={c.key} value={c.key}>{c.name}{c.custom ? ' (homebrew)' : ''}</option>
+              ))}
+            </select>
+            {derivingFrom && <span style={{ ...help, color: 'var(--hx-teal-1) ' }}>Loading {derivingFrom}…</span>}
+            {!baseClasses.length && (
+              <span style={help}>
+                This system has no class data to derive from, so classes here start from scratch.
+              </span>
+            )}
+          </div>
         )}
         {f.type === 'statblock' && (
           // The numeric core only. Size, type, CR, senses, languages and resistances are their own fields
