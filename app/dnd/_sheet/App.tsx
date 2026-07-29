@@ -11,6 +11,9 @@ import './styles/theme.css'
 // and none of the complexity of a dynamic import that could flash unstyled panes on switch.
 import './styles/codex.css'
 import './styles/play.css'
+// Print rules (P10-3). Everything in it lives inside one `@media print` block, so it costs a screen
+// reader of this stylesheet nothing at all and applies only when someone actually presses Ctrl-P.
+import './styles/print.css'
 import { themeToCssVars, resolveThemeVariant, type SheetTheme } from './theme'
 import { getSheetConfig, type SheetModuleId } from './registry'
 import { useChar } from './state/store'

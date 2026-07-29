@@ -2117,8 +2117,38 @@ Every slice below serves that one rule.
       CSS-module class uses — which is why every theming pass has been expensive: an inline colour cannot be
       reached by a token, a media query, a print stylesheet or a contrast audit. **Not a rewrite:** a lint
       rule flagging hex literals inside `style={{}}`, and opportunistic migration whenever a file is touched.
-- [ ] **P10-3 — A native print stylesheet for the live sheet.** The HTML export already carries print CSS;
+- [x] **P10-3 — A native print stylesheet for the live sheet.** The HTML export already carries print CSS;
       applying the same rules to the live sheet makes Ctrl-P produce something real.
+
+      **Done 2026-07-29.** `app/dnd/_sheet/styles/print.css`, imported by all three sheet shells.
+
+      **The export's rules were not enough to copy.** It is three declarations, because the export document
+      is already a clean light-on-white page. The live sheet is dark-on-darker, wrapped in site chrome, and
+      full of controls — so Ctrl-P gave you a near-black page carrying the header, the footer, the floating
+      dice dock and every button on it, cut arbitrarily across panels.
+
+      **Ink is fixed at the TOKENS, not the rules.** The palette flows from `--void`/`--panel`/`--ink` and
+      has hundreds of consumers, including the inline `style={{ color: 'var(--muted)' }}` objects no
+      selector can reach — the one place P10-2's inline-style complaint has a concrete cost here.
+      Overriding the variables hits all of them. Backgrounds are cleared without flattening every colour to
+      black, because a refused pick's red and a warning's amber are exactly what a printed sheet is for.
+
+      **Two failure modes print a page that LOOKS complete**, which is why they got their own rules: a
+      `max-height` + `overflow: auto` region prints one screenful and silently drops the rest, and a sticky
+      or fixed element prints on every page. Both are neutralised.
+
+      Buttons are hidden; **inputs are not** — an input's *value* is the character's data, and a printed
+      sheet with a blank HP box is not a sheet. They lose the affordance, not the content.
+
+      Imported by **three shells**, because the bespoke PF2 and IG sheets do not go through `App.tsx` — the
+      same reason `theme.css` is imported three times. A test derives that rule rather than listing it: any
+      shell importing the sheet theme must import the print rules, so a fourth one fails until it does.
+      `StreamWatchClient` is the recorded exception (a viewer overlay, not a printable sheet).
+
+      **Noted for the next person writing a source-pin:** two assertions initially failed against the
+      stylesheet's own comments, which quote `color: #000` and `header, footer {` while arguing *against*
+      them. That is the fourth time this pass has written a test that matched a file's explanation of
+      itself. The negative assertions now run against a comment-stripped copy.
 - [ ] **P10-4 — Discord webhook.** Rolls and session reminders out to where tables already are. Nearly free
       once P3-1 lands.
 - [ ] **P10-5 — Offline / PWA sheet.** Sheets are already client-rendered from one JSON blob, so the hardest

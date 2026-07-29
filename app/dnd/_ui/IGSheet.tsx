@@ -33,6 +33,9 @@ import SheetPortrait from '@/app/dnd/_sheet/components/SheetPortrait';
 // Shared FORMAT stylesheets — scoped under `.sheet-shell` (T-SHELL-SCOPE), so they only style a shell
 // this sheet actually renders and never the Classic view.
 import '@/app/dnd/_sheet/styles/codex.css';
+// Print rules (P10-3). The bespoke shells do not go through App.tsx, so they need this explicitly —
+// the exact way the theme CSS itself has to be imported three times.
+import '@/app/dnd/_sheet/styles/print.css';
 import '@/app/dnd/_sheet/styles/play.css';
 import '@/app/dnd/_sheet/styles/bespokeButtons.css';
 import type { SheetVariantKind } from '@/lib/dnd/system-variants';

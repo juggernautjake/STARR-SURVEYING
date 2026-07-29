@@ -1,0 +1,159 @@
+/* app/dnd/_sheet/styles/print.css — make Ctrl-P on a live sheet produce something real (P10-3).
+ *
+ * The HTML export has carried print CSS since it was built, so "Save as PDF" from the EXPORT works. Ctrl-P
+ * on the sheet you are actually looking at did not: it printed a near-black page with the site header, the
+ * footer, the floating roller dock and every button on it, cut arbitrarily across panels.
+ *
+ * Four problems, in the order they matter:
+ *
+ *   1. INK. The sheet's whole palette is dark-on-darker. Printed, that is a solid black page, and most
+ *      browsers drop the backgrounds anyway — leaving pale text on white, which is worse than either.
+ *      Everything is forced to black-on-white here rather than trusting `print-color-adjust`.
+ *   2. CHROME. A header, a footer, a floating dice dock and a chat panel are all things you did not mean
+ *      to print.
+ *   3. CONTROLS. A button, a select or an input rendered on paper is a control you cannot use. Inputs keep
+ *      their VALUE — that is the character's data — but lose the affordance.
+ *   4. PAGE BREAKS. A panel split across a page boundary is the difference between a usable sheet and a
+ *      printout you have to reassemble.
+ *
+ * Scoped under `.dnd-sheet` where it can be, exactly like theme.css, so nothing here reaches the rest of
+ * the Starr site. The few rules that must escape that scope are the chrome ones — the header and footer
+ * are siblings of the sheet, not children of it — and each is a specific class rather than a blanket rule.
+ */
+
+@media print {
+  /* ── 1. Ink ──────────────────────────────────────────────────────────────────────────────────
+   * The variables are overridden rather than the rules, because the sheet's colours come from
+   * `--void`/`--panel`/`--ink` and there are hundreds of consumers. Overriding the tokens hits every one
+   * of them, including the inline `style={{ color: 'var(--muted)' }}` objects that no selector could
+   * reach — which is the one place P10-2's inline-style complaint actually costs us here. */
+  .dnd-sheet {
+    --void: #ffffff;
+    --void-2: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #ffffff;
+    --panel-3: #f4f4f4;
+    --ink: #000000;
+    --muted: #333333;
+    --muted-2: #555555;
+    --line: #999999;
+    --hx-text: #000000;
+    --hx-muted: #333333;
+    --hx-line: #999999;
+    background: #fff !important;
+    color: #000 !important;
+    min-height: 0 !important;
+  }
+
+  .dnd-sheet * {
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    /* Not `color: #000` — that would flatten deliberate emphasis to nothing. Only the BACKGROUNDS go. */
+    background-color: transparent !important;
+  }
+
+  .dnd-sheet,
+  .dnd-sheet * {
+    /* Animation on paper is meaningless, and a mid-animation transform can print an element rotated or
+     * half-faded. Dice rollers are the obvious case; skin accents animate too. */
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Borders carry the panel structure once the fills are gone, so they must survive. */
+  .dnd-sheet [class*='panel'],
+  .dnd-sheet [class*='card'],
+  .dnd-sheet section {
+    border-color: #999 !important;
+  }
+
+  /* ── 2. Chrome ───────────────────────────────────────────────────────────────────────────────
+   * Siblings of the sheet, so these cannot be scoped under `.dnd-sheet`. Named individually rather than
+   * by a blanket `header, footer { display: none }`, which would also eat a panel's own header. */
+  header[class*='siteHeader'],
+  footer[class*='siteFooter'],
+  .fld,
+  [class*='streamChat'],
+  [class*='StreamChat'],
+  [data-print='hide'] {
+    display: none !important;
+  }
+
+  /* ── 3. Controls ─────────────────────────────────────────────────────────────────────────────
+   * Buttons are gone; inputs stay, because an input's VALUE is the character's data — a printed sheet
+   * with blank HP is not a sheet. They lose the affordance, not the content. */
+  .dnd-sheet button,
+  .dnd-sheet [role='button'],
+  .dnd-sheet [type='button'],
+  .dnd-sheet [type='submit'] {
+    display: none !important;
+  }
+
+  .dnd-sheet input,
+  .dnd-sheet select,
+  .dnd-sheet textarea {
+    border: 0 !important;
+    border-bottom: 1px solid #ccc !important;
+    background: transparent !important;
+    color: #000 !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    /* An input that scrolls hides its own value on paper. */
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* ── 4. Page breaks ──────────────────────────────────────────────────────────────────────────
+   * `break-inside` is the standard property; `page-break-inside` is the one older engines honour. Both
+   * are set, because getting this wrong costs a reprint rather than a repaint. */
+  .dnd-sheet section,
+  .dnd-sheet [class*='panel'],
+  .dnd-sheet [class*='card'],
+  .dnd-sheet table,
+  .dnd-sheet li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .dnd-sheet h1,
+  .dnd-sheet h2,
+  .dnd-sheet h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* A heading orphaned at the foot of a page is the other half of the same problem. */
+  .dnd-sheet p,
+  .dnd-sheet li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────────────────────────────────────
+   * Anything that scrolls on screen must not scroll on paper: a `max-height` with `overflow: auto`
+   * prints exactly one screenful and silently drops the rest, which is the worst failure here because
+   * the printout looks complete. */
+  .dnd-sheet [style*='overflow'],
+  .dnd-sheet [class*='scroll'] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Sticky and fixed elements print on EVERY page, or land in the middle of one. */
+  .dnd-sheet [style*='position: sticky'],
+  .dnd-sheet [style*='position:sticky'],
+  .dnd-sheet [style*='position: fixed'],
+  .dnd-sheet [style*='position:fixed'] {
+    position: static !important;
+  }
+
+  .dnd-sheet a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}
