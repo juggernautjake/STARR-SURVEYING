@@ -14,7 +14,7 @@ import { rowToHomebrew, canReadHomebrew, canWriteHomebrew, type HomebrewRow } fr
 import { kindSpec, kindIsMechanicalIn, fieldsForKind } from '@/lib/dnd/homebrew/kinds';
 import {
   normalizeStatblock, isStatblockEmpty, abilityModifier, formatModifier,
-  STATBLOCK_ABILITIES, ABILITY_LABELS,
+  STATBLOCK_ABILITIES, ABILITY_LABELS, STATBLOCK_ENTRY_KINDS, ENTRY_KIND_LABELS, entriesOfKind,
 } from '@/lib/dnd/homebrew/statblock';
 import { systemLabel, normalizeSystem, availableSystems } from '@/lib/dnd/systems';
 import { dndAiConfigured } from '@/lib/dnd/ai';
@@ -162,6 +162,59 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
                   {statblock.skills && <span><strong style={{ color: 'var(--hx-gold-2)' }}>Skills</strong> {statblock.skills}</span>}
                 </div>
               )}
+
+              {/* P13-1's fields that are NOT already collected as the creature kind's own payload fields.
+                  `senses`, `languages` and `resistances` are deliberately absent here: DESCRIPTIVE_ROWS
+                  below already renders those from `payload`, and printing both sources would show each
+                  one twice and create two places to change one fact — exactly what that block's own
+                  comment warns about.
+                  Added the same day the model grew them: extending a stored shape without
+                  rendering it is the "authored but not wired" defect this pass keeps finding — the author
+                  fills the form, it saves, and the page shows nothing. Each line only appears when it has
+                  content, so a creature with no resistances does not print an empty label. */}
+              {([
+                ['cr', 'Challenge'], ['xp', 'XP'], ['immunities', 'Immunities'],
+                ['vulnerabilities', 'Vulnerabilities'], ['conditionImmunities', 'Condition immunities'],
+              ] as const).some(([k]) => statblock[k] !== undefined) && (
+                <div style={{ display: 'grid', gap: 3, fontSize: 13, color: 'var(--hx-text)' }}>
+                  {([
+                    ['cr', 'Challenge'], ['xp', 'XP'], ['immunities', 'Immunities'],
+                    ['vulnerabilities', 'Vulnerabilities'], ['conditionImmunities', 'Condition immunities'],
+                  ] as const).map(([k, label]) => statblock[k] === undefined ? null : (
+                    <span key={k}><strong style={{ color: 'var(--hx-gold-2)' }}>{label}</strong> {String(statblock[k])}</span>
+                  ))}
+                </div>
+              )}
+
+              {statblock.spellcasting && (
+                <div style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--hx-gold-2)' }}>Spellcasting</strong> {statblock.spellcasting}
+                </div>
+              )}
+
+              {/* Traits, actions, reactions and the rest — one heading per kind, in the order a stat block
+                  prints them, and only for kinds that have entries. `toHit` and `damage` are shown beside
+                  the name rather than folded into the body, which is what P13-8 will make clickable. */}
+              {STATBLOCK_ENTRY_KINDS.map((kind) => {
+                const list = entriesOfKind(statblock, kind);
+                if (!list.length) return null;
+                return (
+                  <div key={kind} style={{ display: 'grid', gap: 5 }}>
+                    <strong style={{ color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)', fontSize: 12.5, letterSpacing: '0.05em', textTransform: 'uppercase', borderBottom: '1px solid var(--hx-line)', paddingBottom: 3 }}>
+                      {ENTRY_KIND_LABELS[kind]}
+                    </strong>
+                    {list.map((e, i) => (
+                      <div key={`${e.name}-${i}`} style={{ fontSize: 13, color: 'var(--hx-text)', lineHeight: 1.6 }}>
+                        {e.name && <strong>{e.name}.</strong>}{' '}
+                        {e.cost && <em style={{ color: 'var(--hx-muted)' }}>({e.cost}) </em>}
+                        {e.toHit && <span style={{ color: 'var(--hx-teal-1)' }}>{e.toHit} to hit. </span>}
+                        {e.damage && <span style={{ color: 'var(--hx-teal-1)' }}>{e.damage}. </span>}
+                        {e.body}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
 
               {/* The descriptive rows the creature spec collects as their own fields — rendered here so the
                   statblock reads as one block, but stored separately so there is one place to change each. */}

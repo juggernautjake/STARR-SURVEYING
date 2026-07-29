@@ -3210,6 +3210,20 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       it is incomplete), but an **unrecognised `kind` falls back to `action` rather than being discarded**,
       because losing authored rules text is the greater harm.
 
+      **Rendering followed the same day (2026-07-29), and it had to.** The content detail page showed only
+      the P6-13 fields, so everything P13-1 added was stored and **invisible** — the author fills the form,
+      it saves, and the page shows nothing. That is the "authored but not wired" defect this pass keeps
+      finding elsewhere, and leaving a model extended-but-unrendered would have created it deliberately.
+      `/dnd/content/[id]` now prints CR/XP, immunities, vulnerabilities and condition immunities, the
+      spellcasting block, and the traits / actions / bonus actions / reactions / legendary / lair sections,
+      each only when it has content.
+
+      **A duplication caught while wiring it:** the page ALREADY renders senses, languages and resistances
+      from `payload` via `DESCRIPTIVE_ROWS`, because the creature kind collects them as its own fields. My
+      first version printed them a second time from the statblock — two sources for one fact, which is
+      what that block's own comment warns against. They are excluded here, so `payload` stays the single
+      source on this surface while `Statblock` carries them for the bestiary's rows.
+
       **And `isStatblockEmpty` had to grow with it.** Adding fields to a model without adding them to its
       emptiness test is how "it saved but nothing showed" bugs are born: a hazard or swarm token written
       with actions but no AC and no HP would have reported empty, and the renderer omits the block
