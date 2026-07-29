@@ -3432,3 +3432,23 @@ error. Two were not:
   `peekRateLimit` was checked and left alone: it is display-only, and its fail-open ("a missing table
   reports a full budget rather than telling a player they are out of AI when they are not") is both
   documented and right for a function that shows a number.
+
+## Follow-up — the sheet picker could hang forever (2026-07-29)
+
+Found while building the P11-1b contact sheet, flagged at the time, fixed now.
+
+**`SheetChrome.post()` had no deadline.** Every chip is disabled while `busy` is set, and on the success
+path the only thing that clears `busy` is `window.location.reload()`. A request that never resolves
+therefore left the whole STYLE/TEMPLATE/THEME picker **permanently dead** — no spinner that ever stopped,
+no error, nothing to retry, and a manual page reload the only way out.
+
+Not hypothetical: a wedged dev server produced exactly this, and it read as *"the picker is broken"*
+rather than *"the save is hanging"*. It cost an hour of looking in the wrong place, and it made the
+contact-sheet tool report every cell as "picker did not take" — a tooling failure caused by an app bug,
+which is the least obvious direction for that arrow to point.
+
+Now: a 15s `AbortController` on both endpoints (style is a column PATCH, template and theme are their own
+POSTs — a deadline on one is a deadline on none of the paths a user hits), `busy` cleared on the failure
+path so the chips come back, and a timeout distinguished from a network error. The two need different
+sentences because they need different next actions: "network error, try again" invites a retry that will
+hang identically, while "took too long" points at the server.

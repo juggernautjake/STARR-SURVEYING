@@ -65,17 +65,33 @@ export default function SheetChrome({
     const instant = axis === 'template' && INSTANT_TEMPLATE_SYSTEMS.has(system);
     setBusy(key); setErr(null);
     if (instant) { rememberLayout(characterId, value); setOptTemplate(value); }
+    // A DEADLINE, because every chip is disabled while `busy` is set and the only thing that clears it on
+    // the success path is `window.location.reload()`. A request that never resolves therefore leaves the
+    // whole picker permanently dead — no spinner that ever stops, no error, nothing to retry, and a full
+    // page reload the only way out. That is not hypothetical: a wedged dev server produced exactly this,
+    // and it read as "the picker is broken" rather than "the save is hanging", which cost an hour of
+    // looking in the wrong place. 15s is far longer than these three endpoints ever legitimately take.
+    const abort = new AbortController();
+    const deadline = setTimeout(() => abort.abort(), 15000);
     try {
       // Style is a column (generic PATCH); template + theme live in `data` and have their own endpoints.
       const req = axis === 'style'
-        ? fetch(`/api/dnd/characters/${characterId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet_type: value }) })
-        : fetch(`/api/dnd/characters/${characterId}/${axis === 'template' ? 'layout' : 'theme'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(axis === 'template' ? { layout: value } : { theme: value }) });
+        ? fetch(`/api/dnd/characters/${characterId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sheet_type: value }), signal: abort.signal })
+        : fetch(`/api/dnd/characters/${characterId}/${axis === 'template' ? 'layout' : 'theme'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(axis === 'template' ? { layout: value } : { theme: value }), signal: abort.signal });
       const r = await req;
       if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j.error ?? 'Could not apply that choice.'); setBusy(null); return; }
       if (instant) { setBusy(null); return; } // sheet already reflects the pick; the save was the only remote work
       window.location.reload();
-    } catch {
-      setErr('Network error — please try again.'); setBusy(null);
+    } catch (e) {
+      // An abort is a TIMEOUT, and saying so matters: "network error, try again" invites a retry that
+      // will hang identically, while "took too long" points at the server.
+      const timedOut = e instanceof DOMException && e.name === 'AbortError';
+      setErr(timedOut ? 'That took too long to save — the server did not respond. Try again in a moment.' : 'Network error — please try again.');
+      setBusy(null);
+    } finally {
+      // Cleared on EVERY path, including the reload one: an orphaned timer that fires after navigation is
+      // harmless here but the habit is not.
+      clearTimeout(deadline);
     }
   }
 
