@@ -30,6 +30,7 @@ import {
   findTarget, targetsInGroup, validateEffect, TARGET_GROUPS, TARGET_GROUP_LABELS,
 } from '@/lib/dnd/effects/targets';
 import { fieldAcceptsAssist } from '@/lib/dnd/homebrew/assist';
+import { mergeIngest, INGEST_ACCEPT } from '@/lib/dnd/homebrew/ingest';
 
 /** Field types with a real editor today. **All of them, as of P6-9** — `OWED_BY` is empty and the
  *  placeholder branch below is now unreachable. It is kept, not deleted: the next field type someone adds
@@ -105,6 +106,43 @@ export default function ContentBuilder({
    *  a proposal that lives in the form state is one refresh away from becoming the author's own text. */
   const [proposals, setProposals] = useState<Record<string, string>>({});
   const [assisting, setAssisting] = useState<string | null>(null);
+
+  /** Building from an uploaded document (P6-16). */
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestNote, setIngestNote] = useState<string | null>(null);
+
+  /**
+   * Read a document and fill the form from it. Fills only EMPTY fields — that is what makes this safe to
+   * press twice, and safe to press after you have started typing. It reports which fields it filled, so
+   * the author is not left diffing a form by eye.
+   */
+  async function ingest(file: File) {
+    if (ingesting) return;
+    setIngesting(true); setIngestNote(null); setProblems([]);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kind', kind);
+      fd.append('system', sys);
+      const r = await fetch('/api/dnd/homebrew/ingest', { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setProblems([j.error ?? 'Could not read that file.']); return; }
+
+      const { values: merged, filled } = mergeIngest(values, j.values ?? {});
+      setValues(merged);
+      const labels = filled.map((k) => fields.find((f) => f.key === k)?.label ?? k);
+      setIngestNote(
+        (filled.length
+          ? `Filled ${labels.join(', ')} from your file. Read it over — nothing is saved yet.`
+          : 'Everything it found was already filled in, so nothing was changed.')
+        + (j.warning ? ` ⚠ ${j.warning}` : ''),
+      );
+    } catch {
+      setProblems(['Network error — please try again.']);
+    } finally {
+      setIngesting(false);
+    }
+  }
 
   const clearProposal = (k: string) => setProposals((p) => {
     const next = { ...p };
@@ -622,6 +660,29 @@ export default function ContentBuilder({
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      {/* Build it from a document you already have (P6-16). Placed FIRST because it is the fastest route
+          for anyone whose content exists as a PDF — which is how the Pugilist reached this repo. It fills
+          only empty fields, so it is safe to press at any point, including after you have started typing. */}
+      {aiConfigured && (
+        <section className={styles.framedPanel} style={{ padding: '12px 16px', display: 'grid', gap: 7 }}>
+          <div className={styles.framedPanelTop} />
+          <span style={label}>Already have it written down?</span>
+          <span style={help}>
+            Upload a PDF, a screenshot, or a text file and it fills the form in from that — using the
+            document’s own wording. Nothing is saved until you review it and press Save.
+          </span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input type="file" accept={INGEST_ACCEPT} disabled={ingesting}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) ingest(f); e.target.value = ''; }}
+              style={{ fontSize: 12.5, color: 'var(--hx-text)' }} />
+            {ingesting && <span style={{ ...help, color: 'var(--hx-teal-1)' }}>Reading…</span>}
+          </div>
+          {ingestNote && (
+            <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--hx-teal-1)' }}>{ingestNote}</p>
+          )}
+        </section>
+      )}
+
       <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
         <div className={styles.framedPanelTop} />
         <div style={{ display: 'grid', gap: 4 }}>

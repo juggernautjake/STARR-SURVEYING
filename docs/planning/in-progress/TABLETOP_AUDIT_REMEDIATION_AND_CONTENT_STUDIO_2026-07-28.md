@@ -606,8 +606,31 @@ of homebrew.
       sentence." Deferred because a multi-field proposal needs a per-field accept/reject UI to stay honest —
       one all-or-nothing button would quietly become the auto-apply this slice exists to avoid.
 
-- [ ] **P6-16 — File ingest.** Upload a PDF / doc / image describing the thing → AI analysis → a filled draft
-      the user reviews field by field. Reuses `characters/[id]/ingest`'s shape and its storage pattern.
+- [x] **P6-16 — File ingest. Shipped 2026-07-28.** `lib/dnd/homebrew/ingest.ts` (pure prompt + normalizer +
+      merge), `POST /api/dnd/homebrew/ingest`, and an upload at the top of the builder.
+      **This is the path the owner used to get the Pugilist into the repo**, so the bar is not "extract some
+      text" — it is that the *wording survives*. Temperature 0.1, and the prompt is pinned as saying
+      *"TRANSCRIBING, not designing"*, *"do not paraphrase rules text — a reworded rule is a different
+      rule"*, and *omit rather than guess*. The failure it prevents is silent: an author reads a plausible
+      sentence and does not notice it is not the one their book contains.
+      **PDFs and images go to the model as native content blocks**, not OCR-to-plaintext. A class PDF's
+      layout carries meaning — a level table *is* a table — and flattening it is exactly where a twenty-level
+      ladder turns to mush.
+      **The review step is that it fills the FORM, not the database.** The route writes nothing; the author
+      sees every field before pressing Save. And `mergeIngest` fills only **empty** fields and reports which
+      ones it touched, so it is safe to press twice, safe to press after you have started typing, and nobody
+      is left diffing a form by eye.
+      **Structured editors are deliberately out of scope** (statblock, levels, effects, lists): a level
+      ladder subtly wrong from a PDF is worse than a blank one, because the author would have to check all
+      twenty levels to find the drift. Those read as normal text in `description` and get entered
+      deliberately. An unknown key from the model is dropped, not merged — the builder spreads this into
+      form state, so a stray key would become a stray key in the saved payload.
+
+> **The owner's original Content Studio brief is now complete.** Build anything, for any system, from
+> scratch or from a document; with mechanics, artwork, statblocks and level-by-level classes; private,
+> unlisted or public; adoptable onto characters; present in the library and the AI librarian; reviewable by
+> AI; and translatable into another system with a full approve / retry-with-notes / hand-edit loop.
+> What remains in this phase is depth and cleanup (P6-9a/b, P6-12b, P6-15b, P6-19), not the brief.
 
 - [x] **P6-17 — AI design review. Shipped 2026-07-28.** `lib/dnd/homebrew/assess.ts` (pure prompt +
       normalizer), `POST /api/dnd/homebrew/[id]/assess`, and a creator-only panel.
