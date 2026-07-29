@@ -3496,3 +3496,28 @@ POSTs — a deadline on one is a deadline on none of the paths a user hits), `bu
 path so the chips come back, and a timeout distinguished from a network error. The two need different
 sentences because they need different next actions: "network error, try again" invites a retry that will
 hang identically, while "took too long" points at the server.
+
+## Studio round-trip verification (2026-07-29)
+
+The first exercise of the Content Studio against a real `dnd_homebrew` table, immediately after the seed
+backlog was applied. It found the payload data-loss bug above within one request, then confirmed the fix.
+
+**All 18 kinds, one minimal-but-valid piece each, posted and read back:**
+
+- **13 persist their mechanical payload intact** — weapon, armor, item, potion, spell, stance, action,
+  ability, skill, background, race, creature, rule.
+- **5 refused, correctly**: effect ("Mechanical effects is required"), class ("Saving throw proficiencies
+  is required"), condition ("Ends when is required") — my probe bodies were incomplete; and feat /
+  subclass ("the payload is not a feat / class definition"), where `validateHomebrewPayload` requires a
+  fully-formed engine shape rather than a partial one. **Refusals, not failures** — each names the missing
+  field, which is what the three-layer validation exists to do.
+- **One apparent miss was mine**: `armor.armorCategory` did not persist because the field is called
+  `category`. It being dropped is CORRECT — unknown keys are not stored. Fourth time in this session I
+  asserted a name I assumed rather than read (`dnd_account_recovery`, `curriculum_blocks`, `.sheet-shell`,
+  now this). The pattern is worth naming: **verifying against a remembered identifier tests my memory, not
+  the code.**
+
+Probe rows were deleted after each run; `dnd_homebrew` is back to 0.
+
+**Not yet exercised:** the builder UI itself. This drove the API directly, so it proves the save path and
+the payload assembly, not the form's field wiring.
