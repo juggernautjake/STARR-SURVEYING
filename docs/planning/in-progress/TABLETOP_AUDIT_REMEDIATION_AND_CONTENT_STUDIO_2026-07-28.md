@@ -439,9 +439,21 @@ of homebrew.
       shipped in the same commit, and `content-studio-reachability.test.ts` now asserts every link the browse
       page emits points at a page that exists.
 
-- [ ] **P6-8 — Adopt onto a character.** `POST /api/dnd/homebrew/[id]/adopt` → the existing `adoptHomebrew`,
-      gated by `canAdoptHomebrew` + the campaign policy, recorded in edit history so it is undoable like any
-      other change. A picker in the sheet's build kit ("Add custom content").
+- [x] **P6-8 — Adopt onto a character. Shipped 2026-07-28.** `POST /api/dnd/homebrew/[id]/adopt` plus
+      `AdoptContentPanel` on the sheet. **Three gates, answering three different questions** — character
+      write access, the DM's allowlist (`canAdoptHomebrew` + the campaign policy), and the engine's own
+      validators via `adoptHomebrew`, which refuses a payload rather than storing a class the level builder
+      cannot level. The system match is checked *before* the DM gate on purpose: "this is Pathfinder content
+      on a 5e character" tells a player what is wrong, where "your DM hasn't allowed this" would send them
+      to ask for something that could never have worked. A character with no campaign has no DM and so no
+      allowlist — otherwise the closed-by-default policy would make the Studio unusable outside a campaign,
+      which is where most authoring happens. Audited under a batch id, so adopting undoes like any other edit.
+      **`policy.ts` finally has its only intended caller.** It had been orphan-exempt since the day it was
+      written — a DM gate nobody invoked, indistinguishable from no gate, the same shape as the PF2
+      rules-gate bug. **Every module under `lib/dnd/homebrew/` is now reached by shipping code, for the
+      first time.** Two more pins flipped and were rewritten.
+      The client never predicts a gate — it asks and shows the server's message verbatim, because each of
+      the three refusals needs a different action from the player.
 
 - [ ] **P6-9 — Per-system engine bridges.** *This is the "fully integrate with the system engines" half, and
       it is one slice per system.* `adopt.ts` speaks 5e shapes. PF2 and IG need converters into their own

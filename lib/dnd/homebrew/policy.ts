@@ -7,6 +7,14 @@
 // (a campaign concern) doesn't bleed into the content model.
 import { canUseHomebrew, isHomebrewPublished, type HomebrewContent } from './model';
 
+/** Where a campaign stores its homebrew allowlist: under the same `dnd_campaigns.theme` jsonb the DM
+ *  preferences use, so this needs no schema change and reads as one more campaign setting.
+ *
+ *  Lives here rather than in the adopt route because **a route module may only export recognised handlers**
+ *  — an extra export typechecks fine and then fails `next build`, a trap this repo has already documented
+ *  in `app/api/dnd/media/route.ts`. Any surface that reads or writes the allowlist imports it from here. */
+export const CAMPAIGN_HOMEBREW_THEME_KEY = 'homebrew';
+
 export interface CampaignHomebrewPolicy {
   /** The DM opened the ENTIRE approved catalog for this campaign. */
   allowAll?: boolean;

@@ -12,6 +12,7 @@ import SheetEditHistory from '@/app/dnd/_ui/SheetEditHistory';
 import UnderConstructionBanner from '@/app/dnd/_ui/UnderConstructionBanner';
 import CharacterBuildKit from '@/app/dnd/_ui/CharacterBuildKit';
 import HomebrewDesignerLinks from '@/app/dnd/_ui/HomebrewDesignerLinks';
+import AdoptContentPanel from '@/app/dnd/_ui/AdoptContentPanel';
 import BuildQuestions from '@/app/dnd/_ui/BuildQuestions';
 import SheetChrome from '@/app/dnd/_ui/SheetChrome';
 import CharacterSettingsModal from '@/app/dnd/_ui/CharacterSettingsModal';
@@ -321,6 +322,14 @@ export default async function CharacterSheetPage({ params }: { params: { id: str
           shapes a PF2/IG engine cannot resolve — see its header. */}
       {canWrite && (
         <HomebrewDesignerLinks
+          characterId={character.id}
+          system={normalizeSystem((character as { system?: string }).system)}
+        />
+      )}
+      {/* Adopt shared custom content onto this sheet (P6-8) — the Studio's payoff surface. Sits directly
+          under the designers so "make your own" and "use someone else's" read as one idea. */}
+      {canWrite && (
+        <AdoptContentPanel
           characterId={character.id}
           system={normalizeSystem((character as { system?: string }).system)}
         />

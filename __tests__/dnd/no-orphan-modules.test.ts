@@ -74,12 +74,10 @@ const EXEMPT: Record<string, string> = {
   // `validateHomebrewPayload`, so the module is reached by shipping code. Its ADOPT half is still not
   // called — that is slice P6-8 — but a module is either imported or it is not, and this one now is.
 
-  'lib/dnd/homebrew/policy.ts':
-    'GAP (Area H4): the campaign-level DM gate deciding which SHARED homebrew is legal in a campaign. ' +
-    'Nothing calls it, so that gate is not enforced anywhere. Same shape as the PF2 rules-gate bug — a ' +
-    'gate nobody invokes is indistinguishable from no gate. Narrowed 2026-07-28: the catalog now HAS a ' +
-    'surface (dnd_homebrew + /api/dnd/homebrew), so this is no longer vacuous-for-lack-of-content — it is ' +
-    'waiting on slice P6-8, the adopt route, which is the only caller it should ever have.',
+  // `lib/dnd/homebrew/policy.ts` came off this list on 2026-07-28 when P6-8 shipped the adopt route — the
+  // only caller it was ever meant to have. It had been exempt since the day it was written: a campaign-level
+  // DM gate that nothing invoked, which is indistinguishable from no gate. **Every homebrew module is now
+  // reached by shipping code**, which is the first time that has been true.
 
   'lib/dnd/stream-names-ai.ts':
     'GAP (pre-existing, Phase J1): AI-generated chat usernames. The stream chat uses the procedural ' +
@@ -184,11 +182,13 @@ describe('no lib/dnd module is an orphan', () => {
 
 describe('the recorded gaps are stated honestly', () => {
   // These assertions exist so the gaps cannot be quietly downgraded to "fine" by editing a comment.
-  it('the homebrew policy gap is described as a gap', () => {
-    // `adopt.ts` dropped off this list on 2026-07-28 — P6-4's API imports it, so it is no longer an orphan.
-    // `policy.ts` remains one until the adopt route (P6-8) calls it, and must keep saying so.
-    expect(EXEMPT['lib/dnd/homebrew/adopt.ts'], 'adopt.ts is imported now; it should not be exempt').toBeUndefined();
-    expect(EXEMPT['lib/dnd/homebrew/policy.ts']).toContain('GAP');
+  it('NO homebrew module is exempt any more — the whole subsystem is wired', () => {
+    // This assertion has now inverted twice in two days, which is the record working as intended. It began
+    // as "the adopt/policy gap is described as a gap" — correct while both modules were orphans. P6-4 wired
+    // `adopt.ts`, P6-8 wired `policy.ts` (its only intended caller), and there is nothing left to describe.
+    for (const mod of ['model', 'policy', 'adopt', 'projection', 'kinds', 'store', 'seeds']) {
+      expect(EXEMPT[`lib/dnd/homebrew/${mod}.ts`], `${mod}.ts should be reached by shipping code`).toBeUndefined();
+    }
   });
 
   // ⚑ REPLACED 2026-07-27 (slice 74). The assertion here was:
@@ -223,18 +223,19 @@ describe('the recorded gaps are stated honestly', () => {
   // no route directory, no page — which was true when written and is the reason the Content Studio was
   // planned. Building the surface turned it red, which is what a pin like this is for. Replaced with
   // assertions on what now exists, and on the ONE part that is still missing.
-  it('the SHARED catalog now has a surface — and the adopt half is the piece still owed', () => {
-    // The catalog can be created, read, edited and deleted.
-    expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew/route.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(ROOT, 'app/api/dnd/homebrew/[id]/route.ts'))).toBe(true);
-    // It is backed by a real table rather than the two-entry hard-coded array it had for months.
-    expect(fs.existsSync(path.join(ROOT, 'seeds/455_dnd_homebrew.sql'))).toBe(true);
-
-    // What is NOT built yet, stated where it cannot rot: nothing adopts a catalog piece onto a character,
-    // so `policy.ts`'s DM gate still has no caller. P6-8 closes both at once — and when it does, this
-    // assertion flips exactly the way the one it replaced did.
-    const routes = fs.readdirSync(path.join(ROOT, 'app/api/dnd/homebrew'));
-    expect(routes, 'no adopt route yet — see P6-8').not.toContain('adopt');
-    expect(EXEMPT['lib/dnd/homebrew/policy.ts']).toBeDefined();
+  it('the SHARED catalog is wired end to end: author → browse → adopt', () => {
+    // Written on 2026-07-27 as "the shared-library half has NO surface" — true then, and the reason the
+    // Content Studio was planned. It flipped once when the catalog got a table and routes, and again a
+    // slice later when adoption landed. Three states in two days; each rewrite is above.
+    for (const p of [
+      'seeds/455_dnd_homebrew.sql',                    // a real table, not a two-entry hard-coded array
+      'app/api/dnd/homebrew/route.ts',                 // list + create
+      'app/api/dnd/homebrew/[id]/route.ts',            // read + edit + delete
+      'app/api/dnd/homebrew/[id]/adopt/route.ts',      // onto a character — the payoff
+      'app/dnd/content/page.tsx',                      // browse
+      'app/dnd/content/new/page.tsx',                  // build
+    ]) {
+      expect(fs.existsSync(path.join(ROOT, p)), p).toBe(true);
+    }
   });
 });
