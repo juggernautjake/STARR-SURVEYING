@@ -1136,9 +1136,49 @@ should skip Phase 7 entirely.
 > **Every Pathfinder 2e audit finding is now closed** — C-1 (inventory + Bulk), C-2 (shields), C-3
 > (currency) and C-4 (multiclassing), plus the P6-9a engine bridge.
 
-- [ ] **P5-4 — PF2 companions, familiars and eidolons.** *(C-7.)* Companions exist for 5e 2024 and IG only.
-      PF2 animal companions are a compact three-tier data shape and close most of the gap; the Summoner's
-      eidolon is a second statblock and can reuse the creature model from P6-13.
+- [x] **P5-4 — PF2 companions and familiars.** *(C-7. The eidolon is split out as P5-4b.)* Companions exist
+      for 5e 2024 and IG only. PF2 animal companions are a compact three-tier data shape and close most of
+      the gap; the Summoner's eidolon is a second statblock and can reuse the creature model from P6-13.
+
+      **Done 2026-07-29.** `lib/dnd/companions/pathfinder2e.ts` — the animal-companion ladder and the
+      familiar feats, wired into AI grounding and the rules store.
+
+      **Nothing in the module is authored.** Every rule string is the `effect` of a feat already catalogued
+      in `data/feats-class.ts`, carrying that feat's own `source`. The tests check this in both directions,
+      character for character, and assert the file contains no literal `rules: ['…']` array at all. A
+      hand-written companion rule looks exactly as plausible as a correct one, and six months later there
+      is no way to tell them apart — the same argument that made P5-6 derive PF2's languages from ancestry
+      data rather than typing a list.
+
+      **Deriving it is the only reason a real gap is visible.** The ladder comes out 1 → 4 → 8, ending at
+      Incredible Companion. The rules have a **fourth** rung — Specialized Companion, around 14 — and there
+      is no feat row for it in the repo, so there is none here. An authored ladder would have listed four
+      rungs from memory and looked finished. `PF2_COMPANION_STATUS.laddersComplete` is therefore `false`,
+      and says which rung it stops at.
+
+      Also derived rather than declared: **which classes get what.** Druid and Ranger take the companion;
+      Alchemist, Druid, Sorcerer and Wizard take a familiar; a Druid is the only class that can have both.
+      A class with neither gets `[]`, never a generic ladder — "every class has the same one" is precisely
+      the plausible default that becomes a Fighter being shown a companion they cannot take.
+
+      **Wired, not just written.** `matchCompanions` in `grounding.ts` was hardcoded `if (system !==
+      'dnd5e-2024') return []`, and `systemRulesEntries` had a 2024-only branch — so this would have been
+      the fifth "working code with no door" in this audit. Both now dispatch by system and neither falls
+      back to another system's sets, because answering a Pathfinder question with 5e's familiar rules is
+      worse than answering nothing. The grounding match also searches the rule TEXT, since all four rungs
+      live under one set named "Animal Companion" and "how does my companion mature" has to reach the
+      level-4 rung.
+
+- [ ] **P5-4b — The Summoner's eidolon.** *(Split from P5-4.)* A second full statblock plus its own
+      subsystem (shared actions, shared HP, the eidolon's own attack and defense tracks). Blocked on the
+      same creature model the bestiary needs — see P8-1 — rather than on effort. Recorded in
+      `PF2_COMPANION_STATUS.eidolonCatalogued`.
+
+- [ ] **P5-4c — PF2 companion statblocks and familiar abilities.** *(Split from P5-4.)* The per-animal
+      statblocks (bear, bird, wolf, … — size, six modifiers, unarmed attack, senses, Support benefit) and
+      the list a familiar picks its abilities from. **Blocked on source material, not effort**: transcribing
+      a dozen statblocks from memory is exactly what Ground Rule 3 forbids — the numbers would look right,
+      feed a sheet that computes from them, and be wrong in ways nobody would catch.
 
 - [ ] **P5-5 — 5e 2014 companions.** Find Familiar, the Ranger's beast, the Paladin's steed.
 
