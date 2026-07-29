@@ -12,6 +12,7 @@ import { normalizeInventory } from './inventory';
 import { PF2_ATTRIBUTES } from './model';
 import { pf2MaxHp } from './rules';
 import type { DownedDamageModel } from '@/lib/dnd/preferences';
+import { applyCurrencyEdit, type CurrencyEdit } from '@/lib/dnd/currency';
 
 export type PF2Edit =
   | { op: 'apply_damage'; amount: number; crit?: boolean }
@@ -64,7 +65,12 @@ export type PF2Edit =
   // different timescales: you pick a shield once and raise it every round.
   | { op: 'set_shield'; name?: string; currentHp?: number; acBonus?: number; hardness?: number; hp?: number; bt?: number }
   | { op: 'set_shield_raised'; raised: boolean }
-  | { op: 'apply_shield_block'; damage: number };
+  | { op: 'apply_shield_block'; damage: number }
+  // Money (P1-2). The sidecar has carried `currencies` since the PF2 inventory work, but nothing could ever
+  // write it — the sheet rendered `defaultCurrencies('pathfinder2e')` and always would. Semantics are shared
+  // with 5e via `applyCurrencyEdit` rather than reimplemented, and the op names match 5e's deliberately so
+  // the AI's vocabulary does not change per system.
+  | CurrencyEdit;
 
 /** Options governing house-rule-configurable behavior of an edit. */
 export interface PF2EditOptions {
@@ -75,7 +81,7 @@ export interface PF2EditOptions {
 }
 
 /** The op names the AI tool + API accept. */
-export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'add_inventory_item', 'remove_inventory_item', 'set_shield', 'set_shield_raised', 'apply_shield_block'] as const;
+export const PF2_EDIT_OPS = ['apply_damage', 'heal', 'set_temp_hp', 'set_dying', 'set_wounded', 'set_hero_points', 'set_focus_points', 'set_condition', 'set_attribute', 'add_feat', 'remove_feat', 'add_spell', 'remove_spell', 'update_spell', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'set_armor', 'add_inventory_item', 'remove_inventory_item', 'set_shield', 'set_shield_raised', 'apply_shield_block', 'add_currency', 'set_currency', 'remove_currency'] as const;
 
 /** The legal range for a PF2 attribute MODIFIER (level-20 apex ≈ +7–8; the cap is generous headroom). */
 const ATTR_MIN = -5;
@@ -408,6 +414,12 @@ export function applyPf2Edit(pf2: PF2Character, edit: PF2Edit, opts: PF2EditOpti
       combat.currentHp = Math.max(0, (combat.currentHp ?? 0) - result.damageTaken);
       return { ...pf2, combat };
     }
+    case 'add_currency':
+    case 'set_currency':
+    case 'remove_currency':
+      // Delegated whole: a purse has no PF2-specific behaviour, and a second copy of the upsert/match rules
+      // is exactly how two systems' money quietly starts behaving differently.
+      return { ...pf2, currencies: applyCurrencyEdit(pf2.currencies, edit) };
     default: {
       const _exhaustive: never = edit;
       void _exhaustive;
@@ -502,6 +514,40 @@ export function parsePf2Edit(raw: unknown): { edit: PF2Edit } | { error: string 
         ...(Number.isFinite(lvl) ? { level: Math.max(1, Math.min(20, Math.round(lvl))) } : {}),
         ...(track ? { track } : {}),
         ...(typeof o.body === 'string' ? { body: o.body } : {}),
+      },
+    };
+  }
+  // ── Money (P1-2) ──────────────────────────────────────────────────────────────────────────────
+  // A per-op whitelist like every branch here, which is why this is needed at all: without it the ops
+  // would pass `PF2_EDIT_OPS` validation and then arrive at the engine stripped of every field.
+  if (op === 'add_currency') {
+    const name = typeof o.name === 'string' ? o.name.trim() : '';
+    if (!name) return { error: 'The "add_currency" edit needs a currency "name".' };
+    const amount = Number(o.amount);
+    const rate = Number(o.rate);
+    return {
+      edit: {
+        op, name,
+        ...(typeof o.abbrev === 'string' && o.abbrev.trim() ? { abbrev: o.abbrev.trim() } : {}),
+        ...(Number.isFinite(amount) ? { amount: Math.max(0, amount) } : {}),
+        // A rate of 0 would make every conversion collapse to zero, so it is dropped rather than stored.
+        ...(Number.isFinite(rate) && rate > 0 ? { rate } : {}),
+      },
+    };
+  }
+  if (op === 'set_currency' || op === 'remove_currency') {
+    const currency = typeof o.currency === 'string' ? o.currency.trim() : '';
+    if (!currency) return { error: `The "${op}" edit needs a "currency" (its name, abbreviation or id).` };
+    if (op === 'remove_currency') return { edit: { op, currency } };
+    const amount = Number(o.amount);
+    const rate = Number(o.rate);
+    return {
+      edit: {
+        op, currency,
+        ...(typeof o.name === 'string' && o.name.trim() ? { name: o.name.trim() } : {}),
+        ...(typeof o.abbrev === 'string' ? { abbrev: o.abbrev.trim() } : {}),
+        ...(Number.isFinite(amount) ? { amount: Math.max(0, amount) } : {}),
+        ...(Number.isFinite(rate) && rate > 0 ? { rate } : {}),
       },
     };
   }

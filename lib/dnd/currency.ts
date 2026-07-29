@@ -156,3 +156,70 @@ export function writeNotes(currencies: Currency[] | undefined, amount: number): 
   if (existing) return currencies.map((c) => (c.id === existing.id ? { ...c, amount: next } : c));
   return [...currencies, { id: NOTES_CURRENCY_ID, name: 'Notes', abbrev: 'n', amount: next, rate: 1 }];
 }
+
+// ── Editing a purse, for every system (P1-2, audit C-3) ─────────────────────
+//
+// 5e has had `add_currency` / `set_currency` / `remove_currency` since the flexible-money work, implemented
+// inline in `sheet-edits.ts`. PF2 and IG carry `currencies` on their sidecars but had NO write path at all —
+// their sheets rendered `defaultCurrencies(system)` and would have gone on rendering it forever, which is
+// decoration rather than a feature.
+//
+// Rather than write those semantics a second and third time, they live here once. `pf2-edit` and `ig-edit`
+// both call `applyCurrencyEdit`, and a test pins that it agrees with the 5e implementation on the same
+// inputs — 5e is deliberately NOT re-pointed at this (that is a behaviour-preserving refactor of a
+// well-tested path, and worth its own slice), so the guard against drift is the test, not the sharing.
+
+/** The shape the three ops take, independent of any system's edit union. */
+export type CurrencyEdit =
+  | { op: 'add_currency'; name: string; abbrev?: string; amount?: number; rate?: number }
+  | { op: 'set_currency'; currency: string; amount?: number; rate?: number; name?: string; abbrev?: string }
+  | { op: 'remove_currency'; currency: string };
+
+const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Match a currency by id, name or abbreviation — the three things a person or a model might say. */
+export function matchCurrency(list: Currency[] | undefined, key: string): Currency | null {
+  const k = (key ?? '').trim().toLowerCase();
+  if (!k) return null;
+  return (list ?? []).find((c) => c.id.toLowerCase() === k || sameName(c.name, key) || (c.abbrev ?? '').toLowerCase() === k) ?? null;
+}
+
+/**
+ * Apply one currency edit, returning a NEW list. Pure — no character, no system, so every engine can use it.
+ *
+ * `add` upserts by name so re-adding refines rather than duplicating; `set` matches an existing coin and
+ * leaves it alone if there is none (never creating one silently, because "set my gold to 5" on a sheet with
+ * no gold is more likely a typo than an instruction to invent a currency); `remove` drops it. Amounts floor
+ * at 0 and rates must be positive — a currency worth 0 base units would make every conversion collapse.
+ */
+export function applyCurrencyEdit(current: Currency[] | undefined, edit: CurrencyEdit): Currency[] {
+  const list = current ?? [];
+  switch (edit.op) {
+    case 'add_currency': {
+      const name = (edit.name ?? '').trim() || 'Currency';
+      const id = `cur-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+      const cur: Currency = {
+        id, name,
+        ...(edit.abbrev ? { abbrev: edit.abbrev.trim() } : {}),
+        amount: Math.max(0, Number(edit.amount) || 0),
+        rate: edit.rate != null && Number(edit.rate) > 0 ? Number(edit.rate) : 1,
+      };
+      return [...list.filter((x) => !sameName(x.name, name) && x.id !== id), cur];
+    }
+    case 'set_currency': {
+      const target = matchCurrency(list, edit.currency);
+      if (!target) return list;
+      return list.map((x) => (x.id === target.id ? {
+        ...x,
+        ...(edit.name ? { name: edit.name.trim() } : {}),
+        ...(edit.abbrev != null ? { abbrev: edit.abbrev.trim() } : {}),
+        ...(edit.amount != null ? { amount: Math.max(0, Number(edit.amount) || 0) } : {}),
+        ...(edit.rate != null && Number(edit.rate) > 0 ? { rate: Number(edit.rate) } : {}),
+      } : x));
+    }
+    case 'remove_currency': {
+      const target = matchCurrency(list, edit.currency);
+      return target ? list.filter((x) => x.id !== target.id) : list;
+    }
+  }
+}

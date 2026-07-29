@@ -116,12 +116,16 @@ describe('applyIgEdit — defensive power (single slot)', () => {
 describe('parseIgEdit', () => {
   it('accepts every valid op and rejects unknown ones', () => {
     for (const op of IG_EDIT_OPS) {
-      // HP ops carry `amount`; set_ability carries `ability`+`value`; the rest carry `name` (clear_stance none).
+      // HP ops carry `amount`; set_ability carries `ability`+`value`; set_/remove_currency identify their
+      // target with `currency` rather than `name` (P1-2 — a coin is matched by name, abbrev OR id, so the
+      // field is deliberately not called `name`); the rest carry `name` (clear_stance none).
       const payload = op === 'apply_damage' || op === 'heal'
         ? { op, amount: 5 }
         : op === 'set_ability'
           ? { op, ability: 'STR', value: 14 }
-          : { op, name: op === 'clear_stance' ? undefined : 'Shaken' };
+          : op === 'set_currency' || op === 'remove_currency'
+            ? { op, currency: 'gp' }
+            : { op, name: op === 'clear_stance' ? undefined : 'Shaken' };
       const r = parseIgEdit(payload);
       expect('edit' in r).toBe(true);
     }

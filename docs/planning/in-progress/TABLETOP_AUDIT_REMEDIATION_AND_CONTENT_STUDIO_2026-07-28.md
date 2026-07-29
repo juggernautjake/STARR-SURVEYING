@@ -176,11 +176,45 @@ should skip Phase 7 entirely.
       `InitiativeTracker` sends `hp` only when the DM types one, so the auto-seed path is live. An explicit
       value still wins. Suite 1274 files / 18,250 tests green; typecheck and lint clean.
 
-- [ ] **P1-2 — Currency on the PF2 and IG sheets.** *(C-3.)* `lib/dnd/currency.ts` + `Character.currencies`
+- [x] **P1-2 — Currency on the PF2 and IG sheets.** *(C-3.)* `lib/dnd/currency.ts` + `Character.currencies`
       is 5e-only; neither bespoke sheet can hold a copper piece. The module is already system-agnostic in
       shape — lift it to a shared sidecar field and render it in each sheet's equipment area (PF2's arrives
       with P5-1). **Done when:** a PF2 and an IG character can hold and spend coin, and the AI
       add/set/remove-currency tools work on both.
+
+      **Done 2026-07-28**, and the slice was bigger than the entry implies for a reason worth recording.
+
+      **The PF2 "half" that already existed was decoration.** The PF2 sheet has been rendering a money row
+      since an earlier pass, and `currencies?: Currency[]` sits on both bespoke models. But **nothing in the
+      codebase could write either field** — no edit op, no builder input, no route. `grep currencies
+      lib/dnd/systems` returned exactly two lines: the two type declarations. Both sheets rendered
+      `defaultCurrencies(system)` and always would have. That is the failure mode this audit keeps finding,
+      in its most flattering disguise: the feature is visible on the sheet, showing 0 gp, forever.
+
+      So the real work was the **write path**, and it is now shipped end to end:
+      · `applyCurrencyEdit` / `matchCurrency` in `lib/dnd/currency.ts` — the add/set/remove semantics, once.
+      · `add_currency` / `set_currency` / `remove_currency` on **both** `applyPf2Edit` and `applyIgEdit`,
+        delegating whole. Op names match 5e's deliberately so the AI's vocabulary for money is one
+        vocabulary rather than three.
+      · Both `parsePf2Edit` and `parseIgEdit` needed their own branches — field parsing is a per-op
+        whitelist in both, so without them the ops would pass the enum check and reach the engine stripped
+        of every field.
+      · Both AI tool schemas gained `currency` / `abbrev` / `rate`; without them a model could name the op
+        and never say which coin or how much.
+      · IG's model gained `currencies`, and its equipment panel renders the purse — with `hasCoin` folded
+        into `hasEquipment`, because otherwise a character who owns money but wears nothing would have the
+        whole panel hidden and their purse with it. That is the buried-control bug this sheet has had before.
+
+      **5e is deliberately NOT re-pointed** at the shared helper. Its inline implementation is well-tested
+      and re-pointing it is a behaviour-preserving refactor that deserves its own slice, so the guard
+      against drift is a test that runs the same inputs through both and compares — which also proved the
+      new helper matches 5e exactly. **P1-2b** if that refactor is ever wanted.
+
+      One test correctly broke: `ig-edit`'s "accepts every valid op" sweep assumed every non-HP op is
+      identified by `name`. `set_currency` uses `currency`, because a coin is matched by name, abbrev **or**
+      id. Taught the sweep rather than renaming the field.
+
+      Suite 1275 files / 18,273 tests green; typecheck and lint clean.
 
 - [ ] **P1-3 — Explain the 2014 feat catalogue.** *(C-8.)* `FEATS_2014` holds exactly one entry (Grappler)
       and can never hold more — the rest is PHB-only content outside the CC-BY licence, so **homebrew is that

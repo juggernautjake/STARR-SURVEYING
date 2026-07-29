@@ -93,10 +93,19 @@ export const IG_EDIT_TOOL = {
     properties: {
       op: { type: 'string', enum: [...IG_EDIT_OPS], description: 'The edit operation.' },
       name: { type: 'string', description: 'The stance / condition / feat / power name (omit for clear_stance, the HP ops, and set_ability).' },
-      amount: { type: 'integer', minimum: 1, description: 'For apply_damage / heal: how many HP.' },
+      // `minimum: 0` and no longer integer-only, because add_currency/set_currency share this field and a
+      // purse can legitimately hold 0 or a fractional amount. The "damage and healing must be positive"
+      // rule is enforced by `parseIgEdit`, which rejects a zero amount for those two ops with a message —
+      // a better place for it than a schema constraint that would silently reject a valid 0 gp.
+      amount: { type: 'number', minimum: 0, description: 'For apply_damage / heal: how many HP (must be > 0). For add_currency / set_currency: how many coins the character holds.' },
       nonlethal: { type: 'boolean', description: 'For apply_damage: the damage is nonlethal.' },
       ability: { type: 'string', enum: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], description: 'For set_ability: which ability score.' },
       value: { type: 'integer', minimum: 1, maximum: 30, description: 'For set_ability: the new ability score.' },
+      // Money (P1-2). Without these the currency ops would be in the enum and unusable — the model could
+      // name the op but never say which coin or how much.
+      currency: { type: 'string', description: 'For set_currency / remove_currency: which currency, by name, abbreviation or id.' },
+      abbrev: { type: 'string', description: 'For add_currency / set_currency: short symbol, e.g. "gp".' },
+      rate: { type: 'number', exclusiveMinimum: 0, description: 'For add_currency / set_currency: value of ONE unit in BASE units (the base currency has rate 1). Default 1.' },
     },
     required: ['op'],
   },

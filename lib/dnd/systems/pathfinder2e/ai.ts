@@ -90,7 +90,14 @@ export const PF2_EDIT_TOOL = {
     type: 'object' as const,
     properties: {
       op: { type: 'string', enum: [...PF2_EDIT_OPS], description: 'The edit operation.' },
-      amount: { type: 'integer', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP.' },
+      // Not integer-only: add_currency/set_currency share this field and a purse can hold a fractional
+      // amount. `parsePf2Edit` is what rejects a zero amount for apply_damage/heal, with a message.
+      amount: { type: 'number', minimum: 0, description: 'For apply_damage / heal / set_temp_hp: how many HP (damage and healing must be > 0). For add_currency / set_currency: how many coins the character holds.' },
+      // Money (P1-2). Without these the ops would be in the enum and unusable — the model could name the op
+      // but never say which coin or how much.
+      currency: { type: 'string', description: 'For set_currency / remove_currency: which currency, by name, abbreviation or id.' },
+      abbrev: { type: 'string', description: 'For add_currency / set_currency: short symbol, e.g. "gp".' },
+      rate: { type: 'number', exclusiveMinimum: 0, description: 'For add_currency / set_currency: value of ONE unit in BASE units (the base currency has rate 1). Default 1.' },
       value: { type: 'integer', description: 'For set_dying (0–4) / set_wounded / set_hero_points (0–3) / set_focus_points (0–3) / set_condition: the track/points/condition value (0 clears). For set_attribute: the modifier (−5..12).' },
       name: { type: 'string', description: 'For set_condition: the condition name, e.g. "Frightened", "Sickened", "Prone". For add_feat / remove_feat: the feat name. For add_spell / remove_spell: the spell name.' },
       attribute: { type: 'string', enum: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], description: 'For set_attribute: which attribute modifier to set.' },

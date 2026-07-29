@@ -8,6 +8,7 @@
 import type { IGCharacter, IGAbilityKey } from './model';
 import { findIGFeat } from './feats';
 import { igMaxHp } from './rules';
+import { applyCurrencyEdit, type CurrencyEdit } from '@/lib/dnd/currency';
 
 export type IGEdit =
   | { op: 'set_active_stance'; name: string }
@@ -44,10 +45,14 @@ export type IGEdit =
   // list, which is where anything not worn in a named slot belongs. Deliberately no weight or Bulk field:
   // that is a Pathfinder concept, and importing it here would be inventing a rule IG does not use.
   | { op: 'add_equipment'; name: string }
-  | { op: 'remove_equipment'; name: string };
+  | { op: 'remove_equipment'; name: string }
+  // Money (P1-2). Same story as PF2: the sidecar gained `currencies` and nothing could write it. Semantics
+  // come from the shared `applyCurrencyEdit`, and the op names match 5e and PF2 so the AI's vocabulary for
+  // money is one vocabulary rather than three.
+  | CurrencyEdit;
 
 /** The op names the AI tool + API accept. */
-export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'add_equipment', 'remove_equipment'] as const;
+export const IG_EDIT_OPS = ['set_active_stance', 'clear_stance', 'add_stance', 'add_condition', 'remove_condition', 'add_feat', 'remove_feat', 'add_power', 'remove_power', 'set_defensive_power', 'apply_damage', 'heal', 'set_ability', 'update_power', 'update_feat', 'add_attack', 'update_attack', 'remove_attack', 'add_equipment', 'remove_equipment', 'add_currency', 'set_currency', 'remove_currency'] as const;
 
 /** The IG ability keys + the sane bounds a set_ability edit clamps to. */
 const IG_ABILITY_KEYS: readonly IGAbilityKey[] = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
@@ -266,6 +271,11 @@ export function applyIgEdit(ig: IGCharacter, edit: IGEdit): IGCharacter {
       const value = Math.min(ABILITY_MAX, Math.max(ABILITY_MIN, Math.round(edit.value)));
       return { ...ig, abilities: { ...ig.abilities, [edit.ability]: value } };
     }
+    case 'add_currency':
+    case 'set_currency':
+    case 'remove_currency':
+      // Delegated whole — see the note on the union. A purse has no IG-specific behaviour.
+      return { ...ig, currencies: applyCurrencyEdit(ig.currencies, edit) };
     default: {
       // Compile-time exhaustiveness: EVERY IGEdit op must have a case above, or an op the AI can emit
       // would silently no-op (the AI reports success while the IG sheet is unchanged — breaking "editable
@@ -288,6 +298,40 @@ export function parseIgEdit(raw: unknown): { edit: IGEdit } | { error: string } 
     return { error: `Unknown edit op "${op}". Valid: ${IG_EDIT_OPS.join(', ')}.` };
   }
   if (op === 'clear_stance') return { edit: { op: 'clear_stance' } };
+
+  // ── Money (P1-2) ──────────────────────────────────────────────────────────────────────────────
+  // Field-level parsing is per-op here as in PF2, so without this branch the currency ops would validate
+  // and then reach the engine with every field stripped.
+  if (op === 'add_currency') {
+    if (!name) return { error: 'The "add_currency" edit needs a currency "name".' };
+    const amount = Number(o.amount);
+    const rate = Number(o.rate);
+    return {
+      edit: {
+        op, name,
+        ...(typeof o.abbrev === 'string' && o.abbrev.trim() ? { abbrev: o.abbrev.trim() } : {}),
+        ...(Number.isFinite(amount) ? { amount: Math.max(0, amount) } : {}),
+        // Rate 0 would collapse every conversion, so it is dropped rather than stored.
+        ...(Number.isFinite(rate) && rate > 0 ? { rate } : {}),
+      },
+    };
+  }
+  if (op === 'set_currency' || op === 'remove_currency') {
+    const currency = typeof o.currency === 'string' ? o.currency.trim() : '';
+    if (!currency) return { error: `The "${op}" edit needs a "currency" (its name, abbreviation or id).` };
+    if (op === 'remove_currency') return { edit: { op, currency } };
+    const amount = Number(o.amount);
+    const rate = Number(o.rate);
+    return {
+      edit: {
+        op, currency,
+        ...(name ? { name } : {}),
+        ...(typeof o.abbrev === 'string' ? { abbrev: o.abbrev.trim() } : {}),
+        ...(Number.isFinite(amount) ? { amount: Math.max(0, amount) } : {}),
+        ...(Number.isFinite(rate) && rate > 0 ? { rate } : {}),
+      },
+    };
+  }
 
   // ── Editing and authoring (IG parity with PF2 S15) ────────────────────────────────────────────
   if (op === 'update_power' || op === 'update_feat') {

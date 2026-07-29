@@ -45,6 +45,7 @@ import { igCompanionHp, igCompanionAbility } from '@/lib/dnd/systems/intuitive-g
 import type { IGEdit } from '@/lib/dnd/systems/intuitive-games/edit';
 import { findIGFeat } from '@/lib/dnd/systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
+import { defaultCurrencies } from '@/lib/dnd/currency';
 import InfoTip from '@/app/dnd/_sheet/components/InfoTip';
 import type { SheetPanel } from '../../_sheet/panels/fivePanels';
 import type { SheetVariantKind } from '@/lib/dnd/system-variants';
@@ -383,7 +384,14 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
   const hasSkills = ig.skills.length > 0;
   const hasPowers = ig.powers.length > 0 || canDoEdit;
   const hasFeats = ig.feats.general.length > 0 || ig.feats.combat.length > 0 || canDoEdit;
-  const hasEquipment = eqSlots.length > 0 || eq.other.length > 0;
+  // Money (P1-2). Falls back to IG's default coins so the block always has something to render — the shared
+  // module already ships them; nothing but 5e had ever asked.
+  const currencies = ig.currencies?.length ? ig.currencies : defaultCurrencies('intuitive-games');
+  // Coin COUNTS toward "has equipment". Without this a character who owns money but wears nothing would
+  // have the whole panel hidden and their purse with it — the buried-control bug this sheet has had before,
+  // where a real mechanic existed but no template surfaced it.
+  const hasCoin = currencies.some((c) => (c.amount || 0) > 0);
+  const hasEquipment = eqSlots.length > 0 || eq.other.length > 0 || hasCoin;
   const hasDetails = !!(anc || idRows.length > 0 || langLines.length > 0 || id.bio || (ig.notes && ig.notes.trim()));
   const activeStance = cb.stances[0];
 
@@ -972,6 +980,17 @@ export function useIgPanels({ ig, elements, canEdit, characterId, isDM, variantK
         </div>
       )}
       {eq.other.length > 0 && <div style={{ fontSize: 13, color: 'var(--hx-text)' }}><span style={label}>Other </span>{eq.other.join(', ')}</div>}
+
+      {/* Money (P1-2 / audit C-3). The shared currency model was built system-agnostic and already ships
+          IG's coins — it had simply never been wired to anything but 5e. Mirrors the PF2 sheet's block. */}
+      <div style={{ marginTop: 10, borderTop: '1px solid var(--hx-line)', paddingTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {currencies.map((c) => (
+          <span key={c.id} style={{ fontSize: 13, color: 'var(--hx-text)' }}>
+            <strong style={{ color: 'var(--hx-gold-2)' }}>{c.amount}</strong>{' '}
+            <span style={{ color: 'var(--hx-muted)', fontSize: 11.5 }}>{c.abbrev || c.name}</span>
+          </span>
+        ))}
+      </div>
     </Section>
   );
 

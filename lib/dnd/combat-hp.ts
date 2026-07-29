@@ -65,14 +65,18 @@ export function resolveHp(system: CharacterSystem | null | undefined, data: unkn
       // Max is DERIVED (ancestry HP + (class HP/level + CON) × level) but current is STORED, on
       // `combat.currentHp`. Only the max needs the engine.
       //
-      // A fresh PF2 sheet has `currentHp: 0` from `blankPF2Character`, which is indistinguishable from
-      // "unconscious" if taken literally. Treating a 0 as "not yet set" and seeding full HP is the useful
-      // reading: a character being added to an encounter is joining a fight, not arriving at death's door.
-      // PF2 tracks actually-dying characters on `dyingValue`, so nothing is lost by this.
+      // A stored `currentHp` of 0 means "full", not "unconscious" — `blankPF2Character` starts there and a
+      // sheet that has never been damaged stays there. This is not a guess: `applyPf2Edit` encodes exactly
+      // the same convention, INCLUDING its one exception — a character with `dyingValue > 0` really is at
+      // 0 HP, and the death track is what disambiguates the two meanings of a stored zero. Resolving that
+      // the engine's way rather than inventing a second rule is the whole reason to read it first; seeding a
+      // dying character into the tracker at full health would have been a quiet, plausible-looking bug.
       const max = pf2MaxHp(pf2);
       if (!usable(max)) return EMPTY;
-      const stored = num(pf2.combat.currentHp);
-      return { maxHp: max, currentHp: stored ? Math.min(stored, max) : max };
+      const stored = num(pf2.combat.currentHp) ?? 0;
+      const dying = (num(pf2.combat.dyingValue) ?? 0) > 0;
+      const current = stored || (dying ? 0 : max);
+      return { maxHp: max, currentHp: Math.min(current, max) };
     }
 
     case 'intuitive-games': {

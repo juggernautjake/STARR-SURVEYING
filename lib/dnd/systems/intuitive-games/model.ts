@@ -3,6 +3,7 @@
 // three saves, combat (attacks, HP, DR, stances, conditions, defensive power), feats/powers, weapon groups,
 // equipment slots, and the companion creature. Stored as a sidecar on `character.data.ig`; the pure math
 // lives in rules.ts. This is data only (no services) so it works everywhere and is fully testable.
+import type { Currency } from '@/lib/dnd/currency';
 
 export const IG_ABILITIES = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 export type IGAbilityKey = typeof IG_ABILITIES[number];
@@ -146,6 +147,13 @@ export interface IGCharacter {
   weaponGroups: string[];
   combat: IGCombat;
   equipment: IGEquipment;
+  /**
+   * Money. Uses the SHARED `lib/dnd/currency.ts` model, exactly as PF2 does — that module was built
+   * system-agnostic and already ships `DEFAULT_CURRENCIES_IG`; it had simply never been wired to anything
+   * but 5e (audit finding C-3). Optional so every sheet stored before this field existed still parses, and
+   * `defaultCurrencies('intuitive-games')` fills in at render.
+   */
+  currencies?: Currency[];
   companion: IGCompanion | null;
   notes: string;
 }

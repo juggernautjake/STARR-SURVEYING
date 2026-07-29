@@ -64,6 +64,15 @@ describe('PF2 — the bug', () => {
     expect(resolveHp('pathfinder2e', pf2Data({ currentHp: 0 })).currentHp).toBe(73);
   });
 
+  it('unless the character is DYING, where a stored 0 means exactly 0', () => {
+    // The exception `applyPf2Edit` encodes: `combat.currentHp || (dyingValue > 0 ? 0 : maxHp)`. PF2's death
+    // track is what disambiguates the two meanings of a stored zero. Without this, a dying character added
+    // to the tracker would arrive at full health — quiet, and entirely plausible-looking.
+    expect(resolveHp('pathfinder2e', pf2Data({ currentHp: 0, dyingValue: 2 })).currentHp).toBe(0);
+    // …and a dying character who still has HP recorded keeps it.
+    expect(resolveHp('pathfinder2e', pf2Data({ currentHp: 5, dyingValue: 1 })).currentHp).toBe(5);
+  });
+
   it('but honours a real current HP', () => {
     expect(resolveHp('pathfinder2e', pf2Data({ currentHp: 20 })).currentHp).toBe(20);
   });
