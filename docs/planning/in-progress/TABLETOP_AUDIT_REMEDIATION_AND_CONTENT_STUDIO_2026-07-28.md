@@ -3532,3 +3532,13 @@ remainder are selects, checkboxes and numbers, where an example teaches nothing.
 
 **Still not verified:** filling the form and pressing save. That is the one path a real user takes, and it
 is the obvious next check — the API round-trip and the form render are each half of it.
+
+**Form save, partially verified.** Typed into the real creature form (name, summary, description) and
+pressed **Save**: the form refused, showed a "required" message and issued **no request** — correct, since
+the creature kind requires a statblock that was not filled. Client-side validation blocks an incomplete
+save before it reaches the API, and says why. `dnd_homebrew` stayed at 0 rows.
+
+**What that leaves unverified:** a COMPLETE save through the form — filling the statblock sub-editor and
+its repeating action rows, then saving. The two halves now proven are "the API persists a full payload"
+and "the form validates and refuses an incomplete one"; the join between them is the remaining gap, and
+the statblock sub-editor is the part of the builder with the most moving pieces.
