@@ -1615,9 +1615,43 @@ of homebrew.
       size, type, CR, senses and the rest stay their own fields, because the four systems disagree about
       what those numbers mean and a universal creature model would be subtly wrong for all of them.
 
-- [ ] **P6-14 — The creature sheet.** *(the owner's "simple character sheet for creatures".)* A playable
+- [x] **P6-14 — The creature sheet.** *(the owner's "simple character sheet for creatures".)* A playable
       sheet tracking attacks, abilities, feats, conditions and HP — reusing the encounter/initiative model so
       a creature dropped into a fight and a creature opened from the Studio are the same object.
+
+      **Done 2026-07-29.** `creatureCombatant` in `statblock.ts`, `homebrewId` on the entries route, a new
+      `GET /api/dnd/encounters` list, and an **⚔ Add to a fight** control inside the statblock panel.
+
+      **Read the item again and the sheet was already built.** P6-13 renders a creature's statblock,
+      abilities, actions and art on one page, and the initiative model *already* tracks per-instance HP and
+      conditions — the two halves the item asks for both existed. What did not exist was the seam between
+      them: `/encounters/[id]/entries` accepted a `characterId` and nothing else, so a DM dropping their own
+      monster into combat **re-typed its name and HP by hand**. That is the exact work the Studio exists to
+      remove, with a fresh chance to fat-finger the HP each time. Building a second creature sheet would
+      have added a third place to track HP; the requirement was that the two be *the same object*, so the
+      slice is the seam.
+
+      **`creatureCombatant` never invents an HP.** `normalizeStatblock` already drops a number it cannot
+      trust, and guessing one here would put a plausible wrong HP in front of a DM mid-combat — the failure
+      that module was written against. A creature with no recorded HP joins the fight with none, visibly.
+
+      **`character_id` stays NULL for a creature**, because it is a foreign key into `dnd_characters` and a
+      homebrew row is not one. The entry is a self-contained instance either way — that is what the
+      initiative model already is — so nothing downstream needs to know which door the combatant came in by.
+
+      Two gates worth naming: the creature must be **yours or published** ("it is only an HP number" is not
+      a reason to read someone's unpublished Studio), and the piece must actually **be a creature** — every
+      kind has a name and some have art, so without that check a DM could add a *spell* to the initiative
+      order and it would look like it worked.
+
+      **`GET /api/dnd/encounters` had to be built, and its absence is the reason this gap existed.** Every
+      encounter route was `/encounters/[id]/…`, so anything wanting to ask "which fight?" had to already
+      know the id — fine if you arrived from a session page, impossible from anywhere else. It returns
+      nothing rather than everything when you DM none: an empty `in()` list is the shape that quietly
+      becomes "no filter".
+
+      Copies are added **sequentially**, since `sort_order` comes from the current row count and parallel
+      requests race six wolves onto the same position.
 
 - [x] **P6-15 — AI assist, per field. Shipped 2026-07-28.** `lib/dnd/homebrew/assist.ts` (pure prompts +
       output cleaning), `POST /api/dnd/homebrew/assist`, and a ✨ button on each prose field.

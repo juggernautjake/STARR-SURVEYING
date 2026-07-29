@@ -21,6 +21,7 @@ import { dndAiConfigured } from '@/lib/dnd/ai';
 import AssessmentPanel from '@/app/dnd/_ui/AssessmentPanel';
 import TransposePanel from '@/app/dnd/_ui/TransposePanel';
 import { normalizeAssessment } from '@/lib/dnd/homebrew/assess';
+import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +117,12 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
             <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
               <div className={styles.framedPanelTop} />
               <h2 className={styles.panelTitle} style={{ marginTop: 0 }}>Statblock</h2>
+
+              {/* P6-14. The statblock could be built, rendered and admired, and there was no way to put the
+                  creature in a fight — the DM re-typed its name and HP into the initiative tracker. Sits
+                  inside the statblock panel because the numbers it carries across are the ones directly
+                  below it. Creatures only: the other seventeen kinds have nothing to send. */}
+              {piece.kind === 'creature' && <SendCreatureToFight homebrewId={piece.id} />}
 
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--hx-text)' }}>
                 {statblock.ac !== undefined && (

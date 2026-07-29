@@ -115,6 +115,51 @@ export function formatModifier(mod: number): string {
 
 /** The one-line AC + HP summary a card can show without rendering the whole block. Returns '' when there
  *  is nothing worth saying. */
+/**
+ * A homebrew creature as a COMBATANT — the fields the initiative tracker needs (P6-14).
+ *
+ * The Studio could build a creature, render its statblock and show its art, and there was no way to put it
+ * in a fight: `/encounters/[id]/entries` accepted a `characterId` and nothing else, so a DM dropping their
+ * own monster into combat re-typed its name and HP by hand — the exact work the Studio exists to remove,
+ * with a fresh chance to fat-finger the HP every time.
+ *
+ * The plan's requirement was that "a creature dropped into a fight and a creature opened from the Studio
+ * are the same object". This is that seam, and it is pure so the seam itself is testable.
+ *
+ * HP: `hp` is the creature's maximum, and the instance starts there. Both are returned rather than one,
+ * because an initiative entry tracks current AND max separately — a combatant added at full health still
+ * needs a max to count down from. A creature with no HP recorded returns `null` for both rather than a
+ * guess: `normalizeStatblock` already DROPS an untrustworthy number, and inventing one here would put a
+ * plausible wrong HP in front of a DM mid-combat, which is the failure that whole module is built against.
+ */
+export interface CreatureCombatant {
+  name: string;
+  tokenUrl: string | null;
+  hp: number | null;
+  maxHp: number | null;
+}
+
+export function creatureCombatant(row: {
+  name?: unknown;
+  image_url?: unknown;
+  payload?: unknown;
+} | null | undefined): CreatureCombatant | null {
+  if (!row) return null;
+  const name = typeof row.name === 'string' ? row.name.trim() : '';
+  if (!name) return null;
+  const payload = row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>) : {};
+  const sb = normalizeStatblock(payload.statblock);
+  const hp = sb.hp ?? null;
+  return {
+    name,
+    // The creature's art doubles as its token. A separate token field would be a second thing to fill in
+    // for a gain nobody asked for; the Studio's image is already the picture of this creature.
+    tokenUrl: typeof row.image_url === 'string' && row.image_url ? row.image_url : null,
+    hp,
+    maxHp: hp,
+  };
+}
+
 export function statblockBrief(s: Statblock): string {
   const parts: string[] = [];
   if (s.ac !== undefined) parts.push(`AC ${s.ac}`);
