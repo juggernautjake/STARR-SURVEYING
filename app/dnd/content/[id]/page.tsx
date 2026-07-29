@@ -17,6 +17,9 @@ import {
   STATBLOCK_ABILITIES, ABILITY_LABELS,
 } from '@/lib/dnd/homebrew/statblock';
 import { systemLabel, normalizeSystem } from '@/lib/dnd/systems';
+import { dndAiConfigured } from '@/lib/dnd/ai';
+import AssessmentPanel from '@/app/dnd/_ui/AssessmentPanel';
+import { normalizeAssessment } from '@/lib/dnd/homebrew/assess';
 
 export const dynamic = 'force-dynamic';
 
@@ -247,6 +250,17 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
               : 'This is written as rules text — read it, share it, and apply it at the table by hand.'}
             {' '}Whether it is legal in a given campaign is the DM’s call.
           </p>
+
+          {/* The AI's read (P6-17) — creator-only. Putting "Needs work" on a public page under a stranger's
+              name would be a different feature entirely, and one nobody asked for. */}
+          {mine && (
+            <AssessmentPanel
+              contentId={piece.id}
+              initial={normalizeAssessment(piece.assessment)}
+              updatedAt={piece.updatedAt ?? null}
+              aiConfigured={dndAiConfigured()}
+            />
+          )}
 
           {mine && (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

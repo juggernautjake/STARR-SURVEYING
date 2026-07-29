@@ -590,9 +590,26 @@ of homebrew.
 - [ ] **P6-16 — File ingest.** Upload a PDF / doc / image describing the thing → AI analysis → a filled draft
       the user reviews field by field. Reuses `characters/[id]/ingest`'s shape and its storage pattern.
 
-- [ ] **P6-17 — AI assessment on save.** *(the owner's explicit ask.)* On save, an evaluation written to
-      `assessment`: balance against comparable official content, internal consistency, completeness, and what
-      is missing. **Advisory, never blocking** — it is an opinion on the author's work, not a gate.
+- [x] **P6-17 — AI design review. Shipped 2026-07-28.** `lib/dnd/homebrew/assess.ts` (pure prompt +
+      normalizer), `POST /api/dnd/homebrew/[id]/assess`, and a creator-only panel.
+      **On demand rather than on save**, which is a deliberate departure from the literal ask. A model call
+      on the save path makes saving slow and makes it *fail when the model does* — against this Studio's
+      central promise that an unfinished piece is kept, not thrown away. It also lets an author re-review
+      after edits without re-saving, and keeps the expensive call behind its own rate-limit bucket instead
+      of making every save cost AI budget. The button is one click on the piece.
+      **The advisory boundary is enforced by tests, not just intent:** the update writes `assessment` and
+      nothing else (no status, no payload, no name), and deliberately does **not** bump `updated_at` — a
+      robot having an opinion is not a change to the piece, and bumping it would reorder the author's
+      library *and* instantly mark the review stale against the very piece it described.
+      **Tone is structural, not just prompt-deep:** strengths render first (a review that opens with
+      problems reads as a rejection of work someone just finished), the verdict is a word rather than a
+      score (a number invites optimising for it), and the prompt is pinned as saying *"not to gatekeep"* and
+      *"rather than inventing a comparison"* — Ground Rule 3 applied to a reviewer.
+      The prompt carries the two contexts that decide whether a review is fair: a **partial build is a
+      supported state**, and a **prose-only kind is not missing its mechanics**. Without those, a model
+      reliably reports both correct states as flaws.
+      An unusable response is refused rather than stored as a fragment — a half-parsed review is worse than
+      none, because it is shown as a considered opinion.
 
 - [ ] **P6-18 — The system transposer.** `POST /api/dnd/homebrew/[id]/transpose { system, notes }` → a new
       piece with `origin_id` set, status `draft`, clearly marked AI-generated and unverified.
