@@ -216,10 +216,29 @@ should skip Phase 7 entirely.
 
       Suite 1275 files / 18,273 tests green; typecheck and lint clean.
 
-- [ ] **P1-3 — Explain the 2014 feat catalogue.** *(C-8.)* `FEATS_2014` holds exactly one entry (Grappler)
+- [x] **P1-3 — Explain the 2014 feat catalogue.** *(C-8.)* `FEATS_2014` holds exactly one entry (Grappler)
       and can never hold more — the rest is PHB-only content outside the CC-BY licence, so **homebrew is that
       edition's only real feat route**. One line of copy at the 2014 ASI slot pointing at "＋ Add a different
       feat". **Done when:** the 2014 ASI step reads as a constraint rather than as an empty list.
+
+      **Done 2026-07-28.** A 2014-gated note under `AsiFeatPicker`'s select: one official feat, the rest is
+      outside the open licence and so *deliberately absent rather than missing*, use **✎ Custom feat…**, and
+      custom picks are *flagged for DM review, not blocked* — that last clause matters, or "use custom"
+      reads as a dead end to anyone on a vanilla-only table.
+
+      **The explanation already existed; nothing rendered it.** `FEATS_2014_STATUS` has carried
+      `completeForSources: true`, `completeForEdition: false` and a full paragraph of reasoning for a long
+      time, and its only consumer was a code comment in this very file. The data was never the gap. This is
+      the same shape as P1-2 and P5-6 — the third slice running where the work was already done and simply
+      had no door — and the picker needed a new `system` prop before the note could render at all, which is
+      pinned by a test for exactly that reason.
+
+      The note is gated to 2014 by equality, not by exclusion: it would be false for 2024 (full catalogue)
+      and a category error for PF2/IG (own feat tracks, no ASI slot). A test asserts the other three systems
+      cannot reach it, and another asserts `FEATS_2014` still holds exactly one feat — so if a legitimately
+      licensed 2014 feat is ever added, the copy is forced to be revisited rather than quietly going stale.
+
+      Suite 1276 files / 18,280 tests green; typecheck and lint clean.
 
 - [ ] **P1-4 — Gate the dev routes.** *(D-5.)* `/dnd/hextech-demo`, `/dnd/preview/edit-flow` (self-described
       DEV-ONLY), `/dnd/Lazzuh_Gun` and `/dnd/login` all ship to production unlisted and indexable. Gate the

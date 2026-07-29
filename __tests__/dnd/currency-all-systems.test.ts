@@ -70,7 +70,7 @@ describe('the shared purse helper', () => {
 });
 
 describe('PF2 can hold money — the C-3 gap', () => {
-  const base = blankPF2Character();
+  const base = blankPF2Character('Test');
 
   it('exposes the three ops', () => {
     for (const op of ['add_currency', 'set_currency', 'remove_currency']) {
@@ -113,7 +113,7 @@ describe('PF2 can hold money — the C-3 gap', () => {
 });
 
 describe('IG can hold money too', () => {
-  const base = blankIGCharacter();
+  const base = blankIGCharacter('Test');
 
   it('exposes the three ops', () => {
     for (const op of ['add_currency', 'set_currency', 'remove_currency']) {

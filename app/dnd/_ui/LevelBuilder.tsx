@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import styles from './hextech.module.css';
 import { ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
-import { FEATS_2014 } from '@/lib/dnd/feats/dnd5e-2014';
+import { FEATS_2014, FEATS_2014_STATUS } from '@/lib/dnd/feats/dnd5e-2014';
 import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
 
 /**
@@ -127,10 +127,13 @@ export interface FeatChoice {
  *  A grep cannot distinguish "rendered with its reason and selectable" from "rendered with its reason and
  *  `disabled`", and the second is exactly the plausible-looking non-fix that would leave the escape hatch
  *  as unreachable as the filter S6f removed. Pure: choices in, markup out, one callback. */
-export function AsiFeatPicker({ choices, featKey, onPick }: {
+export function AsiFeatPicker({ choices, featKey, onPick, system }: {
   choices: FeatChoice[];
   featKey?: string;
   onPick: (featKey: string | undefined) => void;
+  /** Which edition's slot this is. Used only for the 2014 licence note (P1-3); optional so existing
+   *  callers keep working and simply do not get the note. `string` to match this file's other props. */
+  system?: string;
 }) {
   const known = new Set(choices.map((f) => f.key));
   // A feat is "custom" when it's set but not one of the rules-legal choices — the explicit escape hatch,
@@ -162,6 +165,22 @@ export function AsiFeatPicker({ choices, featKey, onPick }: {
           onChange={(e) => onPick(e.target.value || '__custom__')}
           style={{ flex: '1 1 180px', padding: '7px 9px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 13 }}
         />
+      )}
+      {/* The 2014 licence note (P1-3, audit C-8). A 2014 player opens this list, sees ONE feat, and has no
+          way to tell whether that is a constraint or a bug — the catalogue looks broken. It is neither: SRD
+          5.1 contains exactly one feat and the free Basic Rules describe feats as an optional rule without
+          reprinting the list, so every other 2014 feat is PHB-only content outside CC-BY. Saying so turns
+          an apparently-empty list into an explained one, and points at the route that actually works.
+
+          Only 2014 gets this. 2024 has a full catalogue, and PF2/IG have their own feat tracks and no ASI
+          slot at all, so the note would be false on all three. */}
+      {system === 'dnd5e-2014' && (
+        <div style={{ flexBasis: '100%', fontSize: 11.5, color: 'var(--hx-muted)', lineHeight: 1.45 }}>
+          2014 has one official feat ({FEATS_2014_STATUS.totalFeats === 1 ? 'Grappler' : `${FEATS_2014_STATUS.totalFeats} feats`}) — the rest of the
+          Player’s Handbook list is outside the open licence, so it is deliberately absent rather than
+          missing. Use <strong style={{ color: 'var(--hx-text)' }}>✎ Custom feat…</strong> for anything your
+          table plays with; custom picks are flagged for DM review, not blocked.
+        </div>
       )}
     </>
   );
@@ -502,6 +521,7 @@ export default function LevelBuilder({
                 <span style={{ color: 'var(--hx-muted)', fontSize: 12 }}>or take a feat instead</span>
                 <AsiFeatPicker
                   choices={asiFeatChoices(system, current.level, plan?.homebrewFeats ?? [], abilities, hasSpellcasting)}
+                  system={system}
                   featKey={draft?.featKey}
                   onPick={(featKey) => setDraft((d) => ({ ...(d ?? { level: current.level, kind: 'asi' }), abilities: [], featKey }))}
                 />
