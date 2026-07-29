@@ -39,6 +39,7 @@ export default function CampaignVisibilityControl({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   async function setTo(v: Visibility) {
     if (busy) return;
@@ -56,6 +57,29 @@ export default function CampaignVisibilityControl({
     } catch {
       setVisibility(previous); setErr('Network error — please try again.');
     } finally { setBusy(false); }
+  }
+
+  /** Download the whole campaign as JSON (P9-2). Triggers a file save rather than navigating, so the DM
+   *  stays on the page they were about to delete from. */
+  async function exportCampaign() {
+    if (busy) return;
+    setBusy(true); setExporting(true); setErr(null);
+    try {
+      const r = await fetch(`/api/dnd/campaigns/${campaignId}/export`);
+      if (!r.ok) { setErr('Could not export this campaign.'); return; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const disp = r.headers.get('Content-Disposition') ?? '';
+      a.href = url;
+      a.download = /filename="([^"]+)"/.exec(disp)?.[1] ?? 'campaign.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErr('Network error — please try again.');
+    } finally { setBusy(false); setExporting(false); }
   }
 
   async function remove(hard: boolean) {
@@ -105,6 +129,14 @@ export default function CampaignVisibilityControl({
         <span style={{ fontSize: 12, color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)' }}>Closing this table</span>
         {!confirmDelete ? (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {/* Export sits BEFORE both destructive buttons on purpose (P9-2). The delete confirmation
+                below lists what is about to be lost; until this existed, that list was a warning with
+                nothing you could do about it. */}
+            {/* Its own flag, not the shared `busy`: labelling this "Exporting…" while an ARCHIVE is in
+                flight would tell the DM a download is happening when none is. */}
+            <button type="button" className={styles.hexBtn} disabled={busy} onClick={exportCampaign} style={{ padding: '6px 14px', fontSize: 12.5 }}>
+              {exporting ? 'Exporting…' : '⇩ Export everything'}
+            </button>
             <button type="button" className={styles.hexBtn} disabled={busy} onClick={() => remove(false)} style={{ padding: '6px 14px', fontSize: 12.5 }}>
               Archive it
             </button>
@@ -119,6 +151,15 @@ export default function CampaignVisibilityControl({
               This destroys the campaign’s <strong>sessions, recaps, roll history, invites and roster</strong>,
               and cannot be undone. <strong style={{ color: 'var(--hx-teal-1)' }}>Characters are not deleted</strong> —
               they belong to their players and simply leave the table.
+            </p>
+            {/* Offered again HERE, at the moment it matters. Someone who reached this dialog did not read
+                the toolbar; telling them now costs one line and is the difference between a warning and a
+                way out. */}
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--hx-muted)' }}>
+              <button type="button" onClick={exportCampaign} disabled={busy}
+                style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--hx-gold-2)', cursor: 'pointer', textDecoration: 'underline' }}>
+                Export everything first
+              </button>{' '}— one JSON file with all of the above.
             </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className={styles.hexBtn} disabled={busy} onClick={() => remove(true)}

@@ -2069,8 +2069,38 @@ Every slice below serves that one rule.
       **`ROUND_TRIP_FIELDS` makes an omission a decision.** `artSrc`/`tokenSrc` are on `CharacterExport` for
       the HTML path only and `characterToJson` never emits them. The list is asserted against the export's
       real key set, so if the export grows a field, this fails until someone says whether it round-trips.
-- [ ] **P9-2 — Campaign export.** *(H-2.)* Roster, session notes, recaps, maps, handouts, NPCs, roll log and
+- [x] **P9-2 — Campaign export.** *(H-2.)* Roster, session notes, recaps, maps, handouts, NPCs, roll log and
       chat. With P2-5, this is what makes deleting a campaign a safe action rather than a destructive one.
+
+      **Done 2026-07-29.** `lib/dnd/export/campaign-export.ts`, `GET /api/dnd/campaigns/[id]/export`, and
+      an **⇩ Export everything** button in the same panel as Archive and Delete — sixteen tables in one
+      JSON file.
+
+      **The manifest is the whole design, and a test is what makes it true.** A hand-written export that
+      reads six tables is right until someone adds a seventh, and then it silently returns an incomplete
+      backup — the worst failure available here, because it *looks* complete and is discovered only when
+      somebody tries to restore. So every campaign-scoped table is listed with **how** it links to the
+      campaign, every omission with **why**, and a test derives the candidate set by parsing `CREATE TABLE`
+      blocks out of `seeds/*.sql`: a new table declaring a `campaign_id` fails the suite until it is
+      exported or excluded. That test also asserts the scan finds something, because a regex that matched
+      nothing would make every other assertion vacuously true — which is how a guard like this dies quietly.
+
+      **Characters are excluded, and it is a privacy decision rather than an oversight.** They already
+      survive a campaign's deletion by design (the delete handler detaches them first, precisely so a DM
+      closing their table cannot destroy other people's sheets), each has its own loss-less export that its
+      *owner* controls (P9-1), and bundling every player's full sheet into a file the DM downloads hands one
+      person a copy of everyone else's character. The roster **link** is exported, so a restore still knows
+      who played. The reason travels *inside* the file, not just in this repo.
+
+      Four smaller decisions: every manifest key appears with an **empty array** rather than being omitted,
+      because "not read" and "had nothing in it" are different facts to whoever is restoring; row **counts**
+      ride along so the file states its own completeness; a missing table yields `[]` rather than a 500,
+      since an export that dies because the soundboard was never migrated is useless in exactly the
+      situation it exists for; and recaps, encounters, RSVPs and initiative resolve **through sessions**,
+      because a `campaign_id` filter on those returns nothing and reads as "this campaign had no recaps".
+
+      The export is offered **again inside the delete confirmation**. Someone who reached that dialog did
+      not read the toolbar, and one extra line is the difference between a warning and a way out.
 - [ ] **P9-3 — Pathbuilder import.** *(H-3.)* A deterministic adapter for Pathbuilder's JSON — fast, exact,
       free of model cost, and aimed at PF2 players, who are currently the least-served.
 
