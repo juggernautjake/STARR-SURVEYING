@@ -43,13 +43,17 @@ describe('custom content is balanced to a concrete level (transpose)', () => {
 });
 
 describe('the transpose result surfaces rule violations (were computed but hidden)', () => {
-  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
-  it('the route returns violations and the switcher shows them in the done banner', () => {
+  // RE-POINTED 2026-07-29 (P4-6c): the done banner moved from `SystemSwitcher` (retired at C3, rendered by
+  // nothing since) to `EditFlow`. Same claim, live surface.
+  const editFlow = readFileSync(join(process.cwd(), 'app/dnd/_ui/EditFlow.tsx'), 'utf8');
+  it('the route returns violations and the edit flow shows them in the done banner', () => {
     expect(route).toContain('violations = validateCharacterForSystem(transposed, target)');
     expect(route).toContain('violations,'); // returned in the response
-    expect(switcher).toContain('violations: j.violations ?? []'); // captured from the response
-    expect(switcher).toContain('transpose.violations && transpose.violations.length > 0'); // rendered
-    expect(switcher).toMatch(/rules .*to review/);
+    // Captured from the response — `EditFlow` normalises to an array rather than the switcher's `?? []`,
+    // which is the same intent expressed against a typed result.
+    expect(editFlow).toMatch(/violations: Array\.isArray\(j\.violations\)/);
+    expect(editFlow).toContain('result.violations && result.violations.length > 0'); // rendered
+    expect(editFlow).toMatch(/rules .*to review/);
   });
 });
 

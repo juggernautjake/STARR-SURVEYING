@@ -39,12 +39,20 @@ describe('system route — multi-sheet slot operations (MV2b)', () => {
   });
 });
 
-// SystemSwitcher is RETIRED from the sheet page (consolidation C3) — the VERSIONS picker + EditFlow do its
-// job now. The component file is kept for one merge cycle in case QA wants it back, and the tests below
-// still describe it, but the PAGE-level guard has moved to its replacement: what matters is that the sheet
-// list is still rendered somewhere, not that a particular component receives it.
-describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
-  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+// RE-POINTED 2026-07-29 (P4-6c), and this is the last of the SystemSwitcher debt — the component is now
+// DELETED, so the "kept for one merge cycle in case QA wants it back" note above these tests is retired
+// with it.
+//
+// These asserted the switcher's OWN markup — its chips, its add form. That component has been rendered by
+// nothing since consolidation C3, so the assertions described a UI no user could reach: green tests guarding
+// dead code, which is the exact condition `no-orphan-components` was written to expose.
+//
+// Each assertion was checked against its NEW home rather than sed-ed across, because the behaviours did not
+// survive one-for-one: `VariantBrowser` makes the whole CARD the switch target rather than a chip, and
+// adding a version is a FORK from an existing one (`creating`) rather than a blank "+ Add sheet" form. The
+// capabilities are the same; the shapes are not, and pretending otherwise is how a re-point becomes a lie.
+describe('every version is listed and switchable (MV2c, via the VERSIONS picker)', () => {
+  const browser = readFileSync(join(process.cwd(), 'app/dnd/_ui/VariantBrowser.tsx'), 'utf8');
   const page = readFileSync(join(process.cwd(), 'app/dnd/characters/[id]/page.tsx'), 'utf8');
 
   it('the page renders every version through the VERSIONS picker (which replaced the switcher)', () => {
@@ -56,46 +64,51 @@ describe('SystemSwitcher UI shows every sheet + a "+" add (MV2c)', () => {
     expect(page).not.toContain('<SystemSwitcher');
   });
 
-  it('renders each sheet as a switchable chip (by slotId) with a vanilla/custom badge', () => {
-    expect(switcher).toContain('sheets.map((sh)');
-    expect(switcher).toContain('switchSlot(sh.slotId)');
-    expect(switcher).toMatch(/sh\.kind === 'custom' \? 'CUSTOM' : 'VANILLA'/);
-    expect(switcher).toContain('sheetChipActive'); // the active chip is visually distinguished
+  it('renders one card per version, switchable by slotId, with the active one marked', () => {
+    expect(browser).toContain('rows.map((c) => {');
+    expect(browser).toMatch(/onClick=\{\(\) => \{ if \(!c\.active && canWrite\) switchTo\(c\.slotId\); \}\}/);
+    // The active version is distinguished — the chip's job, done with an outline instead.
+    expect(browser).toMatch(/outline: c\.active \?/);
   });
 
-  it('has a "+ Add sheet" form (system + vanilla/custom + optional name) posting action:add', () => {
-    expect(switcher).toContain('＋ Add sheet');
-    expect(switcher).toContain("JSON.stringify({ action: 'add', system: addSystem, kind: addKind, name })");
-    expect(switcher).toContain('const name = addName.trim() || undefined;');
-    expect(switcher).toContain('GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))'); // only playable systems addable
+  it('and a new version is FORKED from an existing one rather than added blank', () => {
+    // The switcher's "+ Add sheet" built an empty sheet for a chosen system. The picker instead branches
+    // from a version you are looking at, which is why it carries the source's name/system/level.
+    expect(browser).toContain('sourceSlotId={creating.slotId}');
+    expect(browser).toContain('sourceSystem={creating.system}');
+    // Only playable systems remain offerable, and the source's own system is excluded from the targets.
+    expect(browser).toContain('transposeSystems.filter((s) => s.id !== creating.system)');
+    expect(page).toContain('const transposeSystems = availableSystems()');
   });
 
-  it('the add-sheet form is a polished card with labelled fields + a segmented vanilla/custom control', () => {
-    expect(switcher).toContain('styles.sheetAddCard'); // framed card, not a raw flex row
-    expect(switcher).toContain('styles.sheetFieldLabel'); // fields are labelled
-    expect(switcher).toContain('styles.segmented'); // segmented control, not a 2-item <select>
-    expect(switcher).toContain("aria-pressed={addKind === 'vanilla'}");
-    expect(switcher).toContain("aria-pressed={addKind === 'custom'}");
-    expect(switcher).toContain("setAddKind('custom')");
-  });
+  // DROPPED, not re-pointed: "the add-sheet form is a polished card with labelled fields + a segmented
+  // vanilla/custom control". Every one of those assertions was about `SystemSwitcher`'s specific markup —
+  // `styles.sheetAddCard`, `styles.segmented`, an `addKind` toggle — and none of it has an equivalent in
+  // the picker, because the picker does not have that form. It forks from an existing version and opens the
+  // editor, so there is no vanilla/custom segmented control to assert.
+  //
+  // Re-pointing it would have meant inventing a claim about `VariantBrowser` to keep a test name alive. The
+  // capability it guarded (a version can be created, and its kind is recorded) is covered by the fork
+  // assertions above and by `variant-tracker`/`transpose-custom`.
 
-  it('switching a slot posts { slotId } to the system route', () => {
-    expect(switcher).toContain('JSON.stringify({ slotId })');
+  it('switching a version posts { slotId } to the system route', () => {
+    expect(browser).toContain("JSON.stringify({ slotId })");
   });
 });
 
-describe('active sheet label on the switcher (MV3)', () => {
-  const switcher = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
-  it('surfaces the active sheet kind badge + name', () => {
-    expect(switcher).toContain('const activeSheet = sheets.find((s) => s.active)');
-    expect(switcher).toMatch(/activeSheet\.kind === 'custom' \? 'CUSTOM' : 'VANILLA'/);
-    expect(switcher).toContain('Active sheet: <strong');
+describe('the ACTIVE version is identifiable (MV3, via the VERSIONS picker)', () => {
+  const browser = readFileSync(join(process.cwd(), 'app/dnd/_ui/VariantBrowser.tsx'), 'utf8');
+  it('resolves which version is active and marks it', () => {
+    // The switcher printed a text label ("Active sheet: <strong>…"); the picker instead highlights the card
+    // you are on. Same fact, shown where you are already looking rather than restated in a caption.
+    expect(browser).toContain('const activeCard = rows.find((c) => c.active) ?? null;');
+    expect(browser).toMatch(/outline: c\.active \?/);
   });
 });
 
 describe('rename + delete sheet route/UI (Area MV)', () => {
   const route2 = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/system/route.ts'), 'utf8');
-  const switcher2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  const browser2 = readFileSync(join(process.cwd(), 'app/dnd/_ui/VariantBrowser.tsx'), 'utf8');
   it('the route renames (active via meta or a stored slot) and deletes ANY version but the original', () => {
     expect(route2).toContain("body?.action === 'rename'");
     expect(route2).toContain('renameVariant(variants, body.slotId, name)');
@@ -109,21 +122,29 @@ describe('rename + delete sheet route/UI (Area MV)', () => {
     expect(route2).toContain('if (next.switchedTo)');
     expect(route2).toContain('update.data = next.active.data');
   });
-  it('the switcher has inline rename + a delete on non-active sheets, guarded by an in-app confirm popup', () => {
-    expect(switcher2).toContain("slotAction(sh.slotId, { action: 'rename', name: editSlotName })");
-    expect(switcher2).toContain('!sh.active &&'); // delete only on non-active
-    // Delete opens a themed confirmation dialog (not the browser confirm), which then calls the delete action.
-    expect(switcher2).toContain('setConfirmDelete({ slotId: sh.slotId, name: sh.name })');
-    expect(switcher2).toMatch(/role="dialog" aria-label="Delete this sheet\?"/);
-    expect(switcher2).toContain("slotAction(d.slotId, { action: 'delete' }");
-    expect(switcher2).not.toContain('if (confirm('); // no raw browser confirm
+  it('the picker has inline rename + delete, guarded by an in-app confirm dialog', () => {
+    expect(browser2).toMatch(/JSON\.stringify\(\{ action: 'rename', slotId, name: next \}\)/);
+    expect(browser2).toMatch(/JSON\.stringify\(\{ action: 'delete', slotId \}\)/);
+    // A themed dialog, not the browser's confirm — and it NAMES the version, since a grid of similar cards
+    // is exactly where "delete this one?" needs to say which one.
+    expect(browser2).toContain('setConfirmDelete(');
+    expect(browser2).toMatch(/role="dialog" aria-label=\{confirmDelete\.name/);
+    expect(browser2).not.toContain('if (confirm('); // no raw browser confirm
+  });
+
+  it('and delete is offered on every version EXCEPT the original', () => {
+    // The rule changed here, deliberately, and the old assertion (`!sh.active &&` — delete only on
+    // non-active sheets) would now be WRONG: refusing to delete the version you are viewing is what made
+    // some versions feel undeletable. Only the ORIGINAL is protected; deleting the viewed one switches
+    // away server-side first.
+    expect(browser2).toContain('const canDelete = !c.origin;');
   });
 });
 
 describe('transpose quality — full digest, HP safety net, custom manifest (Area MV)', () => {
   const route3 = readFileSync(join(process.cwd(), 'app/api/dnd/characters/[id]/system/route.ts'), 'utf8');
   const tool = readFileSync(join(process.cwd(), 'lib/dnd/sheet-edits.ts'), 'utf8');
-  const switcher3 = readFileSync(join(process.cwd(), 'app/dnd/_ui/SystemSwitcher.tsx'), 'utf8');
+  const editFlow3 = readFileSync(join(process.cwd(), 'app/dnd/_ui/EditFlow.tsx'), 'utf8');
 
   it('sends a RICH source digest (abilities, saves, skills, features, spells, attacks, inventory) not just names', () => {
     expect(route3).toContain('abilityMods');
@@ -153,14 +174,17 @@ describe('transpose quality — full digest, HP safety net, custom manifest (Are
     expect(route3).toContain('party level');
   });
 
-  it('the switcher lists every custom element created in the done banner', () => {
-    expect(switcher3).toContain('transpose.custom');
-    expect(switcher3).toContain('custom {transpose.custom.length === 1 ? \'element\' : \'elements\'} created');
+  it('the report lists every custom element created, because homebrew is flagged not hidden', () => {
+    // Moved to `TransposeReport` in EditFlow. It gained a clause the switcher's banner never had — "not
+    // vanilla to this system" — which is the part that makes the count actionable for a DM.
+    expect(editFlow3).toContain('result.custom && result.custom.length > 0');
+    expect(editFlow3).toMatch(/custom \{result\.custom\.length === 1 \? 'element' : 'elements'\} created/);
+    expect(editFlow3).toMatch(/flagged as customized on the sheet for DM review/);
   });
 
-  it('the add card can build a NEW sheet by AI transpose (posting action:transpose), keeping existing sheets', () => {
-    expect(switcher3).toContain("aria-pressed={addMethod === 'transpose'}");
-    expect(switcher3).toContain("action: 'transpose', system: addSystem, allowCustom: addKind === 'custom'");
+  it('and a transpose builds a NEW version rather than overwriting the current one', () => {
+    // The UI half moved (the switcher's `addMethod` segmented control is gone); the ROUTE contract that
+    // actually protects existing versions is unchanged and is what this test is really for.
     expect(route3).toContain("const forceNewSheet = body?.action === 'transpose'");
     expect(route3).toContain('installTransposedNewSlot(active, variants, target, transposed');
   });

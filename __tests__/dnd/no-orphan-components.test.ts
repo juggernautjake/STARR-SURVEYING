@@ -16,7 +16,13 @@
 //   wired   — CampaignCustomPolicyToggle (the vanilla-only switch: `allow_custom` gated content submission
 //             on every campaign while no DM could set it), PartyGallery (its own header said it "mounts on
 //             the campaign page"; it never did)
-//   exempt  — SystemSwitcher and SystemLibrary, below, each with a reason and a slice
+//   exempt  — SystemSwitcher and SystemLibrary, each with a reason and a slice
+//
+// SystemSwitcher is now DELETED (P4-6c, 2026-07-29) — the exemption did its job. It bought the time to
+// re-point three test files that were asserting its transpose UI, one assertion at a time against the
+// surfaces that inherited each behaviour, rather than deleting the component and the coverage together.
+// That is what an exemption is for: a deadline with a reason attached, not a permanent pass. SystemLibrary
+// remains, still looking for its slice.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,17 +36,6 @@ const DIRS = ['app/dnd/_ui', 'app/dnd/_sheet/components'];
  * rather than a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
-  'app/dnd/_ui/SystemSwitcher.tsx':
-    'RETIRED from the sheet page at consolidation C3 — its capabilities moved to the VERSIONS picker, ' +
-    'EditFlow and VariantBrowser, and the character page says so in a comment. It is genuinely dead UI. ' +
-    'NARROWED 2026-07-28 (P4-6b): the two GATING tests that pinned it — hidden-systems and ' +
-    'under-construction-gating — now assert the live surface instead, and finding that out was worth the ' +
-    'slice on its own: they had been verifying a client-side unbuilt-system gate on code that never runs. ' +
-    'What still reads its source is mv-route / transpose-custom / transpose-progress, which assert its ' +
-    'TRANSPOSE UI rather than a gate — behaviour that moved to VariantBrowser and EditFlow, and needs each ' +
-    'assertion checked against its new home rather than sed-ed across. Slice P4-6c; nothing unsafe is ' +
-    'riding on it now.',
-
   'app/dnd/_ui/SystemLibrary.tsx':
     'GAP, found by this guard on its first run. Its header says "Used by the builder so a DM/player can ' +
     'see what rules the AI will ground a build in" — and no builder mounts it, so that capability has ' +

@@ -960,11 +960,42 @@ should skip Phase 7 entirely.
       (The server route was, and remains, the gate that actually matters — every UI above it can be
       bypassed with a direct POST, and that assertion never moved.)
 
-- [ ] **P4-6c — Re-point the three transpose tests, then delete `SystemSwitcher`.** `mv-route`,
+- [x] **P4-6c — Re-point the three transpose tests, then delete `SystemSwitcher`.** `mv-route`,
       `transpose-custom` and `transpose-progress` still read its source, but they assert its **transpose UI**
       rather than a gate — behaviour that moved to `VariantBrowser`/`EditFlow` and needs each assertion
       checked against its new home rather than sed-ed across. **Nothing unsafe rides on it now**, which is
       why this is a tidy-up rather than the blocker it was yesterday.
+
+      **Done 2026-07-29. `SystemSwitcher.tsx` is deleted.** Taken ahead of P4-4 because it is the smaller
+      slice and closes debt I took on rather than adding new surface.
+
+      **It was FOUR describe-blocks, not three** — `mv-route` alone had four, and the fourth only surfaced
+      after deleting the file, because each block reads it in its own `const`. Worth knowing for the next
+      component retirement: `grep -l` finds the files, not the number of places inside them.
+
+      **Each assertion was checked against its new home rather than sed-ed across**, because the behaviours
+      did NOT survive one-for-one:
+      · chips → the whole card is the switch target (`VariantBrowser`);
+      · "+ Add sheet" (blank, pick a system) → **fork from an existing version**;
+      · a `phase: 'working' | 'done'` state machine → `busy` plus the step the flow is already on;
+      · the `transposeBar` sweep → a spinner **with a sentence**, which answers "has this hung?" better;
+      · "Active sheet: <strong>" → the active card is outlined where you are already looking.
+
+      **Two assertions were DROPPED with a note rather than reworded**: the add-form's markup
+      (`styles.sheetAddCard`, `styles.segmented`, an `addKind` toggle) has no equivalent, because the picker
+      has no such form. Re-pointing them would have meant inventing a claim about `VariantBrowser` to keep a
+      test name alive, which is worse than deleting them — the capability they guarded is covered by the
+      fork assertions and by `variant-tracker`/`transpose-custom`.
+
+      **And one old assertion would now be WRONG if carried over**: `!sh.active &&` encoded "delete only on
+      non-active sheets". That rule changed deliberately — refusing to delete the version you are viewing is
+      what made versions feel undeletable — so it is replaced by `canDelete = !c.origin`, which protects only
+      the original.
+
+      The `no-orphan-components` exemption did exactly its job: it bought the time to re-point coverage one
+      assertion at a time instead of deleting the component and its tests together. That is what an
+      exemption is for — a deadline with a reason attached, not a permanent pass. `SystemLibrary` remains,
+      still looking for its slice.
 
 ---
 
