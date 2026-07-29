@@ -1627,12 +1627,31 @@ Every slice below serves that one rule.
       IG (RO-8); the window is 560px and the resize corner is gone; all four template buttons and the dice
       pad render on the IG shell.
 
-      **Found and NOT fixed — RO-14.** Impact's breakdown decomposes a raw `1d4` into a die row *and* a
-      phantom `flat +1` row. The **total is correct** (`Total 1`); only the tile decomposition
-      double-counts visually. `rollDiceExpr('1d4')` should emit `d4[1]` with no flat term, so either the
-      expression or `buildDamageRows` is producing an extra token. Logged rather than guessed at — I ran
-      out of room to root-cause it properly, and a wrong fix to a parser that feeds three rollers is worse
-      than an accurate bug report.
+- [ ] **RO-14 — Impact renders a phantom `flat` row for a bare die.** Found during RO-13 and deliberately
+      left open rather than guessed at.
+
+      **The evidence, measured in the DOM** (IG sheet, Impact template, dice pad `d4`):
+      ```
+      .ir-row.ir-r-die    "1d4 +1"
+      .ir-row.ir-r-mod    "flat +1"     ← phantom
+      .ir-row.ir-r-total  "Total 1"
+      ```
+      The **total is correct**; only the decomposition double-counts. Note it is also self-inconsistent —
+      `1d4[1]` plus a `+1` flat would total 2, and the total row says 1 — so the flat row is invented at
+      RENDER time, not carried in the roll.
+
+      **What has been ruled out.** There are TWO `rollDiceExpr`s in this codebase and the roller uses
+      `lib/dnd/roll.ts`, not `app/dnd/_sheet/lib/dice.ts` (the `1d4` label rather than `d4` is what
+      identifies it). Both were read line by line: `parseDiceExpr('1d4')` yields `dice: [{count:1,sides:4}],
+      modifier: 0`, and the emitter only appends a flat part `if (parsed.modifier)`. So **the breakdown
+      string is `1d4[1]` with no flat token**, and the fault is downstream — in `ImpactRoller`'s
+      `buildDamageRows`, or in what `buildRows` appends around it.
+
+      **Why it is not fixed here.** `buildDamageRows` feeds three rollers and every damage breakdown on
+      every system. Changing its tokenising on a hypothesis, at the end of a long session, is exactly the
+      kind of edit that trades a cosmetic duplicate row for a wrong number somewhere I am not looking. The
+      next session should start by printing the actual `entry.breakdown` at the Impact call site — one
+      `console.log` settles it — rather than reasoning about it further.
 
 ---
 
