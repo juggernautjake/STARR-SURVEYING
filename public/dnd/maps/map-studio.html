@@ -74,7 +74,15 @@
   .toolrow button.on{background:var(--aether);color:#fff;border-color:var(--aether);}
   .toolrow button:hover{color:var(--ink);}
   .canvaswrap{flex:1;position:relative;min-width:0;background:radial-gradient(ellipse 65% 55% at 50% 45%,#140d33,#0a0720 55%,#06040f);overflow:hidden;}
-  #canvas{position:absolute;inset:0;}
+  /* P10-1: touch-action is what makes the Pointer Events conversion actually work on a touchscreen.
+     Without it the browser claims a one-finger drag for scrolling and a two-finger one for pinch-zoom
+     BEFORE the page ever sees a pointermove, so panning the map scrolls the page instead. `none` hands
+     every gesture over the canvas to us. It belongs here rather than in JS because the browser decides
+     this at hit-test time, before any listener runs — `preventDefault()` in a passive listener is too
+     late and logs a console warning for its trouble. */
+  #canvas{position:absolute;inset:0;touch-action:none;}
+  /* Same reasoning for the draggables: a long-press drag on a body or a vertex must not start a scroll. */
+  .inst,.asset,.hit,.ihandle{touch-action:none;}
   #canvas.pan{cursor:grab;}#canvas.panning{cursor:grabbing;}#canvas.pen{cursor:crosshair;}
   #bgLayer{position:absolute;inset:0;z-index:0;pointer-events:none;background-position:center center;background-repeat:no-repeat;display:none;}
   /* The backdrop-spiral knobs stack. Kept in a class so revealing the box (which sets only `display`)
@@ -98,7 +106,7 @@
   .inst{position:absolute;transform:translate(-50%,-50%);cursor:move;}
   /* A transparent hit pad guarantees a grabbable area even for tiny bodies (moons/small planets/images),
      so you can click/drag the object itself instead of only its name. It sits BEHIND the art (art is
-     pointer-events:none) and its events bubble to the .inst mousedown handler. */
+     pointer-events:none) and its events bubble to the .inst pointerdown handler. */
   .inst::before{content:"";position:absolute;left:50%;top:50%;width:100%;height:100%;min-width:40px;min-height:40px;transform:translate(-50%,-50%);pointer-events:auto;border-radius:inherit;}
   .inst .art{width:100%;height:100%;pointer-events:none;position:relative;}
   .inst .artbg{position:absolute;inset:0;border-radius:50%;pointer-events:none;}   /* opaque backing so a solid body occludes the starfield */
@@ -278,6 +286,51 @@
   /* Until it is first opened the iframe has no src, so say why the panel is blank. */
   .pconsole .pidle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     color:#5c6b7a;font-size:12.5px;font-family:'Inter',system-ui,sans-serif;text-align:center;padding:0 20px;}
+
+  /* ── Narrow screens (P10-1) ────────────────────────────────────────────────────────────────────
+   * This file had ZERO media queries across 2,800 lines, so on a tablet the 76px tab rail and the
+   * 304px library between them ate most of a 768px viewport and the map — the entire point of the
+   * page — got whatever was left.
+   *
+   * The rail becomes a horizontal strip along the top and the library becomes an overlay drawer over
+   * the canvas rather than a column beside it. Deliberately NOT a hamburger: the tabs are how you
+   * navigate this tool, and hiding them behind a second tap to save 40px of height would cost more
+   * than it bought. */
+  @media (max-width: 900px) {
+    /* `position: relative` is load-bearing: the library below becomes `position: absolute`, and without a
+       positioned ancestor it would anchor to the viewport and sit over the toolbar. */
+    .main { flex-direction: column; position: relative; }
+    .tabrail {
+      width: 100%;
+      flex-direction: row;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+      padding: 6px 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      /* Momentum scrolling for the rail itself — the one place a touch gesture SHOULD be the browser's. */
+      touch-action: pan-x;
+    }
+    .tab { width: auto; min-width: 58px; margin: 0; padding: 7px 9px; flex: none; }
+    .tab .lb { white-space: nowrap; }
+    /* An overlay, not a column: at this width there is not room for both, and the map is the page. */
+    .library {
+      position: absolute;
+      z-index: 40;
+      top: 0; bottom: 0; left: 0;
+      width: min(304px, 86vw);
+      box-shadow: 0 0 40px rgba(0,0,0,.6);
+    }
+    .library.closed { width: 0; box-shadow: none; }
+  }
+
+  /* Phones: the same, tighter. The library takes the full width because a 300px drawer over a 360px
+   * screen leaves a sliver of map that is not worth keeping visible. */
+  @media (max-width: 560px) {
+    .library { width: 100vw; }
+    .tab .lb { display: none; }   /* icons only — the labels are what push the rail past one row */
+    .tab { min-width: 44px; }     /* still a comfortable touch target */
+  }
 </style>
 </head>
 <body>
@@ -1060,7 +1113,7 @@ function renderBackdropTab(grid){
   assetsOfTab("background").forEach(a=>{const el=document.createElement("div");el.className="asset";
     el.innerHTML=`<div class="thumb" style="background:radial-gradient(circle at 50% 45%, ${a.c1}, ${a.c2} 72%, #06040f);border-radius:8px"></div><div class="an">${esc(a.name)}</div><button class="edit" title="Edit">✎</button>`;
     el.querySelector(".edit").onclick=e=>{e.stopPropagation();openEditor(a,"edit");};
-    el.addEventListener("mousedown",e=>{if(e.target.closest(".edit"))return;applyBackground(a);});grid.appendChild(el);});
+    el.addEventListener("pointerdown",e=>{if(e.target.closest(".edit"))return;applyBackground(a);});grid.appendChild(el);});
   $("#bgImport").onclick=importBackgroundImage;$("#bgStarfield").onclick=useStarfieldBackground;
   if(isImg){$("#bgFit").onchange=e=>{state.background.fit=e.target.value;renderBackground();markDirty();};
     $("#bgSize").oninput=e=>{state.background.size=+e.target.value/100;$("#bgSizeV").textContent=e.target.value+"%";renderBackground();markDirty();};
@@ -1110,7 +1163,7 @@ function renderLibrary(){
     }
     el.insertAdjacentHTML("beforeend",`<button class="del" title="Delete from library">✕</button>`);
     el.querySelector(".del").onclick=e=>{e.stopPropagation();deleteAsset(a);};
-    el.addEventListener("mousedown",e=>{if(e.target.closest(".edit")||e.target.closest(".del"))return;startDragPlace(a,e);});
+    el.addEventListener("pointerdown",e=>{if(e.target.closest(".edit")||e.target.closest(".del"))return;startDragPlace(a,e);});
     grid.appendChild(el);
   });
   updateTabBadges();mountDiffspinLibrary();mountP3Library();
@@ -1247,11 +1300,11 @@ function startDragPlace(asset,e){
   const gd=ghostDims(asset);
   ghost.style.display="block";ghost.style.width=gd.gw*view.scale+"px";ghost.style.height=gd.gh*view.scale+"px";ghost.innerHTML=art(asset,true);
   const move=ev=>{ghost.style.left=ev.clientX+"px";ghost.style.top=ev.clientY+"px";};move(e);
-  const up=ev=>{window.removeEventListener("mousemove",move);window.removeEventListener("mouseup",up);
+  const up=ev=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",up);
     const r=$("#canvas").getBoundingClientRect();
     if(ev.clientX<r.left||ev.clientX>r.right||ev.clientY<r.top||ev.clientY>r.bottom){ghost.style.display="none";return;}
     const w=toWorld(ev.clientX,ev.clientY);enterPending(asset,w.x,w.y);};
-  window.addEventListener("mousemove",move);window.addEventListener("mouseup",up);
+  window.addEventListener("pointermove",move);window.addEventListener("pointerup",up);
 }
 function ghostDims(asset){let gw=asset.size||60,gh=gw;if(asset.kind==="image"){const nw=asset.natW||160,nh=asset.natH||160,mx=440,sc=Math.min(1,mx/Math.max(nw,nh));gw=Math.max(8,Math.round(nw*sc));gh=Math.max(8,Math.round(nh*sc));}return{gw,gh};}
 function enterPending(asset,x,y){pending={asset,x,y};ghost.style.display="block";positionGhostWorld();$("#placeName").textContent=asset.name;$("#placeBar").classList.add("show");}
@@ -1428,7 +1481,7 @@ function renderSectors(){
     p.setAttribute("stroke-width",sel?Math.max(bwidth,2.6):bwidth);p.setAttribute("stroke-dasharray",sel?(bstyle==="dotted"?dashFor("dotted",bwidth):"none"):dashFor(bstyle,bwidth));p.style.cursor="pointer";p.classList.add("hit");
     // A "front" sector renders ABOVE bodies, so its full-area fill could swallow a click meant for a body
     // you can see through it. Bodies always win: if one is under the cursor, hand the click to it instead.
-    p.addEventListener("mousedown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=(s.layer==="front"||s.front===true)&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
+    p.addEventListener("pointerdown",e=>{if(tool==="pen")return;e.stopPropagation();const bi=(s.layer==="front"||s.front===true)&&instUnderPointer(e);if(bi){onInstDown(e,bi);return;}onSectorDown(e,s);});
     if(sel&&mode==="dm")p.addEventListener("dblclick",e=>{e.stopPropagation();insertVertexAt(s,toWorld(e.clientX,e.clientY));});
     svg.appendChild(p);
     // per-sector sparkles
@@ -1439,11 +1492,11 @@ function renderSectors(){
       const vs=view.scale,hs=10/vs,off=44/vs,sw=1.5/vs;
       let mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;s.points.forEach(pt=>{mnx=Math.min(mnx,pt.x);mny=Math.min(mny,pt.y);mxx=Math.max(mxx,pt.x);mxy=Math.max(mxy,pt.y);});
       const box=document.createElementNS(NS,"rect");box.setAttribute("x",mnx);box.setAttribute("y",mny);box.setAttribute("width",mxx-mnx);box.setAttribute("height",mxy-mny);box.setAttribute("fill","none");box.setAttribute("stroke",s.color);box.setAttribute("stroke-opacity",".35");box.setAttribute("stroke-width",1/vs);box.setAttribute("stroke-dasharray",`${5/vs} ${5/vs}`);box.style.pointerEvents="none";svg.appendChild(box);
-      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("mousedown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
-      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("mousedown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
+      s.points.forEach((pt,i)=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",pt.x-hs/2);h.setAttribute("y",pt.y-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill","#06040f");h.setAttribute("stroke",s.color);h.setAttribute("stroke-width",sw);h.style.cursor="grab";h.addEventListener("pointerdown",e=>{e.stopPropagation();onVertexDown(e,s,i);});h.addEventListener("contextmenu",e=>{e.preventDefault();e.stopPropagation();deleteVertex(s,i);});svg.appendChild(h);});
+      [[mnx,mny,"nwse-resize"],[mxx,mny,"nesw-resize"],[mxx,mxy,"nwse-resize"],[mnx,mxy,"nesw-resize"]].forEach(([cxp,cyp,cur])=>{const h=document.createElementNS(NS,"rect");h.classList.add("hit");h.setAttribute("x",cxp-hs/2);h.setAttribute("y",cyp-hs/2);h.setAttribute("width",hs);h.setAttribute("height",hs);h.setAttribute("fill",s.color);h.setAttribute("stroke","#06040f");h.setAttribute("stroke-width",1/vs);h.style.cursor=cur;h.addEventListener("pointerdown",e=>{e.stopPropagation();onScaleDown(e,s);});svg.appendChild(h);});
       const cxm=(mnx+mxx)/2,topy=mny-off;
       const ln=document.createElementNS(NS,"line");ln.setAttribute("x1",cxm);ln.setAttribute("y1",mny);ln.setAttribute("x2",cxm);ln.setAttribute("y2",topy);ln.setAttribute("stroke",s.color);ln.setAttribute("stroke-opacity",".5");ln.setAttribute("stroke-width",1/vs);ln.style.pointerEvents="none";svg.appendChild(ln);
-      const rc=document.createElementNS(NS,"circle");rc.classList.add("hit");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("mousedown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
+      const rc=document.createElementNS(NS,"circle");rc.classList.add("hit");rc.setAttribute("cx",cxm);rc.setAttribute("cy",topy);rc.setAttribute("r",hs*0.72);rc.setAttribute("fill","#06040f");rc.setAttribute("stroke",s.color);rc.setAttribute("stroke-width",sw);rc.style.cursor="grab";rc.addEventListener("pointerdown",e=>{e.stopPropagation();onRotateDown(e,s);});svg.appendChild(rc);
     }
   });
 }
@@ -1483,13 +1536,13 @@ function renderInstances(){
     else if(i.kind==="html"){const doc=(typeof htmlFrameSrcdoc==="function")?htmlFrameSrcdoc(i.html||""):esc(i.html||"");
       el.innerHTML=`<div class="art" style="overflow:hidden;background:rgba(11,26,44,.72);border:1px solid var(--line2);border-radius:8px"><iframe sandbox srcdoc="${esc(doc)}" style="width:100%;height:100%;border:0;display:block;pointer-events:none;background:transparent"></iframe></div>`;}
     else{el.innerHTML=`<div class="art">${bodyBacking(i)}<div class="artwrap">${fxo}${art(i.look||i,true)}</div></div>${poiLayerHTML(i)}`;}
-    el.addEventListener("mousedown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
+    el.addEventListener("pointerdown",e=>{if(e.target.closest(".poi")||e.target.closest(".ihandle"))return;e.stopPropagation();onInstDown(e,i);});
     el.addEventListener("dblclick",e=>{if(mode!=="dm")return;e.stopPropagation();const a=state.assets.find(x=>x.id===i.assetId)||{...i.look,name:i.name,kind:i.kind,size:i.size};openEditor(a,"edit");});
     // on-map scale + rotate handles are drawn into #handleLayer (see renderHandles) so they can't be
     // occluded by other bodies or front sectors — critical for images/spirals that overlap other art.
     // POI interactions
     el.querySelectorAll(".poi").forEach(pel=>{
-      pel.addEventListener("mousedown",e=>{e.stopPropagation();});
+      pel.addEventListener("pointerdown",e=>{e.stopPropagation();});
       pel.addEventListener("click",e=>{e.stopPropagation();selection={type:"poi",id:i.id,poi:pel.dataset.poi};renderAll();});
     });
     ((i.behind&&back)?back:front).appendChild(el);
@@ -1510,7 +1563,7 @@ function renderHandles(){
   w.style.cssText=`left:${i.x}px;top:${i.y}px;width:${iw}px;height:${ih}px;transform:translate(-50%,-50%) rotate(${rot}deg);`;
   w.innerHTML='<div class="ihandle rstem"></div><div class="ihandle rot" data-h="rot"></div><div class="ihandle tl" data-h="s"></div><div class="ihandle tr" data-h="s"></div><div class="ihandle bl" data-h="s"></div><div class="ihandle br" data-h="s"></div>';
   hl.appendChild(w);
-  w.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("mousedown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
+  w.querySelectorAll(".ihandle[data-h]").forEach(h=>h.addEventListener("pointerdown",ev=>{ev.stopPropagation();ev.preventDefault();if(h.dataset.h==="rot")onInstRotateDown(ev,i);else onInstScaleDown(ev,i);}));
 }
 {const v3=$("#view3dBtn");if(v3)v3.addEventListener("click",()=>{const hl=$("#handleLayer");if(hl)hl.innerHTML="";});}   // clear handles when toggling the 3D viewer
 const spriteLive={};
@@ -1610,7 +1663,7 @@ function renderLabels(){
   layer.innerHTML=out;
   if(mode==="dm"){
     layer.querySelectorAll(".lblhit[data-textid]").forEach(rect=>{
-      rect.addEventListener("mousedown",e=>{
+      rect.addEventListener("pointerdown",e=>{
         e.stopPropagation();const inst=state.instances.find(x=>x.id===rect.dataset.textid);if(!inst)return;
         selection={type:"instance",id:inst.id};renderAll();
         pushUndo();const start=toWorld(e.clientX,e.clientY),ox=inst.x,oy=inst.y;
@@ -1618,13 +1671,13 @@ function renderLabels(){
       });
     });
     // drag a body's/sector's NAME label to reposition it (updates label.dx/dy)
-    layer.querySelectorAll(".lblhit[data-bodylabel]").forEach(rect=>rect.addEventListener("mousedown",e=>{
+    layer.querySelectorAll(".lblhit[data-bodylabel]").forEach(rect=>rect.addEventListener("pointerdown",e=>{
       e.stopPropagation();const inst=state.instances.find(x=>x.id===rect.dataset.bodylabel);if(!inst)return;
       selection={type:"instance",id:inst.id};renderAll();inst.label=inst.label||{};
       pushUndo();const start=toWorld(e.clientX,e.clientY),odx=inst.label.dx||0,ody=inst.label.dy||0;
       drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);inst.label.dx=Math.round(odx+(w.x-start.x));inst.label.dy=Math.round(ody+(w.y-start.y));renderLabels();},up:()=>{renderInspector();markDirty();}};
     }));
-    layer.querySelectorAll(".lblhit[data-seclabel]").forEach(rect=>rect.addEventListener("mousedown",e=>{
+    layer.querySelectorAll(".lblhit[data-seclabel]").forEach(rect=>rect.addEventListener("pointerdown",e=>{
       e.stopPropagation();const s=state.sectors.find(x=>x.id===rect.dataset.seclabel);if(!s)return;
       selection={type:"sector",id:s.id};renderAll();s.label=s.label||{};
       pushUndo();const start=toWorld(e.clientX,e.clientY),odx=s.label.dx||0,ody=s.label.dy||0;
@@ -1733,11 +1786,18 @@ function onScaleDown(e,s){pushUndo();const c=s._centroid||polyCentroid(s.points)
   drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);let f=clamp(Math.hypot(w.x-c.x,w.y-c.y)/sd,0.15,12);s.points=orig.map(p=>({x:c.x+(p.x-c.x)*f,y:c.y+(p.y-c.y)*f}));computeSectorParents();reassociateAll();renderSectors();renderInstances();},up:()=>{renderInspector();}};}
 function onRotateDown(e,s){pushUndo();const c=s._centroid||polyCentroid(s.points);const start=toWorld(e.clientX,e.clientY);const sa=Math.atan2(start.y-c.y,start.x-c.x);const orig=s.points.map(p=>({x:p.x,y:p.y}));
   drag={move:ev=>{const w=toWorld(ev.clientX,ev.clientY);const a=Math.atan2(w.y-c.y,w.x-c.x)-sa,ca=Math.cos(a),sn=Math.sin(a);s.points=orig.map(p=>{const dx=p.x-c.x,dy=p.y-c.y;return{x:c.x+dx*ca-dy*sn,y:c.y+dx*sn+dy*ca};});computeSectorParents();reassociateAll();renderSectors();renderInstances();},up:()=>{renderInspector();}};}
-window.addEventListener("mousemove",e=>{if(drag)drag.move(e);});
-window.addEventListener("mouseup",()=>{if(drag){drag.up&&drag.up();drag=null;markDirty();}});
+window.addEventListener("pointermove",e=>{if(drag)drag.move(e);});
+const endDrag=()=>{if(drag){drag.up&&drag.up();drag=null;markDirty();}};
+window.addEventListener("pointerup",endDrag);
+/* pointercancel has no mouse equivalent, which is exactly why converting to Pointer Events without
+   handling it leaves a WORSE bug than the one it fixes. A touch pointer is cancelled whenever the
+   system takes the gesture — an incoming call, the browser deciding it was a swipe-back, a palm
+   rejection — and it fires INSTEAD OF pointerup. Without this, `drag` stays set forever and the next
+   finger anywhere on the page keeps dragging whatever was last grabbed. */
+window.addEventListener("pointercancel",endDrag);
 
 const canvas=$("#canvas");let panning=null;
-canvas.addEventListener("mousedown",e=>{
+canvas.addEventListener("pointerdown",e=>{
   if(pending)return;
   if(tool==="pen")return;
   if(e.target.closest(".inst")||e.target.tagName==="path"||e.target.tagName==="rect"||e.target.tagName==="circle")return;
@@ -1749,8 +1809,10 @@ canvas.addEventListener("click",e=>{
   const w=toWorld(e.clientX,e.clientY);drawing.pts.push({x:w.x,y:w.y});$("#drawCount").textContent=drawing.pts.length;renderDrawPreview();
 });
 canvas.addEventListener("dblclick",e=>{if(tool==="pen"&&drawing){e.preventDefault();finishDraw();}});
-window.addEventListener("mousemove",e=>{if(panning){view.x=panning.ox+(e.clientX-panning.sx);view.y=panning.oy+(e.clientY-panning.sy);applyView();}});
-window.addEventListener("mouseup",()=>{if(panning){panning=null;canvas.classList.remove("panning");}});
+window.addEventListener("pointermove",e=>{if(panning){view.x=panning.ox+(e.clientX-panning.sx);view.y=panning.oy+(e.clientY-panning.sy);applyView();}});
+const endPan=()=>{if(panning){panning=null;canvas.classList.remove("panning");}};
+window.addEventListener("pointerup",endPan);
+window.addEventListener("pointercancel",endPan);   /* see the endDrag note above — same failure, same fix */
 canvas.addEventListener("wheel",e=>{e.preventDefault();const r=canvas.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;const f=e.deltaY<0?1.12:0.89;const ns=clamp(view.scale*f,0.12,5);view.x=mx-(mx-view.x)*(ns/view.scale);view.y=my-(my-view.y)*(ns/view.scale);view.scale=ns;applyView();},{passive:false});
 function zoomAround(cx,cy,f){const ns=clamp(view.scale*f,0.12,5);view.x=cx-(cx-view.x)*(ns/view.scale);view.y=cy-(cy-view.y)*(ns/view.scale);view.scale=ns;applyView();}
 function cc(){const r=canvas.getBoundingClientRect();return {x:r.width/2,y:r.height/2};}

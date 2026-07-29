@@ -2108,11 +2108,47 @@ Every slice below serves that one rule.
 
 ## Phase 10 — Accessibility, devices & polish
 
-- [ ] **P10-1 — Pointer events + responsive map studio.** *(G-1.)* 18 `mousedown`/`mousemove` handlers,
+- [x] **P10-1 — Pointer events + responsive map studio.** *(G-1.)* 18 `mousedown`/`mousemove` handlers,
       **zero** touch or pointer handlers, **zero** media queries across 2,826 lines — so the DM's only map
       tool is unusable on a tablet or phone, while the player console it embeds *does* have touch handling.
       Convert to Pointer Events (largely mechanical) plus `touch-action` CSS; add a breakpoint collapsing the
       tab rail and inspector into drawers below ~900px.
+
+      **Done 2026-07-29.** All 19 drag handlers converted, `touch-action` on the canvas and the draggables,
+      and breakpoints at 900px and 560px.
+
+      **The conversion had to be COMPLETE, not partial.** Browsers fire compatibility mouse events after
+      touch ones, so a single leftover `mousedown` beside a `pointerdown` double-fires every tap. Zero
+      remain.
+
+      **`pointercancel` is the bug the conversion would otherwise have introduced.** It has no mouse
+      equivalent, and it fires *instead of* `pointerup` whenever the system takes the gesture — an incoming
+      call, a swipe-back, palm rejection. Without it the drag state stays set forever and the next finger
+      anywhere on the page keeps dragging whatever was last grabbed. It cannot happen with a mouse, so it
+      cannot be found on the machine the conversion is written on. Both the shape drag and the canvas pan
+      have their own state and both got it.
+
+      **`touch-action` is what makes any of it work,** and it has to be CSS. Without it the browser claims a
+      one-finger drag for scrolling *before* the page sees a `pointermove` — the decision happens at
+      hit-test time, ahead of any listener, so `preventDefault()` is too late and earns a console warning
+      for trying. The tab rail keeps `pan-x`: it is the one place a gesture *should* belong to the browser.
+
+      Layout: the rail goes horizontal, the library becomes an **overlay** over the canvas rather than a
+      column beside it (76px + 304px out of a 768px tablet left the map with the remainder), and `.main`
+      gets `position: relative` — load-bearing and easy to lose, since without a positioned ancestor the
+      overlay anchors to the viewport and covers the toolbar. Deliberately not a hamburger: the tabs are how
+      you navigate this tool.
+
+      **Verification, honestly:** a static vanilla file has no component to render, so the tests are source
+      assertions, and I checked for syntax regression by parsing every `<script>` block before and after —
+      identical. `map-viewer-handles.test.ts` failed on the change and was right to: it pins that the
+      handles are wired at all, and it now pins the pointer name. **Not driven in a real browser or on a
+      real touchscreen** — after this pass's record with browser-only findings, that is weaker evidence
+      than it sounds.
+
+      **Not done, recorded rather than implied:** pinch-zoom. `wheel` is mouse and trackpad only, so a touch
+      user zooms with the on-screen buttons, which exist. Two-pointer pinch tracking is a real feature
+      rather than a mechanical conversion, and half-building it leaves a gesture fighting the pan handler.
 - [x] **P10-2 — Hold the line on inline styles.** *(G-2.)* 3,111 inline `style={{…}}` objects against 658
       CSS-module class uses — which is why every theming pass has been expensive: an inline colour cannot be
       reached by a token, a media query, a print stylesheet or a contrast audit. **Not a rewrite:** a lint

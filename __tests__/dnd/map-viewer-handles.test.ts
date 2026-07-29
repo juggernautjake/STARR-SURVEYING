@@ -36,7 +36,10 @@ describe('map viewer: image scale/rotate handles (Slice 35a)', () => {
   it('wires the scale + rotate drag handlers to the handles', () => {
     expect(fn).toContain('onInstScaleDown');
     expect(fn).toContain('onInstRotateDown');
-    expect(fn).toMatch(/addEventListener\(["']mousedown["']/);
+    // `pointerdown`, not `mousedown`, since P10-1 converted the studio to Pointer Events so the handles
+    // are draggable with a finger. Asserting the mouse name here is what made this test fail on that
+    // change — correctly: it is the pin that proves the handles are still wired at all.
+    expect(fn).toMatch(/addEventListener\(["']pointerdown["']/);
   });
 
   it('yields the screen to the 3D viewer (no 2D handles drawn over the WebGL view)', () => {
