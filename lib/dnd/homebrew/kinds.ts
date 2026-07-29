@@ -176,6 +176,18 @@ export interface KindSpec {
    * A Feat in Pathfinder 2e, by contrast, is very much a thing we simply do not resolve yet.
    */
   nativeTo?: readonly string[];
+  /**
+   * Systems where this kind is prose ON PURPOSE — the engine has considered it and REFUSED, rather than
+   * not got to it yet.
+   *
+   * The distinction matters because both look like "not mechanical" from `mechanicalIn`. PF2's and IG's
+   * adopt converters refuse a `class` in as many words — "PF2 advancement is four feat tracks and
+   * proficiency ranks, not a hit die and an ASI ladder; converting would produce something that levels
+   * wrongly, which is worse than a refusal" — and refuse a `background` because there is no per-character
+   * slot to put one in. Listing those as gaps puts work on the board that has already been decided
+   * against, which is how a plan grows items nobody should do.
+   */
+  proseByDesignIn?: readonly string[];
   /** May this kind be scoped to `'any'` (all systems at once)? True only where the mechanics are prose,
    *  because an `'any'` class is not a meaningful object — every engine's class model differs. */
   allowAnySystem: boolean;
@@ -326,7 +338,10 @@ const SPECS: Record<HomebrewKind, KindSpec> = {
     ],
   },
   feat: {
-    kind: 'feat', group: 'Character options', icon: '✧', allowAnySystem: false, mechanicalIn: FIVE_E,
+    // Every system resolves a homebrew feat: 5e onto the feat list, PF2 onto the ARCHETYPE track
+    // (deliberately, so it is not counted against a budget it was never granted by), IG into its feat
+    // slot. The registry said FIVE_E and was simply behind the adopt converters.
+    kind: 'feat', group: 'Character options', icon: '✧', allowAnySystem: false, mechanicalIn: '*',
     blurb: 'A feat taken at a choice point — the most-adopted kind of homebrew.',
     fields: [
       { key: 'category', label: 'Category', type: 'select', options: FEAT_CATEGORY, required: true, section: 'Mechanics',
@@ -341,6 +356,8 @@ const SPECS: Record<HomebrewKind, KindSpec> = {
   },
   background: {
     kind: 'background', group: 'Character options', icon: '❯', allowAnySystem: true, mechanicalIn: FIVE_E,
+    // No per-character slot in PF2 or IG to put one in; their adopt converters say so and refuse.
+    proseByDesignIn: ['pathfinder2e', 'intuitive-games'],
     blurb: 'Where a character came from — skills, tools, and a feature.',
     fields: [
       { key: 'abilityIncreases', label: 'Ability increases', type: 'abilities', options: abilityOptions, section: 'Mechanics',
@@ -379,6 +396,9 @@ const SPECS: Record<HomebrewKind, KindSpec> = {
   },
   class: {
     kind: 'class', group: 'Character options', icon: '✦', allowAnySystem: false, mechanicalIn: FIVE_E,
+    // A class cannot cross: PF2 levels on four feat tracks and proficiency ranks, IG on a scraped per-level
+    // schedule. Both converters refuse rather than produce something that levels wrongly.
+    proseByDesignIn: ['pathfinder2e', 'intuitive-games'],
     blurb: 'A full class, built level by level. Start from an existing class or from nothing.',
     fields: [
       { key: 'basedOn', label: 'Based on', type: 'select', section: 'Foundation', options: [],
@@ -415,6 +435,7 @@ const SPECS: Record<HomebrewKind, KindSpec> = {
   },
   subclass: {
     kind: 'subclass', group: 'Character options', icon: '✧', allowAnySystem: false, mechanicalIn: FIVE_E,
+    proseByDesignIn: ['pathfinder2e', 'intuitive-games'],
     blurb: 'A subclass for an existing or homebrew class.',
     fields: [
       { key: 'parentClass', label: 'Subclass of', type: 'text', required: true, section: 'Foundation',

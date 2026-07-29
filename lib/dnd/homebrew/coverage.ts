@@ -64,9 +64,16 @@ export function coverageMatrix(systems: readonly { key: string; name: string }[]
       // kind that system has no concept of. Without this the matrix reported 11 gaps, three of which were
       // work nobody should ever do.
       const native = !spec.nativeTo || spec.nativeTo.includes(s.key);
+      // A DELIBERATE REFUSAL IS NOT A GAP. PF2 and IG both decline a `class` in as many words — converting
+      // one "would produce something that levels wrongly, which is worse than a refusal" — and decline a
+      // `background` because there is no per-character slot for it. Those decisions live in the adopt
+      // converters; `proseByDesignIn` is the registry saying so, so the matrix stops advertising six
+      // items of work that have already been decided against.
+      const refusedHere = spec.proseByDesignIn?.includes(s.key) ?? false;
       const state: CoverageState = !native
         ? 'n/a'
-        : kindIsMechanicalIn(kind, s.key) ? 'mechanical' : neverMechanical ? 'by-design' : 'gap';
+        : kindIsMechanicalIn(kind, s.key) ? 'mechanical'
+          : neverMechanical || refusedHere ? 'by-design' : 'gap';
       return { system: s.key, state };
     });
     return {

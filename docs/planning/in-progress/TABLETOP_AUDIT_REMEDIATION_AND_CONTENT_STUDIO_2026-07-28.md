@@ -3092,14 +3092,23 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       column appears. A hardcoded grid would be a second source of truth, which is the failure this pass
       has spent days finding elsewhere.
 
-      **72 cells: 57 resolved · 8 gaps · 7 prose by design.** And the eight are now a named work list:
+      **72 cells: 59 resolved · 0 gaps · 10 prose by design · 3 N/A.**
 
-      | kind | rules text only in |
-      |---|---|
-      | Feat | Pathfinder 2e, Intuitive Games |
-      | Background | Pathfinder 2e, Intuitive Games |
-      | Class | Pathfinder 2e, Intuitive Games |
-      | Subclass | Pathfinder 2e, Intuitive Games |
+      **⚠ CORRECTED SAME DAY, and the first version of this page was wrong in the way this whole pass
+      exists to catch.** It first reported 8 gaps — Feat, Background, Class and Subclass in PF2 and IG —
+      derived faithfully from `mechanicalIn: FIVE_E`. Then P12-3 went to close them and found the adopt
+      converters had already answered every one:
+      · **Feat resolves in both.** `pf2AdoptEdits` files a homebrew feat on the ARCHETYPE track
+        (deliberately, so it is not counted against a budget it was never granted by) and IG has its own
+        slot. The registry was simply behind the code. Two false gaps.
+      · **Class, Subclass and Background are refused ON PURPOSE, in as many words.** PF2 and IG both
+        decline a class because "PF2 advancement is four feat tracks and proficiency ranks, not a hit die
+        and an ASI ladder; converting would produce something that levels wrongly, which is worse than a
+        refusal", and decline a background because there is no per-character slot to put one in. Six
+        decisions already taken, published as work outstanding.
+
+      So `mechanicalIn` for `feat` is now `'*'`, and `proseByDesignIn` records the refusals — a page
+      derived from a stale registry is still a page that lies, and it lied about six items of work.
 
       **THE THIRD STATE WAS NOT DECORATION — the first version reported ELEVEN gaps, three of which were
       work nobody should ever do.** `mechanicalIn` cannot distinguish "we have not built the bridge" from
@@ -3119,11 +3128,25 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       cell carries its state as real text ("Rules text only — a bridge we have not built") for a screen
       reader rather than announcing "white circle".
 
-- [ ] **P12-2 — Close the mechanical gaps for 5e (2014 + 2024).** *(P12-1 measured this as **zero** — every
-      kind that 5e has a concept of already resolves. Nothing to do unless a new kind is added; left open
-      rather than ticked because "no gaps today" is a measurement, not a commitment.)*
-- [ ] **P12-3 — Close them for Pathfinder 2e.** *(4 gaps, named above.)*
-- [ ] **P12-4 — Close them for Intuitive Games.** *(4 gaps, named above.)*
+- [x] **P12-2 — Close the mechanical gaps for 5e (2014 + 2024).** **Zero gaps.** Every kind 5e has a
+      concept of already resolves onto a sheet. Closed on the measurement, not on new code.
+
+- [x] **P12-3 — Close them for Pathfinder 2e.** **Zero gaps, and closing it is what revealed P12-1's
+      error.** Setting out to build the four PF2 bridges, the first stop was `pf2AdoptEdits` — which
+      already handled `feat`, and refused `class`, `subclass` and `background` deliberately, each with its
+      reasoning written down. Nothing to build: two were done and three were decided. The registry was
+      corrected to say so.
+
+      **The lesson is the one this pass keeps relearning, this time against my own work:** P12-1 published
+      a work list derived faithfully from the registry, and the registry was behind the code. Checking the
+      premise against live code took one grep and removed six items. A page can be correctly derived and
+      still wrong, if what it derives from is stale.
+
+- [x] **P12-4 — Close them for Intuitive Games.** **Zero gaps.** `igAdoptEdits` mirrors PF2 exactly:
+      `feat`, `stance`, `condition`, `spell`, `ability`, `weapon`, `armor`, `item`, `potion` all resolve;
+      `class`/`subclass` refuse for the same reason ("IG advancement is a scraped per-level schedule of
+      powers, feats and specializations… a converted class would level wrongly"); everything else has no
+      per-character slot and is "refused rather than forced somewhere they do not belong".
 - [x] **P12-5 — Subclass authoring, per system.** Named in the brief; today it is a `class`-shaped kind
       with no parent binding.
 
