@@ -8,9 +8,10 @@
 import type { Effect } from '@/app/dnd/_sheet/engine/effects';
 import type { ActiveEffect, Character } from '@/app/dnd/_sheet/types';
 import { validateEffect } from '@/lib/dnd/effects/targets';
-import type { ClassDefinition } from '@/lib/dnd/classes/types';
+import type { ClassDefinition, SubclassDefinition } from '@/lib/dnd/classes/types';
 import type { CustomFeat } from '@/lib/dnd/classes/custom';
 import { validateClassDefinition } from '@/lib/dnd/classes/engine';
+import { classesForSystem } from '@/lib/dnd/classes/registry';
 import type { HomebrewContent } from './model';
 
 /** The engine effects a homebrew piece grants. Reads `payload.effects` (or a bare `Effect[]` payload),
@@ -39,13 +40,19 @@ export function homebrewToActiveEffect(c: HomebrewContent): ActiveEffect | null 
 }
 
 /**
- * A homebrew `class`/`subclass` piece → the `ClassDefinition` to add to `char.homebrewClasses` (H4/H5 — the
- * non-effect half of adoption). The payload must be a structurally-VALID class for the piece's OWN system (the
- * class engine's `validateClassDefinition` must return []), or this refuses it (null) rather than storing a
- * broken class the level builder can't level. The creator is stamped as the author. Pure.
+ * A homebrew `class` piece → the `ClassDefinition` to add to `char.homebrewClasses` (H4/H5 — the non-effect
+ * half of adoption). The payload must be a structurally-VALID class for the piece's OWN system (the class
+ * engine's `validateClassDefinition` must return []), or this refuses it (null) rather than storing a broken
+ * class the level builder can't level. The creator is stamped as the author. Pure.
+ *
+ * NO LONGER ACCEPTS `subclass` (P12-5). It used to, and the result was worse than an unwired feature: an
+ * adopted subclass was stored as a standalone CLASS, so "Way of the Open Hand" became something you take
+ * levels in rather than an option under Monk — while its required `parentClass` field was read by nothing
+ * at all. Subclasses now go through `homebrewToCharacterSubclass` into `char.homebrewSubclasses`, which is
+ * the store the level walker already reads via `subclassesFor(..., extra)`.
  */
 export function homebrewToCharacterClass(c: HomebrewContent): ClassDefinition | null {
-  if (c.kind !== 'class' && c.kind !== 'subclass') return null;
+  if (c.kind !== 'class') return null;
   const p = c.payload;
   if (!p || typeof p !== 'object') return null;
   const def = p as ClassDefinition;
@@ -71,8 +78,61 @@ export function homebrewToCharacterFeat(c: HomebrewContent): CustomFeat | null {
   return { ...f, custom: { ...(f.custom ?? {}), authorName: c.creator.name } };
 }
 
+/** Normalised for matching a free-text parent against a class key or name. */
+const normKey = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/**
+ * A homebrew `subclass` piece → the `SubclassDefinition` to add to `char.homebrewSubclasses` (P12-5).
+ *
+ * THE PARENT BINDING IS THE POINT. The Studio has always required a `parentClass` on this kind, and until
+ * now nothing anywhere read it — the field was collected and discarded. Here it is resolved to a real
+ * `classKey`, so the subclass appears under its class in the level-up chooser instead of nowhere.
+ *
+ * Resolution is deliberately forgiving about SPELLING and strict about EXISTENCE: `parentClass` is free
+ * text an author typed ("Way of the Open Hand" belongs to "Monk", "monk", or "monk " equally), so it is
+ * matched normalised against each candidate's key and name. But an unresolvable parent returns null rather
+ * than guessing or defaulting — a subclass bound to the wrong class is worse than one that refuses to
+ * adopt, because the second is visible and the first quietly gives a Wizard a Rogue's features.
+ *
+ * `candidates` are the classes this character could actually have: the system's own plus any homebrew
+ * classes already on the sheet, so a homebrew subclass of a homebrew class works.
+ */
+export function homebrewToCharacterSubclass(
+  c: HomebrewContent,
+  candidates: readonly { key: string; name: string }[],
+): SubclassDefinition | null {
+  if (c.kind !== 'subclass') return null;
+  const p = c.payload;
+  if (!p || typeof p !== 'object') return null;
+  const sub = p as SubclassDefinition & { parentClass?: unknown };
+  if (typeof sub.key !== 'string' || typeof sub.name !== 'string') return null;
+  // A subclass is never valid outside its own system — the same hard rule the class converter applies.
+  if (sub.system !== c.system) return null;
+  if (!Array.isArray(sub.features)) return null;
+
+  // An explicit `classKey` on the payload wins; otherwise resolve the authored free-text parent.
+  const wanted = typeof sub.classKey === 'string' && sub.classKey
+    ? sub.classKey
+    : typeof sub.parentClass === 'string' ? sub.parentClass : '';
+  if (!wanted) return null;
+  const want = normKey(wanted);
+  const match = candidates.find((k) => normKey(k.key) === want) ?? candidates.find((k) => normKey(k.name) === want);
+  if (!match) return null;
+
+  return {
+    key: sub.key,
+    name: sub.name,
+    classKey: match.key,
+    system: sub.system,
+    description: typeof sub.description === 'string' ? sub.description : '',
+    features: sub.features,
+    ...(sub.alwaysPrepared ? { alwaysPrepared: sub.alwaysPrepared } : {}),
+    custom: { ...(sub.custom ?? {}), authorName: c.creator.name },
+  };
+}
+
 /** What kind of thing an adoption added to the character. */
-export type AdoptedKind = 'class' | 'feat' | 'effect';
+export type AdoptedKind = 'class' | 'subclass' | 'feat' | 'effect';
 
 /**
  * The single top-level "use this homebrew piece on this character" (H4/H5) — routes by content kind to the
@@ -86,6 +146,17 @@ export function adoptHomebrew(char: Character, content: HomebrewContent): { char
   if (cls) {
     const kept = (char.homebrewClasses ?? []).filter((c) => c.key !== cls.key);
     return { char: { ...char, homebrewClasses: [...kept, cls] }, adopted: 'class' };
+  }
+  // Candidates = the system's own classes plus any homebrew class already on this sheet, so a homebrew
+  // subclass OF a homebrew class resolves. Read from the registry here rather than threaded through the
+  // signature: every other converter in this file reaches for the engine it validates against.
+  const sub = homebrewToCharacterSubclass(content, [
+    ...classesForSystem(content.system).map((k) => ({ key: k.key, name: k.name })),
+    ...(char.homebrewClasses ?? []).map((k) => ({ key: k.key, name: k.name })),
+  ]);
+  if (sub) {
+    const kept = (char.homebrewSubclasses ?? []).filter((s) => s.key !== sub.key);
+    return { char: { ...char, homebrewSubclasses: [...kept, sub] }, adopted: 'subclass' };
   }
   const feat = homebrewToCharacterFeat(content);
   if (feat) {

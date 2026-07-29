@@ -3124,8 +3124,33 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       rather than ticked because "no gaps today" is a measurement, not a commitment.)*
 - [ ] **P12-3 — Close them for Pathfinder 2e.** *(4 gaps, named above.)*
 - [ ] **P12-4 — Close them for Intuitive Games.** *(4 gaps, named above.)*
-- [ ] **P12-5 — Subclass authoring, per system.** Named in the brief; today it is a `class`-shaped kind
+- [x] **P12-5 — Subclass authoring, per system.** Named in the brief; today it is a `class`-shaped kind
       with no parent binding.
+
+      **Done 2026-07-29 — and the item understated it.** "No parent binding" was true: the Studio has
+      always REQUIRED a `parentClass` on this kind, and a repo-wide search for that field found exactly
+      one hit — its own declaration. Collected from every author, read by nobody.
+
+      **But it was worse than unwired.** `homebrewToCharacterClass` accepted `kind: 'subclass'` and stored
+      the payload in `char.homebrewClasses`, so an adopted subclass became a **standalone class you take
+      levels in**: "Way of the Open Hand" sat beside Monk rather than under it. A wrong destination, not a
+      missing one.
+
+      `homebrewToCharacterSubclass` now converts the piece into a real `SubclassDefinition` with a
+      resolved `classKey`, and `adoptHomebrew` files it into `char.homebrewSubclasses` — the store the
+      level walker **already** reads via `subclassesFor(system, classKey, extra)`. So the seam existed at
+      both ends; only the middle was wrong. The whole path now works: author in the Studio → adopt via
+      `/api/dnd/homebrew/[id]/adopt` → the subclass appears under its class at the level that grants one.
+
+      **Resolution is forgiving about spelling and strict about existence.** `parentClass` is free text a
+      human typed, so "Monk", "monk" and "  Monk  " all match, against both key and name. But an
+      unresolvable parent returns **null** rather than defaulting or keeping the raw string as a key: a
+      subclass bound to the wrong class quietly gives a Wizard a Rogue's features, and a refusal is at
+      least visible. Candidates are the system's classes plus any homebrew class already on the sheet, so
+      a homebrew subclass of a homebrew class resolves too.
+
+      `homebrewToCharacterClass` no longer accepts the subclass kind at all — pinned by a test, since that
+      acceptance is precisely how the payload reached the wrong store.
 
 ## Phase 13 — The Bestiary
 
