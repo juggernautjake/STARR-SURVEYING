@@ -811,8 +811,40 @@ should skip Phase 7 entirely.
       which was linked only from `CampaignDashboard` — the branch that does not run in open-access mode, so
       in the default configuration nothing pointed at it at all.
 
-- [ ] **P4-1b — Per-row actions on the index.** Duplicate, new variant, export and delete, consolidated from
+- [x] **P4-1b — Per-row actions on the index.** Duplicate, new variant, export and delete, consolidated from
       where they are scattered across the sheet page. The index lists and finds; it does not yet manage.
+
+      **Done 2026-07-28.** `CharacterRowActions` on every card, plus a new
+      `POST /api/dnd/characters/[id]/duplicate` — the only one of the four that had no route at all.
+
+      **"New variant" is deliberately NOT on the index**, and that is a correction to the slice rather than
+      an omission. A variant is another VERSION inside one character (same row, git-like lineage, up to 20)
+      and a fork needs a **source version** — a grid card cannot say which one you meant. It stays on the
+      sheet where the VERSIONS picker shows what you are branching from. Duplicate, which makes a genuinely
+      separate character, is what the index actually needed.
+
+      **The authorization guard caught me, and it was right.** My first version of the duplicate route
+      accepted READ access, reasoning that copying someone else's public character is harmless since the new
+      row is owned by the caller. `character-mutation-authorization` flagged it. That guard's own header
+      warns its failure mode is *"loosening a guard to make a correct route pass"* — and I was weakening a
+      character-scoped write to enable a capability **nobody asked for**. P4-1b is about managing your own
+      index. Tightened to `requireCharacterWrite`; copying a public character can have its own slice and its
+      own thinking about visibility.
+
+      What the copy deliberately does NOT inherit, each for a reason: ownership (resets to the caller, or
+      you get a character you cannot delete), campaign (a duplicate would land unapproved in a roster),
+      NPC/roster role (a DM's editorial call about *that* table), and artwork (the images belong to the
+      original's P2-7 upload ledger — sharing them means deleting one character strips the other's
+      portrait).
+
+      **The card was one big `<Link>`**, so buttons inside it would have nested interactive elements inside
+      an anchor — invalid HTML, and a click on "Delete" would also navigate. Same structural bug as the P1-5
+      session banner, same fix: a `<div>` with the Link inside and the actions as its sibling. Delete is
+      hidden from a non-owner, mirroring the server rule, which meant the page also had to SELECT
+      `owner_user_id` — without it the gate silently reads false for everyone, and the button vanishes for
+      its rightful owner with nothing to indicate why.
+
+      Suite 1290 files / 18,589 tests green.
 
 - [ ] **P4-2 — Menu completeness.** *(D-3.)* The header offers five links. `/dnd/profile` is linked **only**
       from `CampaignDashboard`, the branch that does not run in open-access mode — so in the default

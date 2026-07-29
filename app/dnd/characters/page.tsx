@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
+import CharacterRowActions from '@/app/dnd/_ui/CharacterRowActions';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { characterCard, characterMatches } from '@/lib/dnd/character-card';
 import { availableSystems, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems';
@@ -29,6 +30,8 @@ interface Row {
   token_url: string | null;
   art_url: string | null;
   is_npc: boolean | null;
+  /** Needed for the per-row Delete gate (P4-1b): only the OWNER may delete, not an assigned player. */
+  owner_user_id: string | null;
   updated_at: string | null;
 }
 
@@ -53,7 +56,7 @@ export default async function MyCharactersPage({
   // theirs to open even when someone else created it.
   const { data } = await supabaseAdmin
     .from('dnd_characters')
-    .select('id, name, system, data, campaign_id, token_url, art_url, is_npc, updated_at')
+    .select('id, name, system, data, campaign_id, token_url, art_url, is_npc, owner_user_id, updated_at')
     .or(`owner_user_id.eq.${session.userId},played_by_user_id.eq.${session.userId}`)
     .order('updated_at', { ascending: false })
     .limit(300);
@@ -147,11 +150,17 @@ export default async function MyCharactersPage({
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
               {shown.map(({ row, card }) => (
-                <Link
+                // A DIV wrapping a link, not a link wrapping everything (P4-1b). The card used to be one
+                // big <Link>; putting Duplicate / Export / Delete inside it would nest interactive elements
+                // inside an anchor — invalid HTML, and a click on "Delete" would also navigate to the sheet.
+                <div
                   key={row.id}
-                  href={`/dnd/characters/${row.id}`}
                   className={styles.framedPanel}
-                  style={{ textDecoration: 'none', color: 'inherit', padding: '12px 14px', display: 'grid', gap: 6, alignContent: 'start' }}
+                  style={{ color: 'inherit', padding: '12px 14px', display: 'grid', gap: 6, alignContent: 'start' }}
+                >
+                <Link
+                  href={`/dnd/characters/${row.id}`}
+                  style={{ textDecoration: 'none', color: 'inherit', display: 'grid', gap: 6 }}
                 >
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     {row.token_url || row.art_url ? (
@@ -181,6 +190,11 @@ export default async function MyCharactersPage({
                     </span>
                   )}
                 </Link>
+                {/* Manage from here rather than only from inside the sheet (P4-1b). `canDelete` mirrors the
+                    server's rule — only the OWNER may delete, not an assigned player — so a player who was
+                    handed someone else's character is not shown a button that would refuse them. */}
+                <CharacterRowActions id={row.id} name={row.name} canDelete={row.owner_user_id === session.userId} />
+                </div>
               ))}
             </div>
           )}
