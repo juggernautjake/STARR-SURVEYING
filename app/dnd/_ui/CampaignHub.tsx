@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import Chat from './Chat'
+import RollFeed from './RollFeed'
 import Lightbox from './Lightbox'
 import type { CampaignHubData } from '@/lib/dnd/campaign-summary'
 import { systemLabel, normalizeSystem, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
@@ -425,6 +426,15 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
                 </p>
               </div>
             )}
+          </section>
+
+          {/* The table's roll feed (P3-2). Previously mounted ONLY inside the DM-facing session console, so
+              players never saw a roll history and a campaign without an active session had none at all —
+              which mattered rather more once P3-1 made sheet rolls actually arrive here. */}
+          <section className={styles.framedPanel}>
+            <div className={styles.framedPanelTop} />
+            <h2 className={styles.panelTitle}>Recent Rolls</h2>
+            <RollFeed campaignId={data.id} />
           </section>
 
           {/* Campaign chat (party + private whispers to the DM) */}

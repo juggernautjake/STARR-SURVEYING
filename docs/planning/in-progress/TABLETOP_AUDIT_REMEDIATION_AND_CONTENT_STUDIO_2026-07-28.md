@@ -228,18 +228,28 @@ should skip Phase 7 entirely.
 
 ## Phase 3 — Play at the table
 
-- [ ] **P3-1 — Sheet rolls reach the shared campaign log.** *(B-2 — critical.)* Every roll from all four
-      rollers goes into `commitRoll`, which is `setLog(...)` local state capped at 40. **Nothing posts to
-      `/api/dnd/rolls`** — the only writer is the DM's manual dice box. The route's own header comment claims
-      the opposite, which means this was intended and never wired.
-      **Design:** a fire-and-forget POST inside `commitRoll` when the character has a campaign, carrying
-      `label / formula / result / breakdown / crit / fumble` (the entry already holds all of them), then ping
-      the existing campaign realtime channel. Must not block or fail the roll animation on a network error.
-      Correct the stale route comment. **Done when:** a player's attack roll appears on the DM's feed live.
+- [x] **P3-1 — Sheet rolls reach the shared campaign log. Shipped 2026-07-28.** *(Audit B-2 — the item I
+      called the best value-per-day in the whole audit, three times, before building it.)*
+      `lib/dnd/roll-publish.ts` + one line in `commitRoll`. **Every roller funnels through `commitRoll`,
+      which is why one line fixes all four of them.** The route's own header had claimed *"Every sheet /
+      quick-sheet / quick-action / DM roll posts here"* since it was written — designed, then never wired,
+      so the DM's "shared feed" showed only rolls the DM typed in.
+      **A roll must never fail because the network did.** `publishRoll` returns `void`, not a promise, so
+      there is nothing a caller can accidentally `await` — a d20 that hangs on a timed-out POST would be a
+      worse bug than the one being fixed. Both failure paths are swallowed, and `keepalive` is set so a roll
+      made as the tab closes still reaches the table.
+      **The payload is what the log already holds** — the sheet's own breakdown doubles as the formula.
+      Inventing a second representation is how a shared feed starts disagreeing with the sheet about what
+      was rolled, which is the one thing it must never do. Rolls on a character with no campaign are not
+      published: no table, no feed.
+      The *decision* is pure and exhaustively tested; the *sending* is deliberately unobservable.
 
-- [ ] **P3-2 — The roll feed everywhere it belongs.** *(B-6.)* `RollFeed` is mounted only in `SessionConsole`,
-      which is DM-facing — so players never see a roll history and a campaign without an active session has
-      none at all. Add a compact feed to the campaign hub for all members and to the sheet's floating dock.
+- [x] **P3-2 — The roll feed where players can see it. Shipped 2026-07-28.** `RollFeed` was mounted only
+      inside the DM-facing session console, so players never saw a roll history and a campaign without an
+      active session had none at all — which matters rather more now that their own rolls arrive there. Now
+      on the campaign hub for every member.
+      **Still owed:** the same feed on the sheet's floating dock (P3-2b), so a player sees the table without
+      leaving their character.
 
 - [ ] **P3-3 — Roll statistics.** Falls out of P3-1 for almost nothing: per-player nat-20s, average d20,
       luckiest session. High delight per line.

@@ -19,6 +19,7 @@ import { resolvePreferences, DEFAULT_CAMPAIGN_PREFERENCES, type EffectivePrefere
 import { hitDiceAfterLongRest } from '@/lib/dnd/mechanics/long-rest'
 import { exhaustionD20Effect, type Edition } from '@/lib/dnd/mechanics/exhaustion'
 import type { SheetVariantKind } from '@/lib/dnd/system-variants'
+import { publishRoll } from '@/lib/dnd/roll-publish'
 
 // The no-op exhaustion effect used when auto-mechanics is OFF (Area R2) — a stable module constant so it never
 // destabilises the roll callbacks' dependency arrays.
@@ -694,7 +695,12 @@ export function CharacterProvider({
 
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     setLog((l) => [{ ...entry, id: idRef.current++ }, ...l].slice(0, 40))
-  }, [])
+    // Put it on the table's shared feed too (P3-1, audit B-2). Every roll from every roller funnels through
+    // here, which is exactly why this is the one line that fixes it — and why it must be fire-and-forget:
+    // a d20 that hangs because a POST timed out would be a worse bug than the one being fixed.
+    // `publishRoll` returns void and swallows everything, so there is nothing here to accidentally await.
+    publishRoll(entry, { characterId, campaignId, actorName: char.meta?.name })
+  }, [characterId, campaignId, char.meta?.name])
 
   const stage = useCallback(
     (entry: Omit<RollEntry, 'id'>, o: { landing: number; min: number; max: number; isD20: boolean; crit?: boolean; fumble?: boolean }) => {
