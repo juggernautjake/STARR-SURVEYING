@@ -9,6 +9,7 @@
 // switch. See lib/dnd/system-detect.ts.
 import { NextRequest, NextResponse } from 'next/server';
 import { getDndSession } from '@/lib/dnd/auth';
+import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 import { dndComplete, dndAiConfigured, DND_AI_MODEL } from '@/lib/dnd/ai';
 import { systemGroundingBlock } from '@/lib/dnd/grounding';
 import { detectOtherSystem, crossSystemInstruction } from '@/lib/dnd/system-detect';
@@ -51,6 +52,13 @@ interface ChatTurn {
 export async function POST(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+
+  // Rate limit (P2-1): this route calls a paid model. The whole /dnd API had no throttling of any
+  // kind, which with open-access signup is an unbounded cost exposure. See lib/dnd/rate-limit.ts.
+  const aiLimit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
+  if (!aiLimit.allowed) {
+    return NextResponse.json({ error: aiLimit.message }, { status: 429, headers: rateLimitHeaders(aiLimit, 'ai') });
+  }
   if (!dndAiConfigured()) {
     return NextResponse.json({ error: 'AI is not configured (missing ANTHROPIC_API_KEY).' }, { status: 503 });
   }

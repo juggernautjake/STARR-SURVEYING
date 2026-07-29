@@ -150,7 +150,32 @@ should skip Phase 7 entirely.
 
 ## Phase 2 — Safety, privacy & cost
 
-- [ ] **P2-1 — A rate limiter.** *(F-1 — critical.)* There is **no throttling anywhere** across 113 routes,
+- [x] **P2-1 — A rate limiter. Shipped 2026-07-28.** `lib/dnd/rate-limit.ts` + `seeds/456_dnd_rate_limits.sql`,
+      applied to all six AI routes and to login.
+      **Postgres, not an in-memory map.** The obvious implementation is a module-scope `Map`; on serverless
+      that is worth roughly nothing — every cold start gets a fresh one and concurrent instances each keep
+      their own, so the effective limit becomes `limit × instances`. It appears to work in development and
+      does not in production.
+      **Fixed window, not a sliding log:** one row per (bucket, subject, window) and a single upsert on the
+      hot path, at the cost of a boundary burst. For "stop someone looping an expensive endpoint" that is
+      the right trade. Old windows are swept opportunistically (~1 request in 200) rather than by a cron
+      that could silently stop running.
+      **It fails OPEN, and the file argues why:** a broken limiter must not take the tabletop API down with
+      it. A limiter is a cost-and-abuse control, not an authorization gate — and the authorization gates,
+      which fail closed, are deliberately separate from it.
+      **Login is limited on the address AND the name being attempted** (address alone misses a distributed
+      attack on one account; name alone misses one password sprayed across many), and the attempt is counted
+      **before** the password is verified — counting only failures would let an attacker holding one correct
+      credential reset their own budget.
+      Buckets: `ai` 30/hour · `login` 10/15min · `write` 300/5min. **`write` is defined but not yet applied**
+      — the AI routes and login were the exposure; broad write throttling is P2-1b.
+      *Original slice text below.*
+
+- [ ] **P2-1b — Apply the `write` bucket to ordinary write routes.** The policy exists and is tested; what
+      is left is opting the ~100 write handlers in. Low risk, mechanical, and genuinely lower value than the
+      two surfaces already covered.
+
+- [ ] ~~**P2-1 — A rate limiter.**~~ *(F-1 — critical.)* There is **no throttling anywhere** across 113 routes,
       nine of which call a paid model. Anyone can register with a 4-character name and password and loop them.
       **Design:** `lib/dnd/rate-limit.ts` — a fixed-window counter keyed on `session.userId` (falling back to
       IP for unauthenticated routes), stored in a small Postgres table so it survives the serverless

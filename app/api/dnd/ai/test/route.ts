@@ -3,11 +3,19 @@
 // (low max_tokens) so it's a cheap health check, not a feature surface.
 import { NextResponse } from 'next/server';
 import { getDndSession } from '@/lib/dnd/auth';
+import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 import { dndComplete, dndAiConfigured, DND_AI_MODEL } from '@/lib/dnd/ai';
 
 export async function GET() {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+
+  // Rate limit (P2-1): this route calls a paid model. The whole /dnd API had no throttling of any
+  // kind, which with open-access signup is an unbounded cost exposure. See lib/dnd/rate-limit.ts.
+  const aiLimit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
+  if (!aiLimit.allowed) {
+    return NextResponse.json({ error: aiLimit.message }, { status: 429, headers: rateLimitHeaders(aiLimit, 'ai') });
+  }
   if (!dndAiConfigured()) return NextResponse.json({ ok: false, error: 'AI is not configured (missing ANTHROPIC_API_KEY).' }, { status: 503 });
 
   try {

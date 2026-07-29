@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
 import { dndComplete, dndAiConfigured } from '@/lib/dnd/ai';
 
 const SYSTEM =
@@ -16,6 +17,13 @@ const SYSTEM =
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+
+  // Rate limit (P2-1): this route calls a paid model. The whole /dnd API had no throttling of any
+  // kind, which with open-access signup is an unbounded cost exposure. See lib/dnd/rate-limit.ts.
+  const aiLimit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
+  if (!aiLimit.allowed) {
+    return NextResponse.json({ error: aiLimit.message }, { status: 429, headers: rateLimitHeaders(aiLimit, 'ai') });
+  }
   if (!dndAiConfigured()) return NextResponse.json({ error: 'AI is not configured.' }, { status: 503 });
 
   const { data: sess } = await supabaseAdmin.from('dnd_sessions').select('campaign_id, title').eq('id', params.id).maybeSingle();
