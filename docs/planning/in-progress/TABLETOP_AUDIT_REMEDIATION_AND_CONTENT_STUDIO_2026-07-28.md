@@ -129,7 +129,7 @@ should skip Phase 7 entirely.
       **Done when:** a 5e character can reach all three by clicking from the sheet, a PF2 character cannot,
       and a test asserts the reachability matrix in both directions.
 
-- [ ] **P0-5 — Delete the orphaned components; restore the format preview.** *(A-1, A-2.)* `TemplateBrowser`
+- [x] **P0-5 — Delete the orphaned components; restore the format preview.** *(A-1, A-2.)* `TemplateBrowser`
       and `SheetStyleBrowser` are rendered nowhere — `SheetChrome` replaced them — while
       `format-preview.test.ts` still asserts against `TemplateBrowser`'s source, keeping dead code green.
       Delete both; move `<FormatPreview id={t.id}/>` into `SheetChrome`'s template row so players stop
@@ -137,16 +137,44 @@ should skip Phase 7 entirely.
       **Done when:** the four formats show their layout diagram in the picker, and no `_ui/*.tsx` default
       export is unreferenced (add the guard in P4-6).
 
+      **Done 2026-07-28** — shipped across P0-5 and P4-6, and only the checkbox was outstanding. Both
+      orphans are deleted, `SheetChrome:150` renders `<FormatPreview id={t.id} />` in the template row, and
+      `format-preview.test.ts` was re-pointed at `SheetChrome` with the two deleted paths pinned as
+      must-stay-gone. The guard this slice asked for is `no-orphan-components.test.ts`.
+
 ---
 
 ## Phase 1 — Quick wins (each ≤ half a day)
 
-- [ ] **P1-1 — Initiative HP for every system.** *(B-3.)* `encounters/[id]/entries` seeds HP from
+- [x] **P1-1 — Initiative HP for every system.** *(B-3.)* `encounters/[id]/entries` seeds HP from
       `c.data?.combat` — the 5e shape — so PF2 (`data.pf2e`: `ancestryHp` + `classHpPerLevel` + CON/level)
       and IG (`data.ig.hitPoints`) combatants enter the tracker with **null HP, silently**.
       **Design:** a `maxHpFor(system, data)` dispatcher beside the per-system `resolve.ts` modules; both
       systems already compute final HP, so this is wiring, not rules. **Done when:** adding a PF2 and an IG
       character to an encounter seeds correct HP, with a test per system.
+
+      **Done 2026-07-28.** `lib/dnd/combat-hp.ts` — `resolveHp(system, data)`, dispatching to `pf2MaxHp` and
+      `igMaxHp` rather than re-deriving either formula. The route now selects `system` too; without it the
+      resolver would fall back to 5e for everyone, which is the original bug wearing a new function's name.
+      Four decisions worth recording, three of them found only by reading the models rather than trusting
+      the plan:
+
+      · **PF2 stores `currentHp`, not damage-taken.** I wrote the resolver assuming `combat.damage` counted
+        up from zero. `combat.damage` is a **weapon's** damage die (`"1d8"`); PF2 characters carry
+        `combat.currentHp` like 5e. Caught by checking `model.ts` before running anything.
+      · **`system` decides, never sidecar-sniffing.** A transposed character can keep a stale `data.pf2e`
+        after switching back to 5e, so "use whichever sidecar exists" would seed the tracker from the dead
+        one. Pinned with a both-sidecars test.
+      · **A blank sheet resolves to null, not to 1 HP.** `pf2MaxHp` floors at 1 and `igMaxHp` at 0; both are
+        arithmetically right and useless as combat stats. Seeding them would put a 1-HP combatant in the
+        tracker looking like real data — null is what the route already does when it finds nothing.
+      · **`currentHp: 0` on a fresh PF2 sheet means "unset", so it seeds FULL.** Read literally it means
+        unconscious. A character joining an encounter is joining a fight, and PF2 tracks genuinely-dying
+        characters on `dyingValue`, so nothing is lost.
+
+      Scope checked, not assumed: `entries/route.ts` was the only HP-seeding caller in the codebase, and
+      `InitiativeTracker` sends `hp` only when the DM types one, so the auto-seed path is live. An explicit
+      value still wins. Suite 1274 files / 18,250 tests green; typecheck and lint clean.
 
 - [ ] **P1-2 — Currency on the PF2 and IG sheets.** *(C-3.)* `lib/dnd/currency.ts` + `Character.currencies`
       is 5e-only; neither bespoke sheet can hold a copper piece. The module is already system-agnostic in

@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
+import { resolveHp } from '@/lib/dnd/combat-hp';
+import type { CharacterSystem } from '@/lib/dnd/systems';
 
 async function encounterCampaign(encounterId: string): Promise<string | null> {
   const { data: enc } = await supabaseAdmin.from('dnd_encounters').select('session_id').eq('id', encounterId).maybeSingle();
@@ -30,14 +32,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let finalHp = hp == null ? null : Number(hp);
     let finalMax = maxHp == null ? null : Number(maxHp);
     if (characterId) {
-      const { data: ch } = await supabaseAdmin.from('dnd_characters').select('name, token_url, data').eq('id', characterId).maybeSingle();
-      const c = ch as { name: string; token_url: string | null; data?: { combat?: { currentHp?: number; maxHp?: number } } } | null;
+      // `system` is selected because HP lives in a different place per system (P1-1). Reading only
+      // `data.combat` — the 5e shape — is what put PF2 and IG combatants in the tracker with null HP.
+      const { data: ch } = await supabaseAdmin.from('dnd_characters').select('name, token_url, data, system').eq('id', characterId).maybeSingle();
+      const c = ch as { name: string; token_url: string | null; data?: unknown; system?: string | null } | null;
       if (c) {
         if (!finalName) finalName = c.name;
         if (!finalToken) finalToken = c.token_url;
-        const combat = c.data?.combat;
-        if (finalMax == null && combat?.maxHp != null) finalMax = Number(combat.maxHp);
-        if (finalHp == null && combat?.currentHp != null) finalHp = Number(combat.currentHp);
+        const resolved = resolveHp(c.system as CharacterSystem, c.data);
+        if (finalMax == null && resolved.maxHp != null) finalMax = resolved.maxHp;
+        if (finalHp == null && resolved.currentHp != null) finalHp = resolved.currentHp;
       }
     }
     if (!finalName) return NextResponse.json({ error: 'A combatant name (or character) is required.' }, { status: 400 });
