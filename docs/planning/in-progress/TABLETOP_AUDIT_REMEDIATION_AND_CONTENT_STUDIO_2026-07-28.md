@@ -311,9 +311,29 @@ should skip Phase 7 entirely.
 - [ ] **P4-5 — Lobby depth.** `MyTable` has no "＋ Character" button of its own, no Profile link, and no
       link to the library from the page body. Fix all three while P4-1 and P6-7 are in flight.
 
-- [ ] **P4-6 — An orphan-component guard.** A test asserting every default export under `app/dnd/_ui/` and
-      `app/dnd/_sheet/components/` is referenced at least once. This is the guard that would have caught
-      A-1/A-3 years earlier, and it is the cheapest insurance in this document.
+- [x] **P4-6 — An orphan-component guard. Shipped 2026-07-28.** `__tests__/dnd/no-orphan-components.test.ts`
+      — the `lib/dnd` orphan guard, applied to components. **A unit test proves a component renders; this
+      proves someone can get to it**, and this repo has repeatedly shipped the first while believing the
+      second.
+      **It found seven orphans on its first run, all real:**
+      *Deleted (superseded, left behind):* `SkinSwitch`, `LayoutSwitch`, `CampaignGallery`.
+      *Wired — the valuable half:* **`CampaignCustomPolicyToggle`**, the DM's vanilla-only switch, which
+      meant `allow_custom` has been gating content submission on every campaign while **no DM could set
+      it**; and **`PartyGallery`**, whose own header says it "mounts on the campaign page" and never did, so
+      the party roster has been unreachable since Phase D5.
+      *Exempt, each with a reason and a slice:* `SystemLibrary` (a builder surface nothing mounts —
+      the Content Studio wants exactly it), and `SystemSwitcher`.
+      **`SystemSwitcher` is the interesting one.** It is genuinely dead — retired at consolidation C3, and
+      the character page says so in a comment — but deleting it turned **four test files red**, two of which
+      (`hidden-systems`, `under-construction-gating`) read its source as a proxy for the unbuilt-system
+      gate, a real safety property. That is the `format-preview.test.ts` pattern again: a test pinning an
+      orphan. Restored and exempted rather than rushing a re-point of the gating suite while removing dead
+      code.
+
+- [ ] **P4-6b — Re-point the four tests that pin `SystemSwitcher`, then delete it.** `hidden-systems` and
+      `under-construction-gating` should assert the unbuilt-system gate against the surfaces that actually
+      ship (the VERSIONS picker, `EditFlow`, `VariantBrowser`); `mv-route` already knows the component is
+      retired and asserts against it anyway.
 
 ---
 

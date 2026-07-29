@@ -119,8 +119,10 @@ describe('the DM control', () => {
   });
 
   it('reads the SAVED value server-side rather than guessing a default', () => {
+    // Matches the COLUMN, not the exact select string: P4-6 widened it to fetch `allow_custom` alongside,
+    // and a test that breaks when a neighbouring column joins the query is testing the wrong thing.
     const page = read('app/dnd/campaigns/[id]/manage/page.tsx');
-    expect(page).toMatch(/\.select\('visibility'\)/);
+    expect(page).toMatch(/\.select\('[^']*visibility[^']*'\)/);
   });
 
   it('rolls its highlight back when a change fails to save', () => {

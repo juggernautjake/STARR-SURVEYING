@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import Chat from './Chat'
 import RollFeed from './RollFeed'
+import PartyGallery from '@/app/dnd/_sheet/components/PartyGallery'
 import Lightbox from './Lightbox'
 import type { CampaignHubData } from '@/lib/dnd/campaign-summary'
 import { systemLabel, normalizeSystem, SYSTEM_AMBIGUOUS } from '@/lib/dnd/systems'
@@ -427,6 +428,10 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
               </div>
             )}
           </section>
+
+          {/* The party at a glance (P4-6). Its own header said it "mounts on the campaign page" and it
+              never did — the roster + combined art has been unreachable since Phase D5. */}
+          <PartyGallery campaignId={data.id} />
 
           {/* The table's roll feed (P3-2). Previously mounted ONLY inside the DM-facing session console, so
               players never saw a roll history and a campaign without an active session had none at all —

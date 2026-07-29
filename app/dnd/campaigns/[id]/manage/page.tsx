@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { getDndUser, getCampaignRole, isDndOpenAccess } from '@/lib/dnd/auth';
 import CampaignPageClient from '@/app/dnd/_ui/CampaignPageClient';
 import CampaignVisibilityControl from '@/app/dnd/_ui/CampaignVisibilityControl';
+import CampaignCustomPolicyToggle from '@/app/dnd/_ui/CampaignCustomPolicyToggle';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -19,14 +20,21 @@ export default async function CampaignManagePage({ params }: { params: { id: str
   // the DM sees the state that is ACTUALLY saved on first paint instead of a default that might be wrong.
   const { data: camp } = await supabaseAdmin
     .from('dnd_campaigns')
-    .select('visibility')
+    .select('visibility, allow_custom')
     .eq('id', params.id)
     .maybeSingle();
 
   return (
     <>
       <CampaignPageClient campaignId={params.id} />
-      <div style={{ maxWidth: 960, margin: '16px auto 40px', padding: '0 12px' }}>
+      <div style={{ maxWidth: 960, margin: '16px auto 40px', padding: '0 12px', display: 'grid', gap: 16 }}>
+        {/* The vanilla-only switch (P4-6). It has existed since the IG builder work and was mounted
+            NOWHERE — so `allow_custom` gated content submission on every campaign while no DM could set it.
+            Exactly the defect the orphan guard added in this slice exists to catch. */}
+        <CampaignCustomPolicyToggle
+          campaignId={params.id}
+          initialAllow={(camp as { allow_custom?: boolean } | null)?.allow_custom !== false}
+        />
         <CampaignVisibilityControl
           campaignId={params.id}
           current={(camp as { visibility?: string } | null)?.visibility ?? null}
