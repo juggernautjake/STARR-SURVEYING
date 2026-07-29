@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offline — Starr Tabletop</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #080512; color: #f2ecff; padding: 24px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif; text-align: center;
+    }
+    .box { max-width: 420px; display: grid; gap: 12px; }
+    h1 { margin: 0; font-size: 20px; letter-spacing: 0.04em; color: #ff5fb0; }
+    p { margin: 0; font-size: 14px; line-height: 1.6; color: #a99bc9; }
+    button {
+      justify-self: center; margin-top: 4px; padding: 9px 20px; font: inherit; font-size: 13.5px;
+      background: transparent; color: #f2ecff; border: 1px solid #8b5cf6; border-radius: 8px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>No connection</h1>
+    <!-- Says what is true rather than "something went wrong". Sheets are not cached (see sw.js), so
+         promising the character is still here would be a lie the reader finds out in one tap. -->
+    <p>
+      Starr Tabletop needs a connection to load your characters and campaigns — they live on the server,
+      not on this device.
+    </p>
+    <p>Reconnect and try again; nothing you saved is lost.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>

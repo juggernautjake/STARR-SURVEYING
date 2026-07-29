@@ -2449,8 +2449,42 @@ Every slice below serves that one rule.
       **One guard worth keeping:** a test parses `vercel.json` and asserts every cron path has a route file.
       A schedule pointing at a deleted route fails silently, forever — the scheduled form of this audit's
       recurring "authored but not wired". All existing entries pass.
-- [ ] **P10-5 — Offline / PWA sheet.** Sheets are already client-rendered from one JSON blob, so the hardest
-      part of offline is already true.
+- [x] **P10-5 — Offline / PWA sheet.** *(Installable + a worker; offline SHEET DATA split to P10-5b.)*
+      Sheets are already client-rendered from one JSON blob, so the hardest part of offline is already true.
+
+      **Done 2026-07-29.** `public/dnd/manifest.webmanifest`, `public/dnd/sw.js`, an offline page, and
+      `RegisterTabletopPWA` behind `NEXT_PUBLIC_DND_PWA`.
+
+      **Most of the work is blast radius, and that is proportionate.** A service worker is the one piece of
+      front-end code that *outlives the deploy that installed it*: get it wrong and every visitor keeps the
+      broken version until they clear site data, which they will not know to do. This repo also serves a
+      real surveying business. A worker's scope cannot exceed the path it is served from, so it lives at
+      `/dnd/sw.js` — "it cannot touch the admin app" is a property of the URL rather than a promise in a
+      comment.
+
+      **Its own manifest**, because the root one is *Starr Surveying* with a `start_url` of `/admin/me`.
+      Installing from a character sheet must not put the surveying admin on someone's home screen.
+
+      **The off path does real work.** A flag that merely skips registration leaves an already-installed
+      worker running forever — the switch would turn the feature on and never off again, which is the
+      opposite of a killswitch. With the flag off it unregisters workers under *our* scope and drops caches
+      with *our* prefix, so flipping it back is a genuine rollback.
+
+      **Authenticated HTML is deliberately NOT cached, and that is the interesting refusal.** The obvious
+      "network-first, fall back to cache" gives you offline sheets and also gives a shared device somebody's
+      character still readable after they sign out, on a page that would otherwise have redirected. So
+      navigations fall back to the **offline page**, never to a cached document, and the offline page says
+      plainly that sheets live on the server — a promise the reader would disprove in one tap is worse than
+      the honest message.
+
+      **Off by default, and not browser-verified.** `NEXT_PUBLIC_DND_PWA=1` turns it on. Scoping means it
+      cannot break the business app, but "cannot break the business" is a lower bar than "verified", and a
+      worker is the wrong thing to ship on source assertions alone.
+
+- [ ] **P10-5b — Offline sheet DATA.** *(Split from P10-5.)* Caching a character for real needs a data cache
+      keyed to the signed-in user and **purged on sign-out**, or a shared device leaks a sheet to whoever
+      opens the app next. The worker refuses to cache authenticated responses today precisely so that
+      decision has to be made deliberately rather than inherited.
 - [ ] **P10-6 — An i18n passthrough.** *(G-3.)* No message catalogue anywhere. If it will ever matter, the
       cheap move now is a `t()` passthrough for new user-facing strings; retrofitting after another 100k
       lines is materially harder.

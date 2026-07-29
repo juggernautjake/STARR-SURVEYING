@@ -1,0 +1,32 @@
+{
+  "name": "Starr Tabletop",
+  "short_name": "Tabletop",
+  "description": "Character sheets, campaigns and dice for the table.",
+  "start_url": "/dnd",
+  "scope": "/dnd/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080512",
+  "theme_color": "#8b5cf6",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
