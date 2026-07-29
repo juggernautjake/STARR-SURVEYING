@@ -122,7 +122,7 @@ export default function NewCharacterForm({
           <section className={styles.framedPanel} style={{ display: 'grid', gap: 14 }}>
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Character Name * <InfoTip topic="name" /></span>
-              <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kaelen Duskbane" />
+              <input style={input} aria-label="Character name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kaelen Duskbane" />
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
@@ -187,7 +187,7 @@ export default function NewCharacterForm({
 
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Notes <InfoTip topic="notes" /></span>
-              <textarea style={{ ...input, resize: 'vertical' }} rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the files don't cover — backstory, homebrew rules, how abilities work, personality…" />
+              <textarea style={{ ...input, resize: 'vertical' }} rows={5} aria-label="Notes for the builder" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything the files don't cover — backstory, homebrew rules, how abilities work, personality…" />
             </div>
 
             <div style={{ display: 'grid', gap: 4 }}>
@@ -202,7 +202,7 @@ export default function NewCharacterForm({
 
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Style &amp; Mechanics (for the custom build) <InfoTip topic="style" /></span>
-              <textarea style={{ ...input, resize: 'vertical' }} rows={4} value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the vibe/theme you want and any special mechanics (transformations, unique resources, signature moves)…" />
+              <textarea style={{ ...input, resize: 'vertical' }} rows={4} aria-label="Style and theme" value={style} onChange={(e) => setStyle(e.target.value)} placeholder="Describe the vibe/theme you want and any special mechanics (transformations, unique resources, signature moves)…" />
             </div>
 
             {err && <p style={{ color: 'var(--hx-danger)', fontSize: 13, margin: 0 }}>✕ {err}</p>}

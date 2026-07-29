@@ -3559,3 +3559,24 @@ and could easily be mistaken for having solved this.
 `aria-label` added to the statblock grid, the ability scores (`"STR score"`, not a bare `"STR"`) and the
 saves/skills row. **Re-measured: 15 unlabelled → 3**, and those three are the file picker and two fields
 outside the statblock editor, left for a pass that can verify them properly rather than guessed at now.
+
+**Swept the pattern across the app.** The `<span>`-as-label habit was not confined to the statblock
+editor. Eleven /dnd surfaces measured for inputs with no `id`, `name`, `aria-label`, `aria-labelledby` or
+wrapping `<label>`:
+
+| surface | before | after |
+|---|---|---|
+| `/dnd/profile` (Account Security) | 3 | 0 |
+| `/dnd/characters/new` | 4 | 1 |
+| creature / weapon / class builders | 15 + 1 + 1 | 1 each (file picker) |
+| campaign page | 1 | 2 |
+| everything else | 0 | 0 |
+
+**The three password fields were the worst of it** — a password manager and a screen reader both lean on
+the accessible name, and "edit text, blank" three times in a row on a security form is the least
+forgivable place for this. Now labelled, alongside the character-creation name and its two prompt boxes.
+
+**Five remain, and they are left deliberately**: three `<select>`s and two file/message inputs whose
+surrounding markup I could not read carefully enough at this point in the session to label ACCURATELY. A
+wrong label is worse than a missing one — it tells a screen-reader user something false with confidence —
+so they are recorded here rather than guessed at.

@@ -65,9 +65,9 @@ export default function AccountSecurity() {
         <span style={label}>CHANGE PASSWORD</span>
         {/* The current password is required even though you are signed in: a session on a shared machine
             must not be enough to lock the real owner out of their own account. */}
-        <input type="password" placeholder="Current password" autoComplete="current-password"
+        <input type="password" aria-label="Current password" placeholder="Current password" autoComplete="current-password"
           value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={field} required />
-        <input type="password" placeholder="New password (at least 8 characters)" autoComplete="new-password"
+        <input type="password" aria-label="New password" placeholder="New password (at least 8 characters)" autoComplete="new-password"
           minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={field} required />
         <button className={styles.hexBtn} type="submit" disabled={pwBusy} style={{ justifySelf: 'start' }}>
           {pwBusy ? 'Changing…' : 'Change password'}
@@ -83,7 +83,7 @@ export default function AccountSecurity() {
           safe</strong>. It is shown once, works once, and generating a new one replaces the old.
         </p>
         <form onSubmit={generateCode} style={{ display: 'grid', gap: 8 }}>
-          <input type="password" placeholder="Your password" autoComplete="current-password"
+          <input type="password" aria-label="Your password, to confirm" placeholder="Your password" autoComplete="current-password"
             value={codePassword} onChange={(e) => setCodePassword(e.target.value)} style={field} required />
           <button className={styles.hexBtn} type="submit" disabled={codeBusy} style={{ justifySelf: 'start' }}>
             {codeBusy ? 'Generating…' : 'Generate a recovery code'}
