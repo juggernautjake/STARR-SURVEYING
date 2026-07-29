@@ -3953,3 +3953,26 @@ assume — since a swallowed database error usually means a column mismatch, and
 Then check the error at every `dnd_sheet_edits` insert, not just this one: this is the same
 `{ data, error }`-ignored shape that made the profile page report "0 pieces" for a missing table and the
 rate limiter fail open silently. **Third instance of that pattern today.**
+
+### FIXED — `seeds/463_dnd_sheet_edits_sources.sql` (applied 2026-07-29)
+
+`dnd_sheet_edits_source_chk` allowed only `'ai' | 'manual' | 'revert'`. It predates the library-grant
+feature, which inserts `source: 'library-grant'` deliberately — so a grant is distinguishable from a hand
+edit in the review queue. Postgres rejected every one of those rows, and the insert is fire-and-forget
+(`.then(() => {}, () => {})`), so nothing surfaced: **every DM grant to a 5e sheet has gone unaudited
+since the feature shipped.**
+
+**Widened the constraint rather than changing the code**, because the code is right and the constraint is
+stale. Rewriting the route to say `'manual'` would make a DM's grant indistinguishable from an edit the
+character's own player made by hand — on the one path where someone else reaches into a player's sheet.
+That distinction is what the audit trail is FOR; erasing it to satisfy a CHECK would be fixing the symptom
+by deleting the evidence. `ig-edit` was added at the same time, ahead of the known IG-history gap.
+
+**Verified end to end after applying:** grant → `batchId` → `revert-batch` → `{ ok: true, reverted: 1 }`,
+and `dnd_sheet_edits` now shows `library-grant=1`. The revert also removed the test condition, so the
+character is clean.
+
+**The pattern, for the third time today:** a swallowed `{ data, error }`. It made the profile page report
+"0 pieces" for a missing table, made the rate limiter fail open invisibly, and hid this. A sweep of
+`app/api/dnd` writes for ignored errors is worth its own slice — the failure mode is always the same, and
+always silent.
