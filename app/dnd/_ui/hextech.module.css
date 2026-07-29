@@ -1086,6 +1086,28 @@ select.input {
 
 /* JumpNav pills — each in-page index link is a distinct bordered chip with a ◆ bullet, so items read as
    separate rather than a run of text (owner 2026-07-17). */
+/* The library's in-page index (P11-8). Sticky for the same reason `.pf2Nav` is: these pages are enormous
+   — Pathfinder 2e measures 15,204px, eighteen viewports — and an index that scrolls away is only usable
+   from the very top. `top` clears the site header, and the near-opaque fill stops rules text showing
+   through the pills as it passes underneath.
+
+   `--hx-panel-rgb` with the old literal behind it, NOT a bare `rgba(1,10,19,0.4)`: that is the exact
+   mistake P11-4 found in `.pf2Nav`, where a hardcoded navy met skin-clamped text and measured 2.20:1.
+   The library is always dark chrome today, so this changes nothing now — it just cannot become that bug. */
+.jumpNav {
+  position: sticky;
+  top: 52px;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--hx-line);
+  background: rgba(var(--hx-panel-rgb, 1, 10, 19), 0.94);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
 .jumpNavItem {
   display: inline-flex;
   align-items: center;
@@ -1111,6 +1133,43 @@ select.input {
   color: var(--hx-gold-3);
   border-color: var(--hx-gold-1);
   background: rgba(212, 175, 55, 0.12);
+}
+
+/* TOUCH PARITY (P11-8). These pills measured 28px tall — fine for a mouse, under the 44px minimum this app
+   already applies to its own hub actions, and this index is the primary way to navigate a page eighteen
+   screens long on a phone. Raised only for a COARSE pointer: 44px pills on a desktop would turn a compact
+   index into a wall of buttons, and the problem being solved is a fingertip, not a cursor. */
+@media (pointer: coarse) {
+  .jumpNavItem {
+    min-height: 44px;
+    padding: 4px 12px;
+  }
+}
+
+/* ONE SWIPEABLE ROW ON A PHONE, not a wrapped block. Measured at 390px: fifteen pills wrapped to nine
+   rows and the bar stood **351px** tall — 42% of an 844px viewport. Sticky made that permanent, which is
+   strictly worse than an index that scrolls away: it takes half the screen from the rules you came to
+   read. Wrapping is right on a desktop, where the same fifteen pills take two rows.
+
+   So on a narrow screen it becomes a horizontally scrolled strip — the ordinary mobile idiom for a long
+   tab index, ~44px tall and swipeable. `-webkit-overflow-scrolling` keeps the momentum feel on iOS, and
+   `scrollbar-width: none` hides a bar that would otherwise eat a third of the row's height. This is also
+   why the overflow detector has to ignore scroll containers: this strip is SUPPOSED to be wider than the
+   screen. */
+@media (max-width: 640px) {
+  .jumpNav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 10px;
+  }
+  .jumpNav::-webkit-scrollbar {
+    display: none;
+  }
+  .jumpNavItem {
+    flex: 0 0 auto;
+  }
 }
 .siteNav {
   /* Dropdown panel under the toggle — hidden until the <details> is open, on every screen size. */

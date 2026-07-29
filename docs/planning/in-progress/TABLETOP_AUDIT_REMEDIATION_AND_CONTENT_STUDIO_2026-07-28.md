@@ -2949,8 +2949,50 @@ variance rather than one look with different colours.
       cannot fail prints exactly what a passing check prints. It injects a real 900px block (caught) plus a
       closed `<details>` and a `position: fixed` element (both correctly ignored), on a real page.
       `baseline 0 · +real 1 · +decoys 1 → PASS`.
-- [ ] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
+- [x] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
       brief calls it out specifically for both PC and mobile.
+
+      **Done 2026-07-29.** The index existed; it just could not be reached. Measured on
+      `/dnd/library/pathfinder2e`: the page is **15,204px — eighteen viewports** — and `JumpNav` was
+      `position: relative`, so the fifteen-pill index was gone after the first screen. A table of contents
+      in a book with the pages glued shut. Three fixes, one per clause of the item:
+
+      · **Sticky.** `.jumpNav` now sticks below the site header, like the sheets' `.pf2Nav` — which was
+        already sticky. This component was the one that was not.
+      · **Touch parity.** The pills measured **28px**; the app's own hub actions use 44. Raised under
+        `@media (pointer: coarse)` only — the problem is a fingertip, and 44px pills on a desktop turn a
+        compact index into a wall of buttons.
+      · **Keyboard parity.** Jumping now moves FOCUS to the section, not just the scroll. Without it the
+        page moves but focus stays on the link, so the next Tab carries on through the index instead of
+        entering the section the user just asked for.
+
+      **Sticky made a second bug, which is the interesting part.** At 390px the fifteen pills wrapped to
+      **nine rows — 351px, 42% of an 844px viewport** — and sticky made that permanent. That is strictly
+      *worse* than an index that scrolls away: it takes half the screen from the rules you came to read.
+      Under 640px it is now a single horizontally-scrolled strip, ~59px and swipeable — the ordinary
+      mobile idiom, and the reason the overflow detector must ignore scroll containers. Desktop keeps
+      wrapping: 123px, 14%, all fifteen visible.
+
+      **And a third: a sticky bar hides what you jump to.** Chasing that cost more than the rest of the
+      slice combined. Hand-rolled `window.scrollTo` arithmetic landed every target at y=16 — behind a bar
+      whose bottom edge is 111 — while the values it fed on measured correctly at click time (sticky top
+      52, height 59 → offset 125). Two wrong theories on the way (a null `useRef`; something re-scrolling
+      afterwards) were each disproved by measurement before being abandoned. The fix was to stop doing the
+      maths: set `scroll-margin-top` from the bar's measured geometry and let `scrollIntoView` apply it —
+      the one mechanism the browser already implements for exactly this. All targets now land at 125,
+      clear of the bar, focus moved.
+
+      **One test was passing for the wrong reason and had to be rewritten.** `jump-nav.test.ts` asserted
+      the source contained `scrollIntoView`; when the mechanism changed the assertion still passed,
+      because the only remaining occurrence was in a comment explaining the removal. It now strips
+      comments and asserts the guarantee — *the target is scrolled to* — rather than one spelling of it.
+      This is the seventh time in this pass a test has matched a file's own prose.
+
+      Verified: `/dnd/library` and all three system pages clean at 360/390/768.
+
+      Also fixed `audit-mobile`'s summary line, which counted navigation failures as overflow — "12
+      page/width combination(s) with real overflow" when twelve pages had simply failed to load sends the
+      next reader hunting a CSS bug that was never measured.
 - [x] **P11-9 — The profile page.** Named in the brief. Identity, characters, campaigns, content, activity.
 
       **Done 2026-07-29.** The page was 22 lines: a display-name field, an avatar picker and a password

@@ -65,6 +65,7 @@ if (!SESSION) console.log('(no --cookie / DND_SESSION — measuring SIGNED-OUT p
 
 const browser = await chromium.launch();
 let failures = 0;
+let errors = 0;
 
 // `--self-test` — CAN THIS PROBE STILL FAIL? The detector got stricter twice (scroll containers, then
 // closed `<details>` and inline union rects), and each time the honest reading of "no overflow found"
@@ -132,7 +133,10 @@ for (const width of WIDTHS) {
         }
       }
     } catch (e) {
-      failures += 1;
+      // Counted SEPARATELY from overflow. A navigation timeout is "this page did not load" — usually a
+      // wedged dev server — and reporting it in the same breath as a layout defect sends the next person
+      // hunting for a CSS bug that was never measured. The exit code still fails; the sentence is honest.
+      errors += 1;
       console.log(`  ERROR ${path} — ${e.message.split('\n')[0]}`);
     }
   }
@@ -141,4 +145,5 @@ for (const width of WIDTHS) {
 
 await browser.close();
 console.log(failures ? `\n${failures} page/width combination(s) with real overflow.` : '\nNo real overflow found.');
-process.exitCode = failures ? 1 : 0;
+if (errors) console.log(`${errors} page/width combination(s) FAILED TO LOAD — a load failure, not a layout result.`);
+process.exitCode = failures || errors ? 1 : 0;
