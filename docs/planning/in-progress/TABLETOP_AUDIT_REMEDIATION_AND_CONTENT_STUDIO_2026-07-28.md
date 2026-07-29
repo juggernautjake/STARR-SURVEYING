@@ -291,8 +291,35 @@ should skip Phase 7 entirely.
       The control is DM-only; the banner is for **every** member, since knowing when to show up is the one
       scheduling fact a player needs. Suite 1278 files / 18,311 tests green; typecheck and lint clean.
 
-- [ ] **P1-6 — One upload-limit module.** *(F-6.)* Six different ceilings (5/8/12/15/20/25 MB) hard-coded
+- [x] **P1-6 — One upload-limit module.** *(F-6.)* Six different ceilings (5/8/12/15/20/25 MB) hard-coded
       across eight routes. One constants module; keep the per-route values, stop duplicating them.
+
+      **Done 2026-07-28.** The count was understated: **seven distinct values across twelve routes**, and
+      two of those routes were added *by this audit* — the duplication was still growing while the finding
+      sat open. `lib/dnd/upload-limits.ts` now holds all of it.
+
+      **Named by PURPOSE, not by size.** `AVATAR` / `IMAGE` / `DOCUMENT` / `HANDOUT` / `MEDIA` / `AUDIO` /
+      `LARGE_FILE`. Three routes share `LARGE_FILE` because they take big arbitrary files for the same
+      reason, two share `HANDOUT` because they show things mid-session. That is what makes "raise the map
+      limit" a one-line change rather than a grep-and-hope. The values themselves stay distinct, per the
+      slice's own instruction — an avatar and a battle map should not share a budget.
+
+      **The limit was written TWICE per route**, which the finding did not mention: once as arithmetic and
+      once as English ("Image must be 8 MB or smaller."). The prose copy is the one that goes stale
+      silently, because no test reads an error string — so `tooLargeMessage(MAX_BYTES, 'Image')` now builds
+      it. The wording is preserved verbatim; the /dnd routes already agreed on it, and inventing new copy
+      inside a refactor is how a consolidation becomes unreviewable.
+
+      **The risk in this slice was re-tuning while consolidating**, so a test pins every one of the twelve
+      routes to the exact byte value it enforced beforehand, and another fails if any route reverts to
+      inline `N * 1024 * 1024`. Also pinned as intent: the two bulk routes (`characters/import`,
+      `characters/[id]/uploads`) deliberately SKIP oversized files rather than failing the whole upload,
+      which someone tidying for consistency would otherwise "fix".
+
+      Not touched: the admin-side ceilings (`app/api/admin/**`, 25/5/8/10/40/50 MB). Out of this audit's
+      scope, and worth their own module rather than being annexed into a /dnd one.
+
+      Suite 1279 files / 18,352 tests green; typecheck and lint clean.
 
 ---
 

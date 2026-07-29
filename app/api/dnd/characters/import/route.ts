@@ -4,6 +4,7 @@
 // creates an "under construction" character on the generic sheet owned by the caller.
 // The AI ingestion (M4) runs next to populate the sheet from these uploads.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
@@ -12,7 +13,7 @@ import { normalizeSystem } from '@/lib/dnd/systems';
 import { normalizeBuildMode } from '@/lib/dnd/build-modes';
 
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
+const MAX_BYTES = UPLOAD_LIMITS.LARGE_FILE;
 const ART_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 function extFromName(name: string, fallback: string): string {

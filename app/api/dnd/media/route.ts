@@ -3,6 +3,7 @@
 //   ?campaignId=…   → the campaign's images (members only) — powers the campaign gallery
 // Newest first. Art/token uploads (D1/D2) already write dnd_media rows.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
@@ -15,7 +16,7 @@ import { storageKeyFromUrl } from '@/lib/dnd/media-storage';
 // private — players never see it. Everything else is player-visible on the campaign hub.
 const DM_ONLY_TAG = 'dm-only';
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.MEDIA;
 const ALLOWED: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 const KINDS = new Set(['art', 'token', 'map', 'handout', 'reveal', 'avatar']);
 
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Image must be 15 MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
     const mediaKind = KINDS.has(kindRaw) ? kindRaw : 'art';
 
     await ensureStorageBucket(BUCKET, { public: true });

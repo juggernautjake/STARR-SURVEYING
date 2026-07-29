@@ -3,13 +3,14 @@
 // character's art_url/token_url at it, and records a dnd_media row (which powers
 // the galleries in D4–D6). DELETE clears the pointer. Owner/DM only.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
 import { getCharacterAccess } from '@/lib/dnd/characters';
 
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_BYTES = UPLOAD_LIMITS.IMAGE;
 const ALLOWED: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Image must be 8 MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
     await ensureStorageBucket(BUCKET, { public: true });
     const key = `characters/${params.id}/${kind}/${crypto.randomUUID()}.${ext}`;

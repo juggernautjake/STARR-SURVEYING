@@ -2,12 +2,13 @@
 // reusable images/maps that persist across sessions and feed reveals (H1/H2) + the
 // DM hotbar (H4). POST uploads a handout (DM); GET lists the campaign's handouts.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 12 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.HANDOUT;
 const ALLOWED: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Image must be 12 MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
     await ensureStorageBucket(BUCKET, { public: true });
     const key = `handouts/${campaignId}/${crypto.randomUUID()}.${ext}`;

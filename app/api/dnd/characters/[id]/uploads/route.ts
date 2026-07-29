@@ -4,12 +4,13 @@
 // the character. Everything here is what the AI reads when it builds the sheet out
 // (POST .../ingest). Owner/DM gated.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getCharacterAccess } from '@/lib/dnd/characters';
 
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB per file
+const MAX_BYTES = UPLOAD_LIMITS.LARGE_FILE;
 const ART_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 function extFromName(name: string, fallback: string): string {

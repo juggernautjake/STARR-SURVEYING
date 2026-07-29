@@ -8,6 +8,7 @@
 // POST replaces the image; DELETE removes it. Creator-only, through the SAME `canWriteHomebrew` the rest of
 // the Studio uses — a piece being publicly readable never makes it publicly editable.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession } from '@/lib/dnd/auth';
@@ -17,7 +18,7 @@ import { storageKeyFromUrl } from '@/lib/dnd/media-storage';
 const BUCKET = 'dnd-media';
 // 8 MB, matching character art (`characters/[id]/media`). Content art is shown at the same sizes on the
 // same kinds of card, so a different ceiling here would be an arbitrary difference to explain later.
-const MAX_BYTES = 8 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.IMAGE;
 const ALLOWED: Record<string, string> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif',
 };
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!(file instanceof File)) return NextResponse.json({ error: 'No image provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Image must be 8 MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
     await ensureStorageBucket(BUCKET, { public: true });
 

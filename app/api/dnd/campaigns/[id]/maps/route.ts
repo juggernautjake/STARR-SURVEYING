@@ -5,12 +5,13 @@
 //   PATCH          → rename / publish toggle (DM). body: { id, name?, published? }
 //   DELETE ?id=…   → remove a map (DM); best-effort storage cleanup for image maps.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 
 const BUCKET = 'dnd-media';
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.LARGE_FILE;
 const IMG_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 // Light columns for list views (omit the potentially-large `data` blob).
 const LIST_COLS = 'id, campaign_id, name, kind, image_url, published, created_at, updated_at';
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
   const ext = IMG_EXT[file.type];
   if (!ext) return NextResponse.json({ error: 'Use a PNG, JPG, WEBP, or GIF image.' }, { status: 400 });
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Image must be 25 MB or smaller.' }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Image') }, { status: 400 });
 
   await ensureStorageBucket(BUCKET, { public: true });
   const key = `campaign/${params.id}/maps/${crypto.randomUUID()}.${ext}`;

@@ -9,6 +9,7 @@
 // PDF's layout carries meaning (a level table is a table), and OCR-to-plaintext is exactly where a
 // twenty-level ladder turns into mush.
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import { getDndSession } from '@/lib/dnd/auth';
 import { dndCompleteJSON, dndAiConfigured } from '@/lib/dnd/ai';
 import { checkRateLimit, rateLimitSubject, rateLimitHeaders } from '@/lib/dnd/rate-limit';
@@ -20,7 +21,7 @@ import {
 
 // Anthropic's own request ceiling is what binds here, not our storage — the file is never stored, it is
 // read once and discarded.
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.DOCUMENT;
 
 export async function POST(req: NextRequest) {
   const session = getDndSession();
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!mode) {
     return NextResponse.json({ error: 'Use a PDF, an image, or a text file.' }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) return NextResponse.json({ error: 'File must be 10 MB or smaller.' }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'File') }, { status: 400 });
 
   const limit = await checkRateLimit('ai', rateLimitSubject({ userId: session.userId }));
   if (!limit.allowed) {

@@ -2,12 +2,13 @@
 // DM-only multipart upload of an SFX/music clip into the dnd-audio bucket + a dnd_sounds
 // row. Reuses the verified handout upload path (ensureStorageBucket + storage.upload).
 import { NextRequest, NextResponse } from 'next/server';
+import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 
 const BUCKET = 'dnd-audio';
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = UPLOAD_LIMITS.AUDIO;
 const ALLOWED: Record<string, string> = {
   'audio/mpeg': 'mp3',
   'audio/mp3': 'mp3',
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
     const ext = ALLOWED[file.type];
     if (!ext) return NextResponse.json({ error: 'Use an MP3, WAV, OGG, WEBM, M4A, or AAC file.' }, { status: 400 });
-    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'Audio must be 20 MB or smaller.' }, { status: 400 });
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: tooLargeMessage(MAX_BYTES, 'Audio') }, { status: 400 });
 
     // Confirm the tab belongs to this campaign.
     const { data: tab } = await supabaseAdmin.from('dnd_soundboard_tabs').select('id').eq('id', String(tabId)).eq('campaign_id', params.id).maybeSingle();
