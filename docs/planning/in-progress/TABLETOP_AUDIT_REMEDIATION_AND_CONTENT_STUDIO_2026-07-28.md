@@ -2740,6 +2740,12 @@ variance rather than one look with different colours.
       The screenshot half of this item — every format × system × skin × theme rendered for visual review —
       is **not** built; this covers layout overflow only. Split as **P11-1b**.
 
+      **⚠ Superseded by P11-7, which found this measurement was taken SIGNED OUT.** The tool sent no
+      session cookie, so all eight pages rendered as a logged-out visitor sees them — a hub with no
+      characters, a profile that is a login prompt. The finding was not wrong, it was just about much
+      thinner pages than the claim implied. The detector also lacked two exclusions it needed. Re-measured
+      under P11-7 across 18 routes, signed in, with a self-tested detector.
+
 - [x] **P11-1b — The visual contact sheet.** *(Split from P11-1.)* Render every format × system × skin ×
       theme to an image grid so the *look* can be judged, not just the geometry. Overflow is machine-checkable
       and now is; "does this theme look good on this skin" is not, and P11-2/3/4 need something to look at.
@@ -2917,7 +2923,32 @@ variance rather than one look with different colours.
       earlier in the same session**, and the clamp in `useFloatingDock` had already solved it. Recorded
       rather than quietly dropped: an item closed with evidence is worth more than one that disappears.
 
-- [ ] **P11-7 — Mobile: the rest of the app.** Hub, campaign, library, Studio, builder, admin-adjacent pages.
+- [x] **P11-7 — Mobile: the rest of the app.** Hub, campaign, library, Studio, builder, admin-adjacent pages.
+
+      **Done 2026-07-29 — 18 routes × 4 widths (360/390/414/768), signed in: no real overflow anywhere.**
+
+      **Two corrections to how this was being measured, and the first invalidates P11-1's earlier claim.**
+
+      · **It was never sending a session cookie.** Every page was therefore rendered for a signed-OUT
+        visitor: the hub as a marketing shell rather than your characters, `/dnd/profile` as a login
+        prompt, a sheet read-only with no pickers. "No real overflow anywhere" was a true statement about
+        pages with far less on them than a real user sees. `--cookie` / `DND_SESSION` added; the sweep
+        above is the signed-in one, and it also covers 18 routes instead of 8.
+      · **The detector reported a page as broken when it is not.** `/dnd/library/intuitive-games` showed a
+        521px span at 390px. It was **a closed `<details>`** ("Calm — Enchantment") — which still yields
+        layout boxes — **and** an inline element, where `getBoundingClientRect()` returns the union of
+        line boxes rather than anything that paints. The span's eleven individual line rects all sat
+        inside its 297px parent. Two of the method doc's documented lies, on one element, either of which
+        alone would have sent me editing a healthy page.
+
+      The detector now lives in **`scripts/lib/overflow.mjs`**, shared by `audit-mobile` and
+      `contact-sheet`. They had separate copies and only one had learned the whole lesson — the same
+      shape as the two token derivations in `skin-tokens.ts`, and the same fix: one definition.
+
+      **`--self-test` proves the probe can still fail**, which is the point of the exercise: a check that
+      cannot fail prints exactly what a passing check prints. It injects a real 900px block (caught) plus a
+      closed `<details>` and a `position: fixed` element (both correctly ignored), on a real page.
+      `baseline 0 · +real 1 · +decoys 1 → PASS`.
 - [ ] **P11-8 — The library, navigable.** Sticky filters, a real index, keyboard and touch parity — the
       brief calls it out specifically for both PC and mobile.
 - [ ] **P11-9 — The profile page.** Named in the brief. Identity, characters, campaigns, content, activity.

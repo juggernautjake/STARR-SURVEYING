@@ -28,6 +28,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectOverflow } from './lib/overflow.mjs';
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 
@@ -320,18 +321,10 @@ for (const skin of axes.skins) {
     });
 
     // Overflow is measured per cell too: a format can be fine at one skin and broken at another, and this
-    // is the cheapest place to notice.
-    const overflow = await page.evaluate(() => {
-      const inScroller = (el) => { let p = el.parentElement; while (p && p !== document.documentElement) { if (/(auto|scroll)/.test(getComputedStyle(p).overflowX)) return true; p = p.parentElement; } return false; };
-      let n = 0;
-      document.querySelectorAll('*').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (!r.width || !r.height) return;
-        if (getComputedStyle(el).position === 'fixed') return;
-        if (r.right > window.innerWidth + 2 && !inScroller(el)) n += 1;
-      });
-      return n;
-    });
+    // is the cheapest place to notice. Uses the SHARED detector — this file's own copy knew about scroll
+    // containers and `position: fixed` but not about closed `<details>` or inline union rects, so the two
+    // scripts disagreed about the same page.
+    const { count: overflow } = await page.evaluate(detectOverflow);
     shots.push({ ...cell, file: path.basename(file), overflow, tokens, layout, contrast });
     const notes = [
       overflow ? `OVERFLOW ${overflow}` : '',
