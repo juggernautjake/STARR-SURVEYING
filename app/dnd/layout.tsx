@@ -4,6 +4,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import DndHeader from './_ui/DndHeader';
+import CommandPalette from './_ui/CommandPalette';
 import DndFooter from './_ui/DndFooter';
 import styles from './_ui/hextech.module.css';
 import './_sheet/styles/fonts.css'; // every skin's webfonts, loaded on all /dnd pages (CS-1) so PF2/IG restyle too
@@ -25,6 +26,10 @@ export default async function DndLayout({ children }: { children: ReactNode }) {
   return (
     <div className={styles.siteChrome}>
       <DndHeader userName={session?.displayName ?? null} />
+      {/* ⌘K anywhere in /dnd (P4-4). Mounted for SIGNED-IN users only: every source it searches is scoped
+          to the caller, so a signed-out visitor would open it to an endpoint that 401s. It renders no DOM
+          and fetches nothing until summoned — one keydown listener is its whole resting cost. */}
+      {session && <CommandPalette />}
       <main className={styles.siteMain}>{children}</main>
       <DndFooter />
     </div>

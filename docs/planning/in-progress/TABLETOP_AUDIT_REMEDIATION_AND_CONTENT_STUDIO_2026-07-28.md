@@ -921,9 +921,39 @@ should skip Phase 7 entirely.
       (…)` guard became `node: canWrite ? (…) : null`, which is slightly stronger, since `SheetSections`
       drops a null section entirely and a read-only viewer now gets no Build tab at all.
 
-- [ ] **P4-4 — A ⌘K command palette.** *(D-6.)* The library has excellent search; nothing else does. One
+- [x] **P4-4 — A ⌘K command palette.** *(D-6.)* The library has excellent search; nothing else does. One
       palette spanning characters, campaigns, NPCs, custom content and library articles, reusing the
       library's keyword engine as the index.
+
+      **Done 2026-07-29 — Phase 4 complete.** `lib/dnd/palette.ts` (pure ranking), `GET /api/dnd/search`,
+      and `CommandPalette` mounted in the /dnd layout for signed-in users.
+
+      **The slice said "reusing the library's keyword engine as the index", and that is only half right.**
+      `searchLibrary` scores long PROSE by keyword coverage — correct for a rules article, wrong for a name.
+      Typing "vex" must put the character Vex first, not a paragraph that happens to say "vexing" three
+      times. So library hits still come from `searchLibrary` (they *are* prose) while entities are ranked by
+      how well the query matches a NAME, in coarse tiers: exact › prefix › word-prefix › substring, with
+      hidden keywords scoring below every title match so a character named "Rogue" outranks every rogue.
+
+      **Browser QA caught a real quality bug that no test would have.** My first version passed `hit.body`
+      as an article's keywords, so any substring anywhere in its prose matched. Searching **"orin"** returned
+      *Restoring Touch*, *Spell-Storing Item* and *Confused* above the character actually named Orin —
+      **seven rows of noise under one right answer**. A palette that returns plausible-looking rubbish is
+      worse than one that returns less, because you stop trusting the first result. Library items are now
+      scored on their name; full-text belongs in the library page, which is built for reading rather than
+      jumping. Re-measured live: 8 rows → 3, character first.
+
+      **Known and accepted:** two substring rows survive that query ("Rest**orin**g", "St**orin**g"), because
+      the lowest tier matches mid-word — which is also what lets "mere" find "Sallowmere". Tightening it to
+      word boundaries would lose more than it gains, so it stays, noted rather than silently tuned.
+
+      **Scoping is the route's real job.** Characters are owned-or-played (not every character in your
+      campaigns — a DM should not have every player's sheet in their palette), campaigns come from
+      membership, content is yours-or-published, and the library is public. A missing `dnd_homebrew` table
+      (seed 455) degrades that one source instead of failing the search.
+
+      The palette renders no DOM and issues no fetch until summoned, and guards the classic search race
+      where a slow response for "v" overwrites the results for "vex".
 
 - [x] **P4-5 — Lobby depth.** `MyTable` has no "＋ Character" button of its own, no Profile link, and no
       link to the library from the page body. Fix all three while P4-1 and P6-7 are in flight.
