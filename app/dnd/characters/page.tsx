@@ -134,7 +134,13 @@ export default async function MyCharactersPage({
           </div>
 
           <section className={styles.framedPanel} style={{ padding: '10px 14px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div className={styles.framedPanelTop} />
+            {/* `flex: '0 0 100%'` is load-bearing, and its absence IS the "SYSTEM // is overlapping the
+                edge" bug. `.framedPanelTop` carries `margin: -18px -18px 14px` so a 2px gold bar can
+                bleed to the edges of a BLOCK panel — but this section overrides `display: flex`, which
+                makes the bar a flex ITEM. Its negative side margins then subtract 36px from the line and
+                drag the next item, the SYSTEM // label, left past the padding and across the border.
+                Given its own full-width line it decorates the top as intended and pulls on nothing. */}
+            <div className={styles.framedPanelTop} style={{ flex: '0 0 100%' }} />
             <span style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--hx-gold-2)', minWidth: 62 }}>SYSTEM //</span>
             {chip(`All · ${cards.length}`, withSystem(), !systemFilter)}
             {availableSystems().map((s) => chip(`${s.name} · ${countFor(s.key)}`, withSystem(s.key), systemFilter === s.key))}

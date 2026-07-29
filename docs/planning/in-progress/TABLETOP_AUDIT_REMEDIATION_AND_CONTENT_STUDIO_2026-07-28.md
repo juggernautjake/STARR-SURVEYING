@@ -3611,3 +3611,31 @@ they get the skin's colours (via `skinHxVars`) and none of its character. Identi
 
 **Do the audit in step 1 first.** Widening a selector that assumes 5e markup produces rules that match
 nothing, which looks identical to rules that were never added.
+
+### "SYSTEM //" overlapped the panel border (owner report, 2026-07-29)
+
+**Diagnosed from source after two failed browser measurements** — the session had navigated away both
+times, and the numbers I did capture (label at x 78, parent at x 93) were from a stale page. The CSS
+settled it in one look.
+
+`.framedPanelTop` carries `margin: -18px -18px 14px` so a 2px gold bar can bleed to the edges of a
+**block** panel. The characters filter row overrides `display: flex`, which makes that bar a flex **item**:
+its negative side margins subtract 36px from the line and drag the next item — the `SYSTEM //` label —
+left past the padding and across the border. Exactly what the screenshot showed.
+
+Fixed with `flex: '0 0 100%'` on that one instance, so the bar takes its own full-width line, decorates
+the top as intended, and pulls on nothing.
+
+**Checked for recurrences:** 61 uses of `framedPanelTop` across /dnd, and no other sits directly inside a
+`display: flex` panel — so this was the only instance of the trap, not a pattern.
+
+## QUEUED — campaign thumbnail (owner request, 2026-07-29)
+
+> *"Please make it so that the dm can add a main image to be the campaign thumbnail."* … *"This should
+> show up everywhere the campaign shows up to be opened more or less."*
+
+**Not started.** Needs a column on `dnd_campaigns` (a seed), an upload path reusing the existing image
+handling (`dnd_storage_objects` landed with seed 459), a DM-gated control on the manage page, and then the
+thumbnail rendered at every place a campaign is listed — the hub's campaign cards, `CampaignsHome`, the
+character rows that name a table, and the campaign page header. The second sentence is the important half:
+a thumbnail added in one place and rendered in one place is the "authored but not wired" shape again.
