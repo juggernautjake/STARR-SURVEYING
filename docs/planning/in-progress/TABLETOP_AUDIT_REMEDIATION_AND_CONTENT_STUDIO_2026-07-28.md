@@ -346,9 +346,36 @@ should skip Phase 7 entirely.
       — the AI routes and login were the exposure; broad write throttling is P2-1b.
       *Original slice text below.*
 
-- [ ] **P2-1b — Apply the `write` bucket to ordinary write routes.** The policy exists and is tested; what
+- [x] **P2-1b — Apply the `write` bucket to ordinary write routes.** The policy exists and is tested; what
       is left is opting the ~100 write handlers in. Low risk, mechanical, and genuinely lower value than the
       two surfaces already covered.
+
+      **Done 2026-07-28 for the ELEVEN UPLOAD ROUTES**, which is deliberately not all 124 write handlers —
+      see the scope note below. `enforceRateLimit(bucket, userId)` in `lib/dnd/rate-limit.ts` makes opting
+      in one line and returns **a ready 429 or null**, so the call site is a guard clause; a boolean would
+      let a caller forget to `return` and sail past its own refusal.
+
+      **"Low risk, mechanical" was wrong, and the way it went wrong is the lesson.** The scripted edit added
+      the import to eleven routes and the guard to **three** — the regex assumed LF and eight of the files
+      are CRLF. Typecheck passed (an unused import is not an error), lint passed, every route still worked,
+      and eight upload endpoints were completely unthrottled while looking done. Caught by checking each
+      file for the guard rather than for the import. That check is now `every importer also GUARDS`, plus a
+      second test that every `const limited = …` has a matching `if (limited) return limited;` — a
+      half-applied security control is invisible in every other signal.
+
+      Scope, chosen rather than defaulted: **uploads first, because abuse there costs stored bytes**, not
+      just rows. The remaining ~113 write handlers are row-creating and cheap, and blanket-wrapping them is
+      a large mechanical diff with real regression surface (each has its own auth idiom — three of the
+      eleven here already needed bespoke handling: `auth` instead of `session`, and `CharacterAccess`, which
+      carries no user id at all). **P2-1c** if the row-creating routes are ever wanted.
+
+      One test of mine was wrong and fixed rather than loosened: "auth precedes throttle" took `Math.max` of
+      two markers, which compared the throttle against an `res.status` in a *different handler* further down
+      the same file. Earliest marker, not latest.
+
+      **Inert until seed 456 is applied** — `checkRateLimit` fails OPEN when `dnd_rate_limits` is missing,
+      by design, so nothing breaks in the meantime and nothing throttles either. Suite 1280 files / 18,380
+      tests green.
 
 - [ ] ~~**P2-1 — A rate limiter.**~~ *(F-1 — critical.)* There is **no throttling anywhere** across 113 routes,
       nine of which call a paid model. Anyone can register with a 4-character name and password and loop them.

@@ -3,6 +3,7 @@
 // sends as a message's image_url (the message row is the record — no dnd_media
 // row needed here). Kept small since chat images are ephemeral attachments.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -20,6 +21,10 @@ const ALLOWED: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
 
   try {
     const form = await req.formData();

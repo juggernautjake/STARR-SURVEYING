@@ -4,10 +4,12 @@
 // the character. Everything here is what the AI reads when it builds the sheet out
 // (POST .../ingest). Owner/DM gated.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { getCharacterAccess } from '@/lib/dnd/characters';
+import { getDndSession } from '@/lib/dnd/auth';
 
 const BUCKET = 'dnd-media';
 const MAX_BYTES = UPLOAD_LIMITS.LARGE_FILE;
@@ -43,6 +45,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const res = await getCharacterAccess(params.id);
   if (!res.access) return NextResponse.json({ error: res.error }, { status: res.status });
   if (!res.access.canWrite) return NextResponse.json({ error: 'You cannot edit this character.' }, { status: 403 });
+
+  // Write throttle (P2-1b). `CharacterAccess` deliberately carries no user id — it answers "may this
+  // request write?", not "who is asking" — so the subject comes from the session directly. It is non-null
+  // by here: `getCharacterAccess` already refused an unauthenticated caller.
+  const limited = await enforceRateLimit('write', getDndSession()?.userId);
+  if (limited) return limited;
 
   let form: FormData;
   try {

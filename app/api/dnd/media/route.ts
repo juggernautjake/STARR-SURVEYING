@@ -3,6 +3,7 @@
 //   ?campaignId=…   → the campaign's images (members only) — powers the campaign gallery
 // Newest first. Art/token uploads (D1/D2) already write dnd_media rows.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -23,6 +24,10 @@ const KINDS = new Set(['art', 'token', 'map', 'handout', 'reveal', 'avatar']);
 export async function GET(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
 
   const characterId = req.nextUrl.searchParams.get('characterId');
   const campaignId = req.nextUrl.searchParams.get('campaignId');

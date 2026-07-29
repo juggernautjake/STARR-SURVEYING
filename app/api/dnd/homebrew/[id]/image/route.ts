@@ -8,6 +8,7 @@
 // POST replaces the image; DELETE removes it. Creator-only, through the SAME `canWriteHomebrew` the rest of
 // the Studio uses — a piece being publicly readable never makes it publicly editable.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -43,6 +44,10 @@ async function loadPiece(id: string): Promise<{ row: HomebrewRow; piece: StoredH
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
 
   const found = await loadPiece(params.id);
   if (!found) return NextResponse.json({ error: 'Not found.' }, { status: 404 });

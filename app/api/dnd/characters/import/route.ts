@@ -4,6 +4,7 @@
 // creates an "under construction" character on the generic sheet owned by the caller.
 // The AI ingestion (M4) runs next to populate the sheet from these uploads.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -24,6 +25,10 @@ function extFromName(name: string, fallback: string): string {
 export async function POST(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
 
   try {
     const form = await req.formData();

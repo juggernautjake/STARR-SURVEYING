@@ -3,6 +3,7 @@
 // character's art_url/token_url at it, and records a dnd_media row (which powers
 // the galleries in D4–D6). DELETE clears the pointer. Owner/DM only.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -36,6 +37,10 @@ function parseUploadKind(v: unknown): MediaKind | 'item' | 'gallery' | null {
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
 
   const access = await getCharacterAccess(params.id);
   if (!access.access) return NextResponse.json({ error: access.error }, { status: access.status });

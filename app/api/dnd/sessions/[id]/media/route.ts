@@ -2,6 +2,7 @@
 // DM uploads an image to the dnd-media bucket and records a dnd_media row
 // (session_id + campaign_id, kind default 'map'). Feeds the console Maps tab.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -19,6 +20,11 @@ const ALLOWED: Record<string, string> = {
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = getDndSession();
   if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector in
+  // the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', auth.userId);
+  if (limited) return limited;
 
   const { data: sess } = await supabaseAdmin.from('dnd_sessions').select('id, campaign_id').eq('id', params.id).maybeSingle();
   const session = sess as { id: string; campaign_id: string } | null;

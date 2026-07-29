@@ -2,6 +2,7 @@
 // DM-only multipart upload of an SFX/music clip into the dnd-audio bucket + a dnd_sounds
 // row. Reuses the verified handout upload path (ensureStorageBucket + storage.upload).
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -23,6 +24,10 @@ const ALLOWED: Record<string, string> = {
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
   if ((await getCampaignRole(params.id)) !== 'dm') return NextResponse.json({ error: 'Only the DM can add sounds.' }, { status: 403 });
 
   try {

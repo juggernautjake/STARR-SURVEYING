@@ -5,6 +5,7 @@
 //   PATCH          → rename / publish toggle (DM). body: { id, name?, published? }
 //   DELETE ?id=…   → remove a map (DM); best-effort storage cleanup for image maps.
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { UPLOAD_LIMITS, tooLargeMessage } from '@/lib/dnd/upload-limits';
 import crypto from 'node:crypto';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
@@ -65,6 +66,10 @@ async function deinlineDataUrls(node: unknown, campaignId: string): Promise<unkn
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // Write throttle (P2-1b): uploads cost storage, so an unthrottled one is the clearest abuse vector
+  // in the API. Fails OPEN if the limiter table is missing — see lib/dnd/rate-limit.ts.
+  const limited = await enforceRateLimit('write', session.userId);
+  if (limited) return limited;
   const role = await getCampaignRole(params.id);
   if (role === null) return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
 

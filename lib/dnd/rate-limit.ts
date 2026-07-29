@@ -12,6 +12,7 @@
 // alternative is that a broken limiter takes the whole tabletop API down, which is a far worse outcome than
 // a brief window with no throttle. A limiter is a cost and abuse control, not an authorization gate; the
 // authorization gates fail closed, and they are separate from this on purpose.
+import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 /** What is being limited. Each bucket is a separate counter, so a burst of saves cannot exhaust the AI
@@ -151,4 +152,27 @@ export function rateLimitHeaders(r: RateLimitResult, bucket: RateBucket): Record
     'X-RateLimit-Limit': String(RATE_LIMIT_BUCKETS[bucket].limit),
     'X-RateLimit-Remaining': String(r.remaining),
   };
+}
+
+/**
+ * The whole opt-in, in one line: `const limited = await enforceRateLimit('write', session.userId); if
+ * (limited) return limited;`
+ *
+ * P2-1 applied the limiter by hand — four lines per route, and the response shape written out each time.
+ * That was fine for the eleven AI/login routes it covered. P2-1b is ~124 write handlers, where four lines
+ * of copy-paste apiece is how the `MAX_BYTES` duplication in P1-6 happened: every copy is a place for the
+ * status code, the headers, or the message to drift.
+ *
+ * Returns a ready-to-return 429 when the caller is over budget, or **null** when the request may proceed —
+ * so the call site reads as a guard clause and cannot accidentally continue after a refusal the way a
+ * boolean can.
+ */
+export async function enforceRateLimit(
+  bucket: RateBucket,
+  userId: string | null | undefined,
+  opts: { ip?: string | null; now?: number } = {},
+): Promise<NextResponse | null> {
+  const result = await checkRateLimit(bucket, rateLimitSubject({ userId, ip: opts.ip }), { now: opts.now });
+  if (result.allowed) return null;
+  return NextResponse.json({ error: result.message }, { status: 429, headers: rateLimitHeaders(result, bucket) });
 }
