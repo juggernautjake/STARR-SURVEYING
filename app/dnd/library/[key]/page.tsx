@@ -9,6 +9,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { libraryPageFor } from '@/lib/dnd/library';
+import { loadPublishedForLibrary } from '@/lib/dnd/homebrew/published';
 import { glossaryFor } from '@/lib/dnd/glossary';
 import { classesForSystem, subclassesFor } from '@/lib/dnd/classes/registry';
 import { GAME_SYSTEMS, isSystemAvailable } from '@/lib/dnd/systems';
@@ -28,6 +29,15 @@ export function generateStaticParams() {
   // Only the playable systems have a public library page; under-construction systems are hidden (owner 2026-07-18).
   return GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => ({ key: s.key }));
 }
+
+// ISR rather than full static (P6-10). This page now reads the published homebrew catalog, and with pure
+// static generation that read happens ONCE at build time — so a piece published after a deploy would never
+// appear until the next one, which is a subtle and very annoying bug to diagnose.
+//
+// `force-dynamic` would fix it too, but at the cost of re-rendering hundreds of kilobytes of official rules
+// catalog on every request to serve content that changes rarely. Five minutes is the trade: the rules stay
+// cached, and newly published content shows up on its own without anyone redeploying.
+export const revalidate = 300;
 
 export function generateMetadata({ params }: { params: { key: string } }): Metadata {
   const p = libraryPageFor(params.key);
@@ -56,8 +66,13 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export default function LibrarySystemPage({ params }: { params: { key: string } }) {
-  const page = libraryPageFor(params.key);
+export default async function LibrarySystemPage({ params }: { params: { key: string } }) {
+  // Published community content joins this system's official rules (P6-10) — injected, not fetched inside
+  // the pure library module, so a homebrew-table failure costs the extras and never the rules themselves.
+  //
+  // `generateMetadata` above deliberately does NOT load it: a page title needs no community extras, and
+  // making it async would double the query on every render for nothing.
+  const page = libraryPageFor(params.key, await loadPublishedForLibrary(params.key));
   // Under-construction systems are hidden — their library page 404s (owner 2026-07-18).
   if (!page || !isSystemAvailable(params.key)) notFound();
 

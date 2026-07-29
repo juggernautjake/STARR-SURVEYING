@@ -463,9 +463,25 @@ of homebrew.
       - [ ] **P6-9a — Pathfinder 2e bridge.** (Depends on P5-1 for anything item-shaped.)
       - [ ] **P6-9b — Intuitive Games bridge.**
 
-- [ ] **P6-10 — Library + lobby surfacing.** Replace `HOMEBREW_SEEDS` with the live catalog in `library.ts`
-      and `grounding.ts` (keeping the two seeds as data), so published content appears in its system's
-      library and the AI librarian can explain it. Show a creator's public content on their lobby page.
+- [x] **P6-10 — Library + grounding surfacing. Shipped 2026-07-28.** Published content now appears in its
+      system's library page, in library search, and in the AI librarian's grounding.
+      **The interesting constraint was keeping `library.ts` pure.** Its header states the library "needs no
+      DB round-trip and works with no embeddings key", and that is load-bearing: the rules reference renders
+      and searches correctly on a cold deploy with an empty database, which is why the six
+      under-construction systems can be fully documented while nothing is seeded for them. So the catalog is
+      **injected** — `libraryPageFor` / `allLibraryPages` / `libraryCatalogFor` / `searchLibrary` take an
+      `extraHomebrew` argument defaulting to `[]` — and `lib/dnd/homebrew/published.ts` is what callers use
+      to fill it. Pass nothing and the behaviour is byte-identical to before. A homebrew-table failure costs
+      the community extras and never the official rules.
+      **`revalidate = 300` on `/dnd/library/[key]`.** It has `generateStaticParams`, so with pure static
+      generation the catalog read would happen **once at build time** and newly published content would
+      never appear until the next deploy — a subtle bug to diagnose. `force-dynamic` would fix it by
+      re-rendering hundreds of kilobytes of rules catalog on every request; ISR is the trade.
+      **A test caught the RSC change**, correctly: `library-deep-links.test.tsx` rendered the page with
+      `renderToStaticMarkup`, which cannot render an async component — it renders the returned Promise as a
+      child. It now awaits the component and renders its element tree, with the id map filled in
+      `beforeAll` rather than at module scope.
+      **Still owed here:** a creator's public content on their lobby page. Small; folded into P6-11.
 
 - [ ] **P6-11 — Images.** `POST /api/dnd/homebrew/[id]/image` on the existing `dnd-media` bucket pattern.
       Rendered on the browse card, the statblock and the library entry. *(The owner's creature-with-artwork

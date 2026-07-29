@@ -23,7 +23,7 @@ import { IG_REDISTRIBUTION_MATERIALS } from './systems/intuitive-games/content';
 import { igAllFeats, type IGFeat } from './systems/intuitive-games/feats';
 import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { homebrewLibrarySection } from './homebrew/projection';
-import { browseHomebrew } from './homebrew/model';
+import { browseHomebrew, type HomebrewContent } from './homebrew/model';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
 import { IG_CLASS_TAXONOMY, igAllTaxonomyClasses } from './systems/intuitive-games/taxonomy';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
@@ -226,7 +226,7 @@ function featNoun(key: string): string {
 }
 
 /** Build the full, renderable page for one system. */
-export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
+export function libraryPageFor(key: CharacterSystem, extraHomebrew: readonly HomebrewContent[] = []): LibrarySystemPage | null {
   const r = rulesForSystem(key);
   if (!r) return null;
   const meta = GAME_SYSTEMS.find((s) => s.key === key);
@@ -881,7 +881,7 @@ export function libraryPageFor(key: CharacterSystem): LibrarySystemPage | null {
 
   // Custom / Homebrew section (Area H2) — the community-made content scoped to this system, appended last so
   // it reads as extras beneath the official rules. Omitted entirely when the system has no homebrew.
-  const homebrew = homebrewLibrarySection(HOMEBREW_SEEDS, key);
+  const homebrew = homebrewLibrarySection([...HOMEBREW_SEEDS, ...extraHomebrew], key);
   if (homebrew) sections.push(homebrew);
 
   return {
@@ -944,12 +944,12 @@ export function orderSections(sections: LibrarySection[]): LibrarySection[] {
 }
 
 /** Every system's page, in the GAME_SYSTEMS order. */
-export function allLibraryPages(): LibrarySystemPage[] {
+export function allLibraryPages(extraHomebrew: readonly HomebrewContent[] = []): LibrarySystemPage[] {
   // Only the PLAYABLE systems are shown/searchable; under-construction systems are fully hidden across the
   // site (owner 2026-07-18) — kept in the registry, just not surfaced anywhere. The library shows a
   // "coming soon" note in their place.
   return GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key))
-    .map((s) => libraryPageFor(s.key))
+    .map((s) => libraryPageFor(s.key, extraHomebrew))
     .filter((p): p is LibrarySystemPage => !!p);
 }
 
@@ -972,7 +972,7 @@ export interface LibraryCatalogEntry {
  * Order is preserved from the original loop: it decides which of two identically-named entries wins
  * a scoring tie, so shuffling it would quietly reorder search results.
  */
-export function libraryCatalogFor(key: CharacterSystem): LibraryCatalogEntry[] {
+export function libraryCatalogFor(key: CharacterSystem, extraHomebrew: readonly HomebrewContent[] = []): LibraryCatalogEntry[] {
   const r = rulesForSystem(key);
   if (!r) return [];
   const out: LibraryCatalogEntry[] = [];
@@ -1168,7 +1168,7 @@ export function libraryCatalogFor(key: CharacterSystem): LibraryCatalogEntry[] {
     push('spell', sp.name, `${sp.name} — ${pf2RankLabel(sp.rank)}, ${sp.traditions.join('/')}; ${sp.cast}. ${sp.effect}`);
   }
   // Homebrew content is searchable too (Area H2) — the published, in-system pieces surface by name/kind/creator.
-  for (const hb of browseHomebrew(HOMEBREW_SEEDS, { system: key })) {
+  for (const hb of browseHomebrew([...HOMEBREW_SEEDS, ...extraHomebrew], { system: key })) {
     push(hb.kind, hb.name, `${hb.summary ?? ''} ${hb.description ?? ''} — homebrew by ${hb.creator.name}`.trim());
   }
 
@@ -1189,7 +1189,7 @@ export interface LibraryHit {
  * Search the catalog — across ONE system, or across all of them when `system` is omitted.
  * Pure and DB-free, so the library's search box works with no embeddings key and no seeded rows.
  */
-export function searchLibrary(query: string, system?: CharacterSystem | null, limit = 40): LibraryHit[] {
+export function searchLibrary(query: string, system?: CharacterSystem | null, limit = 40, extraHomebrew: readonly HomebrewContent[] = []): LibraryHit[] {
   const q = (query || '').trim().toLowerCase();
   if (!q) return [];
   const words = q.split(/\s+/).filter((w) => w.length > 1).slice(0, 6);
@@ -1251,7 +1251,7 @@ export function searchLibrary(query: string, system?: CharacterSystem | null, li
       if (score > 0) hits.push({ system: key, systemName: name, kind, name: n, body: b, score });
     };
 
-    for (const c of libraryCatalogFor(key)) push(c.kind, c.name, c.body);
+    for (const c of libraryCatalogFor(key, extraHomebrew)) push(c.kind, c.name, c.body);
   }
 
   return hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, limit);

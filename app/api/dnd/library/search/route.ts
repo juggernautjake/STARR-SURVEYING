@@ -8,10 +8,11 @@
 // every hit is labelled with the system it came from.
 import { NextRequest, NextResponse } from 'next/server';
 import { searchLibrary } from '@/lib/dnd/library';
+import { loadPublishedForLibrary } from '@/lib/dnd/homebrew/published';
 import { resolveLibraryHref } from '@/lib/dnd/library-anchor-map';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 
-export function GET(req: NextRequest) {
+export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const q = (url.searchParams.get('q') || '').trim();
   const systemParam = (url.searchParams.get('system') || '').trim();
@@ -29,7 +30,7 @@ export function GET(req: NextRequest) {
   // means reading the target system's whole rendered page (see library-anchor-map.ts), which is
   // hundreds of kilobytes of catalog the search box must not ship to the client — and doing it
   // by assumption instead is what made every condition/skill/feat result a dead link.
-  const hits = searchLibrary(q, systemParam || null).map((h) => ({
+  const hits = searchLibrary(q, systemParam || null, 40, await loadPublishedForLibrary(systemParam || undefined)).map((h) => ({
     ...h,
     href: resolveLibraryHref(h.system, h.kind, h.name),
   }));

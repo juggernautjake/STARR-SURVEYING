@@ -20,7 +20,7 @@
 // Deliberately NOT a `toContain` over the page source. The original bug survived exactly that class
 // of test: the source plainly contained `id={entryAnchorId(e.name)}`, and it was on the one renderer
 // out of five that conditions did not use.
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 // Explicit, because vitest transforms this file with the CLASSIC JSX runtime (the project's
 // tsconfig leaves `jsx: preserve` for Next to handle) — without it `<LibrarySystemPage/>` compiles
 // to a `React.createElement` call against an undefined `React`.
@@ -35,9 +35,18 @@ import { GAME_SYSTEMS, isSystemAvailable, type CharacterSystem } from '@/lib/dnd
 
 const SYSTEMS = GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => s.key);
 
-/** Every `id="…"` the server actually emits for one system's library page. */
-function renderedIds(system: string): Set<string> {
-  const html = renderToStaticMarkup(<LibrarySystemPage params={{ key: system }} />);
+/** Every `id="…"` the server actually emits for one system's library page.
+ *
+ *  ASYNC since 2026-07-28 (P6-10): the page became an async server component when it started taking the
+ *  published homebrew catalog. `renderToStaticMarkup` cannot render an async component — it renders the
+ *  returned Promise as a child and throws "Objects are not valid as a React child" — so the component is
+ *  awaited first and its ELEMENT tree rendered, which is what an RSC actually hands the renderer.
+ *
+ *  The DB call inside resolves to `[]` here (no Supabase in the test env, and `loadPublishedForLibrary`
+ *  swallows the failure by design), so these assertions still measure the official rules exactly as before.
+ *  That is the property worth having: the library's deep links do not depend on anyone's homebrew. */
+async function renderedIds(system: string): Promise<Set<string>> {
+  const html = renderToStaticMarkup(await LibrarySystemPage({ params: { key: system } }));
   return new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
 }
 
@@ -47,7 +56,12 @@ function fragmentOf(href: string): string | null {
   return i < 0 ? null : href.slice(i + 1);
 }
 
-const IDS = new Map<string, Set<string>>(SYSTEMS.map((s) => [s, renderedIds(s)]));
+// Filled once in `beforeAll` rather than at module scope — the render is async now, and a top-level
+// `Promise` in this map is exactly the bug the "guards the guard" assertion below was written to catch.
+const IDS = new Map<string, Set<string>>();
+beforeAll(async () => {
+  for (const s of SYSTEMS) IDS.set(s, await renderedIds(s));
+});
 
 describe('the library page stamps an id for everything search can name', () => {
   it('renders enough of a page to be worth asserting against', () => {

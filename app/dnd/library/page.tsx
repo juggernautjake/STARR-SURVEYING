@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { allLibraryPages } from '@/lib/dnd/library';
+import { loadPublishedForLibrary } from '@/lib/dnd/homebrew/published';
 import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import { dndAiConfigured } from '@/lib/dnd/ai';

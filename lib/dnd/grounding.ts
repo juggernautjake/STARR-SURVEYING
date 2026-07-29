@@ -13,6 +13,7 @@ import { IG_POWERS, IG_DEFENSIVE_POWERS, IG_CLASS_POWER_EFFECTS } from './system
 import { igSpellTiers } from './systems/intuitive-games/spell-tiers';
 import { homebrewGrounding } from './homebrew/projection';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
+import { loadPublishedForLibrary } from './homebrew/published';
 import { IG_CLASS_TAXONOMY } from './systems/intuitive-games/taxonomy';
 import { spellsForSystem, type SpellDef } from './spells';
 import { tagsForSpell } from './library-tags';
@@ -341,7 +342,12 @@ export async function systemGroundingBlock(system: string | null | undefined, qu
 
   // Homebrew content available for this system (Area H2) — so the AI knows a system's community/homebrew
   // pieces exist and what they do (it may only USE them when the DM has allowed them, which the block states).
-  const homebrewText = homebrewGrounding(HOMEBREW_SEEDS, sys);
+  // Published community content joins the two hand-authored seeds (P6-10), so the librarian can explain a
+  // piece a player actually made rather than only the two that ship in the repo. Loaded defensively — a
+  // failure costs the extras, never the official rules block above it, which is the whole point of keeping
+  // the grounding deterministic.
+  const published = await loadPublishedForLibrary(sys).catch(() => []);
+  const homebrewText = homebrewGrounding([...HOMEBREW_SEEDS, ...published], sys);
   const homebrewBlock = homebrewText ? `\n\n${homebrewText}` : '';
 
   // Optional semantic enhancement: scoped RAG hits (only when an embeddings key is configured). These
