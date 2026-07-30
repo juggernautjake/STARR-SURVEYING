@@ -200,7 +200,40 @@ would know the run died.
 `scripts/import-bestiary.mjs` run, and a seed. Reports imported / skipped / unparseable with reasons (G6).
 **Target: 330+ creatures for 5e-2014.**
 
-### B1-4 · The 2024 SRD import
+### B1-4 · The 2024 SRD import — **SHIPPED 2026-07-29, and the plan's target was wrong**
+
+`npm run import:bestiary -- --source=2024`. Same transform, same pipeline; the only differences are the
+slug prefix (`srd52`) and the system tag, which is all it took because both editions come from the same
+publisher in the same shape.
+
+**The plan says "Target: 300+". The publication contains three monsters** — Aboleth, Adult Black Dragon,
+Adult Blue Dragon. The upstream 2024 SRD conversion is simply unfinished; this is not a limitation of the
+importer and not something to route around.
+
+So three were imported and the number is stated plainly. Inventing the other 297 is precisely what Ground
+Rule 3 forbids, and quietly reporting "B1-4 done" against a target of 300 would have been the same lie in
+a different register. **Re-running when upstream grows is free** — the slug is stable, so it upserts.
+
+Verified: `dnd_creatures` now holds **337** (334 `dnd5e-2014` + 3 `dnd5e-2024`), and the two editions
+coexist correctly — `srd51:aboleth` and `srd52:aboleth` are separate rows, which is exactly what the slug
+prefix exists to guarantee.
+
+### B1-5 · The PF2 import — **scouted 2026-07-29, not yet built**
+
+Not started, but the plan's premise checked so the next pass starts from facts rather than an assumption.
+
+- **Source located:** the Foundry VTT `pf2e` system repo carries **492 monster files** in
+  `packs/pathfinder-monster-core` — the ORC-licensed Monster Core. The plan's estimate of "1,000+" is high
+  for that pack alone but the right order of magnitude once the other bestiary packs are counted.
+- **It needs its own transform.** Foundry's schema shares nothing with 5e-bits': stats live under
+  `system.attributes.ac.value`, abilities are modifiers rather than scores, and actions are separate
+  embedded items with their own traits. `srdCreatureToRow` cannot be pointed at it, and pretending
+  otherwise is how a 492-creature import ends up silently empty in three fields — the lesson B1-3 already
+  paid for.
+- **It is 492 individual file fetches**, not one bulk document, so the fetcher needs throttling and a
+  cache per file.
+
+That makes B1-5 a real slice of its own rather than a flag on this one.
 Same pipeline, `slugPrefix: 'srd52'`, so both editions coexist without collision. **Target: 300+.**
 
 ### B1-5 · The PF2 import

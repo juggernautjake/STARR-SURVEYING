@@ -1,7 +1,8 @@
 // scripts/import-bestiary.mjs — fill the bestiary from the freely-licensed SRD (B1-3).
 //
-//   npm run import:bestiary -- --dry-run     # transform and report, write nothing
-//   npm run import:bestiary                  # upsert into dnd_creatures
+//   npm run import:bestiary -- --dry-run                # 2014 SRD, report only
+//   npm run import:bestiary                             # 2014 SRD, upsert
+//   npm run import:bestiary -- --source=2024            # the 2024 set
 //
 // Run through vite-node WITH the repo's vitest config, because the transform is TypeScript and imports via
 // the `@/` alias — which only `vitest.config.ts` defines. Plain `node` cannot load it and bare `vite-node`
@@ -35,19 +36,56 @@ const ROOT = process.cwd();
 const DRY = process.argv.includes('--dry-run');
 const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').split('=')[1]) || 0;
 
-const SOURCE_URL = 'https://raw.githubusercontent.com/5e-bits/5e-database/main/src/2014/en/5e-SRD-Monsters.json';
-const CACHE = path.join(ROOT, '.cache/srd51-monsters.json');
-
-const PROVENANCE = {
-  source: 'SRD 5.1',
-  licence: 'CC-BY-4.0',
-  attribution:
-    'This work includes material from the System Reference Document 5.1 by Wizards of the Coast LLC, ' +
-    'available at https://dnd.wizards.com/resources/systems-reference-document, licensed under CC-BY-4.0.',
-  sourceUrl: 'https://dnd.wizards.com/resources/systems-reference-document',
-  slugPrefix: 'srd51',
-  system: 'dnd5e-2014',
+// ── SOURCES ──────────────────────────────────────────────────────────────────────────────────────────
+//
+// Both editions come from the same publisher in the same shape, so one transform serves both and the only
+// difference is the slug prefix (which keeps a 2014 Goblin and a 2024 Goblin apart) and the system tag.
+//
+// A NOTE ON THE 2024 SET, because the plan's target for it is wrong. B1-4 says "Target: 300+". The
+// publication currently carries **three** monsters — Aboleth, Adult Black Dragon, Adult Blue Dragon. That
+// is not a bug in this importer and not something to work around: the upstream 2024 SRD conversion is
+// simply unfinished. Importing three and saying so is correct-to-source; inventing the rest would be
+// exactly what Ground Rule 3 forbids. Re-run this whenever upstream grows — the upsert makes that free.
+const SOURCES = {
+  2014: {
+    url: 'https://raw.githubusercontent.com/5e-bits/5e-database/main/src/2014/en/5e-SRD-Monsters.json',
+    cache: '.cache/srd51-monsters.json',
+    provenance: {
+      source: 'SRD 5.1',
+      licence: 'CC-BY-4.0',
+      attribution:
+        'This work includes material from the System Reference Document 5.1 by Wizards of the Coast LLC, ' +
+        'available at https://dnd.wizards.com/resources/systems-reference-document, licensed under CC-BY-4.0.',
+      sourceUrl: 'https://dnd.wizards.com/resources/systems-reference-document',
+      slugPrefix: 'srd51',
+      system: 'dnd5e-2014',
+    },
+  },
+  2024: {
+    url: 'https://raw.githubusercontent.com/5e-bits/5e-database/main/src/2024/en/5e-SRD-Monsters.json',
+    cache: '.cache/srd52-monsters.json',
+    provenance: {
+      source: 'SRD 5.2',
+      licence: 'CC-BY-4.0',
+      attribution:
+        'This work includes material from the System Reference Document 5.2 by Wizards of the Coast LLC, ' +
+        'available at https://dnd.wizards.com/resources/systems-reference-document, licensed under CC-BY-4.0.',
+      sourceUrl: 'https://dnd.wizards.com/resources/systems-reference-document',
+      slugPrefix: 'srd52',
+      system: 'dnd5e-2024',
+    },
+  },
 };
+
+const EDITION = (process.argv.find((a) => a.startsWith('--source=')) || '').split('=')[1] || '2014';
+const SOURCE = SOURCES[EDITION];
+if (!SOURCE) {
+  console.error(`Unknown --source=${EDITION}. Use one of: ${Object.keys(SOURCES).join(', ')}`);
+  process.exit(1);
+}
+const SOURCE_URL = SOURCE.url;
+const CACHE = path.join(ROOT, SOURCE.cache);
+const PROVENANCE = SOURCE.provenance;
 
 /** Cache the download. A re-run during development should not re-fetch 1.3 MB, and an import that only
  *  works online is one that cannot be re-run while debugging the transform. */
@@ -57,7 +95,7 @@ async function loadSource() {
     console.log(`Using cached source: ${raw.length} creatures (delete ${path.relative(ROOT, CACHE)} to refresh)`);
     return raw;
   }
-  console.log('Fetching the SRD 5.1 monster set…');
+  console.log(`Fetching the ${PROVENANCE.source} monster set…`);
   const res = await fetch(SOURCE_URL, { signal: AbortSignal.timeout(90_000) });
   if (!res.ok) throw new Error(`Source fetch failed: ${res.status}`);
   const raw = await res.json();
