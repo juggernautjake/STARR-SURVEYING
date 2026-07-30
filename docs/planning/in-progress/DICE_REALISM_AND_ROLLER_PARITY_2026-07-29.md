@@ -191,8 +191,33 @@ N dice laid out without overlap, sized down as N grows, wrapping within the aren
 is legible at the smallest size; the sum still reads as the headline.
 
 ### D2-3 · Dice-pad count wiring
-The pad's `N×` control already exists; make it drive real multi-dice display end to end, including the IG/PF2
-`rollDice` provider.
+
+**SHIPPED 2026-07-29 — already wired end to end; the real defect was next to it.**
+
+The chain was verified rather than assumed, and it was already complete: `DicePad` calls
+`rollDice(sides, count)` → both bespoke providers call `rollRaw(`${n}d${sides}`)` → `rollDiceExpr` emits a
+breakdown of the form `2d6[3,5] = 8` → `diceOf` parses it into per-die values → the tray renders one solid
+per die. So the count control has been driving real multi-dice display on PF2 and IG since D2-1 landed.
+
+**What the check actually turned up was a cross-system parity bug.** `DicePad` carried its own literal die
+list — `[4, 6, 8, 12, 20, 100]` — while the 5e Dice Core carries `[4, 6, 8, 10, 12, 20, 100]`. **A PF2 or IG
+player could not roll a d10 and a 5e player could**, even though `STANDARD_DICE` has always listed it and
+`solidFor(10)` has always drawn a real pentagonal trapezohedron for it.
+
+That is precisely the D6-2 failure mode arriving early: which dice exist is **not** a system mechanic — a d10
+is not a 5e concept — so a difference here is drift between two hand-maintained lists rather than a feature.
+Fixed by deleting the second list: `DicePad` now imports `STANDARD_DICE` from `lib/dnd/dice/solids`, the
+module that already has to know which dice exist in order to draw them.
+
+**Guard:** `__tests__/dnd/dice-pad-parity.test.ts` (6 tests) asserts the canonical list contains every
+standard die including the d10, that every die in it is actually drawable, that `DicePad` imports the
+constant rather than re-declaring a literal, and that the 5e tray's remaining literal still equals it — which
+keeps the two honest until the tray is migrated to the shared constant too.
+
+*Method note worth keeping:* the guard reads **source files**, not rendered components, because this suite
+runs `environment: 'node'` with no DOM. It also strips comments before scanning — on its first run it matched
+the very comment explaining the old literal and reported the fixed file as still broken. A guard that reads
+code has to actually read code.
 
 ---
 

@@ -8,8 +8,15 @@
 // so it reads on every skin; hides itself if the feed provides no `rollDice`.
 import React from 'react'
 import { useRollFeed } from './rollFeed'
+import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
 
-const DICE = [4, 6, 8, 12, 20, 100] as const
+// THE DIE LIST IS SHARED, NOT RETYPED (D2-3 / D6-2). This pad used to carry its own literal
+// `[4, 6, 8, 12, 20, 100]` — missing the **d10**, which the 5e Dice Core has always offered and which
+// `solidFor(10)` has always been able to draw as a real pentagonal trapezohedron. So a PF2 or IG player
+// simply could not roll a d10 from the pad while a 5e player could: not a system difference, just drift
+// between two hand-maintained lists. Which dice exist is a property of the DICE, so it comes from the
+// solids module that already has to know.
+const DICE = STANDARD_DICE
 const MAX_COUNT = 20
 
 const LINE = 'var(--hx-line, var(--line, rgba(130,132,140,0.3)))'
