@@ -172,6 +172,45 @@ land. Nothing in the audit is a blocker — but two premises were wrong, which i
 
 ## Phase M1 — the data model
 
+> ### ✅ M1-1 … M1-5 SHIPPED 2026-07-29 — `seeds/465_dnd_map_nodes.sql`, applied live
+>
+> All five tables, plus the enforcement. **Applied to production and verified idempotent** (re-running is a
+> clean no-op). `dnd_map_nodes` is at 0 rows — the schema is live, the content is M2's job.
+>
+> **Verification:** `scripts/verify-map-schema.mjs` — **15 invariants, all passing.** It builds the whole
+> schema in one transaction, *attacks* it, and rolls back, because the M1 acceptance criterion is "provably
+> enforced by tests that attempt violations" and those rules live in Postgres triggers where a vitest unit
+> test cannot reach them. What it proves:
+>
+> | | |
+> |---|---|
+> | depth | a root is 1 · seven levels nest 1–7 · **a client-supplied depth is ignored** (send `depth: 7` on a child of the root, the DB stores 2) · an 8th level **raises** rather than clamping |
+> | cycles | a node cannot be its own parent · cannot be re-parented under its own descendant |
+> | re-parent | moving a subtree **cascades depth to every descendant** |
+> | G2 | `render_kind: '3d'` is rejected at the constraint |
+> | authoring | a pin may point at nothing · a child may exist with no pin — both must not error, and don't |
+> | objects | all seven kinds accepted, an unknown kind rejected |
+> | discovery | unique per (object, character) |
+> | delete | removing a node takes its whole subtree |
+>
+> **Three decisions worth recording, each of which could have gone wrong quietly:**
+>
+> 1. **Depth is a trigger, not a column the app sets.** The obvious bug is a route that forgets to compute
+>    it. The one that actually bites is **re-parenting**: drag a city under a different province and the
+>    depth of the city *and every descendant* changes. An app-side calculation gets the dragged node right
+>    and silently leaves its subtree wrong — invisible until someone opens a grandchild. The cascade trigger
+>    is why that cannot happen, and it is the invariant most worth the test above.
+> 2. **`when` and `then` are SQL reserved words.** The plan spells the trigger columns that way. A table
+>    carrying them needs quoting at *every* reference forever, and the first unquoted one is a runtime
+>    syntax error rather than a review comment. Named **`fires_when` / `fires_then`**.
+> 3. **`child_node_id` is nullable, deliberately.** The plan says a pin pointing at nothing and a child with
+>    no pin are both normal authoring states, so the obvious `NOT NULL` would have made the plan's own
+>    acceptance criterion impossible. Both cases are asserted.
+>
+> Also: `dm_notes` sits on `dnd_map_objects` separate from `description`, and there is a partial index on
+> `visibility <> 'dm'` — so G3's "different query, not the same payload with a flag" has an index behind it
+> and nobody is tempted to fetch everything and filter client-side.
+
 ### M1-1 · `map_nodes`
 ```
 dnd_map_nodes
@@ -362,7 +401,7 @@ their reason — the feed work already shipped is the right home, not a second l
 
 ## Slice order
 
-**M0** audit ✅ (2026-07-29 — see above; findings 1 and 2 change M1 and M2-1) → **M1-1…M1-5** schema + seeds (applied and verified live) → **M2-1…M2-3** 2D-only + HTML worlds
+**M0** audit ✅ → **M1-1…M1-5** schema + seeds ✅ (2026-07-29, applied live, 15 invariants verified) → **M2-1…M2-3** 2D-only + HTML worlds
 → **M3-1…M3-2** viewport + drill-down → **M3-3…M3-4** LOD + prefetch → **M4-1…M4-4** DM tools → **M5-1…M5-3**
 tokens + movement + templates → **M6-1…M6-3** hidden + descriptions → **M6-4…M6-5** triggers → **M5-4…M5-5**
 conditions + initiative → **M7-1…M7-4** live play.
