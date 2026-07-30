@@ -784,18 +784,64 @@ The two halves that remain:
 Everything else stays on `sigilFor`, which is not a fallback so much as the normal case, and looks
 deliberate because the aura carries it.
 
-### B6-6 · Upload your own art, and the creature editor per system
+### B6-6 · Upload your own art — **ART UPLOAD SHIPPED 2026-07-30; the per-system editor remains**
 
-The owner's *"we should be able to create variants and upload artwork for them"* is two features, and only
-one exists:
+`POST/DELETE /api/dnd/bestiary/[id]/art` + `CreatureArtUpload`, owner-gated.
+
+**This is not a fallback for the automated pipeline — it is the only path that was ever going to work for
+the fantasy half.** B6-5 settled that: querying Commons by *species* is reliable (372 accepted, six sampled
+and all six correct), and querying it for a fantasy name is not, at any level of tuning. The metadata is
+correct every time; **relevance** is the failure and nothing in the API exposes it.
+
+Decisions worth recording:
+
+- **The licence fields ARE the form**, not an advanced disclosure. Seed 467's CHECK constraint rejects an
+  image with no credit, so a form that collects one when the uploader remembers would fail *after* the file
+  was chosen and read as a broken button. Checked in the route as well, so the refusal is a sentence rather
+  than a Postgres violation — and so bytes are never uploaded for a row that cannot store them, which would
+  orphan a file in the bucket every time someone forgot.
+- **"I drew this myself" is an answer, not an exception.** What is refused is silence. The route does *not*
+  run `isAcceptableLicence` over what the uploader says: that allowlist exists to judge a search result
+  nobody vouched for, and a person uploading their own work is a different situation with a different
+  failure mode. Recording **who** said it is the protection — the attribution gets `— uploaded by <name>`
+  appended server-side, because when a picture turns out to be wrongly licensed the useful question is who
+  vouched for it.
+- **It writes the CATALOGUE row, and that does not violate G1.** G1 is about *rules* — numbers and text,
+  which fork so two DMs can disagree. A portrait is not a rule, and forking one would leave 5,000 creatures
+  blank while one person's copy had a picture. Two facts make it safe: no importer touches `image_url` (all
+  four omit it from their upsert column lists, so art survives every re-import), and it is **owner-gated**,
+  because a catalogue picture is what every reader sees and so is not a per-user preference.
+- **A fresh UUID per upload**, not a slug-derived key, so replacing a picture cannot serve the old bytes
+  from a CDN cache under the same URL — whose symptom is "I uploaded it and nothing changed", diagnosed as
+  a broken upload when the upload worked perfectly.
+- **The old file is dropped only after the new one is referenced**, so a failure leaves the creature with
+  the picture it had rather than none.
+
+#### The defect this slice actually found, which was larger than the feature
+
+**The image credit was rendered nowhere.** Seed 467 added `image_licence` / `image_attribution` /
+`image_source_url` and enforced them with a CHECK constraint; the fetcher wrote them for all 477 creatures
+with art; `loadCreature` never selected them and no page ever printed them.
+
+CC-BY and CC-BY-SA make attribution a **condition of use**, and `/dnd` is publicly reachable by direct
+link, so those images are published. The obligation was met in the database and unmet in the only place it
+counts. Now printed as its own `Illustration:` line beneath the stat block's credit — deliberately separate,
+because they are different works by different authors under different licences, which is the entire reason
+seed 467 added columns rather than reusing the existing ones.
+
+Browser-verified end to end: anonymous sees no control and gets 401 from both verbs; the owner sees it;
+missing licence and missing credit are each refused with their own message; a real upload stores, renders
+and credits; DELETE clears all five columns and removes the object from storage (verified by listing the
+bucket — the public URL still 200s for a while, which is CDN cache, not an orphan).
+
+### B6-6b · The creature editor per system
+
+The owner's *"we should be able to create variants and upload artwork for them"* was two features:
 
 - **Variants: already done** (B3-1b/B3-2). A fork is a `dnd_homebrew` piece, so private/public, sharing,
   adoption and edit history all work.
-- **Artwork upload: does not exist.** A forked creature has no way to carry a picture. This is the media
-  plumbing the art fetcher already uses, pointed at a user upload, with the same non-negotiable that seed
-  467's CHECK constraint enforces — **no image without a stated licence and credit.** For an upload that
-  means the uploader states it, and "I made it" is a valid answer that must be recorded rather than assumed.
-- **The editor per system**: the statblock editor exists and is system-agnostic. B6-6 makes it show each
+- **Artwork upload: shipped above.**
+- **The editor per system** is what remains: the statblock editor exists and is system-agnostic. This makes it show each
   system's own vocabulary, which is the same requirement as B6-4 seen from the authoring side. The
   monster-building guidance in the owner's commentary links (encounter budget, action economy, save DCs by
   level) belongs here as *guidance in the editor*, not as catalogue content.

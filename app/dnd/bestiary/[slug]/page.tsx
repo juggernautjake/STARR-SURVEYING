@@ -24,6 +24,8 @@ import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
 import { transposeCreature, type BestiarySystem } from '@/lib/dnd/bestiary/transpose';
 import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
 import ForkCreature from '@/app/dnd/_ui/bestiary/ForkCreature';
+import CreatureArtUpload from '@/app/dnd/_ui/bestiary/CreatureArtUpload';
+import { getDndSession, isDndOwner } from '@/lib/dnd/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +72,9 @@ export default async function CreaturePage({
   if (!found) notFound();
   const { creature: c, variants } = found;
   const aura = auraFor(c);
+  // A picture on a catalogue row is what EVERY reader sees, so setting it is not a per-user preference.
+  // Anyone else who wants their own art forks the creature and gives their copy a picture in the Studio.
+  const canEditArt = isDndOwner(getDndSession());
 
   // Only a target this module actually converts to, and never the creature's own system — a self-transpose
   // is a no-op that would render an empty warning box and look broken.
@@ -168,6 +173,13 @@ export default async function CreaturePage({
                   variants={variants.map((v) => ({ id: v.id, name: v.name, tier: v.tier }))}
                 />
               </div>
+
+              {/* B6-6. Rendered only for the catalogue owner — and rendered at all only because the
+                  automated art pipeline provably cannot finish: species queries are reliable, fantasy
+                  names are not, and no tuning fixes that (B6-5). */}
+              {canEditArt && (
+                <CreatureArtUpload creatureId={c.id} creatureName={c.name} hasImage={Boolean(c.imageUrl)} />
+              )}
             </div>
           </section>
 
@@ -259,6 +271,27 @@ export default async function CreaturePage({
               </>
             ) : null}
           </p>
+
+          {/* THE PICTURE'S OWN CREDIT, which is a different work by a different author under a different
+              licence — seed 467 added the columns for exactly that reason and the page never printed them.
+              For the 477 creatures with art that was a licence CONDITION met in the database and unmet in
+              the only place it counts: CC-BY and CC-BY-SA require the credit to travel with the image, and
+              an image on a publicly-reachable page is published. Labelled "Illustration" so a reader can
+              tell it apart from the stat block's line directly above it. */}
+          {c.imageUrl && c.imageAttribution && (
+            <p style={{ fontSize: 11, color: 'var(--hx-muted)', margin: 0 }}>
+              Illustration: {c.imageAttribution}
+              {c.imageLicence ? ` · ${c.imageLicence}` : ''}
+              {c.imageSourceUrl ? (
+                <>
+                  {' · '}
+                  <a href={c.imageSourceUrl} target="_blank" rel="noreferrer noopener" style={{ color: 'var(--hx-teal-1)' }}>
+                    image source
+                  </a>
+                </>
+              ) : null}
+            </p>
+          )}
         </div>
       </div>
     </div>

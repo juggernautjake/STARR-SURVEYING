@@ -29,6 +29,17 @@ export interface CatalogueCreature {
   statblock: Statblock;
   description: string | null;
   imageUrl: string | null;
+  /**
+   * The PICTURE's licence and credit, which are not the stat block's.
+   *
+   * Read and carried because CC-BY and CC-BY-SA make attribution a CONDITION of use, not a courtesy — and
+   * for the first 477 creatures to get art these columns were written by the fetcher, enforced by seed
+   * 467's CHECK constraint, and then selected by nothing and rendered nowhere. The obligation was met in
+   * the database and unmet on the page, which is the only place it counts.
+   */
+  imageLicence: string | null;
+  imageAttribution: string | null;
+  imageSourceUrl: string | null;
   tags: string[];
   environments: string[];
   source: string;
@@ -97,6 +108,9 @@ function toCreature(r: Record<string, unknown>): CatalogueCreature {
     statblock: (r.statblock ?? {}) as Statblock,
     description: (r.description as string) ?? null,
     imageUrl: (r.image_url as string) ?? null,
+    imageLicence: (r.image_licence as string) ?? null,
+    imageAttribution: (r.image_attribution as string) ?? null,
+    imageSourceUrl: (r.image_source_url as string) ?? null,
     tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
     environments: Array.isArray(r.environments) ? (r.environments as string[]) : [],
     source: String(r.source ?? ''),
@@ -108,7 +122,9 @@ function toCreature(r: Record<string, unknown>): CatalogueCreature {
 }
 
 const COLUMNS =
-  'id, slug, name, system, type, size, alignment, cr, cr_sort, statblock, description, image_url, tags, environments, source, licence, attribution, source_url, variant_eligible';
+  'id, slug, name, system, type, size, alignment, cr, cr_sort, statblock, description, image_url, '
+  + 'image_licence, image_attribution, image_source_url, tags, environments, source, licence, attribution, '
+  + 'source_url, variant_eligible';
 
 /**
  * One page of the catalogue, plus the facet values that exist in it.
