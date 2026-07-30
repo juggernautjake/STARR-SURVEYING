@@ -410,6 +410,41 @@ remaining work is a **verification pass**, and it is the expensive half rather t
 
 The machinery, the licence rules and the schema constraint are all in place and tested; what is missing is
 judgement, and this is the one place in the bestiary where that cannot be automated with the tools to hand.
+
+#### Option 2 built and run — **105 real animals now have art**
+
+`ANIMAL_SPECIES` in `lib/dnd/bestiary/art.ts`: a curated map from creature name to **scientific name**, and
+`npm run art:creatures -- --animals-only` fetches only those. **105 accepted, 0 failed.** Coverage
+**105 / 829**.
+
+**Querying by species is what makes this subset safe.** The common name is precisely what went wrong:
+`Giant Rat` returned *a giant inflatable protest rat photographed through a car windscreen* — a real,
+correctly-licensed Commons file, because that phrase names a famous object. `Rattus norvegicus` cannot match
+a novelty balloon. A real animal also **short-circuits** to its species and never falls back to its common
+name, since falling through would reintroduce the very failure the table removes.
+
+**Verified by looking, not by trusting.** Six of the 105 were sampled at random:
+
+| | |
+| --- | --- |
+| Giant Lizard | ✅ a monitor lizard |
+| Giant Hyena · Hyena | ✅ spotted hyenas |
+| Spider · Giant Spider | ✅ real spiders |
+| **Giant Fire Beetle** | ❌ **an MBB Lampyridae stealth aircraft prototype** |
+
+I had mapped it to the genus `Lampyridae` — which is also a German stealth aircraft. **A genus can collide
+with a machine.** Fixed to `Lampyris noctiluca`, the row cleared and re-fetched, now a firefly.
+
+So the species table cuts the error rate hard but does not eliminate it: a *binomial* species name is safe,
+a bare *genus* is a coin toss. Every remaining genus-only entry in the table (`Papio`, `Chiroptera`,
+`Brachyura`, `Scorpiones`, `Araneae`, `Serpentes`, `Varanus`, `Accipiter`, `Nephila`, `Vespa`,
+`Lycosidae`, `Gyps`, `Mustela`, `Hippocampus`, `Carcharhinus`, `Naja`, `Chrysopelea`, `Mammuthus`,
+`Smilodon`, `Plesiosaurus`, `Triceratops`, `Tyrannosaurus`, `Piranha`) is an unverified risk of the same
+kind, and the honest position is that **1 in 6 sampled was wrong before the fix and the true rate across
+all 105 is unmeasured**.
+
+**Still open:** view the remaining ~99, and decide the 724 non-animals (hand-pick the signature monsters,
+sigils for the rest).
 `scripts/fetch-creature-art.mjs`: for each creature, look for a PD/CC image, store it with its attribution in
 the existing media plumbing, and record `image_url` + `image_attribution`. Never a hotlink — files are saved
 locally (G3). Reports coverage honestly (G6).

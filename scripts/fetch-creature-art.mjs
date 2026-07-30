@@ -26,12 +26,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
-import { acceptImage, searchTermsFor } from '../lib/dnd/bestiary/art.ts';
+import { acceptImage, searchTermsFor, speciesQueryFor } from '../lib/dnd/bestiary/art.ts';
 
 const ROOT = process.cwd();
 const DRY = process.argv.includes('--dry-run');
 const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').split('=')[1]) || 0;
 const ONLY = (process.argv.find((a) => a.startsWith('--system=')) || '').split('=')[1] || null;
+/**
+ * Only creatures with a curated species mapping.
+ *
+ * THE ONLY MODE THAT IS SAFE TO RUN UNATTENDED. A run without it accepted 40 correctly-licensed images of
+ * which three of the four inspected were wrong — a pulsar for the Lich, nematodes for the Magma Worm, a
+ * calligraphy brush for the Silver Dragon. Querying by scientific name removes the ambiguity that caused
+ * all three, and `ANIMAL_SPECIES` is the hand-checked list of creatures for which such a name exists.
+ */
+const ANIMALS_ONLY = process.argv.includes('--animals-only');
 
 const UA = { 'User-Agent': 'StarrTabletop/1.0 (bestiary art; https://starr-surveying.com; one-off, cached)' };
 const COMMONS = 'https://commons.wikimedia.org/w/api.php';
@@ -102,13 +111,18 @@ async function main() {
       ${LIMIT ? `LIMIT ${LIMIT}` : ''}`,
     ONLY ? [ONLY] : [],
   );
-  console.log(`${creatures.length} creature(s) without art.\n`);
+  const targets = ANIMALS_ONLY ? creatures.filter((c) => speciesQueryFor(c.name)) : creatures;
+  console.log(
+    ANIMALS_ONLY
+      ? `${targets.length} curated real animal(s) without art (of ${creatures.length} missing overall).\n`
+      : `${creatures.length} creature(s) without art.\n`,
+  );
 
   const stats = { accepted: 0, none: 0, failed: 0 };
   const refusals = new Map();
   const noteRefusal = (why) => refusals.set(why, (refusals.get(why) ?? 0) + 1);
 
-  for (const c of creatures) {
+  for (const c of targets) {
     let picked = null;
     for (const term of searchTermsFor(c.name, c.type)) {
       let candidates;

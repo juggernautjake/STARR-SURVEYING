@@ -134,13 +134,99 @@ export function acceptImage(c: CandidateImage): { ok: true; image: AcceptedImage
 const QUALIFIERS = /\b(adult|ancient|young|giant|greater|lesser|dire|swarm of|awakened|half|elder)\b/gi;
 
 /**
+ * Real animals, queried by SCIENTIFIC NAME.
+ *
+ * ── WHY THIS TABLE EXISTS, WRITTEN AFTER THROWING AWAY 40 IMAGES ─────────────────────────────────────
+ *
+ * A live run accepted 40 correctly-licensed images and three of the four inspected were wrong: the **Lich**
+ * got a pulsar planetary system (PSR B1257+12 is nicknamed "Lich"), the **Magma Worm** got C. elegans under
+ * a microscope, the **Ancient Silver Dragon** got a calligraphy brush. No metadata field distinguishes any
+ * of those from a correct hit.
+ *
+ * Checking real animals afterwards showed a clean split: `Wolf` and `Giant Spider` returned excellent
+ * portraits, while **`Giant Rat` returned a giant inflatable protest rat photographed through a car
+ * windscreen** — because that phrase names a famous object.
+ *
+ * So the reliable query is not the creature's name at all: it is the SPECIES. "Canis lupus" cannot match an
+ * inflatable, a nickname, or a decorative motif. That is what makes this subset safe to automate while
+ * every fantasy name stays a human judgement.
+ *
+ * Curated, not derived. A mapping this consequential should be arguable line by line, and the entries
+ * marked with a genus rather than a species are the ones where D&D's creature is a category ("Spider")
+ * rather than an animal.
+ */
+export const ANIMAL_SPECIES: Record<string, string> = {
+  ape: 'Pan troglodytes', 'giant ape': 'Gorilla beringei',
+  baboon: 'Papio', badger: 'Meles meles', 'giant badger': 'Meles meles',
+  bat: 'Chiroptera', 'giant bat': 'Pteropus',
+  'black bear': 'Ursus americanus', 'brown bear': 'Ursus arctos', 'polar bear': 'Ursus maritimus',
+  boar: 'Sus scrofa', 'giant boar': 'Sus scrofa',
+  camel: 'Camelus dromedarius', cat: 'Felis catus',
+  'giant centipede': 'Scolopendra',
+  crab: 'Brachyura', 'giant crab': 'Brachyura',
+  crocodile: 'Crocodylus niloticus', 'giant crocodile': 'Crocodylus porosus',
+  deer: 'Cervus elaphus', elk: 'Cervus canadensis', 'giant elk': 'Alces alces',
+  'draft horse': 'Equus caballus', 'riding horse': 'Equus caballus', warhorse: 'Equus caballus',
+  pony: 'Equus caballus', mule: 'Equus asinus',
+  eagle: 'Aquila chrysaetos', 'giant eagle': 'Aquila chrysaetos',
+  elephant: 'Loxodonta africana', mammoth: 'Mammuthus',
+  frog: 'Rana temporaria', 'giant frog': 'Rana catesbeiana', 'giant toad': 'Bufo bufo',
+  goat: 'Capra aegagrus hircus', 'giant goat': 'Capra ibex',
+  hawk: 'Accipiter', 'blood hawk': 'Accipiter',
+  hyena: 'Crocuta crocuta', 'giant hyena': 'Crocuta crocuta',
+  jackal: 'Canis aureus',
+  'killer whale': 'Orcinus orca',
+  lion: 'Panthera leo', tiger: 'Panthera tigris', panther: 'Panthera pardus',
+  'saber-toothed tiger': 'Smilodon',
+  lizard: 'Lacertidae', 'giant lizard': 'Varanus',
+  mastiff: 'Canis lupus familiaris',
+  octopus: 'Octopus vulgaris', 'giant octopus': 'Enteroctopus dofleini',
+  owl: 'Strix aluco', 'giant owl': 'Bubo bubo',
+  // "Rat" alone is safe; "Giant Rat" is the phrase that returns the inflatable, so BOTH map to the species.
+  rat: 'Rattus norvegicus', 'giant rat': 'Rattus norvegicus', 'giant rat (diseased)': 'Rattus norvegicus',
+  raven: 'Corvus corax',
+  rhinoceros: 'Ceratotherium simum',
+  scorpion: 'Scorpiones', 'giant scorpion': 'Pandinus imperator',
+  'sea horse': 'Hippocampus', 'giant sea horse': 'Hippocampus',
+  shark: 'Carcharodon carcharias', 'giant shark': 'Carcharodon carcharias',
+  'hunter shark': 'Carcharhinus', 'reef shark': 'Carcharhinus perezi',
+  snake: 'Serpentes', 'poisonous snake': 'Vipera berus', 'giant poisonous snake': 'Naja',
+  'constrictor snake': 'Boa constrictor', 'giant constrictor snake': 'Python reticulatus',
+  'flying snake': 'Chrysopelea',
+  spider: 'Araneae', 'giant spider': 'Nephila', 'giant wolf spider': 'Lycosidae',
+  'giant wasp': 'Vespa',
+  // NOT 'Lampyridae' — that is also the MBB Lampyridae, a German stealth aircraft prototype, and Commons
+  // returned a photograph of one hanging in a museum. A GENUS CAN COLLIDE WITH A MACHINE; the species is
+  // narrower and safer.
+  'giant fire beetle': 'Lampyris noctiluca',
+  vulture: 'Gyps fulvus', 'giant vulture': 'Gyps',
+  weasel: 'Mustela nivalis', 'giant weasel': 'Mustela',
+  wolf: 'Canis lupus', 'dire wolf': 'Canis dirus',
+  plesiosaurus: 'Plesiosaurus', triceratops: 'Triceratops', 'tyrannosaurus rex': 'Tyrannosaurus',
+  quipper: 'Piranha',
+};
+
+/** The species query for a creature, or null when it is not a real animal. Null is the common case and
+ *  means "a human has to pick this one". */
+export function speciesQueryFor(name: string): string | null {
+  return ANIMAL_SPECIES[name.trim().toLowerCase()] ?? null;
+}
+
+/**
  * Search terms for one creature, best first.
  *
- * Several are tried because Commons is uneven: the specific term is best when it hits, and the generic
- * fallback is what stops a whole type rendering as sigils. A creature with no usable hit is not a failure —
- * `sigilFor` covers it, and that is why the fallback exists.
+ * A REAL ANIMAL SHORT-CIRCUITS TO ITS SPECIES and nothing else, because the whole point of the table above
+ * is that the common name is what goes wrong. Falling through to "Giant Rat" after "Rattus norvegicus"
+ * missed would reintroduce the inflatable.
+ *
+ * For everything else several terms are tried, because Commons is uneven: the specific term is best when it
+ * hits, and the generic fallback stops a whole type rendering as sigils. A creature with no usable hit is
+ * not a failure — `sigilFor` covers it, which is what lets this refuse anything doubtful.
  */
 export function searchTermsFor(name: string, type?: string | null): string[] {
+  const species = speciesQueryFor(name);
+  if (species) return [species];
+
   const clean = name.replace(/\(.*?\)/g, '').trim();
   const stripped = clean.replace(QUALIFIERS, '').replace(/\s+/g, ' ').trim();
   const terms: string[] = [];

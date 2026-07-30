@@ -6,7 +6,8 @@
 // stated — unknown is not permissive.
 import { describe, it, expect } from 'vitest';
 import {
-  acceptImage, attributionFor, isAcceptableLicence, searchTermsFor, type CandidateImage,
+  ANIMAL_SPECIES, acceptImage, attributionFor, isAcceptableLicence, searchTermsFor, speciesQueryFor,
+  type CandidateImage,
 } from '@/lib/dnd/bestiary/art';
 
 const candidate = (over: Partial<CandidateImage> = {}): CandidateImage => ({
@@ -142,8 +143,10 @@ describe('searchTermsFor', () => {
     expect(t).toContain('Red Dragon');
   });
 
-  it('falls back to the head noun — "Giant Poisonous Snake" is a snake', () => {
-    expect(searchTermsFor('Giant Poisonous Snake', 'beast')).toContain('Snake');
+  it('falls back to the head noun for a creature with no species mapping', () => {
+    // "Giant Poisonous Snake" used to be the example here and is now in ANIMAL_SPECIES (→ "Naja"), which
+    // is strictly better. A fantasy compound still needs the head-noun fallback.
+    expect(searchTermsFor('Giant Shadow Wyrm', 'dragon')).toContain('Wyrm');
   });
 
   it('ends with the creature TYPE, the widest net', () => {
@@ -167,5 +170,44 @@ describe('searchTermsFor', () => {
     const t = searchTermsFor('Swarm of Insects', 'beast');
     expect(t).toContain('Insects');
     expect(t.every((x) => x.trim().length > 2)).toBe(true);
+  });
+});
+
+describe('ANIMAL_SPECIES — the subset that is safe to automate', () => {
+  it('queries a real animal by its SPECIES, not its D&D name', () => {
+    expect(searchTermsFor('Wolf', 'beast')).toEqual(['Canis lupus']);
+    expect(searchTermsFor('Brown Bear', 'beast')).toEqual(['Ursus arctos']);
+  });
+
+  it('maps "Giant Rat" to the species — the phrase itself returns an inflatable', () => {
+    // A live check returned "Giant Rat in front of Tivoli Village": a giant inflatable protest rat
+    // photographed through a car windscreen, correctly licensed and completely wrong. "Rattus norvegicus"
+    // cannot match a novelty balloon, which is the entire argument for this table.
+    expect(searchTermsFor('Giant Rat', 'beast')).toEqual(['Rattus norvegicus']);
+  });
+
+  it('SHORT-CIRCUITS — a real animal never falls back to its common name', () => {
+    // Falling through after the species missed would reintroduce exactly the failure the table prevents.
+    const terms = searchTermsFor('Giant Rat', 'beast');
+    expect(terms).toHaveLength(1);
+    expect(terms.join(' ')).not.toMatch(/giant rat/i);
+  });
+
+  it('leaves fantasy creatures to the generic path, where a human still has to look', () => {
+    expect(speciesQueryFor('Lich')).toBeNull();
+    expect(speciesQueryFor('Ancient Silver Dragon')).toBeNull();
+    expect(searchTermsFor('Lich', 'undead').length).toBeGreaterThan(1);
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    expect(speciesQueryFor('  wolf ')).toBe('Canis lupus');
+  });
+
+  it('every entry is a plausible taxon rather than a common name', () => {
+    // A common name slipping into this table would silently reintroduce the ambiguity it exists to remove.
+    for (const [creature, species] of Object.entries(ANIMAL_SPECIES)) {
+      expect(species.length, `${creature} has an empty species`).toBeGreaterThan(3);
+      expect(species[0], `${species} should be a capitalised taxon`).toBe(species[0].toUpperCase());
+    }
   });
 });
