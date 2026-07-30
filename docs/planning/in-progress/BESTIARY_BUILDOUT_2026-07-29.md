@@ -1025,8 +1025,51 @@ The owner asked for each stat block to be *cultivated*, not just present. A qual
 - **B5-2** Plane and environment tagging, so "creatures from every plane" is a filter and not a claim.
 - **B5-3** Alignment coverage check across all nine, per system.
 - **B5-4** CR-band coverage check, so every difficulty level is actually populated.
-- **B5-5** Per-creature aura overrides for the signature monsters (dragons by colour, liches, vampires,
-  beholders' SRD equivalents, and the small pleasant ones the owner named).
+- **B5-5** Per-creature aura overrides — **SHIPPED 2026-07-30. Dragons on a generic aura: 408 → 98.**
+
+  Owner: *"change the effects up depending on the kind of creature."* B2-1's table always said a dragon
+  should be *"element-tinted (per damage type)"*. It was implemented as five NAME rules — red, white,
+  green, blue, black — which covers the 5e chromatics and nothing else. Measured over the finished
+  catalogue: **408 of 518 dragons shared one aura.** Every brass, bronze, copper, gold and silver dragon,
+  every gem dragon, and every dragon from the four books that arrived after those rules were written,
+  looking identical.
+
+  **The fix is not a longer list.** Extending it fixes today's catalogue and breaks again on the next
+  import. A dragon's element is stated in its BREATH WEAPON, so `elementalTint` reads that — covering every
+  dragon in every book, including ones nobody has thought of, from a fact about the creature rather than a
+  guess from its name. Ten elements mapped; distinct auras across the catalogue went 30 → 35.
+
+  Precedence is now **name → element → tag → type**, which extends the existing "most specific wins"
+  ordering rather than replacing it: a hand-tuned signature monster keeps its tuning, so a Vampire that
+  deals necrotic stays blood-dark mist and the owner's rabbit and zombie examples are untouchable.
+
+  **The false positive, found by measuring rather than reading:** it first tinted the Archmage and the Mage
+  as fire creatures, because `fireball` and `cone of cold` sit in their prepared slots — 27 humanoids came
+  out as furnace heat, nearly all spellcasters. *What a creature has prepared is not what it is.* Spell
+  lists are now excluded, which is the same shape as the `shield` false positive in B6-4 and the second
+  time in two slices that a spell list masqueraded as evidence.
+
+  The 98 dragons still on the generic aura — Pseudodragon, the drakes, Adamantine and Mithral — genuinely
+  have no elemental breath, and a generic dragon aura is the right answer for them rather than a guess.
+
+  #### And the Foundry prose was still leaking, on 500+ more rows
+
+  Chasing a wrong-looking aura surfaced text nobody could read at the table. B6-6b cleared the `@Token`
+  forms; three more shapes remained, all now zero:
+
+  | Was | Now | Rows |
+  | --- | --- | --- |
+  | `spits blood in a line\|distance:20` | `in a 20-foot line` | 524 |
+  | `deals 6d6[fire\|options:area-damage] damage` | `deals 6d6 fire damage` | 241 |
+  | `again for [[/gmr 1d4 #Recharge Spew]]{1d4 rounds}` | `again for 1d4 rounds` | — |
+
+  `@Damage` took three attempts because its real shape is `@Damage[6d6[fire]|options:area-damage]` — it
+  nests AND carries options, with the options OUTSIDE the nesting. One attempt required `]]` and never
+  matched; the next stopped at the first `]` and printed the options verbatim. Now matched allowing one
+  level of nesting and read explicitly.
+
+  The six rows that still contain a pipe are **genuine Markdown tables** in authored creature prose
+  (`| d4 | Fate |`), correctly left alone.
 
 ---
 

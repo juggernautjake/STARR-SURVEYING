@@ -172,6 +172,28 @@ describe('pf2ActorToRow — strikes and actions', () => {
       expect(prose('The target attempts a @Check[fortitude|dc:20] save.')).toBe('The target attempts a DC 20 Fortitude save.');
     });
 
+    it('writes a @Template area the way a stat block says it', () => {
+      // Passing the parameters through produced "spits their boiling blood in a line|distance:20" —
+      // 524 rows carried a raw `distance:` like that.
+      expect(prose('Blood in a @Template[line|distance:20] that burns.')).toBe('Blood in a 20-foot line that burns.');
+    });
+
+    it('reads @Damage in its real shape — nested AND with options outside the nesting', () => {
+      // The actual Foundry text is `@Damage[6d6[fire]|options:area-damage]`: the options sit OUTSIDE the
+      // inner bracket. Two earlier attempts assumed otherwise — one required `]]` and never matched, the
+      // other stopped at the first `]` — and each left the token on 241 rows.
+      expect(prose('It deals @Damage[6d6[fire]|options:area-damage] damage.')).toBe('It deals 6d6 fire damage.');
+      expect(prose('It deals @Damage[2d4[fire]] damage.')).toBe('It deals 2d4 fire damage.');
+      expect(prose('It deals @Damage[1d6] damage.')).toBe('It deals 1d6 damage.');
+    });
+
+    it('reads Foundry\'s inline ROLL macro, which no @Token rule touches', () => {
+      // A different syntax entirely, so it printed in full at the table: "again for
+      // [[/gmr 1d4 #Recharge Frothing Spew]]{1d4 rounds}". The trailing label is the readable half.
+      expect(prose('It cannot do that again for [[/gmr 1d4 #Recharge Spew]]{1d4 rounds}.'))
+        .toBe('It cannot do that again for 1d4 rounds.');
+    });
+
     it('leaves prose with no tokens untouched', () => {
       expect(prose('Plain text with no tokens at all.')).toBe('Plain text with no tokens at all.');
     });

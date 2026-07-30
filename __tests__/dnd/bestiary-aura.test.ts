@@ -210,3 +210,57 @@ describe('auraFor — two applicable tags resolve the same way every time', () =
     expect(auraFor({ name: 'Dire Wolf', type: 'beast' }).feel).toMatch(/woodland/i);
   });
 });
+
+describe('auraFor — the element a creature actually breathes (B5-5)', () => {
+  const breath = (name: string, text: string) => ({
+    name,
+    type: 'dragon',
+    statblock: { entries: [{ name: 'Breath Weapon', body: text }] },
+  });
+
+  it('tints a metallic dragon by its breath, which a name list never covered', () => {
+    // B2-1's table always said "element-tinted (per damage type)". It was implemented as five name rules —
+    // red, white, green, blue, black — so measured over the finished catalogue **408 of 518 dragons shared
+    // one generic aura**: every brass, bronze, copper, gold and silver dragon, every gem dragon, and every
+    // dragon from the four books that arrived after those rules were written.
+    expect(auraFor(breath('Adult Silver Dragon', 'exhales an icy blast dealing cold damage')).feel).toMatch(/frost/i);
+    expect(auraFor(breath('Adult Copper Dragon', 'exhales acid in a 60-foot line dealing acid damage')).feel).toMatch(/caustic/i);
+    expect(auraFor(breath('Adult Bronze Dragon', 'exhales lightning in a line dealing lightning damage')).feel).toMatch(/static/i);
+  });
+
+  it('reads the BREATH, not a resistance — having fire immunity is not being a fire creature', () => {
+    const resistant = { name: 'Some Beast', type: 'beast', statblock: { entries: [{ name: 'Fire Absorption', body: 'It is immune to fire damage.' }] } };
+    expect(auraFor(resistant).feel).not.toMatch(/furnace/i);
+  });
+
+  it('IGNORES A SPELL LIST, because what a creature has prepared is not what it is', () => {
+    // Measured: this tinted the Archmage and the Mage as fire creatures, because `fireball` and `cone of
+    // cold` sit in their prepared slots — 27 humanoids came out as furnace heat, nearly all spellcasters.
+    // The same shape as the Intuitive Games `shield` false positive in B6-4.
+    const archmage = {
+      name: 'Archmage', type: 'humanoid',
+      statblock: { entries: [{ name: 'Spellcasting', body: '4th level (3 slots): fire shield, cone of cold, fireball' }] },
+    };
+    expect(auraFor(archmage).feel).toMatch(/nothing supernatural/i);
+  });
+
+  it('never overrides a hand-tuned signature monster', () => {
+    // Name beats element beats tag beats type. A Vampire that deals necrotic stays blood-dark mist, and
+    // the owner's own two examples are untouchable.
+    const vampire = { name: 'Vampire', type: 'undead', statblock: { entries: [{ name: 'Blast', body: 'necrotic damage' }] } };
+    expect(auraFor(vampire).feel).toMatch(/blood-dark/i);
+    const rabbit = { name: 'Rabbit', type: 'beast', statblock: { entries: [{ name: 'Blast', body: 'fire damage' }] } };
+    expect(auraFor(rabbit).feel).toMatch(/gentle green/i);
+  });
+
+  it('leaves a creature with no elemental breath on its type aura', () => {
+    // The Pseudodragon and the drakes genuinely have none, and a generic dragon aura is the right answer
+    // for them rather than a guess.
+    expect(auraFor({ name: 'Pseudodragon', type: 'dragon', statblock: { entries: [{ name: 'Sting', body: 'piercing damage' }] } }).feel)
+      .toMatch(/elemental wash/i);
+  });
+
+  it('works with no statblock at all, because it is a refinement and not a dependency', () => {
+    expect(() => auraFor({ name: 'Anything', type: 'beast' })).not.toThrow();
+  });
+});

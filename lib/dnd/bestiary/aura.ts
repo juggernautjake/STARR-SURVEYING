@@ -98,6 +98,70 @@ export interface AuraInput {
   type?: string | null;
   tags?: string[];
   cr?: string | null;
+  /**
+   * The creature's own stat block, read ONLY for the damage it deals — see `elementalTint`.
+   *
+   * Optional, and everything works without it: this is a refinement on top of the name and type layers,
+   * not a dependency. A caller that has the row already (every one of them does) gets a dragon tinted by
+   * its actual breath weapon instead of a generic one.
+   */
+  statblock?: { entries?: Array<{ name?: string; body?: string }> | null; immunities?: string | null } | null;
+}
+
+/**
+ * The damage a creature deals, turned into a colour.
+ *
+ * ── WHY THIS BEATS A LONGER NAME LIST ────────────────────────────────────────────────────────────────
+ *
+ * B2-1's own table says a dragon should be "element-tinted (per damage type)". It was implemented as five
+ * name rules — red, white, green, blue, black — which covers the 5e chromatics and nothing else. Measured
+ * over the finished catalogue, **408 of 518 dragons shared one generic aura**: every brass, bronze,
+ * copper, gold and silver dragon, every gem dragon, and every dragon from the four books that arrived
+ * after those rules were written, all looking identical.
+ *
+ * Extending the list would fix today's catalogue and break again on the next import. A dragon's element is
+ * stated in its breath weapon, so reading that covers every dragon in every book — including ones nobody
+ * has thought of — and is a fact about the creature rather than a guess from its name.
+ *
+ * Deliberately keyed on the FIRST damage type found in an entry whose name mentions breath or a weapon,
+ * so a creature that merely has fire RESISTANCE is not tinted as a fire creature. Immunities are read only
+ * as a tie-break, because a creature immune to its own element is the common case.
+ */
+const ELEMENT_TINTS: Record<string, Partial<AuraSpec>> = {
+  fire:      { rgb: '212, 88, 42',   rgb2: '92, 28, 18',   motion: 'ember',  density: 0.8,  feel: 'furnace heat' },
+  cold:      { rgb: '150, 208, 232', rgb2: '52, 104, 140', motion: 'wash',   density: 0.6,  feel: 'frost haze' },
+  lightning: { rgb: '104, 152, 226', rgb2: '36, 56, 120',  motion: 'pulse',  density: 0.7,  feel: 'static crackle' },
+  thunder:   { rgb: '124, 140, 200', rgb2: '40, 50, 96',   motion: 'pulse',  density: 0.7,  feel: 'a concussive roll of sound' },
+  acid:      { rgb: '128, 176, 96',  rgb2: '32, 44, 32',   motion: 'bubble', density: 0.7,  feel: 'caustic drip' },
+  poison:    { rgb: '110, 168, 92',  rgb2: '40, 76, 48',   motion: 'plume',  density: 0.7,  feel: 'acrid green fumes' },
+  necrotic:  { rgb: '132, 92, 168',  rgb2: '40, 26, 60',   motion: 'plume',  density: 0.75, feel: 'a withering violet pall' },
+  radiant:   { rgb: '250, 232, 168', rgb2: '206, 164, 84', motion: 'radiance', density: 0.5, feel: 'searing golden light' },
+  psychic:   { rgb: '206, 106, 190', rgb2: '62, 30, 84',   motion: 'pulse',  density: 0.7,  feel: 'a pressure behind the eyes' },
+  force:     { rgb: '164, 196, 232', rgb2: '58, 84, 124',  motion: 'glimmer', density: 0.55, feel: 'humming unseen force' },
+};
+
+/** The elements, longest first, so `lightning` is not matched by a substring of something else. */
+const ELEMENT_WORDS = Object.keys(ELEMENT_TINTS);
+
+export function elementalTint(sb: AuraInput['statblock']): Partial<AuraSpec> | null {
+  if (!sb?.entries?.length) return null;
+  for (const e of sb.entries) {
+    const label = `${e?.name ?? ''}`;
+    // A SPELL LIST IS NOT THE CREATURE'S ELEMENT. Measured over the catalogue, this rule tinted the
+    // Archmage and the Mage as fire creatures because `fireball` and `cone of cold` sit in their prepared
+    // slots — 27 humanoids came out as furnace heat, nearly all of them spellcasters. The same shape as
+    // the Intuitive Games `shield` false positive in B6-4: what a creature has PREPARED says nothing about
+    // what it is. A wizard who happens to know fireball is not a fire creature.
+    if (/spellcasting/i.test(label)) continue;
+    // Breath weapons and elemental strikes state the type; a passive trait like "Fire Absorption" does not
+    // mean the creature deals fire, so the entry has to look like something it USES on a target.
+    if (!/breath|spew|blast|exhal|line of|cone of/i.test(label + ' ' + (e?.body ?? ''))) continue;
+    const body = `${label} ${e?.body ?? ''}`.toLowerCase();
+    for (const el of ELEMENT_WORDS) {
+      if (new RegExp(`\\b${el}\\b`).test(body)) return ELEMENT_TINTS[el];
+    }
+  }
+  return null;
 }
 
 /**
@@ -117,11 +181,24 @@ export function auraFor(c: AuraInput): AuraSpec & { intensity: number; boss: boo
   // The tag layer that used to sit here is gone — see the note above `BY_NAME`. Tags are now the standard
   // creature types, which `BY_TYPE` already keys on, so re-reading them here would have applied the same
   // spec twice. What the old layer actually contributed (sea, bird, woodland, demonic) moved to BY_NAME.
+  let named = false;
   for (const { match, spec: over } of BY_NAME) {
     if (match.test(c.name)) {
       spec = { ...spec, ...over, id: `${spec.id}-named` };
+      named = true;
       break;
     }
+  }
+
+  // ELEMENT, read from what the creature actually breathes — see `elementalTint`.
+  //
+  // Applied only when NO name rule matched, so the hand-tuned signature monsters keep their tuning: a
+  // Vampire stays blood-dark mist rather than becoming whatever it happens to deal, and the owner's rabbit
+  // and zombie examples are untouchable. Name beats element beats tag beats type, which extends the
+  // existing "most specific wins" ordering rather than replacing it.
+  if (!named) {
+    const tint = elementalTint(c.statblock);
+    if (tint) spec = { ...spec, ...tint, id: `${spec.id}-element` };
   }
 
   const cr = parseCr(c.cr);

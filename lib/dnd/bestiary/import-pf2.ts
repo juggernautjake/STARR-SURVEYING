@@ -69,8 +69,23 @@ const text = (v: unknown): string | undefined => {
     // `@Damage[2d6[piercing]]` NESTS, so a `[^\]]*` body stops at the inner bracket and leaves
     // "piercing]" behind — which is how a generic rule turned "Deals 2d6 piercing damage" into
     // "Deals piercing] damage", losing the dice. Handled before the generic fallback for that reason.
-    .replace(/@Damage\[([^[\]]*)\[([^\]]*)\]\]/g, '$1 $2')
-    .replace(/@Damage\[([^\]]*)\]/g, '$1')
+    // Foundry's inline ROLL macro is a different syntax again — `[[/gmr 1d4 #Recharge Spew]]{1d4 rounds}`
+    // — and no `@Token` rule touches it, so it printed in full: "can't use Frothing Spew again for
+    // [[/gmr 1d4 #Recharge Frothing Spew]]{1d4 rounds}". The trailing label is the readable half.
+    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
+    .replace(/\[\[[^\]]*\]\]/g, '')
+    // `@Damage[…]` NESTS AND CARRIES OPTIONS, in that order: the real shape is
+    // `@Damage[6d6[fire]|options:area-damage]`, so the options sit OUTSIDE the inner bracket. Two earlier
+    // attempts assumed otherwise — one required `]]` and never matched, the other stopped at the first
+    // `]` and printed "6d6[fire|options:area-damage" — leaving the token on 241 rows both times.
+    //
+    // So the body is matched allowing ONE level of nesting, then read: everything before the first
+    // top-level `|` is the damage, and `6d6[fire]` inside it becomes "6d6 fire".
+    .replace(/@Damage\[((?:[^[\]]|\[[^\]]*\])*)\]/g, (_m: string, body: string) => body
+      .split('|')[0]
+      .replace(/\[([^\]]*)\]/g, (_i: string, inner: string) => ` ${inner.split('|')[0]}`)
+      .replace(/\s+/g, ' ')
+      .trim())
     // `@Check[fortitude|dc:20]` is a DC and a save, written in the order a stat block prints them.
     .replace(/@Check\[([^\]]*)\]/g, (_m, body: string) => {
       const save = /^([a-z]+)/.exec(body)?.[1] ?? '';
@@ -78,7 +93,13 @@ const text = (v: unknown): string | undefined => {
       const named = save ? save[0].toUpperCase() + save.slice(1) : '';
       return dc ? `DC ${dc} ${named}`.trim() : named || body;
     })
-    .replace(/@Template\[([^\]]*)\]/g, '$1')
+    // `@Template[line|distance:20]` is an area, and passing the parameters through verbatim produced
+    // "spits their boiling blood in a line|distance:20". Written the way a stat block says it instead.
+    .replace(/@Template\[([^\]]*)\]/g, (_m: string, body: string) => {
+      const shape = body.split('|')[0]?.trim();
+      const dist = /distance:(\d+)/.exec(body)?.[1];
+      return dist && shape ? `${dist}-foot ${shape}` : (shape || body);
+    })
     // A localisation KEY for text we do not hold. Nothing readable to recover, and the sentence around it
     // reads fine without it.
     .replace(/@Localize\[[^\]]*\]/g, ' ')
