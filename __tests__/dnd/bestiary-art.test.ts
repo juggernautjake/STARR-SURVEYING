@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ANIMAL_SPECIES, acceptImage, attributionFor, isAcceptableLicence, searchTermsFor, speciesQueryFor,
+  spokenName,
   type CandidateImage,
 } from '@/lib/dnd/bestiary/art';
 
@@ -201,6 +202,44 @@ describe('ANIMAL_SPECIES — the subset that is safe to automate', () => {
 
   it('is case- and whitespace-insensitive', () => {
     expect(speciesQueryFor('  wolf ')).toBe('Canis lupus');
+  });
+});
+
+describe('spokenName — publishers write a name for an INDEX, not for a sentence', () => {
+  it('un-inverts a comma name, which an exact-match table misses entirely', () => {
+    // Pathfinder and the SRD's own listings invert: the catalogue holds `Bear, Black`, `Bear, Brown`,
+    // `Bear, Polar`, `Rat, Giant`, `Ape, Giant`, `Spider, Giant Wolf` and dozens more — every one of which
+    // the species table ALREADY had an entry for, under the spoken name, and none of which it reached.
+    expect(spokenName('Bear, Black')).toBe('black bear');
+    expect(spokenName('Spider, Giant Wolf')).toBe('giant wolf spider');
+    expect(spokenName('Tiger, Saber-Toothed')).toBe('saber-toothed tiger');
+    expect(speciesQueryFor('Bear, Polar')).toBe('Ursus maritimus');
+  });
+
+  it('drops a leading CATEGORY rather than swapping it to the end', () => {
+    // "Insect, Giant Scorpion" is not a scorpion-insect. The head word decides which rule applies.
+    expect(spokenName('Insect, Giant Scorpion')).toBe('giant scorpion');
+    expect(spokenName('Dinosaur, Therizinosaurus')).toBe('therizinosaurus');
+  });
+
+  it('reads a swarm as the animal it is made of', () => {
+    expect(spokenName('Swarm of Rats')).toBe('rat');
+    expect(speciesQueryFor('Swarm of Poisonous Snakes')).toBe('Vipera berus');
+  });
+
+  it('handles the doubled form, which is where the ordering matters', () => {
+    // `Rat, Swarm of Rats` names the animal twice. Applying the comma rule FIRST turns it into
+    // "swarm of rats rat" and the swarm capture then swallows the duplicated head, giving "rats rat" —
+    // which matches nothing. Taking the swarm phrase off the original name sidesteps it.
+    expect(spokenName('Rat, Swarm of Rats')).toBe('rat');
+    expect(spokenName('Bat, Swarm of Bats')).toBe('bat');
+    expect(speciesQueryFor('Quipper, Swarm of Quippers')).toBe('Piranha');
+  });
+
+  it('leaves an ordinary name alone', () => {
+    expect(spokenName('Giant Fire Beetle')).toBe('giant fire beetle');
+    expect(spokenName('Owlbear')).toBe('owlbear');
+    expect(speciesQueryFor('Owlbear')).toBeNull();
   });
 
   it('every entry is a plausible taxon rather than a common name', () => {

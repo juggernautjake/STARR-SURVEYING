@@ -204,12 +204,113 @@ export const ANIMAL_SPECIES: Record<string, string> = {
   wolf: 'Canis lupus', 'dire wolf': 'Canis dirus',
   plesiosaurus: 'Plesiosaurus', triceratops: 'Triceratops', 'tyrannosaurus rex': 'Tyrannosaurus',
   quipper: 'Piranha',
+
+  // ── B6-5: the wider corpus's real animals ──────────────────────────────────────────────────────────
+  //
+  // Tome of Beasts, Monstrous Menagerie, Black Flag and the Pathfinder bestiaries carry hundreds more
+  // ordinary animals than the SRD did, and every one of them is a creature Commons photographs reliably.
+  // Binomials throughout, per the B2-3 finding that a bare GENUS is a coin toss — `Lampyridae` returned a
+  // stealth aircraft — while a species name cannot collide with a machine.
+  alligator: 'Alligator mississippiensis', 'alligator turtle': 'Macrochelys temminckii',
+  'giant snapping turtle': 'Macrochelys temminckii', 'snapping turtle': 'Chelydra serpentina',
+  bison: 'Bison bison', bull: 'Bos taurus', 'cave bear': 'Ursus spelaeus', 'grizzly bear': 'Ursus arctos horribilis',
+  'bottlenose dolphin': 'Tursiops truncatus', 'blue-ringed octopus': 'Hapalochlaena lunulata',
+  'reef octopus': 'Octopus cyanea', 'vampire squid': 'Vampyroteuthis infernalis',
+  'giant squid': 'Architeuthis dux', 'electric eel': 'Electrophorus electricus',
+  'giant moray eel': 'Gymnothorax javanicus', 'goblin shark': 'Mitsukurina owstoni',
+  'great white shark': 'Carcharodon carcharias', megalodon: 'Otodus megalodon',
+  'harbor seal': 'Phoca vitulina', 'leopard seal': 'Hydrurga leptonyx',
+  'manta ray': 'Mobula birostris', stingray: 'Dasyatis', swordfish: 'Xiphias gladius',
+  stonefish: 'Synanceia verrucosa', pufferfish: 'Takifugu rubripes', 'giant pufferfish': 'Arothron stellatus',
+  narwhal: 'Monodon monoceros', orca: 'Orcinus orca',
+  gorilla: 'Gorilla gorilla', 'ghost ape': 'Gorilla beringei', monkey: 'Macaca fuscata',
+  kangaroo: 'Macropus rufus', meerkat: 'Suricata suricatta', skunk: 'Mephitis mephitis',
+  'giant skunk': 'Mephitis mephitis', wolverine: 'Gulo gulo', 'giant wolverine': 'Gulo gulo',
+  leopard: 'Panthera pardus', 'snow cat': 'Panthera uncia', moose: 'Alces alces',
+  'musk deer': 'Moschus moschiferus', 'red fox': 'Vulpes vulpes', 'fennec fox': 'Vulpes zerda',
+  'cunning fox': 'Vulpes vulpes', hippopotamus: 'Hippopotamus amphibius',
+  'woolly rhinoceros': 'Coelodonta antiquitatis', 'guard dog': 'Canis lupus familiaris',
+  'riding dog': 'Canis lupus familiaris', 'giant armadillo': 'Priodontes maximus',
+  'giant sloth': 'Megatherium americanum', 'three-toed sloth': 'Bradypus variegatus',
+  'giant pangolin': 'Smutsia gigantea', 'dire pangolin': 'Smutsia gigantea',
+  'giant mongoose': 'Herpestes edwardsii', 'giant porcupine': 'Hystrix cristata',
+  'giant opossum': 'Didelphis virginiana', 'giant flying squirrel': 'Petaurista petaurista',
+  'giant chameleon': 'Furcifer oustaleti', 'giant gecko': 'Gekko gecko',
+  'giant monitor lizard': 'Varanus komodoensis', 'giant frilled lizard': 'Chlamydosaurus kingii',
+  python: 'Python reticulatus', titanoboa: 'Titanoboa', 'giant anaconda': 'Eunectes murinus',
+  viper: 'Vipera berus', 'giant viper': 'Bitis gabonica', 'sea snake': 'Hydrophis',
+  'emperor cobra': 'Ophiophagus hannah', 'rat snake swarm': 'Pantherophis obsoletus',
+  'terror bird': 'Phorusrhacos', 'war ostrich': 'Struthio camelus',
+  'great gray owl': 'Strix nebulosa', 'forest falcon': 'Micrastur', 'archaeopteryx': 'Archaeopteryx',
+  'giant honey bee': 'Apis mellifera', 'giant stag beetle': 'Lucanus cervus',
+  'giant tarantula': 'Theraphosa blondi', 'giant mantis': 'Mantis religiosa',
+  'deadly mantis': 'Mantis religiosa', 'giant mantis shrimp': 'Odontodactylus scyllarus',
+  'giant dragonfly': 'Anisoptera', 'giant tardigrade': 'Tardigrada',
+  'giant cockroach': 'Blaberus giganteus', 'giant tick': 'Ixodes ricinus',
+  'giant leech': 'Hirudo medicinalis', 'giant slug': 'Limax maximus',
+  'giant hermit crab': 'Coenobita brevimanus', trilobite: 'Trilobita',
+  'common eurypterid': 'Eurypterus', helicoprion: 'Helicoprion',
+
+  // Dinosaurs and prehistoric mammals. Fossil mounts rather than photographs, necessarily — B2-3 recorded
+  // that as a deliberate outcome rather than a defect: Commons has no photograph of a Smilodon because
+  // none can exist, and a museum skeleton is the truthful best available.
+  allosaurus: 'Allosaurus', ankylosaurus: 'Ankylosaurus', brontosaurus: 'Brontosaurus',
+  carnotaurus: 'Carnotaurus', compsognathus: 'Compsognathus', deinonychus: 'Deinonychus',
+  deinosuchus: 'Deinosuchus', diplodocus: 'Diplodocus', elasmosaurus: 'Elasmosaurus',
+  iguanodon: 'Iguanodon', majungasaurus: 'Majungasaurus', nodosaurus: 'Nodosaurus',
+  pachycephalosaurus: 'Pachycephalosaurus', platecarpus: 'Platecarpus', protoceratops: 'Protoceratops',
+  pteranodon: 'Pteranodon', quetzalcoatlus: 'Quetzalcoatlus', spinosaurus: 'Spinosaurus',
+  stegosaurus: 'Stegosaurus', therizinosaurus: 'Therizinosaurus', troodon: 'Troodon',
+  tylosaurus: 'Tylosaurus', velociraptor: 'Velociraptor', tyrannosaurus: 'Tyrannosaurus',
+  anancus: 'Anancus', daeodon: 'Daeodon', gigantopithecus: 'Gigantopithecus',
+  hyaenodon: 'Hyaenodon', lystrosaurus: 'Lystrosaurus', mastodon: 'Mammut americanum',
+  megalania: 'Varanus priscus', megalictis: 'Megalictis', megantereon: 'Megantereon',
+  megatherium: 'Megatherium', smilodon: 'Smilodon',
 };
+
+/**
+ * Publishers write a creature's name for an INDEX, not for a sentence.
+ *
+ * Pathfinder and the SRD's own listings invert it — `Bear, Black`, `Ape, Giant`, `Swarm of Rats` — and an
+ * exact-match table lookup misses every one. That is not a handful: the catalogue holds `Bear, Black`,
+ * `Bear, Brown`, `Bear, Polar`, `Rat, Giant`, `Ape, Giant`, `Spider, Giant Wolf` and dozens more, all of
+ * which the table already had entries for under their spoken names.
+ *
+ * So the comma is un-inverted and a leading `Swarm of` / `Insect,` style prefix dropped, and the result is
+ * tried against the table. This is a NAMING convention, not a synonym list — writing out `bear, black` as
+ * its own key would double the table and let the two halves drift.
+ */
+export function spokenName(name: string): string {
+  let n = name.trim().toLowerCase();
+
+  // A swarm is a PRESENTATION of an animal, not a different animal — "Swarm of Rats" wants a photograph of
+  // a rat.
+  //
+  // FIRST, and that ordering is the whole of it. Run after the comma rule, `Rat, Swarm of Rats` has already
+  // become "swarm of rats rat" and the capture swallows the duplicated head, yielding "rats rat" — which
+  // matches nothing. Taking the swarm phrase off the ORIGINAL name sidesteps the interaction entirely,
+  // and every `X, Swarm of Xs` in the catalogue names the same animal twice anyway.
+  const swarmOf = n.match(/swarm of ([a-z' -]+)$/);
+  if (swarmOf) return swarmOf[1].trim().replace(/(?<!s)s$/, '');
+
+  // `Insect, Giant Scorpion` leads with a CATEGORY, which simply drops. `Bear, Black` leads with the
+  // ANIMAL, so the two halves swap. What decides it is which kind of word the head is, not its position.
+  const CATEGORIES = new Set(['insect', 'dinosaur', 'animal', 'beast', 'swarm']);
+  const comma = n.match(/^([a-z' -]+),\s*(.+)$/);
+  if (comma) {
+    const [, head, tail] = comma;
+    n = CATEGORIES.has(head) ? tail : `${tail} ${head}`;
+  }
+
+  return n.replace(/\s+/g, ' ').trim();
+}
+
 
 /** The species query for a creature, or null when it is not a real animal. Null is the common case and
  *  means "a human has to pick this one". */
 export function speciesQueryFor(name: string): string | null {
-  return ANIMAL_SPECIES[name.trim().toLowerCase()] ?? null;
+  const raw = name.trim().toLowerCase();
+  return ANIMAL_SPECIES[raw] ?? ANIMAL_SPECIES[spokenName(name)] ?? null;
 }
 
 /**
