@@ -141,6 +141,41 @@ describe('pf2ActorToRow — strikes and actions', () => {
     const d = pf2ActorToRow(goblin(), PROV)!.row.description!;
     expect(d).toBe('The frontline fighters of goblin tribes.');
   });
+
+  describe('the other three Foundry token shapes, which leaked on 1,448 of 1,594 creatures', () => {
+    /** Run one prose string through the transform and read it back out. */
+    const prose = (s: string) => {
+      const a = goblin() as unknown as { system: { details: { publicNotes: string } } };
+      a.system.details.publicNotes = s;
+      return pf2ActorToRow(a as never, PROV)!.row.description!;
+    };
+
+    it('recovers the readable name from an UNLABELLED @UUID', () => {
+      // The original rule required a `{Label}`, so a bare reference printed in full at the table. The last
+      // dot-segment is exactly what the label would have said.
+      expect(prose('It has @UUID[Compendium.pf2e.actionspf2e.Item.Step] available.')).toBe('It has Step available.');
+    });
+
+    it('drops a @Localize key, which references text we do not hold', () => {
+      // There is nothing readable to recover from `PF2E.NPC.Abilities.Glossary.Telepathy`, and the
+      // sentence around it reads fine without it — this was the token printing on the Aapoph Granitescale.
+      expect(prose('Telepathy 100 feet @Localize[PF2E.NPC.Abilities.Glossary.Telepathy]')).toBe('Telepathy 100 feet');
+    });
+
+    it('reads NESTED @Damage without losing the dice', () => {
+      // `@Damage[2d6[piercing]]` nests, so a `[^\]]*` body stops at the inner bracket — a generic rule
+      // turned "Deals 2d6 piercing damage" into "Deals piercing] damage", which is the dice gone.
+      expect(prose('Deals @Damage[2d6[piercing]] damage.')).toBe('Deals 2d6 piercing damage.');
+    });
+
+    it('writes a @Check as a DC and a save, in the order a stat block prints them', () => {
+      expect(prose('The target attempts a @Check[fortitude|dc:20] save.')).toBe('The target attempts a DC 20 Fortitude save.');
+    });
+
+    it('leaves prose with no tokens untouched', () => {
+      expect(prose('Plain text with no tokens at all.')).toBe('Plain text with no tokens at all.');
+    });
+  });
 });
 
 describe('pf2ActorToRow — what it refuses', () => {

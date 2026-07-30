@@ -718,7 +718,41 @@ Deliberately NOT every pack: the PFS season packs are largely stat-block variant
 the core bestiaries, and importing them would put nine Goblin Warriors in the catalogue. Core bestiaries +
 the standalone hardcovers; adventure-path packs only where they add creatures the core books do not have.
 
-### B6-2 · D&D Wiki's homebrew — **target: 5e +1,000, and the first genuinely community-authored content**
+### B6-2 · D&D Wiki's homebrew — **DEFERRED 2026-07-30. The licence permits it; the site does not.**
+
+**The blocker is not the licence and not the implementation cost.** GNU FDL 1.3 is confirmed on both the
+copyright page and the footer of every article — *"Content is available under the GNU Free Documentation
+License 1.3 except where otherwise specified"* — and it genuinely permits redistribution with attribution.
+
+**The MediaWiki API is closed to anonymous callers, by the operator, for exactly this reason.** Every
+`api.php` call answers:
+
+> *403 — To reduce server load, we had to restrict this action to logged in users only. Please just make an
+> account, log in, and then proceed!*
+
+That is a load-protection access control, and the two ways past it are both wrong:
+
+- **Make an account to get through it.** Creating a login specifically to bypass a restriction whose stated
+  purpose is to stop bulk automated access, then pulling thousands of pages through it, is the abuse the
+  restriction exists to prevent. The GFDL grants rights over the *content*; it grants nothing over
+  somebody else's servers.
+- **Scrape the HTML instead**, which is not blocked (articles answer 200 and `robots.txt` allows `/`). But
+  the listing pages do not carry usable creature links, so this means one request per creature over
+  thousands of creatures — **precisely the server load the API restriction exists to avoid**, routed around
+  rather than respected. `robots.txt` also carries `Content-Signal: search=yes, use=reference`, which
+  permits indexing and excerpting; copying full stat blocks into our own database and republishing them is
+  neither.
+
+**And the value is now marginal, which is what makes deferring honest rather than convenient.** B6-2's
+target was "5e +1,000". D&D 5e already holds **2,828** creatures — fourteen times the owner's own floor —
+sourced from publishers who *intend* redistribution and ship machine-readable data. The gap this would
+fill does not exist any more.
+
+**What would unblock it:** the owner deciding they want it and creating an account themselves, which is
+their call and not one to make on their behalf by writing a scraper. GFDL also requires naming each page's
+authors, so a per-page contributor fetch would be needed regardless — doubling the request count.
+
+### B6-2 · D&D Wiki's homebrew (original plan text)
 
 GNU FDL 1.3, confirmed on the wiki's own copyright page: *"D&D Wiki is based on everyone's ideas, which are
 here to be freely taken and used by anyone."* Redistribution is permitted with attribution and the licence
@@ -876,7 +910,52 @@ missing licence and missing credit are each refused with their own message; a re
 and credits; DELETE clears all five columns and removes the object from storage (verified by listing the
 bucket — the public URL still 200s for a while, which is CDN cache, not an orphan).
 
-### B6-6b · The creature editor per system
+### B6-6b · The creature editor per system — **SHIPPED 2026-07-30, and it found the biggest defect in the phase**
+
+The slice was meant to be "make the stat block editor speak each system's vocabulary". Opening a
+Pathfinder creature to check found something larger.
+
+#### All 1,594 Pathfinder creatures displayed NO ability line at all
+
+`CreatureStatblock` read `s.abilities` and never `s.abilityMods`. Not a wrong number — **no row**.
+
+`abilityMods` was added in B1-5 for precisely this, argued through at length (PF2's remaster prints only
+modifiers; writing 3 into `abilities` renders a crippling weakness where the source states a strength — an
+inversion, not a rounding error), covered by tests, and populated on every one of the 1,594 rows. It was
+never wired into the one component that shows a creature to a reader.
+
+**This is the repo's signature defect, in the module whose plan opens by warning about it**, and it
+survived every unit test because the component has none and the model was perfect. Only opening a
+Pathfinder creature showed it. Now rendered, with the modifier where a score would sit and **no derived
+second line** — there is no score behind a +3 and no formula recovers one, so filling that space would be
+inventing a rule. Verified on the Aapoph Granitescale: `STR +5 DEX +4 CON +4 INT −1 WIS +1 CHA +1`,
+including the negative INT that B1-5 predicted would be lost.
+
+#### The editor had the mirror of the same bug
+
+It offered six ability-**score** boxes regardless of system. Editing a forked Pathfinder creature therefore
+showed six blanks (its numbers live in `abilityMods`, which the grid never read) and typing into one wrote
+an **invented score** that then won over the real modifier in the renderer. Now modifier inputs for PF2
+(min −10, because `abilities`' 1–99 range drops every negative), score inputs elsewhere, each with the
+derived-modifier line only where it is genuinely derived. `Prof. bonus` is hidden outside 5e: Pathfinder
+folds proficiency into each statistic and IG has no such number, so the box invited someone to fill in a
+stat their system does not have.
+
+#### And 1,448 of 1,594 creatures were printing raw Foundry tokens
+
+`@Localize[PF2E.NPC.Abilities.Glossary.Telepathy]` on the page, at the table. The strip rule handled
+`@UUID[…]{Label}` only, so three other shapes leaked. Fixed and re-imported to **zero**:
+
+| Shape | Now reads |
+| --- | --- |
+| `@UUID[….Item.Step]` — no label | `Step` (the last dot-segment is what the label would have said) |
+| `@Localize[PF2E.NPC.…]` | dropped — a key for text we do not hold, and the sentence reads fine without it |
+| `@Damage[2d6[piercing]]` | `2d6 piercing` — it NESTS, so a `[^\]]*` body stopped at the inner bracket and my first generic rule produced "Deals piercing] damage", losing the dice |
+| `@Check[fortitude\|dc:20]` | `DC 20 Fortitude` — a DC and a save in the order a stat block prints them |
+
+The final fallback splits on `.` rather than matching a character class, because the class kept needing to
+be widened and **silently matched nothing when it was not wide enough** — that is what left the last 21,
+whose names carry a colon or brackets (`Item.Effect: Nanite Surge (Glow)`).
 
 The owner's *"we should be able to create variants and upload artwork for them"* was two features:
 

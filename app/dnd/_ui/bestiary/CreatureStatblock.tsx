@@ -29,6 +29,21 @@ import styles from './statblock.module.css';
 export default function CreatureStatblock({ statblock, name }: { statblock: Statblock; name?: string }) {
   const s = statblock;
   const abilities = STATBLOCK_ABILITIES.filter((a) => typeof s.abilities?.[a] === 'number');
+  /**
+   * Systems that state MODIFIERS rather than scores — Pathfinder 2e's remaster prints only `Dex +3`.
+   *
+   * This renderer read `abilities` alone, so **all 1,594 Pathfinder creatures displayed no ability line at
+   * all**: not a wrong number, no row. `abilityMods` was added in B1-5 for exactly this, argued through at
+   * length (writing 3 into `abilities` renders a crippling weakness where the source states a strength),
+   * covered by tests — and never wired into the one component that shows a creature to a reader. The
+   * repo's signature defect, in the module whose plan opens by warning about it.
+   *
+   * Scores WIN when both are present: a score carries strictly more information, and its modifier is
+   * derived below rather than stored, so the two can never disagree.
+   */
+  const abilityMods = abilities.length
+    ? []
+    : STATBLOCK_ABILITIES.filter((a) => typeof s.abilityMods?.[a] === 'number');
 
   /** A labelled line, rendered only when there is something to say. */
   const line = (label: string, value: string | number | undefined | null) =>
@@ -62,6 +77,20 @@ export default function CreatureStatblock({ statblock, name }: { statblock: Stat
               </div>
             );
           })}
+        </div>
+      )}
+
+      {abilityMods.length > 0 && (
+        <div className={styles.abilities}>
+          {abilityMods.map((a) => (
+            <div key={a} className={styles.ability}>
+              <span className={styles.abilityName}>{ABILITY_LABELS[a]}</span>
+              {/* The MODIFIER sits where a score would, because it is what the source states and what a
+                  Pathfinder DM reads. No derived second line beneath it: there is no score behind a +3 and
+                  no formula recovers one, so inventing a row to fill the space would be inventing a rule. */}
+              <span className={styles.abilityScore}>{formatModifier(s.abilityMods![a]!)}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -118,7 +147,9 @@ export default function CreatureStatblock({ statblock, name }: { statblock: Stat
 
       {/* An honest empty state. A stat block with nothing in it is a data problem, and saying so beats rendering
           an empty frame that looks like a rendering bug. */}
-      {abilities.length === 0 && s.ac === undefined && s.hp === undefined && !s.entries?.length && (
+      {/* `abilityMods` counts too, or a Pathfinder creature with modifiers and nothing else would be told
+          it has no stat block recorded. */}
+      {abilities.length === 0 && abilityMods.length === 0 && s.ac === undefined && s.hp === undefined && !s.entries?.length && (
         <p className={styles.emptyNote}>
           {name ? `${name} has` : 'This creature has'} no stat block recorded yet.
         </p>

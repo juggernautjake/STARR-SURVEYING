@@ -51,10 +51,45 @@ const text = (v: unknown): string | undefined => {
   if (typeof v !== 'string') return undefined;
   // Foundry stores prose as HTML and salts it with @UUID[...]{Label} references. Strip the tags, keep the
   // label out of the reference (it is the readable half), and collapse the whitespace that leaves behind.
+  //
+  // THREE SHAPES, and the first version only handled the one with a label. Measured against the live
+  // catalogue after the B6-1 import: **1,448 of 1,594 Pathfinder creatures still carried a raw `@` token**,
+  // printing `@Localize[PF2E.NPC.Abilities.Telepathy]` on the page at the table.
+  //
+  //   @UUID[…]{Grab}   → the label is the readable half.               → "Grab"
+  //   @UUID[….Item.Grab] → NO label; the last dot-segment is what the label would have said. → "Grab"
+  //   @Localize[PF2E.NPC.Abilities.Telepathy] → a localisation KEY for text we do not have. There is
+  //     nothing readable to recover, and the surrounding sentence reads fine without it, so it goes.
+  //
+  // The trailing generic rule catches a token kind Foundry adds later: leaking a new one silently is how
+  // this got to 1,448 in the first place.
   const s = v
-    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/@(?:Damage|Check|Template)\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/@(?:Damage|Check|Template)\[([^\]]*)\]/g, '$1')
+    // A label always wins — it is the readable half the author wrote.
+    .replace(/@[A-Za-z]+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+    // `@Damage[2d6[piercing]]` NESTS, so a `[^\]]*` body stops at the inner bracket and leaves
+    // "piercing]" behind — which is how a generic rule turned "Deals 2d6 piercing damage" into
+    // "Deals piercing] damage", losing the dice. Handled before the generic fallback for that reason.
+    .replace(/@Damage\[([^[\]]*)\[([^\]]*)\]\]/g, '$1 $2')
+    .replace(/@Damage\[([^\]]*)\]/g, '$1')
+    // `@Check[fortitude|dc:20]` is a DC and a save, written in the order a stat block prints them.
+    .replace(/@Check\[([^\]]*)\]/g, (_m, body: string) => {
+      const save = /^([a-z]+)/.exec(body)?.[1] ?? '';
+      const dc = /dc:(\d+)/.exec(body)?.[1];
+      const named = save ? save[0].toUpperCase() + save.slice(1) : '';
+      return dc ? `DC ${dc} ${named}`.trim() : named || body;
+    })
+    .replace(/@Template\[([^\]]*)\]/g, '$1')
+    // A localisation KEY for text we do not hold. Nothing readable to recover, and the sentence around it
+    // reads fine without it.
+    .replace(/@Localize\[[^\]]*\]/g, ' ')
+    // Anything else: the LAST DOT-SEGMENT is what a label would have said.
+    //
+    // Written as a split rather than a character class, because the class has to keep being widened and
+    // silently matches nothing when it is not wide enough. It was `[A-Za-z0-9 '-]+`, which failed on the
+    // 21 references whose name carries a colon or brackets — `Item.Effect: Nanite Surge (Glow)`,
+    // `Item.Healing Potion (Moderate)` — leaving the whole token on the page. Splitting on `.` cannot
+    // have that failure mode: whatever the name contains, it is the part after the last dot.
+    .replace(/@[A-Za-z]+\[([^\]]*)\]/g, (_m: string, body: string) => body.split('.').pop()?.trim() ?? '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')

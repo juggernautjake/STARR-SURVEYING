@@ -570,7 +570,11 @@ export default function ContentBuilder({
                 ['ac', 'Armour Class', 'number'], ['acNote', 'Armour', 'text'],
                 ['hp', 'Hit Points', 'number'], ['hitDice', 'Hit Dice', 'text'],
                 ['speed', 'Speed', 'text'], ['proficiencyBonus', 'Prof. bonus', 'number'],
-              ] as const).map(([k, lbl, kind]) => (
+                // A proficiency bonus is a D&D 5e concept. Pathfinder 2e folds proficiency into each
+                // statistic and Intuitive Games has no such number, so offering the box there invites
+                // someone to fill in a stat their system does not have — and a stat block that prints one
+                // is stating a rule that does not exist.
+              ] as const).filter(([k]) => k !== 'proficiencyBonus' || sys.startsWith('dnd5e')).map(([k, lbl, kind]) => (
                 <div key={k} style={{ display: 'grid', gap: 3 }}>
                   <span style={{ ...help, color: 'var(--hx-gold-2)' }}>{lbl}</span>
                   <input
@@ -590,30 +594,62 @@ export default function ContentBuilder({
                 </div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-              {STATBLOCK_ABILITIES.map((a) => (
-                <div key={a} style={{ display: 'grid', gap: 3 }}>
-                  <span style={{ ...help, color: 'var(--hx-gold-2)', textAlign: 'center' }}>{ABILITY_LABELS[a]}</span>
-                  <input
-                    // Same reason as the statblock grid above: the STR/DEX/CON headings are spans, so
-                    // without this a screen reader reads six identical unlabelled number fields.
-                    aria-label={`${ABILITY_LABELS[a]} score`}
-                    className={styles.input} type="number" min={1} max={99}
-                    style={{ width: '100%', padding: '6px 4px', fontSize: 12.5, textAlign: 'center' }}
-                    value={String(sb().abilities?.[a] ?? '')}
-                    onChange={(e) => {
-                      const cur = sb();
-                      const next = { ...(cur.abilities ?? {}) } as Record<string, number | undefined>;
-                      next[a] = e.target.value === '' ? undefined : Number(e.target.value);
-                      set(f.key, { ...cur, abilities: next });
-                    }}
-                  />
-                  <span style={{ fontSize: 10.5, color: 'var(--hx-muted)', textAlign: 'center' }}>
-                    {sb().abilities?.[a] != null ? formatModifier(abilityModifier(sb().abilities![a]!)) : '—'}
+            {/* ── abilities, in the vocabulary the SYSTEM uses ──────────────────────────────────────
+                Pathfinder 2e's remaster states abilities ONLY as modifiers: there is no score behind
+                `Dex +3` and no formula recovers one. Collecting a score here and writing it to `abilities`
+                would render 3 as a SCORE — a crippling weakness where the source states a strength, which
+                is an inversion rather than a rounding error, and the reason `abilityMods` exists (B1-5).
+
+                Before this, editing a Pathfinder creature showed six blank score boxes (its numbers live
+                in `abilityMods`, which this grid never read) and typing into one wrote an INVENTED score
+                that then won over the real modifier in the renderer. */}
+            {(() => {
+              const usesMods = sys === 'pathfinder2e';
+              const field = usesMods ? 'abilityMods' : 'abilities';
+              const current = (a: (typeof STATBLOCK_ABILITIES)[number]) =>
+                (usesMods ? sb().abilityMods?.[a] : sb().abilities?.[a]);
+              return (
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ ...help }}>
+                    {usesMods
+                      ? 'Pathfinder 2e prints modifiers, not scores — enter the modifier, and negatives are fine.'
+                      : 'Ability scores. The modifier beneath each is derived, never stored.'}
                   </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+                    {STATBLOCK_ABILITIES.map((a) => (
+                      <div key={a} style={{ display: 'grid', gap: 3 }}>
+                        <span style={{ ...help, color: 'var(--hx-gold-2)', textAlign: 'center' }}>{ABILITY_LABELS[a]}</span>
+                        <input
+                          // Same reason as the statblock grid above: the STR/DEX/CON headings are spans, so
+                          // without this a screen reader reads six identical unlabelled number fields.
+                          aria-label={`${ABILITY_LABELS[a]} ${usesMods ? 'modifier' : 'score'}`}
+                          className={styles.input} type="number"
+                          // A modifier may be negative — 10 imported creatures have a negative Wisdom, and
+                          // `abilities`' 1–99 range would drop every one of them.
+                          min={usesMods ? -10 : 1} max={usesMods ? 20 : 99}
+                          style={{ width: '100%', padding: '6px 4px', fontSize: 12.5, textAlign: 'center' }}
+                          value={String(current(a) ?? '')}
+                          onChange={(e) => {
+                            const cur = sb();
+                            const next = { ...((usesMods ? cur.abilityMods : cur.abilities) ?? {}) } as Record<string, number | undefined>;
+                            next[a] = e.target.value === '' ? undefined : Number(e.target.value);
+                            set(f.key, { ...cur, [field]: next });
+                          }}
+                        />
+                        {/* Only where it is DERIVED. Printing a "modifier" under a modifier would be the
+                            same number twice; printing a reconstructed score under one would be inventing
+                            the very thing PF2 does not state. */}
+                        {!usesMods && (
+                          <span style={{ fontSize: 10.5, color: 'var(--hx-muted)', textAlign: 'center' }}>
+                            {current(a) != null ? formatModifier(abilityModifier(current(a)!)) : '—'}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
               {([['saves', 'Saving throws', 'DEX +5, CON +6'], ['skills', 'Skills', 'Perception +4, Stealth +6']] as const).map(([k, lbl, ph]) => (
                 <div key={k} style={{ display: 'grid', gap: 3 }}>
