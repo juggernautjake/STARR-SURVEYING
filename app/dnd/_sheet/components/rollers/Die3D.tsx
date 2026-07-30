@@ -145,6 +145,25 @@ export default function Die3D({
     // `plan.current` is keyed on exactly these, so this is the full dependency set.
   }, [planKey, animate, duration, solid, material])
 
+  /**
+   * D5-1 — the BEVEL. A face's points pulled toward its own centre, drawn as a second darker polygon.
+   *
+   * A real die is not a polyhedron with sharp corners: every edge is chamfered, and that narrow band catches
+   * the light differently from the face it borders. Without it a facet is one flat area meeting another flat
+   * area, which is what makes a rendered die read as a diagram.
+   *
+   * Derived from geometry already computed rather than drawn per die (G3): the inset polygon IS the face's
+   * own vertices moved 12% toward its centroid, so it works for a triangle, a kite and a pentagon with no
+   * special case, and a die nobody has added yet gets it for free.
+   */
+  const inset = (points: string, cx: number, cy: number, k = 0.12) => points
+    .split(' ')
+    .map((pair) => {
+      const [x, y] = pair.split(',').map(Number)
+      return `${(x + (cx - x) * k).toFixed(2)},${(y + (cy - y) * k).toFixed(2)}`
+    })
+    .join(' ')
+
   // The material's numbers reach the stylesheet as custom properties, so `die3d.css` keeps owning the COLOURS
   // (which come from the sheet's theme) while the material owns the physical character. Neither has to know about
   // the other, which is what lets a new theme work on every material and a new material work in every theme.
@@ -188,9 +207,46 @@ export default function Die3D({
           />
         ))}
 
+        {/* D5-1 · BEVEL. The inset polygon reads as the flat of the face; the band left between it and the
+            facet edge reads as the chamfer. Drawn darker than its own facet rather than a fixed colour, so a
+            face already in shadow does not get a bright rim around it. */}
+        {faces.map((f) => (
+          <polygon
+            key={`b${f.index}`}
+            className="d3-bevel"
+            points={inset(f.points, f.cx, f.cy)}
+            fill={f.shade >= 0 ? '#ffffff' : '#000000'}
+            fillOpacity={Math.abs(f.shade) * 0.5}
+          />
+        ))}
+
+        {/* D5-3 · RIM LIGHT. An accent-coloured wash on the faces closest to EDGE-ON, which is where a
+            back-light catches a real die — the faces turned away from the camera are the ones whose far
+            edge is lit. Strength follows the material's bloom, so neon plastic rims brightly and printed
+            bone does not rim at all, and it is capped low: a rim light you notice as a rim light is a
+            lighting bug (G6 — legibility beats realism). */}
+        {material.bloom > 0 && faces.map((f) => (
+          f.facing > 0.55 ? null : (
+            <polygon
+              key={`r${f.index}`}
+              className="d3-rim"
+              points={f.points}
+              fillOpacity={(0.55 - f.facing) * material.bloom * 0.5}
+            />
+          )
+        ))}
+
         {/* The outline last of the fills, so facet seams never cut across the die's edge. */}
         <polygon className="d3-edge" points={outline} />
         <polygon className="d3-sheen" points={outline} fill={`url(#${sheenId})`} />
+
+        {/* D5-5 · LANDING IMPACT. One ring pulsing out from where the die came to rest, alongside the squash
+            `is-settled` already drives. Keyed on the plan so it replays on every new roll rather than only
+            the first — a settle effect that fires once is the kind of thing that looks broken the second
+            time. Purely decorative and `pointer-events: none`; reduced motion drops it entirely (G5). */}
+        {!tumbling && (
+          <circle key={`impact-${planKey}`} className="d3-impact" cx="50" cy="50" r="30" />
+        )}
 
         {/* EVERY visible face's numeral. Size follows the face's own projected area — which is where the d100's
             tiny digits come from with no special case — and opacity follows how square-on it is, so a numeral

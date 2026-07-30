@@ -116,3 +116,50 @@
     animation: none;
   }
 }
+
+/* ── D5-1 · Bevel ──────────────────────────────────────────────────────────────────────────────────────
+   The inset polygon is the flat of the face; the band it leaves against the facet's own edge reads as the
+   chamfer. No stroke — a stroked inset would be a second seam, and the die already has one per facet. */
+.d3-bevel {
+  pointer-events: none;
+}
+
+/* ── D5-3 · Rim light ──────────────────────────────────────────────────────────────────────────────────
+   The sheet's accent, on the faces nearest edge-on. Uses the SAME token as the die's edge, so a die that
+   glows teal on Hextech and crimson on Noxus rims in the colour it is already wearing rather than needing
+   a second palette nobody remembers to update. */
+.d3-rim {
+  fill: var(--d3-edge);
+  pointer-events: none;
+}
+
+/* ── D5-5 · Landing impact ─────────────────────────────────────────────────────────────────────────────
+   A single ring pushing out as the die settles. Deliberately one ring and no dust motes: eight dice landing
+   at once would be eight particle systems on a 396px window, and the ring is the part that reads. */
+.d3-impact {
+  fill: none;
+  stroke: var(--d3-edge);
+  stroke-width: 1.5;
+  transform-origin: 50% 50%;
+  animation: d3-impact 0.42s ease-out both;
+  pointer-events: none;
+}
+@keyframes d3-impact {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.55);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+/* G5 — every one of these is motion, and motion is gated. The bevel and rim light are static and stay:
+   they are shading, not animation, and dropping them would make reduced-motion users read a flatter die
+   rather than a calmer one. */
+@media (prefers-reduced-motion: reduce) {
+  .d3-impact {
+    display: none;
+  }
+}

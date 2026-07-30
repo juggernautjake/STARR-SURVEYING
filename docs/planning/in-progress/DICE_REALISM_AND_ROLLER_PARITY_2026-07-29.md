@@ -258,17 +258,38 @@ numeral contrast ≥ 4.5:1 against its own facet in every combination (G6).
 
 ---
 
-## Phase D5 — flare
+## Phase D5 — flare — **SHIPPED 2026-07-30, with D5-4 deferred**
 
-- **D5-1 Bevel.** An inset darker rim per face; the edge reads as a real chamfer.
-- **D5-2 Specular.** A highlight whose position follows the face normal — moves as the die turns.
-- **D5-3 Rim light.** Accent-coloured back-light on faces near the silhouette.
-- **D5-4 Motion blur.** Feather during fast spin, resolving as it slows. Cheap: opacity-layered ghost of the
-  previous frame's silhouette.
-- **D5-5 Landing impact.** A ring pulse, a small shadow squash, and dust motes at the contact point.
-- **D5-6 Crit / fumble.** Gold ignition or a red crack that reads instantly at a glance.
+- **D5-1 Bevel — SHIPPED.** Each face's own vertices pulled 12% toward its centroid and drawn as a second,
+  darker polygon: the inset reads as the flat of the face, the band it leaves reads as the chamfer. A real
+  die has no sharp corners, and without this a facet is one flat area meeting another, which is what makes
+  a rendered die read as a diagram. **Derived from geometry already computed** (G3) — it works for a
+  triangle, a kite and a pentagon with no special case, so the d100 and any die nobody has added yet get it
+  free. Shaded relative to its OWN facet rather than a fixed colour, or a face already in shadow would gain
+  a bright rim.
+- **D5-2 Specular — was already shipped** with D1-4 (screen-space, so the die turns under the highlight).
+- **D5-3 Rim light — SHIPPED.** An accent wash on the faces nearest EDGE-ON, which is where a back-light
+  catches a real die. Strength follows the material's `bloom`, so neon plastic rims brightly and printed
+  bone not at all, and it uses the same `--d3-edge` token the silhouette does — a die that glows teal on
+  Hextech rims teal on Hextech, with no second palette to forget. Capped deliberately low: a rim light you
+  notice as a rim light is a lighting bug (G6).
+- **D5-4 Motion blur — DEFERRED.** The proposed implementation is an opacity-layered ghost of the previous
+  frame's silhouette, which means keeping and drawing a second polygon per die per frame. The tumble is
+  already re-projecting every solid every frame, and the Impact stage renders up to eight dice at once in a
+  396px window; doubling the per-frame polygon count for an effect that is invisible at 108px is the wrong
+  trade. Revisit if the dice ever render large.
+- **D5-5 Landing impact — SHIPPED, without the dust.** One ring pulses out from the settle, alongside the
+  squash `is-settled` already drove. **Deliberately one ring and no motes**: eight dice landing together
+  would be eight particle systems, and the ring is the part that reads at this size. Keyed on the throw
+  plan so it replays on every roll — a settle effect that fires only the first time looks broken the second.
+- **D5-6 Crit / fumble — was already shipped**, recolouring the edge and the landing numeral.
 
-Each is independently switchable and off under reduced motion (G5).
+Motion is gated (G5): the impact ring is `display: none` under `prefers-reduced-motion`. The bevel and rim
+light are NOT gated, on purpose — they are shading rather than animation, and dropping them would give a
+reduced-motion reader a flatter die rather than a calmer one.
+
+Browser-verified on the Impact roller: a d20 renders 10 facets with 10 matching bevels, 6 rim-lit faces and
+1 impact ring, on the `gem` material.
 
 ---
 
