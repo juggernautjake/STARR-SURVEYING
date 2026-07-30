@@ -1271,7 +1271,10 @@ export function useIgPanels({ ig, elements, canEdit, characterId, campaignId, is
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, // The label is the dice notation and nothing else. It read `1d8 (raw)` — developer shorthand for
+      // "no modifiers folded in", printed as the roll's headline on the sheet and in the campaign feed.
+      // A dice-pad roll of 1d8 plainly has no modifiers, and the breakdown lists every term regardless.
+      rollDice: (sides, n) => rollRaw(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <RollerTemplateBar characterId={characterId} current={rollerId} canWrite={!!canEdit} onPick={pickRoller} />
         {rollerStageFor(rollerId)}

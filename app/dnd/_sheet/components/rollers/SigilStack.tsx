@@ -21,7 +21,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { shouldAnimateRoller, adoptedToken, stripTotalTail } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, breakdownTerms } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
@@ -57,21 +57,11 @@ function buildDamageTiles(breakdown: string): StackTile[] {
     })
     return tiles
   }
-  // Drop the trailing `= N` summary before tokenising (RO-14) — see `stripTotalTail`. The same phantom
-  // "flat" tile appeared here as in Impact, which is what proved the bug was in the SHARED tokenising
-  // rather than in one roller: these two functions are near-identical, so fixing one would have left the
-  // other looking correct while still being wrong.
-  stripTotalTail(breakdown).split(/\s+/).filter(Boolean).forEach((tok, i) => {
-    const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/)
-    if (dm) {
-      const sign = dm[1] ? -1 : 1
-      const sum = dm[3].split(',').reduce((a, v) => a + (parseInt(v.trim(), 10) || 0), 0) * sign
-      tiles.push({ key: `d${i}`, glyph: '⬢', label: dm[2], value: signed(sum), kind: 'die' })
-    } else if (/^[+−-]?\d+$/.test(tok)) {
-      const n = parseInt(tok.replace('−', '-'), 10)
-      tiles.push({ key: `f${i}`, glyph: '◈', label: 'flat', value: signed(n), kind: 'mod' })
-    }
-  })
+  // The per-term tokenising is SHARED with the Impact roller now (`breakdownTerms`). It was a near-identical
+  // copy, and the phantom "flat" tile (RO-14) sat in both copies — which is exactly why the duplication was
+  // dangerous: fixing one would have left the other looking correct while still being wrong. Only the
+  // PRESENTATION is Sigil's own: each term gets the glyph for its kind.
+  breakdownTerms(breakdown).forEach((t) => tiles.push({ ...t, glyph: t.kind === 'die' ? '⬢' : '◈' }))
   return tiles
 }
 

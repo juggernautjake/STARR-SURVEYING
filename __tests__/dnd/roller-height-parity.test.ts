@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adoptedToken, stripTotalTail } from '@/app/dnd/_sheet/components/rollers/rollerAnim';
+import { adoptedToken, stripTotalTail, breakdownTerms, dropSummaries } from '@/app/dnd/_sheet/components/rollers/rollerAnim';
 
 const CSS = 'app/dnd/_sheet/components/rollers';
 const read = (f: string) => readFileSync(join(process.cwd(), CSS, f), 'utf8');
@@ -214,11 +214,59 @@ describe('a breakdown’s trailing "= N" is a summary, not a term (RO-14)', () =
     expect(stripTotalTail('a = b 1d4[1]')).toBe('a = b 1d4[1]');
   });
 
-  it('and BOTH tokenisers use it — fixing one would have left the other wrong', () => {
+  // THE GUARANTEE, NOT THE CALL SHAPE. This used to assert that both roller files contained the literal
+  // `stripTotalTail(breakdown).split(` — which failed the moment the duplicated tokeniser became one shared
+  // `breakdownTerms`, the very fix the test's own name asks for ("fixing one would have left the other
+  // wrong"). A test that breaks when the duplication it warns about is removed is pinning the mechanism.
+  //
+  // So assert the BEHAVIOUR on the shared tokeniser, and separately assert that neither roller has grown a
+  // private copy again. That is what "both are right" actually means now.
+  it('yields no phantom term for a breakdown that carries its own total', () => {
+    const terms = breakdownTerms('1d4[1] = 1');
+    expect(terms).toHaveLength(1);
+    expect(terms[0]).toMatchObject({ label: '1d4', kind: 'die' });
+  });
+
+  it('still reads every real term', () => {
+    expect(breakdownTerms('2d6[3,5] + 4 = 12').map((t) => `${t.label} ${t.value}`)).toEqual(['2d6 8', 'flat +4']);
+  });
+
+  it('prints the LEADING term unsigned and later ones signed', () => {
+    // `+8` as the first and only row above a total of 8 reads as a bonus applied to nothing; from the second
+    // row down the column genuinely is a running sum.
+    expect(breakdownTerms('1d8[8]')[0].value).toBe('8');
+    expect(breakdownTerms('1d8[8] + 2')[1].value).toBe('+2');
+    expect(breakdownTerms('1d8[8] -3')[1].value).toBe('−3');
+  });
+
+  // THE INVARIANT THAT WOULD HAVE CAUGHT BOTH BUGS: the terms must SUM TO THE TOTAL. Row-by-row assertions
+  // kept passing while the column visibly contradicted itself — an IG attack showed 6, +3, +9, +3 above a
+  // total of 12. A term that does not sum with the others was never a term, so test the sum.
+  const sumOf = (breakdown: string) =>
+    breakdownTerms(breakdown).reduce((a, t) => a + parseInt(t.value.replace('−', '-'), 10), 0);
+
+  it('the terms sum to the roll total, even when a breakdown was appended to', () => {
+    // The real IG string: `rollDiceExpr` appends `= 9`, then the stance bonus is appended after it, so the
+    // summary ends up in the MIDDLE. 6 + 3 + 3 = 12, and the phantom +9 must be gone.
+    expect(sumOf('1d6[6] +3 = 9 + 3 (Offensive stance)')).toBe(12);
+    expect(sumOf('1d4[1] = 1')).toBe(1);
+    expect(sumOf('2d6[3,5] + 4 = 12')).toBe(12);
+    expect(sumOf('1d8[8] -3 = 5')).toBe(5);
+  });
+
+  it('and a non-numeric "=" is left alone, since guessing would drop real terms', () => {
+    expect(dropSummaries('a = b 1d4[1]')).toBe('a = b 1d4[1]');
+  });
+
+  it('and neither roller keeps a private tokeniser', () => {
     const dir = 'app/dnd/_sheet/components/rollers';
     for (const f of ['ImpactRoller.tsx', 'SigilStack.tsx']) {
       const src = readFileSync(join(process.cwd(), dir, f), 'utf8');
-      expect(src, `${f} must strip the summary before tokenising`).toMatch(/stripTotalTail\(breakdown\)\.split\(/);
+      expect(src, `${f} must use the shared tokeniser`).toMatch(/breakdownTerms\(breakdown\)/);
+      // Negative source assertions run on a comment-stripped copy — otherwise a comment EXPLAINING the old
+      // hand-rolled loop would fail the check that the loop is gone.
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      expect(code, `${f} must not re-grow its own term loop`).not.toMatch(/stripTotalTail\(breakdown\)\.split\(/);
     }
   });
 });

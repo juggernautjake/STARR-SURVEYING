@@ -23,9 +23,9 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller, adoptedToken, stripTotalTail } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, breakdownTerms } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
-import { dieSides, ngonPoints } from './dieShape'
+import { dieSides, dieNet } from './dieShape'
 import './impactRoller.css'
 
 type RowKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
@@ -51,27 +51,11 @@ function buildDamageRows(breakdown: string): BreakRow[] {
     })
     return rows
   }
-  // Drop the trailing `= N` SUMMARY before tokenising (RO-14).
-  //
-  // `rollDiceExpr` returns `"1d4[1] = 1"` — the total is appended to the breakdown for readability. Both
-  // tokenisers split on whitespace and treat any bare number as a flat modifier, so that trailing total was
-  // read as a `+1` term: a bare d4 rendered a die row AND a phantom "flat +1" row. Found by browser QA
-  // (RO-13), and visible in the Sigil Stack too, which is what identified the SHARED tokeniser rather than
-  // one roller.
-  //
-  // The tell was that the phantom contradicted the row beneath it: `1d4[1]` plus `+1` is 2, and the total
-  // row correctly said 1. A term that does not sum with the others was never a term.
-  stripTotalTail(breakdown).split(/\s+/).filter(Boolean).forEach((tok, i) => {
-    const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/)
-    if (dm) {
-      const sign = dm[1] ? -1 : 1
-      const sum = dm[3].split(',').reduce((a, v) => a + (parseInt(v.trim(), 10) || 0), 0) * sign
-      rows.push({ key: `d${i}`, label: dm[2], value: signed(sum), kind: 'die' })
-    } else if (/^[+−-]?\d+$/.test(tok)) {
-      const n = parseInt(tok.replace('−', '-'), 10)
-      rows.push({ key: `f${i}`, label: 'flat', value: signed(n), kind: 'mod' })
-    }
-  })
+  // The per-term tokenising (drop the trailing `= N` summary, split die groups from flat modifiers, leave
+  // the leading term unsigned) is SHARED — see `breakdownTerms`. It used to be a copy of Sigil Stack's, and
+  // the phantom-flat-modifier bug (RO-14) proved why that was wrong: the same defect sat in both, so fixing
+  // either one alone would have left the other looking correct while still being wrong.
+  breakdownTerms(breakdown).forEach((t) => rows.push({ ...t }))
   return rows
 }
 
@@ -241,16 +225,39 @@ export function ImpactStage() {
   return (
     <div className={`ir-arena ${phase === 'landed' ? 'ir-landed' : 'ir-throwing'} ${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}`}>
       <div className="ir-stage">
-        {/* A d20 draws as a real 20-sided SVG polygon (crisp stroked edge), a d8 as an octagon, etc. — an
-            SVG stroke outlines the shape cleanly, unlike a CSS border on a clip-path box which gets sliced
-            up. No known die → the neutral rounded square (`.ir-die` default). */}
-        <div className={`ir-die${sides ? ' has-shape' : ''}`} aria-hidden data-sides={sides ?? undefined}>
-          {sides && (
-            <svg className="ir-die-shape" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
-              <polygon points={ngonPoints(sides)} />
-            </svg>
-          )}
-          <span className="ir-die-face">{face ?? '·'}</span>
+        {/* The die is drawn as a SHADED SOLID, not an outlined polygon: `dieNet` gives the real face-on net
+            for the die being rolled (a d6's three isometric rhombi, a d20's centre triangle and the facets
+            turning away from you), and each face is painted as light or shadow over the themed body fill so
+            it composes on any system and any skin. `.ir-cast` carries the throw — the tumble spins the
+            solid in 3D while the shadow beneath tracks it — and the numeral rides on top, upright, because
+            a rolling die you cannot read is a worse die. No recognised die → the neutral rounded square. */}
+        <div className="ir-cast">
+          <div className={`ir-die${sides ? ' has-shape' : ''}`} aria-hidden data-sides={sides ?? undefined}>
+            {sides && (
+              <svg className="ir-die-shape" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
+                {(() => {
+                  const net = dieNet(sides)
+                  return (
+                    <>
+                      <polygon className="ir-die-body" points={net.silhouette} />
+                      {net.facets.map((f, i) => (
+                        <polygon
+                          key={i}
+                          className="ir-die-facet"
+                          points={f.points}
+                          fill={f.shade >= 0 ? '#ffffff' : '#000000'}
+                          fillOpacity={Math.abs(f.shade)}
+                        />
+                      ))}
+                      <polygon className="ir-die-edge" points={net.silhouette} />
+                    </>
+                  )
+                })()}
+              </svg>
+            )}
+            <span className="ir-die-face">{face ?? '·'}</span>
+          </div>
+          <span className="ir-die-shadow" aria-hidden />
         </div>
         {phase === 'landed' && meta && (
           <div className="ir-result" role="status">

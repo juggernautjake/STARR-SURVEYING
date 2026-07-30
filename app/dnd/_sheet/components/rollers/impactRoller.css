@@ -8,10 +8,16 @@
    Impact Roller matches that: a roll THROWS an OVERSIZED DIE that tumbles and LANDS with a shake +
    flash, the result reads HUGE and immediate, and the source breakdown is a tap away (collapsible).
 
-   TOKEN-ONLY, WITH FALLBACKS, and scoped under the roller's own class (`.iroller`) — NOT
-   `.dnd-sheet` — so the same roller reads correctly under the 5e engine (`.dnd-sheet`) AND the
-   bespoke PF2/IG shells (`.sheet-shell` / `.igs-root`), exactly like the FloatingRoller window it
-   lives in. There is deliberately NO `.skin-x` override. Motion is gated on prefers-reduced-motion. */
+   TOKEN-ONLY, WITH FALLBACKS. Panel chrome is scoped `.iroller`; THE STAGE IS SCOPED `.ir-arena`, its
+   own root — and that distinction is a fix, not a detail. Every stage rule used to read `.iroller .ir-x`,
+   on the reasoning recorded here that scoping to the roller's own class rather than `.dnd-sheet` would let
+   it travel to the bespoke PF2/IG shells. It travelled nowhere: `rollerStageFor` mounts the STAGE without
+   the panel, so on Pathfinder and Intuitive Games not one of these ~35 rules matched. The die drew as a
+   black polygon (an SVG with no `fill`) with unstyled breakdown rows beneath it, and had done since those
+   sheets adopted the shared stages.
+   The reasoning was right and the implementation contradicted it: to travel with the component, the CSS has
+   to key off something the COMPONENT renders. `.iroller` is supplied by the panel around it.
+   There is deliberately NO `.skin-x` override. Motion is gated on prefers-reduced-motion. */
 
 .iroller {
   display: flex;
@@ -47,7 +53,7 @@
 }
 
 /* ───────────────────────────────────────────────────────── the arena (resolution stage) */
-.iroller .ir-arena {
+.ir-arena {
   position: relative;
   /* SHARED ROLLER HEIGHT (owner report 2026-07-28: "some of the digital dice rollers are too tall").
      The four rollers are interchangeable across every sheet template and every system, so a player
@@ -68,7 +74,7 @@
   align-items: center;
 }
 
-.iroller .ir-idle {
+.ir-arena .ir-idle {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -84,12 +90,12 @@
   text-align: center;
   line-height: 1.5;
 }
-.iroller .ir-idledie {
+.ir-arena .ir-idledie {
   font-size: 44px;
   color: var(--line-strong, rgba(255, 255, 255, 0.28));
 }
 
-.iroller .ir-stage {
+.ir-arena .ir-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -98,7 +104,7 @@
 }
 
 /* The oversized die — a large rounded cube the roll is thrown onto. */
-.iroller .ir-die {
+.ir-arena .ir-die {
   position: relative;
   width: 108px;
   height: 108px;
@@ -110,78 +116,141 @@
   background: linear-gradient(150deg, rgba(var(--panel-rgb, 20, 18, 28), 0.98), rgba(var(--void-rgb, 6, 5, 12), 0.9));
   box-shadow: 0 14px 30px -12px rgba(var(--void-rgb, 6, 5, 12), 0.95), inset 0 2px 10px rgba(255, 255, 255, 0.06);
   transform-origin: center;
+  /* The tumble is applied to the child SVG (so the numeral stays upright), and `perspective` only affects
+     an element's own children — so it belongs here as well as on `.ir-cast`, or the solid's 3D rotation
+     would flatten into a plain 2D spin. */
+  perspective: 460px;
 }
 /* When the die is an N-gon (D-4), the SHAPE is a real SVG polygon so its stroke outlines the shape
    cleanly. The wrapper drops its own square border/fill/shadow and lets the polygon be the die. */
-.iroller .ir-die.has-shape {
+.ir-arena .ir-die.has-shape {
   border: none;
   background: none;
   box-shadow: none;
   border-radius: 0;
 }
-.iroller .ir-die-shape {
+.ir-arena .ir-die-shape {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
 }
-.iroller .ir-die-shape polygon {
-  fill: rgba(var(--panel-rgb, 20, 18, 28), 0.98);
-  stroke: var(--tealbright, var(--gold, #6ee0cf));
-  stroke-width: 4;
+/* THE DIE BODY, FACETS AND EDGE ARE THREE LAYERS, and the split is what makes it read as a solid.
+   Body = the themed fill. Facets = the visible faces, painted by the component as white or black at the
+   net's shade alpha, so the shading composes over ANY body colour on any system or skin (a facet palette
+   in one accent would fight every theme it is not). Edge = the silhouette stroked on top, so the outline
+   stays crisp over the facet seams.
+
+   EVERY COLOUR HERE FALLS BACK THROUGH `--hx-*`. These stages mount on the Pathfinder and Intuitive Games
+   sheets too, and those sheets define the hextech variables, not the 5e ones — so a chain that stopped at
+   `var(--tealbright, #6ee0cf)` silently used the hardcoded default on two of the four systems and ignored
+   the player's theme entirely. */
+.ir-arena .ir-die-body {
+  fill: rgba(var(--panel-rgb, var(--hx-panel-rgb, 20, 18, 28)), 0.98);
+}
+.ir-arena .ir-die-facet {
+  /* A hairline seam between faces: without it, two facets of similar shade merge into one flat region. */
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 0.6;
   stroke-linejoin: round;
-  filter: drop-shadow(0 12px 26px rgba(var(--void-rgb, 6, 5, 12), 0.9));
 }
-.iroller .ir-arena.is-crit .ir-die-shape polygon {
-  stroke: var(--gold, #c8aa6e);
+.ir-arena .ir-die-edge {
+  fill: none;
+  stroke: var(--tealbright, var(--hx-accent, var(--gold, #6ee0cf)));
+  stroke-width: 3.4;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 10px 20px rgba(var(--void-rgb, 6, 5, 12), 0.85));
 }
-.iroller .ir-arena.is-fumble .ir-die-shape polygon {
-  stroke: var(--danger, #ff6b6b);
+.ir-arena.is-crit .ir-die-edge {
+  stroke: var(--gold, var(--hx-gold, #c8aa6e));
 }
-/* The face number rides above the polygon. */
-.iroller .ir-die-face {
-  position: relative;
-  z-index: 1;
-}
-.iroller .ir-die-face {
-  font-family: var(--font-display, inherit);
-  font-size: 52px;
-  line-height: 1;
-  color: var(--ink, #e8e6f0);
+.ir-arena.is-fumble .ir-die-edge {
+  stroke: var(--danger, var(--hx-danger, #ff6b6b));
 }
 
-/* While thrown, the die TUMBLES — a fast multi-axis spin, distinct from a cascade or a card flip. */
-.iroller .ir-throwing .ir-die {
+/* ── The throw. `.ir-cast` owns the perspective so the die tumbles as a solid in depth rather than
+      spinning flat on the screen, and holds the ground shadow that tracks it. */
+.ir-arena .ir-cast {
+  position: relative;
+  perspective: 520px;
+  perspective-origin: 50% 45%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* The die's shadow on the table — it shrinks and sharpens as the die falls, which is most of what sells
+   the throw as a throw. Purely decorative, and it never affects layout. */
+.ir-arena .ir-die-shadow {
+  width: 74px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(var(--void-rgb, 6, 5, 12), 0.72), transparent 72%);
+  transform-origin: center;
+}
+.ir-arena.ir-throwing .ir-die-shadow {
+  animation: ir-shadow-throw 0.24s linear infinite;
+}
+.ir-arena.ir-landed .ir-die-shadow {
+  animation: ir-shadow-land 0.42s cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+/* The face number rides above the solid — and it has to STAY legible over the facet shading, which now
+   varies from near-white to near-black behind it. The dark halo does that on any facet and any theme;
+   without it the numeral disappears into a lit face, which is the failure the shading would otherwise
+   introduce. `--hx-text` is the fallback the PF2/IG sheets actually define. */
+.ir-arena .ir-die-face {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display, inherit);
+  font-weight: 700;
+  font-size: 52px;
+  line-height: 1;
+  color: var(--ink, var(--hx-text, #e8e6f0));
+  text-shadow: 0 2px 10px rgba(var(--void-rgb, 6, 5, 12), 0.95), 0 0 3px rgba(var(--void-rgb, 6, 5, 12), 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+/* While thrown, the die TUMBLES — a fast multi-axis spin in depth, distinct from a cascade or a card flip.
+   THE SPIN GOES ON THE SOLID, NOT THE BOX: rotating `.ir-die` would carry the numeral round with it, and a
+   die whose face you cannot read while it rolls is just a flicker. Turning the SVG instead leaves the
+   numeral upright and legible over a solid that is genuinely tumbling — which is the point of the shading.
+   There is no vertical bob, deliberately: the numeral sits at the centre and would visibly detach from a
+   die bobbing around it. The scale pulse and the shadow beneath carry the height instead. */
+.ir-arena.ir-throwing .ir-die.has-shape .ir-die-shape {
   animation: ir-tumble 0.24s linear infinite;
 }
-.iroller .ir-throwing .ir-die-face {
+/* No recognised die (an ambiguous mixed pool) — nothing to keep upright, so the neutral box tumbles whole. */
+.ir-arena.ir-throwing .ir-die:not(.has-shape) {
+  animation: ir-tumble 0.24s linear infinite;
+}
+.ir-arena.ir-throwing .ir-die-face {
   color: var(--muted, #9a97ad);
 }
 
 /* On land, the die SLAMS: a sharp shake + a flash ring pulse. */
-.iroller .ir-landed .ir-die {
+.ir-arena.ir-landed .ir-die {
   animation: ir-land 0.42s cubic-bezier(0.2, 1.4, 0.35, 1) both;
 }
-.iroller .ir-landed .ir-die-face {
+.ir-arena.ir-landed .ir-die-face {
   color: var(--tealbright, var(--gold, #6ee0cf));
 }
 
 /* The HUGE result — the headline total, read from across the table. Always `entry.total`. */
-.iroller .ir-result {
+.ir-arena .ir-result {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
   animation: ir-pop 0.36s ease-out both;
 }
-.iroller .ir-result-label {
+.ir-arena .ir-result-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted, #9a97ad);
 }
-.iroller .ir-result-total {
+.ir-arena .ir-result-total {
   font-family: var(--font-display, inherit);
   font-size: 56px;
   line-height: 0.95;
@@ -197,49 +266,49 @@
   75% { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
-.iroller .ir-result-nat {
+.ir-arena .ir-result-nat {
   font-size: 11px;
   color: var(--muted, #9a97ad);
 }
 
 /* Crit / fumble recolour the die + total and flash the whole arena. */
-.iroller .ir-arena.is-crit .ir-die {
+.ir-arena.is-crit .ir-die {
   border-color: var(--gold, #c8aa6e);
 }
-.iroller .ir-arena.is-crit.ir-landed .ir-die-face,
-.iroller .ir-arena.is-crit .ir-result-total {
+.ir-arena.is-crit.ir-landed .ir-die-face,
+.ir-arena.is-crit .ir-result-total {
   color: var(--gold, #c8aa6e);
 }
-.iroller .ir-arena.is-crit.ir-landed {
+.ir-arena.is-crit.ir-landed {
   animation: ir-flash-gold 0.6s ease-out both;
 }
-.iroller .ir-arena.is-fumble .ir-die {
+.ir-arena.is-fumble .ir-die {
   border-color: var(--danger, #ff6b6b);
 }
-.iroller .ir-arena.is-fumble.ir-landed .ir-die-face,
-.iroller .ir-arena.is-fumble .ir-result-total {
+.ir-arena.is-fumble.ir-landed .ir-die-face,
+.ir-arena.is-fumble .ir-result-total {
   color: var(--danger, #ff6b6b);
 }
-.iroller .ir-arena.is-fumble.ir-landed {
+.ir-arena.is-fumble.ir-landed {
   animation: ir-flash-red 0.6s ease-out both;
 }
 
-.iroller .ir-flag {
+.ir-arena .ir-flag {
   margin-top: 8px;
   font-family: var(--font-display, inherit);
   letter-spacing: 0.12em;
   font-size: 13px;
   text-align: center;
 }
-.iroller .ir-flag.crit {
+.ir-arena .ir-flag.crit {
   color: var(--gold, #c8aa6e);
 }
-.iroller .ir-flag.fumble {
+.ir-arena .ir-flag.fumble {
   color: var(--danger, #ff6b6b);
 }
 
 /* The breakdown — a tap away, never in the way. */
-.iroller .ir-detail-toggle {
+.ir-arena .ir-detail-toggle {
   margin-top: 10px;
   background: none;
   border: 1px solid var(--line, rgba(255, 255, 255, 0.16));
@@ -250,11 +319,11 @@
   padding: 5px 12px;
   cursor: pointer;
 }
-.iroller .ir-detail-toggle:hover {
+.ir-arena .ir-detail-toggle:hover {
   color: var(--ink, #e8e6f0);
   border-color: var(--line-strong, rgba(255, 255, 255, 0.28));
 }
-.iroller .ir-detail {
+.ir-arena .ir-detail {
   width: 100%;
   max-width: 260px;
   margin-top: 8px;
@@ -262,7 +331,7 @@
   flex-direction: column;
   gap: 4px;
 }
-.iroller .ir-row {
+.ir-arena .ir-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -272,77 +341,103 @@
   background: rgba(var(--void-rgb, 6, 5, 12), 0.4);
   font-size: 12px;
 }
-.iroller .ir-row-label {
+.ir-arena .ir-row-label {
   color: var(--ink, #e8e6f0);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.iroller .ir-row-val {
+.ir-arena .ir-row-val {
   font-family: var(--font-display, inherit);
   color: var(--ink, #e8e6f0);
   white-space: nowrap;
 }
-.iroller .ir-row.ir-r-die .ir-row-val,
-.iroller .ir-row.ir-r-mod .ir-row-val {
+.ir-arena .ir-row.ir-r-die .ir-row-val,
+.ir-arena .ir-row.ir-r-mod .ir-row-val {
   color: var(--tealbright, var(--gold, #6ee0cf));
 }
 /* The die row can carry the adv/dis pair ("d20 advantage · rolled 7, 18"), so let it WRAP rather than
    truncate — the whole point is to show both dice that were rolled. */
-.iroller .ir-row.ir-r-die {
+.ir-arena .ir-row.ir-r-die {
   align-items: flex-start;
 }
-.iroller .ir-row.ir-r-die .ir-row-label {
+.ir-arena .ir-row.ir-r-die .ir-row-label {
   white-space: normal;
   line-height: 1.3;
 }
-.iroller .ir-row.ir-r-boost .ir-row-label,
-.iroller .ir-row.ir-r-boost .ir-row-val {
+.ir-arena .ir-row.ir-r-boost .ir-row-label,
+.ir-arena .ir-row.ir-r-boost .ir-row-val {
   color: var(--good, var(--tealbright, #4fd39c));
   font-weight: 600;
 }
-.iroller .ir-row.ir-r-penalty .ir-row-label,
-.iroller .ir-row.ir-r-penalty .ir-row-val {
+.ir-arena .ir-row.ir-r-penalty .ir-row-label,
+.ir-arena .ir-row.ir-r-penalty .ir-row-val {
   color: var(--danger, #ff6b6b);
   font-weight: 600;
 }
 /* The final Total row (D-10) — set off with a divider above it and emphasised, so the calculation reads
    "die + modifiers (+ named conditions) = TOTAL" top-to-bottom at a glance. */
-.iroller .ir-row.ir-r-total {
+.ir-arena .ir-row.ir-r-total {
   margin-top: 3px;
   padding-top: 7px;
   border-top: 1px solid var(--line, rgba(255, 255, 255, 0.14));
   background: none;
   font-size: 13px;
 }
-.iroller .ir-row.ir-r-total .ir-row-label {
+.ir-arena .ir-row.ir-r-total .ir-row-label {
   font-family: var(--font-display, inherit);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted, #9a97ad);
 }
-.iroller .ir-row.ir-r-total .ir-row-val {
+.ir-arena .ir-row.ir-r-total .ir-row-val {
   font-size: 16px;
   font-weight: 800;
   color: var(--gold, var(--tealbright, #c8aa6e));
 }
-.iroller .ir-detail-tag {
+.ir-arena .ir-detail-tag {
   text-align: center;
   font-size: 10.5px;
   color: var(--muted, #9a97ad);
   margin-top: 2px;
 }
 
+/* THE TUMBLE IS A 3D THROW, not a flat spin. The die turns on all three axes while rising and falling,
+   so the faceted solid catches the light from different angles the way a thrown die does.
+
+   The X/Y tilts stay inside ±26°. That bound is the whole trick: the die is a flat SVG, so a larger tilt
+   would take it edge-on and it would vanish for part of every cycle. Kept shallow, the same flat shape
+   reads as a solid turning in depth — and the numeral, which counter-rotates to stay upright, remains
+   readable throughout. A tumbling die whose face you cannot read is just a flicker. */
 @keyframes ir-tumble {
   0% {
-    transform: rotate(0deg) scale(0.98);
+    transform: rotate3d(1, 0.4, 0.2, 0deg) scale(0.98);
+  }
+  25% {
+    transform: rotate3d(1, 0.5, 0.15, 22deg) scale(1.05);
   }
   50% {
-    transform: rotate(180deg) scale(1.04);
+    transform: rotate3d(0.4, 1, 0.25, -24deg) scale(1.07);
+  }
+  75% {
+    transform: rotate3d(0.7, 0.6, 1, 26deg) scale(1.02);
   }
   100% {
-    transform: rotate(360deg) scale(0.98);
+    transform: rotate3d(1, 0.4, 0.2, 0deg) scale(0.98);
   }
+}
+/* The shadow is the die's height made visible: tight and dark when it is low, wide and faint at the top
+   of the arc. Inverted against the tumble's translateY above. */
+@keyframes ir-shadow-throw {
+  0% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(0.7); opacity: 0.34; }
+  100% { transform: scale(1); opacity: 0.75; }
+}
+@keyframes ir-shadow-land {
+  0% { transform: scale(0.62); opacity: 0.3; }
+  30% { transform: scale(1.22); opacity: 0.85; }
+  60% { transform: scale(0.94); opacity: 0.66; }
+  100% { transform: scale(1); opacity: 0.7; }
 }
 @keyframes ir-land {
   0% {
@@ -624,16 +719,16 @@
 
 /* Respect reduced motion: keep the composed die + huge total, drop the tumble, land, pop + flash. */
 @media (prefers-reduced-motion: reduce) {
-  .iroller .ir-throwing .ir-die,
-  .iroller .ir-landed .ir-die,
-  .iroller .ir-result,
-  .iroller .ir-arena.is-crit.ir-landed,
-  .iroller .ir-arena.is-fumble.ir-landed {
+  .ir-arena.ir-throwing .ir-die,
+  .ir-arena.ir-landed .ir-die,
+  .ir-arena .ir-result,
+  .ir-arena.is-crit.ir-landed,
+  .ir-arena.is-fumble.ir-landed {
     animation: none;
   }
   .iroller-adv button,
   .iroller-sechead,
-  .iroller .ir-detail-toggle {
+  .ir-arena .ir-detail-toggle {
     transition: none;
   }
 }

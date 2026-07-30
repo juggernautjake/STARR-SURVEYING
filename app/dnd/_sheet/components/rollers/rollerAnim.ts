@@ -58,3 +58,66 @@ export function adoptedToken(activeRoll: { token: number } | null | undefined): 
 export function stripTotalTail(breakdown: string): string {
   return (breakdown ?? '').replace(/\s*=\s*-?\d+\s*$/, '').trim();
 }
+
+/**
+ * Drop EVERY `= N` summary from a breakdown, wherever it sits — not just a trailing one.
+ *
+ * FOUND IN THE BROWSER, on an Intuitive Games attack whose own breakdown contradicted its total: the rows
+ * read 6, +3, +9, +3 above a total of 12. `rollDiceExpr('1d6+3')` returns `"1d6[6] +3 = 9"` — total appended
+ * for readability — and then the IG damage roll APPENDS its stance bonus: `"1d6[6] +3 = 9 + 3 (stance)"`.
+ * The internal `= 9` is no longer trailing, so `stripTotalTail` left it, and a bare `9` tokenises as a flat
+ * modifier. The subtotal got added to its own parts.
+ *
+ * RO-14 fixed the trailing case, and this is the same defect one composition step later: any breakdown that
+ * something else appends to turns a trailing summary into an interior one. The general rule is what should
+ * have been written then — an `=` introduces a summary of everything to its left, so it is never a term,
+ * wherever it appears.
+ *
+ * `= b` and other non-numeric right-hand sides are left alone: guessing at those would drop real terms.
+ */
+export function dropSummaries(breakdown: string): string {
+  return (breakdown ?? '').replace(/\s*=\s*-?\d+/g, '').trim();
+}
+
+/** One term of a roll's breakdown: a die group (`1d8[5]`) or a flat modifier. */
+export interface BreakdownTerm {
+  key: string;
+  /** The die notation (`1d8`) or `'flat'`. */
+  label: string;
+  /** Display value — signed, EXCEPT a leading positive term (see below). */
+  value: string;
+  kind: 'die' | 'mod';
+}
+
+/**
+ * Tokenise a roll breakdown into display terms. **This lives here because it was duplicated**: the Impact
+ * and Sigil rollers each carried a near-identical copy, and SigilStack's own comment recorded why that
+ * mattered — the phantom-flat-modifier bug (RO-14) appeared in both, so "fixing one would have left the
+ * other looking correct while still being wrong". A third roller reading breakdowns would have made three.
+ *
+ * THE LEADING TERM PRINTS UNSIGNED. A bare `1d8` rendered "+8" as the first and only row above a total of
+ * 8, which reads as a bonus applied to nothing. From the second row down the column genuinely is a running
+ * sum, so those keep their signs.
+ *
+ * Callers still own their own presentation (Impact's rows, Sigil's glyph tiles) and the authoritative total
+ * always comes from the store, so an imperfect parse changes how a roll is EXPLAINED, never its answer.
+ */
+export function breakdownTerms(breakdown: string): BreakdownTerm[] {
+  const out: BreakdownTerm[] = [];
+  const show = (n: number) => (out.length === 0 && n >= 0 ? String(n) : n >= 0 ? `+${n}` : `−${Math.abs(n)}`);
+  dropSummaries(breakdown)
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((tok, i) => {
+      const dm = tok.match(/^(−|-)?(\d*d\d+)\[([^\]]*)\]$/);
+      if (dm) {
+        const sign = dm[1] ? -1 : 1;
+        const sum = dm[3].split(',').reduce((a, v) => a + (parseInt(v.trim(), 10) || 0), 0) * sign;
+        out.push({ key: `d${i}`, label: dm[2], value: show(sum), kind: 'die' });
+      } else if (/^[+−-]?\d+$/.test(tok)) {
+        const n = parseInt(tok.replace('−', '-'), 10);
+        out.push({ key: `f${i}`, label: 'flat', value: show(n), kind: 'mod' });
+      }
+    });
+  return out;
+}

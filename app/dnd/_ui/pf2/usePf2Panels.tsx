@@ -453,7 +453,8 @@ export function usePf2Panels({ pf2, characterId, campaignId, canEdit, isDM, vari
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, rollDice: (sides, n) => rollRaw(`${n}d${sides} (raw)`, `${n}d${sides}`) }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, // The label is the dice notation and nothing else — see the note on the IG panel's identical provider.
+      rollDice: (sides, n) => rollRaw(`${n}d${sides}`, `${n}d${sides}`) }}>
       <div className="dnd-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--hx-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           🎲 Target DC
