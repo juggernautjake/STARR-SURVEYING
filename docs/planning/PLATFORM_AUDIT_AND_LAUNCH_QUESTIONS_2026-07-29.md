@@ -13,7 +13,7 @@ infrastructure or competes for the same code.
 | API route handlers | **517** (340 under `/api/admin`) |
 | Distinct DB tables/views queried in code | **249** |
 | Tables/views with a `CREATE` statement in `seeds/` | **197** |
-| **Tables queried in code with NO schema in the repo** | **78** |
+| **Tables queried in code with NO schema in the repo** | **78** → **0** (fixed, §1.1) |
 | Tables carrying an `org_id` (multi-tenant scoping) | **28 of 188** |
 | Admin `.tsx` lines of code | **196,254** |
 | Test files (whole repo) | 1,335 — of which **571 are D&D** |
@@ -35,9 +35,10 @@ not missing features.
 
 ## 1. Launch blockers (do not go live without these)
 
-### 1.1 🔴 78 core tables have no schema in the repo
-The single most serious finding. `jobs` — the central entity of the entire business — is never
-`CREATE TABLE`'d anywhere in `seeds/`. It is only ever `ALTER`ed (seeds 280, 304, 306, 452). Same for:
+### 1.1 ✅ RESOLVED 2026-07-29 — 78 core tables had no schema in the repo
+The single most serious finding of the audit, now closed. As found: `jobs` — the central entity of
+the entire business — was never `CREATE TABLE`'d anywhere in `seeds/`. It was only ever `ALTER`ed
+(seeds 280, 304, 306, 452). Same for:
 
 ```
 jobs, job_team, job_time_entries, job_equipment, job_field_data, job_payments,
@@ -51,15 +52,49 @@ question_bank, quiz_attempts, quiz_attempt_answers, user_lesson_progress, user_p
 equipment_inventory, media_library, activity_log, error_reports, recycle_bin, …(and 33 more)
 ```
 
-**Consequences right now:**
-- You cannot stand up a staging or dev database. There is one database — production.
-- A new machine, a new developer, or a rebuild after an incident cannot be done from the repo.
-- Every schema change to these tables is an undocumented click in the Supabase dashboard.
-- Disaster recovery depends entirely on Supabase's PITR retention, not on anything you control.
+**Consequences (before the fix):**
+- You could not stand up a staging or dev database. There was one database — production.
+- A new machine, a new developer, or a rebuild after an incident could not be done from the repo.
+- Every schema change to these tables was an undocumented click in the Supabase dashboard.
+- Disaster recovery depended entirely on Supabase's PITR retention, not on anything you control.
 
-**Fix:** `pg_dump --schema-only` the live DB, diff it against `seeds/`, and backfill the missing
-`CREATE TABLE` statements as `seeds/500_baseline_reconstruct.sql`. Then adopt a
-migration-file-per-change discipline. This is roughly a one-day job and it de-risks everything else.
+**FIXED — 2026-07-29.** Shipped:
+
+| Artifact | What it does |
+|---|---|
+| `scripts/dump-missing-schema.mjs` | Introspects the live DB, finds every table the code queries with no CREATE in `seeds/`, and emits DDL. Read-only (catalog SELECTs only). |
+| `seeds/000_baseline_tables.sql` | **76 tables + 144 indexes.** Runs FIRST — 29 later seeds (from `001_config.sql`) ALTER these tables. |
+| `seeds/499_baseline_fks.sql` | **57 foreign keys.** Runs LAST — they reference tables created across the whole seed range (`conversations`, `organizations`, `receipts`, `vehicles`, `job_files`, `kb_articles`, `problem_templates`). |
+| `scripts/verify-baseline-schema.mjs` | Builds both files into a scratch schema inside a transaction, diffs **every column** against production (type, precision, nullability, default), then ROLLS BACK. Production untouched. |
+| `__tests__/schema-coverage.test.ts` | Guard: query a table, define a table. Fails with the offending call sites named. |
+
+**Verified:** builds cleanly from empty — 76 tables, 243 indexes, 57 FKs — and *every column matches
+production exactly*. The gap census went **78 → 0** (2 residual are documented bugs, below).
+
+Two ordering bugs were found and fixed while doing this:
+- `seeds/run_all.sh` skipped **any** `000_*` file by numeric prefix, so the baseline would never
+  have run. Now skips `000_reset.sql` **by name**. (`scripts/apply-seeds.mjs` and
+  `scripts/run-seeds.sh` already filtered by exact filename and were fine.)
+- The generator initially swallowed `undefined_table` when adding foreign keys, which would have
+  silently shipped a database with no referential integrity if the seed order were wrong. Now only
+  `duplicate_object` is caught; a missing referenced table fails loudly.
+
+**Still to do:** stand up an actual staging Supabase project from these seeds and point a preview
+deploy at it. The repo can now do this; nobody has yet.
+
+### 1.1b 🟠 NEW — three research routes query tables that exist nowhere
+Found by the census above. `research_artifacts` and `research_extracted_data_points` are queried by
+production code but exist in **neither `seeds/` nor the live database**:
+
+- `app/api/admin/research/[projectId]/full-extract/route.ts:104` — artifacts always load as `[]`,
+  so the "Load artifacts (screenshots)" step reports `count: 0` forever.
+- `app/api/admin/research/[projectId]/deep-lot-analysis/route.ts:463` — Phase 4 cross-validation
+  never finds prior extractions and silently does nothing.
+- `app/api/admin/research/[projectId]/verify-lot/route.ts:380` — same.
+
+All three destructure `{ data }` and **discard `error`**, so they degrade silently rather than
+failing. Tracked in `KNOWN_PHANTOM_TABLES` in the guard test so they stay visible. **Decide:** were
+these features ever finished (create the tables), or are they dead code (delete the call sites)?
 
 ### 1.2 🔴 Multi-tenancy is skin-deep
 `org_id` exists on 28 tables — and they are all the *SaaS wrapper* tables (billing, subscriptions,
@@ -308,32 +343,35 @@ Anthropic client:
 ## 8. Suggested sequencing
 
 **Phase 0 — De-risk (before anything else)**
-1. Reconstruct the 78 missing table schemas into `seeds/`. Stand up a staging DB from the repo.
-2. Decide the SaaS question (§Q1). If yes, tenant-scope the business tables *now* — it only gets
-   more expensive.
+1. ✅ **DONE 2026-07-29.** Reconstructed the 76 missing table schemas into `seeds/`, verified
+   column-for-column against production, guarded by a test. See §1.1.
+2. ⬜ Stand up an actual staging Supabase project from `seeds/` and point a preview deploy at it.
+3. ⬜ Per **D1**, add nullable `org_id` to the business tables now (defaulted to the Starr org) so
+   the eventual SaaS migration is a backfill rather than a rewrite.
+4. ⬜ Resolve the two phantom research tables (§1.1b) — build or delete.
 
 **Phase 1 — Make it one product**
-3. Delete `AdminSidebar.tsx` + the v2 flag. Register all 36 orphan routes.
-4. Kill `/admin/dashboard`; make `/admin/me` the unambiguous home.
-5. Consolidate Money (30 → ~6 surfaces) and People (10 → 1 profile + 1 directory).
-6. Rename Billing/Invoicing/Finances to non-colliding words.
+5. Delete `AdminSidebar.tsx` + the v2 flag. Register all 36 orphan routes.
+6. Kill `/admin/dashboard`; make `/admin/me` the unambiguous home.
+7. Consolidate Money (30 → ~6 surfaces) and People (10 → 1 profile + 1 directory).
+8. Rename Billing/Invoicing/Finances to non-colliding words.
 
 **Phase 2 — Close the business gaps**
-7. Proposal → acceptance → job (with e-signature).
-8. Customer portal (job status + deliverables + pay).
-9. Deliverable revision control + AR aging + change orders.
-10. Certification/insurance expiry alerting.
+9. Proposal → acceptance → job (with e-signature).
+10. Customer portal (job status + deliverables + pay).
+11. Deliverable revision control + AR aging + change orders.
+12. Certification/insurance expiry alerting.
 
 **Phase 3 — AI as the connective tissue**
-11. `lib/ai/` — one client, one model config, one tool registry, one context digest.
-12. One assistant dock with tool use, everywhere.
-13. AI-fallback page help.
-14. Proactive alerts.
+13. `lib/ai/` — one client, one model config, one tool registry, one context digest.
+14. One assistant dock with tool use, everywhere.
+15. AI-fallback page help.
+16. Proactive alerts.
 
 **Phase 4 — Polish**
-15. Pay down inline hexes on the top 20 files → tokens → dark mode.
-16. Split the six >2,000-line pages.
-17. Onboarding/empty states for a brand-new firm.
+17. Pay down inline hexes on the top 20 files → tokens → dark mode.
+18. Split the six >2,000-line pages.
+19. Onboarding/empty states for a brand-new firm.
 
 ---
 
