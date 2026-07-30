@@ -39,6 +39,7 @@ import fs from 'node:fs';
 import pg from 'pg';
 import { curateForIg, gridFor, CR_BANDS } from '../lib/dnd/bestiary/ig-curation.ts';
 import { transposeCreature } from '../lib/dnd/bestiary/transpose.ts';
+import { igCreatureEntries } from '../lib/dnd/systems/intuitive-games/creature-mechanics.ts';
 
 const DRY = process.argv.includes('--dry-run');
 const arg = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || '').split('=')[1] || d;
@@ -70,6 +71,7 @@ const TARGETS = {
   },
 };
 
+const IG_TARGET = 'intuitive-games';
 const cfg = TARGETS[TARGET];
 if (!cfg) throw new Error(`--target=${TARGET} is not a system this can fill. Try: ${Object.keys(TARGETS).join(', ')}`);
 
@@ -143,6 +145,8 @@ async function main() {
     // ── transpose ────────────────────────────────────────────────────────────────────────────────────
     const rows = [];
     let totalUnmapped = 0;
+    let igFlavoured = 0;
+    let igEntryCount = 0;
     for (const p of picked) {
       const s = bySlug.get(p.slug);
       const t = transposeCreature(
@@ -150,6 +154,20 @@ async function main() {
         TARGET,
       );
       totalUnmapped += t.unmapped.length;
+
+      // ── B6-4: make it read as IG ────────────────────────────────────────────────────────────────
+      //
+      // Only for Intuitive Games, and only for what the stat block itself provides evidence of. The 2024
+      // target is skipped because it is already 5e — the conditions ARE its condition names, and a
+      // "conditions, in 2024 terms" block that renamed nothing would be noise on 300 creatures.
+      if (TARGET === IG_TARGET) {
+        const igEntries = igCreatureEntries(t.statblock);
+        if (igEntries.length) {
+          igFlavoured += 1;
+          igEntryCount += igEntries.length;
+          t.statblock.entries = [...(t.statblock.entries ?? []), ...igEntries];
+        }
+      }
 
       // The unmapped list goes in the DESCRIPTION, where the creature page already renders prose, rather
       // than into the statblock — a reader must not be able to scroll past it, and a DM who forks this
@@ -188,6 +206,12 @@ async function main() {
     }
 
     console.log(`\n${rows.length} to write · ${(totalUnmapped / Math.max(1, rows.length)).toFixed(1)} flagged items each — every one arrives unfinished by design.`);
+    if (TARGET === IG_TARGET) {
+      // Reported as a FRACTION, because "most creatures get no stance" is the designed outcome and a bare
+      // count would read as coverage that fell short. A number near 100% here would mean the evidence
+      // rules had stopped discriminating.
+      console.log(`${igFlavoured}/${rows.length} carry IG mechanics (${igEntryCount} entries) — the rest offered no evidence, which is the correct answer for them.`);
+    }
 
     // A COLLISION CHECK BEFORE THE WRITE, not a count comparison after it.
     //

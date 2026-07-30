@@ -749,7 +749,49 @@ that draws from the newly-imported non-SRD books, so IG's spread is not purely S
 The slice ends with `npm run audit:bestiary` reporting per-system counts by type, size and CR band — the
 floor has to be *checkable*, not asserted in a commit message.
 
-### B6-4 · IG stat blocks that use IG's own mechanics — the slice the owner named specifically
+### B6-4 · IG stat blocks that use IG's own mechanics — **SHIPPED 2026-07-30. 259 of 300.**
+
+`lib/dnd/systems/intuitive-games/creature-mechanics.ts` (19 tests), appended by the generator.
+
+**The two halves are very different, and separating them is the whole slice.**
+
+**Conditions are a real translation.** IG publishes 18 conditions and most of 5e's have an exact
+counterpart with the same mechanical intent — `restrained`/`Entangled` both mean "cannot move,
+disadvantage on physical checks"; `poisoned`/`Sickened` are both −2 to attacks, saves and checks. Those
+are renamed. The ones with no counterpart are **named as untranslatable**: turning `petrified` into
+"Paralyzed" would lose the part where the creature is stone, and a DM applying the nearest neighbour runs
+the encounter wrong — which is worse than being told there is a gap. 2,306 of 2,828 source creatures
+mention at least one.
+
+**A stance is NOT a translation, and that is the line.** Nothing in a 5e stat block says which of IG's ten
+stances a creature adopts, and no derivation could: a stance is a tactical choice made on a turn, not a
+property of the creature. So this does not assign one. It reads the evidence **already in the stat block**
+and says which stance that behaviour corresponds to — Pack Tactics is a creature that fights by flanking,
+and Swarming is IG's flanking stance — carrying its evidence with it and labelled in the same voice
+`deriveVariant` uses: *"Starr Tabletop house reading — not an official rule."*
+
+**19.9% of creatures get a stance, and the other 80% getting none is the designed outcome**, not a
+shortfall. 300 invented stances would tell a DM something false about a mechanic they act on every turn.
+The spread across seven of the ten stances (Mobile 217, Swarming 125, Shifting 83, Menacing 77, Defensive
+30, Precise 23, Supportive 7) is what a rule set that still discriminates looks like; a number near 100%
+would mean it had stopped.
+
+#### The false positive, found by measuring against the real catalogue
+
+The Defensive rule originally matched a bare `shield`. Run over all 2,828 creatures it matched **spell
+names** — `fire shield`, `shield of faith`, and `shield` itself sitting in a prepared-slot list — so an
+**Archmage was read as fighting defensively because of what it had prepared**. Six of eight sampled
+matches were wrong; the two that were right were both Parry. Narrowed to `damage reduction|parry`, which
+took it from 116 matches to 30, and the survivors are genuine. Guarded by a test carrying the Archmage's
+real spell line.
+
+Emitted as ordinary `trait` entries, so they render through the existing stat block with no new component
+and survive a fork into the Studio, where a DM can edit or delete them like any other trait.
+
+Browser-verified on the Adult Boreal Dragon: Frightful Presence → Menacing, with the published Basic and
+Advanced text quoted rather than paraphrased, and `frightened → Shaken, prone → Prone` beneath it.
+
+### B6-4 · IG mechanics (original plan text)
 
 > *"Make sure that creature's stat blocks are really fleshed out and working with the IG stances and stuff.
 > Make that make as much sense as you can for IG."*
