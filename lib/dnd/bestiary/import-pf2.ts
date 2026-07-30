@@ -182,17 +182,40 @@ export function pf2Licences(actor: Record<string, unknown>): string[] {
 }
 
 /**
+ * The licences this import may redistribute under.
+ *
+ * ORC was the only entry while Monster Core was the only pack. **Pathfinder Bestiary 1, 2 and 3 are
+ * pre-remaster books published under the OGL**, verified against the pack files rather than assumed — and
+ * OGL 1.0a permits redistribution with attribution exactly as ORC does. It is the same licence the Kobold
+ * Press and EN Publishing books arrive under in `import-open5e.ts`, accepted there since the first run.
+ *
+ * An ALLOWLIST, not a blocklist, for the reason B2-3 wrote down: a blocklist says yes to everything nobody
+ * thought of, and the cost of a false negative here is one creature not being catalogued.
+ */
+export const PF2_LICENCES = new Set(['ORC', 'OGL']);
+
+/**
  * May this actor be redistributed?
  *
- * ORC ANYWHERE IS ENOUGH. Its presence means the actor is Monster Core content, and a stale OGL marker on
- * one embedded item does not un-license the creature. An actor with NO stated licence is refused — unstated
- * is unknown, the same rule the image pipeline uses — and so is one marked only with terms this import is
- * not entitled to redistribute.
+ * ANY ALLOWED LICENCE ANYWHERE IS ENOUGH, and a stale marker on one embedded item does not un-license the
+ * creature. An actor with NO stated licence is refused — unstated is unknown, the same rule the image
+ * pipeline uses — and so is one marked only with terms this import is not entitled to redistribute.
  */
 export function pf2IsRedistributable(actor: Record<string, unknown>): boolean {
-  const licences = pf2Licences(actor);
-  if (!licences.length) return false;
-  return licences.includes('ORC');
+  return pf2Licences(actor).some((l) => PF2_LICENCES.has(l));
+}
+
+/**
+ * The licence line the ROW records, read off the actor rather than taken from the caller.
+ *
+ * The provenance argument states a licence per PACK, which was right when there was one pack and is wrong
+ * now: `howl-of-the-wild-bestiary` carries BOTH OGL and ORC across its creatures, so a single pack-level
+ * value would print the wrong terms on some fraction of it. Every licence the actor actually states is
+ * named, because which one a downstream reader relies on is not ours to choose for them.
+ */
+export function pf2LicenceLabel(actor: Record<string, unknown>): string | undefined {
+  const found = pf2Licences(actor).filter((l) => PF2_LICENCES.has(l)).sort();
+  return found.length ? found.join(' / ') : undefined;
 }
 
 /**
@@ -262,7 +285,10 @@ export function pf2ActorToRow(
     tags: derived.tags,
     environments: [],
     source: prov.source,
-    licence: prov.licence,
+    // The actor's own stated licence wins over the pack-level one — see `pf2LicenceLabel`. The provenance
+    // value remains the fallback so a pack whose items state nothing usable still cannot reach here
+    // without a licence at all (`pf2IsRedistributable` has already refused that case).
+    licence: pf2LicenceLabel(actor) ?? prov.licence,
     attribution: prov.attribution,
     ...(prov.sourceUrl ? { source_url: prov.sourceUrl } : {}),
     variant_eligible: derived.variantEligible,

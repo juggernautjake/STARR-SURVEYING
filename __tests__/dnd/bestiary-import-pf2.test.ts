@@ -152,11 +152,34 @@ describe('pf2ActorToRow — what it refuses', () => {
     expect(pf2ActorToRow({ ...goblin(), name: '' }, PROV)).toBeNull();
   });
 
-  it('REFUSES AN ACTOR WITH NO ORC MARKING rather than guessing', () => {
-    // Foundry ships several packs and they do not all carry the same terms.
+  it('accepts an OGL-only actor, because Bestiary 1–3 are pre-remaster books', () => {
+    // This assertion was the reverse until B6-1, and the reversal is a correction rather than a loosening.
+    // ORC was the only allowed licence while Monster Core was the only pack imported. Pathfinder Bestiary
+    // 1, 2 and 3 are OGL throughout — verified against the pack files — and OGL 1.0a permits
+    // redistribution with attribution exactly as ORC does. Kept as ORC-only, the gate would have refused
+    // all 854 of them while reporting a successful run.
     const a = goblin();
     a.items.forEach((i: any) => { i.system.publication.license = 'OGL'; });
+    const row = pf2ActorToRow(a, PROV)?.row;
+    expect(row).toBeTruthy();
+    // …and the ROW records what the actor states, not the pack-level value the caller passed.
+    expect(row!.licence).toBe('OGL');
+  });
+
+  it('REFUSES A LICENCE THAT IS NOT ON THE ALLOWLIST rather than guessing', () => {
+    // The allowlist is still an allowlist: Foundry ships packs under terms this import has no right to
+    // redistribute, and a blocklist would say yes to every one nobody thought of.
+    const a = goblin();
+    a.items.forEach((i: any) => { i.system.publication.license = 'ALL RIGHTS RESERVED'; });
     expect(pf2ActorToRow(a, PROV)).toBeNull();
+  });
+
+  it('names both licences on a genuinely dual-licensed actor', () => {
+    // `howl-of-the-wild-bestiary` carries OGL and ORC across its creatures, so a single pack-level value
+    // would print the wrong terms on some fraction of it. Which one a reader relies on is not ours to pick.
+    const a = goblin();
+    a.items[0].system.publication.license = 'OGL';   // ORC still present on the second item
+    expect(pf2ActorToRow(a, PROV)!.row.licence).toBe('OGL / ORC');
   });
 
   it('refuses an actor that states no licence at all — unstated is unknown', () => {

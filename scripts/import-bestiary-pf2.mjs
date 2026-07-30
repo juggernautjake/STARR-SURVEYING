@@ -33,45 +33,107 @@ const DRY = process.argv.includes('--dry-run');
 const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').split('=')[1]) || 0;
 
 const REPO = 'foundryvtt/pf2e';
-const PACK = 'packs/pathfinder-monster-core';
-const RAW = `https://raw.githubusercontent.com/${REPO}/master/${PACK}`;
-const CACHE_DIR = path.join(ROOT, '.cache/pf2-monster-core');
 const UA = { 'User-Agent': 'StarrTabletop/1.0 (bestiary import; one-off, cached)' };
+const ONLY = (process.argv.find((a) => a.startsWith('--pack=')) || '').split('=')[1] || null;
 
-const PROVENANCE = {
-  source: 'Pathfinder Monster Core',
-  licence: 'ORC',
+/**
+ * The packs catalogued, in the order they are imported.
+ *
+ * ── A SLUG PREFIX PER PACK ───────────────────────────────────────────────────────────────────────────
+ *
+ * Bestiary 1, 2 and 3 name the same creature — there is a Drake in all three — so a shared prefix would
+ * make each import silently overwrite the last and leave a catalogue that looks complete and is missing
+ * two thirds of what it fetched. Same rule as the 5e books in `import-open5e.mjs`, and the same rule the
+ * SRD's own `srd51`/`srd52` prefixes follow.
+ *
+ * ── WHY NOT EVERY PACK IN THE REPOSITORY ─────────────────────────────────────────────────────────────
+ *
+ * `packs/` carries 60+ bestiaries, but the PFS season packs and most adventure-path packs are largely
+ * stat-block VARIANTS of creatures already in the core books — importing them would put nine Goblin
+ * Warriors in the catalogue, which makes the bestiary harder to search rather than richer. The core
+ * bestiaries and the standalone hardcovers are the creatures that exist nowhere else.
+ *
+ * ── LICENCE ──────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Recorded per creature by `pf2LicenceLabel`, not per pack, because it genuinely varies: Monster Core is
+ * ORC, the pre-remaster Bestiary 1–3 are OGL, and `howl-of-the-wild` carries both across its actors. The
+ * `licence` below is a fallback only; `pf2IsRedistributable` still refuses anything stating neither.
+ */
+const PACKS = [
+  {
+    pack: 'pathfinder-monster-core', prefix: 'pf2', licence: 'ORC',
+    source: 'Pathfinder Monster Core',
+    copyright: 'Pathfinder Monster Core © 2023 Paizo Inc.',
+  },
+  {
+    pack: 'pathfinder-bestiary', prefix: 'pf2b1', licence: 'OGL',
+    source: 'Pathfinder Bestiary',
+    copyright: 'Pathfinder Bestiary © 2019 Paizo Inc.',
+  },
+  {
+    pack: 'pathfinder-bestiary-2', prefix: 'pf2b2', licence: 'OGL',
+    source: 'Pathfinder Bestiary 2',
+    copyright: 'Pathfinder Bestiary 2 © 2020 Paizo Inc.',
+  },
+  {
+    pack: 'pathfinder-bestiary-3', prefix: 'pf2b3', licence: 'OGL',
+    source: 'Pathfinder Bestiary 3',
+    copyright: 'Pathfinder Bestiary 3 © 2021 Paizo Inc.',
+  },
+  {
+    pack: 'book-of-the-dead-bestiary', prefix: 'pf2botd', licence: 'OGL',
+    source: 'Pathfinder Book of the Dead',
+    copyright: 'Pathfinder Book of the Dead © 2022 Paizo Inc.',
+  },
+  {
+    pack: 'rage-of-elements-bestiary', prefix: 'pf2roe', licence: 'OGL',
+    source: 'Pathfinder Rage of Elements',
+    copyright: 'Pathfinder Rage of Elements © 2023 Paizo Inc.',
+  },
+  {
+    pack: 'howl-of-the-wild-bestiary', prefix: 'pf2hotw', licence: 'OGL',
+    source: 'Pathfinder Howl of the Wild',
+    copyright: 'Pathfinder Howl of the Wild © 2024 Paizo Inc.',
+  },
+];
+
+const provenanceFor = (p) => ({
+  source: p.source,
+  licence: p.licence,
   attribution:
-    'This work includes material from Pathfinder Monster Core © 2023 Paizo Inc., used under the ORC ' +
-    'licence. Statblock data via the Foundry VTT pf2e system (foundryvtt/pf2e).',
+    `This work includes material from ${p.copyright}, used under the ${p.licence} licence. `
+    + 'Statblock data via the Foundry VTT pf2e system (foundryvtt/pf2e).',
   sourceUrl: 'https://paizo.com/community/communityuse',
-  slugPrefix: 'pf2',
+  slugPrefix: p.prefix,
   system: 'pathfinder2e',
-};
+});
 
-/** The pack's file list, cached — the GitHub contents API is rate-limited far more tightly than raw. */
-async function listFiles() {
-  const idx = path.join(CACHE_DIR, '_index.json');
-  if (fs.existsSync(idx)) {
-    const names = JSON.parse(fs.readFileSync(idx, 'utf8'));
-    console.log(`Using cached file list: ${names.length} actors.`);
-    return names;
-  }
-  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PACK}?ref=master`, {
+const cacheDirFor = (pack) => path.join(ROOT, '.cache/pf2', pack);
+const rawFor = (pack) => `https://raw.githubusercontent.com/${REPO}/master/packs/${pack}`;
+
+/** One pack's file list, cached — the GitHub contents API is rate-limited far more tightly than raw. */
+async function listFiles(pack) {
+  const dir = cacheDirFor(pack);
+  const idx = path.join(dir, '_index.json');
+  if (fs.existsSync(idx)) return JSON.parse(fs.readFileSync(idx, 'utf8'));
+  const res = await fetch(`https://api.github.com/repos/${REPO}/contents/packs/${pack}?ref=master`, {
     headers: UA, signal: AbortSignal.timeout(60_000),
   });
-  if (!res.ok) throw new Error(`Listing failed: ${res.status} ${await res.text()}`);
-  const names = (await res.json()).filter((f) => f.name.endsWith('.json')).map((f) => f.name);
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  // A pack that has been renamed or removed upstream is reported and skipped rather than killing the run —
+  // one missing book must not cost the other six.
+  if (!res.ok) return null;
+  const body = await res.json();
+  if (!Array.isArray(body)) return null;
+  const names = body.filter((f) => f.name.endsWith('.json')).map((f) => f.name);
+  fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(idx, JSON.stringify(names));
-  console.log(`Listed ${names.length} actors.`);
   return names;
 }
 
-async function fetchActor(name) {
-  const cached = path.join(CACHE_DIR, name);
+async function fetchActor(pack, name) {
+  const cached = path.join(cacheDirFor(pack), name);
   if (fs.existsSync(cached)) return JSON.parse(fs.readFileSync(cached, 'utf8'));
-  const res = await fetch(`${RAW}/${encodeURIComponent(name)}`, { headers: UA, signal: AbortSignal.timeout(30_000) });
+  const res = await fetch(`${rawFor(pack)}/${encodeURIComponent(name)}`, { headers: UA, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) return null;
   const json = await res.json();
   fs.writeFileSync(cached, JSON.stringify(json));
@@ -79,22 +141,19 @@ async function fetchActor(name) {
 }
 
 /** Fetch with a bounded window. Sequential would take minutes; unbounded would open 492 sockets at once. */
-async function fetchAll(names, concurrency = 8) {
+async function fetchAll(pack, names, concurrency = 8) {
   const out = [];
   let i = 0;
-  let done = 0;
   await Promise.all(
     Array.from({ length: concurrency }, async () => {
       while (i < names.length) {
         const name = names[i++];
         try {
-          const a = await fetchActor(name);
+          const a = await fetchActor(pack, name);
           if (a) out.push(a);
         } catch {
-          // A single unreachable file must not abandon the other 491; it is reported in the tally below.
+          // A single unreachable file must not abandon the rest; it shows up in the tally below.
         }
-        done += 1;
-        if (done % 100 === 0) console.log(`  …${done}/${names.length}`);
       }
     }),
   );
@@ -102,35 +161,68 @@ async function fetchAll(names, concurrency = 8) {
 }
 
 async function main() {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-  let names = await listFiles();
-  if (LIMIT) names = names.slice(0, LIMIT);
-
-  console.log(`Fetching ${names.length} actors…`);
-  const actors = await fetchAll(names);
-  console.log(`Fetched ${actors.length} of ${names.length}.`);
+  const packs = PACKS.filter((p) => !ONLY || p.pack === ONLY);
+  if (!packs.length) throw new Error(`--pack=${ONLY} is not a catalogued pack.`);
 
   const rows = [];
   const refused = [];
   const thin = [];
-  for (const a of actors) {
-    const out = pf2ActorToRow(a, PROVENANCE);
-    // Refusals are real information: a non-npc document, a nameless actor, or a licence this import is not
-    // entitled to redistribute. G6 — nothing silently truncates.
-    if (!out) { refused.push(a?.name ?? '(unnamed)'); continue; }
-    rows.push(out.row);
-    const s = out.row.statblock;
-    const gaps = [];
-    if (s.ac === undefined) gaps.push('AC');
-    if (s.hp === undefined) gaps.push('HP');
-    if (!s.speed) gaps.push('speed');
-    if (!s.entries?.length) gaps.push('strikes/actions');
-    if (!out.row.cr) gaps.push('level');
-    if (gaps.length) thin.push(`${out.row.name}: no ${gaps.join(', ')}`);
+  const perPack = [];
+
+  for (const p of packs) {
+    let names = await listFiles(p.pack);
+    if (!names) { perPack.push({ p, missing: true }); continue; }
+    if (LIMIT) names = names.slice(0, LIMIT);
+
+    const actors = await fetchAll(p.pack, names);
+    const prov = provenanceFor(p);
+    let ok = 0;
+    const packRefused = [];
+    for (const a of actors) {
+      const out = pf2ActorToRow(a, prov);
+      // Refusals are real information: a non-npc document, a nameless actor, or a licence this import is
+      // not entitled to redistribute. G6 — nothing silently truncates.
+      if (!out) {
+        // WITH THE REASON. "25 refused" alone reads as data loss; "25 hazards, which are not creatures"
+        // reads as the importer doing its job. Book of the Dead ships haunts and environmental hazards in
+        // the same pack as its undead, and a Cold Spot has no stat block to catalogue.
+        const why = a?.type && a.type !== 'npc' ? `${a.type}, not a creature`
+          : !a?.name ? 'unnamed'
+            : 'no licence this import may redistribute under';
+        packRefused.push(`${a?.name ?? '(unnamed)'} (${why})`);
+        refused.push(a?.name ?? '(unnamed)');
+        continue;
+      }
+      rows.push(out.row);
+      ok += 1;
+      const s = out.row.statblock;
+      const gaps = [];
+      if (s.ac === undefined) gaps.push('AC');
+      if (s.hp === undefined) gaps.push('HP');
+      if (!s.speed) gaps.push('speed');
+      if (!s.entries?.length) gaps.push('strikes/actions');
+      if (!out.row.cr) gaps.push('level');
+      if (gaps.length) thin.push(`${out.row.name}: no ${gaps.join(', ')}`);
+    }
+    perPack.push({ p, listed: names.length, fetched: actors.length, ok, packRefused });
   }
 
-  console.log(`\n[${PROVENANCE.source} → ${PROVENANCE.system}] transformed ${rows.length}, refused ${refused.length}.`);
-  if (refused.length) console.log('  refused:', refused.slice(0, 10).join(', ') + (refused.length > 10 ? ` …+${refused.length - 10}` : ''));
+  console.log('\nPack                              listed  fetched  imported  refused');
+  for (const r of perPack) {
+    if (r.missing) { console.log(`${r.p.pack.padEnd(32)}  — not published at this path upstream, skipped`); continue; }
+    console.log(`${r.p.pack.padEnd(32)}  ${String(r.listed).padStart(6)}  ${String(r.fetched).padStart(7)}  ${String(r.ok).padStart(8)}  ${String(r.packRefused.length).padStart(7)}`);
+    if (r.packRefused.length) {
+      console.log(`    refused: ${r.packRefused.slice(0, 6).join(', ')}${r.packRefused.length > 6 ? ` …+${r.packRefused.length - 6}` : ''}`);
+    }
+  }
+
+  console.log(`\n[pathfinder2e] transformed ${rows.length}, refused ${refused.length}.`);
+
+  // Two packs naming the same creature is normal and is why each has its own slug prefix. Reported so a
+  // reader who searches "Drake" and gets four knows why, rather than suspecting a duplicate import.
+  const names = new Map();
+  for (const r of rows) names.set(r.name, (names.get(r.name) ?? 0) + 1);
+  console.log(`${[...names.values()].filter((n) => n > 1).length} names appear in more than one book (kept, each with its own slug).`);
   if (thin.length) {
     console.log(`\n${thin.length} imported with a missing line:`);
     thin.slice(0, 15).forEach((t) => console.log('  ' + t));
@@ -170,6 +262,11 @@ async function main() {
            name = EXCLUDED.name, type = EXCLUDED.type, size = EXCLUDED.size,
            cr = EXCLUDED.cr, cr_sort = EXCLUDED.cr_sort, statblock = EXCLUDED.statblock,
            description = EXCLUDED.description, tags = EXCLUDED.tags,
+           -- Provenance updates too, which it did not before. The licence is now read per actor rather
+           -- than per pack, so a re-run has to be able to CORRECT a row that recorded the pack's value.
+           -- An upsert that refuses to update the licence column makes the first run's guess permanent.
+           source = EXCLUDED.source, licence = EXCLUDED.licence,
+           attribution = EXCLUDED.attribution, source_url = EXCLUDED.source_url,
            variant_eligible = EXCLUDED.variant_eligible, updated_at = now()`,
         [
           r.slug, r.name, r.system, r.type ?? null, r.size ?? null, r.alignment ?? null,
