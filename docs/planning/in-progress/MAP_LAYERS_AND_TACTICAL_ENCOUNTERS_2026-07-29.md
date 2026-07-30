@@ -327,10 +327,47 @@ fixtures. `loadsThreeD` had to learn, in order:
 Sixteen tests now, including one per hole.
 
 ### M2-2 · HTML worlds
-A node with no image renders as generated HTML/CSS: a starfield for `space`, a disc with landmass shapes for
-`world`, blocked regions for `continent`, a street lattice for `city`. Deterministic from the node id, so a
-world looks the same every time it is opened. This is what "just use the 2d version with html to represent all
-of the worlds" asks for, and it means **a DM never faces an empty map for want of art**.
+
+**SHIPPED 2026-07-29** — `lib/dnd/maps/html-world.ts` (pure) + `app/dnd/_ui/maps/GeneratedMap.tsx`
+(renderer). **62 tests.**
+
+All seven tiers get their own vocabulary and palette: a starfield with nebulae for `space`, an ocean disc
+with landmasses for `world`, regions for `continent`/`province`, a road-and-block lattice for `city`, blocks
+for `district`, walled rooms for `site`. An unillustrated node is the *normal* case — seven tiers deep means
+a campaign is dozens of maps, and nobody sources art for a province before knowing whether it survives
+contact with the party.
+
+**Determinism is the contract, not a detail**, and it is what most of the tests are about. The same node
+draws the same picture every time, on every device, for every player — so a DM can say "the big southern
+continent" and be understood, and a screenshot in the campaign notes still matches a month later. Seeded
+FNV-1a → xorshift, **unsigned throughout** (the bestiary's `sigilFor` produced out-of-range values for
+roughly half of all inputs because `>>` coerces to int32; not repeating that here).
+
+Decisions worth recording:
+
+- **The tier is folded into the seed**, not merely used to pick the vocabulary — so a city promoted to a
+  province genuinely redraws rather than keeping its street plan under a province palette.
+- **An unknown tier falls back to `site`**, the smallest scale. Better a plain floor plan than a starfield
+  for something that turned out to be a tavern.
+- **SVG, not positioned divs.** The plan says "HTML", and divs would satisfy the letter — but a `viewBox`
+  means one component serves a 96px pin thumbnail and a full-screen map with no per-size code, which is
+  exactly what M3's zoom needs. It is also one element to the layout engine instead of 130 positioned
+  boxes, which matters when a starfield has 130 of them.
+- **Not decorative.** Each map carries `role="img"` and a label of name + tier description, because for a
+  screen-reader user *"Ironrow — a city street plan"* is the entire content of that element.
+
+Tests assert the contract rather than the aesthetics: identical output for identical input; different nodes
+differ; re-tiering redraws; nothing reads `Math.random` (asserted by tampering with it); every shape is
+finite, positive-radius, inside the frame, and within a renderable alpha; **a world's landmasses all sit
+inside the ocean disc** (one hanging off the edge reads as a bug, not geography); and no two tiers share a
+palette, so scale is legible at a glance.
+
+*Bug found while writing it:* the `space` builder read `star(r) && { ...star(r) }` — building a star,
+discarding it, and building another. Deterministic either way, which is exactly why it would never have
+surfaced as a defect; it just silently burned half the RNG sequence.
+
+**Not yet mounted on a page** — there is no node-browsing surface until M3-2, which is the next slice.
+`GeneratedMap` is the component that surface will use; it is complete, typechecked and lint-clean.
 
 ### M2-3 · Mobile and desktop parity for the existing map surfaces
 The current map pages audited and fixed at 360px and desktop before new surfaces are added on top.
