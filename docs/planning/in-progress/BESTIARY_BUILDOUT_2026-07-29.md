@@ -375,10 +375,41 @@ three legitimate images would have been refused.** Licence names are now normali
 the test carries the verbatim strings that came off the wire rather than the ones a fixture author would
 invent. Same lesson as `senses` and `speed` in B1-3, and the same fix: run it against the real source.
 
-**Remaining:** `scripts/fetch-creature-art.mjs` — query Commons per creature, download to the `dnd-media`
-bucket (never hotlink), record the provenance, and **look at each candidate before keeping it**. That last
-step is where the vision pass earns its place: a Commons search for "troll" returns Scandinavian folk
-painting, a municipal coat of arms, and internet-troll memes, and no metadata distinguishes them.
+#### The fetcher is built, was run, and the results were ROLLED BACK
+
+`scripts/fetch-creature-art.mjs` (`npm run art:creatures`) works exactly as designed: search Commons per
+creature, apply the licence rules, download to `dnd-media`, record the provenance. A 40-creature run
+returned **40 accepted, 0 failed**, every one properly licensed.
+
+**Then I looked at four of them, and three were wrong.**
+
+| Creature | What the picture actually was |
+| --- | --- |
+| **Lich** | a **pulsar planetary system** — PSR B1257+12 is nicknamed "Lich" |
+| **Magma Worm** | **C. elegans nematodes** under a fluorescence microscope |
+| **Ancient Silver Dragon** | a **Chinese calligraphy brush** with dragon decoration |
+
+The licence gate was flawless in every case. **Relevance was the failure, and no metadata field exposes
+it** — the files are correctly titled, correctly licensed, and depict the wrong thing.
+
+All 40 images were deleted from storage and their rows cleared. Coverage is back to **0 / 829**, which is
+the honest number: `sigilFor` already draws a deterministic emblem and `auraFor` already gives it a fitting
+atmosphere, so a creature with no photograph looks *deliberate*. **829 wrong pictures would be far worse
+than 829 sigils** — a wrong portrait is a claim, and a sigil is not.
+
+**What this settles:** the search-and-accept pipeline cannot run unattended. It is correct machinery
+pointed at a source whose relevance ranking does not understand what a "Lich" is in this context. The
+remaining work is a **verification pass**, and it is the expensive half rather than a finishing touch:
+
+- Show each candidate and keep, reject or re-query — 829 creatures at several candidates each.
+- Or narrow the query space first: real animals (`Wolf`, `Giant Spider`, `Brown Bear`) resolve reliably to
+  natural-history photography, so a taxonomy-driven allowlist could be automated with confidence while
+  every fantasy name stays manual.
+- Or accept a much smaller, hand-picked set for the creatures that matter most and leave the rest as
+  sigils, which is what the aura system was designed to make acceptable.
+
+The machinery, the licence rules and the schema constraint are all in place and tested; what is missing is
+judgement, and this is the one place in the bestiary where that cannot be automated with the tools to hand.
 `scripts/fetch-creature-art.mjs`: for each creature, look for a PD/CC image, store it with its attribution in
 the existing media plumbing, and record `image_url` + `image_attribution`. Never a hotlink — files are saved
 locally (G3). Reports coverage honestly (G6).

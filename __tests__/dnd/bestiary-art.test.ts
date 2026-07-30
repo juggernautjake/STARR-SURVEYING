@@ -32,9 +32,17 @@ describe('isAcceptableLicence', () => {
     // These are verbatim `LicenseShortName` values from a live query for "Wolf". Commons writes licences
     // for humans — "CC BY-SA 4.0", not "cc-by-sa-4.0" — and matching the SPDX-style form refused two of
     // these three legitimate images until a real query was run. Every entry here came off the wire.
-    for (const l of ['Public domain', 'CC BY 3.0', 'CC BY-SA 4.0', 'CC0', 'CC BY-SA 3.0']) {
+    for (const l of ['Public domain', 'CC BY 3.0', 'CC BY-SA 4.0', 'CC0', 'CC BY-SA 3.0', 'CC BY-SA 2.5', 'CC BY 2.0']) {
       expect(isAcceptableLicence(l), `${l} is a real Commons value and must be usable`).toBe(true);
     }
+  });
+
+  it('accepts "No restrictions" — Flickr Commons, and it was being thrown away', () => {
+    // Institutions (British Library, national archives) apply this to material they have determined is
+    // free to use. It appeared in the refusal tally of a real run, discarding usable museum scans: the
+    // allowlist had been written from what SPDX calls things, and Commons has templates SPDX never heard of.
+    expect(isAcceptableLicence('No restrictions')).toBe(true);
+    expect(isAcceptableLicence('No known copyright restrictions')).toBe(true);
   });
 
   it('and still refuses the spaced forms of the ones that are not allowed', () => {

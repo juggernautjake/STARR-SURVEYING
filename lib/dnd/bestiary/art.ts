@@ -55,6 +55,12 @@ const ACCEPTABLE = [
   /^pd(-|$)/,                  // pd-old-100, pd-us, pd-art
   /^public-domain/,
   /^attribution$/,             // Commons' plain "Attribution" template
+  // Flickr Commons' "no known copyright restrictions", applied by institutions (British Library, national
+  // archives) to material they have determined is free to use. Found in the refusal tally of a real run,
+  // where it was throwing away perfectly usable museum scans — the licence names in the allowlist were
+  // written from what SPDX calls things, and Commons has templates SPDX has never heard of.
+  /^no-known-copyright/,
+  /^no-restrictions$/,
 ];
 
 /** NC and ND are not acceptable: this is a public site (a commercial reading is at least arguable), and ND
