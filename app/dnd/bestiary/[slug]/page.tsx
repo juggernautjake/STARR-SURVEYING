@@ -15,14 +15,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import styles from '@/app/dnd/_ui/hextech.module.css';
-import { loadCreature } from '@/lib/dnd/bestiary/query';
+import { loadCreature, loadSiblings } from '@/lib/dnd/bestiary/query';
 import { TAG_LABELS, type CreatureTag } from '@/lib/dnd/bestiary/taxonomy';
 import { auraFor } from '@/lib/dnd/bestiary/aura';
 import { planeFor } from '@/lib/dnd/bestiary/planes';
-import { GAME_SYSTEMS } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, DEFAULT_SYSTEM } from '@/lib/dnd/systems';
 import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
 import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
-import { transposeCreature, type BestiarySystem } from '@/lib/dnd/bestiary/transpose';
+import SystemLens from '@/app/dnd/_ui/bestiary/SystemLens';
+import type { BestiarySystem } from '@/lib/dnd/bestiary/transpose';
 import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
 import ForkCreature from '@/app/dnd/_ui/bestiary/ForkCreature';
 import CreatureArtUpload from '@/app/dnd/_ui/bestiary/CreatureArtUpload';
@@ -54,21 +55,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 const systemName = (key: string) => GAME_SYSTEMS.find((s) => s.key === key)?.name ?? key;
 
-/** The systems a creature can be carried into. Kept here rather than derived from `GAME_SYSTEMS` because
- *  `transposeCreature` only knows how to convert between these — offering a target it cannot handle would
- *  produce a page of warnings and nothing else. Intuitive Games joined the list with B4-2, once its type
- *  vocabulary was mapped; before that every conversion into it marked the creature's type as unmappable. */
-const TRANSPOSE_TARGETS: BestiarySystem[] = ['dnd5e-2014', 'dnd5e-2024', 'pathfinder2e', 'intuitive-games'];
-
-export default async function CreaturePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string }>;
-  searchParams: Promise<{ to?: string }>;
-}) {
+export default async function CreaturePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { to } = await searchParams;
   const found = await loadCreature(creatureSlugFromParam(slug));
   if (!found) notFound();
   const { creature: c, variants } = found;
@@ -78,12 +66,13 @@ export default async function CreaturePage({
   const canEditArt = isDndOwner(getDndSession());
   const plane = planeFor(c);
 
-  // Only a target this module actually converts to, and never the creature's own system — a self-transpose
-  // is a no-op that would render an empty warning box and look broken.
-  const transposeTo = TRANSPOSE_TARGETS.find((t) => t === to && t !== c.system) ?? null;
-  const transposed = transposeTo
-    ? transposeCreature({ name: c.name, system: c.system, type: c.type, size: c.size, cr: c.cr, statblock: c.statblock }, transposeTo)
-    : null;
+  // N7 — the same creature as other systems already publish it. A designer's numbers for a system beat
+  // any measurement of ours, so the lens prefers these and only derives where none exists. Matched on the
+  // creature's NAME within the other systems: the catalogue's slugs carry their source book
+  // (`pf2b3:skunk`, `tob2:alchemical-skunk`), so a slug is not an identity across systems and the name is
+  // the only thing two books share. Deliberately narrow — an exact, case-insensitive name match, so
+  // "Badger" never picks up "Giant Badger".
+  const siblings = await loadSiblings(c.name, c.system);
 
   return (
     <div className={styles.root}>
@@ -198,10 +187,19 @@ export default async function CreaturePage({
             </div>
           </section>
 
+          {/* N3-3 — the LENS. The system control is the stat block's header, because it says what the
+              numbers below it are. Switching re-derives in place (deriveNativeStatblock is pure), which is
+              what the owner's "dynamic in real time" asks for, and it REPLACED the old "Use in another
+              system" panel rather than joining it — two controls answering the same question can disagree,
+              and a header saying Pathfinder above a panel showing 5e is worse than either alone. */}
           <section className={styles.framedPanel} style={{ padding: '14px 16px' }}>
             <div className={styles.framedPanelTop} />
             <h2 className={styles.panelTitle} style={{ marginTop: 0 }}>Stat block</h2>
-            <CreatureStatblock statblock={c.statblock} name={c.name} system={c.system} />
+            <SystemLens
+              source={{ name: c.name, system: c.system, type: c.type, size: c.size, cr: c.cr, statblock: c.statblock }}
+              published={siblings}
+              initial={DEFAULT_SYSTEM as BestiarySystem}
+            />
           </section>
 
           {variants.length > 0 && (
@@ -223,56 +221,6 @@ export default async function CreaturePage({
             </section>
           )}
 
-          {/* ── Transposition (B4-1) ────────────────────────────────────────────────────────────────
-              A URL, not a button: `?to=pathfinder2e` is shareable, needs no client state, and the
-              conversion is pure so the server can just render it. What makes this worth showing at all is
-              the SECOND list — the things that did not convert. A transposed stat block with no warnings
-              would be the lie G5 exists to prevent. */}
-          <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
-            <div className={styles.framedPanelTop} />
-            <h2 className={styles.panelTitle} style={{ margin: 0 }}>Use in another system</h2>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {TRANSPOSE_TARGETS.filter((t) => t !== c.system).map((t) => (
-                <Link
-                  key={t}
-                  href={`/dnd/bestiary/${encodeURIComponent(c.slug)}?to=${t}`}
-                  className={styles.hexBtn}
-                  style={{ minHeight: 40, ...(transposeTo === t ? { borderColor: 'var(--hx-teal-1)', color: 'var(--hx-teal-1)' } : {}) }}
-                >
-                  {systemName(t)}
-                </Link>
-              ))}
-              {transposed && (
-                <Link href={`/dnd/bestiary/${encodeURIComponent(c.slug)}`} className={styles.hexBtn} style={{ minHeight: 40 }}>
-                  Clear
-                </Link>
-              )}
-            </div>
-
-            {!transposed ? (
-              <p style={{ fontSize: 12.5, color: 'var(--hx-muted)', margin: 0, maxWidth: 640 }}>
-                Converts what has a defined correspondence — ability scores and modifiers, size, type, all
-                prose — and tells you plainly what it could not, rather than inventing a number.
-              </p>
-            ) : (
-              <>
-                <p style={{ fontSize: 12.5, color: 'var(--hx-muted)', margin: 0 }}>{transposed.note}</p>
-                <CreatureStatblock statblock={transposed.statblock} name={`${c.name} (${systemName(transposed.system)})`} />
-                {transposed.unmapped.length > 0 && (
-                  <div style={{ border: '1px solid var(--hx-gold-line)', background: 'rgba(200,154,60,0.08)', padding: '10px 12px' }}>
-                    <strong style={{ fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-gold-2)' }}>
-                      {transposed.unmapped.length} thing{transposed.unmapped.length === 1 ? '' : 's'} need a human
-                    </strong>
-                    <ul style={{ margin: '6px 0 0', paddingLeft: '1.1rem', display: 'grid', gap: 5 }}>
-                      {transposed.unmapped.map((u) => (
-                        <li key={u} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.5 }}>{u}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
 
           {/* The attribution the licence requires. Small, but present on every page that carries the content. */}
           <p style={{ fontSize: 11, color: 'var(--hx-muted)', margin: 0 }}>

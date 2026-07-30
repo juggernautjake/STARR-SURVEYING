@@ -161,10 +161,62 @@ IG publishes no creature-building table. **This is the honest gap**, and it is r
 IG creatures keep the transposition path plus the stance/condition layer B6-4 already added, and the UI says
 so. Inventing an IG table would be exactly what N1 forbids.
 
-### N1-4 · The tier map `lib/dnd/statblocks/tier.ts`
+### N1-4 · The tier map `lib/dnd/statblocks/tier.ts` — **SHIPPED 2026-07-30**
 CR ↔ level, with its basis written down (N2). Both systems intend a "creature of tier X is a fair fight for
 a party of level X" reading, so the mapping is close to identity — but *close to* is not *is*, and the
 fractional 5e CRs (⅛, ¼, ½) map to PF2's −1/0/1 rather than to a fraction.
+
+**What shipped, and the two places the systems genuinely differ:**
+
+- **Below 1.** 5e prints fractions; PF2 prints integers below zero. Three 5e values (⅛, ¼, ½) do not fit in
+  PF2's two (−1, 0), so ⅛ and ¼ both map to −1 and ½ maps to 0. `crToLevel(0.125) === crToLevel(0.25)` is a
+  fact about the systems, not a defect — and it is asserted, so nobody "fixes" it later.
+- **Above 20.** 5e runs to CR 30, PF2 to level 24. The map **clamps rather than extrapolating**, and
+  `mapTier` returns `{ tier, clamped }` so a derived block can SAY it was held at the ceiling. The clamp is
+  computed against the *unclamped* conversion for exactly this reason: folding the clamp into `crToLevel`
+  made "maps to 30" and "…and 30 does not exist" indistinguishable, and a clamp nobody can detect is a
+  silent one.
+
+`parseTier` reads every shape the corpus writes a tier in (`1/4`, `CR 5`, `Level 7`, `5 (1,800 XP)`, `-1`)
+and returns **null**, never 0, when there is none — the N1-1 zero-table bug in one function.
+
+### N2-1 · `deriveNativeStatblock` — **SHIPPED 2026-07-30**
+
+`lib/dnd/statblocks/derive-native.ts`. Throws the source's NUMBERS away and rebuilds them from the target's
+measured tier row; keeps the source's PROSE and shape. Pure, total, non-mutating — 30 cases in
+`__tests__/dnd/derive-native-statblock.test.ts`.
+
+The spot-check the plan asks for (N3-2), run by hand on the skunk:
+
+| target | AC | HP | tier | to-hit | sample |
+|---|---|---|---|---|---|
+| `dnd5e-2024` / `dnd5e-2014` | 12 | 14 | CR 1/4 | +4 | 178 |
+| `pathfinder2e` | 15 | 8 | level −1 | +7 | 37 |
+| `intuitive-games` | — | — | — | — | refused |
+
+Both rows match their own table exactly, and the shapes differ the way the systems do: Pathfinder gets
+**ability modifiers** and no proficiency bonus, D&D gets **scores** and +2. Saves are DROPPED when crossing
+families, because a Pathfinder block listing "DEX +4" names a save Pathfinder has not got.
+
+**What it refuses, each because the alternative is a plausible lie:**
+
+1. **Intuitive Games** — no table exists (N1-3), so it returns a stated refusal rather than quietly
+   borrowing 5e's numbers and printing them as IG's.
+2. **A creature with no readable tier** — a guessed tier silently decides every number after it.
+3. **A silent clamp or a thin measurement** — both go into `notes`, which is rendered. A tier measured from
+   4 creatures says so.
+
+**The honest finding: `dnd5e-2014` and `dnd5e-2024` derive IDENTICALLY.** They share one measured scale
+because the two editions share their monster math — this is not a gap in the derivation, it is what is
+true. The owner asked that *"all stat blocks for all creatures should vary and be different per system"*;
+for these two the difference is **presentation, not numbers**, and inventing a numeric divergence to make
+the grid look varied would be the same fabrication N1 refused for the published tables. Recorded here so
+the next reader does not "fix" it.
+
+**Not carried:** hit dice (they described a different HP total), and attack DAMAGE (the corpus supports a
+median to-hit per tier; damage expressions are too varied to median honestly, so a made-up dice expression
+would be the least defensible number on the block). Only entries that already HAVE a to-hit are re-pitched
+— "Keen Smell +7" is nonsense a reader spots instantly.
 
 ---
 
@@ -189,9 +241,28 @@ Written into this doc as findings before N2-1 is trusted.
 
 ## Phase N3 — generation and surfacing
 
-### N3-1 · `npm run derive:native` — one system at a time, upserting `nat-<sys>:<source-slug>` rows (N3).
-### N3-2 · Report and spot-check. Coverage per system, and a sample read by hand against the table (N6).
-### N3-3 · The system LENS — specified precisely by the owner, 2026-07-30
+### N3-1 · `npm run derive:native` — **DROPPED, and the lens is why**
+
+The plan was to generate `nat-<sys>:<source-slug>` rows for ~20,000 derived blocks and store them. N3-3
+shipped without needing any of them: `deriveNativeStatblock` is pure, total and cheap, so the lens derives
+**at render time** instead of reading a stored row.
+
+That is not a shortcut taken to save a slice — it is strictly better on the thing this plan cares about
+most. A stored derived row goes **stale** the moment the tier tables change, and the tables are a
+*measurement* that moves whenever the corpus grows. Deriving live means correcting one table row fixes every
+creature at that tier on the next page load, with nothing to regenerate and no window where the catalogue
+disagrees with itself. It also removes the whole class of N3 collision risk: no derived row exists to
+collide with a published one, so `import:*` stays re-importable by construction rather than by care.
+
+**What it costs, stated plainly:** derived blocks are not queryable — you cannot filter the bestiary by "PF2
+AC ≥ 20" across derived creatures, because those numbers do not exist until a page renders. Nothing asks for
+that today. If something does, this is the slice to bring back, and it should generate a *cache* keyed to
+the tier tables' version rather than a catalogue row.
+
+### N3-2 · Spot-check — **DONE inside N2-1** (the skunk table above, read by hand against both systems'
+measured rows). The per-system COVERAGE half of this slice moves to N4-1, where it belongs.
+
+### N3-3 · The system LENS — **SHIPPED 2026-07-30**, to the owner's spec verbatim
 
 > *"The bestiary should just default to the 2024 edition. I want it so that the system that is currently
 > being shown to the user is at the top of the stat block, and the user can click it to have a drop-down
@@ -214,7 +285,48 @@ That is a complete UI spec and it replaces the current design rather than adding
 Depends on N2-1: the lens is only worth having once switching produces genuinely different numbers rather
 than the same ones with a warning list.
 
-### N3-4 · The derived badge (N4), on the row and on the page.
+**All four points shipped**, in `app/dnd/_ui/bestiary/SystemLens.tsx`, with the `?to=` panel and its
+`searchParams` round trip deleted from the creature page rather than hidden. 23 cases in
+`__tests__/dnd/system-lens.test.ts`.
+
+**The lens's real claim is an ORDER OF TRUSTWORTHINESS**, and that — not the dropdown — is the part worth
+reviewing. `build()` picks, in order:
+
+1. **Published** — the catalogue actually holds this creature in the chosen system. A designer's numbers.
+2. **Derived** — rebuilt from that system's own measured tier table (N2-1).
+3. **Converted** — the old transposition, for a system with no table of its own (IG), carrying what has a
+   correspondence and NAMING what does not.
+
+Get that order backwards and the page shows a derived block where a real Pathfinder stat block exists —
+which **looks completely fine** and is simply the wrong creature. So the order is asserted directly rather
+than left implicit in JSX, which is also why `build` is exported: a UI-only implementation would leave the
+one claim that can be silently wrong unpinned.
+
+**Identity across systems is the name, exactly and never fuzzily** (`loadSiblings`). The plan calls identity
+"the hard part, and it is not the name" — true of grouping the whole catalogue, and a much smaller question
+here: this is one creature's page asking *"is there a Pathfinder row for THIS thing?"*, and being wrong
+shows a reader a block plainly labelled as another book's, beside the name it is filed under — visible and
+correctable rather than silent. A slug cannot do the job because the catalogue's slugs carry their source
+book (`pf2b3:skunk`, `tob2:alchemical-skunk`), so the name is the only thing two books share. The match is
+`ilike` with **no wildcard**, re-checked in code after the query, because a prefix match is precisely how
+"Badger" would pick up "Giant Badger". A failed lookup returns `{}` and degrades to derivation rather than
+taking the page down.
+
+### N3-4 · The derived badge (N4) — **SHIPPED on the page with N3-3**
+
+`◆ Published` / `◇ Derived` / `◇ Converted` sits beside the system control, and each entry in the dropdown
+carries `◆` where a published row exists — so the choice is informed *before* it is made, not explained
+after. Derived and converted blocks always render their notes; a derived block with no explanation is the
+exact lie G5 exists to prevent, and that is asserted for every system rather than checked by eye.
+
+**Still open: the badge on the LIST row.** The list is where N7's duplicate problem actually shows, and it
+needs the dedupe (below) before a badge on it means anything.
+
+### N3-6 · One creature, one row in the LIST (N7) — **the remaining half of N7**
+
+N3-3 gives a creature one *page* that reads in any system. The bestiary INDEX still lists 5,025 rows for
+3,660 creatures — Badger, Balor, Behir, Ghoul and Animated Armor each ten times. That is the duplication the
+owner reported, and the page-level lens does not touch it.
 
 ---
 

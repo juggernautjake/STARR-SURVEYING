@@ -279,3 +279,58 @@ export async function allCreatureSlugs(): Promise<string[]> {
   if (error) throw new Error(`creature slugs failed: ${error.message}`);
   return (data ?? []).map((r: unknown) => String((r as { slug: string }).slug));
 }
+
+/**
+ * The same creature as OTHER systems already publish it (N7).
+ *
+ * The owner's rule — *"the user will just see one version of the creature… it will default to the 2024
+ * edition, but the user can switch it to any of the other ones"* — needs the lens to know which of a
+ * creature's four systems are real rows and which have to be derived. A designer's numbers always beat a
+ * measurement of ours, so this is what the lens consults first.
+ *
+ * ── IDENTITY IS THE NAME, AND ONLY DELIBERATELY ─────────────────────────────────────────────────────
+ *
+ * The plan calls identity "the hard part, and it is not the name" — which is true of GROUPING the whole
+ * catalogue, where "Skunk" in Bestiary 3 and "Skunk" in Monstrous Menagerie may be different creatures. It
+ * is a much smaller question here: this is one creature's page asking "is there a Pathfinder row for THIS
+ * thing?", and being wrong shows a reader a stat block plainly labelled as another book's published one,
+ * beside the name it is filed under. That is a visible, correctable mistake rather than a silent one.
+ *
+ * So: an EXACT, case-insensitive name match, never a fuzzy one. "Badger" must never pick up "Giant
+ * Badger", and a prefix or similarity match is precisely how it would.
+ *
+ * One row per system, and where a system has several (five books' Badgers) the FIRST by slug wins, so the
+ * choice is stable across page loads rather than whatever Postgres returned that time.
+ */
+export async function loadSiblings(
+  name: string,
+  ownSystem: string,
+): Promise<Partial<Record<string, { name: string; system: string; type: string | null; size: string | null; cr: string | null; statblock: Statblock }>>> {
+  const { data, error } = await supabaseAdmin
+    .from('dnd_creatures')
+    .select('slug, name, system, type, size, cr, statblock')
+    .ilike('name', name)
+    .neq('system', ownSystem)
+    .order('slug', { ascending: true });
+  // A failed sibling lookup must not take the page down: the lens simply derives instead, which is what it
+  // would do for a creature with no siblings anyway.
+  if (error) return {};
+
+  const out: Record<string, { name: string; system: string; type: string | null; size: string | null; cr: string | null; statblock: Statblock }> = {};
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    // `ilike` without wildcards is an exact case-insensitive match, but assert it rather than trust it —
+    // a later edit adding `%` would silently turn this into the fuzzy match the doc above forbids.
+    if (String(r.name).toLowerCase() !== name.toLowerCase()) continue;
+    const sys = String(r.system);
+    if (out[sys]) continue; // first by slug wins
+    out[sys] = {
+      name: String(r.name),
+      system: sys,
+      type: (r.type as string) ?? null,
+      size: (r.size as string) ?? null,
+      cr: (r.cr as string) ?? null,
+      statblock: (r.statblock ?? {}) as Statblock,
+    };
+  }
+  return out;
+}
