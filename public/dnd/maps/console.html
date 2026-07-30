@@ -1105,15 +1105,87 @@ consoleDeck.addEventListener("pointerover",e=>{if(e.target.closest("button,.lamp
 {const lr=$("#legendRows");if(lr){lr.addEventListener("click",e=>{if(e.target.closest(".legrow"))SpaceAudio.click();});lr.addEventListener("pointerover",e=>{if(e.target.closest(".legrow"))SpaceAudio.hover();});}}
 const scrInner=$("#scrInner");
 function showIdle(){const nb=(MAP.instances||[]).length,ns=(MAP.sectors||[]).length;scrInner.innerHTML=`<div class="scr-idle"><div class="idle-radar"><span class="idle-sweep"></span><span class="idle-ring"></span><span class="idle-ring r2"></span></div><div class="lg">◈ AWAITING INPUT ◈</div><div class="sm">SELECT A SYSTEM OR STELLAR BODY<span class="blink">_</span></div><div class="sm" style="margin-top:10px;opacity:.6">NAV-LINK ESTABLISHED · ${ns} SYSTEMS · ${nb} BODIES CHARTED</div></div>`;}
-function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec},false));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body},false));const fb=scrInner.querySelector("[data-focus]");if(fb)fb.onclick=()=>{focusCurrent();beep(720,0.06);};}
+function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[data-sec]").forEach(c=>c.onclick=()=>select({type:"sector",id:c.dataset.sec},false));scrInner.querySelectorAll("[data-body]").forEach(c=>c.onclick=()=>select({type:"instance",id:c.dataset.body},false));
+  // A sub-location chip walks INTO that place. The console is in an iframe, so navigate the TOP window —
+  // otherwise the whole app renders nested inside its own map viewer.
+  scrInner.querySelectorAll("[data-node]").forEach(c=>c.onclick=()=>{beep(700,0.06);(window.top||window).location.href=worldHref(c.dataset.node);});
+  scrInner.querySelectorAll('a[href^="/dnd/campaigns/"]').forEach(a=>{a.target="_top";});
+  const fb=scrInner.querySelector("[data-focus]");if(fb)fb.onclick=()=>{focusCurrent();beep(720,0.06);};}
 function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
 function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
 // The FOCUS control shown in the readout — a single click only locks on (info), this flies the camera to it.
 function focusBtnHTML(label){return `<button class="scr-focus" data-focus="1" title="Fly the camera to this — double-clicking it on the map does the same">◎ FOCUS ${esc((label||"target").toString().toUpperCase())}</button>`;}
+// ── THE WORLD TREE, PLUGGED INTO THE CONSOLE ────────────────────────────────────────────────────────
+//
+// Owner: *"the custom viewer ... is also totally plugged in to show descriptions and locations and
+// information and images of places and thumbnails and everything like that."*
+//
+// The console renders a stardust blob; `dnd_map_nodes` is where a location's real description, art and
+// sub-locations live (seed 465). WORLD holds that tree, fetched once and refreshed with the map poll, so
+// selecting a planet shows the node's blurb, its thumbnail, and a way to walk INTO it.
+//
+// TWO INDEXES, in priority order. `console_ref` is the explicit link and survives a rename. The
+// lowercased-name fallback is what makes every EXISTING map useful with no DM effort — but it is only a
+// fallback, because two moons called "Kestrel" in different systems would collide and a rename would
+// silently unlink. Seed 466 states the same reasoning from the schema side.
+const WORLD = { nodes: [], byRef: new Map(), byName: new Map(), childrenOf: new Map(), isDm: false };
+
+function worldIndex(nodes){
+  WORLD.nodes = nodes || [];
+  WORLD.byRef = new Map();
+  WORLD.byName = new Map();
+  WORLD.childrenOf = new Map();
+  for(const n of WORLD.nodes){
+    if(n.consoleRef) WORLD.byRef.set(String(n.consoleRef), n);
+    const key = (n.name||"").trim().toLowerCase();
+    // FIRST WINS on a name collision, so the picture does not change depending on row order. An explicit
+    // consoleRef is the way to resolve one deliberately.
+    if(key && !WORLD.byName.has(key)) WORLD.byName.set(key, n);
+    const p = n.parentId || "";
+    if(!WORLD.childrenOf.has(p)) WORLD.childrenOf.set(p, []);
+    WORLD.childrenOf.get(p).push(n);
+  }
+}
+
+/** The node for a stardust instance, or null. */
+function nodeFor(inst){
+  if(!inst) return null;
+  return WORLD.byRef.get(String(inst.id)) || WORLD.byName.get((inst.name||"").trim().toLowerCase()) || null;
+}
+
+/** The readout block for a linked node: thumbnail, description, and its sub-locations. */
+function nodeBlock(node){
+  if(!node) return "";
+  const kids = WORLD.childrenOf.get(node.id) || [];
+  const thumb = node.imageUrl
+    ? `<img src="${esc(node.imageUrl)}" alt="" style="width:100%;max-height:104px;object-fit:cover;border:1px solid rgba(120,140,200,.28);border-radius:6px;margin:6px 0">`
+    : "";
+  // The node's blurb is the AUTHORED description of the place; the stardust `desc` is whatever was typed
+  // into the map document. Both are shown when both exist — they are different fields written at
+  // different times, and silently preferring one would lose whichever the DM last edited.
+  const blurb = node.blurb
+    ? `<div style="margin:6px 0;line-height:1.45">${esc(node.blurb)}</div>` : "";
+  const kidsHtml = kids.length
+    ? `<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ LOCATIONS WITHIN (${kids.length})</div>
+       <div class="scr-chips">${kids.map(k=>`<span class="scr-chip" data-node="${esc(k.id)}" title="Open ${esc(k.name)}"><span class="cd" style="background:var(--scan)"></span>${esc(k.name)}</span>`).join("")}</div>`
+    : "";
+  const enter = `<div style="margin-top:8px"><a class="scr-chip" href="${worldHref(node.id)}" style="text-decoration:none;color:var(--scan);border-color:var(--scan)">▶ ENTER ${esc((node.name||"").toUpperCase())}</a></div>`;
+  return `<div style="border-top:1px solid rgba(120,140,200,.2);margin-top:8px;padding-top:6px">
+    <div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--scan)">◈ ${esc((node.tier||"location").toUpperCase())} RECORD</div>
+    ${thumb}${blurb}${kidsHtml}${enter}</div>`;
+}
+
+/** Link into the React world page, which owns drill-down. The console is inside an iframe, so the
+ *  navigation has to target the top window or the whole app ends up nested inside itself. */
+function worldHref(nodeId){
+  return `/dnd/campaigns/${encodeURIComponent(campaign)}/world?node=${encodeURIComponent(nodeId)}`;
+}
+
 function bodyScreen(b){const s=MAP.sectors.find(x=>x.id===b.sector);const typeLabel=(b.kind||"body").toUpperCase();const artSvg=`<div style="width:66px;height:66px">${art(b.look||b,true)}</div>`;
   const poisHtml=b.pois&&b.pois.length?`<div style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--amber);margin:8px 0 4px">◈ POINTS OF INTEREST (${b.pois.length})</div>${poiBlock(b.pois)}`:"";
+  const node=nodeFor(b);
   return `<div class="scr-head">${portrait(artSvg)}<div class="scr-titles"><div class="scr-kicker">${typeLabel}${b.role==="capital"?" · CAPITAL":""}</div><div class="scr-name">${esc(b.name)}</div><div class="scr-creed">${s?esc(s.name):"Unaligned"}</div></div>${focusBtnHTML(kindLabel(b.kind))}</div>
-    <div class="scr-cols"><div class="scr-desc">${b.desc?esc(b.desc):(poisHtml?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${poisHtml}</div>
+    <div class="scr-cols"><div class="scr-desc">${b.desc?esc(b.desc):((poisHtml||node)?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${poisHtml}${nodeBlock(node)}</div>
     <div class="scr-stats">
       <div class="scr-stat"><span class="k">CLASS</span><span class="v">${typeLabel}</span></div>
       ${s?`<div class="scr-stat"><span class="k">SYSTEM</span><span class="v" data-sec="${s.id}" style="cursor:pointer;color:${s.color}">${esc(s.name).toUpperCase()}</span></div>`:""}
@@ -1298,6 +1370,22 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 
   if(!campaign) return;                        // stand-alone → sample map (3D toggle still works)
   const api = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/maps";
+  const worldApi = "/api/dnd/campaigns/" + encodeURIComponent(campaign) + "/world";
+
+  // The world tree — descriptions, art and sub-locations for every place (seed 465). Loaded alongside the
+  // map and refreshed on the same poll, so a DM publishing a location shows up for players without a
+  // reload. A failure here must NOT take the map down with it: the console's job is to render the map,
+  // and the node records are an enrichment on top of that.
+  async function loadWorld(){
+    try{
+      const r = await fetch(worldApi);
+      if(!r.ok) return;                                   // 403 for a non-member, 500 if the tree is broken
+      const { nodes, isDm } = await r.json();
+      worldIndex(nodes || []);
+      WORLD.isDm = !!isDm;
+      renderCurrent();                                    // repaint the readout with whatever just arrived
+    }catch(e){ /* enrichment only — the map stands on its own */ }
+  }
   const campBtn = document.getElementById("campBtn");
   if(campBtn) campBtn.style.display = "none";   // localStorage list — not used on the platform
 
@@ -1347,12 +1435,16 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
       if(window.Map3D && window.Map3D.isShown()) window.Map3D.setData(MAP);   // reflect live moves in 3D
     }catch(e){}
   }
-  load(true).then(()=>{ setInterval(poll, 4000); });         // live updates
+  // The map first (it is what the player came to see), then the world records on top. Both refresh on the
+  // poll, so a DM publishing a location or editing a description reaches players without a reload.
+  load(true).then(()=>{ loadWorld(); setInterval(poll, 4000); setInterval(loadWorld, 12000); });
 })();
 </script>
 <!-- Read-only 3D viewer for players (vendored Three via the importmap above); wires the ⛶ 3D toggle.
-     LOADED ONLY WHEN G2 IS LIFTED. A static `<script type="module" src>` cannot be skipped conditionally,
-     so the load is a dynamic import behind the flag — with `__G2_2D_ONLY` on, Three is never fetched. -->
+     LOADED ONLY WHEN G2 IS LIFTED. A static module script tag cannot be skipped conditionally, so the load
+     is a dynamic import behind the flag — with `__G2_2D_ONLY` on, Three is never fetched.
+     (Deliberately not writing the tag name here: a literal script open-tag inside an HTML comment is legal
+     but trips naive parsers, including the syntax check used while editing this file.) -->
 <script type="module">
   if (window.__G2_2D_ONLY) {
     // Remove the toggle rather than hide it: a `display:none` button is still focusable by some assistive

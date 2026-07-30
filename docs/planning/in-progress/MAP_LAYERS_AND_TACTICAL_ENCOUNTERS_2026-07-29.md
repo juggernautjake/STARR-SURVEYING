@@ -531,6 +531,58 @@ infinite-loops must fail loudly, not hang the table.
 
 ---
 
+## Phase MC — the player console, plugged in (owner request, 2026-07-29)
+
+> *"Please make it so that the custom viewer that has all of the space sounds and stuff is also totally
+> plugged in to show descriptions and locations and information and images of places and thumbnails and
+> everything like that. It should be wired to work with everything we are building."* — and, clarifying:
+> *"This is the viewer that the players have when they are viewing the map."*
+
+**MC-1 · The bridge — SHIPPED 2026-07-29.**
+
+Two map systems existed and did not know about each other. The console renders a `dnd_maps.data` stardust
+blob whose bodies are `instances` with their own string ids; the world is `dnd_map_nodes`, a tree of real
+rows carrying descriptions, art and children. A player clicking a planet saw whatever prose the DM typed
+into the blob, while the node holding that planet's actual record was invisible.
+
+| Piece | What |
+| --- | --- |
+| `seeds/466_dnd_map_node_console_ref.sql` | `console_ref` on `dnd_map_nodes` — the stardust instance id a node represents. **Applied live, verified idempotent.** |
+| `app/api/dnd/campaigns/[id]/world/route.ts` | The tree, player-filtered, for a viewer that cannot import TypeScript |
+| `public/dnd/maps/console.html` | Fetches it, indexes it, and enriches the CRT readout |
+
+Selecting a body now shows, beneath the stardust data: the node's **tier record header**, its **thumbnail**,
+its **authored description**, its **sub-locations as clickable chips**, and an **▶ ENTER ⟨PLACE⟩** link into
+the React world page.
+
+Decisions worth recording:
+
+- **G3 is enforced at the endpoint, not in the console.** The console is a static file any player can read,
+  so anything sent to it is disclosed. `loadMapTree(..., { isDm: false })` is the *same function* the React
+  page uses — two readers of one tree must not be two queries that can disagree about what a player may see.
+- **`console_ref` first, lowercased name second.** The explicit link survives a rename; the name fallback is
+  what makes every *existing* map useful with no DM effort. Name-only would have been wrong in both
+  directions — two moons called "Kestrel" collide, and a rename silently unlinks. First-wins on a collision,
+  so the picture does not depend on row order.
+- **Both descriptions are shown when both exist.** The stardust `desc` and the node `blurb` are different
+  fields written at different times; silently preferring one loses whichever the DM edited last.
+- **Enrichment must never take the map down.** A failed world fetch is swallowed — the console's job is to
+  render the map, and the node records sit on top of it.
+- **Navigation targets the top window.** The console runs in an iframe; a same-frame link would render the
+  whole app nested inside its own map viewer.
+- The world refreshes on its own 12s interval alongside the 4s map poll, so publishing a location or editing
+  a description reaches players without a reload.
+
+*Small hazard fixed in passing:* an HTML comment in `console.html` contained a literal script open-tag while
+explaining the G2 gate. Legal HTML, but it breaks naive parsers — including the syntax check used while
+editing the file, which reported a false error. Reworded, with a note saying why.
+
+**Still open for MC:** the DM has no UI to *set* `console_ref` (today it is a column with no editor — the
+name fallback covers the common case); sectors/systems are not yet linked, only bodies; and POIs could map
+to child nodes rather than being blob-only.
+
+---
+
 ## Phase M7 — live play
 
 ### M7-1 · Player view
