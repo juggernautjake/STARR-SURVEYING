@@ -619,9 +619,195 @@ if a number converts exactly, no model should be asked to imagine it.
 5e ↔ PF2 ↔ IG using the existing per-system model plus the transpose conventions. Maps ability scores, AC/HP,
 attacks, saves and DCs; **marks** what has no equivalent rather than inventing it (G5).
 
-### B4-2 · IG's bestiary, by transposition
-IG's 200 come from transposing a curated spread across CR bands and types, then hand-finishing. Each is marked
-as transposed with its origin, so nothing pretends to be published IG content.
+### B4-2 · IG's bestiary, by transposition — **SHIPPED 2026-07-30. 200 live.**
+
+`npm run generate:ig-bestiary`. `lib/dnd/bestiary/ig-curation.ts` (8 tests) picks WHICH 200, and that is the
+whole slice — transposing all 334 SRD creatures is one line and produces a worse bestiary. The SRD is not
+evenly distributed: 87 of its 334 are beasts and the apex band is thin, so a straight copy gives IG a
+catalogue that is a quarter woodland animals and nearly empty above CR 10. **A DM opening the IG bestiary to
+find a boss for a level-15 party would have found frogs.**
+
+So the selection is a **round-robin over the (type × CR band) grid**: pass 1 takes the lowest-CR creature
+from every occupied cell, pass 2 takes the second, and so on — breadth before depth, so a budget that runs
+out still runs out having covered every type and band once. The run prints the grid before it writes
+anything: 15 types × 6 bands, **58 cells the SRD fills and 32 it does not**, which are the source's gaps and
+are reported as such (G6).
+
+Deterministic, because the script re-runs: ordering is by `(cr_sort, name)`, both properties of the creature
+rather than of the query. Verified idempotent — a second run leaves 200, not 400.
+
+Every row says three times over that it is transposed: the slug (`ig-t:`), `source`, and a description that
+leads with the origin and then lists every number the conversion could not honestly carry (4.3 flagged items
+each). **They arrive deliberately unfinished** — the fork button (B3-1b) is the hand-finishing path.
+
+5e is the source rather than PF2 despite PF2 being the bigger catalogue: PF2 states abilities as modifiers
+while IG uses scores, so every PF2 row would arrive with a reconstructed, flagged-as-lossy ability line on
+top of everything else already flagged. 5e and IG share the ability convention.
+
+#### Four defects found by driving it, none of which a test would have caught
+
+1. **`transposeCreature` matched RAW type strings against its map.** The SRD prints `swarm of Tiny beasts`
+   and `humanoid (goblinoid)`; both fell through and were reported as having "no counterpart" in systems
+   that name them perfectly well. 8 of IG's 200 arrived typed `swarm of Tiny beasts` with a spurious
+   warning attached. Now normalised through `taxonomy.ts` first, with the raw string kept as the fallback
+   key so an unrecognised word still misses the map rather than being coerced.
+2. **Every conversion into IG cited Pathfinder.** The AC, saves and CR warnings were written when PF2 was
+   the only possible target, so they said so outright — all 200 IG creatures told their reader that
+   "Pathfinder 2e climbs with level to the 50s". A true sentence about a game they are not playing,
+   attached to the three numbers they most need to trust. The prose now names the systems actually in play
+   and keeps the concrete PF2 detail only when Pathfinder is one of the two.
+3. **The "needs a human before you run it" list rendered as one run-on paragraph.** It is authored with
+   paragraph breaks and bullets and the page printed it through a single `<p>`. That list is the one part
+   of the page a DM must not scroll past, and collapsed into running text it read as a wall nobody
+   finishes.
+4. **Facets were read from the whole table, ignoring the chosen system.** IG is the first system whose type
+   vocabulary is a strict SUBSET, so browsing it offered five categories and a dozen types — `astral`,
+   `monitor`, `spirit`, `fungus` — that match nothing at all. Exactly the "no dragons" versus "no dragons
+   imported yet" confusion `loadFacets` exists to prevent, arrived at from the other direction. Scoped to
+   `system` only, deliberately: type/alignment/tag are co-filters within one catalogue and cross-filtering
+   them would make the chips a DM is using vanish as they narrow.
+
+**The known issue from B1-1 is closed by construction.** `loadCreature(slug)` filters on `slug` alone while
+the unique key is `(slug, system)`; the transposed rows carry their own `ig-t:` prefix, so no creature
+exists under one slug in two systems.
+
+---
+
+## Phase B6 — the corpus, the art, and the editor (owner directive, 2026-07-30)
+
+> **Owner, verbatim:** *"Please find as many monster and beast and creature stat blocks as you can from the
+> resources provided. Grab as much commercial free art and images as you can for each creature… Every single
+> creature/monster that is put into our database should be fully editable and we should be able to create
+> variants and upload artwork for them… Please make sure there is no less than 200-300 creatures/monsters of
+> all kinds and types and sizes and difficulties in each system… Make sure that creature's stat blocks are
+> really fleshed out and working with the IG stances and stuff."*
+
+### The source triage, done once so it is not re-litigated per slice
+
+The owner supplied ~25 URLs across three messages. They fall into three groups, and the grouping is what
+determines what can be built:
+
+| Group | Sources | Verdict |
+| --- | --- | --- |
+| **Openly licensed — build from these** | Open5e (OGL-1.0a / CC-BY-4.0), D&D Wiki (**GNU FDL 1.3**, confirmed at `D&D_Wiki:Copyrights`), Foundry's `pf2e` packs (ORC / OGL — the same content behind `2e.aonprd.com` and `pf2.d20pfsrd.com`), Wikimedia Commons + BHL for art | **Yes.** ~7,000 creatures reachable in total. |
+| **Commentary, not stat blocks** | Reddit threads, EN World threads, RPGBot change-log, Alphastream, CBR, the Roll20 "10 monsters to try" blog post | Nothing to import. They are *about* monsters. Their genuine value is monster-BUILDING guidance, which is B6-6's input, not the catalogue's. |
+| **Copyrighted, not licensed at any scale** | `5e.tools` + the `longo.com.br` mirror, `roll20.net/compendium`, `aidedd.org` beyond its SRD subset, `foundryvtt.com/packages/dnd-monster-manual` (the paid official WotC module), the AnyFlip flipbook, the `archive.org` Monster Manual PDF, `pdfcoffee` Pathfinder Bestiary, `archive.org/details/bestiary-second-edition` | **No.** These are the Monster Manual and the Pathfinder Bestiary themselves; two are straight scans of the books. `/dnd` is publicly reachable by direct link, so cataloguing them is republishing. This is G3 ("a creature whose licence we cannot state does not get imported") applied to the largest temptation there is to break it, and the boundary this plan set for itself on day one. |
+
+`monster.fandom.com` is CC-BY-SA but carries encyclopedia prose about copyrighted monsters, not stat blocks —
+nothing importable even setting the subject matter aside.
+
+**The licensed corpus is not the small option.** It is roughly 7,000 creatures against the Monster Manual's
+~500, and it is the reason the owner's "200–300 per system" is comfortably clearable without touching
+anything that cannot be credited.
+
+### B6-1 · The rest of Pathfinder — **target: PF2 from 492 to 1,500+**
+
+`packs/pf2e` carries 60+ bestiary packs beyond Monster Core, all ORC or OGL. Counted:
+`pathfinder-monster-core-2` 446, `pathfinder-bestiary` 166, `-2` 160, `-3` 165, `book-of-the-dead` 106,
+`rage-of-elements` 81, `howl-of-the-wild` 76, plus the adventure-path bestiaries.
+
+`import-pf2.ts` already transforms this exact shape and is under test (20 cases), so this is a **pack list
+plus a recursive enumerator**, not a new reader. Two things to get right:
+
+- **A slug prefix per pack**, as B6-2 does per book — Bestiary 1, 2 and 3 name the same creature and a
+  shared prefix would make each import silently overwrite the last.
+- **The licence is read per actor**, which `pf2IsRedistributable` already does. Adventure-path packs mix
+  ORC and OGL and some carry neither; those are refused by name, not skipped quietly.
+
+Deliberately NOT every pack: the PFS season packs are largely stat-block variants of creatures already in
+the core bestiaries, and importing them would put nine Goblin Warriors in the catalogue. Core bestiaries +
+the standalone hardcovers; adventure-path packs only where they add creatures the core books do not have.
+
+### B6-2 · D&D Wiki's homebrew — **target: 5e +1,000, and the first genuinely community-authored content**
+
+GNU FDL 1.3, confirmed on the wiki's own copyright page: *"D&D Wiki is based on everyone's ideas, which are
+here to be freely taken and used by anyone."* Redistribution is permitted with attribution and the licence
+notice — both of which `dnd_creatures` already requires as NOT NULL columns.
+
+This is the one source with **no API**, so it needs an HTML reader over the category listings
+(`5e_Creatures`, and the per-type pages `5e_Aberration_Monsters`, `5e_Undead_Monsters`, …) and the
+MediaWiki `action=raw` endpoint per creature. Three things this source will do that the others did not:
+
+- **Quality is uneven, because it is homebrew.** The importer must refuse a creature that has no AC, no HP
+  or no action rather than cataloguing a stub — and REPORT the refusals by name, which is how B1-5 found
+  its own licence rule was wrong.
+- **`5e_SRD:Monsters` is excluded**: it is the SRD, already catalogued twice over.
+- **Attribution is per page**, not per site — GFDL requires naming the authors, and MediaWiki publishes
+  them. A creature whose contributor list we cannot fetch does not get imported.
+
+### B6-3 · Every system clears 200–300, across types, sizes and difficulties
+
+The owner's floor, stated as a measurement rather than a claim. Current standing: 5e-2014 **2,828**,
+PF2 **492** (B6-1 takes it past 1,500), IG **200**, **5e-2024 is 3** — the upstream conversion is
+unfinished and no import can fix it.
+
+So 5e-2024 is the one system that needs transposition to clear the floor, and it is the easy direction:
+2014 → 2024 shares the ability convention, the type vocabulary and the CR scale, so `transposeCreature`
+marks almost nothing. IG goes from 200 to 300 by the same curation with a raised limit and a second pass
+that draws from the newly-imported non-SRD books, so IG's spread is not purely SRD-shaped.
+
+The slice ends with `npm run audit:bestiary` reporting per-system counts by type, size and CR band — the
+floor has to be *checkable*, not asserted in a commit message.
+
+### B6-4 · IG stat blocks that use IG's own mechanics — the slice the owner named specifically
+
+> *"Make sure that creature's stat blocks are really fleshed out and working with the IG stances and stuff.
+> Make that make as much sense as you can for IG."*
+
+Today a transposed IG creature is a 5e stat block wearing an IG label, and B1-2 already committed to the
+opposite ("a PF2 creature shows its own vocabulary, not a 5e stat block wearing PF2 names"). IG's own
+mechanics — stances, conditions, defensive power — exist in `lib/dnd/systems/intuitive-games/` and are
+surfaced on IG character sheets already.
+
+**G5 still governs: this derives what IG's rules define and marks the rest.** A stance is not invented for
+a wolf; a creature gets one where its source behaviour maps onto a stance IG actually publishes, and the
+derivation says so in the same voice the weak/elite variants do ("Starr Tabletop house reading — not an
+official rule"). The honest outcome may be that most creatures get no stance, and that is a better answer
+than 200 invented ones.
+
+### B6-5 · Art — the fetch run the plan has owed since B2-3
+
+Coverage is **105 / 3,523**, and B2-3 established exactly why: the licence gate is flawless and *relevance*
+is the failure — Commons returned a pulsar for "Lich" and a stealth aircraft for the firefly genus.
+
+The two halves that remain:
+
+- **Widen the safe automated set.** `ANIMAL_SPECIES` proved that querying by BINOMIAL species name is
+  reliable and a bare genus is a coin toss. The new corpus adds hundreds more real animals (Tome of Beasts
+  and Monstrous Menagerie are full of them), so extending the species table is more valuable now than it
+  was at 829.
+- **A hand-picked set for the signature fantasy creatures**, which is the option B2-3 named and did not
+  take: dragons, hydras, griffins, minotaurs, centaurs, harpies, sphinxes, krakens, basilisks and the rest
+  have genuine public-domain depictions (Doré, mythological engraving, natural-history plate) that the
+  search cannot find by name but a person can pick in one pass.
+
+Everything else stays on `sigilFor`, which is not a fallback so much as the normal case, and looks
+deliberate because the aura carries it.
+
+### B6-6 · Upload your own art, and the creature editor per system
+
+The owner's *"we should be able to create variants and upload artwork for them"* is two features, and only
+one exists:
+
+- **Variants: already done** (B3-1b/B3-2). A fork is a `dnd_homebrew` piece, so private/public, sharing,
+  adoption and edit history all work.
+- **Artwork upload: does not exist.** A forked creature has no way to carry a picture. This is the media
+  plumbing the art fetcher already uses, pointed at a user upload, with the same non-negotiable that seed
+  467's CHECK constraint enforces — **no image without a stated licence and credit.** For an upload that
+  means the uploader states it, and "I made it" is a valid answer that must be recorded rather than assumed.
+- **The editor per system**: the statblock editor exists and is system-agnostic. B6-6 makes it show each
+  system's own vocabulary, which is the same requirement as B6-4 seen from the authoring side. The
+  monster-building guidance in the owner's commentary links (encounter budget, action economy, save DCs by
+  level) belongs here as *guidance in the editor*, not as catalogue content.
+
+### Slice order for B6
+
+**B6-1** PF2 packs → **B6-2** D&D Wiki → **B6-3** per-system floors + audit → **B6-4** IG mechanics →
+**B6-5** art → **B6-6** upload + editor.
+
+B6-1 and B6-2 first because they are content on machinery that already exists and is tested, and every
+later slice is better with more of it: the art pass wants the animals, the IG pass wants a wider spread to
+transpose from, and the per-system audit is meaningless before the corpus stops moving.
 
 ---
 
@@ -717,6 +903,64 @@ shape this plan opens by warning about:
 unique key is `(slug, system)`. Harmless today because slugs carry a source prefix (`srd51:goblin`), but
 **B4-2 transposition will break it** the moment one creature exists in two systems. Either the transposed row
 needs its own prefix or the lookup needs the system — decide in B4.
+
+## B1-6 · The wider 5e corpus — **SHIPPED 2026-07-30. 2,494 creatures. Bestiary total: 3,523.**
+
+`npm run import:open5e`. Open5e's v2 API, seven documents, **2,494 transformed and 0 refused**: Monstrous
+Menagerie (586), Tome of Beasts 1 2023 (408), Tome of Beasts 3 (397), Tome of Beasts 2 (383), Black Flag SRD
+(360), Creature Codex (356), Tal'Dorei (4). Every one under **OGL-1.0a or CC-BY-4.0**, and the licence is
+read from the API's own `licenses` array rather than asserted by the script — a document that states none is
+refused by name, because unstated is unknown.
+
+Completeness on arrival: **AC, HP, CR, abilities and senses on 100% of 2,494**; speed missing on 8 (0.3%),
+and 7 creatures have nothing to do on their turn — a Frog, a Seahorse, a vine, three NPC templates and a
+Púca, all of which are printed that way.
+
+Challenge coverage: **436** at ≤0, **833** at 1–4, **828** at 5–10, **264** at 11–16, **133** at 17+.
+1,155 variant-eligible.
+
+**A third transform** (`import-open5e.ts`, 24 tests), not a flag on either existing one. Open5e publishes
+`type` as an OBJECT (`{ name: 'Fey', key: 'fey' }`), senses as separate integers with no prose anywhere, and
+saves in two parallel objects. Read by `srdCreatureToRow` it would produce creatures typed
+`[object Object]` with no senses line — the B1-3 failure, a third time, for a third reason.
+
+#### The defect that would have shipped 380 unusable monsters
+
+**396 of Tome of Beasts 3's 397 creatures arrive from Open5e v2 with `actions: []`.** The v1 endpoint has
+them all. Verified per creature against both, not inferred: `tob3_ahu-nixta-mechanon` has an empty v2 action
+list and a Slam, a Multiattack and a Utility Arm in v1.
+
+Imported from v2 alone that is 396 stat blocks with a complete defensive line and **nothing to do on their
+turn** — each transforming successfully, each looking finished, each useless the moment a DM ran it. It is
+invisible in every per-creature check and obvious in one aggregate count, which is why the run now counts
+missing actions out loud rather than leaving it to a throwaway probe after the fact.
+
+**And my first fix was wrong in a way the run reported.** It fell back only when v2 had nothing but traits —
+but 205 of those creatures have exactly one migrated entry, a Reaction. Those short-circuited as "v2 has
+actions" and kept the reaction while losing every attack: **205 monsters that could parry but never strike.**
+The merge is now per KIND — v2 wins for any kind it carries (its entries have the structured to-hit and
+damage that make an entry rollable), v1 fills only the kinds v2 left empty, nothing is listed twice. 400
+actionless → 20.
+
+Two smaller ones caught the same way: `speed_all` looks like a superset and is actually DERIVED, filling in
+5e's default half-speed climb and swim, so reading it would have printed two movement modes on 2,494
+creatures that have neither; and `saving_throws_all` gives every ability a number, which printed would state
+six proficient saves on a creature the book gives three.
+
+#### The bestiary had no pagination, and at 3,523 that became a real failure
+
+`loadBestiary` has always taken `limit`/`offset`; the page never offered a way past the first sixty. At 829
+that was a nuisance. At 3,523 it meant **everything past the sixtieth result was unreachable by browsing** —
+the page read "60 of 271 creatures" with no control to reach the other 211. G7 is *"make sure we can
+actually find them"*, and a first page is not a catalogue.
+
+Links rather than a client control, so the whole page stays a server component and every page of every
+filtered view is a shareable URL. Changing a filter resets to page 1 (keeping it would land a reader on
+"page 7 of 2", which reads as "no dragons" rather than "you were past the end"), and a reader who does land
+past the end is told so rather than being shown the "nothing matches those filters" message that would send
+them clearing filters that were working.
+
+---
 
 ## Slice order
 
