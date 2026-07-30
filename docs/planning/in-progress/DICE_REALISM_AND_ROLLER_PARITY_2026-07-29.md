@@ -270,9 +270,33 @@ intended control differences. Screenshots are the deliverable — this is the cl
 ## Phase D7 — the window is always the right size (G7)
 
 ### D7-1 · Measure, do not guess
-`useFloatingDock` declares `FIXED_W`/`FIXED_H`. Replace with content-derived sizing: `ResizeObserver` on the
-content, window sized to it, clamped to the viewport with a safe inset. Fixed dimensions are what forces a
-scrollbar when a roller's content is taller than the guess.
+
+> ⚠️ **BLOCKED — this slice as written would undo an explicit owner decision from the day before, and
+> needs the owner's call before anyone implements it.**
+>
+> `useFloatingDock` declares `FIXED_W = 396` / `FIXED_H = 560`, and those constants are not a guess that
+> nobody revisited — they are the *fix* for a complaint the owner made on **2026-07-28**, recorded verbatim
+> in the code:
+>
+> > *"the modal when open is a consistent size and is not resizable. It should always be big enough to show
+> > all of the elements of the dice roller regardless of the roller template chosen."*
+>
+> Before that change the height WAS content-derived (`h: null`, "fit content") and drag-resizable — exactly
+> what D7-1 proposes restoring. The result was a window that changed shape when you switched roller
+> template (Impact's tall arena vs Sigil Stack's shorter stack), and any size a player had dragged to was
+> then wrong for whichever template needed more room.
+>
+> So the two asks pull opposite ways and both are the owner's:
+> - **07-28:** the window must be a *consistent* size, template to template.
+> - **07-29 (this doc, ask 1):** the window must *fully contain* every roller's content, never scroll.
+>
+> Content-derived sizing satisfies the second by breaking the first. **The reading that satisfies both is
+> to keep one fixed size and make it provably large enough** — derive the constant from the tallest
+> composition across the whole matrix rather than from a guess, and let D7-3 prove it. That is a different
+> slice from the one written here, so the doc is left honest rather than quietly rewritten.
+>
+> *Owner question:* when a roller genuinely cannot fit a small viewport (a 396×560 window on a 360×640
+> phone), which gives — the consistent size, or the no-scrollbar rule?
 
 ### D7-2 · The content must be able to fit
 Sizing alone is not enough — content has to be *sizable*. Roll history is the one unbounded section: cap it to
@@ -280,9 +304,40 @@ the last 5 with "show all" opening a dedicated panel rather than growing the win
 bounded by the roll. Multi-dice trays scale down rather than overflow.
 
 ### D7-3 · Prove no scrollbar exists
-Extend `scripts/lib/overflow.mjs` to assert `scrollHeight <= clientHeight` on the roller window across every
-(system × roller × skin × dice-count × viewport) combination, including 360px-wide mobile. The detector
-already knows to exclude legitimate scroll containers; the history panel is the only permitted one.
+
+**DETECTOR SHIPPED 2026-07-29; the browser sweep is the remaining half.**
+
+`scripts/lib/overflow.mjs` gains `detectClipped(rootSelector)` and `detectOversized(rootSelector)`, with
+16 tests in `__tests__/dnd/roller-clipping-detector.test.ts`.
+
+**Why two new functions rather than a flag on `detectOverflow`.** The existing detector answers "does this
+element paint outside the VIEWPORT" — and to answer that honestly it must exclude `position: fixed`
+elements and anything inside a scroll container, because a docked FAB and a scrolling table are both doing
+their job. For the roller window every one of those exclusions is inverted: the roller **is**
+`position: fixed`, and becoming a scroll container **is** the defect. A flag reversing three of a
+function's rules leaves both callers harder to reason about than two functions that each answer one
+question.
+
+Decisions pinned by the tests, each of which could reasonably have gone the other way:
+- **`overflow: visible` is not clipping.** Tall content there *spills*, which `detectOverflow` already
+  reports — counting it here would report one defect twice under two names, with two different fixes.
+- **`overflow: hidden` IS clipping**, and ranks worse than `auto`: content nobody can even scroll to is
+  more hidden, not less.
+- **2px of sub-pixel slack.** Layout rounding routinely makes `scrollHeight` a pixel or two greater on a
+  box that visibly clips nothing. A detector with false positives is one somebody switches off.
+- **The permitted scroller opts in via `data-scrollable="true"`, and it inherits.** D7-2 allows exactly one
+  (roll history). Putting the permission in the markup rather than a selector list in the detector keeps it
+  next to the thing being permitted — the only version that stays true when the markup moves.
+- **A missing root reports `found: false`, never a clean pass.** `count: 0` for a roller that never mounted
+  is the precise false-green that lets a sweep "pass" on a page where nothing rendered.
+
+*Test-environment note:* this repo runs vitest under `environment: 'node'` with no jsdom or happy-dom
+installed. Rather than add a DOM dependency for one file, the test stubs the handful of browser calls the
+detectors make — which doubles as the contract for what DOM surface they may rely on.
+
+**Remaining:** wire it into a Playwright sweep over (system × roller × skin × dice-count × viewport)
+including 360px, and tag the roll-history container with `data-scrollable="true"`. Blocked behind the D7-1
+decision above, since what "correct" means at 360px depends on which of the two owner asks wins.
 
 *Acceptance:* zero scrollbars in the whole matrix; window never exceeds the viewport; drag/minimise/reset
 still work; mobile keeps the 44px touch minimum.

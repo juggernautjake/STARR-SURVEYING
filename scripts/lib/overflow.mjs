@@ -84,3 +84,98 @@ export function detectOverflow() {
     offenders: unique.sort((a, b) => b.right - a.right).slice(0, 6),
   };
 }
+
+// ── vertical clipping (D7-3) ────────────────────────────────────────────────────────────────────
+//
+// A DIFFERENT QUESTION FROM `detectOverflow`, which is why it is a separate function rather than a flag.
+// That one asks "does this element paint outside the VIEWPORT" — a horizontal, page-level question, and
+// it deliberately EXCLUDES scroll containers and `position: fixed` because a scrolling table and a docked
+// FAB are both doing their job.
+//
+// This asks "is content hidden INSIDE this box, such that the reader must scroll to see it" — and for the
+// roller window every one of those exclusions is inverted. The roller IS `position: fixed`. The thing that
+// makes it a defect IS that it became a scroll container. The owner's requirement is verbatim: *"the modal
+// for the roller is always the right size to fully contain all of the content of the rollers at all times
+// and that there is never a need for a scrolling bar to appear or be used to see everything"* — so a
+// scrollbar here is the bug, not the accommodation.
+//
+// WHAT COUNTS AS PERMITTED. Roll history is unbounded by nature and the plan (D7-2) allows exactly one
+// opt-in scroller for it. So a subtree may declare itself legitimate with `data-scrollable="true"`, and
+// this reports everything else. An allowlist that lives in the markup — rather than a selector list in
+// this file — keeps the permission next to the thing being permitted, which is the only version that
+// stays true when the markup moves.
+//
+// Runs IN THE PAGE, so it closes over nothing (same constraint as `detectOverflow`).
+
+/** Runs IN THE PAGE. Vertically clipped content inside `rootSelector`, ignoring opted-in scrollers. */
+export function detectClipped(rootSelector) {
+  const root = document.querySelector(rootSelector);
+  if (!root) return { found: false, rootSelector, count: 0, offenders: [] };
+
+  // A box scrolls if its content is taller than its padding box AND its overflow actually clips.
+  // `visible` never scrolls however tall the content — it spills, which `detectOverflow` catches instead.
+  const SCROLLS = /(auto|scroll|hidden|overlay)/;
+
+  const permitted = (el) => {
+    let n = el;
+    while (n && n !== document.documentElement) {
+      if (n.dataset && n.dataset.scrollable === 'true') return true;
+      n = n.parentElement;
+    }
+    return false;
+  };
+
+  const offenders = [];
+  const all = [root, ...root.querySelectorAll('*')];
+  for (const el of all) {
+    const cs = getComputedStyle(el);
+    if (!SCROLLS.test(cs.overflowY)) continue;
+    // 2px of slack: sub-pixel layout rounding routinely yields scrollHeight one greater than clientHeight
+    // on a box that visibly clips nothing, and a detector that cries wolf gets switched off.
+    const hidden = el.scrollHeight - el.clientHeight;
+    if (hidden <= 2) continue;
+    if (permitted(el)) continue;
+    offenders.push({
+      tag: el.tagName.toLowerCase(),
+      cls: String(el.className || '').slice(0, 48),
+      hidden: Math.round(hidden),
+      clientHeight: Math.round(el.clientHeight),
+      scrollHeight: Math.round(el.scrollHeight),
+      overflowY: cs.overflowY,
+    });
+  }
+
+  return {
+    found: true,
+    rootSelector,
+    count: offenders.length,
+    // Worst first — the box hiding the most is the one to size for.
+    offenders: offenders.sort((a, b) => b.hidden - a.hidden).slice(0, 6),
+  };
+}
+
+/**
+ * Does the window fit the viewport at all? Separate from clipping because they fail independently and the
+ * fixes differ: a window taller than the viewport is a SIZING bug (the constant is too big, or the viewport
+ * is a phone), while a clipped child is a CONTENT bug (something inside grew past its box).
+ *
+ * Runs IN THE PAGE.
+ */
+export function detectOversized(rootSelector) {
+  const el = document.querySelector(rootSelector);
+  if (!el) return { found: false, rootSelector };
+  const r = el.getBoundingClientRect();
+  return {
+    found: true,
+    rootSelector,
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+    viewportW: window.innerWidth,
+    viewportH: window.innerHeight,
+    // `> 1` rather than `> 0`: a window sized with calc(100vh - Npx) lands a fraction over on some zoom levels.
+    tooWide: r.width > window.innerWidth + 1,
+    tooTall: r.height > window.innerHeight + 1,
+    offTop: r.top < -1,
+    offLeft: r.left < -1,
+  };
+}
