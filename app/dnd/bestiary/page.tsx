@@ -37,6 +37,16 @@ const PAGE_SIZE = 60;
 
 const systemName = (key: string) => GAME_SYSTEMS.find((s) => s.key === key)?.name ?? key;
 
+/** Room on a 230px card is the constraint: "D&D 5e (2014) · Pathfinder 2e" wraps to three lines and buries
+ *  the CR under it. The full names stay on the chips and the creature page. */
+const SHORT_SYSTEM: Record<string, string> = {
+  'dnd5e-2024': '5e ’24',
+  'dnd5e-2014': '5e ’14',
+  pathfinder2e: 'PF2',
+  'intuitive-games': 'IG',
+};
+const shortSystemName = (key: string) => SHORT_SYSTEM[key] ?? systemName(key);
+
 /** Build a URL with one filter changed, and that filter cleared if it was already active (click to toggle off). */
 function withFilter(current: Search, key: keyof Search, value: string | null): string {
   const next: Record<string, string> = {};
@@ -212,6 +222,20 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
                   <div style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
                     {[c.size, c.type, c.alignment].filter(Boolean).join(' · ') || systemName(c.system)}
                   </div>
+                  {/* N3-4, THE ROW BADGE — and it exists because N7 made the card ambiguous.
+                      One entry now stands for up to ten rows, so a card that said nothing would imply the
+                      Badger is catalogued once. This names the systems a PUBLISHER wrote it for; every
+                      other system is reachable from the page, derived, and clearly labelled there. A
+                      creature published in only one system gets no badge — a lone value is not
+                      information, it is decoration. */}
+                  {c.publishedSystems.length > 1 && (
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', fontSize: 10.5 }}>
+                      <span style={{ color: 'var(--hx-gold-2)' }} aria-hidden="true">◆</span>
+                      <span style={{ color: 'var(--hx-muted)' }}>
+                        Published in {c.publishedSystems.map(shortSystemName).join(' · ')}
+                      </span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 11 }}>
                     {c.cr && <span style={{ color: 'var(--hx-teal-1)' }}>CR {c.cr}</span>}
                     {c.tags.slice(0, 3).map((t) => (

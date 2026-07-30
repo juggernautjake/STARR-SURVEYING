@@ -195,6 +195,60 @@ async function main() {
   if (unlicensed.n) { hardFailures += unlicensed.n; console.log(`  ❌ ${unlicensed.n} image(s) with no licence — the CHECK constraint is gone`); }
   else console.log('  ✅ every stored image carries a licence and a credit');
 
+  // ── N7 · one creature, one entry ───────────────────────────────────────────────────────────────
+  //
+  // The list reads `dnd_creatures_canonical` (seed 468), which picks ONE row per creature name and ranks
+  // rows we generated last. That is only safe because of a property of the data rather than of the view:
+  // **every generated row's creature also has a published row**, so ranking generated rows last can never
+  // make a creature vanish from the catalogue.
+  //
+  // It holds today (3,659 names across all 5,025 rows; the same 3,659 across the 4,425 published ones) and
+  // an import could break it — a transposed row whose published source was later removed would be the only
+  // home of that creature, and it would silently disappear from a list that still looked complete. So the
+  // property is CHECKED rather than remembered, and it is hard: a catalogue quietly losing creatures is
+  // worse than one that fails loudly.
+  console.log('\n── N7 · One creature, one entry ──');
+  const { rows: [canon] } = await c.query(`
+    SELECT (SELECT count(*)::int FROM dnd_creatures)                                     AS rows,
+           (SELECT coalesce(sum(row_count),0)::int FROM dnd_creatures_canonical)         AS folded_rows,
+           (SELECT count(*)::int FROM dnd_creatures_canonical)                           AS entries,
+           (SELECT count(DISTINCT lower(btrim(name)))::int FROM dnd_creatures)           AS names,
+           (SELECT count(*)::int FROM dnd_creatures_canonical
+              WHERE source LIKE 'Transposed from %')                                     AS generated_reps,
+           (SELECT count(*)::int FROM (
+              SELECT DISTINCT lower(btrim(name)) n FROM dnd_creatures) x
+              WHERE NOT EXISTS (SELECT 1 FROM dnd_creatures_canonical v WHERE v.identity = x.n)) AS lost
+  `);
+  console.log(`  ${canon.rows} rows → ${canon.entries} entries (${canon.rows - canon.entries} duplicates folded away)`);
+
+  // STALENESS, and it is the price of materializing the fold (seed 468). The snapshot records how many
+  // rows each entry stands for, so summing that gives the row count the snapshot was BUILT from. If it
+  // disagrees with the table, an import ran without refreshing and creatures are catalogued but
+  // unreachable — this repo's signature defect, reintroduced by a performance fix.
+  //
+  // Exact rather than approximate: comparing distinct NAMES would miss a row added to an existing
+  // creature, and comparing entry counts would miss a deletion that removed a duplicate. Hard, because a
+  // list quietly missing creatures looks exactly like a list that is complete.
+  if (canon.folded_rows !== canon.rows) {
+    hardFailures += 1;
+    console.log(`  ❌ snapshot is STALE — built from ${canon.folded_rows} rows, table now holds ${canon.rows}`);
+    console.log("     fix: SELECT public.refresh_dnd_creatures_canonical();");
+  } else console.log('  ✅ snapshot is current with the table');
+  if (canon.entries !== canon.names) {
+    hardFailures += 1;
+    console.log(`  ❌ ${canon.entries} entries for ${canon.names} distinct names — the view is not one-per-creature`);
+  } else console.log(`  ✅ exactly one entry per distinct creature name`);
+  if (canon.lost) {
+    hardFailures += canon.lost;
+    console.log(`  ❌ ${canon.lost} creature(s) exist in the table but reach no entry — unreachable by browsing`);
+  } else console.log('  ✅ no creature is lost by the fold');
+  if (canon.generated_reps) {
+    // Not hard: a creature that ONLY exists as a generated row is a content gap, not corruption. It is
+    // still worth naming, because the entry a reader opens will be one of our conversions rather than a
+    // publisher's stat block.
+    console.log(`  ⚠️  ${canon.generated_reps} entr${canon.generated_reps === 1 ? 'y is' : 'ies are'} represented by a row we generated — no published row exists for them`);
+  } else console.log('  ✅ every entry is represented by a publisher\'s row');
+
   console.log(hardFailures ? `\n❌ ${hardFailures} hard failure(s).\n` : '\n✅ No hard failures.\n');
   await c.end();
   process.exitCode = hardFailures ? 1 : 0;

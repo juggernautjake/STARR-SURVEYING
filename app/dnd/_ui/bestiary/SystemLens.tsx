@@ -128,7 +128,13 @@ export default function SystemLens({
                   }}
                 >
                   {SYSTEM_LABEL[s]}
-                  {published[s] && <span style={{ float: 'right', color: 'var(--hx-gold-2)', fontSize: 11 }}>◆</span>}
+                  {/* `published` holds only the OTHER systems' rows, so the creature's own system has to be
+                      counted here or the menu contradicts itself — the 2014 Badger's menu showed no ◆
+                      beside 2014 and then rendered "◆ Published" the moment it was picked. `isPublished`
+                      is shared with build() so the marker and the badge can never disagree again. */}
+                  {isPublished(source, published, s) && (
+                    <span style={{ float: 'right', color: 'var(--hx-gold-2)', fontSize: 11 }} aria-label="published">◆</span>
+                  )}
                 </button>
               </li>
             ))}
@@ -163,6 +169,34 @@ interface LensView {
 }
 
 /**
+ * The publisher's row for a system, if there is one.
+ *
+ * The SOURCE row counts when you are reading it in its own system — `published` deliberately holds only
+ * the OTHER systems (`loadSiblings` excludes the creature's own), so anything asking "is this system
+ * published?" has to check both or it will answer no for the one system that is certainly yes.
+ *
+ * One function rather than the same expression written twice, because the two readers are the menu marker
+ * and the badge, and they disagreed: the 2014 Badger's dropdown showed no ◆ beside 2014 and then rendered
+ * "◆ Published" the instant it was chosen.
+ */
+function publishedRow(
+  source: LensSource,
+  published: Partial<Record<BestiarySystem, LensSource>>,
+  system: BestiarySystem,
+): LensSource | undefined {
+  return source.system === system ? source : published[system];
+}
+
+/** Is this system one a designer wrote for? Exported for tests — the menu's ◆ is a claim, not decoration. */
+export function isPublished(
+  source: LensSource,
+  published: Partial<Record<BestiarySystem, LensSource>>,
+  system: BestiarySystem,
+): boolean {
+  return Boolean(publishedRow(source, published, system));
+}
+
+/**
  * What to show for a chosen system, in strict order of trustworthiness.
  *
  *   published → a designer wrote these numbers for this system. Nothing beats it.
@@ -176,8 +210,7 @@ export function build(
   published: Partial<Record<BestiarySystem, LensSource>>,
   system: BestiarySystem,
 ): LensView {
-  // The source row itself counts as published when you are reading it in its own system.
-  const own = source.system === system ? source : published[system];
+  const own = publishedRow(source, published, system);
   if (own) return { kind: 'published', statblock: own.statblock, notes: [] };
 
   const derived = deriveNativeStatblock(

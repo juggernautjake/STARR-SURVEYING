@@ -289,6 +289,10 @@ async function main() {
     const { rows: [{ n }] } = await client.query('select count(*)::int n from dnd_creatures where system = $1', [TARGET]);
     console.log(`\n✅ ${written} upserted, ${orphans.length} removed. ${cfg.label} now has ${n} creatures.`);
   } finally {
+    // N7 — this script's rows are ranked LAST by the canonical fold (the lens derives better than they
+    // convert), but it also DELETES orphans, and a deletion the snapshot has not seen leaves a dead entry
+    // in the list pointing at a slug that 404s. See import-bestiary.mjs.
+    await client.query('SELECT public.refresh_dnd_creatures_canonical()');
     await client.end();
   }
 }

@@ -186,6 +186,10 @@ async function main() {
     'SELECT count(*)::int total, count(image_url)::int with_art FROM dnd_creatures',
   );
   console.log(`\nbestiary art coverage: ${t.with_art} / ${t.total}`);
+  // N7 — art matters to the fold twice over: the snapshot carries `image_url`, and "has art" is one of
+  // the ranking keys, so a newly-illustrated row can become the entry that represents its creature.
+  // Without this the catalogue keeps showing sigils for pictures it already holds.
+  await client.query('SELECT public.refresh_dnd_creatures_canonical()');
   await client.end();
 }
 

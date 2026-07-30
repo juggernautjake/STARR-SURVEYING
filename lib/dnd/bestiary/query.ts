@@ -48,6 +48,21 @@ export interface CatalogueCreature {
   attribution: string;
   sourceUrl: string | null;
   variantEligible: boolean;
+  /**
+   * N7 — what this ENTRY stands for, which is not always one row.
+   *
+   * The list reads `dnd_creatures_canonical` (seed 468): one entry per creature identity, chosen from
+   * every row that spells its name the same way. A card showing the Badger stands for ten rows across
+   * four systems, and these three fields are how it can SAY so rather than quietly implying it is the
+   * only Badger in the catalogue.
+   *
+   * `systems` is every system a row exists in; `publishedSystems` is the subset a PUBLISHER wrote —
+   * different lists, and the difference is exactly the "published versus derived" claim the lens makes on
+   * the page. Both are empty on a single-row read (`loadCreature`), where the question does not arise.
+   */
+  rowCount: number;
+  systems: string[];
+  publishedSystems: string[];
 }
 
 /**
@@ -122,6 +137,11 @@ function toCreature(r: Record<string, unknown>): CatalogueCreature {
     attribution: String(r.attribution ?? ''),
     sourceUrl: (r.source_url as string) ?? null,
     variantEligible: Boolean(r.variant_eligible),
+    // Present only when the row came from the canonical view. A single-row read defaults to "stands for
+    // itself, in its own system", which is true and keeps every caller from having to check.
+    rowCount: r.row_count === undefined || r.row_count === null ? 1 : Number(r.row_count),
+    systems: Array.isArray(r.systems) ? (r.systems as string[]) : [String(r.system)],
+    publishedSystems: Array.isArray(r.published_systems) ? (r.published_systems as string[]) : [],
   };
 }
 
@@ -129,6 +149,21 @@ const COLUMNS =
   'id, slug, name, system, type, size, alignment, cr, cr_sort, statblock, description, image_url, '
   + 'image_licence, image_attribution, image_source_url, tags, environments, source, licence, attribution, '
   + 'source_url, variant_eligible';
+
+/**
+ * ONE CREATURE, ONE ENTRY (N7). The list reads a view, not the table.
+ *
+ * `dnd_creatures` holds 5,025 rows for 3,659 creatures — five books' Badgers plus the 600 rows
+ * `generate-transposed-bestiary.mjs` wrote, so browsing meant scrolling past the Badger ten times. Seed
+ * 468 carries the full reasoning; the short version is that **the LIST is a list of creatures while the
+ * ROWS are storage**, and no row is deleted to achieve it. The creature PAGE still reads the table
+ * directly, because the system lens needs every row.
+ *
+ * The extra columns are what lets an entry admit it stands for more than itself.
+ */
+const CANONICAL_VIEW = 'dnd_creatures_canonical';
+const CANONICAL_COLUMNS =
+  `${COLUMNS}, identity, row_count, systems, published_systems, types, alignments, all_tags`;
 
 /**
  * One page of the catalogue, plus the facet values that exist in it.
@@ -142,18 +177,22 @@ export async function loadBestiary(filters: BestiaryFilters = {}): Promise<Besti
   const limit = Math.min(200, Math.max(1, filters.limit ?? 60));
   const offset = Math.max(0, filters.offset ?? 0);
 
-  let q = supabaseAdmin.from('dnd_creatures').select(COLUMNS, { count: 'exact' });
+  let q = supabaseAdmin.from(CANONICAL_VIEW).select(CANONICAL_COLUMNS, { count: 'exact' });
 
-  if (filters.system) q = q.eq('system', filters.system);
-  if (filters.type) q = q.eq('type', filters.type);
-  if (filters.alignment) q = q.eq('alignment', filters.alignment);
-  // `tags` is a text[]; `contains` is the array operator, not a substring match.
-  if (filters.tag) q = q.contains('tags', [filters.tag]);
+  // EVERY FILTER IS NOW ARRAY CONTAINMENT, and that is a consequence of N7 rather than a style choice.
+  // One row represents the creature, so `eq('system', …)` would ask "which system won the ranking?" —
+  // and the Pathfinder Badger would disappear from the Pathfinder filter because its 5e row was picked.
+  // The view unions each facet across all of a creature's rows so the question stays "is this creature in
+  // Pathfinder at all?", which is what a reader means.
+  if (filters.system) q = q.contains('systems', [filters.system]);
+  if (filters.type) q = q.contains('types', [filters.type]);
+  if (filters.alignment) q = q.contains('alignments', [filters.alignment]);
+  if (filters.tag) q = q.contains('all_tags', [filters.tag]);
   // A plane resolves to the creature type it is the origin of, so this stays a database filter. An
   // unrecognised plane key is IGNORED rather than matching nothing — a bad URL should show the catalogue,
   // not an empty page that reads as "there are no fiends".
   const plane = planeByKey(filters.plane);
-  if (plane) q = q.contains('tags', [plane.tag]);
+  if (plane) q = q.contains('all_tags', [plane.tag]);
   const band = crBand(filters.band);
   if (band) q = q.gte('cr_sort', band.min).lte('cr_sort', band.max);
   if (filters.q?.trim()) {
@@ -199,18 +238,25 @@ const FACET_SCAN_CEILING = 20000;
  * catalogue, and cross-filtering them would make the chips a DM is using disappear as they narrow — pick
  * "dragon" and every other type vanishes, so there is no way back without clearing. System is different in
  * kind: a creature belongs to exactly one, so its catalogue is a partition rather than a narrowing.
+ *
+ * READ FROM THE SAME VIEW THE FILTERS QUERY (N7). This scanned `dnd_creatures` until the canonical view
+ * arrived, and leaving it there would have quietly desynchronised the chips from the results: the filter
+ * asks `systems @> ['pathfinder2e']` — every system a creature has a row in — while a table scan scoped by
+ * `system = 'pathfinder2e'` sees only the rows that ARE Pathfinder. A creature published in both would
+ * then be matched by a chip that was never offered. Facets and filters have to read the same shape or the
+ * UI is describing a catalogue the query does not have.
  */
 async function loadFacets(system?: string | null): Promise<BestiaryPage['facets']> {
-  // The system list must span the WHOLE table even when the view is scoped — otherwise choosing a system
-  // would hide every other system's chip and strand the reader inside it.
-  const all = supabaseAdmin.from('dnd_creatures').select('system').range(0, FACET_SCAN_CEILING);
-  let scoped = supabaseAdmin.from('dnd_creatures').select('type, alignment, tags').range(0, FACET_SCAN_CEILING);
-  if (system) scoped = scoped.eq('system', system);
+  // The system list must span the WHOLE catalogue even when the view is scoped — otherwise choosing a
+  // system would hide every other system's chip and strand the reader inside it.
+  const all = supabaseAdmin.from(CANONICAL_VIEW).select('systems').range(0, FACET_SCAN_CEILING);
+  let scoped = supabaseAdmin.from(CANONICAL_VIEW).select('types, alignments, all_tags').range(0, FACET_SCAN_CEILING);
+  if (system) scoped = scoped.contains('systems', [system]);
 
   const [{ data: allData, error: allErr }, { data, error }] = await Promise.all([all, scoped]);
   if (allErr) throw new Error(`bestiary system facet failed: ${allErr.message}`);
   if (error) throw new Error(`bestiary facets failed: ${error.message}`);
-  const rows = (data ?? []) as Array<{ type: string | null; alignment: string | null; tags: string[] | null }>;
+  const rows = (data ?? []) as Array<{ types: string[] | null; alignments: string[] | null; all_tags: string[] | null }>;
 
   // G6, "nothing silently truncates". A facet read that hits its own ceiling would quietly stop offering
   // the categories in the rows it never saw, and the page would look complete. The catalogue is ~1k rows
@@ -224,11 +270,13 @@ async function loadFacets(system?: string | null): Promise<BestiaryPage['facets'
   const types = new Set<string>();
   const alignments = new Set<string>();
   const tags = new Set<string>();
-  for (const r of (allData ?? []) as Array<{ system: string }>) if (r.system) systems.add(r.system);
+  for (const r of (allData ?? []) as Array<{ systems: string[] | null }>) {
+    for (const s of r.systems ?? []) if (s) systems.add(s);
+  }
   for (const r of rows) {
-    if (r.type) types.add(r.type);
-    if (r.alignment) alignments.add(r.alignment);
-    for (const t of r.tags ?? []) tags.add(t);
+    for (const t of r.types ?? []) if (t) types.add(t);
+    for (const a of r.alignments ?? []) if (a) alignments.add(a);
+    for (const t of r.all_tags ?? []) tags.add(t);
   }
   return {
     systems: [...systems].sort(),
@@ -301,6 +349,23 @@ export async function allCreatureSlugs(): Promise<string[]> {
  *
  * One row per system, and where a system has several (five books' Badgers) the FIRST by slug wins, so the
  * choice is stable across page loads rather than whatever Postgres returned that time.
+ *
+ * ── ROWS WE GENERATED ARE NOT SIBLINGS, AND THIS WAS A LIVE BUG ─────────────────────────────────────
+ *
+ * Found by opening the Badger rather than by any test: the page announced **"D&D 5e (2024) ◆ Published"**
+ * for a creature no publisher has ever printed in 2024. `generate-transposed-bestiary.mjs` wrote 600
+ * `Transposed from …` rows, three of them 2024 Badgers, and this query happily returned one as a sibling —
+ * so the lens's top rank, the one reserved for *a designer wrote these numbers*, was being handed our own
+ * conversion.
+ *
+ * It was invisible in every way that matters: the numbers looked right (transposition CARRIES the source's
+ * AC and HP, so the block was identical to the 2014 one), the badge looked authoritative, and 8,427 tests
+ * passed. The lens's own suite asserted the trustworthiness ORDER correctly and could not catch this,
+ * because the defect was never in the ordering — it was in what got called published on the way in.
+ *
+ * So: a sibling must be a PUBLISHER's row. Everything else is what `deriveNativeStatblock` is for, and it
+ * does the job better than the stored transposition anyway (the target system's own measured table rather
+ * than carried figures).
  */
 export async function loadSiblings(
   name: string,
@@ -308,9 +373,12 @@ export async function loadSiblings(
 ): Promise<Partial<Record<string, { name: string; system: string; type: string | null; size: string | null; cr: string | null; statblock: Statblock }>>> {
   const { data, error } = await supabaseAdmin
     .from('dnd_creatures')
-    .select('slug, name, system, type, size, cr, statblock')
+    .select('slug, name, system, type, size, cr, source, statblock')
     .ilike('name', name)
     .neq('system', ownSystem)
+    // Never a row we generated — see above. `source` is NOT NULL, so this cannot drop a real row for
+    // being null.
+    .not('source', 'like', 'Transposed from %')
     .order('slug', { ascending: true });
   // A failed sibling lookup must not take the page down: the lens simply derives instead, which is what it
   // would do for a creature with no siblings anyway.
@@ -321,6 +389,10 @@ export async function loadSiblings(
     // `ilike` without wildcards is an exact case-insensitive match, but assert it rather than trust it —
     // a later edit adding `%` would silently turn this into the fuzzy match the doc above forbids.
     if (String(r.name).toLowerCase() !== name.toLowerCase()) continue;
+    // Belt and braces on the filter above, for the same reason the name is re-checked: this one decides
+    // whether a block is labelled as a designer's work, and a `.not()` clause is one careless edit from
+    // being dropped.
+    if (String(r.source ?? '').startsWith('Transposed from ')) continue;
     const sys = String(r.system);
     if (out[sys]) continue; // first by slug wins
     out[sys] = {

@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { build, LENS_SYSTEMS, SYSTEM_LABEL, type LensSource } from '@/app/dnd/_ui/bestiary/SystemLens';
+import { build, isPublished, LENS_SYSTEMS, SYSTEM_LABEL, type LensSource } from '@/app/dnd/_ui/bestiary/SystemLens';
 import { DEFAULT_SYSTEM } from '@/lib/dnd/systems';
 import { PF2_TIERS } from '@/lib/dnd/statblocks/tiers';
 
@@ -96,6 +96,24 @@ describe('the lens defaults to 2024 and offers all four systems', () => {
     for (const s of LENS_SYSTEMS) expect(SYSTEM_LABEL[s]).toBeTruthy();
   });
 
+  it('marks the creature’s OWN system as published in the menu', () => {
+    // Caught in the browser: the 2014 Badger's dropdown showed no ◆ beside 2014, then rendered
+    // "◆ Published" the moment 2014 was chosen. `published` holds only the OTHER systems, so a marker
+    // reading it alone answers "no" for the one system that is certainly yes.
+    expect(isPublished(skunk, {}, 'dnd5e-2014')).toBe(true);
+    expect(isPublished(skunk, {}, 'pathfinder2e')).toBe(false);
+    expect(isPublished(skunk, { pathfinder2e: { ...skunk, system: 'pathfinder2e' } }, 'pathfinder2e')).toBe(true);
+  });
+
+  it('the menu marker and the badge cannot disagree', () => {
+    // The property, not the implementation: for every system, ◆ in the menu means exactly what the badge
+    // above the block says. They drifted once because the same rule was written out twice.
+    for (const sys of LENS_SYSTEMS) {
+      const published = { pathfinder2e: { ...skunk, system: 'pathfinder2e' } };
+      expect(isPublished(skunk, published, sys), sys).toBe(build(skunk, published, sys).kind === 'published');
+    }
+  });
+
   it('is a dropdown at the TOP of the block, not a panel below it', () => {
     expect(lens).toMatch(/aria-haspopup="listbox"/);
     expect(lens).toMatch(/role="listbox"/);
@@ -148,5 +166,24 @@ describe('sibling identity is exact, never fuzzy (N7)', () => {
 
   it('a failed lookup degrades to derivation rather than taking the page down', () => {
     expect(query).toMatch(/if \(error\) return \{\};/);
+  });
+
+  it('never offers a row WE generated as a published sibling', () => {
+    // A LIVE BUG, found by opening the Badger in a browser and not by any of the 8,427 tests that were
+    // passing at the time. The page announced "D&D 5e (2024) ◆ Published" for a creature no publisher has
+    // printed in 2024: `generate-transposed-bestiary.mjs`'s `Transposed from …` rows were being returned
+    // as siblings, so the lens's top rank — reserved for *a designer wrote these numbers* — was handed
+    // our own conversion.
+    //
+    // Undetectable by eye: transposition CARRIES the source's AC and HP, so the block was identical to
+    // the 2014 one and only the badge was lying. The lens suite above asserts the ORDER and could never
+    // have caught it, because the defect was in what got called published on the way in.
+    expect(query).toMatch(/\.not\('source', 'like', 'Transposed from %'\)/);
+    // And re-checked in code, like the name match, because a `.not()` clause is one careless edit from
+    // being dropped and the failure is silent.
+    expect(query).toMatch(/String\(r\.source \?\? ''\)\.startsWith\('Transposed from '\)/);
+    // The column has to be SELECTED for that check to mean anything — reading an unselected column
+    // returns undefined, which would make the guard pass for every row.
+    expect(query).toMatch(/\.select\('slug, name, system, type, size, cr, source, statblock'\)/);
   });
 });

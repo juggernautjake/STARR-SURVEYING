@@ -190,6 +190,10 @@ async function main() {
   } finally {
     const total = await client.query('SELECT count(*)::int n FROM dnd_creatures');
     console.log(`\nWrote ${written}. dnd_creatures now holds ${total.rows[0].n}.`);
+    // N7 — the bestiary LIST reads the `dnd_creatures_canonical` snapshot, not this table. An import that
+    // does not refresh leaves its new creatures catalogued and unreachable, which is precisely the defect
+    // this repo keeps producing. In the `finally` so a partial import still refolds what it did write.
+    await client.query('SELECT public.refresh_dnd_creatures_canonical()');
     await client.end();
   }
 }

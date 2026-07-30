@@ -285,6 +285,9 @@ async function main() {
     const t = await client.query("SELECT count(*)::int n FROM dnd_creatures WHERE system = 'pathfinder2e'");
     const all = await client.query('SELECT count(*)::int n FROM dnd_creatures');
     console.log(`\nWrote ${written}. pathfinder2e: ${t.rows[0].n}. Bestiary total: ${all.rows[0].n}.`);
+    // N7 — the list reads the canonical snapshot; without this the new creatures are catalogued and
+    // unreachable. See import-bestiary.mjs.
+    await client.query('SELECT public.refresh_dnd_creatures_canonical()');
     await client.end();
   }
 }
