@@ -481,7 +481,39 @@ image**, and the aura makes even the fallback look intentional.
 
 ## Phase B3 — variants, forking, sharing
 
-### B3-1 · "Create a variant" from any creature listing
+### B3-1 · Derived variants — **SHIPPED 2026-07-29. 770 live.**
+
+`npm run variants:creatures`. **385 eligible creatures → 385 weak + 385 elite**, and the detail page
+already renders them, so they were reachable the moment they existed.
+
+**This was the third "authored but not wired" find of the session, and the purest.** `deriveVariant` had
+been built, argued over and covered by tests for weeks; `dnd_creature_variants` had existed since seed 462;
+**385 creatures were flagged `variant_eligible` and the table held zero rows.** Complete, tested machinery
+with nothing in it — everything correct except that nobody had ever run it.
+
+The arithmetic is per-system and verified against live rows:
+
+| | AC | HP |
+| --- | --- | --- |
+| **5e** Tarrasque | 25 → 26 / 24 (±1) | 676 → 845 / 507 (±25%) |
+| **PF2** Treerazer | 54 → 56 / 52 (±2) | 550 → 580 / 520 (±30 at level 20+) |
+
+That difference is the point: PF2 applies its **published** Weak/Elite adjustment (flat ±2, HP banded by
+level), while 5e gets a house formula that **says so in every derivation string** — *"Starr Tabletop house
+formula (not an official rule)"* — because 5e has no published equivalent and a silent invention on a stat
+block read mid-combat is the thing the ground rules exist to prevent. 5e's CR is deliberately **not**
+recomputed: it derives from a table this module does not implement, and printing a made-up CR would be
+worse than printing the parent's.
+
+Eligibility is **recomputed from the stored row** rather than trusted from the flag, so a taxonomy change
+since import would show up as drift rather than silently generating against a stale boolean. It reported
+zero: 295 scaling-family, 59 boss-tier, 31 named-tier, 0 disagreements. Every one of the 770 carries a
+derivation sentence.
+
+A CR ¼ goblin correctly gets **no** variants — the plan's own example of a creature that does not need
+them.
+
+### B3-1b · "Create a variant" from a listing (owner-authored variants)
 Straight onto the existing variant machinery — the same VERSIONS/lineage/tag model characters use, which is
 what the owner is comparing it to. Stronger/weaker presets (CR up/down with proportional HP, damage, attack
 and DC scaling via `variants.ts`) plus free-form editing.
