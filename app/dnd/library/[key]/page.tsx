@@ -221,7 +221,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                     // cannot drift apart. `scrollMarginTop` keeps the row clear of the sticky header
                     // when DeepLinkOpener scrolls to it.
                     <details key={`${e.name}-${i}`} id={anchor(e.name)} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '7px 10px', scrollMarginTop: 72 }}>
-                      <summary style={{ cursor: 'pointer', fontSize: 13.5 }}>
+                      <summary className={styles.disclosure} style={{ fontSize: 13.5 }}>
                         <strong style={{ color: 'var(--hx-gold-2)' }}>{e.name}</strong>
                         {e.brief && <span style={{ color: 'var(--hx-muted)', marginLeft: 8 }}>— {e.brief}</span>}
                       </summary>
@@ -306,7 +306,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                 const subs = subclassesFor(c.system, c.key);
                 return (
                   <details key={c.key} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)' }}>
-                    <summary style={{ padding: '9px 12px', cursor: 'pointer', color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)', fontSize: 15 }}>
+                    <summary className={styles.disclosure} style={{ padding: '9px 12px', color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)', fontSize: 15 }}>
                       {c.name}
                       <span style={{ color: 'var(--hx-muted)', fontSize: 12, fontFamily: 'var(--hx-font-body)' }}>
                         {' '}· d{c.hitDie} · {c.savingThrows.map((s) => s.toUpperCase()).join('/')} saves · {c.features.length} features · {subs.length} {c.subclassLabel.toLowerCase()}s

@@ -25,6 +25,7 @@ import { igAncestryArt, IG_ART_CREDIT } from './systems/intuitive-games/art';
 import { homebrewLibrarySection } from './homebrew/projection';
 import { browseHomebrew, type HomebrewContent } from './homebrew/model';
 import { HOMEBREW_SEEDS } from './homebrew/seeds';
+import { speciesCatalogFor } from './species/view';
 import { IG_CLASS_TAXONOMY, igAllTaxonomyClasses } from './systems/intuitive-games/taxonomy';
 import { IG_WEAPON_RULES, IG_WEAPON_CLASS_DATA, IG_WEAPON_PROPERTIES, IG_ARMOR_RULES, IG_ARMORS, IG_SHIELD_RULES, IG_SHIELDS, IG_EQUIPMENT_PACKS, IG_EQUIPMENT_NOTE, IG_TOOL_RULES, IG_MAGIC_ITEM_RULES, IG_ENCHANTMENTS } from './systems/intuitive-games/items';
 import { IG_SKILL_RULES, IG_COMBAT_SKILL_RULES, IG_COMBAT_SKILLS, IG_BUILD_STEPS, IG_ALT_BUILD_ROLLING, IG_PROGRESSION_NOTE, IG_DAMAGE_SAVE_RULES, IG_DAMAGE_TYPE_DATA, IG_COVER, IG_MOVEMENT_RULES, IG_SIZE_CATEGORIES, IG_SIZE_NOTE, IG_SPELL_ROSTER, igSpellsMissingEffects, igPowersNotInRoster } from './systems/intuitive-games/content';
@@ -398,10 +399,44 @@ export function libraryPageFor(key: CharacterSystem, extraHomebrew: readonly Hom
         }),
       });
     } else {
+      // OWNER, 2026-07-30: *"if we have the classes listed, the feats listed, the races listed, etc, that
+      // those are all clickable to also open up and reveal all of the system info about that class or feat
+      // or race."*
+      //
+      // These were bare name CHIPS — a row of words with nothing behind them, on the two systems where a
+      // reader is most likely to look one up. IG already had per-ancestry accordions (above); 5e had a list
+      // of eleven names.
+      //
+      // The detail was already in the codebase: `speciesCatalogFor` resolves size, speed, senses, languages,
+      // lineages, the edition's ability-increase rule and every trait line, for both 5e editions. It powers
+      // the sheet's species panel and simply had no reader on the library page. So this is a WIRING fix, not
+      // authored content — nothing here is written by hand, which is also why it cannot drift from what the
+      // sheet shows a player.
+      //
+      // Falls back to chips when a system has no catalog (PF2's ancestries are not in this data yet), because
+      // a name with nothing behind it is still better than omitting the section.
+      const catalog = speciesCatalogFor(r.key);
+      const entries: LibraryEntry[] = catalog.map((s) => {
+        const facts = [
+          s.size ? `**Size** — ${s.size}` : null,
+          s.speed != null ? `**Speed** — ${s.speed} ft.` : null,
+          s.senses?.length ? `**Senses** — ${s.senses.join(', ')}` : null,
+          s.languages?.length ? `**Languages** — ${s.languages.join(', ')}` : null,
+          s.heritages?.length ? `**Lineages** — ${s.heritages.join(', ')}` : null,
+        ].filter(Boolean) as string[];
+        return {
+          name: s.name,
+          // The brief is what a reader scans, so it carries the two facts that distinguish one lineage from
+          // another at a glance rather than the first trait's name.
+          brief: [s.size, s.speed != null ? `${s.speed} ft.` : null].filter(Boolean).join(' · ') || undefined,
+          detail: [...facts, ...s.traits.map((t) => `**${t.name}** — ${t.text}`)].join('\n\n'),
+        };
+      });
       sections.push({
         id: 'species',
         title: speciesNoun(r.key),
-        chips: r.content.species,
+        lead: entries.length ? `${entries.length} — tap one for its size, speed, senses and every trait.` : undefined,
+        ...(entries.length ? { entries } : { chips: r.content.species }),
         body: r.content.ancestryNotes?.length ? r.content.ancestryNotes : undefined,
       });
     }

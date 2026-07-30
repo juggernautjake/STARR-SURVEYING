@@ -52,7 +52,10 @@ export default function CollapsibleSection({
 }: CollapsibleSectionProps) {
   return (
     <details id={id} className={styles.framedPanel} style={{ padding, scrollMarginTop: 16 }} open={defaultOpen}>
-      <summary className={styles.sectionSummary} style={{ cursor: 'pointer', listStyle: 'revert' }}>
+      {/* `disclosure` draws the rotating chevron and hides the native marker — see hextech.module.css.
+          The native triangle was technically present and effectively invisible on a dark panel, which is
+          what made a page of openable sections read as a page of headings (owner 2026-07-30). */}
+      <summary className={`${styles.sectionSummary} ${styles.disclosure}`}>
         <h2 className={styles.panelTitle} style={{ margin: 0, display: 'inline' }}>
           {title}
         </h2>

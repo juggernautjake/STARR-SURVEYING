@@ -2218,3 +2218,50 @@ select.input {
   .builderGrid { grid-template-columns: 1fr; }
   .builderRail { position: static; }
 }
+
+/* ── Disclosure affordance ─────────────────────────────────────────────────────────────────────────────
+   OWNER, 2026-07-30: *"Please make it in the library for each section that there is a drop down arrow on
+   each section. Right now it is not obvious that each section can be opened to view the content."*
+
+   Every one of these was ALREADY a native `<details>` — the sections, the per-entry rows, the class rows,
+   the glossary, the spells. Nothing was un-openable; the browser's default triangle is simply almost
+   invisible against a dark panel at 13px, so a page of openable things read as a page of headings.
+
+   So this is one shared treatment rather than an arrow added per call site: hide the native marker and draw
+   a chevron that ROTATES on open. Rotation matters more than the glyph — a mark that changes when you act
+   on it is what tells a reader the thing is a control, and it doubles as the open/closed state.
+
+   `list-style: none` plus `::-webkit-details-marker` covers both marker implementations; without the
+   WebKit rule Safari keeps its own triangle and the row gets two. */
+.disclosure {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.disclosure::-webkit-details-marker {
+  display: none;
+}
+.disclosure::before {
+  content: '▸';
+  flex: 0 0 auto;
+  color: var(--hx-teal-1);
+  font-size: 0.85em;
+  line-height: 1;
+  transition: transform 0.16s ease;
+  /* Rotation about the glyph's own middle, or the arrow drifts sideways as it turns. */
+  transform-origin: 50% 50%;
+}
+details[open] > .disclosure::before {
+  transform: rotate(90deg);
+}
+/* The arrow is the affordance, so it brightens with the row rather than staying flat. */
+.disclosure:hover::before {
+  color: var(--hx-gold-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .disclosure::before {
+    transition: none;
+  }
+}
