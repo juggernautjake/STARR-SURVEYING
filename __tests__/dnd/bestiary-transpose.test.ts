@@ -140,6 +140,41 @@ describe('G5 — nothing is invented', () => {
     const ooze = { ...goblinPf2, type: 'petitioner' };     // PF2-only; no 5e counterpart
     expect(transposeCreature(ooze, 'dnd5e-2014').unmapped.join(' ')).toMatch(/no counterpart/);
   });
+
+  it('reads the type line a publisher actually prints, not a bare word', () => {
+    // Both sources decorate the type: the SRD writes "Medium swarm of Tiny beasts" and "humanoid
+    // (goblinoid)". Matching those raw strings against the map missed, and the creature was reported as
+    // having no counterpart in a system that names it perfectly well — 8 of Intuitive Games' 200 arrived
+    // typed `swarm of Tiny beasts` with a spurious warning attached.
+    const swarm = { ...ogre5e, type: 'swarm of Tiny beasts' };
+    const r = transposeCreature(swarm, 'intuitive-games');
+    expect(r.type).toBe('swarm');
+    expect(r.unmapped.join(' ')).not.toMatch(/no counterpart/);
+
+    expect(transposeCreature({ ...ogre5e, type: 'humanoid (goblinoid)' }, 'pathfinder2e').type).toBe('humanoid');
+  });
+
+  it('names the systems in play and no others', () => {
+    // The AC, saves and CR warnings were written when Pathfinder was the only possible target, so they said
+    // so outright. With Intuitive Games as a fourth system every one of its 200 transposed creatures told
+    // its reader that "Pathfinder 2e climbs with level to the 50s" — a true sentence about a game they are
+    // not playing, attached to the numbers they most need to trust.
+    const r = transposeCreature(ogre5e, 'intuitive-games');
+    const text = r.unmapped.join(' ');
+    expect(text).not.toMatch(/Pathfinder/);
+    expect(text).toMatch(/Intuitive Games/);
+
+    // …and the concrete PF2 detail is still there when Pathfinder actually is one of the two.
+    expect(transposeCreature(ogre5e, 'pathfinder2e').unmapped.join(' ')).toMatch(/Pathfinder 2e climbs with level/);
+  });
+
+  it('still marks a word it does not recognise rather than coercing it', () => {
+    // The normalisation must not become a way of always finding SOMETHING. An invented type has to keep
+    // falling through to the warning, or G5's "never invents rules" is enforced nowhere.
+    const r = transposeCreature({ ...ogre5e, type: 'chronovore' }, 'pathfinder2e');
+    expect(r.type).toBeUndefined();
+    expect(r.unmapped.join(' ')).toMatch(/no counterpart/);
+  });
 });
 
 describe('edge cases', () => {

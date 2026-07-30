@@ -53,8 +53,9 @@ const systemName = (key: string) => GAME_SYSTEMS.find((s) => s.key === key)?.nam
 
 /** The systems a creature can be carried into. Kept here rather than derived from `GAME_SYSTEMS` because
  *  `transposeCreature` only knows how to convert between these — offering a target it cannot handle would
- *  produce a page of warnings and nothing else. */
-const TRANSPOSE_TARGETS: BestiarySystem[] = ['dnd5e-2014', 'dnd5e-2024', 'pathfinder2e'];
+ *  produce a page of warnings and nothing else. Intuitive Games joined the list with B4-2, once its type
+ *  vocabulary was mapped; before that every conversion into it marked the creature's type as unmappable. */
+const TRANSPOSE_TARGETS: BestiarySystem[] = ['dnd5e-2014', 'dnd5e-2024', 'pathfinder2e', 'intuitive-games'];
 
 export default async function CreaturePage({
   params,
@@ -124,7 +125,35 @@ export default async function CreaturePage({
                 </div>
               </div>
 
-              {c.description && <p style={{ margin: 0 }}>{c.description}</p>}
+              {/* Rendered paragraph by paragraph, because the description is AUTHORED with structure and a
+                  single <p> throws it away. A transposed creature's prose ends with the list of numbers the
+                  conversion could not honestly carry ("• AC 10 was carried over unchanged…") — the one part
+                  of the page a DM must not scroll past — and collapsed into running text it read as a wall
+                  nobody finishes. Bullets keep their hanging indent so the list looks like a list. */}
+              {c.description && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {c.description.split(/\n{2,}/).map((para, i) => {
+                    const lines = para.split('\n').filter((l) => l.trim());
+                    const bullets = lines.filter((l) => l.trim().startsWith('•'));
+                    // A paragraph counts as a list only when every line but a leading lead-in is a bullet,
+                    // so ordinary prose that happens to contain a • is left alone.
+                    if (bullets.length && bullets.length >= lines.length - 1) {
+                      const lead = lines[0].trim().startsWith('•') ? null : lines[0];
+                      return (
+                        <div key={i} style={{ display: 'grid', gap: 4 }}>
+                          {lead && <p style={{ margin: 0 }}>{lead}</p>}
+                          <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>
+                            {bullets.map((b, j) => (
+                              <li key={j} style={{ margin: 0 }}>{b.replace(/^\s*•\s*/, '')}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    }
+                    return <p key={i} style={{ margin: 0 }}>{para}</p>;
+                  })}
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 {/* B3-3, live: the same control the Studio uses, pointed at a catalogue row. Name, art and

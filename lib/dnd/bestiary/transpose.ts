@@ -33,6 +33,7 @@
 // one is arithmetic and honesty, and it is what should run first — if a number converts exactly, no model
 // should be asked to imagine it.
 import { STATBLOCK_ABILITIES, type Statblock, type StatblockAbility } from '@/lib/dnd/homebrew/statblock';
+import { normalizeCreatureType } from './taxonomy';
 
 export type BestiarySystem = 'dnd5e-2014' | 'dnd5e-2024' | 'pathfinder2e' | 'intuitive-games';
 
@@ -65,29 +66,45 @@ export const scoreToMod = (score: number): number => Math.floor((score - 10) / 2
  *  wherever it is used, because a reader deserves to know the score was reconstructed rather than stated. */
 export const modToScore = (mod: number): number => 10 + mod * 2;
 
-/** Creature types both systems name. PF2 has `animal`/`beast` where 5e has only `beast`, and several PF2
- *  types (`astral`, `dream`, `time`, `petitioner`, `shade`, `spirit`, `monitor`, `fungus`) have no 5e
- *  equivalent at all — those are marked rather than mapped to something approximate. */
+/** Creature types the systems name in common. PF2 has `animal`/`beast` where 5e has only `beast`, and
+ *  several PF2 types (`astral`, `dream`, `time`, `petitioner`, `shade`, `spirit`, `monitor`, `fungus`) have
+ *  no 5e equivalent at all — those are marked rather than mapped to something approximate.
+ *
+ *  Intuitive Games uses the STANDARD type words (`taxonomy.ts`), so each row maps to itself. That is written
+ *  out per row rather than short-circuited with an identity fallback, because a fallback would also happily
+ *  "map" `dream` and `petitioner` into a system that has no such thing — which is the exact invention G5
+ *  forbids. An absent entry has to keep meaning "no counterpart". */
 const TYPE_MAP: Record<string, Partial<Record<BestiarySystem, string>>> = {
-  aberration:  { 'dnd5e-2014': 'aberration', pathfinder2e: 'aberration' },
-  beast:       { 'dnd5e-2014': 'beast',      pathfinder2e: 'animal' },
-  animal:      { 'dnd5e-2014': 'beast',      pathfinder2e: 'animal' },
-  celestial:   { 'dnd5e-2014': 'celestial',  pathfinder2e: 'celestial' },
-  construct:   { 'dnd5e-2014': 'construct',  pathfinder2e: 'construct' },
-  dragon:      { 'dnd5e-2014': 'dragon',     pathfinder2e: 'dragon' },
-  elemental:   { 'dnd5e-2014': 'elemental',  pathfinder2e: 'elemental' },
-  fey:         { 'dnd5e-2014': 'fey',        pathfinder2e: 'fey' },
-  fiend:       { 'dnd5e-2014': 'fiend',      pathfinder2e: 'fiend' },
-  giant:       { 'dnd5e-2014': 'giant',      pathfinder2e: 'giant' },
-  humanoid:    { 'dnd5e-2014': 'humanoid',   pathfinder2e: 'humanoid' },
-  monstrosity: { 'dnd5e-2014': 'monstrosity', pathfinder2e: 'beast' },
-  ooze:        { 'dnd5e-2014': 'ooze',       pathfinder2e: 'ooze' },
-  plant:       { 'dnd5e-2014': 'plant',      pathfinder2e: 'plant' },
-  undead:      { 'dnd5e-2014': 'undead',     pathfinder2e: 'undead' },
+  aberration:  { 'dnd5e-2014': 'aberration',  pathfinder2e: 'aberration', 'intuitive-games': 'aberration' },
+  beast:       { 'dnd5e-2014': 'beast',       pathfinder2e: 'animal',     'intuitive-games': 'beast' },
+  animal:      { 'dnd5e-2014': 'beast',       pathfinder2e: 'animal',     'intuitive-games': 'beast' },
+  celestial:   { 'dnd5e-2014': 'celestial',   pathfinder2e: 'celestial',  'intuitive-games': 'celestial' },
+  construct:   { 'dnd5e-2014': 'construct',   pathfinder2e: 'construct',  'intuitive-games': 'construct' },
+  dragon:      { 'dnd5e-2014': 'dragon',      pathfinder2e: 'dragon',     'intuitive-games': 'dragon' },
+  elemental:   { 'dnd5e-2014': 'elemental',   pathfinder2e: 'elemental',  'intuitive-games': 'elemental' },
+  fey:         { 'dnd5e-2014': 'fey',         pathfinder2e: 'fey',        'intuitive-games': 'fey' },
+  fiend:       { 'dnd5e-2014': 'fiend',       pathfinder2e: 'fiend',      'intuitive-games': 'fiend' },
+  giant:       { 'dnd5e-2014': 'giant',       pathfinder2e: 'giant',      'intuitive-games': 'giant' },
+  humanoid:    { 'dnd5e-2014': 'humanoid',    pathfinder2e: 'humanoid',   'intuitive-games': 'humanoid' },
+  monstrosity: { 'dnd5e-2014': 'monstrosity', pathfinder2e: 'beast',      'intuitive-games': 'monstrosity' },
+  ooze:        { 'dnd5e-2014': 'ooze',        pathfinder2e: 'ooze',       'intuitive-games': 'ooze' },
+  plant:       { 'dnd5e-2014': 'plant',       pathfinder2e: 'plant',      'intuitive-games': 'plant' },
+  undead:      { 'dnd5e-2014': 'undead',      pathfinder2e: 'undead',     'intuitive-games': 'undead' },
+  swarm:       { 'dnd5e-2014': 'swarm',       'intuitive-games': 'swarm' },
 };
 
 const isPf2 = (s: string) => s === 'pathfinder2e';
 const family = (s: string): BestiarySystem => (s as BestiarySystem);
+
+/** The names a reader knows the systems by. A warning that names the wrong game is worse than a vague one:
+ *  it tells the DM the tool does not know what it is doing, which is exactly the trust these notes need. */
+const SYSTEM_NAMES: Record<BestiarySystem, string> = {
+  'dnd5e-2014': 'D&D 5e (2014)',
+  'dnd5e-2024': 'D&D 5e (2024)',
+  pathfinder2e: 'Pathfinder 2e',
+  'intuitive-games': 'Intuitive Games',
+};
+const systemName = (s: string) => SYSTEM_NAMES[s as BestiarySystem] ?? s;
 
 /**
  * Convert a creature to another system.
@@ -149,10 +166,18 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
   // ── the numbers that DO NOT convert ──────────────────────────────────────────────────────────────
   if (sb.ac !== undefined) {
     out.ac = sb.ac;
+    // The concrete 5e-versus-PF2 spread is the most useful thing to say — but ONLY when Pathfinder is one
+    // of the two systems. Said on a 5e → Intuitive Games conversion it names a game the reader is not
+    // playing, which is how a warning stops being read. Every one of Intuitive Games' 200 transposed
+    // creatures carried that sentence before this was fixed.
+    const scales = toPf2 || fromPf2
+      ? "The two systems' armour classes are on different scales (5e spans roughly 10–25 across the whole "
+        + 'game; Pathfinder 2e climbs with level to the 50s), and no published conversion exists.'
+      : `${systemName(from)} and ${systemName(target)} set armour class against different baselines, and no `
+        + 'published conversion between them exists.';
     unmapped.push(
-      `AC ${sb.ac} was carried over unchanged. The two systems' armour classes are on different scales `
-      + '(5e spans roughly 10–25 across the whole game; Pathfinder 2e climbs with level to the 50s), and no '
-      + 'published conversion exists. Set this from the target system\'s own table for the intended level.',
+      `AC ${sb.ac} was carried over unchanged. ${scales} `
+      + `Set this from ${systemName(target)}'s own table for the intended level.`,
     );
   }
   if (sb.hp !== undefined) {
@@ -169,8 +194,11 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
       fromPf2
         ? 'Saves are Pathfinder 2e\'s Fortitude/Reflex/Will. 5e uses six ability saves; the closest reading '
           + 'is Fort→CON, Ref→DEX, Will→WIS, but the numbers still need setting for the target system.'
-        : 'Saves are 5e\'s per-ability bonuses. Pathfinder 2e has three (Fortitude/Reflex/Will) on a '
-          + 'different scale, so these carry across as a reference rather than a conversion.',
+        : toPf2
+          ? 'Saves are 5e\'s per-ability bonuses. Pathfinder 2e has three (Fortitude/Reflex/Will) on a '
+            + 'different scale, so these carry across as a reference rather than a conversion.'
+          : `Saves are ${systemName(from)}'s numbers on ${systemName(from)}'s scale. They carry across as a `
+            + `reference rather than a conversion — set them from ${systemName(target)}'s own maths.`,
     );
   }
   if (sb.skills) out.skills = sb.skills;
@@ -186,13 +214,23 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
       fromPf2
         ? `Source level ${input.cr} is kept as-is. A Pathfinder 2e level and a 5e challenge rating measure `
           + 'different things and are not interchangeable.'
-        : `Source CR ${input.cr} is kept as-is. Pathfinder 2e rates creatures by level, which is not the `
-          + 'same quantity as a challenge rating.',
+        : toPf2
+          ? `Source CR ${input.cr} is kept as-is. Pathfinder 2e rates creatures by level, which is not the `
+            + 'same quantity as a challenge rating.'
+          : `Source CR ${input.cr} is kept as-is. It rates the creature against ${systemName(from)}'s party `
+            + `maths, not ${systemName(target)}'s — check it against the table you are actually running.`,
     );
   }
 
   // ── type + size ──────────────────────────────────────────────────────────────────────────────────
-  const t = (input.type ?? '').trim().toLowerCase();
+  // The lookup goes through `normalizeCreatureType` because a published type line is NOT a bare word: the
+  // SRD prints `swarm of Tiny beasts` and `humanoid (goblinoid)`, and Pathfinder prints `fiend (demon)`.
+  // Matching the raw string against the map meant those creatures fell through and were reported as having
+  // "no counterpart" in a system that names them perfectly well — 8 of IG's 200 arrived typed
+  // `swarm of Tiny beasts` with a spurious warning attached. The raw string is kept as the fallback key so
+  // an unrecognised word still misses the map (and is still marked) rather than being coerced to something.
+  const raw = (input.type ?? '').trim().toLowerCase();
+  const t = normalizeCreatureType(input.type) ?? raw;
   // Type lives on the ROW (`dnd_creatures.type`), not inside the statblock — so the mapped value is
   // returned at the top level of the result rather than written into `out`.
   const mappedType = t ? TYPE_MAP[t]?.[target] : undefined;

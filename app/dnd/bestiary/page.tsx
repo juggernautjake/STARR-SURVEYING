@@ -28,7 +28,11 @@ export const metadata: Metadata = { title: 'Bestiary | Starr Tabletop' };
 /** Always fresh: the catalogue grows by import, and a cached empty bestiary would look like a broken one. */
 export const dynamic = 'force-dynamic';
 
-type Search = { system?: string; tag?: string; type?: string; band?: string; alignment?: string; q?: string };
+type Search = { system?: string; tag?: string; type?: string; band?: string; alignment?: string; q?: string; page?: string };
+
+/** How many creatures a page shows. `loadBestiary` caps at 200; 60 fills three or four rows of cards at
+ *  desktop widths and keeps the aura count per page well inside what the still-tint renderer is cheap at. */
+const PAGE_SIZE = 60;
 
 const systemName = (key: string) => GAME_SYSTEMS.find((s) => s.key === key)?.name ?? key;
 
@@ -38,15 +42,21 @@ function withFilter(current: Search, key: keyof Search, value: string | null): s
   for (const [k, v] of Object.entries(current)) if (v) next[k] = String(v);
   if (!value || next[key] === value) delete next[key];
   else next[key] = value;
+  // Changing a filter always returns to page 1. Keeping the page number would land a reader on "page 7 of
+  // 2" — an empty result that reads as "no dragons" rather than "you were past the end".
+  if (key !== 'page') delete next.page;
   const qs = new URLSearchParams(next).toString();
   return qs ? `/dnd/bestiary?${qs}` : '/dnd/bestiary';
 }
 
 export default async function BestiaryPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
+  const page = Math.max(1, Number(sp.page) || 1);
   const { creatures, total, facets } = await loadBestiary({
     system: sp.system, tag: sp.tag, type: sp.type, band: sp.band, alignment: sp.alignment, q: sp.q,
+    limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
   });
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const anyFilter = Boolean(sp.system || sp.tag || sp.type || sp.band || sp.alignment || sp.q);
 
@@ -129,14 +139,33 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
             <div className={styles.framedPanelTop} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
               <h2 className={styles.panelTitle} style={{ margin: 0 }}>
-                {total === 0 ? 'Creatures' : `${creatures.length === total ? total : `${creatures.length} of ${total}`} creature${total === 1 ? '' : 's'}`}
+                {total === 0
+                  ? 'Creatures'
+                  : creatures.length === total
+                    ? `${total} creature${total === 1 ? '' : 's'}`
+                    // The RANGE, not "60 of 3523". A bare count with a page of results under it gives a
+                    // reader no idea where they are in the catalogue or whether they have seen a given
+                    // creature already.
+                    : `${(page - 1) * PAGE_SIZE + 1}–${(page - 1) * PAGE_SIZE + creatures.length} of ${total} creatures`}
               </h2>
+              {pageCount > 1 && (
+                <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Page {page} of {pageCount}</span>
+              )}
             </div>
+
+            {/* A reader who lands past the end gets told so, rather than the "nothing matches those filters"
+                message below — which would send them clearing filters that were working perfectly. */}
+            {creatures.length === 0 && total > 0 && (
+              <p style={{ color: 'var(--hx-muted)', fontSize: 13.5, margin: '10px 0 0' }}>
+                Page {page} is past the end of {total} result{total === 1 ? '' : 's'}.{' '}
+                <Link href={withFilter(sp, 'page', null)} style={{ color: 'var(--hx-teal-1)' }}>Back to the first page</Link>.
+              </p>
+            )}
 
             {/* THE EMPTY STATE SAYS WHICH KIND OF EMPTY IT IS. "No creatures" reads as a broken page; distinguishing
                 "nothing imported yet" from "nothing matches your filters" is the difference between a reader
                 clearing a filter and a reader concluding the bestiary does not work. */}
-            {creatures.length === 0 && (
+            {total === 0 && (
               <p style={{ color: 'var(--hx-muted)', fontSize: 13.5, margin: '10px 0 0', maxWidth: 640 }}>
                 {anyFilter ? (
                   <>
@@ -182,6 +211,46 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
                 </Link>
               ))}
             </div>
+
+            {/* THE PAGER. Its absence was a real defect rather than a missing nicety: `loadBestiary` has
+                always taken `limit`/`offset` and the page has always asked for one page, so with 3,523
+                creatures catalogued every result past the sixtieth was unreachable by browsing — the
+                bestiary reported "60 of 271 dragons" and offered no way to the other 211. G7 is
+                "make sure we can actually find them", and a first page is not a catalogue.
+
+                LINKS, not a client control, for the same reason the filters are: the whole page stays a
+                server component and every page of every filtered view is a shareable URL. */}
+            {pageCount > 1 && (
+              <nav
+                aria-label="Bestiary pages"
+                style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--hx-line)' }}
+              >
+                {page > 1 ? (
+                  <Link className={styles.hexBtn} href={withFilter(sp, 'page', page - 1 === 1 ? null : String(page - 1))}>
+                    ← Previous
+                  </Link>
+                ) : <span />}
+
+                <span style={{ fontSize: 12, color: 'var(--hx-muted)', margin: '0 auto' }}>
+                  Page {page} of {pageCount}
+                </span>
+
+                {page < pageCount ? (
+                  <Link className={styles.hexBtn} href={withFilter(sp, 'page', String(page + 1))}>Next →</Link>
+                ) : <span />}
+
+                {/* The last page is one click away even at 59 pages, because "what is the strongest thing
+                    in here" is a question a DM actually asks and the list is sorted weakest first. */}
+                {page < pageCount && (
+                  <Link
+                    href={withFilter(sp, 'page', String(pageCount))}
+                    style={{ fontSize: 11.5, color: 'var(--hx-muted)', textDecoration: 'none' }}
+                  >
+                    Last ({pageCount})
+                  </Link>
+                )}
+              </nav>
+            )}
           </section>
         </div>
       </div>

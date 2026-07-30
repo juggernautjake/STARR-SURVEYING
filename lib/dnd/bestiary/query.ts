@@ -149,9 +149,12 @@ export async function loadBestiary(filters: BestiaryFilters = {}): Promise<Besti
   return {
     creatures: (data ?? []).map((r: unknown) => toCreature(r as Record<string, unknown>)),
     total: count ?? 0,
-    facets: await loadFacets(),
+    facets: await loadFacets(filters.system),
   };
 }
+
+/** Facet reads scan rows rather than aggregate, so the ceiling is stated instead of discovered. See below. */
+const FACET_SCAN_CEILING = 20000;
 
 /**
  * The values that actually exist in the catalogue, for the filter UI.
@@ -159,18 +162,45 @@ export async function loadBestiary(filters: BestiaryFilters = {}): Promise<Besti
  * Offering a filter that matches nothing is worse than offering none: it reads as "the bestiary has no dragons"
  * when it means "no dragons have been imported yet". So the facets come from the data, and tags are intersected
  * with `CREATURE_TAGS` so a stale tag left in a row cannot invent a category the taxonomy no longer has.
+ *
+ * SCOPED TO THE CHOSEN SYSTEM, which the first version was not — and B4-2 is what exposed it. The four
+ * catalogues have genuinely different vocabularies: Pathfinder names `astral`, `monitor`, `spirit` and
+ * `fungus` creatures that no other system has. Reading facets from the whole table therefore offered a DM
+ * browsing Intuitive Games five categories and a dozen types that return nothing at all — precisely the
+ * "no dragons" versus "no dragons imported yet" confusion this function exists to prevent, arrived at from
+ * the other direction.
+ *
+ * Only `system` narrows the facets, deliberately. Type, alignment, tag and CR band are co-filters WITHIN a
+ * catalogue, and cross-filtering them would make the chips a DM is using disappear as they narrow — pick
+ * "dragon" and every other type vanishes, so there is no way back without clearing. System is different in
+ * kind: a creature belongs to exactly one, so its catalogue is a partition rather than a narrowing.
  */
-async function loadFacets(): Promise<BestiaryPage['facets']> {
-  const { data, error } = await supabaseAdmin.from('dnd_creatures').select('system, type, alignment, tags');
+async function loadFacets(system?: string | null): Promise<BestiaryPage['facets']> {
+  // The system list must span the WHOLE table even when the view is scoped — otherwise choosing a system
+  // would hide every other system's chip and strand the reader inside it.
+  const all = supabaseAdmin.from('dnd_creatures').select('system').range(0, FACET_SCAN_CEILING);
+  let scoped = supabaseAdmin.from('dnd_creatures').select('type, alignment, tags').range(0, FACET_SCAN_CEILING);
+  if (system) scoped = scoped.eq('system', system);
+
+  const [{ data: allData, error: allErr }, { data, error }] = await Promise.all([all, scoped]);
+  if (allErr) throw new Error(`bestiary system facet failed: ${allErr.message}`);
   if (error) throw new Error(`bestiary facets failed: ${error.message}`);
-  const rows = (data ?? []) as Array<{ system: string; type: string | null; alignment: string | null; tags: string[] | null }>;
+  const rows = (data ?? []) as Array<{ type: string | null; alignment: string | null; tags: string[] | null }>;
+
+  // G6, "nothing silently truncates". A facet read that hits its own ceiling would quietly stop offering
+  // the categories in the rows it never saw, and the page would look complete. The catalogue is ~1k rows
+  // today, so this is a tripwire rather than a limit — but an unstated row cap is how a filter list starts
+  // lying after an import.
+  if (rows.length > FACET_SCAN_CEILING || (allData ?? []).length > FACET_SCAN_CEILING) {
+    throw new Error('bestiary facets: catalogue exceeds the facet scan ceiling; aggregate them in the database instead');
+  }
 
   const systems = new Set<string>();
   const types = new Set<string>();
   const alignments = new Set<string>();
   const tags = new Set<string>();
+  for (const r of (allData ?? []) as Array<{ system: string }>) if (r.system) systems.add(r.system);
   for (const r of rows) {
-    if (r.system) systems.add(r.system);
     if (r.type) types.add(r.type);
     if (r.alignment) alignments.add(r.alignment);
     for (const t of r.tags ?? []) tags.add(t);
