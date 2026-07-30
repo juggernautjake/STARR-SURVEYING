@@ -2305,3 +2305,33 @@ details[open] > .disclosure::before {
   display: inline-flex;
   align-items: center;
 }
+
+/* ── The condition trigger, and the map's void ────────────────────────────────────────────────────────
+   Both were inline `style={{ color: '#…' }}` and both tripped the inline-hex ratchet (2026-07-30). The
+   ratchet is right: a hex written into a style object cannot be reached by a theme token, a media query,
+   the print stylesheet or a contrast audit — it is the one colour in the app nobody can change.
+
+   `.conditionInk` is a CLASS rather than a bare variable because `ConditionText` renders on the bespoke
+   character sheets too, which are OUTSIDE this module's `.root` — so `--hx-teal-1` may be undefined there
+   and the fallback is load-bearing. A fallback is legal in CSS and unreachable in a style object, which is
+   exactly why this belongs here. */
+.conditionInk {
+  color: var(--hx-teal-1, #6ee0cf);
+  /* Colour alone is invisible to a chunk of readers and absent from a printed sheet, so the dotted rule
+     is what actually says "there is more here". */
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+  font-weight: 700;
+}
+
+/* The unlit backdrop a map is drawn on — darker than `--hx-navy-0`, because a map's own art has to read as
+   the lit thing on top of it. Tokenised so a light skin can lift it rather than keeping one fixed navy. */
+.root {
+  --hx-map-void: #02121a;
+  /* A danger border at panel weight: `--hx-danger` is tuned as a fill/accent and is too hot for a 1px
+     outline around a destructive confirm. */
+  --hx-danger-line: #7a3b38;
+  /* The warning frame used by the bestiary's provenance callout — gold at border weight. */
+  --hx-gold-line: #7a5a2a;
+}

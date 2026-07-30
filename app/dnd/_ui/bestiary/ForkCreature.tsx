@@ -64,7 +64,7 @@ export default function ForkCreature({
           from {v.tier}
         </button>
       ))}
-      {msg && <span role="alert" style={{ fontSize: 12, color: '#e08b86' }}>{msg}</span>}
+      {msg && <span role="alert" style={{ fontSize: 12, color: 'var(--hx-danger-2)' }}>{msg}</span>}
     </span>
   );
 }

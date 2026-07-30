@@ -17,6 +17,7 @@
 // condition name is a word in a sentence rather than a marker someone is hunting for.
 import { Fragment } from 'react';
 import Tip from './Tip';
+import styles from './hextech.module.css';
 import { annotateConditions, conditionTooltip, isMatch } from '@/lib/dnd/conditions/annotate';
 
 export default function ConditionText({
@@ -46,18 +47,11 @@ export default function ConditionText({
             // The condition word IS the trigger — bold and tinted, per the ask. A dotted underline says
             // "there is more here" to a reader who is not moving a mouse, which colour alone does not:
             // colour is invisible to a chunk of readers and absent from a printed sheet.
-            glyph={
-              <strong
-                style={{
-                  color: 'var(--hx-teal-1, #6ee0cf)',
-                  textDecoration: 'underline dotted',
-                  textUnderlineOffset: 3,
-                  cursor: 'help',
-                }}
-              >
-                {s.text}
-              </strong>
-            }
+            // A MODULE CLASS, not a style object: this renders on the bespoke character sheets too, which
+            // are outside the hextech `.root`, so `--hx-teal-1` can be undefined there and the fallback in
+            // `var(--hx-teal-1, …)` is load-bearing. A fallback is legal in CSS and impossible in a style
+            // object without hard-coding a hex no theme can reach.
+            glyph={<strong className={styles.conditionInk}>{s.text}</strong>}
           />
         ) : (
           <Fragment key={i}>{s.text}</Fragment>

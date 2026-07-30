@@ -37,7 +37,40 @@ function deleteBody(rel: string): string {
   const start = src.indexOf('export async function DELETE');
   const rest = src.slice(start + 1);
   const next = rest.indexOf('\nexport async function ');
-  return next === -1 ? rest : rest.slice(0, next);
+  const own = next === -1 ? rest : rest.slice(0, next);
+  return own + inlinedHelpers(src, own);
+}
+
+/**
+ * The bodies of same-file helper functions the DELETE actually CALLS.
+ *
+ * Added 2026-07-30, when M4-2's `map-objects` route failed this sweep while being correctly gated: it
+ * factors its check into `nodeGate()`, which resolves the object's node, reads THAT node's campaign_id and
+ * calls `getCampaignRole` on it — a stronger check than most routes here perform, and invisible to a scan
+ * of the handler body alone.
+ *
+ * Left unfixed, this guard would have taught the codebase the wrong lesson: that shared auth must be
+ * copy-pasted into each verb to look safe, when three verbs sharing one gate is exactly how you keep them
+ * from drifting apart. The alternatives were worse — inlining the check to satisfy a text match, or adding
+ * the route to an exemption list, which is the thing this file's own comment tells you not to do.
+ *
+ * DELIBERATELY ONE LEVEL AND SAME-FILE ONLY. A helper defined beside the handler is as readable as the
+ * handler; following imports across the tree would turn a guard you can verify by eye into one that can be
+ * satisfied from somewhere nobody looks.
+ */
+function inlinedHelpers(src: string, body: string): string {
+  let out = '';
+  // `async function nodeGate(` / `function place(` — module-scope helpers, not the exported handlers.
+  const decl = /^(?:async )?function (\w+)\s*\(/gm;
+  for (let m = decl.exec(src); m; m = decl.exec(src)) {
+    const name = m[1];
+    // Only if the DELETE calls it. A helper the handler never invokes protects nothing.
+    if (!new RegExp(`\\b${name}\\s*\\(`).test(body)) continue;
+    const from = m.index;
+    const nextDecl = src.slice(from + 1).search(/^(?:export )?(?:async )?function \w+\s*\(/m);
+    out += `\n${nextDecl === -1 ? src.slice(from) : src.slice(from, from + 1 + nextDecl)}`;
+  }
+  return out;
 }
 
 /** The authorization predicates this codebase actually uses. Each answers "whose is it?", not "who are you?".
@@ -76,6 +109,42 @@ const CALLER_PREDICATES = [
   // still has to be paired with an AUTH_PREDICATES match below.
   'getCampaignRole',
 ];
+
+describe('following same-file helpers does not soften the guard', () => {
+  // `inlinedHelpers` widens what counts as authorization, so it needs its own guard: a widening nobody
+  // bounded is how a sweep becomes decorative.
+  const AUTH_IN_HELPER = [
+    'async function gate(id) { if (await getCampaignRole(x) !== "dm") return deny; }',
+    'export async function DELETE(req) { const g = await gate(req); if (g) return g; }',
+  ].join('\n');
+
+  it('counts a helper the DELETE actually calls', () => {
+    const body = 'export async function DELETE(req) { const g = await gate(req); }';
+    expect(inlinedHelpers(AUTH_IN_HELPER, body)).toContain('getCampaignRole');
+  });
+
+  it('does NOT count a helper the DELETE never calls', () => {
+    // The failure mode worth pinning: an auth'd helper sitting in the file next to a DELETE that ignores it.
+    const body = 'export async function DELETE(req) { await db.delete(req.id); }';
+    expect(inlinedHelpers(AUTH_IN_HELPER, body)).not.toContain('getCampaignRole');
+  });
+
+  it('does not reach into another exported handler', () => {
+    // A gate in POST has never protected DELETE, and following helpers must not smuggle that back in.
+    const src = [
+      'export async function POST(req) { if (await getCampaignRole(x) !== "dm") return deny; }',
+      'export async function DELETE(req) { await db.delete(req.id); }',
+    ].join('\n');
+    expect(inlinedHelpers(src, 'export async function DELETE(req) { await db.delete(req.id); }'))
+      .not.toContain('getCampaignRole');
+  });
+
+  it('the real map-objects route passes because of its gate, not by accident', () => {
+    const body = deleteBody('campaigns/[id]/map-objects/route.ts');
+    expect(body).toMatch(/await nodeGate\(/);          // the DELETE calls it
+    expect(body).toMatch(/getCampaignRole\(node\.campaign_id\)/); // and the gate is the real check
+  });
+});
 
 describe('the sweep still covers what it claims', () => {
   it('finds the DELETE routes', () => {

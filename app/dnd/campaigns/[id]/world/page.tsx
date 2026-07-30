@@ -17,6 +17,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import styles from '@/app/dnd/_ui/hextech.module.css';
+import { supabaseAdmin } from '@/lib/supabase';
 import { getDndUser, getCampaignRole } from '@/lib/dnd/auth';
 import { loadMapTree, loadMapObjects } from '@/lib/dnd/maps/query';
 import { readToken, tokenFootprint } from '@/lib/dnd/maps/tokens';
@@ -25,6 +26,7 @@ import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
+import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
 
 export const metadata: Metadata = { title: 'World | Starr Tabletop' };
 export const dynamic = 'force-dynamic';
@@ -60,6 +62,21 @@ export default async function WorldPage({
   // `dm_notes` and never matches a `dm`-visibility object, so a secret does not cross the wire and get
   // hidden in React. `dnd_map_objects` shipped applied with M1-3 and had no reader until now.
   const objects = await loadMapObjects(nodes.map((n) => n.id), { isDm });
+
+  // M4-2 — what the DM can put on the board. The campaign's own characters: a token has to stand for
+  // SOMETHING (G4), and the party is the set a DM reaches for first. Loaded only for the DM, because a
+  // player has nothing to place and the query would be work nobody reads.
+  let placeable: PlaceableSubject[] = [];
+  if (isDm) {
+    const { data: party } = await supabaseAdmin
+      .from('dnd_characters').select('id, name')
+      .eq('campaign_id', campaignId)
+      // `is_library` rows are templates that happen to carry a campaign_id — they are not AT the table.
+      .eq('is_library', false)
+      .order('name');
+    placeable = ((party ?? []) as { id: string; name: string }[])
+      .map((c) => ({ kind: 'character' as const, id: c.id, name: c.name }));
+  }
 
   const roots = rootsOf(nodes);
   // An explicit ?node wins; otherwise the first root — which for a normal campaign is the space map.
@@ -151,7 +168,7 @@ export default async function WorldPage({
                 <MapViewport
                   label={current.name}
                   bounds={{ minX: 0, minY: 0, maxX: 100, maxY: 100 }}
-                  style={{ width: '100%', aspectRatio: '16 / 9', background: '#02121a' }}
+                  style={{ width: '100%', aspectRatio: '16 / 9', background: 'var(--hx-map-void)' }}
                 >
                   {current.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -261,6 +278,23 @@ export default async function WorldPage({
                 </MapViewport>
               </section>
 
+              {/* M4-2 — the placing control sits DIRECTLY UNDER the map it writes to, because "click the
+                  map" is its second half. Putting it up with WorldAuthor would arm a mode whose target is
+                  scrolled off the screen. */}
+              {isDm && (
+                <section className={styles.framedPanel} style={{ padding: '12px 16px' }}>
+                  <div className={styles.framedPanelTop} />
+                  <PlaceToken
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    subjects={placeable}
+                    // The SAME list the map draws, so a token the DM can see is always a token they can
+                    // move — a control listing rows the renderer dropped would offer to move nothing.
+                    placed={nodeTokens.map(({ o, t }) => ({ id: o.id, label: o.label || t.nickname || 'Token' }))}
+                  />
+                </section>
+              )}
+
               {current.blurb && (
                 <p style={{ color: 'var(--hx-muted)', margin: 0, maxWidth: 720, fontSize: 13.5 }}>{current.blurb}</p>
               )}
@@ -289,7 +323,7 @@ export default async function WorldPage({
                           border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', color: 'var(--hx-text)',
                         }}
                       >
-                        <div style={{ aspectRatio: '16 / 10', overflow: 'hidden', background: '#02121a' }}>
+                        <div style={{ aspectRatio: '16 / 10', overflow: 'hidden', background: 'var(--hx-map-void)' }}>
                           {c.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={c.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />

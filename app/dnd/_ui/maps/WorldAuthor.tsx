@@ -54,8 +54,14 @@ export default function WorldAuthor({ campaignId, current, childCount }: WorldAu
 
   // The tier a child should default to: one step finer than its parent, which is what a DM means nine
   // times out of ten. At `site` there is nowhere finer, so it stays.
+  //
+  // With NO parent at all this is the campaign's first map, and it defaults to `space` — the widest scale,
+  // the one the empty state tells the DM to make ("Create a space map above to start"). Falling through to
+  // `site` here made the button and the instruction disagree, so following the instruction took an extra
+  // step that looked like correcting a mistake.
   const childTier = (() => {
-    const i = TIERS.indexOf(current?.tier as (typeof TIERS)[number]);
+    if (!current) return 'space';
+    const i = TIERS.indexOf(current.tier as (typeof TIERS)[number]);
     return i >= 0 && i < TIERS.length - 1 ? TIERS[i + 1] : 'site';
   })();
 
@@ -111,7 +117,7 @@ export default function WorldAuthor({ campaignId, current, childCount }: WorldAu
         {current && (
           <button
             type="button"
-            style={{ ...btn, background: 'rgba(198,64,59,0.14)', color: '#e08b86', borderColor: '#7a3b38' }}
+            style={{ ...btn, background: 'rgba(198,64,59,0.14)', color: 'var(--hx-danger-2)', borderColor: 'var(--hx-danger-line)' }}
             disabled={pending}
             onClick={async () => {
               // NAME WHAT WILL BE DESTROYED. Deleting cascades to the whole subtree, and a bare "Are you
@@ -142,7 +148,7 @@ export default function WorldAuthor({ campaignId, current, childCount }: WorldAu
       </div>
 
       {error && (
-        <p role="alert" style={{ color: '#e08b86', fontSize: 12.5, margin: 0 }}>{error}</p>
+        <p role="alert" style={{ color: 'var(--hx-danger-2)', fontSize: 12.5, margin: 0 }}>{error}</p>
       )}
 
       {open === 'add' && (

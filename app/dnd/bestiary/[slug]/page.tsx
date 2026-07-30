@@ -259,7 +259,7 @@ export default async function CreaturePage({
                 <p style={{ fontSize: 12.5, color: 'var(--hx-muted)', margin: 0 }}>{transposed.note}</p>
                 <CreatureStatblock statblock={transposed.statblock} name={`${c.name} (${systemName(transposed.system)})`} />
                 {transposed.unmapped.length > 0 && (
-                  <div style={{ border: '1px solid #7a5a2a', background: 'rgba(200,154,60,0.08)', padding: '10px 12px' }}>
+                  <div style={{ border: '1px solid var(--hx-gold-line)', background: 'rgba(200,154,60,0.08)', padding: '10px 12px' }}>
                     <strong style={{ fontSize: 11.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--hx-gold-2)' }}>
                       {transposed.unmapped.length} thing{transposed.unmapped.length === 1 ? '' : 's'} need a human
                     </strong>

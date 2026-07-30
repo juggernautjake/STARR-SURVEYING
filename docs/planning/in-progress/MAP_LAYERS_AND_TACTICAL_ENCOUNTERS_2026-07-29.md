@@ -453,9 +453,53 @@ seven levels deep navigable and returnable; back button correct at every level.
 Square or hex, size in pixels, **feet per square**, offset nudge, colour and opacity, snap on/off. Feeds G4:
 the grid is what converts a sheet's speed in feet into squares.
 
-### M4-2 · Place, move, layer
+### M4-2 · Place, move, layer — **SHIPPED 2026-07-30 (place / move / remove); the rest listed below**
 Drag from an asset tray onto the map; move, resize, rotate, z-order, duplicate, delete. Multi-select with
 box-select. Snap to grid, with a modifier to override. Every action goes through the undo machinery (G7).
+
+**What shipped.** `app/api/dnd/campaigns/[id]/map-objects/route.ts` (POST / PATCH / DELETE) and
+`app/dnd/_ui/maps/PlaceToken.tsx`, mounted under the map on the world page for the DM only.
+
+The interaction is **arm, then click the map** rather than drag-from-a-tray. Not a compromise: it is one
+mechanism that covers both placing and moving, it works on touch, and the armed state is a visible bar that
+says what the next click does and how to cancel — a drag has no equivalent of "I am in a mode I forgot
+about". Drag can be layered on later; the write path underneath it is the same three verbs.
+
+**Every rule is enforced server-side, and each was verified against the running app rather than argued
+from the code** (403 player POST/PATCH/DELETE, 401 anonymous, 400 unbound token, 400 non-numeric position,
+404 unknown node — all observed live):
+
+- **The gate reads the NODE's campaign_id, never the URL's `[id]`.** Those are the same thing only if you
+  check; without it a DM of campaign A could write objects onto campaign B's map by naming B's node.
+- **PATCH and DELETE find the node through the object row**, so a caller cannot name their own node to
+  reach someone else's object.
+- **A token bound to nothing is refused (400).** `readToken` already returns null for one and the renderer
+  drops it — so without the refusal the DM places a token, sees nothing, and has no way to find out why.
+  The route and the renderer share the one predicate rather than each having an opinion.
+- **Position is snapped then clamped from the node's own grid and bounds.** Order matters: clamping first
+  can snap a boundary point back outside the map. The client sends a raw coordinate and does no geometry.
+- **A new object defaults to `visibility: 'dm'`.** Revealing is a decision; defaulting to visible would
+  make it an accident. `PlaceToken` opts a *token* into `players` explicitly, because being seen is the
+  one thing a token is for.
+- **Moving is a PATCH, not delete-and-recreate**, so the object keeps its id — and with it its layer,
+  visibility and DM notes. Recreating would silently reset all three, i.e. a "move" that un-hides a token.
+
+**The bug the browser caught, which the tests and the typechecker could not.** The click-to-world
+conversion first divided by the transformed layer's `getBoundingClientRect().width`, on the reasoning that
+"the layer is the world box". It is not: the layer element is *frame*-sized and its children are positioned
+in world units on top of it, so at scale 6.06 in a 1078px frame its rect measures **6536px** while the map
+draws **606px** — every click would have landed at roughly a ninth of where it was aimed. Nothing in a
+green suite says otherwise; one `getBoundingClientRect` in a live page does. The fix uses what is actually
+guaranteed — `transform-origin: 0 0` means the rect's top-left *is* where world (0,0) landed, and
+`--map-scale` (already published for the pins) is the divisor. Verified by aiming at world (30,70) and
+landing at **(29.96, 69.96)**, then moving to (80,20) and landing at **(79.93, 19.99)**.
+
+**Also fixed while in here:** with no maps at all, the empty state said *"Create a space map above to
+start"* while the tier select defaulted to `site` — so following the instruction took an extra step that
+looked like correcting a mistake. `childTier` now returns `space` when there is no parent node.
+
+**Still open in M4-2:** resize, rotate, duplicate, z-order controls, multi-select/box-select, a
+snap-override modifier, and G7 undo integration. The z column is written and read; nothing edits it yet.
 
 ### M4-3 · Asset library
 Reuse the existing File Explorer / media plumbing rather than a new uploader. Campaign-scoped asset tray with
@@ -502,6 +546,12 @@ permanently blank and silently cleared it on every save.
 
 **Still open in M4:** the grid designer (M4-1), drag-to-place objects (M4-2) and the asset tray (M4-3) —
 this slice is node authoring only.
+
+*Update 2026-07-30:* M4-2's core (place / move / remove, DM-gated, server-side snap+clamp) has since
+shipped — see its section above. A DM can now author a map and put the party on it in one sitting, which
+is the first time the answer to *"can we run a session with this?"* is yes rather than "the schema
+supports it". M4-1 is next and is what makes placement mean **squares** instead of arbitrary points:
+without a grid, `snapToGrid` is correctly a no-op and a token stands wherever it was dropped.
 
 ---
 

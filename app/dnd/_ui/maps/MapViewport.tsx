@@ -235,8 +235,8 @@ export default function MapViewport({
             // 44px, the G5 touch minimum, rather than a dainty 24px chevron.
             style={{
               width: 44, height: 44, borderRadius: 8, cursor: 'pointer', fontSize: 18,
-              border: '1px solid var(--hx-line, #2a3b4d)', background: 'rgba(1,10,19,0.72)',
-              color: 'var(--hx-text, #f0e6d2)',
+              border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.72)',
+              color: 'var(--hx-text)',
             }}
           >
             {glyph}
