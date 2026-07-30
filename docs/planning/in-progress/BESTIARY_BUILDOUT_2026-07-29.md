@@ -258,7 +258,52 @@ CSS/SVG only, no images: layered gradients, masked particle fields, `@keyframes`
 static tint. Must be cheap enough for 60 of them in a list view — so list view gets the tint and the detail
 view gets the full animation.
 
-### B2-3 · Public-domain art pipeline
+### B2-3 · Public-domain art pipeline — **decision layer SHIPPED 2026-07-29; the fetch run remains**
+
+Owner, 2026-07-29: *"You are welcome to use any artwork that is representative of the creature for their
+statblock and thumbnail."* Read as: it need not be the canonical illustration — anything that clearly
+depicts the creature is fine. Which is what makes this tractable, because the canonical illustrations are
+exactly the ones nobody can license.
+
+| Piece | What |
+| --- | --- |
+| `seeds/467_dnd_creature_image_provenance.sql` | `image_licence`, `image_attribution`, `image_source_url`, `image_storage_path` + a CHECK. **Applied live.** |
+| `lib/dnd/bestiary/art.ts` | Licence allowlist, attribution builder, search-term derivation. **21 tests.** |
+
+**The rule is in the schema, not in anyone's memory.** A CHECK constraint makes `image_url` unstorable
+without a licence and a credit, so no future importer can add art "temporarily" and leave the attribution
+for later. Verified against the live DB: an unlicensed image is rejected, a licensed one is accepted.
+
+**Why the creature's attribution is not the image's.** `dnd_creatures.attribution` describes the STAT BLOCK
+("SRD 5.1, CC-BY-4.0, Wizards of the Coast"). An illustration is a different work by a different author
+under a different licence — a wolf photograph might be CC-BY-SA-4.0 by a named photographer; a Doré
+engraving is public domain with nobody to credit. Reusing one line for both would state something false,
+and accuracy of credit is the entire requirement of CC-BY.
+
+#### The shortcut that is closed, and why it is worth recording
+
+All 334 SRD creatures imported by B1-3 carry an `image` path, and those files serve fine. **They are not
+usable.** The SRD contains no artwork — the CC-BY-4.0 release covers rules text. The publishing project
+states its **code** is MIT and the **underlying material** is OGL 1.0a; neither statement covers the PNGs,
+and the project makes no provenance claim about them at all. A licence that cannot be stated cannot be
+used, and `/dnd` is publicly reachable by direct link, so this is publishing rather than personal use.
+
+`isAcceptableLicence` therefore treats **unstated as unusable** and is an **allowlist, not a blocklist** — a
+blocklist says yes to everything nobody thought of, and the cost of a false negative here is one creature
+falling back to the generated sigil, which already exists and already looks deliberate.
+
+#### A third fixture-versus-reality bug, caught the same way as the last two
+
+The allowlist was written against SPDX-style names (`cc-by-sa-4.0`). A live Commons query returns
+**`"Public domain"`, `"CC BY 3.0"`, `"CC BY-SA 4.0"`** — spaces, mixed case, human-facing. **Two of those
+three legitimate images would have been refused.** Licence names are now normalised before matching, and
+the test carries the verbatim strings that came off the wire rather than the ones a fixture author would
+invent. Same lesson as `senses` and `speed` in B1-3, and the same fix: run it against the real source.
+
+**Remaining:** `scripts/fetch-creature-art.mjs` — query Commons per creature, download to the `dnd-media`
+bucket (never hotlink), record the provenance, and **look at each candidate before keeping it**. That last
+step is where the vision pass earns its place: a Commons search for "troll" returns Scandinavian folk
+painting, a municipal coat of arms, and internet-troll memes, and no metadata distinguishes them.
 `scripts/fetch-creature-art.mjs`: for each creature, look for a PD/CC image, store it with its attribution in
 the existing media plumbing, and record `image_url` + `image_attribution`. Never a hotlink — files are saved
 locally (G3). Reports coverage honestly (G6).
