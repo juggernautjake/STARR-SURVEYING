@@ -128,10 +128,90 @@ function readSpeed(v: unknown): string | undefined {
       if (val === true) return mode;
       const n = asText(val);
       if (n === undefined) return null;
-      return mode === 'walk' ? `${n} ft.` : `${mode} ${n} ft.`;
+      // DO NOT DOUBLE THE UNIT. The 5e-bits SRD gives `{ walk: "30 ft." }` — already suffixed — while other
+      // publishers give `{ walk: 30 }`. Appending unconditionally produced "30 ft. ft." on all 334 creatures.
+      const withUnit = /\bft\b|\bfeet\b|\bm\b/i.test(n) ? n : `${n} ft.`;
+      return mode === 'walk' ? withUnit : `${mode} ${withUnit}`;
     })
     .filter(Boolean)
     .join(', ');
+}
+
+/**
+ * Senses, which publishers give as an OBJECT — `{ darkvision: "60 ft.", passive_perception: 9 }` — and stat
+ * blocks print as "darkvision 60 ft., passive Perception 9".
+ *
+ * THE SPEED BUG, A SECOND TIME. `asText` on an object returns its `.value`, and a senses object has none, so
+ * every one of the 334 SRD creatures imported with NO SENSES AT ALL — no darkvision, no blindsight, no
+ * tremorsense. Silent, and invisible until someone reads a rendered stat block and notices a line missing.
+ * Found by running the import over the real file rather than a fixture, which is the only way this class of
+ * defect ever surfaces.
+ */
+function readSenses(v: unknown): string | undefined {
+  const direct = asText(v);
+  if (direct) return direct;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const parts = Object.entries(v as Record<string, unknown>)
+    .map(([sense, val]) => {
+      const n = asText(val);
+      if (n === undefined) return null;
+      // "passive Perception 9" is how the books print it — the noun is capitalised, the adjective is not.
+      if (/passive/i.test(sense)) return `passive Perception ${n}`;
+      const label = sense.replace(/_/g, ' ');
+      return /\bft\b|\bfeet\b/i.test(n) ? `${label} ${n}` : `${label} ${n} ft.`;
+    })
+    .filter(Boolean);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
+/**
+ * Saves and skills out of a `proficiencies` array.
+ *
+ * The 5e-bits SRD — the most widely used CC-BY publication of the 5.1 monsters — does not carry
+ * `strength_save` or a `skills` map at all. It carries
+ * `proficiencies: [{ proficiency: { name: "Saving Throw: DEX" }, value: 5 }, { proficiency: { name:
+ * "Skill: Stealth" }, value: 6 }]`. Reading only the other shapes dropped saves AND skills on all 334.
+ *
+ * Returns both in one pass because they come from one array and splitting it would mean walking it twice
+ * with two nearly-identical filters.
+ */
+function readProficiencies(raw: Record<string, unknown>): { saves?: string; skills?: string } {
+  const list = pick(raw, ['proficiencies']);
+  if (!Array.isArray(list)) return {};
+  const saves: string[] = [];
+  const skills: string[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const e = item as Record<string, unknown>;
+    const label = asText((e.proficiency as Record<string, unknown>)?.name ?? e.name);
+    const bonus = asNum(pick(e, ['value', 'bonus']));
+    if (!label || bonus === undefined) continue;
+    const save = label.match(/^Saving Throw:\s*(.+)$/i);
+    if (save) { saves.push(`${save[1].trim().toUpperCase()} ${formatSigned(bonus)}`); continue; }
+    const skill = label.match(/^Skill:\s*(.+)$/i);
+    if (skill) skills.push(`${skill[1].trim()} ${formatSigned(bonus)}`);
+  }
+  return {
+    ...(saves.length ? { saves: saves.join(', ') } : {}),
+    ...(skills.length ? { skills: skills.join(', ') } : {}),
+  };
+}
+
+/**
+ * Challenge rating as the books PRINT it: 1/8, 1/4, 1/2 rather than 0.125, 0.25, 0.5.
+ *
+ * Publishers store CR as a number. A stat block reading "Challenge 0.25" is wrong in the way that makes a
+ * reader distrust the whole page — nobody has ever written it that way. `cr_sort` keeps the numeric form
+ * for ordering, so this is purely how it reads.
+ */
+export function formatCr(v: unknown): string | undefined {
+  const t = asText(v);
+  if (t === undefined) return undefined;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return t;                 // already "1/4", or something odd — pass it through
+  if (Number.isInteger(n)) return String(n);
+  const FRACTIONS: Record<string, string> = { '0.125': '1/8', '0.25': '1/4', '0.5': '1/2' };
+  return FRACTIONS[String(n)] ?? String(n);
 }
 
 /** The six ability-save bonuses, as the printed line "DEX +5, CON +6". Absent saves are simply not printed. */
@@ -217,7 +297,10 @@ export function srdCreatureToRow(raw: Record<string, unknown>, prov: ImportProve
   // a row in the bestiary nobody can search for and nobody can fix.
   if (!name) return null;
 
-  const cr = asText(pick(raw, ['challenge_rating', 'challengeRating', 'cr', 'level']));
+  const crRaw = pick(raw, ['challenge_rating', 'challengeRating', 'cr', 'level']);
+  // Printed form for display ("1/4"); `crSort` still reads the numeric original for ordering.
+  const cr = formatCr(crRaw);
+  const prof = readProficiencies(raw);
   const statblock = normalizeStatblock({
     ac: asNum(pick(raw, ['armor_class', 'armorClass', 'ac'])),
     acNote: asText(pick(raw, ['armor_desc', 'armorDesc'])),
@@ -229,10 +312,11 @@ export function srdCreatureToRow(raw: Record<string, unknown>, prov: ImportProve
       con: asNum(pick(raw, ['constitution', 'con'])), int: asNum(pick(raw, ['intelligence', 'int'])),
       wis: asNum(pick(raw, ['wisdom', 'wis'])), cha: asNum(pick(raw, ['charisma', 'cha'])),
     },
-    senses: asText(pick(raw, ['senses'])),
+    senses: readSenses(pick(raw, ['senses'])),
     languages: asText(pick(raw, ['languages'])),
-    saves: readSaves(raw),
-    skills: readSkills(raw),
+    // proficiencies[] first (the 5e-bits shape), falling back to the per-ability keys other publishers use.
+    saves: prof.saves ?? readSaves(raw),
+    skills: prof.skills ?? readSkills(raw),
     cr,
     resistances: asText(pick(raw, ['damage_resistances', 'damageResistances'])),
     immunities: asText(pick(raw, ['damage_immunities', 'damageImmunities'])),

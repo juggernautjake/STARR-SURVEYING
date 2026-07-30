@@ -131,3 +131,80 @@ describe('use limits are a resource, not part of the name', () => {
     expect(e.uses).toBeUndefined();
   });
 });
+
+// ── B1-3: the shapes the REAL 5.1 SRD publication uses ────────────────────────────────────────────
+//
+// Every case below is a defect found by running the importer over the actual 334-monster file rather than
+// a hand-written fixture, and each one was SILENT: the creature imported, looked plausible, and was
+// missing a line. A fixture author writes the shape they expect; only real data carries the shape the
+// publisher actually chose.
+import { formatCr } from '@/lib/dnd/bestiary/import';
+
+describe('the real SRD 5.1 shapes (all four were live bugs)', () => {
+  const prov = {
+    source: 'SRD 5.1', licence: 'CC-BY-4.0', attribution: 'Wizards of the Coast, CC-BY-4.0',
+    slugPrefix: 'srd51', system: 'dnd5e-2014',
+  };
+
+  it('reads SENSES from an object — they were dropped on all 334', () => {
+    // `asText` on an object returns its `.value`, and a senses object has none. The speed bug, again.
+    const r = srdCreatureToRow(
+      { name: 'Goblin', senses: { darkvision: '60 ft.', passive_perception: 9 } }, prov,
+    )!;
+    expect(r.row.statblock.senses).toBe('darkvision 60 ft., passive Perception 9');
+  });
+
+  it('does not double the unit when the source already wrote it', () => {
+    // 5e-bits gives `{ walk: "30 ft." }`; other publishers give `{ walk: 30 }`. Appending unconditionally
+    // produced "30 ft. ft." on every creature.
+    expect(srdCreatureToRow({ name: 'A', speed: { walk: '30 ft.' } }, prov)!.row.statblock.speed).toBe('30 ft.');
+    expect(srdCreatureToRow({ name: 'B', speed: { walk: 30 } }, prov)!.row.statblock.speed).toBe('30 ft.');
+    expect(srdCreatureToRow({ name: 'C', speed: { walk: '40 ft.', fly: '80 ft.' } }, prov)!.row.statblock.speed)
+      .toBe('40 ft., fly 80 ft.');
+  });
+
+  it('reads saves and skills from `proficiencies[]` — the shape 5e-bits actually publishes', () => {
+    // There is no `strength_save` key and no `skills` map in that file; both were dropped on all 334.
+    const r = srdCreatureToRow({
+      name: 'Adult Red Dragon',
+      proficiencies: [
+        { proficiency: { name: 'Saving Throw: DEX' }, value: 6 },
+        { proficiency: { name: 'Saving Throw: CON' }, value: 13 },
+        { proficiency: { name: 'Skill: Perception' }, value: 13 },
+      ],
+    }, prov)!;
+    expect(r.row.statblock.saves).toBe('DEX +6, CON +13');
+    expect(r.row.statblock.skills).toBe('Perception +13');
+  });
+
+  it('still reads the per-ability keys other publishers use', () => {
+    // The fallback must survive: binding to one publisher is what this module exists not to do.
+    const r = srdCreatureToRow({ name: 'X', dexterity_save: 5, skills: { stealth: 6 } }, prov)!;
+    expect(r.row.statblock.saves).toBe('DEX +5');
+    expect(r.row.statblock.skills).toBe('Stealth +6');
+  });
+
+  it('prints CR as a fraction, the way every book does', () => {
+    // "Challenge 0.25" is wrong in the way that makes a reader distrust the page.
+    expect(formatCr(0.125)).toBe('1/8');
+    expect(formatCr(0.25)).toBe('1/4');
+    expect(formatCr(0.5)).toBe('1/2');
+    expect(formatCr(0)).toBe('0');
+    expect(formatCr(17)).toBe('17');
+    expect(formatCr('1/4')).toBe('1/4');   // already printed — passed through
+    expect(formatCr(undefined)).toBeUndefined();
+  });
+
+  it('keeps cr_sort numeric so the fraction still orders correctly', () => {
+    const r = srdCreatureToRow({ name: 'Goblin', challenge_rating: 0.25 }, prov)!;
+    expect(r.row.cr).toBe('1/4');
+    expect(r.row.cr_sort).toBe(0.25);
+  });
+
+  it('leaves a genuinely absent field absent rather than inventing one', () => {
+    // A commoner has no saves and a wolf has no languages; "none" must not become "" or 0.
+    const r = srdCreatureToRow({ name: 'Commoner', languages: '' }, prov)!;
+    expect(r.row.statblock.saves).toBeUndefined();
+    expect(r.row.statblock.languages).toBeUndefined();
+  });
+});

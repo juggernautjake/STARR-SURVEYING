@@ -23,6 +23,7 @@
     "migrate:dnd-content": "tsx scripts/migrate-dnd-content.ts",
     "verify:fs-figures": "tsx scripts/verify-fs-figures.ts",
     "verify:fs-questions": "tsx scripts/verify-fs-questions.ts",
+    "import:bestiary": "npx --yes vite-node -c vitest.config.ts scripts/import-bestiary.mjs --",
     "db:seed": "node scripts/apply-seeds.mjs",
     "db:seed:all": "node scripts/apply-seeds.mjs --continue-on-error",
     "db:seed:reset": "node scripts/apply-seeds.mjs --reset",

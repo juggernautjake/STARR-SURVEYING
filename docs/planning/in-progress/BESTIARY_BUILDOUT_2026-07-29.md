@@ -154,7 +154,48 @@ Every number that can be rolled is a control (G4): attacks roll to-hit and damag
 into the shared roll feed; saves and skills roll; HP is editable when the creature is in play. Per-system
 presentation — a PF2 creature shows its own vocabulary, not a 5e stat block wearing PF2 names.
 
-### B1-3 · The 5e SRD import
+### B1-3 · The 5e SRD import — **SHIPPED 2026-07-29. 334 creatures live.**
+
+`scripts/import-bestiary.mjs` (`npm run import:bestiary`, `-- --dry-run` to report without writing). Source:
+the 5e-bits CC-BY-4.0 publication of SRD 5.1, cached to `.cache/`. **334 transformed, 0 refused**, every one
+carrying AC, HP, speed, CR and at least one action. Applied to production and **verified idempotent** —
+a second run leaves 334, not 668.
+
+Coverage spans every challenge band, which is what makes the plan's "all difficulty levels" a fact rather
+than a claim: **113** at CR 0–½, **105** at 1–4, **67** at 5–10, **29** at 11–16, **20** at 17+. 150 are
+variant-eligible. Tags derived across all twelve categories (55 boss, 43 dragon, 22 woodland, 20 undead…).
+
+#### Four silent defects, found only by running it over the real file
+
+Every one of these transformed *successfully*. The creature imported, looked plausible, and was missing a
+line — which is why the plan insists the page comes before the content, and why a fixture would have caught
+none of them. **A fixture author writes the shape they expect; only the real publication carries the shape
+the publisher actually chose.**
+
+| Field | What happened | Cause |
+| --- | --- | --- |
+| `senses` | **dropped on all 334** — no darkvision, no blindsight, no tremorsense anywhere | it is an object, and `asText` on an object returns its `.value`. **The speed bug from B1-1, exactly repeated.** |
+| `saves` | **dropped on all 334** | 5e-bits carries `proficiencies: [{ proficiency: { name: "Saving Throw: DEX" }, value: 5 }]` — there is no `strength_save` key in that file at all |
+| `skills` | **dropped on all 334** | same array, `"Skill: Stealth"` |
+| `speed` | `"30 ft. ft."` on all 334 | the source already writes the unit; the importer appended another |
+| `cr` | `"0.25"` | books print `1/4`; "Challenge 0.25" is wrong in the way that makes a reader distrust the page |
+
+All five fixed, with the per-ability and string fallbacks kept intact — binding to one publisher is the
+thing this module exists not to do. Guarded by 7 new cases in `bestiary-import.test.ts` (21 total), each
+written from the real shape rather than an imagined one.
+
+*Verification method worth reusing:* a throwaway probe ran the transform over all 334 and counted missing
+fields per column. That is what turned "it works on the goblin" into "senses are absent on 334 of 334" —
+and then a spot-check on creatures that *should* have saves (Adult Red Dragon, Lich) versus ones that
+should not (Commoner, Wolf) confirmed the remaining absences were genuine rather than more silent drops.
+
+*Two mechanical notes:* the script must run through vite-node **with `vitest.config.ts`**, since the
+transform is TypeScript importing via the `@/` alias that only that config defines; and the transform must
+be a **static** import — a lazy `await import()` races vite-node's shutdown and dies with
+`ERR_CLOSED_SERVER`.
+
+The import is one transaction: a half-filled bestiary showing 180 creatures would look complete, and nobody
+would know the run died.
 `srdCreatureToRow` exists and is tested; this is the writer loop plus a fetch of the open JSON, a
 `scripts/import-bestiary.mjs` run, and a seed. Reports imported / skipped / unparseable with reasons (G6).
 **Target: 330+ creatures for 5e-2014.**
