@@ -140,9 +140,36 @@ each face's projected centre — **scaled by the face's projected area**, which 
 settled; no layout thrash (transform/attribute updates only); unmounts cancel cleanly.
 
 ### D1-5 · Retire `dieShape.ts`
-`dieSides` keeps its job (which die is being rolled) but must stop mapping **d100 → 10** (G3). `ngonPoints` /
-`ngonClip` / `dieNet` are deleted once nothing imports them; the hand-authored `NETS` table goes with them
-(G1). Guard: a test asserts no roller imports the retired helpers.
+
+**SHIPPED 2026-07-29 — and the whole module went, `dieSides` included.**
+
+The plan assumed `dieSides` would survive to answer "which die is being rolled". By the time D2-1 landed it
+had stopped being asked: the tray derives every die's face count from `diceOf(breakdown)`, per die, so
+`2d6[3,5] + 1d4[2]` renders three solids with three different side counts. A single whole-roll shape had no
+meaning left. Its state in `ImpactRoller` was still being *set* on every roll and **never read** — dead
+state feeding a dead module.
+
+So the retirement is total: `dieShape.ts` (201 lines: `NETS`, `dieNet`, `ngonPoints`, `ngonClip`,
+`ngonVerts`, `ring`, `dieSides`) and `__tests__/dnd/die-shape.test.ts` are deleted, and the `sides` state is
+gone from `ImpactRoller`.
+
+**The d100 → 10 bug went with it, and it is worth recording what kind of bug it was.** `dieSides` answered
+`10` for a d100 — the shortcut G3 exists to forbid. It was no longer reachable (the live path had moved to
+`diceOf` → `solidFor(100)` → the real 80-face geodesic), so nothing was visibly broken. That is the more
+dangerous state, not the safer one: a second, wrong answer sitting next to the right one, indistinguishable
+from the right one until someone reaches for it. The old test even *asserted* the wrong behaviour —
+`expect(dieSides({ entry: { breakdown: '1d100[42]' } })).toBe(10)` with the comment "percentile reads as a
+d10" — so the guard was pinning the defect in place.
+
+**Guard:** `__tests__/dnd/die-shape-retired.test.ts` (6 tests) asserts the file is gone, that nothing imports
+it under any spelling (prose mentions in `roll-stats.ts` are deliberately still allowed — it cites the module
+as a cautionary tale), that the retired helper *names* have not reappeared in any roller under a new home,
+that no roller substitutes a d10 for a d100, and that `solidFor` answers every standard die plus d3/d7/d30 as
+real solids rather than a fallback badge.
+
+*Follow-up, not a blocker:* `lib/dnd/roll-stats.ts:72` and `__tests__/dnd/roll-stats.test.ts:188` reference
+`dieShape.ts` in comments as precedent for a trap. The file no longer exists, so those pointers are now
+dangling — reword them to name the trap rather than the file next time either is touched.
 
 ---
 
