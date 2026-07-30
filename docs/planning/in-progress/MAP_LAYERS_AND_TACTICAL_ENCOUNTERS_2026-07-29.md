@@ -262,8 +262,35 @@ attempt violations.
 ## Phase M2 — 2D only, now (G2)
 
 ### M2-1 · Route every map surface to the 2D renderer
-Space maps display as 2D. The 3D/spiral/hybrid engines stay in the repo, unreferenced by the app's display
-paths. A guard test asserts no `/dnd` route imports them, so the decision cannot erode quietly.
+
+**PLAYER CONSOLE DONE 2026-07-29 — the surface G2 is actually about. Studio + planet-forge remain.**
+
+`console.html` is the player's map, so it is the one the owner's *"for now we only display the 2d
+versions"* is really about — and it was the one still shipping 3D: `vendor/three/three.module.js` via
+importmap, a `⛶ 3D` toggle button, and `map3d.js` loaded as a static module.
+
+Now behind a single flag, `window.__G2_2D_ONLY = true`:
+- the `⛶ 3D` button is **removed, not hidden** — a `display:none` button is still focusable by some
+  assistive tech and still in the tab order, so a keyboard player would land on a control that does nothing;
+- `map3d.js` is a **gated dynamic import**, because a static `<script type="module" src>` cannot be skipped
+  conditionally. With the flag on, a player's browser never fetches a byte of Three.
+
+The importmap is deliberately left in place: it *declares* where the bare specifier `three` resolves and
+loads nothing on its own. Lifting G2 later is `__G2_2D_ONLY = false` — one line, nothing deleted, which is
+the "retained but not reachable" half of the rule.
+
+**The guard had to get smarter to record this.** Its first version matched any file mentioning
+`vendor/three`, which would have kept flagging `console.html` forever and made "finish the 2D-only work"
+impossible without deleting files G2 explicitly retains. `loadsThreeD` now distinguishes **declaring** from
+**loading**, and it does not simply trust the flag's presence — a page with the gate *and* a leftover static
+script tag (the half-migrated case) still counts as 3D. Six tests cover the predicate itself, because if it
+is wrong the ratchet passes while 3D ships, which is precisely the failure it exists to prevent.
+
+`__tests__/dnd/map-3d-reachability.test.ts` is now 13 tests, and the ratchet is down **4 → 3**.
+
+**Remaining for M2-1:** `map-studio.html` (the DM's `>3D<` tab, 148 references) and `planet-3d.html`. The
+planet baker needs an owner call rather than an edit — its *output* is a baked 2D sprite sheet, so it is
+arguably already 2D-in-effect and only the authoring view is three.js.
 
 ### M2-2 · HTML worlds
 A node with no image renders as generated HTML/CSS: a starfield for `space`, a disc with landmass shapes for

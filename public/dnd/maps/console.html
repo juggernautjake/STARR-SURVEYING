@@ -14,6 +14,21 @@
   "three/addons/": "/dnd/maps/vendor/three/addons/"
 }}
 </script>
+<script>
+// ── G2: 2D ONLY, FOR NOW ────────────────────────────────────────────────────────────────────────────
+//
+// Owner, 2026-07-29: *"for now we only display the 2d versions of space maps. We will work on the 3d and
+// hybrid version later, but for now just use the 2d version with html to represent all of the worlds."*
+//
+// This is the PLAYER console, so it is the surface that decision is actually about — and it was the one
+// still shipping 3D. Set to `false` to restore the ⛶ 3D toggle and the hybrid camera; nothing is deleted,
+// which is the "retained but not reachable" half of G2.
+//
+// The importmap above is left in place deliberately: an importmap DECLARES where a bare specifier resolves
+// and loads nothing by itself. `map3d.js` is what pulls Three in, and it is now imported only when this
+// flag is off — so with the flag on, a player's browser never fetches the 3D engine at all.
+window.__G2_2D_ONLY = true;
+</script>
 <style>
   :root{--void:#010a13;--ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#c8aa6e;--scan:#0ac8b9;--amber:#c8aa6e;--red:#c6403b;--green:#0ac8b9;
     --steel:#0b1a2c;--steel2:#10233b;--steelhi:#16304a;--bezel:#010a13;--screen:#02121a;--screenglow:#0ac8b9;}
@@ -1335,7 +1350,17 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   load(true).then(()=>{ setInterval(poll, 4000); });         // live updates
 })();
 </script>
-<!-- Read-only 3D viewer for players (vendored Three via the importmap above); wires the ⛶ 3D toggle. -->
-<script type="module" src="/dnd/maps/map3d.js"></script>
+<!-- Read-only 3D viewer for players (vendored Three via the importmap above); wires the ⛶ 3D toggle.
+     LOADED ONLY WHEN G2 IS LIFTED. A static `<script type="module" src>` cannot be skipped conditionally,
+     so the load is a dynamic import behind the flag — with `__G2_2D_ONLY` on, Three is never fetched. -->
+<script type="module">
+  if (window.__G2_2D_ONLY) {
+    // Remove the toggle rather than hide it: a `display:none` button is still focusable by some assistive
+    // tech and still in the tab order, so a keyboard player would land on a control that does nothing.
+    document.getElementById('view3dBtn')?.remove();
+  } else {
+    await import('/dnd/maps/map3d.js');
+  }
+</script>
 </body>
 </html>

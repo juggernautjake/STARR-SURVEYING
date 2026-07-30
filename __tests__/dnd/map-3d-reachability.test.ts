@@ -33,16 +33,35 @@ const KNOWN_3D_SURFACES = [
   // The planet baker. Arguably already 2D-in-effect — its OUTPUT is a baked sprite sheet imported as a
   // `.planet3d` file — but it renders a live three.js planet to do it, so the owner sees 3D. Needs a call.
   'public/dnd/maps/planet-3d.html',
-  // THE PLAYER CONSOLE, and the one that matters most. Found by this ratchet, not by the manual audit that
-  // preceded it: `console.html` loads `vendor/three/three.module.js` and calls into `map3d.js` at three
-  // sites. G2 is about what a PLAYER sees, and this is the player's map. First to fix.
-  'public/dnd/maps/console.html',
   // Dead scratch: a 24-line FBX loader test with ZERO references anywhere in the repo. It is publicly
   // served at /dnd/maps/_fbxtest.html and pulls three.js from a jsdelivr CDN at runtime — the only
   // external script dependency in the map tree. Should simply be deleted; listed here so it is not
   // forgotten a third time.
   'public/dnd/maps/_fbxtest.html',
 ] as const;
+
+/**
+ * Does this page actually LOAD the 3D engine for a viewer?
+ *
+ * DECLARING IS NOT LOADING, and conflating the two would make this ratchet unable to record progress. An
+ * `<script type="importmap">` states where the bare specifier `three` resolves; it fetches nothing on its
+ * own. What pulls Three in is `map3d.js` / `planet3d-model.js`. So a page that keeps its importmap but
+ * imports the engine only behind `__G2_2D_ONLY` never sends a byte of Three to a player — and must count
+ * as clean, or "make it 2D-only" could never be finished without deleting files G2 explicitly retains.
+ *
+ * The rule: it loads 3D if it references an engine module OUTSIDE a `__G2_2D_ONLY` gate.
+ */
+function loadsThreeD(src: string): boolean {
+  const ENGINE = /map3d\.js|planet3d-model\.js|three\/addons|from\s+['"]three['"]/;
+  if (!ENGINE.test(src)) return false;
+  // Gated: the engine is only reached when the flag is off.
+  if (/__G2_2D_ONLY/.test(src)) {
+    // …but only if EVERY engine reference sits inside the gated branch. A file that also has a static
+    // `<script src=…map3d.js>` alongside the gate is still loading it.
+    return /<script[^>]+src=["'][^"']*(map3d|planet3d-model)\.js["']/.test(src);
+  }
+  return true;
+}
 
 /** React routes that embed a static map tool by iframe. The real coupling, and what a guard must read. */
 function routeIframeSources(): Array<{ route: string; src: string }> {
@@ -65,6 +84,42 @@ function routeIframeSources(): Array<{ route: string; src: string }> {
   }
   return out;
 }
+
+describe('loadsThreeD — the rule the whole ratchet rests on', () => {
+  // If this predicate is wrong the ratchet keeps passing while 3D ships, which is the failure it exists to
+  // prevent. It is subtle enough (declaring vs loading, gated vs ungated) to deserve its own cases.
+  const IMPORTMAP = `<script type="importmap">{"imports":{"three":"/dnd/maps/vendor/three/three.module.js"}}</script>`;
+
+  it('an importmap ALONE is not a load — it declares a resolution and fetches nothing', () => {
+    expect(loadsThreeD(IMPORTMAP)).toBe(false);
+  });
+
+  it('a static script tag for the engine IS a load', () => {
+    expect(loadsThreeD(`${IMPORTMAP}<script type="module" src="/dnd/maps/map3d.js"></script>`)).toBe(true);
+  });
+
+  it('a bare `import … from "three"` is a load', () => {
+    expect(loadsThreeD(`<script type="module">import * as T from 'three';</script>`)).toBe(true);
+  });
+
+  it('an engine import GATED behind __G2_2D_ONLY is not reachable', () => {
+    const gated = `${IMPORTMAP}<script>window.__G2_2D_ONLY = true;</script>
+      <script type="module">if (window.__G2_2D_ONLY) {} else { await import('/dnd/maps/map3d.js'); }</script>`;
+    expect(loadsThreeD(gated)).toBe(false);
+  });
+
+  it('but a gate does NOT excuse a static tag sitting alongside it', () => {
+    // The half-migrated case: someone adds the flag and forgets to remove the original script tag. That
+    // page still ships Three, and a guard that trusted the flag's mere presence would say it was clean.
+    const half = `<script>window.__G2_2D_ONLY = true;</script>
+      <script type="module" src="/dnd/maps/map3d.js"></script>`;
+    expect(loadsThreeD(half)).toBe(true);
+  });
+
+  it('a page with no 3D at all is not a 3D surface', () => {
+    expect(loadsThreeD(`<script src="sky2d.js"></script><p>2D only</p>`)).toBe(false);
+  });
+});
 
 describe('the map subsystem is where the audit said it was', () => {
   it('is vanilla HTML under public/, not React — so an import-based guard is the wrong instrument', () => {
@@ -113,11 +168,7 @@ describe('G2 RATCHET — 3D reachability may only shrink', () => {
     const suspects = fs
       .readdirSync(MAPS_DIR)
       .filter((f) => f.endsWith('.html'))
-      .filter((f) => {
-        const src = fs.readFileSync(path.join(MAPS_DIR, f), 'utf8');
-        // A file is a 3D surface if it loads three.js or the 3D engine modules — not merely if it says "3D".
-        return /vendor\/three|three\.module|map3d\.js|planet3d-model\.js/.test(src);
-      })
+      .filter((f) => loadsThreeD(fs.readFileSync(path.join(MAPS_DIR, f), 'utf8')))
       .map((f) => `public/dnd/maps/${f}`)
       .filter((f) => !(KNOWN_3D_SURFACES as readonly string[]).includes(f));
 
@@ -133,7 +184,7 @@ describe('G2 RATCHET — 3D reachability may only shrink', () => {
     expect(
       KNOWN_3D_SURFACES.length,
       'KNOWN_3D_SURFACES is a list of things to remove, not a place to register new ones.',
-    ).toBeLessThanOrEqual(4);
+    ).toBeLessThanOrEqual(3);
   });
 
   it('when the list empties, G2 is enforced for real', () => {
