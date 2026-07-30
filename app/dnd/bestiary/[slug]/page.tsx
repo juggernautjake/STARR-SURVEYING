@@ -142,7 +142,9 @@ export default async function CreaturePage({
                       return (
                         <div key={i} style={{ display: 'grid', gap: 4 }}>
                           {lead && <p style={{ margin: 0 }}>{lead}</p>}
-                          <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4 }}>
+                          {/* `listStyleType` is set explicitly because the app's CSS reset clears it, and a
+                              bulleted list with no bullets is just indented prose. */}
+                          <ul style={{ margin: 0, paddingLeft: 20, listStyleType: 'disc', display: 'grid', gap: 4 }}>
                             {bullets.map((b, j) => (
                               <li key={j} style={{ margin: 0 }}>{b.replace(/^\s*•\s*/, '')}</li>
                             ))}

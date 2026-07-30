@@ -40,7 +40,11 @@ const SIZES: Record<string, string> = {
 const CREATURE_TYPES = new Set([
   'aberration', 'animal', 'astral', 'beast', 'celestial', 'construct', 'dragon', 'dream', 'elemental',
   'ethereal', 'fey', 'fiend', 'fungus', 'giant', 'humanoid', 'monitor', 'ooze', 'petitioner', 'plant',
-  'shade', 'spirit', 'time', 'undead',
+  // `kami` and `shadow` are Bestiary 3's, added in B6-1: without them the Shae, the Owb and the whole
+  // Japanese-folklore set imported with NO type at all, which the audit reported and a per-creature check
+  // could not have. A closed list is the right design here — a PF2 trait array mixes ancestry with type —
+  // but a closed list has to be extended when the source publishes a new one.
+  'kami', 'shade', 'shadow', 'spirit', 'time', 'undead',
 ]);
 
 const text = (v: unknown): string | undefined => {

@@ -41,6 +41,12 @@ export const CREATURE_TAGS = [
   'swarm',
   // Pathfinder 2e's additions.
   'astral', 'dream', 'ethereal', 'fungus', 'monitor', 'petitioner', 'shade', 'spirit', 'time',
+  // Bestiary 3's two, found the same way `swarm` was — by the audit reporting the creatures still untagged
+  // after an import, then reading their actual trait arrays rather than guessing. `shadow` covers the Shae
+  // and the Owb; `kami` covers the Ittan-Momen and the rest of the Japanese-folklore set. Both are
+  // published types, so squashing them into `undead` or `spirit` would invent a classification the source
+  // does not make — the rule this list already follows for `petitioner` and `dream`.
+  'kami', 'shadow',
 ] as const;
 export type CreatureTag = (typeof CREATURE_TAGS)[number];
 
@@ -50,6 +56,7 @@ export const TAG_LABELS: Record<CreatureTag, string> = {
   humanoid: 'Humanoids', monstrosity: 'Monstrosities', ooze: 'Oozes', plant: 'Plants',
   undead: 'Undead', swarm: 'Swarms', astral: 'Astral', dream: 'Dream', ethereal: 'Ethereal', fungus: 'Fungi',
   monitor: 'Monitors', petitioner: 'Petitioners', shade: 'Shades', spirit: 'Spirits', time: 'Time',
+  kami: 'Kami', shadow: 'Shadows',
 };
 
 /**

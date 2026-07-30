@@ -37,7 +37,7 @@
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium",
     "ws": "tsx server/ws.ts",
-    "generate:ig-bestiary": "npx --yes vite-node -c vitest.config.ts scripts/generate-ig-bestiary.mjs --",
+    "generate:bestiary": "npx --yes vite-node -c vitest.config.ts scripts/generate-transposed-bestiary.mjs --",
     "import:open5e": "npx --yes vite-node -c vitest.config.ts scripts/import-open5e.mjs --"
   },
   "dependencies": {

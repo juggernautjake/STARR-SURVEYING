@@ -168,6 +168,48 @@ describe('G5 — nothing is invented', () => {
     expect(transposeCreature(ogre5e, 'pathfinder2e').unmapped.join(' ')).toMatch(/Pathfinder 2e climbs with level/);
   });
 
+  it('does not cry wolf between the two 5e editions', () => {
+    // 2024 is a REVISION of 2014, not a different game: AC still spans 10-25, hit points follow the same
+    // curve, and a CR 5 creature is a CR 5 creature. Flagging AC, HP and CR there put three items on the
+    // "needs a human" list of every one of the 300 transposed 2024 creatures that did not belong on it —
+    // and a warning list that is wrong two thirds of the time is one a DM stops reading. The 5e-to-PF2
+    // warnings are load-bearing precisely because they are rare enough to be believed.
+    const r = transposeCreature(ogre5e, 'dnd5e-2024');
+    const text = r.unmapped.join(' ');
+    expect(text).not.toMatch(/AC \d+ was carried over/);
+    expect(text).not.toMatch(/HP \d+ was carried over/);
+    expect(text).not.toMatch(/is kept as-is/);
+    // The prose note stays, because it is the one thing that genuinely differs across the revision.
+    expect(text).toMatch(/renamed some conditions/);
+  });
+
+  it('knows 2024 uses the same type words as 2014', () => {
+    // TYPE_MAP had no `dnd5e-2024` column at all, so every one of the 300 creatures transposed into 2024
+    // was told its type "has no counterpart in the target system" — about `monstrosity`, a classification
+    // 2024 prints on its own pages. The type still displayed correctly, because the caller falls back to
+    // the source value, which is exactly why only reading the rendered page caught it.
+    const r = transposeCreature({ ...ogre5e, type: 'monstrosity' }, 'dnd5e-2024');
+    expect(r.type).toBe('monstrosity');
+    expect(r.unmapped.join(' ')).not.toMatch(/no counterpart/);
+  });
+
+  it('does not turn that into an identity fallback', () => {
+    // The 2024 column reads 2014's, which is a statement about those two editions — not permission to map
+    // any word to itself. A Pathfinder-only type has no 2014 entry and must stay unmapped.
+    const r = transposeCreature({ ...goblinPf2, type: 'petitioner' }, 'dnd5e-2024');
+    expect(r.type).toBeUndefined();
+    expect(r.unmapped.join(' ')).toMatch(/no counterpart/);
+  });
+
+  it('keeps the flags for Intuitive Games, which shares 5e\'s abilities but not its scales', () => {
+    // The predicate is "same numeric scale", not "same publisher" or "same family" — IG uses ability
+    // SCORES like 5e and does not use 5e's AC or HP curves, so silencing it there would be the invention
+    // G5 forbids wearing the costume of a simplification.
+    const text = transposeCreature(ogre5e, 'intuitive-games').unmapped.join(' ');
+    expect(text).toMatch(/AC \d+ was carried over/);
+    expect(text).toMatch(/HP \d+ was carried over/);
+  });
+
   it('still marks a word it does not recognise rather than coercing it', () => {
     // The normalisation must not become a way of always finding SOMETHING. An invented type has to keep
     // falling through to the warning, or G5's "never invents rules" is enforced nowhere.

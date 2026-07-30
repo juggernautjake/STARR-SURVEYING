@@ -164,62 +164,76 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
   if (sb.entries?.length) out.entries = sb.entries.map((e) => ({ ...e }));
 
   // ── the numbers that DO NOT convert ──────────────────────────────────────────────────────────────
+  // Between the two 5e editions AC, HP and CR are the same quantities on the same scales, so carrying them
+  // is a conversion rather than a copy that needs checking — see `sharesNumericScale`.
+  const sameScale = sharesNumericScale(from, target);
+
   if (sb.ac !== undefined) {
     out.ac = sb.ac;
-    // The concrete 5e-versus-PF2 spread is the most useful thing to say — but ONLY when Pathfinder is one
-    // of the two systems. Said on a 5e → Intuitive Games conversion it names a game the reader is not
-    // playing, which is how a warning stops being read. Every one of Intuitive Games' 200 transposed
-    // creatures carried that sentence before this was fixed.
-    const scales = toPf2 || fromPf2
-      ? "The two systems' armour classes are on different scales (5e spans roughly 10–25 across the whole "
-        + 'game; Pathfinder 2e climbs with level to the 50s), and no published conversion exists.'
-      : `${systemName(from)} and ${systemName(target)} set armour class against different baselines, and no `
-        + 'published conversion between them exists.';
-    unmapped.push(
-      `AC ${sb.ac} was carried over unchanged. ${scales} `
-      + `Set this from ${systemName(target)}'s own table for the intended level.`,
-    );
+    if (!sameScale) {
+      // The concrete 5e-versus-PF2 spread is the most useful thing to say — but ONLY when Pathfinder is
+      // one of the two systems. Said on a 5e → Intuitive Games conversion it names a game the reader is
+      // not playing, which is how a warning stops being read. Every one of Intuitive Games' 200 transposed
+      // creatures carried that sentence before this was fixed.
+      const scales = toPf2 || fromPf2
+        ? "The two systems' armour classes are on different scales (5e spans roughly 10–25 across the whole "
+          + 'game; Pathfinder 2e climbs with level to the 50s), and no published conversion exists.'
+        : `${systemName(from)} and ${systemName(target)} set armour class against different baselines, and no `
+          + 'published conversion between them exists.';
+      unmapped.push(
+        `AC ${sb.ac} was carried over unchanged. ${scales} `
+        + `Set this from ${systemName(target)}'s own table for the intended level.`,
+      );
+    }
   }
   if (sb.hp !== undefined) {
     out.hp = sb.hp;
     if (sb.hitDice) out.hitDice = sb.hitDice;
-    unmapped.push(
-      `HP ${sb.hp} was carried over unchanged. Hit points scale differently in each system, so this is the `
-      + 'source figure rather than an equivalent one.',
-    );
+    if (!sameScale) {
+      unmapped.push(
+        `HP ${sb.hp} was carried over unchanged. Hit points scale differently in each system, so this is the `
+        + 'source figure rather than an equivalent one.',
+      );
+    }
   }
   if (sb.saves) {
     out.saves = sb.saves;
-    unmapped.push(
-      fromPf2
-        ? 'Saves are Pathfinder 2e\'s Fortitude/Reflex/Will. 5e uses six ability saves; the closest reading '
-          + 'is Fort→CON, Ref→DEX, Will→WIS, but the numbers still need setting for the target system.'
-        : toPf2
-          ? 'Saves are 5e\'s per-ability bonuses. Pathfinder 2e has three (Fortitude/Reflex/Will) on a '
-            + 'different scale, so these carry across as a reference rather than a conversion.'
-          : `Saves are ${systemName(from)}'s numbers on ${systemName(from)}'s scale. They carry across as a `
-            + `reference rather than a conversion — set them from ${systemName(target)}'s own maths.`,
-    );
+    if (!sameScale) {
+      unmapped.push(
+        fromPf2
+          ? 'Saves are Pathfinder 2e\'s Fortitude/Reflex/Will. 5e uses six ability saves; the closest reading '
+            + 'is Fort→CON, Ref→DEX, Will→WIS, but the numbers still need setting for the target system.'
+          : toPf2
+            ? 'Saves are 5e\'s per-ability bonuses. Pathfinder 2e has three (Fortitude/Reflex/Will) on a '
+              + 'different scale, so these carry across as a reference rather than a conversion.'
+            : `Saves are ${systemName(from)}'s numbers on ${systemName(from)}'s scale. They carry across as a `
+              + `reference rather than a conversion — set them from ${systemName(target)}'s own maths.`,
+      );
+    }
   }
   if (sb.skills) out.skills = sb.skills;
   if (sb.spellcasting) {
     out.spellcasting = sb.spellcasting;
-    unmapped.push('Spellcasting is quoted verbatim: the spell lists, slots and DCs differ per system and have no mapping.');
+    if (!sameScale) {
+      unmapped.push('Spellcasting is quoted verbatim: the spell lists, slots and DCs differ per system and have no mapping.');
+    }
   }
 
   // ── tier ─────────────────────────────────────────────────────────────────────────────────────────
   if (input.cr) {
     out.cr = input.cr;
-    unmapped.push(
-      fromPf2
-        ? `Source level ${input.cr} is kept as-is. A Pathfinder 2e level and a 5e challenge rating measure `
-          + 'different things and are not interchangeable.'
-        : toPf2
-          ? `Source CR ${input.cr} is kept as-is. Pathfinder 2e rates creatures by level, which is not the `
-            + 'same quantity as a challenge rating.'
-          : `Source CR ${input.cr} is kept as-is. It rates the creature against ${systemName(from)}'s party `
-            + `maths, not ${systemName(target)}'s — check it against the table you are actually running.`,
-    );
+    if (!sameScale) {
+      unmapped.push(
+        fromPf2
+          ? `Source level ${input.cr} is kept as-is. A Pathfinder 2e level and a 5e challenge rating measure `
+            + 'different things and are not interchangeable.'
+          : toPf2
+            ? `Source CR ${input.cr} is kept as-is. Pathfinder 2e rates creatures by level, which is not the `
+              + 'same quantity as a challenge rating.'
+            : `Source CR ${input.cr} is kept as-is. It rates the creature against ${systemName(from)}'s party `
+              + `maths, not ${systemName(target)}'s — check it against the table you are actually running.`,
+      );
+    }
   }
 
   // ── type + size ──────────────────────────────────────────────────────────────────────────────────
@@ -233,14 +247,28 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
   const t = normalizeCreatureType(input.type) ?? raw;
   // Type lives on the ROW (`dnd_creatures.type`), not inside the statblock — so the mapped value is
   // returned at the top level of the result rather than written into `out`.
-  const mappedType = t ? TYPE_MAP[t]?.[target] : undefined;
+  // The two D&D 5e editions share a type vocabulary exactly, so 2024 reads the 2014 column rather than
+  // duplicating fifteen rows that could drift apart. This is NOT the identity fallback the comment on
+  // TYPE_MAP warns against: a word with no 2014 entry — `dream`, `petitioner`, `time` — still resolves to
+  // nothing and is still marked. Without it, `TYPE_MAP` had no `dnd5e-2024` column at all, so every one of
+  // the 300 creatures transposed into 2024 was told its type "has no counterpart in the target system" —
+  // about `monstrosity`, a type 2024 prints on its own pages.
+  const typeColumn: BestiarySystem = target === 'dnd5e-2024' ? 'dnd5e-2014' : target;
+  const mappedType = t ? TYPE_MAP[t]?.[typeColumn] : undefined;
   if (t && !mappedType) {
     unmapped.push(`Creature type "${input.type}" has no counterpart in the target system; leave it or pick the nearest.`);
   }
 
+  // The prose note stays even between the two 5e editions, and is worded for them — this is the ONE thing
+  // that genuinely differs there. The 2024 revision renamed conditions and rewrote several core actions, so
+  // a 2014 stat block's wording can be stale in a way its numbers are not.
   const entriesNote = sb.entries?.length
-    ? 'Action and trait text is quoted verbatim and may reference mechanics the target system does not have '
-      + '(recharge, actions-per-turn, degrees of success). Rewriting it is a job for the AI transpose, not this one.'
+    ? sameScale
+      ? 'Action and trait text is quoted verbatim from the source edition. The numbers carry across exactly, '
+        + 'but the 2024 revision renamed some conditions and rewrote several core actions, so the wording may '
+        + 'be the older one.'
+      : 'Action and trait text is quoted verbatim and may reference mechanics the target system does not have '
+        + '(recharge, actions-per-turn, degrees of success). Rewriting it is a job for the AI transpose, not this one.'
     : null;
   if (entriesNote) unmapped.push(entriesNote);
 
@@ -260,6 +288,28 @@ export function transposeCreature(input: TransposeInput, target: BestiarySystem)
 /** True when the two systems share the ability convention, so a caller can skip the reconstruction note. */
 export function sharesAbilityConvention(a: string, b: string): boolean {
   return isPf2(a) === isPf2(b);
+}
+
+/**
+ * True when the two systems rate creatures on the SAME numeric scales — armour class, hit points and
+ * challenge rating all mean the same thing on both sides.
+ *
+ * Today this is exactly the two D&D 5e editions. 2024 is a revision of 2014, not a different game: AC still
+ * spans roughly 10–25, hit points follow the same curve, and a CR 5 creature is a CR 5 creature. Carrying a
+ * number across that boundary is a genuine conversion rather than a copy that needs checking.
+ *
+ * WHY THIS MATTERS ENOUGH TO BE ITS OWN PREDICATE. The unmapped list is the whole value of this module —
+ * "these are the numbers a human still has to set". Flagging AC, HP and CR on a 2014 → 2024 conversion put
+ * three items on that list for every creature that did not belong there, and a warning list that cries wolf
+ * on two thirds of its entries is one a DM stops reading. The 5e → Pathfinder warnings are load-bearing
+ * precisely because they are rare enough to be believed.
+ *
+ * Deliberately NOT "same publisher" or "same family": Intuitive Games shares 5e's ability convention and
+ * does NOT share its AC and HP scales, so it must keep the flags.
+ */
+export function sharesNumericScale(a: string, b: string): boolean {
+  const FIVE_E = new Set<string>(['dnd5e-2014', 'dnd5e-2024']);
+  return FIVE_E.has(a) && FIVE_E.has(b);
 }
 
 export { family };

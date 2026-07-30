@@ -33,6 +33,41 @@ async function main() {
   const { rows: [tot] } = await c.query('SELECT count(*)::int n FROM dnd_creatures');
   console.log(`\n═══ BESTIARY AUDIT — ${tot.n} creatures ═══`);
 
+  // ── B6-3 · the per-system floor ────────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-07-30: *"no less than 200-300 creatures/monsters of all kinds and types and sizes and
+  // difficulties in each system."* That is four claims, not one, and each is checked separately — a system
+  // could hold 3,000 creatures and still have no Gargantuan ones, or nothing above CR 16.
+  //
+  // A HARD failure, unlike most of this audit. The floor is a promise the owner stated in a number, so a
+  // system dropping under it should stop a CI run rather than print a warning nobody reads.
+  console.log('\n── B6-3 · Per-system floor (≥200, every band, ≥10 types, ≥5 sizes) ──');
+  const FLOOR = 200;
+  const { rows: floors } = await c.query(`
+    SELECT system,
+           count(*)::int                                                        AS n,
+           count(DISTINCT size)::int                                            AS sizes,
+           count(DISTINCT type)::int                                            AS types,
+           count(*) FILTER (WHERE cr_sort <  1)::int                            AS b0,
+           count(*) FILTER (WHERE cr_sort >= 1  AND cr_sort <  5)::int          AS b1,
+           count(*) FILTER (WHERE cr_sort >= 5  AND cr_sort < 11)::int          AS b2,
+           count(*) FILTER (WHERE cr_sort >= 11 AND cr_sort < 17)::int          AS b3,
+           count(*) FILTER (WHERE cr_sort >= 17)::int                           AS b4
+      FROM dnd_creatures GROUP BY system ORDER BY system`);
+  console.log('  system              total  types  sizes    ≤0   1–4  5–10 11–16   17+');
+  for (const r of floors) {
+    const bands = [r.b0, r.b1, r.b2, r.b3, r.b4];
+    const gaps = bands.filter((b) => b === 0).length;
+    const bad = r.n < FLOOR || gaps > 0 || r.types < 10 || r.sizes < 5;
+    if (bad) hardFailures += 1;
+    console.log(
+      `  ${bad ? '❌' : '✅'} ${r.system.padEnd(17)} ${String(r.n).padStart(5)}  ${String(r.types).padStart(5)}`
+      + `  ${String(r.sizes).padStart(5)}  ${bands.map((b) => String(b).padStart(5)).join(' ')}`,
+    );
+    if (r.n < FLOOR) console.log(`       └─ under the ${FLOOR} floor by ${FLOOR - r.n}`);
+    if (gaps) console.log(`       └─ ${gaps} challenge band(s) empty — "all difficulty levels" fails on the gap, not the average`);
+  }
+
   // ── B5-1 · completeness ────────────────────────────────────────────────────────────────────────
   //
   // Split HARD from SOFT deliberately. A creature with no name is broken; a creature with no languages is
