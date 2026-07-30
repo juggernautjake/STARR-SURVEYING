@@ -54,6 +54,8 @@ into the UI, not just into this document.
 - **N3 — The source creature is never overwritten.** A native PF2 skunk and the 5e skunk it derives from are
   separate rows. The catalogue stays re-importable (`import:*` upserts on slug), so a derived row must have
   its own slug and must not collide.
+- **N7 — ONE CREATURE, ONE ENTRY IN THE LIST.** Rows are the storage; a creature is what a reader browses.
+  See below — this rule was added on the owner's report and it changes N3-1 and N3-3.
 - **N4 — Derived is labelled, always.** A reader must be able to tell a published Monster Core skunk from
   one we derived, at a glance, on the page and in the row. Silent equivalence is the thing that makes a
   catalogue untrustworthy.
@@ -63,6 +65,50 @@ into the UI, not just into this document.
   risk.
 - **N6 — Nothing ships that cannot be spot-checked.** Every slice ends with a sample pulled from the live
   database and read against the target system's table by hand.
+
+---
+
+## N7 — one creature, one entry (owner, 2026-07-30) — **and this is already a live defect**
+
+> *"The bestiary is showing a bunch of transposed duplicates… I want it so that the creature just has one
+> access point. The user will just see one version of the creature on the bestiary page, and then click on
+> it. It will default to the 2024 edition, but the user can switch it to any of the other ones. If there
+> are variants of the creature posted in that system, there should be an element below the stat block
+> showing a carousel of the variants that can be clicked to view the variant stat block. All differences in
+> the variant stat block should be noted."*
+
+**Measured, not taken on faith: 5,025 rows for 3,660 distinct creatures.** Badger, Balor, Behir, Ghoul and
+Animated Armor each occupy **ten rows across four systems**. Browsing the bestiary means scrolling past the
+same creature ten times.
+
+The cause is the design working as built and as planned: a row is `(creature, system, source book)`, so
+five books' Badgers plus the transposed copies are five-plus rows, all correct and all indistinguishable in
+a list. **The plan's own N3 keeps them separate rows deliberately** (a derived row must not overwrite a
+published one) and that stays right — the fix is not fewer rows, it is that **the LIST is a list of
+creatures while the ROWS are storage**.
+
+So N7 changes two slices already in this plan:
+
+- **N3-1 (generation)** must key derived rows to a stable *creature identity* rather than only a slug, so
+  every row for "Badger" can be gathered back into one entry.
+- **N3-3 (the lens)** becomes the whole reading experience rather than a control: one entry per creature,
+  opening on the 2024 edition, with the system switcher choosing which of that creature's rows you are
+  reading — published where one exists, derived where it does not.
+
+Plus one new slice:
+
+### N3-5 · Variants as a carousel beneath the stat block
+`dnd_creature_variants` already holds **4,378** weak/elite derivations with a stated derivation sentence
+each, and the creature page renders them as a plain list. The owner wants a carousel under the block, and —
+the part that matters — ***"all differences in the variant stat block should be noted."*** That is a diff,
+not a badge: show the variant's numbers with what changed from the base called out, which is exactly what
+`deriveVariant`'s derivation string already records and the page currently does not surface per-field.
+
+**Identity is the hard part and it is not the name.** "Skunk" in Pathfinder Bestiary 3 and "Skunk" in
+Monstrous Menagerie may be different creatures; "Badger" and "Giant Badger" are certainly different.
+Grouping by name alone would merge things that should stay apart, and grouping by nothing leaves the
+duplicates. That decision gets made and written down in N3-1 before any row is regenerated — it is the
+single choice this whole phase rests on.
 
 ---
 
