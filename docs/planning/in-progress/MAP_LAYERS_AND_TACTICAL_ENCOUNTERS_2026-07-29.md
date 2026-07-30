@@ -380,7 +380,56 @@ The current map pages audited and fixed at 360px and desktop before new surfaces
 One pan/zoom viewport component: wheel and pinch zoom, drag and touch pan, momentum, clamped to bounds,
 double-tap to fit. Transform-based (no re-layout). Keyboard accessible.
 
-### M3-2 · Drill-down and breadcrumb
+### M3-2 · Drill-down and breadcrumb — **SHIPPED 2026-07-29**
+
+`/dnd/campaigns/[id]/world` — the surface that finally makes M1 and M2 reachable. Before it the schema was
+live and the world generator was tested and **neither could be looked at**, which is this repo's signature
+defect and the reason the plan puts a page before content at every phase.
+
+| Piece | Where |
+| --- | --- |
+| Tree walking (pure) | `lib/dnd/maps/tree.ts` — ancestry, children, roots, descendants, height, `canReparent`, breadcrumb. **31 tests.** |
+| Reads | `lib/dnd/maps/query.ts` — `loadMapTree(campaignId, { isDm })` |
+| Page | `app/dnd/campaigns/[id]/world/page.tsx` |
+
+**G3 is a query, not a render.** `loadMapTree` takes `isDm` and changes what it **SELECTs**: a player's rows
+simply never contain unpublished nodes, `dm_notes`, or `visibility: 'dm'` objects. There is nothing for a
+client-side mistake to leak, because the secret never crosses the wire. A React conditional would have been
+the wrong shape of fix — view-source is not a security boundary.
+
+**Navigation is a URL** (`?node=<id>`), so every level is shareable and bookmarkable and the browser's back
+button walks back *up* the hierarchy for free. M3-1's pan/zoom is a client layer that goes on top; the
+addressability underneath survives it.
+
+Decisions the tests pin, each of which is a way a player's view could quietly break:
+
+- **An orphan renders as a root.** A player's filtered rows can contain a city whose continent the DM has
+  not published — `parent_id` points at something they cannot see. Treating that as an error, or hiding it,
+  shows a player an empty world when the DM believes they published a map. `rootsOf` treats unresolvable
+  parents as roots, and `ancestry` simply stops there, so the breadcrumb reads *"Ironrow / The Cut"* rather
+  than failing.
+- **Cycle-safe everywhere.** Postgres forbids cycles (seed 465), but these functions also run over filtered
+  and imported rows, and a breadcrumb that spins is worse than one that stops early.
+- **`canReparent` counts the SUBTREE, not the node.** Moving a 3-level city under a depth-6 district is
+  illegal even though the city itself would fit — the grandchild lands at depth 9. This mirrors the DB
+  cascade so the UI can grey out an illegal drop instead of letting the DM find it via an error toast.
+- **A pin with no child still renders**, dimmed and not a link. The plan calls "a place marked but not
+  built" a normal authoring state; a dead link or a crash would both be wrong.
+- **Empty states distinguish *nothing built* from *nothing you can see*** — the two need different actions
+  from the reader, and "No maps" reads as broken for both.
+
+*Two testing notes worth keeping.* The `canReparent` depth test initially picked a target that was also a
+descendant, so the cycle rule fired first and the depth rule was never actually exercised — the fixture
+needed a second deep branch to test what it claimed to. And a boundary case was added afterwards: depth 7
+is the last legal level, so a child of a depth-7 node is the first illegal one, which is exactly where an
+off-by-one would live.
+
+**Still open in M3:** M3-1 (pan/zoom viewport), M3-3 (LOD culling), M3-4 (prefetch). The page is currently
+a fixed-aspect frame — correct at any width, but not yet zoomable.
+
+---
+
+### M3-2 · Drill-down and breadcrumb (original plan text)
 Click a pin → push the child node, with a zoom-into-the-pin transition so the hierarchy is *felt*.
 Breadcrumb (`Space / Aurelia / Vances Reach / Ironrow / The Cut / Kettle Corner`) with every level clickable,
 collapsing to a dropdown on mobile. Browser back mirrors it.
