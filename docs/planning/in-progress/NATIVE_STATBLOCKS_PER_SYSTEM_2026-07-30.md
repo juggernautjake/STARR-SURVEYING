@@ -145,11 +145,29 @@ Written into this doc as findings before N2-1 is trusted.
 
 ### N3-1 · `npm run derive:native` — one system at a time, upserting `nat-<sys>:<source-slug>` rows (N3).
 ### N3-2 · Report and spot-check. Coverage per system, and a sample read by hand against the table (N6).
-### N3-3 · The bestiary's system control becomes a LENS, not just a filter.
-Today the System chips narrow which creatures you see. The owner's *"if we switch to PF2, all the stat
-blocks should be geared towards that"* wants a viewing system that persists across the list and the creature
-page, showing each creature's native block for that system where one exists and saying plainly where it does
-not.
+### N3-3 · The system LENS — specified precisely by the owner, 2026-07-30
+
+> *"The bestiary should just default to the 2024 edition. I want it so that the system that is currently
+> being shown to the user is at the top of the stat block, and the user can click it to have a drop-down
+> menu of all of the systems. If they select another system, then it should reload the stat block to show
+> the corrected stats for the system chosen. This should be dynamic in real time."*
+>
+> *"This should do away with the whole 'USE IN ANOTHER SYSTEM' element at the bottom of the stat block."*
+
+That is a complete UI spec and it replaces the current design rather than adding to it:
+
+- **Default: `dnd5e-2024`** — matching the site-wide default settled the same day.
+- **The system control sits at the TOP of the stat block**, not in a panel below it. It is the block's
+  header, because it says what the numbers you are about to read *are*.
+- **A dropdown of all four systems**, and picking one re-renders the block in place. *"Dynamic in real
+  time"* means no navigation — so the block becomes a client component holding the chosen system, rather
+  than the current `?to=` round trip.
+- **`Use in another system` is deleted.** It is the same capability in a worse place, and keeping both
+  would leave two controls that disagree about which system you are looking at.
+
+Depends on N2-1: the lens is only worth having once switching produces genuinely different numbers rather
+than the same ones with a warning list.
+
 ### N3-4 · The derived badge (N4), on the row and on the page.
 
 ---
