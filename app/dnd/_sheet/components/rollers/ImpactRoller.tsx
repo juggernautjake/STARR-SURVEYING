@@ -23,7 +23,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, clack, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, type RolledDie } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, HISTORY_PREVIEW, type RolledDie } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { materialForSkin } from '@/lib/dnd/dice/materials'
 import Die3D from './Die3D'
@@ -408,6 +408,8 @@ export default function ImpactRoller() {
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
   const [histOpen, setHistOpen] = useState(true)
+  /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
+  const [histAll, setHistAll] = useState(false)
 
   const submitEntry = () => {
     const label = entryLabel.trim() || (entryMode === 'fold' ? 'Manual d20' : 'IRL roll')
@@ -579,7 +581,10 @@ export default function ImpactRoller() {
         {histOpen ? '▾' : '▸'} Roll history{log.length ? ` (${log.length})` : ''}
       </button>
       {histOpen && (
-        <div className="iroller-log">
+        // THE ONE PERMITTED SCROLLER (D7-2/D7-3). The permission lives in the markup rather than in a
+        // selector list inside the detector, so it stays attached to the thing being permitted even if
+        // this block moves.
+        <div className="iroller-log" data-scrollable="true">
           {log.length === 0 && (
             <div className="iroller-empty">
               Tap any attack, ability, save, or skill.
@@ -587,7 +592,7 @@ export default function ImpactRoller() {
               Adv / Dis apply automatically.
             </div>
           )}
-          {log.map((e) => (
+          {(histAll ? log : log.slice(0, HISTORY_PREVIEW)).map((e) => (
             <div key={e.id} className={`iroller-re ${e.crit ? 'crit' : ''} ${e.fumble ? 'fumble' : ''}`}>
               <div className="iroller-re-top">
                 <div className="iroller-re-label">{e.label}</div>
@@ -616,6 +621,14 @@ export default function ImpactRoller() {
               </div>
             </div>
           ))}
+          {log.length > HISTORY_PREVIEW && (
+            // Expands INSIDE the existing fixed-height scroller — "rather than growing the window" (D7-2).
+            // The window keeps the one consistent size the owner asked for on 07-28, and the section that
+            // was already the only permitted scroller is the one that absorbs the rest.
+            <button type="button" className="iroller-hist-more" onClick={() => setHistAll((v) => !v)}>
+              {histAll ? 'Show fewer' : `Show all ${log.length}`}
+            </button>
+          )}
         </div>
       )}
     </div>

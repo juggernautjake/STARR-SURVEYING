@@ -21,7 +21,7 @@ import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
-import { shouldAnimateRoller, adoptedToken, breakdownTerms } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, breakdownTerms, HISTORY_PREVIEW } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
@@ -298,6 +298,8 @@ export default function SigilStack() {
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
   const [histOpen, setHistOpen] = useState(true)
+  /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
+  const [histAll, setHistAll] = useState(false)
 
   const submitEntry = () => {
     const label = entryLabel.trim() || (entryMode === 'fold' ? 'Manual d20' : 'IRL roll')
@@ -469,7 +471,9 @@ export default function SigilStack() {
         {histOpen ? '▾' : '▸'} Roll history{log.length ? ` (${log.length})` : ''}
       </button>
       {histOpen && (
-        <div className="sigil-log">
+        /* THE ONE PERMITTED SCROLLER (D7-2/D7-3). The permission lives in the markup rather than a
+           selector list inside the detector, so it stays attached to the thing being permitted. */
+        <div className="sigil-log" data-scrollable="true">
           {log.length === 0 && (
             <div className="sigil-empty">
               Tap any attack, ability, save, or skill.
@@ -477,7 +481,7 @@ export default function SigilStack() {
               Adv / Dis apply automatically.
             </div>
           )}
-          {log.map((e) => (
+          {(histAll ? log : log.slice(0, HISTORY_PREVIEW)).map((e) => (
             <div key={e.id} className={`sigil-re ${e.crit ? 'crit' : ''} ${e.fumble ? 'fumble' : ''}`}>
               <div className="sigil-re-top">
                 <div className="sigil-re-label">{e.label}</div>
@@ -506,6 +510,11 @@ export default function SigilStack() {
               </div>
             </div>
           ))}
+          {log.length > HISTORY_PREVIEW && (
+            <button type="button" className="sigil-hist-more" onClick={() => setHistAll((v) => !v)}>
+              {histAll ? 'Show fewer' : `Show all ${log.length}`}
+            </button>
+          )}
         </div>
       )}
     </div>

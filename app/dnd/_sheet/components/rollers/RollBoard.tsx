@@ -21,7 +21,7 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller, adoptedToken } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, HISTORY_PREVIEW } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
 
@@ -327,6 +327,8 @@ export default function RollBoard() {
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
   const [histOpen, setHistOpen] = useState(true)
+  /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
+  const [histAll, setHistAll] = useState(false)
 
   const submitEntry = () => {
     const label = entryLabel.trim() || (entryMode === 'fold' ? 'Manual d20' : 'IRL roll')
@@ -498,7 +500,9 @@ export default function RollBoard() {
         {histOpen ? '▾' : '▸'} Roll history{log.length ? ` (${log.length})` : ''}
       </button>
       {histOpen && (
-        <div className="rboard-log">
+        /* THE ONE PERMITTED SCROLLER (D7-2/D7-3). The permission lives in the markup rather than a
+           selector list inside the detector, so it stays attached to the thing being permitted. */
+        <div className="rboard-log" data-scrollable="true">
           {log.length === 0 && (
             <div className="rboard-empty">
               Tap any attack, ability, save, or skill.
@@ -506,7 +510,7 @@ export default function RollBoard() {
               Adv / Dis apply automatically.
             </div>
           )}
-          {log.map((e) => (
+          {(histAll ? log : log.slice(0, HISTORY_PREVIEW)).map((e) => (
             <div key={e.id} className={`rboard-re ${e.crit ? 'crit' : ''} ${e.fumble ? 'fumble' : ''}`}>
               <div className="rboard-re-top">
                 <div className="rboard-re-label">{e.label}</div>
@@ -535,6 +539,12 @@ export default function RollBoard() {
               </div>
             </div>
           ))}
+          {log.length > HISTORY_PREVIEW && (
+            // Expands INSIDE the existing fixed-height scroller — "rather than growing the window" (D7-2).
+            <button type="button" className="rboard-hist-more" onClick={() => setHistAll((v) => !v)}>
+              {histAll ? 'Show fewer' : `Show all ${log.length}`}
+            </button>
+          )}
         </div>
       )}
     </div>

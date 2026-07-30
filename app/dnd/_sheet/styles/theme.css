@@ -1706,6 +1706,24 @@
   flex-direction: column;
   gap: 8px;
 }
+/* D7-2 — "show all" for the Dice Core's roll history. Inside the log's own scroller, so expanding never
+   grows the tray. 44px is the mobile touch minimum in D7's acceptance criteria. */
+.dnd-sheet .tray-hist-more {
+  align-self: stretch;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line, rgba(255, 255, 255, 0.18));
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9a97ad);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dnd-sheet .tray-hist-more:hover {
+  color: var(--text, #e8e6f0);
+  border-style: solid;
+}
 .dnd-sheet .tray-empty {
   color: var(--muted);
   font-family: var(--font-mono);

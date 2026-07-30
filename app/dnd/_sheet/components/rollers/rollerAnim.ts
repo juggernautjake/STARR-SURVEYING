@@ -170,3 +170,20 @@ export function breakdownTerms(breakdown: string): BreakdownTerm[] {
     });
   return out;
 }
+
+/**
+ * How many past rolls a roller shows before it asks (D7-2).
+ *
+ * G7 is "the roller window never scrolls", and roll history is the one section with no natural bound —
+ * the store keeps 40 and all three stages rendered every one of them into a `max-height: 260px;
+ * overflow-y: auto` box. So the window was always one busy combat away from being a scroll container,
+ * which is the defect D7-3's detector exists to catch.
+ *
+ * Five, because it is the number a player actually looks back over — "what did I just roll, and the one
+ * before it" — and because five entries fit the collapsed section without the box needing to scroll at
+ * all. Beyond that is history rather than context, and it is one click away.
+ *
+ * Shared rather than declared three times: the three stages have deliberately different identities but
+ * this is not one of them, and three literals is how two of them end up at 5 and one at 8.
+ */
+export const HISTORY_PREVIEW = 5;

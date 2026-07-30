@@ -323,10 +323,39 @@ intended control differences. Screenshots are the deliverable — this is the cl
 > *Owner question:* when a roller genuinely cannot fit a small viewport (a 396×560 window on a 360×640
 > phone), which gives — the consistent size, or the no-scrollbar rule?
 
-### D7-2 · The content must be able to fit
-Sizing alone is not enough — content has to be *sizable*. Roll history is the one unbounded section: cap it to
-the last 5 with "show all" opening a dedicated panel rather than growing the window. Breakdown rows are
-bounded by the roll. Multi-dice trays scale down rather than overflow.
+### D7-2 · The content must be able to fit — **SHIPPED 2026-07-30**
+
+Roll history was the one unbounded section: the store keeps 40 entries and every roller rendered all of
+them into a fixed-height `overflow-y: auto` box, so the window was always one busy combat away from being
+the scroll container G7 forbids.
+
+Capped at `HISTORY_PREVIEW = 5` — shared in `rollerAnim.ts` rather than declared per stage, because three
+literals is how two end up at 5 and one at 8 and nobody notices which. "Show all *n*" expands **inside the
+log's own scroller**, which is the reading that satisfies both of the owner's asks at once: the window keeps
+the consistent size demanded on 07-28, and the section that was already the only permitted scroller absorbs
+the rest. Measured live — the tray is **773px collapsed and 773px expanded**.
+
+The permitted scroller is tagged `data-scrollable="true"` in the markup, which is what D7-3's detector reads,
+so the permission stays next to the thing being permitted. The expand control is 44px tall — D7's own mobile
+touch minimum.
+
+Guarded by `__tests__/dnd/roller-history-cap.test.ts` (18 cases): the cap is applied, it is the *shared* one,
+the log is tagged, the control is touch-sized, and no surface renders `{log.map(` unguarded.
+
+#### The fourth roll log, which only the browser found
+
+The first version of this covered the three roller **stages** and asserted "nothing else in the app renders
+an unbounded roll log". **That was false when it was written.** `DiceTray` — the Dice Core, the roller the
+5e sheet actually shows by default — has its own `tray-log` and was rendering all 40. Opening a sheet found
+it in one query; the source-reading test had confidently said otherwise, because it only read the files it
+already knew about.
+
+The test now enumerates all four and its claim is true. Two things about that are worth keeping: a guard is
+only as wide as its own list, and *"nothing else in the app"* is a claim a source-reading test cannot
+actually make.
+
+Breakdown rows are bounded by the roll, and multi-dice trays already scale rather than overflow, so those
+halves of the slice needed nothing.
 
 ### D7-3 · Prove no scrollbar exists
 

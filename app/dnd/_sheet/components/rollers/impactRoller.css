@@ -760,3 +760,23 @@
     transition: none;
   }
 }
+
+/* D7-2 — "show all" for roll history. Sits inside the log's own scroller so expanding never grows the
+   window, which is what keeps the owner's 07-28 "consistent size" ask and the 07-29 "never scrolls" ask
+   from pulling against each other. 44px min-height is the mobile touch minimum (G7 acceptance). */
+.iroller-hist-more {
+  align-self: stretch;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px dashed var(--hx-line, rgba(255, 255, 255, 0.18));
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted, #9a97ad);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.iroller-hist-more:hover {
+  color: var(--hx-text, #e8e6f0);
+  border-style: solid;
+}

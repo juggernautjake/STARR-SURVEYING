@@ -9,6 +9,7 @@ import { useSheetModule } from '../state/sheetConfig'
 import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 import { useRollerDock } from './rollers/FloatingRoller'
+import { HISTORY_PREVIEW } from './rollers/rollerAnim'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
@@ -24,6 +25,8 @@ export default function DiceTray() {
   const hasForms = useSheetModule('forms')
   const dock = useRollerDock()
   const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
+  /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
+  const [histAll, setHistAll] = useState(false)
   // Auto-open the dock when a roll is triggered from the sheet while it's minimized, so the roll
   // animation pops up automatically instead of playing behind the minimized bar (owner 2026-07-18).
   // `activeRoll.token` increments per roll, so a new roll re-opens the window.
@@ -239,7 +242,9 @@ export default function DiceTray() {
       </button>
 
       {histOpen && (
-      <div className="tray-log">
+      /* THE ONE PERMITTED SCROLLER on the sheet (D7-2/D7-3), tagged in the markup so the permission stays
+         attached to the thing being permitted. */
+      <div className="tray-log" data-scrollable="true">
         {log.length === 0 && (
           <div className="tray-empty">
             Tap any attack, ability, save, or skill.
@@ -247,7 +252,7 @@ export default function DiceTray() {
             Adv / Dis apply automatically.
           </div>
         )}
-        {log.map((e) => (
+        {(histAll ? log : log.slice(0, HISTORY_PREVIEW)).map((e) => (
           <div key={e.id} className={`roll-entry ${e.crit ? 'crit' : ''} ${e.fumble ? 'fumble' : ''} ${e.kind === 'damage' || e.kind === 'heal' || e.kind === 'temp' ? 'dmg' : ''}`}>
             <div className="re-top">
               <div>
@@ -275,6 +280,12 @@ export default function DiceTray() {
             </div>
           </div>
         ))}
+        {log.length > HISTORY_PREVIEW && (
+          // Expands INSIDE the log's own scroller, so the tray never grows (D7-2).
+          <button type="button" className="tray-hist-more" onClick={() => setHistAll((v) => !v)}>
+            {histAll ? 'Show fewer' : `Show all ${log.length}`}
+          </button>
+        )}
       </div>
       )}
     </div>
