@@ -479,15 +479,54 @@ wiring in all four scripts, the query, and the card — plus the audit's hard ch
 
 ## Phase N4 — the honest ceiling
 
-### N4-1 · Coverage and confidence report
-Per system: how many creatures have a native block, how many are transposed-only, and which fields are
-derived versus published. Exits non-zero on a native block whose numbers fall outside its own table's band —
-the one thing that IS checkable automatically.
+### N4-1 · Coverage and confidence report — **SHIPPED 2026-07-30** (`npm run audit:natives`)
 
-### N4-2 · What is still not promised
-A standing note in the UI and this doc: derived blocks are built from the system's own tables at a
-defensible tier. They are not hand-balanced encounters, and a DM should read one before running it. Saying
-this once, clearly, is worth more than an unqualified claim nobody can verify.
+The slice was written expecting `nat-<sys>:*` rows to count. N3-1 was dropped, so there are none — which
+makes this a **better** question than the one planned: not *"how many rows did we generate?"* but
+***"for how many creatures can the lens actually produce an answer, and what kind?"*** That is what a
+reader experiences. Measured across all 3,659 creatures × 4 systems, in the same order of trustworthiness
+`SystemLens.build` uses — auditing a different order would measure a page nobody is looking at:
+
+| system | published | derived | converted |
+|---|---|---|---|
+| `dnd5e-2024` | 3 (0.1%) | **3,656 (99.9%)** | 0 |
+| `dnd5e-2014` | 2,271 (62.1%) | 1,388 (37.9%) | 0 |
+| `pathfinder2e` | 1,587 (43.4%) | 2,072 (56.6%) | 0 |
+| `intuitive-games` | 0 | 0 | **3,659 (100%)** |
+
+Two things that table says plainly and no prose had:
+
+- **The 2024 edition is almost entirely derived.** Only three creatures are published in SRD 5.2, so the
+  site's default system is 99.9% our measurement. That makes N4-2's caveat load-bearing rather than
+  decorative — it is what most readers will be looking at.
+- **Intuitive Games is 100% converted**, with the single reason printed beside it: no creature-building
+  table exists (N1-3). Honest, and visibly the one gap a licence could close rather than a bug.
+
+**The one automatic check worth having: every derived AC and HP must EQUAL the tier row it claims.** The
+derivation *is* the table lookup, so a mismatch means the two have drifted — a whole-catalogue error that
+reads as perfectly normal numbers on any single page. Recomputed from the tier map rather than read back
+off the result, because checking a derivation against its own answer agrees with itself no matter what the
+table says. **Zero mismatches across ~7,100 derivations.**
+
+**74 derivations rest on a tier measured from fewer than 10 creatures** — reported, not failed. A thin row
+is a weaker claim, not a wrong one, and the block already says so in its own notes. Reported anyway because
+"derived from the table" reads identically whether the row was measured from 250 creatures or from 4.
+
+### N4-2 · What is still not promised — **SHIPPED 2026-07-30**
+
+On every derived stat block, under the per-field notes:
+
+> Built from *[system]*'s own measured tier tables at a defensible tier — **not hand-balanced for your
+> table**. Whether this is a fair fight for a particular party is a judgement no table can make. Read it
+> before you run it.
+
+Necessary precisely because the notes above it are good: a reader who follows every one of them could still
+conclude the block has been balanced. The tables measure what creatures at a tier **are**, which is a
+different claim from *"this is a fair fight for your party"*.
+
+Shown on derived blocks only — **never on a published one**. A publisher's stat block carries no claim of
+ours, and hedging it would mislead exactly as much as failing to hedge a derived one. `audit:natives`
+prints the same sentence, so the page and the audit cannot drift into telling different stories.
 
 ---
 

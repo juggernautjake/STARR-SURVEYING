@@ -129,6 +129,31 @@ describe('the lens defaults to 2024 and offers all four systems', () => {
   });
 });
 
+describe('the honest ceiling is on the page, not only in the plan (N4-2)', () => {
+  const audit = readFileSync(join(process.cwd(), 'scripts/audit-native-coverage.mjs'), 'utf8');
+
+  it('every derived block says it is not hand-balanced', () => {
+    // A reader who follows all the per-field notes could still conclude the block has been balanced. It
+    // has not: the tables measure what creatures at a tier ARE, which is a different claim from "this is
+    // a fair fight for your party".
+    expect(lens).toMatch(/view\.kind === 'derived' &&/);
+    expect(lens).toMatch(/not hand-balanced for your table/);
+  });
+
+  it('and the audit prints the same claim, so the two cannot drift apart', () => {
+    expect(audit).toMatch(/NOT hand-balanced encounters/);
+    expect(audit).toMatch(/What is NOT promised/);
+  });
+
+  it('the caveat is NOT attached to a published block', () => {
+    // A publisher's stat block carries no claim of ours, and hedging one would be as misleading as
+    // failing to hedge a derived one.
+    const notes = lens.slice(lens.indexOf('view.notes.length > 0'));
+    expect(notes.indexOf("view.kind === 'derived'")).toBeGreaterThan(-1);
+    expect(lens).not.toMatch(/view\.kind === 'published' &&[\s\S]{0,200}not hand-balanced/);
+  });
+});
+
 describe('"Use in another system" is gone, not merely hidden', () => {
   it('the panel is deleted from the creature page', () => {
     expect(page).not.toMatch(/Use in another system/);

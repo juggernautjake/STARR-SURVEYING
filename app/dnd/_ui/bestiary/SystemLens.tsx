@@ -156,6 +156,21 @@ export default function SystemLens({
               <li key={n} style={{ fontSize: 12.5, color: 'var(--hx-text)', lineHeight: 1.5 }}>{n}</li>
             ))}
           </ul>
+
+          {/* N4-2 — THE HONEST CEILING, on the page rather than only in the plan.
+              The per-field notes above say how each number was reached, and a reader who follows all of
+              them could still conclude the block has been balanced. It has not: the tables are a
+              measurement of what creatures at a tier ARE, which is a different claim from "this is a fair
+              fight for your party". Saying it once, plainly, on every derived block is worth more than an
+              unqualified promise nobody can check — and it is the same sentence `npm run audit:natives`
+              prints, so the page and the audit cannot drift into telling different stories. */}
+          {view.kind === 'derived' && (
+            <p style={{ fontSize: 11.5, color: 'var(--hx-muted)', margin: '8px 0 0', lineHeight: 1.5, borderTop: '1px solid var(--hx-gold-line)', paddingTop: 8 }}>
+              Built from {SYSTEM_LABEL[system]}&rsquo;s own measured tier tables at a defensible tier —
+              <strong> not hand-balanced for your table</strong>. Whether this is a fair fight for a
+              particular party is a judgement no table can make. Read it before you run it.
+            </p>
+          )}
         </div>
       )}
     </div>
