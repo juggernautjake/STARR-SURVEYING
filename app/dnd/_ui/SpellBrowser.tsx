@@ -15,6 +15,7 @@ import { spellsForSystem, spellCatalog, type SpellDef } from '@/lib/dnd/spells';
 import { tagsForSpell, facetsFor, matchesTagFilters, tagCounts } from '@/lib/dnd/library-tags';
 import GiveEntryButton from './GiveEntryButton';
 import TermText from './TermText';
+import CollapsibleSection from './CollapsibleSection';
 
 export default function SpellBrowser({ system }: { system: string }) {
   const [q, setQ] = useState('');
@@ -60,17 +61,21 @@ export default function SpellBrowser({ system }: { system: string }) {
   if (!all.length) return null;
 
   return (
-    <section id="spell-browser" className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12, scrollMarginTop: 16 }}>
-      <div className={styles.framedPanelTop} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <div>
-          <h2 className={styles.panelTitle} style={{ margin: 0 }}>Spells</h2>
-          <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '3px 0 0' }}>
-            {results.length === all.length
-              ? `${all.length} spells — search or filter to narrow them.`
-              : `${results.length} of ${all.length} spells.`}
-          </p>
-        </div>
+    // A default-closed collapsible, like every other rules section (owner 2026-07-29). THE SEARCH BOX MOVED
+    // INTO THE BODY: it used to sit in the header row, and a text input inside a `<summary>` collapses the
+    // section on the first click into it — the control would have been unusable exactly when you reached for
+    // it. Only the title and the count belong in a summary.
+    <CollapsibleSection
+      id="spell-browser"
+      title="Spells"
+      padding="14px 16px"
+      lead={
+        results.length === all.length
+          ? `${all.length} spells — search or filter to narrow them.`
+          : `${results.length} of ${all.length} spells.`
+      }
+    >
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <input
           value={q} onChange={(e) => setQ(e.target.value)}
           placeholder="Search by name, school, or effect…"
@@ -195,6 +200,6 @@ export default function SpellBrowser({ system }: { system: string }) {
           {all.length} spells catalogued. Anything missing can still be added by hand on a sheet.
         </p>
       )}
-    </section>
+    </CollapsibleSection>
   );
 }

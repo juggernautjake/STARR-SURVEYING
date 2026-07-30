@@ -10,6 +10,7 @@ import type { GlossaryEntry } from '@/lib/dnd/glossary';
 import { anchorAliases, glossaryAnchorId } from '@/lib/dnd/library-anchors';
 import { watchLibraryAnchor } from './library-anchor-client';
 import GiveEntryButton, { grantKindForGlossary } from './GiveEntryButton';
+import CollapsibleSection from './CollapsibleSection';
 
 const KIND_LABEL: Record<string, string> = {
   condition: 'Conditions',
@@ -104,15 +105,16 @@ export default function GlossaryList({
   }), [entries]);
 
   return (
-    <section id="glossary" className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12, scrollMarginTop: 16 }}>
-      <div className={styles.framedPanelTop} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <div>
-          <h2 className={styles.panelTitle} style={{ margin: 0 }}>Glossary</h2>
-          <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '3px 0 0' }}>
-            {entries.length} {systemName} terms, each explained in full. Click one to read it.
-          </p>
-        </div>
+    // Default-closed, like every other rules section (owner 2026-07-29). The filter input moves into the body
+    // for the same reason as the spell search: a text input inside a `<summary>` toggles the section shut the
+    // moment you click into it.
+    <CollapsibleSection
+      id="glossary"
+      title="Glossary"
+      padding="14px 16px"
+      lead={`${entries.length} ${systemName} terms, each explained in full. Click one to read it.`}
+    >
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -192,6 +194,6 @@ export default function GlossaryList({
           })}
         </div>
       ))}
-    </section>
+    </CollapsibleSection>
   );
 }

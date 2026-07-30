@@ -10,10 +10,18 @@ import { join } from 'node:path';
 const page = readFileSync(join(process.cwd(), 'app/dnd/library/[key]/page.tsx'), 'utf8');
 
 describe('library system page — collapsible sections, default closed (MOB2b)', () => {
-  it('renders each section as a <details> with a <summary>, not a plain <section>', () => {
-    // The section map opens a <details> keyed by section id and puts the title in a <summary>.
-    expect(page).toMatch(/page\.sections\.map\(\(s\) => \(\s*<details\b/);
-    expect(page).toContain('<summary');
+  // THE GUARANTEE IS "COLLAPSIBLE AND CLOSED", NOT "A LITERAL <details> IN THIS FILE". These two assertions
+  // used to pin `page.sections.map((s) => (<details` and `<details key={s.id} id={s.id}`, and they failed the
+  // moment the accordion chrome moved into the shared `CollapsibleSection` — the change that made the three
+  // BESPOKE sections (Spells, Class tables, Glossary) collapsible too, which is what the owner asked for both
+  // times. A test that fails when its own subject is extended to more of the page is pinning the mechanism.
+  //
+  // `CollapsibleSection` is now the thing that must be a default-closed `<details>`, and
+  // library-sections-collapsible.test.ts asserts exactly that, plus that no surface renders a section header
+  // outside one. Here we assert this page routes its sections through it, with their ids intact.
+  it('renders each section through the shared collapsible, not a plain <section>', () => {
+    expect(page).toMatch(/page\.sections\.map\(\(s\) => \(\s*<CollapsibleSection\b/);
+    expect(page).not.toMatch(/<section[^>]*framedPanel[\s\S]{0,400}?<h2[^>]*panelTitle/);
   });
 
   it('never force-opens the section accordion (no `open` attribute on the section <details>)', () => {
@@ -24,8 +32,11 @@ describe('library system page — collapsible sections, default closed (MOB2b)',
   });
 
   it('keeps the section id + scroll target so jump-nav still lands on the (closed) header', () => {
-    expect(page).toMatch(/<details key=\{s\.id\} id=\{s\.id\}/);
-    expect(page).toContain('scrollMarginTop');
+    // The id is what jump-nav and every `#section` deep link target; it must survive the chrome moving.
+    expect(page).toMatch(/<CollapsibleSection key=\{s\.id\} id=\{s\.id\}/);
+    // `scrollMarginTop` now lives on the shared component (one sticky-header offset for every section) —
+    // which is the point, but it means this page no longer needs to say it, so check where it actually is.
+    expect(readFileSync(join(process.cwd(), 'app/dnd/_ui/CollapsibleSection.tsx'), 'utf8')).toContain('scrollMarginTop');
   });
 
   it('renders a per-entry image (e.g. a species portrait) INSIDE the accordion, above the detail text', () => {

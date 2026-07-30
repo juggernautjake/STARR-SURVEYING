@@ -481,6 +481,32 @@ select.input {
 
 /* Framed panel — dark fill, gold hairline, gold top-accent bar, hex texture, and
    angular gold corner brackets (top-left + bottom-right). */
+/* The header of a collapsible rules section (see CollapsibleSection.tsx). Every library/rules section on
+   every system is a default-closed `<details>`, so this row is what a reader mostly sees — and it is the
+   primary tap target on the page. On a touch device it therefore has to meet the 44px minimum: a section
+   header you have to aim at is worse than no collapsing at all. */
+.sectionSummary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  padding: 2px 0;
+}
+.sectionSummary:hover .panelTitle {
+  color: var(--hx-gold-2);
+}
+/* A visible focus ring, since this is now a real control and keyboard users tab through them. */
+.sectionSummary:focus-visible {
+  outline: 2px solid var(--hx-teal-1);
+  outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .sectionSummary {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
 .framedPanel {
   position: relative;
   background:

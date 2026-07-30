@@ -23,6 +23,7 @@ import DeepLinkOpener from './DeepLinkOpener';
 import { entryAnchorId } from '@/lib/dnd/library-anchors';
 import GlossaryList from '@/app/dnd/_ui/GlossaryList';
 import JumpNav from '@/app/dnd/_ui/JumpNav';
+import CollapsibleSection from '@/app/dnd/_ui/CollapsibleSection';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
 export function generateStaticParams() {
@@ -160,16 +161,14 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
           <SpellBrowser system={page.key} />
 
           {/* ── the rules, section by section ──────────────────────────── */}
-          {/* Each section is a collapsible <details>, DEFAULT CLOSED (owner 2026-07-18): the page opens as a
-              scannable list of section headers you expand on demand — native, no-JS, accessible, and much
-              better on mobile. (Per-entry expansion within a section is the next slice.) */}
+          {/* Every section is a default-closed collapsible: the page opens as a scannable list of headers you
+              expand on demand — native `<details>`, no-JS, accessible, and much better on mobile (owner
+              2026-07-18, restated 2026-07-29 as "everything closed by default … each section in each system").
+              The chrome moved into `CollapsibleSection` so the bespoke sections below — Spells, Class tables,
+              Glossary — are the SAME element rather than three hand-rolled `<section>`s that missed the memo. */}
           {page.sections.map((s) => (
-            <details key={s.id} id={s.id} className={styles.framedPanel} style={{ padding: '12px 16px', scrollMarginTop: 16 }}>
-              <summary style={{ cursor: 'pointer', listStyle: 'revert' }}>
-                <h2 className={styles.panelTitle} style={{ margin: 0, display: 'inline' }}>{s.title}</h2>
-                {s.lead && <span style={{ color: 'var(--hx-muted)', fontSize: 13, marginLeft: 8 }}>— {s.lead}</span>}
-              </summary>
-              <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+            <CollapsibleSection key={s.id} id={s.id} title={s.title} lead={s.lead}>
+              <div style={{ display: 'grid', gap: 10 }}>
 
               {s.facts && (
                 <dl style={{ display: 'grid', gap: 10, margin: 0 }}>
@@ -292,20 +291,17 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                 </figure>
               )}
               </div>
-            </details>
+            </CollapsibleSection>
           ))}
 
           {/* ── full class tables, for systems that have them ──────────── */}
           {classes.length > 0 && (
-            <section id="progression" className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12, scrollMarginTop: 16 }}>
-              <div className={styles.framedPanelTop} />
-              <div>
-                <h2 className={styles.panelTitle} style={{ margin: 0 }}>Class tables — every level, 1 to 20</h2>
-                <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '3px 0 0' }}>
-                  What each class gains at each level, and the choices it unlocks. This is the same data the character
-                  builder walks you through.
-                </p>
-              </div>
+            <CollapsibleSection
+              id="progression"
+              title="Class tables — every level, 1 to 20"
+              padding="14px 16px"
+              lead="What each class gains at each level, and the choices it unlocks — the same data the character builder walks you through."
+            >
               {classes.map((c) => {
                 const subs = subclassesFor(c.system, c.key);
                 return (
@@ -366,7 +362,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                   </details>
                 );
               })}
-            </section>
+            </CollapsibleSection>
           )}
 
           {/* ── the glossary ───────────────────────────────────────────── */}
