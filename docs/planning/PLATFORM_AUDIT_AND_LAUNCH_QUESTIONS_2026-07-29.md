@@ -337,6 +337,59 @@ Anthropic client:
 
 ---
 
+## 8b. Owner decisions — 2026-07-29
+
+Answered by the owner in the audit session. These are settled; treat them as constraints.
+
+- **D1 — Business model: internal now, SaaS later.** Ship single-tenant. Add `org_id` to the
+  business tables **now** (nullable, defaulted to the Starr org) so the eventual multi-tenant
+  migration is a backfill, not a rewrite. Do NOT delete `/platform`, `/admin/orgs`, bundle-gating
+  or the operator console — they stay as the future path.
+- **D2 — First work: schema reconstruction.** Dump the live DB, backfill the 78 missing
+  `CREATE TABLE` statements into `seeds/`, stand up a staging DB from the repo, verify parity.
+  Nothing else at scale until this exists.
+- **D3 — Day-one workflows: all three spines must work.**
+  1. Clock in → work → get paid
+  2. Lead → job → invoice → paid
+  3. Job → field data → CAD → deliverable
+  Nothing outside these three is launch-critical.
+- **D4 — AI scope: agentic intake with a human approval gate.** Specifically, the owner's stated
+  target flow:
+  > A request comes in from the front end. The AI **scrubs the query, gathers all pertinent info,
+  > creates the job, and populates its details automatically.** Jacob or Hank then get a
+  > **notification** summarising the inbound query with a **suggested quote amount**. If they
+  > approve, the AI **runs the property research and saves it** for later viewing.
+
+  Plus, generally: the AI takes notes, writes emails, answers questions about the site (pages,
+  elements, how to use things) **and** answers general + complex surveying questions.
+
+  **Design implications this creates:**
+  - Job creation from an inbound lead is an *autonomous* write (no confirm) — so it needs to be
+    reversible/soft-deleted and clearly marked `source: ai-intake` and `status: unconfirmed`.
+  - Research kickoff is the **approval gate** (it costs money and time).
+  - Quote suggestion needs a pricing model to ground on — see Q4/Q22; today nothing in the code
+    computes a quote. This is a prerequisite, not a detail.
+  - Notification must reach Jacob **and** Hank on a channel they actually watch (see Q-D4 below).
+  - The "answer questions about pages and elements" requirement means the assistant needs the
+    route registry + page context as grounding — which also fills the 150 empty help drawers.
+
+  **New questions this raises (D4 follow-ups):**
+  - **Q-D4a.** How should the suggested quote be computed — a rate table by survey type × acreage
+    × county? Historical similar jobs? Your judgement encoded as rules? I need the actual pricing
+    logic; I will not invent it.
+  - **Q-D4b.** Which notification channel for the intake alert — in-app bell, email, SMS, or all
+    three? How fast must it reach you?
+  - **Q-D4c.** If the AI creates a job and you *reject* the lead, what happens to the job record —
+    soft-delete, or a `rejected` stage?
+  - **Q-D4d.** Can the AI reply to the customer automatically to acknowledge receipt, or does every
+    outbound customer email wait for you?
+  - **Q-D4e.** What's the monthly AI budget ceiling? Auto-research on every inbound lead is the
+    most expensive thing in this design.
+  - **Q-D4f.** Should the AI refuse to auto-create a job for obvious spam/solicitation, and what
+    does it do with those?
+
+---
+
 ## 9. Question bank
 
 ### Q1 — Business model (this changes everything downstream)

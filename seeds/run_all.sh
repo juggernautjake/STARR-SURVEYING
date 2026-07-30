@@ -77,7 +77,10 @@ if $RESET; then
   echo ""
 fi
 
-# Discover all numbered seed files (skips 000_*; that's the reset file)
+# Discover all numbered seed files. Only 000_reset.sql is excluded below — it is
+# skipped BY NAME, not by numeric prefix, because 000_baseline_tables.sql must
+# also live in the 000 block: 29 later seeds (from 001_config.sql onward) ALTER
+# the tables it creates, so it has to apply before any of them.
 shopt -s nullglob
 SEED_FILES=("$SCRIPT_DIR"/[0-9][0-9][0-9]_*.sql)
 shopt -u nullglob
@@ -92,8 +95,9 @@ for filepath in "${SEED_FILES[@]}"; do
   basename="$(basename "$filepath")"
   prefix="${basename:0:3}"
 
-  # Always skip 000 — that's the reset file, only runs when --reset is set
-  [[ "$prefix" == "000" ]] && continue
+  # Skip the destructive reset — it only runs from the --reset block above.
+  # Matched by name so other 000-prefixed files (the baseline schema) still run.
+  [[ "$basename" == "000_reset.sql" ]] && continue
 
   # Honor --from lower bound
   if [[ -n "$FROM_PREFIX" && "$prefix" < "$FROM_PREFIX" ]]; then
