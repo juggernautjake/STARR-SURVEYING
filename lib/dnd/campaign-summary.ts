@@ -9,6 +9,23 @@ import { donataDime } from '@/app/dnd/_sheet/data/donata';
 import { characterIdsInCampaign } from '@/lib/dnd/characters';
 import { rosterRoleOf } from '@/lib/dnd/roster';
 
+/**
+ * THE DEMO SELF-HEAL IS THROTTLED, and it was the campaign page's real cost. Measured warm: 1.81s to
+ * return 44KB — a tiny payload, so nearly all of it was waiting on the database.
+ *
+ * `ensureDemoStreamer` and `ensureDonata` issue **13 sequential round trips between them** — upserts for
+ * the user, the membership, the character, the stream state — and they ran on EVERY view of the demo
+ * campaign, from two different loaders, almost always finding nothing to repair. At ~100ms a trip that was
+ * most of the page's time, spent proving that rows which already exist still exist.
+ *
+ * They remain idempotent and best-effort; they simply no longer run per request. A five-minute window
+ * means a deliberately deleted demo row heals within five minutes rather than instantly — the right trade
+ * for a self-heal, which exists so the demo survives neglect, not so anything can rely on it as a write
+ * path. Module scope, so it is per server process; a restart heals immediately, which is when you want it.
+ */
+const DEMO_HEAL_INTERVAL_MS = 5 * 60 * 1000;
+let lastDemoHeal = 0;
+
 // Self-heal for the Neon Odyssey demo: make sure the streamer (xxRainbowKittenUwU37xx)
 // exists with her full statted `streamer` sheet + a live stream, owned by Susie as a
 // PRIVATE player character (only Susie + the DM can open it; only her chat is DM-run).
@@ -355,21 +372,40 @@ export interface CampaignHubData {
  *  chat is mounted client-side, and read-only session summaries. `viewerId` is the
  *  current user (used to flag their own character). */
 export async function loadCampaignHub(campaignId: string, viewerId: string, viewerRole: 'dm' | 'player'): Promise<CampaignHubData | null> {
-  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, theme, system').eq('id', campaignId).maybeSingle();
+  // TWO ROUND TRIPS, NOT FIVE. Measured warm: the campaign page took **1.81s to return 44KB** — the
+  // payload is tiny, so the time was almost entirely waiting on a remote database, ~450ms per trip.
+  //
+  // The chain was: `camp`, then `characterIdsInCampaign` (an await hidden inside a helper call, which is
+  // why the sequence read as shorter than it was), then a Promise.all of four, then recaps, then maps.
+  // Five trips, of which only TWO dependencies are real: `chars` needs the character ids, and `recaps`
+  // needs the session list. Everything else was sequential by accident of how it was written.
+  //
+  // So: fire everything independent at once, then the two that genuinely wait. `camp`'s null check moves
+  // AFTER the batch — a nonexistent campaign now costs a few wasted parallel reads instead of gating five
+  // serial ones, which is the right trade for a case that is rare and already an error path.
+  if (campaignId === DEMO_CAMPAIGN_ID && Date.now() - lastDemoHeal > DEMO_HEAL_INTERVAL_MS) {
+    lastDemoHeal = Date.now();
+    await Promise.all([ensureDemoStreamer(), ensureDonata()]);
+  }
+
+  const [{ data: camp }, { data: mems }, { data: sess }, { data: mediaRows }, charIds, mapsResult] = await Promise.all([
+    supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, theme, system').eq('id', campaignId).maybeSingle(),
+    supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
+    supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
+    supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
+    characterIdsInCampaign(campaignId),
+    // `dnd_maps` may be unmigrated, so this keeps its own error handling rather than failing the batch.
+    supabaseAdmin.from('dnd_maps').select('id, name, kind, image_url').eq('campaign_id', campaignId)
+      .eq('published', true).order('updated_at', { ascending: false })
+      .then((r: { data: unknown }) => r, () => ({ data: null })),
+  ]);
+
   const campaign = camp as { id: string; name: string; blurb: string | null; theme: Record<string, unknown> | null; system?: string | null } | null;
   if (!campaign) return null;
 
-  if (campaignId === DEMO_CAMPAIGN_ID) { await ensureDemoStreamer(); await ensureDonata(); }
-
-  const charIds = await characterIdsInCampaign(campaignId);
-  const [{ data: mems }, { data: chars }, { data: sess }, { data: mediaRows }] = await Promise.all([
-    supabaseAdmin.from('dnd_campaign_members').select('user_id, role').eq('campaign_id', campaignId),
-    charIds.length
-      ? supabaseAdmin.from('dnd_characters').select('id, name, is_npc, roster_role, owner_user_id, played_by_user_id, token_url, art_url, sheet_type, system').in('id', charIds).order('is_npc', { ascending: true })
-      : Promise.resolve({ data: [] as unknown[] }),
-    supabaseAdmin.from('dnd_sessions').select('id, title, sort_order').eq('campaign_id', campaignId).order('sort_order', { ascending: true }),
-    supabaseAdmin.from('dnd_media').select('id, url, kind, label, gallery_tags').eq('campaign_id', campaignId).order('created_at', { ascending: false }),
-  ]);
+  const { data: chars } = charIds.length
+    ? await supabaseAdmin.from('dnd_characters').select('id, name, is_npc, roster_role, owner_user_id, played_by_user_id, token_url, art_url, sheet_type, system').in('id', charIds).order('is_npc', { ascending: true })
+    : { data: [] as unknown[] };
   const members = (mems ?? []) as { user_id: string; role: string }[];
   const characters = (chars ?? []) as {
     id: string; name: string; is_npc: boolean; roster_role: string | null; owner_user_id: string | null; played_by_user_id: string | null; token_url: string | null; art_url: string | null; sheet_type: string | null; system: string | null;
@@ -466,7 +502,10 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
   if (!campaign) return null;
 
   // Demo self-heal: ensure the streamer NPC exists before we list the roster.
-  if (campaignId === DEMO_CAMPAIGN_ID) { await ensureDemoStreamer(); await ensureDonata(); }
+  if (campaignId === DEMO_CAMPAIGN_ID && Date.now() - lastDemoHeal > DEMO_HEAL_INTERVAL_MS) {
+    lastDemoHeal = Date.now();
+    await Promise.all([ensureDemoStreamer(), ensureDonata()]);
+  }
 
   const charIds = await characterIdsInCampaign(campaignId);
   const [{ data: mems }, { data: chars }] = await Promise.all([
