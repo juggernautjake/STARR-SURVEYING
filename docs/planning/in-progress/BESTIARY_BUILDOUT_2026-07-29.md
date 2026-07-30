@@ -529,7 +529,41 @@ From the listing: add to a campaign as an NPC/creature, which is the existing gr
 
 ## Phase B4 — transposition
 
-### B4-1 · Creature transposition across all four systems
+### B4-1 · Creature transposition — **SHIPPED 2026-07-29**, `lib/dnd/bestiary/transpose.ts`, 20 tests
+
+**G5 is the entire design: "transposition never invents rules."**
+
+It would be easy to turn a CR 2 ogre into a "level 2 PF2 ogre" by copying the numbers across, and it would
+be wrong in a way nobody notices until the fight runs. The scales do not correspond: 5e AC spans roughly
+10–25 across the whole game while PF2 AC climbs with level into the 50s, so a copied 18 makes a level-15
+creature hit-on-a-2. No published conversion exists, and deriving one here would be inventing rules that
+read as authoritative on a stat block someone uses mid-combat.
+
+So it converts what has a **defined correspondence** and **marks everything else**:
+
+| Converts exactly | Marked, carried verbatim |
+| --- | --- |
+| Ability scores ↔ modifiers (5e's own `floor((score−10)/2)`) | AC, HP, saves, DCs, spellcasting |
+| Size — both systems use the same words | CR ↔ level: different quantities, not a scale |
+| Creature type where the vocabularies overlap | Types with no counterpart (`petitioner`, `dream`, `time`) |
+| Prose — traits, actions, senses, languages | Action text referencing mechanics the target lacks |
+
+Score↔modifier is the one genuinely exact mapping, and the reverse direction is **lossy and says so**: +3
+could have come from 16 or 17, so a reconstructed score is flagged rather than presented as stated. Scores
+never fall below 1 even from a −6 modifier.
+
+Verified on real rows — Ogre → PF2 produced 4 marked items; Goblin Warrior → 5e produced 6, including the
+reconstruction note. A test asserts the unmapped list is **non-empty** for a real conversion, because an
+empty one would mean either a trivial change or a lie, and asserting it keeps a later refactor from
+"simplifying" the warnings away.
+
+Deliberately **not** the AI transpose in `lib/dnd/homebrew/transpose.ts`. That one rewrites a piece into a
+system's idiom and asks a human to approve it; this one is arithmetic and honesty, and it should run first —
+if a number converts exactly, no model should be asked to imagine it.
+
+**Remaining in B4:** a button on the creature page, and B4-2 (IG's bestiary by transposition).
+
+### B4-1 · Creature transposition across all four systems (original plan text)
 5e ↔ PF2 ↔ IG using the existing per-system model plus the transpose conventions. Maps ability scores, AC/HP,
 attacks, saves and DCs; **marks** what has no equivalent rather than inventing it (G5).
 
