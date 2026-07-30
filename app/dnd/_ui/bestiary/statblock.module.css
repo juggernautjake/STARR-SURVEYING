@@ -1,0 +1,123 @@
+/* statblock.module.css — the printed stat block form, on screen.
+   Scoped to the component's own module, so it travels with it and cannot depend on a page's chrome — the mistake
+   that left the Impact roller's stage unstyled on two of four systems. */
+
+.block {
+  display: grid;
+  gap: 10px;
+  color: var(--hx-text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+/* The classic rule-above-and-below grouping of a printed block. */
+.core {
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hx-line);
+  border-bottom: 1px solid var(--hx-line);
+}
+.core:empty {
+  display: none;
+  border: 0;
+  padding: 0;
+}
+
+.line {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.lineLabel {
+  color: var(--hx-gold-2);
+  font-weight: 700;
+}
+.lineValue {
+  color: var(--hx-text);
+  min-width: 0;
+}
+
+/* Ability scores: six columns on a wide screen, wrapping to three then two on a phone. `auto-fit` with a floor
+   rather than a fixed six, because six 44px columns do not fit a 360px viewport and a stat block that overflows
+   sideways is unreadable exactly where it is most often read. */
+.abilities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hx-line);
+}
+.ability {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 4px 2px;
+  border: 1px solid var(--hx-line);
+  background: rgba(1, 10, 19, 0.4);
+}
+.abilityName {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--hx-teal-1);
+}
+.abilityScore {
+  font-family: var(--hx-font-display);
+  font-size: 17px;
+  line-height: 1;
+}
+.abilityMod {
+  font-size: 11.5px;
+  color: var(--hx-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.section {
+  display: grid;
+  gap: 6px;
+}
+.sectionHead {
+  margin: 6px 0 0;
+  font-family: var(--hx-font-display);
+  font-size: 15px;
+  color: var(--hx-gold-2);
+  border-bottom: 1px solid var(--hx-gold-0);
+  padding-bottom: 2px;
+}
+
+.entry {
+  display: grid;
+  gap: 4px;
+}
+.body {
+  margin: 0;
+}
+.entryName {
+  color: var(--hx-gold-2);
+  font-style: italic;
+}
+.cost {
+  margin-left: 5px;
+  font-size: 11px;
+  color: var(--hx-teal-1);
+  border: 1px solid var(--hx-line);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.uses {
+  margin-left: 5px;
+  font-size: 11.5px;
+  color: var(--hx-muted);
+}
+
+.rolls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.emptyNote {
+  margin: 0;
+  color: var(--hx-muted);
+  font-size: 13px;
+}

@@ -215,6 +215,47 @@ The owner asked for each stat block to be *cultivated*, not just present. A qual
 
 ---
 
+---
+
+## Shipped
+
+### 2026-07-29 · B1-1 + B1-2 + B2-1/B2-2/B2-4 — the bestiary is reachable
+
+The catalogue now has a surface, a stat block, and an atmosphere. Shipped together because the list page
+imported `CreatureAura` before it existed, so none of it compiled in isolation.
+
+| Piece | Where |
+| --- | --- |
+| Browse page, six filters, honest empty state | `app/dnd/bestiary/page.tsx` |
+| Creature detail + stat block | `app/dnd/bestiary/[slug]/page.tsx`, `app/dnd/_ui/bestiary/CreatureStatblock.tsx` |
+| Aura derivation (B2-1) + sigil fallback (B2-4) | `lib/dnd/bestiary/aura.ts` |
+| Aura renderer (B2-2) | `app/dnd/_ui/bestiary/CreatureAura.tsx`, `aura.module.css` |
+| Reads | `lib/dnd/bestiary/query.ts` — `loadBestiary`, `loadCreature`, `allCreatureSlugs` |
+| First three creatures | `seeds/464_dnd_bestiary_first_creatures.sql` — Goblin, Zombie, Wolf (SRD 5.1, CC-BY-4.0) |
+| Coverage | `__tests__/dnd/bestiary-aura.test.ts` — 21 tests. Full bestiary suite 97 passing. |
+
+**Four real defects found and fixed during verification** — every one of them the "authored but not wired"
+shape this plan opens by warning about:
+
+1. **The bestiary did not compile.** `page.tsx` imported `@/app/dnd/_ui/bestiary/CreatureAura`, which did not
+   exist, and `query.ts` imported `@/lib/supabaseAdmin` — the module is `@/lib/supabase`. A stale
+   `tsconfig.tsbuildinfo` meant `tsc --noEmit` reported clean; only `--incremental false` showed it. **Any
+   typecheck claim about this repo needs the cache disabled to be worth anything.**
+2. **`sigilFor` produced out-of-range rings for ~half of all slugs.** `(n >> 8)` coerces to int32, so a hash
+   at or above 2³¹ shifted negative and `% 24` returned a negative remainder — `ring` came out at 0.41
+   against a documented 0.52–0.75 band. Now `>>>` throughout. Caught by the new test, not by eye.
+3. **Seed 464 aborted on apply.** `ON CONFLICT (slug)` matches no constraint — the table's unique key is
+   `(slug, system)` — and Postgres rejects an inference clause that matches nothing rather than degrading.
+   The seed would have failed on a fresh database. Fixed, and verified idempotent by applying it twice
+   inside a rolled-back transaction against the live schema.
+4. **`dnd_creatures` confirmed at 0 rows in production**, as the audit claimed. Seed 464 is not yet applied
+   to live — it is verified-applicable, not applied.
+
+**Known issue, not yet fixed:** `loadCreature(slug)` filters on `slug` alone with `.maybeSingle()`, but the
+unique key is `(slug, system)`. Harmless today because slugs carry a source prefix (`srd51:goblin`), but
+**B4-2 transposition will break it** the moment one creature exists in two systems. Either the transposed row
+needs its own prefix or the lookup needs the system — decide in B4.
+
 ## Slice order
 
 **B1-1** bestiary route (empty but correct) → **B1-2** interactive stat block → **B1-3** 5e SRD import →
