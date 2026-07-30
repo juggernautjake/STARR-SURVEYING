@@ -106,12 +106,39 @@ carry the feeling whether the centre is a woodcut, a photograph or a generated s
 ## Phase B1 — surface what exists, then fill it
 
 ### B1-1 · The bestiary route `/dnd/bestiary` (+ `/dnd/bestiary/[slug]`)
+
+**SHIPPED 2026-07-29.** List + detail, with `lib/dnd/bestiary/query.ts` doing all filtering IN THE DATABASE
+(system, category tag, type, CR band, alignment, free text over name and description). Facets are read from the
+catalogue so a filter never offers a value that matches nothing. Filters are LINKS rather than a client form, so the
+whole page stays a server component and every filtered view is a shareable URL.
+
+Query errors THROW rather than returning zero rows — an empty bestiary and a broken bestiary must not look the same,
+which is the `{ data, error }`-ignored defect that made a profile page report "0 pieces" for a missing table.
+
+Browser-verified with seed 464 (three SRD creatures — Goblin, Zombie, Wolf, chosen to exercise two attacks, the
+owner's stench example, and the multi-tag path): facets derive correctly, the `undead` tag filter narrows to one,
+and the detail page prints the licence attribution the CC-BY terms require.
+
+**Two bugs found by driving it.** (1) The detail page 404'd on every creature: slugs carry a source prefix
+(`srd51:wolf`) and the colon does not survive a URL path segment intact, so the arriving param was percent-encoded
+and matched nothing — now decoded unconditionally. (2) An empty catalogue still offered five CR-band chips, because
+the bands are a fixed list rather than a facet and so missed the guard the derived facets get for free — exactly the
+"no dragons" versus "no dragons imported yet" confusion this page is meant to avoid.
 A list view with the G7 filters and a detail view with the full stat block. **Built before the import**, and
 deliberately: an import with nowhere to look at the results is how a table ends up with rows nobody has ever
 seen — and an empty bestiary page immediately shows whether filters, taxonomy and layout are right, using the
 handful of rows a fixture can provide.
 
 ### B1-2 · The interactive stat block `CreatureStatblock`
+
+**SHIPPED 2026-07-29.** `app/dnd/_ui/bestiary/CreatureStatblock.tsx` renders the printed stat-block form — AC/HP/
+Speed above the ability row, then saves/skills/resistances/senses/languages/challenge, then traits and actions in
+`STATBLOCK_ENTRY_KINDS` order (read from the model rather than restated). Ability modifiers are DERIVED, never
+stored, so the two cannot disagree. Every entry carrying a `toHit` or `damage` gets `StatblockEntryRoll`, which
+publishes into the shared roll feed — browser-verified on the Wolf, whose Bite shows both controls.
+
+No field is faked: a creature with no senses line prints none rather than an em-dash, because inventing a dash where
+a source printed nothing is the smallest possible version of inventing a rule.
 Every number that can be rolled is a control (G4): attacks roll to-hit and damage through `bestiary/rolls.ts`
 into the shared roll feed; saves and skills roll; HP is editable when the creature is in play. Per-system
 presentation — a PF2 creature shows its own vocabulary, not a 5e stat block wearing PF2 names.
@@ -134,6 +161,17 @@ alphabetically.**
 ## Phase B2 — art and auras
 
 ### B2-1 · The aura system `lib/dnd/bestiary/aura.ts`
+
+**SHIPPED 2026-07-29.** Precedence is name → tag → type, with challenge scaling INTENSITY rather than choosing the
+effect (a CR ¼ zombie and a CR 21 lich want the same stench at different volumes; deriving the effect from CR would
+make every boss look alike). 24 tests, including the owner's two named examples asserted directly — a rabbit gets a
+pleasant green drift, a zombie a heavier rising plume.
+
+**A bug the browser found and no unit test could have.** A wolf is tagged `woodland` AND `companion`, and the
+derivation iterated the ROW's tag array letting the last one win — so the wolf rendered warm domestic ochre instead
+of woodland green, while the comment directly above that loop already claimed taxonomy order. Now the first match in
+`CREATURE_TAGS` order wins (the taxonomy is ordered most- to least-characterful). Guarded by a test verified to fail
+with the bug restored.
 `auraFor(creature) → AuraSpec`. Derived from type + tags + CR (G2). One entry per creature type, modulated:
 
 | Type | Feel | Motion |
@@ -158,6 +196,12 @@ CR modulates intensity: a CR ¼ zombie gets a wisp, a CR 21 lich gets a storm. *
 frame** so a final boss reads as one at a glance.
 
 ### B2-2 · The aura renderer `CreatureAura`
+
+**SHIPPED 2026-07-29.** `app/dnd/_ui/bestiary/CreatureAura.tsx` + `aura.module.css`. A SERVER component: CSS and
+SVG only, no hooks, because the list view renders sixty of them and sixty client components with sixty animation
+loops would make browsing the bestiary the most expensive page in the app. Particulate is a layered
+`radial-gradient` field moved by `background-position`, not DOM particles, for the same reason. `still` keeps the
+colour and drops the motion in list views; `prefers-reduced-motion` does the same for everyone who asked.
 CSS/SVG only, no images: layered gradients, masked particle fields, `@keyframes`. Reduced-motion drops to a
 static tint. Must be cheap enough for 60 of them in a list view — so list view gets the tint and the detail
 view gets the full animation.
@@ -168,6 +212,11 @@ the existing media plumbing, and record `image_url` + `image_attribution`. Never
 locally (G3). Reports coverage honestly (G6).
 
 ### B2-4 · Procedural sigil fallback
+
+**SHIPPED 2026-07-29.** `sigilFor(slug)` derives a stable emblem (rotation, point count, ring) from the slug by
+FNV hash, and `CreatureAura` draws it with the creature initial when `image_url` is null. Since published monster
+art is largely unlicensable, a missing portrait is the NORMAL case rather than an error — so no creature is ever a
+broken image, and the aura makes the emblem read as a design decision.
 Deterministic from the slug: a type-coloured emblem with a silhouette motif. So **no creature is ever a broken
 image**, and the aura makes even the fallback look intentional.
 

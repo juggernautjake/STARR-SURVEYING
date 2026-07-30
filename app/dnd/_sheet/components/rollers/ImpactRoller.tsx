@@ -25,7 +25,6 @@ import { tick, blip, clack, errorBuzz, tada, whoosh, setMuted, isMuted, primeAud
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
 import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, type RolledDie } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
-import { dieSides } from './dieShape'
 import { materialForSkin } from '@/lib/dnd/dice/materials'
 import Die3D from './Die3D'
 import './impactRoller.css'
@@ -144,8 +143,6 @@ export function ImpactStage() {
   const [rows, setRows] = useState<BreakRow[]>(adopted ? buildRows(adopted) : [])
   const [phase, setPhase] = useState<'idle' | 'tumbling' | 'landed'>(adopted ? 'landed' : 'idle')
   const [face, setFace] = useState<number | null>(adopted ? adopted.landing : null)
-  // How many sides the die SHAPE has, from the die being rolled (D-4). null → the neutral rounded shape.
-  const [sides, setSides] = useState<number | null>(adopted ? dieSides(adopted) : null)
   // The individual dice of the roll, read from the breakdown (`2d6[3,5]` → two d6s showing 3 and 5). This is what
   // the tray renders, and it is why the die can no longer contradict the rows beneath it.
   const [dice, setDice] = useState<RolledDie[]>(() => (adopted ? diceForRoll(adopted) : []))
@@ -184,7 +181,8 @@ export function ImpactStage() {
       setRows([])
       setFace(null)
       setMeta(null)
-      setSides(null)
+      // `sides` is gone: it was the single-shape state from when the arena drew one die, and `dice` (every die of
+      // the roll, with its own face count) replaced it. Clearing a state that no longer exists was the leftover.
       setDice([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +203,6 @@ export function ImpactStage() {
     }
     setRows(r)
     setMeta({ crit: activeRoll.crit, fumble: activeRoll.fumble, total: entry.total, label: entry.label, landing, isD20, tag: entry.tag })
-    setSides(dieSides(activeRoll))
     setDice(diceForRoll(activeRoll))
     primeAudio()
 

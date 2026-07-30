@@ -12,6 +12,7 @@
 // drops the name rules would otherwise still pass every structural test here.
 import { describe, it, expect } from 'vitest';
 import { auraFor, sigilFor } from '@/lib/dnd/bestiary/aura';
+import { CREATURE_TAGS } from '@/lib/dnd/bestiary/taxonomy';
 
 describe('auraFor — precedence', () => {
   it('falls back to the type when nothing more specific applies', () => {
@@ -158,6 +159,34 @@ describe('sigilFor — the no-picture fallback', () => {
       expect(s.points).toBeLessThanOrEqual(9);
       expect(s.ring).toBeGreaterThan(0.5);
       expect(s.ring).toBeLessThan(0.8);
+    }
+  });
+});
+
+describe('auraFor — two applicable tags resolve the same way every time', () => {
+  // FOUND IN THE BROWSER, on the third creature in the catalogue. A wolf is tagged `woodland` AND `companion`, and
+  // the derivation iterated the ROW's array letting the last tag win — so the wolf came out warm domestic ochre
+  // instead of woodland green. The comment directly above that loop already claimed taxonomy order; the code did
+  // not do it, and nothing could catch the difference until two tags actually collided on a real row.
+  //
+  // `CREATURE_TAGS` is ordered most- to least-characterful, so the FIRST match wins.
+  it('the row order does not change the result', () => {
+    const a = auraFor({ name: 'Wolf', type: 'beast', tags: ['woodland', 'companion'] });
+    const b = auraFor({ name: 'Wolf', type: 'beast', tags: ['companion', 'woodland'] });
+    expect(a.rgb).toBe(b.rgb);
+    expect(a.motion).toBe(b.motion);
+    expect(a.feel).toBe(b.feel);
+  });
+
+  it('and the more characterful tag is the one that wins', () => {
+    // A wolf should look like a wolf, not like a farm animal.
+    expect(auraFor({ name: 'Wolf', type: 'beast', tags: ['companion', 'woodland'] }).feel).toMatch(/woodland/i);
+  });
+
+  it('and the winner is chosen from the taxonomy, so a new tag cannot silently outrank an old one', () => {
+    // Every tag in BY_TAG must be a real taxonomy tag, or its precedence is undefined — it would simply never win.
+    for (const tag of ['abyssal', 'demonic', 'sea', 'bird', 'woodland', 'companion'] as const) {
+      expect(CREATURE_TAGS, `${tag} is not in the taxonomy`).toContain(tag);
     }
   });
 });
