@@ -48,6 +48,19 @@ const EXEMPT: Record<string, string> = {
   // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
   // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got
   // deleted is rare enough to be worth showing.
+  // EXPIRES WITH N2-1 (`deriveNativeStatblock`), the next slice in
+  // docs/planning/in-progress/NATIVE_STATBLOCKS_PER_SYSTEM_2026-07-30.md.
+  //
+  // Generated data (`npm run derive:tiers -- --write`): what a creature at each tier measurably IS in each
+  // system, from the 4,418 CC-BY/OGL creatures already catalogued. It exists before its consumer on
+  // purpose — the measurement and its properties (non-decreasing, honest sample sizes, the two systems'
+  // scales genuinely diverging) are the reviewable part, and settling them before a derivation bakes them
+  // in is the right order. That is the same argument `derive.ts` and `import.ts` made in this list, and
+  // both exemptions were honoured within a slice.
+  'lib/dnd/statblocks/tiers.ts':
+    'Generated tier tables (N1-1/N1-2), measured from the licensed corpus rather than copied from the ' +
+    'DMG or Monster Core — neither of which is in the SRD or the ORC remaster. Consumed by ' +
+    'statblock-tiers.test.ts today and by deriveNativeStatblock in N2-1; delete this entry then.',
   'lib/dnd/theme-contrast.ts':
     'Build-time GUARDRAIL (TR-1): a pure WCAG-contrast module used by theme-contrast.test.ts to fail any ' +
     'theme whose text/border tokens fall below the legibility thresholds. It is deliberately consumed by ' +

@@ -68,16 +68,47 @@ into the UI, not just into this document.
 
 ## Phase N1 — the published tables
 
-### N1-1 · `lib/dnd/statblocks/tables/dnd5e.ts`
-The DMG's *Monster Statistics by Challenge Rating*: for CR 0–30, the expected AC, HP band, attack bonus,
-damage-per-round band, and save DC. Pure data + a lookup. **Acceptance:** a test asserts monotonicity (AC and
-HP never decrease as CR rises) and spot-checks three published rows against the book.
+### N1-1 + N1-2 · `lib/dnd/statblocks/tiers.ts` — **SHIPPED 2026-07-30**
 
-### N1-2 · `lib/dnd/statblocks/tables/pathfinder2e.ts`
-Monster Core's *Building Creatures*: per level −1…24, the AC, HP range, attack bonus, striking damage, and
-the three save values at each of its tiers (extreme/high/moderate/low/terrible). PF2's table is
-**multi-tiered per statistic**, which 5e's is not — that difference is the whole reason this is two files
-rather than one shape with a flag.
+**The plan said to copy the published tables. It cannot, and the alternative is better.**
+
+D&D's *Monster Statistics by Challenge Rating* is Dungeon Master's Guide content and Pathfinder's *Building
+Creatures* is Monster Core content. **Neither is in the SRD or the ORC-licensed remaster**, so embedding
+either verbatim is the exact boundary this bestiary has refused since B1-3 (G3). Caught before writing a
+line of it, by checking rather than assuming.
+
+So the tables are **measured** from the corpus we already hold under CC-BY and OGL: **4,418 creatures**
+(2,827 D&D across 31 tiers, 1,591 Pathfinder across 25), each with a stated AC, HP and tier.
+`npm run derive:tiers` prints them; `-- --write` regenerates the module, so the numbers stay a measurement
+rather than someone's memory of one.
+
+**That is a better source for this job, not a workaround.** A published guideline says what a designer was
+aiming at; the corpus says what creatures at that tier actually ARE — which is what a derived creature has
+to sit alongside on the same page.
+
+**Non-decreasing by construction.** Raw medians wobble on small samples — 5e's CR 24 measured *lower* HP
+than CR 23, because twelve creatures is a small sample and one is a spellcaster. A target table that dips
+would tell a DM a harder creature is frailer, so each series gets an isotonic (pool-adjacent-violators) fit:
+the fewest points moved by the least amount, rather than smoothing everything.
+
+Every row carries its **sample size**, so a tier measured from three creatures is visibly a different claim
+from one measured from 250. Tiers below three creatures are omitted and reported by name rather than
+silently dropped.
+
+Guarded by `__tests__/dnd/statblock-tiers.test.ts` (13 cases) asserting PROPERTIES of the measurement
+rather than agreement with a book — which is also the only kind of assertion that survives the corpus
+growing. Including one that pins the reason there are two tables at all: **PF2's top AC must exceed 5e's by
+more than 15**, so a future "simplification" into one shared table fails loudly.
+
+#### The bug the table shipped with, and how it read
+
+The first run produced **attack bonus 0 at every tier in both systems**. `Number('')` is `0` and
+`Number.isFinite(0)` is `true`, so reading `toHit` without a missing-value guard pushed a zero for every
+trait, reaction and Multiattack — which is most entries — and dragged every median to the floor.
+
+It did not look like a parsing bug. It looked like a finding: *"no creature in the catalogue has an attack
+bonus."* A table of zeroes is exactly the kind of plausible output that gets written into a data file and
+believed. Fixed, and the guard now asserts every tier's attack bonus is above zero.
 
 ### N1-3 · `lib/dnd/statblocks/tables/intuitive-games.ts`
 IG publishes no creature-building table. **This is the honest gap**, and it is recorded rather than filled:

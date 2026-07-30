@@ -38,7 +38,8 @@
     "e2e:install": "playwright install --with-deps chromium",
     "ws": "tsx server/ws.ts",
     "generate:bestiary": "npx --yes vite-node -c vitest.config.ts scripts/generate-transposed-bestiary.mjs --",
-    "import:open5e": "npx --yes vite-node -c vitest.config.ts scripts/import-open5e.mjs --"
+    "import:open5e": "npx --yes vite-node -c vitest.config.ts scripts/import-open5e.mjs --",
+    "derive:tiers": "node scripts/derive-tier-tables.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
