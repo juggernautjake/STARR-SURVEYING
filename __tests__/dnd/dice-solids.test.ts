@@ -220,3 +220,42 @@ describe('the solids are usable as data', () => {
     }
   });
 });
+
+describe('every die is as tall as it is wide (owner, 2026-07-30)', () => {
+  // *"The d10 dice model looks skinny and funny."* It was: measured against every other solid, all of which
+  // come out at exactly 1.000, the d10's pole-to-pole height was **2.652×** its equator diameter — a spindle.
+  //
+  // THE CAUSE IS THE INTERESTING PART. `trapezohedron10` took the equator offset as its free parameter,
+  // chosen by taste, and SOLVED the apex height from it — so the proportions were whatever fell out, and what
+  // fell out was an apex 2.65× the equator radius. `build()` then normalises every solid to unit
+  // circumradius, which for the d10 means dividing by the apex distance: the poles stay at ±1 and the equator
+  // shrinks to 0.38. On every other die the circumradius IS the half-width, so normalising is invisible.
+  //
+  // The fix inverts the free parameter — the aspect is stated and the offset solved to produce it — which is
+  // this module's own rule ("the geometry is derived, not typed") applied to the one place it was not.
+  for (const sides of STANDARD_DICE) {
+    it(`d${sides} is not a spindle`, () => {
+      const s = solidFor(sides);
+      const span = (i: 0 | 1 | 2) => {
+        const vs = s.verts.map((v) => v[i]);
+        return Math.max(...vs) - Math.min(...vs);
+      };
+      const width = Math.max(span(0), span(1));
+      const height = span(2);
+      // The d100 is a geodesic ball whose hull is very slightly oblate; everything else lands on 1.000.
+      expect(height / width, `d${sides} is ${(height / width).toFixed(3)}× as tall as it is wide`).toBeGreaterThan(0.9);
+      expect(height / width).toBeLessThan(1.15);
+    });
+  }
+
+  it('and the d10 is still a genuine trapezohedron, not a bipyramid that fits the numbers', () => {
+    // The cheap way to make the aspect right would be to flatten the equator offset to nothing, which turns
+    // the kites into triangles and the die into a bipyramid — proportioned correctly and no longer a d10.
+    // The zigzag equator is the visual tell, so assert it survives.
+    const s = solidFor(10);
+    const zs = s.verts.filter((v) => Math.hypot(v[0], v[1]) > 0.1).map((v) => v[2]);
+    const zigzag = Math.max(...zs) - Math.min(...zs);
+    expect(zigzag, 'the d10 equator is flat — it is a bipyramid, not a trapezohedron').toBeGreaterThan(0.05);
+    expect(s.faces.every((f) => f.length === 4), 'a d10 face is not a kite').toBe(true);
+  });
+});

@@ -258,6 +258,44 @@ numeral contrast ≥ 4.5:1 against its own facet in every combination (G6).
 
 ---
 
+## Owner report, 2026-07-30 — the d10's shape and the settled facing
+
+> *"The d10 dice model looks skinny and funny… please make it so that the side that shows the final number
+> is always directly facing the viewer when the roller is over for all dice that are rolled. All the dice
+> look good except for the d10."*
+
+**Both fixed. The d10 was 2.652× as tall as it was wide; every other solid measures exactly 1.000.**
+
+`trapezohedron10` took the equator offset as its free parameter — chosen by taste at 0.28 — and SOLVED the
+apex height from it, so the die's proportions were whatever fell out. What fell out was an apex 2.65× the
+equator radius. `build()` then normalises every solid to unit circumradius, which for the d10 means dividing
+by the APEX distance: the poles stay at ±1 and the equator shrinks to 0.38. A spindle. On every other die
+the circumradius *is* the half-width, so normalising is invisible — which is why only this one was wrong.
+
+The free parameter is now inverted: **the aspect is stated (1) and the offset is solved to produce it.**
+That is the module's own rule — *"the geometry is derived, not typed"* — applied to the one place it was
+not. The kites stay exactly planar, because the apex height is still solved from whatever offset results.
+
+**Settled facing: `settleTilt` is now 0 for every die.** It returned 4°–25° so that neighbouring faces
+stayed visible, on the reasoning that a die resting exactly square-on looks flat. That reasoning is about
+how a die at rest LOOKS; the owner's ask is about what it SAYS, and the plan's own **G6 — legibility beats
+realism, at every conflict** — already decided which wins. Verified numerically across every die and every
+face: worst case **0.000003°** off dead-on.
+
+**The cost, stated plainly:** a settled **d4 and d6 now draw a single face** — a flat triangle or square
+with the number on it — because every neighbour of those solids is precisely edge-on from square-on. That
+is geometry, not a bug, and it is the trade the request makes. Dice with more faces are unaffected: a d10
+still shows three kites and a d20 ten facets, because their neighbours are not edge-on. `settleTilt` is kept
+as a function returning 0 rather than deleted, so restoring a tilt for the low-face dice alone is a one-line
+change with the original face-count reasoning still beside it.
+
+Guarded by `dice-solids.test.ts` (every die is between 0.9× and 1.15× as tall as wide, **and the d10 is
+still a genuine trapezohedron** — flattening the equator would fix the aspect by turning it into a bipyramid)
+and by `dice-projection.test.ts`, whose old assertion that the tilt shrinks per die is replaced by one that
+it is zero for all of them.
+
+---
+
 ## Phase D5 — flare — **SHIPPED 2026-07-30, with D5-4 deferred**
 
 - **D5-1 Bevel — SHIPPED.** Each face's own vertices pulled 12% toward its centroid and drawn as a second,
@@ -332,12 +370,28 @@ outside the editor, not a code fault; it cleared on a restart with `.next` remov
 this session that only opening the page distinguished "wrong" from "fine", and the reason D6's stated
 deliverable is screenshots rather than a green suite.
 
-### D6-3 · Per-system controls, uniformly presented
-System controls share layout, sizing and token vocabulary — a PF2 sheet's roller should look like an IG
-sheet's roller with different buttons on it, not like a different product.
+### D6-3 · Per-system controls, uniformly presented — **GUARD SHIPPED 2026-07-30; contact sheet deferred**
 
-*Acceptance:* contact-sheet matrix (4 systems × 4 rollers × 5 skins) shows a consistent stage and only
-intended control differences. Screenshots are the deliverable — this is the class of bug a green suite misses.
+Measured: the two bespoke roller panels are **already identical** — same `.dnd-sheet` wrapper, same
+`flex column / gap 8 / minWidth 0`, same order (template bar → stage → dice pad), same `--hx-*` vocabulary,
+no hardcoded colours anywhere in either. PF2 adds a Target DC input and IG adds nothing, which is the
+difference that belongs: PF2 resolves against a DC by degrees of success and IG does not.
+
+**Nothing was holding them there.** Both are hand-assembled inline in two separate files, so the agreement
+was a coincidence maintained by hand — which is exactly the state the Impact stage was in right up until one
+mount site was written slightly differently. `__tests__/dnd/roller-system-parity.test.ts` (8 cases) now
+asserts the wrapper, the order, the layout shape, the token vocabulary, and that the *only* difference is the
+control each system adds.
+
+**Verified the guard can fail**, which matters more than that it passes: changing IG's gap from 8 to 12 makes
+it red, and reverting makes it green. A parity guard that cannot detect drift is worse than none, because it
+reads as coverage.
+
+**The contact sheet (4 systems × 4 rollers × 5 skins = 80 screenshots) is deferred**, and not for cost: it
+needs the same Playwright sweep harness as D7-3, and D7-3 is blocked behind the D7-1 decision below. Building
+the harness twice — once now against a window size that may change, once after — is waste. The structural
+claim it would confirm is now asserted by the guard; what the screenshots add is the *visual* half, and that
+is worth doing once, correctly, after the sizing question is answered.
 
 ---
 

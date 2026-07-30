@@ -222,35 +222,74 @@ function ringOrder(verts: Vec3[], idx: number[], axis: Vec3): number[] {
  * once the faces are individually shaded. Bisection on the coplanarity determinant, which is cheap and exact
  * enough that the planarity test passes at 1e-9.
  */
-function trapezohedron10(): Solid {
+/** The equator ring for a given half-offset, at unit radius. */
+function d10Equator(e: number): Vec3[] {
   const N = 5;
-  const e = 0.28; // equator half-offset; taste, and the only free parameter
-  const equator = (k: number, z: number): Vec3 => {
-    const a = (k * Math.PI) / N;
-    return [Math.cos(a), Math.sin(a), z];
-  };
   const eq: Vec3[] = [];
-  for (let k = 0; k < 2 * N; k++) eq.push(equator(k, k % 2 === 0 ? e : -e));
+  for (let k = 0; k < 2 * N; k++) {
+    const a = (k * Math.PI) / N;
+    eq.push([Math.cos(a), Math.sin(a), k % 2 === 0 ? e : -e]);
+  }
+  return eq;
+}
 
-  // Coplanarity of [apex, eq0, eq1, eq2] as a function of apex height.
+/** The apex height that makes the kites planar, for a given equator offset. Bisection on the coplanarity
+ *  determinant of [apex, eq0, eq1, eq2] — cheap, and exact enough that planarity passes at 1e-9. */
+function d10ApexHeight(e: number): number {
+  const eq = d10Equator(e);
   const bend = (h: number) => {
     const apex: Vec3 = [0, 0, h];
-    const a = sub(eq[0], apex);
-    const b = sub(eq[1], apex);
-    const c = sub(eq[2], apex);
-    return dot(cross(a, b), c);
+    return dot(cross(sub(eq[0], apex), sub(eq[1], apex)), sub(eq[2], apex));
   };
-  let lo = 0.05;
-  let hi = 6;
-  // The determinant changes sign across the planar height; 80 halvings is far past double precision.
-  if (bend(lo) * bend(hi) < 0) {
-    for (let i = 0; i < 80; i++) {
-      const mid = (lo + hi) / 2;
-      if (bend(lo) * bend(mid) <= 0) hi = mid;
-      else lo = mid;
-    }
+  let lo = 1e-4;
+  let hi = 20;
+  if (bend(lo) * bend(hi) >= 0) return 1;
+  for (let i = 0; i < 90; i++) {
+    const mid = (lo + hi) / 2;
+    if (bend(lo) * bend(mid) <= 0) hi = mid;
+    else lo = mid;
   }
-  const h = (lo + hi) / 2;
+  return (lo + hi) / 2;
+}
+
+/**
+ * How tall a d10 is relative to how wide — pole-to-pole over equator diameter.
+ *
+ * **1, because a real d10 is as tall as it is wide.** Owner, 2026-07-30: *"The d10 dice model looks skinny
+ * and funny."* It was: measured against every other solid, which all come out at exactly 1.000, the d10 was
+ * **2.652** — a spindle.
+ *
+ * THE CAUSE IS WORTH KEEPING, because the module's own rule caught it and the free parameter defeated it.
+ * `e` was chosen by taste (0.28) and the apex height solved from it, so the PROPORTIONS were whatever fell
+ * out — and what fell out was h ≈ 2.65 with an equator radius of 1. `build()` then scales every solid to
+ * unit circumradius, which for the d10 means dividing by the APEX distance, shrinking the equator to 0.38
+ * while the poles stay at ±1. Every other die is isotropic, so normalising is invisible on them.
+ *
+ * So the free parameter is inverted: the ASPECT is stated, and `e` is solved to produce it. That is the
+ * module's stated philosophy applied to the one place it was not — *"the geometry is derived, not typed"*.
+ * The kites stay exactly planar either way, because the apex height is still solved from whatever `e` comes
+ * out.
+ */
+const D10_ASPECT = 1;
+
+/** The equator offset that yields `D10_ASPECT`. Solved rather than typed, so changing the intended
+ *  proportions is a change to the intent rather than to a magic number. */
+function d10Offset(): number {
+  let lo = 1e-4;
+  let hi = 0.6;
+  for (let i = 0; i < 90; i++) {
+    const mid = (lo + hi) / 2;
+    if (d10ApexHeight(mid) > D10_ASPECT) hi = mid;
+    else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+function trapezohedron10(): Solid {
+  const N = 5;
+  const e = d10Offset();
+  const eq = d10Equator(e);
+  const h = d10ApexHeight(e);
 
   const verts: Vec3[] = [[0, 0, h], [0, 0, -h], ...eq];
   const NORTH = 0;

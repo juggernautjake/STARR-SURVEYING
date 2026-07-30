@@ -226,27 +226,26 @@ function hull2d(pts: [number, number][]): [number, number][] {
 /**
  * How far off dead-on a settled die rests, in radians.
  *
- * A DIE SETTLED EXACTLY SQUARE-ON LOOKS FLAT, and this is the difference between "a solid at rest" and "a shape".
- * Viewed precisely along a face normal, a cube shows one face and culls the other five — every neighbour is
- * exactly edge-on — so the beautiful faceted solid renders as a plain rotated square with a number in it. Which is
- * roughly what the previous flat-SVG die looked like, i.e. the whole exercise wasted at the one moment the player
- * is actually looking.
+ * **ZERO, BY OWNER DECISION (2026-07-30).** *"Please make it so that the side that shows the final number is
+ * always directly facing the viewer when the roller is over, for all dice that are rolled."*
  *
- * Tilting a little shows the landing face plus the two or three turning away from it, which is how a die looks in
- * any photograph of one. The tilt has to SHRINK as faces get smaller, though: neighbouring facets are ~41° apart
- * on a d20 but only ~20° apart on the hundred-sided ball, and a tilt approaching half that spacing would let a
- * neighbour become more camera-facing than the face that was actually rolled.
+ * WHAT THIS REPLACED, AND WHY IT WAS THERE. A die settled exactly square-on looks flat: viewed precisely
+ * along a face normal a cube shows one face and culls the other five, because every neighbour is exactly
+ * edge-on — so a faceted solid renders as a plain rotated square with a number in it. The tilt showed the
+ * landing face plus the two or three turning away from it, which is how a die looks in a photograph, and it
+ * shrank as faces got smaller so a neighbour could never out-face the rolled number.
+ *
+ * That reasoning is about how a die at rest LOOKS. The owner's ask is about what it SAYS, and at the one
+ * moment the player is reading the result the number should be square-on and unambiguous. Where those two
+ * pull against each other, the plan's own G6 already decided it: *legibility beats realism, at every
+ * conflict.*
+ *
+ * Kept as a function returning 0 rather than deleted, because the shape of the answer is still per-die — if
+ * a tilt is ever wanted back it belongs here, with the face-count reasoning that made it safe, rather than
+ * being reinvented at a call site.
  */
-export function settleTilt(faceCount: number): number {
-  // A TETRAHEDRON NEEDS MORE THAN THE REST, and the number comes straight from its geometry: the angle between
-  // two of its face normals is arccos(−1/3) ≈ 109.5°, so at a 16° tilt every neighbour is still past edge-on and
-  // culled — the d4 was the one die that stayed flat. Above 19.5° a second face appears; 25° shows two clearly
-  // while leaving the landing face overwhelmingly dominant.
-  if (faceCount <= 4) return (25 * Math.PI) / 180;
-  if (faceCount <= 12) return (16 * Math.PI) / 180;
-  if (faceCount <= 20) return (13 * Math.PI) / 180;
-  if (faceCount <= 40) return (7 * Math.PI) / 180;
-  return (4 * Math.PI) / 180;
+export function settleTilt(_faceCount: number): number {
+  return 0;
 }
 
 /**

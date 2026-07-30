@@ -41,13 +41,12 @@ describe('a settled die shows the face it landed on', () => {
       for (let value = 1; value <= sides; value++) {
         const face = faceForValue(solid, value);
         const q = orientationFor(solid, face);
-        // The landing face turns toward the viewer — but deliberately NOT dead-on. A die settled exactly square-on
-        // culls every neighbour (they are all precisely edge-on) and renders as a flat polygon with a number in it,
-        // which throws away the whole point of drawing a solid. `settleTilt` rests it a little off-axis so the
-        // adjacent faces show; the landing face stays overwhelmingly the most camera-facing one.
+        // DEAD-ON, by owner decision (2026-07-30): "the side that shows the final number is always directly
+        // facing the viewer when the roller is over, for all dice". This assertion previously allowed up to
+        // `settleTilt` degrees off-axis so neighbouring faces stayed visible; that tilt is now 0, and the
+        // tolerance here is numerical rather than aesthetic.
         const n = quatRotate(q, solid.normals[face]);
-        const tilt = settleTilt(solid.faces.length);
-        expect(n[2], `d${sides} value ${value} is not presented to the viewer`).toBeGreaterThan(Math.cos(tilt) - 1e-6);
+        expect(n[2], `d${sides} value ${value} is not square-on to the viewer`).toBeGreaterThan(Math.cos(1e-4));
         // And it must be visible and square-on — the face a player reads.
         //
         // NOT "strictly the most camera-facing face", which is how this was written first and which fails on the
@@ -67,24 +66,41 @@ describe('a settled die shows the face it landed on', () => {
   }
 });
 
-describe('a settled die still reads as a solid', () => {
-  // THE BUG THIS EXISTS FOR, found in the browser rather than here: with the die resting exactly square-on, a
-  // settled d6 drew ONE face and one numeral. Every other face of a cube is precisely edge-on from that angle, so
-  // the cull removed all five, and the result was a flat rotated square with a number in it — indistinguishable
-  // from the flat-SVG die this replaced, at the exact moment the player looks at it.
-  for (const sides of STANDARD_DICE) {
-    it(`d${sides} shows neighbouring faces at rest, not just the landing one`, () => {
+describe('a settled die rests square-on (owner, 2026-07-30)', () => {
+  // THIS SUITE USED TO ASSERT THE OPPOSITE, and the reversal is a decision rather than a fix.
+  //
+  // The tilt existed because a die settled exactly square-on can look flat: every neighbour of a cube's front
+  // face is precisely edge-on from that angle, so the cull removes all five and a d6 draws one polygon with a
+  // number in it. That is a real cost and it is why the tilt was there.
+  //
+  // The owner asked for the number to face the viewer directly on every die, and the plan's own G6 already
+  // settles the conflict: *legibility beats realism, at every conflict*. At the one moment a player reads the
+  // result, an unambiguous number wins over a photographic pose.
+  it('every die presents its landing face dead-on', () => {
+    for (const sides of STANDARD_DICE) {
       const solid = solidFor(sides);
-      const faces = projectSolid(solid, orientationFor(solid, 0)).faces;
-      expect(faces.length, `a settled d${sides} draws only ${faces.length} face(s)`).toBeGreaterThan(1);
-    });
-  }
+      for (let face = 0; face < solid.faces.length; face++) {
+        const n = quatRotate(orientationFor(solid, face), solid.normals[face]);
+        const off = (Math.acos(Math.min(1, Math.max(-1, n[2]))) * 180) / Math.PI;
+        expect(off, `d${sides} face ${face} rests ${off.toFixed(3)}° off dead-on`).toBeLessThan(0.01);
+      }
+    }
+  });
 
-  it('and the tilt shrinks for dice with tightly packed faces', () => {
-    // A tilt approaching half the angular spacing between facets would let a NEIGHBOUR become the most
-    // camera-facing face, so the die would appear to show a number it did not roll.
-    expect(settleTilt(6)).toBeGreaterThan(settleTilt(20));
-    expect(settleTilt(20)).toBeGreaterThan(settleTilt(100));
+  it('and the tilt is zero for every die, not merely small for some', () => {
+    // A per-die tilt table that happened to contain small numbers would satisfy the assertion above on the
+    // dice with many faces while leaving the d4 visibly cocked. The answer is the same for all of them.
+    for (const sides of STANDARD_DICE) expect(settleTilt(solidFor(sides).faces.length)).toBe(0);
+  });
+
+  it('a die with many faces still draws more than one, because its neighbours are not edge-on', () => {
+    // What survives of the old guarantee. On a d20 or a d100 the adjacent facets sit well off the front
+    // normal, so square-on still reads as a solid; only the low-face dice go flat, which is the trade the
+    // owner accepted.
+    for (const sides of [20, 100]) {
+      const faces = projectSolid(solidFor(sides), orientationFor(solidFor(sides), 0)).faces;
+      expect(faces.length, `a settled d${sides} draws only ${faces.length} face(s)`).toBeGreaterThan(1);
+    }
   });
 });
 
