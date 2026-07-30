@@ -104,6 +104,72 @@ const ENTRY_SOURCES: [string[], StatblockEntryKind][] = [
   [['lair_actions', 'lairActions'], 'lair'],
 ];
 
+/**
+ * Speed, which real publishers give as an OBJECT — `{ walk: 10, swim: 40 }` — and printed stat blocks give as a
+ * line: "10 ft., swim 40 ft.".
+ *
+ * Found by importing for real: `asText` on an object returns undefined, so every creature came in with NO speed at
+ * all. Silent, and only visible by looking at a rendered stat block and noticing a line that should be there — the
+ * whole reason the plan puts the page before the import.
+ *
+ * Walk is unlabelled because that is how the form prints it; everything else keeps its name. Booleans (`hover: true`)
+ * are rendered as bare words rather than "hover 1 ft.".
+ */
+function readSpeed(v: unknown): string | undefined {
+  const direct = asText(v);
+  if (direct) return direct;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const entries = Object.entries(v as Record<string, unknown>).filter(([, val]) => val !== null && val !== undefined && val !== false);
+  if (!entries.length) return undefined;
+  // Walk first, then the rest in the order the source gave them — a stat block leads with the ground speed.
+  entries.sort((a, b) => (a[0] === 'walk' ? -1 : b[0] === 'walk' ? 1 : 0));
+  return entries
+    .map(([mode, val]) => {
+      if (val === true) return mode;
+      const n = asText(val);
+      if (n === undefined) return null;
+      return mode === 'walk' ? `${n} ft.` : `${mode} ${n} ft.`;
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
+/** The six ability-save bonuses, as the printed line "DEX +5, CON +6". Absent saves are simply not printed. */
+function readSaves(raw: Record<string, unknown>): string | undefined {
+  const parts: string[] = [];
+  for (const [key, label] of [
+    ['strength_save', 'STR'], ['dexterity_save', 'DEX'], ['constitution_save', 'CON'],
+    ['intelligence_save', 'INT'], ['wisdom_save', 'WIS'], ['charisma_save', 'CHA'],
+  ] as const) {
+    const n = asNum(pick(raw, [key]));
+    if (n !== undefined) parts.push(`${label} ${formatSigned(n)}`);
+  }
+  // Some publishers give the whole line as text instead; prefer that if there were no numeric fields.
+  return parts.length ? parts.join(', ') : asText(pick(raw, ['saving_throws', 'savingThrows', 'saves']));
+}
+
+/** Skills, from either a `{ perception: 10 }` map or a ready-made string. */
+function readSkills(raw: Record<string, unknown>): string | undefined {
+  const v = pick(raw, ['skills']);
+  const direct = typeof v === 'string' ? v.trim() : '';
+  if (direct) return direct;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const parts = Object.entries(v as Record<string, unknown>)
+    .map(([skill, val]) => {
+      const n = asNum(val);
+      if (n === undefined) return null;
+      // `sleight_of_hand` → "Sleight of Hand". Only the first word is capitalised beyond that, matching how the
+      // books print skill names.
+      const label = skill
+        .split('_')
+        .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+        .join(' ');
+      return `${label} ${formatSigned(n)}`;
+    })
+    .filter(Boolean);
+  return parts.length ? parts.join(', ') : undefined;
+}
+
 function readEntries(raw: Record<string, unknown>): StatblockEntry[] {
   const out: StatblockEntry[] = [];
   for (const [keys, kind] of ENTRY_SOURCES) {
@@ -157,7 +223,7 @@ export function srdCreatureToRow(raw: Record<string, unknown>, prov: ImportProve
     acNote: asText(pick(raw, ['armor_desc', 'armorDesc'])),
     hp: asNum(pick(raw, ['hit_points', 'hitPoints', 'hp'])),
     hitDice: asText(pick(raw, ['hit_dice', 'hitDice'])),
-    speed: asText(pick(raw, ['speed'])),
+    speed: readSpeed(pick(raw, ['speed'])),
     abilities: {
       str: asNum(pick(raw, ['strength', 'str'])), dex: asNum(pick(raw, ['dexterity', 'dex'])),
       con: asNum(pick(raw, ['constitution', 'con'])), int: asNum(pick(raw, ['intelligence', 'int'])),
@@ -165,6 +231,8 @@ export function srdCreatureToRow(raw: Record<string, unknown>, prov: ImportProve
     },
     senses: asText(pick(raw, ['senses'])),
     languages: asText(pick(raw, ['languages'])),
+    saves: readSaves(raw),
+    skills: readSkills(raw),
     cr,
     resistances: asText(pick(raw, ['damage_resistances', 'damageResistances'])),
     immunities: asText(pick(raw, ['damage_immunities', 'damageImmunities'])),
