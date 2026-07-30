@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from 'react'
 import { solidFor, faceForValue } from '@/lib/dnd/dice/solids'
 import { projectSolid, type ProjectedFace } from '@/lib/dnd/dice/project'
 import { planThrow, throwSeed, type ThrowPlan } from '@/lib/dnd/dice/throw'
+import { DIE_MATERIALS, type DieMaterial } from '@/lib/dnd/dice/materials'
 import './die3d.css'
 
 // ── the shared ticker ─────────────────────────────────────────────────────────
@@ -66,8 +67,14 @@ export interface Die3DProps {
   /** Fires as the die strikes the table, for the audio to hit in time with the motion. */
   onImpact?: (index: number, total: number) => void
   onSettled?: () => void
-  /** Extra class for crit/fumble/material treatments. */
+  /** Extra class for crit/fumble treatments. */
   className?: string
+  /**
+   * What the die is made of. Sets how hard the light falls across the facets, how glossy it is, how visible the
+   * seams are — never the colours, which come from the sheet's own tokens so the die follows the player's theme
+   * on every system. See `materialForSkin`.
+   */
+  material?: DieMaterial
 }
 
 const MIN_FACING_FOR_NUMERAL = 0.34
@@ -82,6 +89,7 @@ export default function Die3D({
   onImpact,
   onSettled,
   className = '',
+  material = DIE_MATERIALS.gem,
 }: Die3DProps) {
   const solid = solidFor(sides)
   // A value the die cannot show (a mismatch upstream) still has to render something honest, so fall back to the
@@ -96,8 +104,8 @@ export default function Die3D({
     keyRef.current = planKey
   }
 
-  const [faces, setFaces] = useState<ProjectedFace[]>(() => projectSolid(solid, plan.current!.settled).faces)
-  const [outline, setOutline] = useState(() => projectSolid(solid, plan.current!.settled).silhouette)
+  const [faces, setFaces] = useState<ProjectedFace[]>(() => projectSolid(solid, plan.current!.settled, { contrast: material.contrast }).faces)
+  const [outline, setOutline] = useState(() => projectSolid(solid, plan.current!.settled, { contrast: material.contrast }).silhouette)
   const [tumbling, setTumbling] = useState(animate)
 
   const cbs = useRef({ onImpact, onSettled })
@@ -106,7 +114,7 @@ export default function Die3D({
   useEffect(() => {
     const p = plan.current!
     if (!animate) {
-      const shot = projectSolid(solid, p.settled)
+      const shot = projectSolid(solid, p.settled, { contrast: material.contrast })
       setFaces(shot.faces)
       setOutline(shot.silhouette)
       setTumbling(false)
@@ -120,7 +128,7 @@ export default function Die3D({
     const unsubscribe = subscribe((now) => {
       if (start === null) start = now
       const t = Math.min(1, (now - start) / duration)
-      const shot = projectSolid(solid, p.at(t))
+      const shot = projectSolid(solid, p.at(t), { contrast: material.contrast })
       setFaces(shot.faces)
       setOutline(shot.silhouette)
       while (nextImpact < p.impacts.length && t >= p.impacts[nextImpact]) {
@@ -135,17 +143,34 @@ export default function Die3D({
     })
     return unsubscribe
     // `plan.current` is keyed on exactly these, so this is the full dependency set.
-  }, [planKey, animate, duration, solid])
+  }, [planKey, animate, duration, solid, material])
+
+  // The material's numbers reach the stylesheet as custom properties, so `die3d.css` keeps owning the COLOURS
+  // (which come from the sheet's theme) while the material owns the physical character. Neither has to know about
+  // the other, which is what lets a new theme work on every material and a new material work in every theme.
+  const materialVars = {
+    '--d3-seam': String(material.seam),
+    '--d3-edge-w': `${material.edge}`,
+    '--d3-bloom': String(material.bloom),
+  } as React.CSSProperties
+
+  // One gradient per material, not one per die: several dice share a material, but two rollers on a page might
+  // not, and a single hardcoded id would let the glossier one silently restyle the matte one.
+  const sheenId = `d3-sheen-${material.id}`
 
   return (
-    <div className={`d3-die ${tumbling ? 'is-tumbling' : 'is-settled'} ${className}`} style={{ width: size, height: size }}>
+    <div
+      className={`d3-die d3-mat-${material.id} ${tumbling ? 'is-tumbling' : 'is-settled'} ${className}`}
+      style={{ width: size, height: size, ...materialVars }}
+    >
       <svg viewBox="0 0 100 100" className="d3-svg" aria-hidden>
         <defs>
           {/* The specular sheen. Fixed in screen space rather than per face, which is how a highlight on a real
-              die behaves: the die turns under it and the bright spot stays where the light is. */}
-          <radialGradient id="d3-sheen" cx="34%" cy="26%" r="62%">
-            <stop offset="0%" stopColor="#fff" stopOpacity="0.34" />
-            <stop offset="55%" stopColor="#fff" stopOpacity="0.05" />
+              die behaves: the die turns under it and the bright spot stays where the light is. Its strength is the
+              material's — glossy on plastic and gem, almost nothing on bone. */}
+          <radialGradient id={sheenId} cx="34%" cy="26%" r="62%">
+            <stop offset="0%" stopColor="#fff" stopOpacity={material.specular} />
+            <stop offset="55%" stopColor="#fff" stopOpacity={material.specular * 0.15} />
             <stop offset="100%" stopColor="#fff" stopOpacity="0" />
           </radialGradient>
         </defs>
@@ -165,7 +190,7 @@ export default function Die3D({
 
         {/* The outline last of the fills, so facet seams never cut across the die's edge. */}
         <polygon className="d3-edge" points={outline} />
-        <polygon className="d3-sheen" points={outline} fill="url(#d3-sheen)" />
+        <polygon className="d3-sheen" points={outline} fill={`url(#${sheenId})`} />
 
         {/* EVERY visible face's numeral. Size follows the face's own projected area — which is where the d100's
             tiny digits come from with no special case — and opacity follows how square-on it is, so a numeral

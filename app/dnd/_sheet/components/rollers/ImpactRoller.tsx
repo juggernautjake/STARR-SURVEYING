@@ -21,11 +21,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useChar } from '../../state/store'
 import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
-import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
+import { tick, blip, clack, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
 import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, type RolledDie } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
 import { dieSides } from './dieShape'
+import { materialForSkin } from '@/lib/dnd/dice/materials'
 import Die3D from './Die3D'
 import './impactRoller.css'
 
@@ -133,7 +134,8 @@ function buildRows(roll: ActiveRoll): BreakRow[] {
 
 // ── The resolution stage: consumes `activeRoll`, tumbles the die, lands it big ────────────
 export function ImpactStage() {
-  const { activeRoll, commitRoll, rollerAnim } = useRollFeed()
+  const { activeRoll, commitRoll, rollerAnim, sheetType } = useRollFeed()
+  const material = materialForSkin(sheetType)
   useExpandOnRoll(activeRoll?.token) // click-to-roll pops the roller open even if it was minimized
   const animate = shouldAnimateRoller(rollerAnim)
   // ADOPT the roll already on screen rather than replaying it (RO-7 — see `adoptedToken`). Seeded with -1,
@@ -229,9 +231,13 @@ export function ImpactStage() {
     const hi = Math.max(min, max)
     // D-2/D-3: a slightly slower scramble (85ms vs 70) over a longer tumble, so the die spins a touch
     // longer before it slams to its landing — the owner likes the sound this makes and wanted more of it.
+    // The scramble drives the NEUTRAL BOX only — the fallback for a roll with no parseable dice. Real dice have
+    // their own faces and their own impact sounds now, driven by each die's trajectory, so ticking here as well
+    // would put an evenly-spaced beep under a decelerating tumble and undo the effect.
+    const hasSolids = diceForRoll(activeRoll).length > 0
     scrambler.current = window.setInterval(() => {
       setFace(lo + Math.floor(Math.random() * (hi - lo + 1)))
-      tick(Math.random())
+      if (!hasSolids) tick(Math.random())
     }, 85)
     const TUMBLE = TUMBLE_MS
     const land = window.setTimeout(() => {
@@ -300,6 +306,17 @@ export function ImpactStage() {
                   animate={animate && phase === 'tumbling'}
                   size={dieSizeFor(dice.length)}
                   duration={TUMBLE_MS}
+                  // The dice are made of whatever the sheet's STYLE implies; their colours come from its theme
+                  // tokens, so both of the owner's axes land without the roller knowing what a theme is.
+                  material={material}
+                  // THE SOUND FOLLOWS THE MOTION rather than a timer of its own. `Die3D` fires an impact at each
+                  // point on its trajectory where the die strikes, so the clacks thin out as it decelerates
+                  // because the throw itself does — which is the part that makes a synthesised sound believable.
+                  // Energy falls across the sequence, and the last hit is the firmer settle.
+                  onImpact={(i, total) => {
+                    const last = i === total - 1
+                    clack({ sides: d.sides, energy: 1 - i / Math.max(1, total - 1), settle: last })
+                  }}
                   className={`${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}${d.kept ? '' : ' is-discarded'}`}
                 />
               ))}

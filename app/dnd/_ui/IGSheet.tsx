@@ -101,7 +101,7 @@ export default function IGSheet({ ig, elements, canEdit, characterId, campaignId
   // TEMPLATE read reactively (CM-1): the SheetChrome chip pings this cache, so a template pick re-renders
   // into the new shell instantly — no reload. Falls back to the saved `layout` prop (then 'classic').
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, canEdit, characterId, campaignId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
+  const { panels, header, nav, banner, roller, overlays } = useIgPanels({ ig, elements, sheetType, canEdit, characterId, campaignId, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   const byId = new Map(panels.map((p) => [p.id, p]));
   const render = (id: string) => byId.get(id)?.render() ?? null;
   // Both token sets ride on the shell root: `skinHxVars` for the IG panels' `--hx-*`, `shellThemeVars`

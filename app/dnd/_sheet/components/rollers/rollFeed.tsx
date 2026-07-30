@@ -22,6 +22,17 @@ export interface RollFeed {
    *  `ActiveRoll` into the feed like any other roll, so it animates through the chosen template. Each system
    *  provides this (5e via its store, PF2/IG via their panel hooks); omitted → the dice pad hides. */
   rollDice?: (sides: number, count: number) => void
+  /**
+   * The sheet's STYLE (`sheet_type`), which decides what the dice are made of — brushed metal on hextech, neon
+   * plastic on the streamer skin, printed bone on the rulebook one (see `materialForSkin`).
+   *
+   * It travels through the feed rather than being read from a store because a stage deliberately has no store
+   * access — that is exactly what lets the same stage run on 5e, PF2 and IG. Every mount site already knows the
+   * character, so every one can supply this; omitted, the dice are cut gem, which is the default skin's material.
+   * The COLOURS never come through here — those are CSS tokens on the sheet, so a die follows the player's theme
+   * on any system without the roller knowing the theme exists.
+   */
+  sheetType?: string | null
 }
 
 const RollFeedCtx = createContext<RollFeed | null>(null)

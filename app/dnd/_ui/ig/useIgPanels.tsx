@@ -136,10 +136,17 @@ function Section({ id, title, accent, aside, children }: {
   );
 }
 
-/** The inputs the panel set needs — the SAME inputs the sheet takes, minus `sheetType` (a skin token the
- *  Classic shell applies to its own root, not something a panel reads). */
+/** The inputs the panel set needs — the same inputs the sheet takes.
+ *
+ *  `sheetType` USED TO BE EXCLUDED here, on the reasoning that a skin token is something the shell applies to its
+ *  own root rather than something a panel reads. That held until the dice gained materials: the sheet's STYLE is
+ *  what decides whether they are brushed metal, neon plastic or printed bone, and the roller is a panel. It is
+ *  passed for that and nothing else — the die's COLOURS still come from CSS tokens, so a panel never needs to know
+ *  what a theme is. */
 export interface UseIgPanelsArgs {
   ig: IGCharacter;
+  /** The sheet style, which decides what the dice are made of (see `materialForSkin`). */
+  sheetType?: string;
   elements: Tagged[];
   canEdit?: boolean;
   characterId?: string;
@@ -176,7 +183,7 @@ export interface IgPanelSet {
   overlays: ReactNode;
 }
 
-export function useIgPanels({ ig, elements, canEdit, characterId, campaignId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences: _preferences }: UseIgPanelsArgs): IgPanelSet {
+export function useIgPanels({ ig, elements, sheetType, canEdit, characterId, campaignId, isDM, variantKind = 'vanilla', rollerTemplate, rollerAnim, layout, customSections, preferences: _preferences }: UseIgPanelsArgs): IgPanelSet {
   const derived = useMemo(() => igDerived(ig), [ig]);
   const customSecs = useMemo(() => normalizeCustomSections(customSections), [customSections]);
   // What the numbers ACTUALLY are right now, with the active stance and conditions folded in.
@@ -1271,7 +1278,7 @@ export function useIgPanels({ ig, elements, canEdit, characterId, campaignId, is
   const rollerId = effectiveRollerChoice(characterId, rollerTemplate, layout);
   const pickRoller = (id: RollerTemplateId) => { rememberRollerChoice(characterId, id); forceRoller(); };
   const roller = (
-    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, // The label is the dice notation and nothing else. It read `1d8 (raw)` — developer shorthand for
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim, sheetType, // The label is the dice notation and nothing else. It read `1d8 (raw)` — developer shorthand for
       // "no modifiers folded in", printed as the roll's headline on the sheet and in the campaign feed.
       // A dice-pad roll of 1d8 plainly has no modifiers, and the breakdown lists every term regardless.
       rollDice: (sides, n) => rollRaw(`${n}d${sides}`, `${n}d${sides}`) }}>

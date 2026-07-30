@@ -170,7 +170,7 @@ export default function App({ theme, sheetType, system, ownerName }: { theme?: S
     // The roller STAGES read the system-agnostic RollFeed (RO-5), not the store directly — so the 5e
     // sheet PROVIDES the feed here from its store. The bespoke PF2/IG sheets provide their own feed, and
     // the same rollers work there.
-    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim: char.rollerAnim }}>
+    <RollFeedProvider value={{ activeRoll, commitRoll, rollerAnim: char.rollerAnim, sheetType }}>
       <RollerTemplateBar
         characterId={characterId}
         current={rollerId}

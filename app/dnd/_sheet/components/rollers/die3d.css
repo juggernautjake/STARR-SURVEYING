@@ -35,8 +35,9 @@
 .d3-facet {
   /* A hairline seam, or two facets of similar shade merge into one flat region and the die loses its faceting.
      `vector-effect` keeps it one device pixel at every size — without it the seams thicken as the die scales and
-     a d100 turns into a mesh. */
-  stroke: rgba(255, 255, 255, 0.09);
+     a d100 turns into a mesh. Its strength is the MATERIAL's: sharp on cut stone and metal, nearly invisible on
+     something moulded. */
+  stroke: rgba(255, 255, 255, var(--d3-seam, 0.09));
   stroke-width: 0.5;
   vector-effect: non-scaling-stroke;
   stroke-linejoin: round;
@@ -45,8 +46,15 @@
 .d3-edge {
   fill: none;
   stroke: var(--d3-edge);
-  stroke-width: 2.6;
+  stroke-width: var(--d3-edge-w, 2.6);
   stroke-linejoin: round;
+}
+
+/* THE FLARE. A bloom on the die's own edge, in the sheet's accent colour, scaled by the material — neon plastic
+   glows, printed bone does not. Applied as a filter on the edge polygon rather than a box-shadow, so it follows the
+   real silhouette as the die turns instead of haloing a rectangle. */
+.d3-die[style*='--d3-bloom'] .d3-edge {
+  filter: drop-shadow(0 0 calc(var(--d3-bloom, 0) * 7px) var(--d3-edge));
 }
 
 .d3-sheen {

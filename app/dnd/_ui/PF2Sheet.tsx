@@ -71,7 +71,7 @@ export default function PF2Sheet({ pf2, characterId, campaignId, canEdit, isDM, 
   // template pick re-renders this sheet into the new shell instantly — no full reload. Falls back to the
   // saved `layout` prop (and 'classic') until a pick is made, matching the server render.
   const effLayout = useLayoutChoice(characterId, layout);
-  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, characterId, campaignId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
+  const { panels, header, nav, banner, roller, overlays, footer } = usePf2Panels({ pf2, sheetType, characterId, campaignId, canEdit, isDM, variantKind, rollerTemplate, rollerAnim, layout: effLayout, customSections, preferences });
   // Placed by id so the Classic shell reproduces the original DOM exactly — the roller sits between
   // Defenses and Conditions, the modals between Strikes and Feats. Gated panels are simply absent
   // from `panels`, so their `section(...)` renders nothing, matching the old conditional sections.

@@ -70,6 +70,96 @@ function tone({ freq, type = 'square', dur = 0.08, gain = 0.14, attack = 0.004, 
   osc.stop(t0 + dur + 0.02)
 }
 
+// ── dice impacts ──────────────────────────────────────────────────────────────
+//
+// OWNER: *"Please make the dice rolling noises for the impact dice sound more like actual dice."*
+//
+// WHY `tick` WAS NEVER GOING TO SOUND LIKE A DIE. It is two oscillators — a pitched beep. A die striking a table
+// has almost no pitch: it is a broadband transient, a click of noise shaped by a short resonance, and what tells
+// you what the die is made of is the FILTER, not the note. Playing a beep faster does not converge on it.
+//
+// So `clack` synthesises the real thing: a burst of white noise through a band-pass (the "material"), plus a very
+// short low resonant body (the "thud" of mass), decaying in ~30–70ms. Pitch falls as the die gets bigger, gain
+// and brightness fall with the energy left in the throw, and everything is jittered per hit so no two are
+// identical — a dozen identical clicks is the other way a synthesised sound gives itself away.
+
+/** One second of white noise, generated once. Regenerating per hit would allocate on every impact. */
+let noiseBuffer: AudioBuffer | null = null
+function noise(a: AudioContext): AudioBuffer {
+  if (noiseBuffer && noiseBuffer.sampleRate === a.sampleRate) return noiseBuffer
+  const buf = a.createBuffer(1, Math.floor(a.sampleRate * 0.5), a.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+  noiseBuffer = buf
+  return buf
+}
+
+// A POLYPHONY CAP. Eight dice each firing eight impacts is sixty-four hits in a second, and simultaneous noise
+// bursts sum into a clipped crunch rather than a handful of dice. Beyond four in a 40ms window the rest are
+// dropped — you cannot hear them individually anyway, so dropping them costs nothing and saves the mix.
+const recent: number[] = []
+function tooBusy(now: number): boolean {
+  while (recent.length && now - recent[0] > 0.04) recent.shift()
+  if (recent.length >= 4) return true
+  recent.push(now)
+  return false
+}
+
+export interface ClackOpts {
+  /** Faces on the die. More faces reads as a bigger, heavier die, so the impact sits lower. */
+  sides?: number
+  /** 1 at the start of a throw, →0 as it settles. Drives loudness and brightness. */
+  energy?: number
+  /** The final settle, which is a single firmer hit rather than one of the bouncing ones. */
+  settle?: boolean
+  skin?: string
+}
+
+export function clack({ sides = 20, energy = 1, settle = false, skin }: ClackOpts = {}) {
+  const a = ac()
+  if (!a || muted) return
+  const t0 = a.currentTime
+  if (!settle && tooBusy(t0)) return
+
+  const v = voice(skin)
+  // Bigger die → lower centre frequency. A d4 is a small hard tap, a d100 a duller knock.
+  const size = Math.min(1, Math.max(0, (sides - 4) / 96))
+  const jitter = 0.86 + Math.random() * 0.3
+  const centre = (2600 - size * 1500) * v.pitch * jitter
+  const e = Math.min(1, Math.max(0.12, energy))
+  const dur = (settle ? 0.075 : 0.03 + 0.025 * e) * (0.9 + Math.random() * 0.25)
+  const level = (settle ? 0.2 : 0.055 + 0.075 * e) * jitter
+
+  // The material: noise through a band-pass. Q decides how "woody" versus "plastic" it reads.
+  const src = a.createBufferSource()
+  src.buffer = noise(a)
+  src.playbackRate.value = 0.8 + Math.random() * 0.5
+  const bp = a.createBiquadFilter()
+  bp.type = 'bandpass'
+  bp.frequency.setValueAtTime(centre, t0)
+  // The transient darkens as it decays, like a real strike losing its high partials first.
+  bp.frequency.exponentialRampToValueAtTime(Math.max(120, centre * 0.45), t0 + dur)
+  bp.Q.value = 1.1 + v.grit * 1.6 + Math.random() * 0.7
+  const g = a.createGain()
+  g.gain.setValueAtTime(0, t0)
+  g.gain.linearRampToValueAtTime(level, t0 + 0.0012) // near-instant attack: it is a strike
+  g.gain.exponentialRampToValueAtTime(0.0006, t0 + dur)
+  src.connect(bp)
+  bp.connect(g)
+  g.connect(a.destination)
+  src.start(t0)
+  src.stop(t0 + dur + 0.02)
+
+  // The body: a very short low resonance, which is what makes it read as an object with mass rather than a hiss.
+  tone({
+    freq: (150 - size * 55) * v.pitch * (0.9 + Math.random() * 0.2),
+    type: 'triangle',
+    dur: dur * (settle ? 1.6 : 1.1),
+    gain: level * 0.75,
+    attack: 0.001,
+  })
+}
+
 // A short mechanical "click/tick" — pitch rises slightly with progress so the
 // slowdown reads like a real prize wheel. Per skin: futuristic clicks digitally,
 // rugged/medieval knock lower + grittier, natural taps softly, fantasy chimes.
