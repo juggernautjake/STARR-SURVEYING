@@ -7,11 +7,10 @@
 // licences that let us carry this content require the attribution to travel with it. A catalogue page that omits it
 // is not merely impolite, it is out of compliance — so it renders as part of the page rather than as a tooltip.
 //
-// The two actions the owner asked for on every listing — create a variant, use in a campaign — are stubbed as
-// disabled affordances with the reason visible. That is deliberate rather than lazy: they are slices B3-1 and B3-3
-// and they need the variant editor and the campaign grant path wired in. A button that silently does nothing is
-// worse than one that says what it is waiting for, and leaving them out entirely would hide that the page is
-// mid-build.
+// USE IN A CAMPAIGN IS LIVE (B3-3): the same SendCreatureToFight control the Studio uses, pointed at a catalogue
+// row instead of a homebrew one, so a DM never re-types a monster HP. "Create a variant" is still a disabled
+// affordance with its reason visible — the derived weak/elite pair renders below, but AUTHORING your own needs
+// the editor (B3-1b). A button that silently does nothing is worse than one that says what it is waiting for.
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -23,6 +22,7 @@ import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
 import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
 import { transposeCreature, type BestiarySystem } from '@/lib/dnd/bestiary/transpose';
+import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,12 +125,18 @@ export default async function CreaturePage({
 
               {c.description && <p style={{ margin: 0 }}>{c.description}</p>}
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className={styles.hexBtn} disabled title="Slice B3-1 — the variant editor is not wired up yet" style={{ minHeight: 40 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                {/* B3-3, live: the same control the Studio uses, pointed at a catalogue row. Name, art and
+                    HP come across from the stat block, so a DM never re-types a monster's HP. */}
+                <SendCreatureToFight source={{ creatureId: c.id }} />
+                <button
+                  type="button"
+                  className={styles.hexBtn}
+                  disabled
+                  title="Slice B3-1b — authoring your own variant needs the editor. The derived weak/elite pair is below."
+                  style={{ minHeight: 40 }}
+                >
                   Create a variant
-                </button>
-                <button type="button" className={styles.hexBtn} disabled title="Slice B3-3 — adding to a campaign is not wired up yet" style={{ minHeight: 40 }}>
-                  Use in a campaign
                 </button>
               </div>
             </div>

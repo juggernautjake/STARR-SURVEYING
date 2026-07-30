@@ -522,7 +522,26 @@ and DC scaling via `variants.ts`) plus free-form editing.
 Public / private / shared, identical to classes, feats and characters — free, because a variant is a
 `dnd_homebrew` row (G1).
 
-### B3-3 · "Use in a campaign"
+### B3-3 · "Use in a campaign" — **SHIPPED 2026-07-30**
+
+The disabled stub on the creature page is now the real control: **⚔ Add to a fight**, the same
+`SendCreatureToFight` the Content Studio uses, pointed at a catalogue row instead of a homebrew one. Name,
+art and HP come across from the stat block, so a DM never re-types a monster's HP.
+
+Rather than duplicate the component, it gained a `FightSource` union — `{ homebrewId }`, `{ creatureId }`
+or `{ creatureVariantId }` — and the route resolves each in its **own branch**. Deliberately not folded
+into one lookup: the two tables answer READABILITY differently (homebrew is yours-or-published; the
+catalogue is licensed reference every member can already browse), and conflating them is exactly how a
+private Studio piece would leak out of someone else's workspace.
+
+A **variant** resolves through the same door and takes precedence over its parent when both are sent — a DM
+who picked "Elite Ogre" means the elite's HP, and quietly using the parent's would be the wrong number this
+whole control exists to stop being re-typed.
+
+"Create a variant" stays a disabled affordance with its reason visible: the derived weak/elite pair renders
+below it, but authoring your own needs the editor (B3-1b).
+
+### B3-3 · "Use in a campaign" (original plan text)
 From the listing: add to a campaign as an NPC/creature, which is the existing grant path plus `SendCreatureToFight`.
 
 ---

@@ -123,7 +123,7 @@ export default async function ContentDetailPage({ params }: { params: { id: stri
                   creature in a fight — the DM re-typed its name and HP into the initiative tracker. Sits
                   inside the statblock panel because the numbers it carries across are the ones directly
                   below it. Creatures only: the other seventeen kinds have nothing to send. */}
-              {piece.kind === 'creature' && <SendCreatureToFight homebrewId={piece.id} />}
+              {piece.kind === 'creature' && <SendCreatureToFight source={{ homebrewId: piece.id }} />}
 
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--hx-text)' }}>
                 {statblock.ac !== undefined && (

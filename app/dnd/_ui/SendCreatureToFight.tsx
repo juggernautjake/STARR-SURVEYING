@@ -16,7 +16,23 @@ interface EncounterOption {
   label: string;
 }
 
-export default function SendCreatureToFight({ homebrewId }: { homebrewId: string }) {
+/**
+ * Which door the creature came through.
+ *
+ * A Studio piece and a catalogue creature are different tables with different readability rules — homebrew
+ * is yours-or-published, the catalogue is licensed reference every member can already browse — so the
+ * server resolves them in separate branches and this just names which one applies.
+ *
+ * A variant sends its own id, which the route prefers over the parent's: a DM who picked "Elite Ogre"
+ * means the elite's HP, and quietly using the parent's would be exactly the wrong number this control
+ * exists to stop being re-typed.
+ */
+export type FightSource =
+  | { homebrewId: string }
+  | { creatureId: string }
+  | { creatureVariantId: string };
+
+export default function SendCreatureToFight({ source }: { source: FightSource }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [options, setOptions] = useState<EncounterOption[] | null>(null);
@@ -54,7 +70,7 @@ export default function SendCreatureToFight({ homebrewId }: { homebrewId: string
         const r = await fetch(`/api/dnd/encounters/${encounterId}/entries`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ homebrewId }),
+          body: JSON.stringify(source),
         });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));

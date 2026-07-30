@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if ((await getCampaignRole(campaignId)) !== 'dm') return NextResponse.json({ error: 'DM only.' }, { status: 403 });
 
   try {
-    const { characterId, homebrewId, name, initiative, hp, maxHp, tokenUrl } = await req.json();
+    const { characterId, homebrewId, creatureId, creatureVariantId, name, initiative, hp, maxHp, tokenUrl } = await req.json();
 
     // Derive display fields + HP from the character when one is referenced and not
     // overridden (G6: PC/NPC HP auto-seeds from the sheet's combat block on add).
@@ -73,6 +73,43 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
       } catch {
         /* the Studio table arrives with seed 455 — a manual add must still work without it */
+      }
+    }
+
+    // ── A CATALOGUE CREATURE (B3-3) ──────────────────────────────────────────────────────────────
+    //
+    // The same door as `homebrewId`, for the 829 creatures in `dnd_creatures`. Kept as a separate branch
+    // rather than folded into the homebrew one because the two tables answer READABILITY differently and
+    // conflating them is how a private Studio piece would leak: homebrew is yours-or-published, whereas the
+    // catalogue is licensed reference content that every member can already browse.
+    //
+    // A VARIANT resolves through the same path. `creatureVariantId` takes precedence when both are sent,
+    // because a DM who picked "Elite Ogre" means the elite's HP, not the parent's — silently using the
+    // parent would be the kind of wrong number this whole route exists to stop being re-typed.
+    if (!characterId && !finalName && (creatureId || creatureVariantId)) {
+      try {
+        if (creatureVariantId) {
+          const { data: v } = await supabaseAdmin
+            .from('dnd_creature_variants').select('name, statblock').eq('id', creatureVariantId).maybeSingle();
+          const row = v as { name?: string; statblock?: { hp?: number } } | null;
+          if (row?.name) {
+            finalName = row.name;
+            if (finalMax == null) finalMax = row.statblock?.hp ?? null;
+            if (finalHp == null) finalHp = row.statblock?.hp ?? null;
+          }
+        } else {
+          const { data: cr } = await supabaseAdmin
+            .from('dnd_creatures').select('name, image_url, statblock').eq('id', creatureId).maybeSingle();
+          const row = cr as { name?: string; image_url?: string | null; statblock?: { hp?: number } } | null;
+          if (row?.name) {
+            finalName = row.name;
+            if (!finalToken) finalToken = row.image_url ?? null;
+            if (finalMax == null) finalMax = row.statblock?.hp ?? null;
+            if (finalHp == null) finalHp = row.statblock?.hp ?? null;
+          }
+        }
+      } catch {
+        /* the bestiary tables arrive with seed 462 — a manual add must still work without them */
       }
     }
 
