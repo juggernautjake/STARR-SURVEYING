@@ -1,5 +1,33 @@
 # Dice realism & roller parity — 2026-07-29
 
+<!-- HOOK:BLOCKED Everything left (D7-1, D7-3's sweep, D6-3's contact sheet) waits on one owner decision: when a roller cannot fit a 360x640 phone, does the consistent window size give, or the no-scrollbar rule? Asked 2026-07-30, twice, unanswered. Remove this line once answered. -->
+
+> ## ⚠ Blocked on one decision — everything else here is shipped
+>
+> **D1 through D6 are done.** Solids, projection, throw, `Die3D`, multi-dice, materials, sound, flare
+> (D5-4 deferred with a reason), and D6's parity audit + guards. Plus two owner reports fixed on
+> 2026-07-30: the d10's proportions and the settled-face facing.
+>
+> **The three remaining items all wait on the same answer**, and they are entangled rather than merely
+> similar:
+>
+> - **D7-1** — the window-sizing slice, blocked since the doc was written because it would undo an
+>   explicit owner decision from the day before.
+> - **D7-3** — the no-scrollbar browser sweep. Its detector is shipped and tested; the sweep needs to know
+>   what "correct" means at 360px, which is exactly what D7-1 decides.
+> - **D6-3** — the contact-sheet matrix. Its guard is shipped; the screenshots need the same Playwright
+>   harness as D7-3, and building that twice against a window size that may change is waste.
+>
+> **The question, restated:**
+>
+> > On **2026-07-28** you asked for the roller window to be *a consistent size, template to template*.
+> > On **2026-07-29** you asked for it to *fully contain every roller's content and never scroll*.
+> >
+> > Those pull opposite ways on a small screen. When a roller genuinely cannot fit a 396×560 window on a
+> > 360×640 phone — **which gives: the consistent size, or the no-scrollbar rule?**
+>
+> Answer that and D7-1, D7-3 and D6-3 unblock together. Delete the `HOOK:BLOCKED` line above to resume.
+
 **Owner asks, verbatim, across four messages:**
 
 1. *"Please make sure the rollers all look the same for each system, but that they work as they should
@@ -519,7 +547,15 @@ Ship in this order, each self-contained, typecheck + lint + tests + **browser sc
 11. **D6-1 → D6-3** cross-system parity sweep + contact sheet.
 12. Roll `<Die3D />` into the other three stages where each one's identity allows (Sigil's tiles and Board's
     cards are deliberately *not* dice — parity means the DICE look the same, not that every roller becomes the
-    same roller).
+    same roller). — **RESOLVED 2026-07-30: nothing to migrate, and the caveat is the whole reason.**
+
+    Checked all three. **None of them draws a die**, and none should. The Sigil Stack cascades tiles, the Roll
+    Board deals cards, and the **Dice Core stage turns out to be a cycling numeric readout** — a large glowing
+    number with circuit wires and a scan line, with no die anywhere in its markup. That last one is the only
+    surprise and it has the same answer: its identity is a machine reporting a result, not a thrown object.
+
+    So `Die3D` belongs in exactly one stage — Impact, whose identity *is* thrown dice — and it is already
+    there. There is no migration behind this item; the parenthetical was the finding.
 
 ## Why this stays good for a long time
 
