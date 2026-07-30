@@ -295,14 +295,42 @@ Browser-verified on the Impact roller: a d20 renders 10 facets with 10 matching 
 
 ## Phase D6 — parity across systems, difference where it belongs
 
-### D6-1 · Audit what actually differs
-The four stages are shared; what differs per system is the *controls* (PF2 has Target DC + degrees of success,
-IG has stances, 5e has adv/dis + reckless). Catalogue every difference and classify it: **system mechanics**
-(must differ) or **drift** (must not). The screenshot bug was drift nobody had classified.
+### D6-1 · Audit what actually differs — **DONE 2026-07-30**
 
-### D6-2 · One stage, one look
-Every stage renders identically across systems: same dice, same materials, same sizes, same animations. Guard
-extends `roller-stage-scope.test.ts`: no stage stylesheet may reference a system-specific selector.
+Measured rather than assumed, against the source and then against the running app.
+
+**No stage references a system at all.** Searched every roller component and stylesheet for `pathfinder2e`,
+`intuitive-games`, `dnd5e-`, `data-system` and per-system class prefixes: **zero hits.** The guarantee D6-2
+asks for already held — it simply had nothing asserting it.
+
+**What legitimately differs is the CONTROLS, and only at the mount sites.** PF2 adds a Target DC input, IG
+adds its own, 5e has adv/dis and Reckless. All three mount the same `rollerStageFor`, `RollerTemplateBar`
+and `DicePad`. (`BuilderRoller` omits the template bar, which is correct — you are building a character, not
+choosing how to watch a roll.)
+
+**The one piece of real drift: the die list, written five times.** `[4, 6, 8, 10, 12, 20, 100]` appeared as a
+literal in `DiceTray`, `ImpactRoller`, `RollBoard` and `SigilStack`, while `solids.ts` has exported
+`STANDARD_DICE` with exactly those values all along and `DicePad` already imported it. Five hand-maintained
+copies of one fact — which is precisely how `DicePad` lost the **d10** before D2-3 caught it.
+
+### D6-2 · One stage, one look — **SHIPPED 2026-07-30**
+
+All four panels migrated to `STANDARD_DICE`. Adding or removing a die is now one edit in the module that
+draws them, and the four templates offer the same dice **by construction** rather than by four literals that
+happen to agree.
+
+The guard was rewritten to match. It had asserted that the 5e tray's *literal* still equalled the constant —
+explicitly temporary, "until the tray is migrated to the shared constant too" — and it was watching two of
+the five files while three went unwatched. It now asserts the stronger property over all five: each imports
+`STANDARD_DICE`, and **none declares a die list of its own**.
+
+Browser-verified across all four templates on a live sheet: `d4 d6 d8 d10 d12 d20 d100`, identical.
+
+*Worth recording:* typecheck passed and 8,269 tests passed while the sheet returned **500 —
+`STANDARD_DICE is not defined`**. That was a stale dev-server module graph after files were rewritten
+outside the editor, not a code fault; it cleared on a restart with `.next` removed. But it is the third time
+this session that only opening the page distinguished "wrong" from "fine", and the reason D6's stated
+deliverable is screenshots rather than a green suite.
 
 ### D6-3 · Per-system controls, uniformly presented
 System controls share layout, sizing and token vocabulary — a PF2 sheet's roller should look like an IG

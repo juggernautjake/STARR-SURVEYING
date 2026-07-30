@@ -10,6 +10,7 @@ import RollStage from './RollStage'
 import { setMuted, isMuted, primeAudio } from '../lib/audio'
 import { useRollerDock } from './rollers/FloatingRoller'
 import { HISTORY_PREVIEW } from './rollers/rollerAnim'
+import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
@@ -186,7 +187,11 @@ export default function DiceTray() {
             +
           </button>
         </div>
-        {[4, 6, 8, 10, 12, 20, 100].map((d) => (
+        {/* D6-2 — the SAME set of dice on every template and every system, by construction. This was five
+            separate literals (four panels plus DicePad) that happened to agree; adding a die meant five
+            edits and nobody notices the one that was missed, which is exactly how the d10 went absent from
+            DicePad once already. */}
+        {STANDARD_DICE.map((d) => (
           <button
             key={d}
             className="btn tiny"

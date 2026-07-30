@@ -24,6 +24,7 @@ import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, clack, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
 import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, HISTORY_PREVIEW, type RolledDie } from './rollerAnim'
+import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
 import { useRollFeed } from './rollFeed'
 import { materialForSkin } from '@/lib/dnd/dice/materials'
 import Die3D from './Die3D'
@@ -525,7 +526,11 @@ export default function ImpactRoller() {
             +
           </button>
         </div>
-        {[4, 6, 8, 10, 12, 20, 100].map((d) => (
+        {/* D6-2 — the SAME set of dice on every template and every system, by construction. This was five
+            separate literals (four panels plus DicePad) that happened to agree; adding a die meant five
+            edits and nobody notices the one that was missed, which is exactly how the d10 went absent from
+            DicePad once already. */}
+        {STANDARD_DICE.map((d) => (
           <button key={d} className="btn tiny" onClick={() => rollExpr(`${diceCount}d${d}`, `${diceCount}d${d}`)} title={`Roll ${diceCount}d${d}`}>
             d{d}
           </button>

@@ -77,17 +77,45 @@ describe('DicePad — the PF2 / IG manual roller', () => {
   });
 });
 
-describe('DiceTray — the 5e Dice Core', () => {
-  it('offers exactly the canonical dice', () => {
-    const list = literalDieList(read(DICE_TRAY));
-    expect(list, 'could not find the 5e tray die list — did it move?').not.toBeNull();
-    expect(list).toEqual([...STANDARD_DICE]);
-  });
+/**
+ * EVERY roller, not just the two that had the bug.
+ *
+ * The first version of this file asserted that the 5e tray's LITERAL still equalled the constant — a
+ * deliberately temporary guard, written "until the tray is migrated to the shared constant too". It was
+ * measuring the wrong thing in a way that mattered: five files carried the same seven numbers (the four
+ * roller panels plus DicePad), and a guard comparing two of them left three unwatched.
+ *
+ * D6-2 is "one stage, one look". Which dice exist is not a system mechanic and not a template's identity —
+ * a Roll Board offers the same dice as a Sigil Stack — so there should be ONE list, and the assertion is
+ * now that nobody has a list of their own.
+ */
+const ROLLERS = [
+  ['DicePad (PF2 / IG manual pad)', DICE_PAD],
+  ['DiceTray (5e Dice Core)', DICE_TRAY],
+  ['ImpactRoller', 'app/dnd/_sheet/components/rollers/ImpactRoller.tsx'],
+  ['RollBoard', 'app/dnd/_sheet/components/rollers/RollBoard.tsx'],
+  ['SigilStack', 'app/dnd/_sheet/components/rollers/SigilStack.tsx'],
+] as const;
 
-  it('and so agrees with the bespoke pad, which is the whole point of D6-2', () => {
-    // One list is imported and one is a literal, so this is the assertion that keeps them equal until the
-    // 5e tray is migrated to the shared constant too.
-    const trayList = literalDieList(read(DICE_TRAY));
-    expect(trayList).toEqual([...STANDARD_DICE]);
+describe('every roller takes its dice from the one canonical list', () => {
+  for (const [label, file] of ROLLERS) {
+    it(`${label} imports STANDARD_DICE`, () => {
+      expect(read(file)).toMatch(/STANDARD_DICE/);
+    });
+
+    it(`${label} declares no die list of its own`, () => {
+      expect(
+        literalDieList(read(file)),
+        `${label} has a hand-written die list again. Which dice exist is a property of the dice — import ` +
+          'STANDARD_DICE from lib/dnd/dice/solids so the rollers cannot silently drift apart.',
+      ).toBeNull();
+    });
+  }
+
+  it('so adding or removing a die is one edit, in the module that draws them', () => {
+    // The point of the migration stated as the property it buys. Five literals meant five edits and no
+    // signal when one was missed — which is exactly how DicePad lost the d10.
+    for (const [, file] of ROLLERS) expect(literalDieList(read(file))).toBeNull();
+    expect([...STANDARD_DICE]).toContain(10);
   });
 });
