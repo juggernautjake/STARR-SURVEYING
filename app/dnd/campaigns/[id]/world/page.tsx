@@ -18,7 +18,8 @@ import { redirect } from 'next/navigation';
 
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { getDndUser, getCampaignRole } from '@/lib/dnd/auth';
-import { loadMapTree } from '@/lib/dnd/maps/query';
+import { loadMapTree, loadMapObjects } from '@/lib/dnd/maps/query';
+import { readToken, tokenFootprint } from '@/lib/dnd/maps/tokens';
 import { breadcrumb, childrenOf, rootsOf } from '@/lib/dnd/maps/tree';
 import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
@@ -55,6 +56,10 @@ export default async function WorldPage({
   // G3: the DM's tree and a player's tree are different QUERIES. A player's rows simply do not contain
   // unpublished nodes, so there is nothing for a client-side mistake to reveal.
   const { nodes, pins } = await loadMapTree(campaignId, { isDm });
+  // M5-1 — what is standing on the map. A SEPARATE QUERY per viewer (G3): a player's never selects
+  // `dm_notes` and never matches a `dm`-visibility object, so a secret does not cross the wire and get
+  // hidden in React. `dnd_map_objects` shipped applied with M1-3 and had no reader until now.
+  const objects = await loadMapObjects(nodes.map((n) => n.id), { isDm });
 
   const roots = rootsOf(nodes);
   // An explicit ?node wins; otherwise the first root — which for a normal campaign is the space map.
@@ -63,6 +68,12 @@ export default async function WorldPage({
   const trail = current ? breadcrumb(nodes, current.id) : [];
   const children = current ? childrenOf(nodes, current.id) : [];
   const nodePins = current ? pins.filter((p) => p.map_node_id === current.id) : [];
+  // Tokens on THIS node, already z-ordered by the query. `readToken` returns null for a row bound to
+  // nothing, and those are dropped rather than drawn — a marker pointing at nothing is worse than a gap,
+  // because a DM would move it and target it and find it does nothing.
+  const nodeTokens = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'token') : [])
+    .map((o) => ({ o, t: readToken(o.data) }))
+    .filter((x): x is { o: typeof x.o; t: NonNullable<typeof x.t> } => x.t !== null);
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
 
   return (
@@ -206,6 +217,44 @@ export default async function WorldPage({
                         ) : (
                           <span aria-label={`${label} (not yet mapped)`} style={{ opacity: 0.55 }}>{dot}</span>
                         )}
+                      </div>
+                    );
+                  })}
+                  {/* M5-1 — the pieces on the board. Inside the transformed layer with the pins, so a
+                      token stays on its square through pan and zoom.
+
+                      NOT counter-scaled, unlike a pin: a pin is a MARKER whose job is to stay legible at
+                      every zoom, but a token occupies squares, and a token that kept its screen size while
+                      the map grew would slide off the space it is standing in. Its footprint comes from the
+                      node's own grid (tokenFootprint), so a Large creature covers 2×2 and looks it. */}
+                  {nodeTokens.map(({ o, t }) => {
+                    const side = tokenFootprint(t.size, current.grid as { size?: number } | null);
+                    const label = t.nickname || o.label || 'Token';
+                    return (
+                      <div
+                        key={o.id}
+                        title={label}
+                        aria-label={label}
+                        style={{
+                          position: 'absolute',
+                          left: o.x,
+                          top: o.y,
+                          width: side,
+                          height: side,
+                          transform: 'translate(-50%, -50%)',
+                          borderRadius: '50%',
+                          border: '2px solid var(--hx-gold-2)',
+                          background: o.asset_url ? `center/cover url(${o.asset_url})` : 'rgba(1,10,19,0.82)',
+                          display: 'grid',
+                          placeItems: 'center',
+                          color: 'var(--hx-gold-2)',
+                          // Scales with the footprint so a Gargantuan token's initial does not stay tiny.
+                          fontSize: Math.max(1, side * 0.5),
+                          lineHeight: 1,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {!o.asset_url && label.slice(0, 1).toUpperCase()}
                       </div>
                     );
                   })}

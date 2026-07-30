@@ -517,7 +517,55 @@ entirely on a tablet, in one sitting, and every step is undoable.
 
 ## Phase M5 — characters on the map
 
-### M5-1 · Tokens bound to characters
+### M5-1 · Tokens bound to characters — **SHIPPED 2026-07-30 (read + render); placing them is M4-2**
+
+Owner: *"Make sure we can actually run sessions with it."* A map you cannot put a token on is a picture.
+
+**`dnd_map_objects` shipped applied and complete with M1-3 — kinds, positions, z-order, per-object
+visibility, DM notes, a `data` blob — and nothing had ever read or written it.** `grep` over `app/` and
+`lib/` returned four matches, all in the seed. The signature defect again, and here it was the exact thing
+standing between a map tree and a session on it.
+
+Now shipped: `loadMapObjects` (the G3 split), `lib/dnd/maps/tokens.ts` (the rules, 15 tests), and tokens
+rendering inside the viewport's transformed layer.
+
+**G3 is now demonstrable rather than asserted.** The module header has always said *"the DM's view and the
+player's view are different QUERIES, not the same payload with a flag"* — there was simply no object table
+applying it. Verified against live rows through both branches:
+
+| | objects returned | `dm_notes` key |
+| --- | --- | --- |
+| **Player** | 3 (the `players` ones) | **absent** — not null, absent |
+| **DM** | 4 (including the `dm` ambusher) | present |
+
+A player's query does not name `dm_notes` in its SELECT, so the column never crosses the wire; and a
+`dm`-visibility object — which is every `hidden` object, the whole Perception-DC mechanic — is not in the
+result set at all. `discovered` is deliberately left out of both: whether *this* party has found a thing is
+a per-character question, and answering it here without a character would be the guess G3 forbids.
+
+**A token stores who it is and where it stands, and nothing else (G4).** Not HP, not speed, not conditions
+— those live on the sheet and are asked for. A token carrying `hp: 42` is wrong the moment the player takes
+damage, with nothing to tell either surface they disagree. Pinned by a test that asserts the parsed token
+has exactly two keys.
+
+Decisions worth keeping:
+- **A token bound to nothing is dropped, not drawn.** A marker pointing at nothing is worse than a gap: a
+  DM would move it and target it and find it does nothing. Same rule as `normalizeStatblock` dropping an
+  unparseable AC rather than clamping it.
+- **A variant beats its parent** when both ids are present — a DM who placed "Elite Ogre" means the elite.
+- **Tokens are NOT counter-scaled, unlike pins.** A pin is a marker whose job is to stay legible at every
+  zoom; a token occupies squares, and one that kept its screen size while the map grew would slide off the
+  space it stands in. Footprint comes from the node's own grid, so Large covers 2×2 and looks it —
+  measured live at 61px against Medium's 30px.
+- **No grid means no snapping.** A city pin does not sit on a battle grid, and rounding to an imagined
+  one-unit grid would visibly move every marker already placed.
+
+**Also found, and worth stating plainly: the live database has ZERO map nodes.** The tree, the renderer,
+the viewport, drill-down and node authoring are all built, and no campaign has ever authored a map. So
+"run sessions with it" today means starting from an empty world — which makes M4-1/M4-2 (the DM's placing
+tools) the next thing that matters, not another read path.
+
+### M5-1 · Tokens bound to characters (original plan text)
 A `token` object references a `character_id` (PC or NPC/creature from the bestiary). Its portrait, name, size
 category and colour come from the sheet — not typed in twice.
 
