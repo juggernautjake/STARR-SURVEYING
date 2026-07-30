@@ -201,7 +201,7 @@ export default async function CreaturePage({
           <section className={styles.framedPanel} style={{ padding: '14px 16px' }}>
             <div className={styles.framedPanelTop} />
             <h2 className={styles.panelTitle} style={{ marginTop: 0 }}>Stat block</h2>
-            <CreatureStatblock statblock={c.statblock} name={c.name} />
+            <CreatureStatblock statblock={c.statblock} name={c.name} system={c.system} />
           </section>
 
           {variants.length > 0 && (

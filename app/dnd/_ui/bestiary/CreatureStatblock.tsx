@@ -24,9 +24,21 @@ import {
   type Statblock,
 } from '@/lib/dnd/homebrew/statblock';
 import StatblockEntryRoll from '@/app/dnd/_ui/StatblockEntryRoll';
+import ConditionText from '@/app/dnd/_ui/ConditionText';
 import styles from './statblock.module.css';
 
-export default function CreatureStatblock({ statblock, name }: { statblock: Statblock; name?: string }) {
+export default function CreatureStatblock({
+  statblock,
+  name,
+  system,
+}: {
+  statblock: Statblock;
+  name?: string;
+  /** Whose conditions the prose is explained against (owner 2026-07-30). Optional so existing callers keep
+   *  working — with no system the text renders plain rather than explained against a guess, which is the
+   *  right failure: a 5e tooltip on a Pathfinder creature would be confidently wrong. */
+  system?: string | null;
+}) {
   const s = statblock;
   const abilities = STATBLOCK_ABILITIES.filter((a) => typeof s.abilities?.[a] === 'number');
   /**
@@ -45,8 +57,9 @@ export default function CreatureStatblock({ statblock, name }: { statblock: Stat
     ? []
     : STATBLOCK_ABILITIES.filter((a) => typeof s.abilityMods?.[a] === 'number');
 
-  /** A labelled line, rendered only when there is something to say. */
-  const line = (label: string, value: string | number | undefined | null) =>
+  /** A labelled line, rendered only when there is something to say. Takes a node as well as a string, so
+   *  a value can be enriched (condition names explained in place) without a second renderer. */
+  const line = (label: string, value: React.ReactNode) =>
     value === undefined || value === null || value === '' ? null : (
       <div className={styles.line}>
         <span className={styles.lineLabel}>{label}</span>
@@ -100,7 +113,11 @@ export default function CreatureStatblock({ statblock, name }: { statblock: Stat
         {line('Damage Resistances', s.resistances)}
         {line('Damage Immunities', s.immunities)}
         {line('Damage Vulnerabilities', s.vulnerabilities)}
-        {line('Condition Immunities', s.conditionImmunities)}
+        {/* The immunities line is a LIST of conditions by definition, so it is the one place a reader is
+            most likely to meet a name they do not know. */}
+        {s.conditionImmunities
+          ? line('Condition Immunities', <ConditionText text={s.conditionImmunities} system={system} />)
+          : null}
         {line('Senses', s.senses)}
         {line('Languages', s.languages)}
         {line('Challenge', s.cr === undefined ? undefined : `${s.cr}${s.xp ? ` (${s.xp.toLocaleString()} XP)` : ''}`)}
@@ -130,7 +147,9 @@ export default function CreatureStatblock({ statblock, name }: { statblock: Stat
                   <strong className={styles.entryName}>{e.name}</strong>
                   {e.cost ? <span className={styles.cost}>{e.cost}</span> : null}
                   {e.uses ? <span className={styles.uses}>({e.uses})</span> : null}
-                  {e.body ? <> {e.body}</> : null}
+                  {/* Conditions named in the prose become explained, in-place (owner 2026-07-30: the
+                      skunk's spray causes sickness, and a reader should be able to hover it). */}
+                  {e.body ? <> <ConditionText text={e.body} system={system} /></> : null}
                 </p>
                 {/* THE INTERACTIVE PART. Only where the source actually gave a to-hit or damage — offering a roll
                     button on a trait with no numbers would be a control that cannot work. */}
