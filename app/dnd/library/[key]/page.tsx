@@ -42,7 +42,7 @@ export const revalidate = 300;
 
 export function generateMetadata({ params }: { params: { key: string } }): Metadata {
   const p = libraryPageFor(params.key);
-  return { title: p ? `${p.name} — Rules Library | Starr Tabletop` : 'Rules Library' };
+  return { title: p ? `${p.name} — System Library | Starr Tabletop` : 'System Library' };
 }
 
 /** Markdown-lite: **bold** + "· " bullets, matching the rest of the platform's prose. */
@@ -104,7 +104,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
         <div style={{ width: '100%', maxWidth: 1000, margin: '0 auto', display: 'grid', gap: 16 }}>
           {/* ── header ─────────────────────────────────────────────────── */}
           <div>
-            <Link className={styles.hexBtn} href="/dnd/library" style={{ marginBottom: 10 }}>← Rules Library</Link>
+            <Link className={styles.hexBtn} href="/dnd/library" style={{ marginBottom: 10 }}>← System Library</Link>
             <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8 }}>
               {page.key === 'intuitive-games' ? (
                 // Brendan's Intuitive Games logo + title link to his site — the system's own source material,

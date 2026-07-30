@@ -839,7 +839,7 @@ export default function ContentBuilder({
             value={visibility} onChange={(e) => setVisibility(e.target.value)}>
             <option value="private">Private — only me</option>
             <option value="unlisted">Unlisted — anyone with the link</option>
-            <option value="public">Public — listed for everyone, and in the rules library</option>
+            <option value="public">Public — listed for everyone, and in the system library</option>
           </select>
           <span style={help}>You can change this at any time. Publishing also puts it in its system’s library.</span>
         </div>

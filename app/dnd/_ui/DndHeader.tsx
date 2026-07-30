@@ -78,6 +78,12 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
           {/* Custom content is READABLE by anyone, like the library — so it sits above the sign-in split
               with it, not below. Building is what needs an account, and that link lives inside. */}
           <Link href="/dnd/content" className={styles.siteNavLink} onClick={() => setOpen(false)}>Custom Content</Link>
+          {/* THE BESTIARY HAD NO INBOUND LINK AT ALL (owner, 2026-07-30: "where are the bestiary surfaced?
+              I don't see any way to view them"). 5,025 creatures reachable only by typing the URL — and the
+              bestiary plan's own G7 is "Findable: make sure we can actually find them". It sits beside the
+              Library and above the sign-in split for the same reason the Library does: reading is open,
+              creating is gated. */}
+          <Link href="/dnd/bestiary" className={styles.siteNavLink} onClick={() => setOpen(false)}>Bestiary</Link>
           {userName ? (
             <>
               <Link href="/dnd" className={styles.siteNavLink} onClick={() => setOpen(false)}>Lobby</Link>

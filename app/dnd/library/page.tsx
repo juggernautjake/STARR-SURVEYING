@@ -10,7 +10,7 @@ import LibrarySearch from '@/app/dnd/_ui/LibrarySearch';
 import LibraryChatDock from '@/app/dnd/_ui/LibraryChatDock';
 import { dndAiConfigured } from '@/lib/dnd/ai';
 
-export const metadata: Metadata = { title: 'Rules Library | Starr Tabletop' };
+export const metadata: Metadata = { title: 'System Library | Starr Tabletop' };
 
 export default function LibraryIndexPage() {
   const pages = allLibraryPages();
@@ -22,11 +22,24 @@ export default function LibraryIndexPage() {
         <div style={{ width: '100%', maxWidth: 1080, margin: '0 auto', display: 'grid', gap: 16 }}>
           <div>
             <Link className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Lobby</Link>
-            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>Rules Library</h1>
+            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>System Library</h1>
             <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0', maxWidth: 720 }}>
               {pages.length} playable game systems, each written out in full — how the dice work, how characters advance,
               and the exact numbers. Search across every system, or open one to read it end to end. Ask the librarian
               anything; it answers from the system you point it at, and never borrows another system’s rules.
+            </p>
+            {/* THE BESTIARY IS A SEPARATE SURFACE, and the Library is where a reader looks for it first —
+                owner, 2026-07-30: *"where are the bestiary surfaced? I don't see any way to view them. Are
+                they in the library?"* It is deliberately not a Library section (creatures are a catalogue
+                with their own filters, art and fork/variant machinery, not a rules chapter), so the honest
+                fix is to say so here rather than to fold 5,025 stat blocks into a rules page. */}
+            <p style={{ margin: '10px 0 0', fontSize: 13.5 }}>
+              Looking for monsters?{' '}
+              <Link href="/dnd/bestiary" style={{ color: 'var(--hx-teal-1)' }}>The Bestiary</Link>{' '}
+              <span style={{ color: 'var(--hx-muted)' }}>
+                is its own catalogue — every creature, filterable by system, type, plane and challenge, with
+                stat blocks you can roll from and fork.
+              </span>
             </p>
           </div>
 

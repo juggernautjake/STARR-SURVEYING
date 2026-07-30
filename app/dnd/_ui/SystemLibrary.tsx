@@ -33,7 +33,7 @@ export default function SystemLibrary({ systemKey, systemName }: { systemKey: st
   return (
     <div className={styles.framedPanel} style={{ display: 'grid', gap: 10, padding: '14px 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{systemName || systemKey} — rules library</strong>
+        <strong style={{ fontFamily: 'var(--hx-font-display)', color: 'var(--hx-gold-2)' }}>{systemName || systemKey} — system library</strong>
         <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>{entries.length} entries · scoped to this system</span>
       </div>
       <form

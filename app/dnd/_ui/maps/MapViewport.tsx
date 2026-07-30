@@ -79,7 +79,10 @@ export default function MapViewport({
     setVp(fitViewport(bounds, frame));
   }, [frame, bounds]);
 
-  useEffect(() => { onLodChange?.(lodFor(vp.scale)); }, [vp.scale, onLodChange]);
+  // Derived, not stored: one source for the attribute below and the callback, so the two cannot disagree
+  // about what zoom the reader is at.
+  const lod = lodFor(vp.scale);
+  useEffect(() => { onLodChange?.(lod); }, [lod, onLodChange]);
 
   const apply = useCallback(
     (next: Viewport) => setVp(frame.width ? clampViewport(next, bounds, frame) : next),
@@ -191,6 +194,18 @@ export default function MapViewport({
       }}
     >
       <div
+        // M3-3 — THE LEVEL OF DETAIL, PUBLISHED THE SAME WAY THE SCALE IS.
+        //
+        // `lodFor` and `onLodChange` were built with M3-1 and had no consumer: the value was computed
+        // every frame and handed to a callback nobody passed. The reason is structural rather than
+        // forgetful — the surface that draws pins (the campaign world page) is a SERVER component, so it
+        // cannot hold the state a React callback would deliver into.
+        //
+        // So the LOD travels as a data attribute for exactly the reason `--map-scale` travels as a CSS
+        // variable, one comment down: a server-rendered child can respond to it in CSS without becoming a
+        // client component. `onLodChange` stays for callers that genuinely are client components and want
+        // to thin what they RENDER rather than what they show.
+        data-lod={lod}
         style={{
           position: 'absolute',
           inset: 0,

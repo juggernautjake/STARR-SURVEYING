@@ -102,7 +102,7 @@ export default function LibrarySearch({ system, systemName }: { system?: string;
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={system ? `Search ${systemName ?? 'this system'}’s rules, feats, classes…` : 'Search every system — rules, feats, classes, skills, conditions…'}
-          aria-label="Search the rules library"
+          aria-label="Search the system library"
           style={{ flex: '1 1 320px', padding: '9px 11px', background: 'rgba(1,10,19,0.5)', border: '1px solid var(--hx-line)', color: 'var(--hx-text)', fontSize: 14 }}
         />
         {!system && (

@@ -160,15 +160,22 @@ export default async function WorldPage({
                   {nodePins.map((p) => {
                     const target = p.child_node_id && nodes.find((n) => n.id === p.child_node_id);
                     const label = p.label || (target ? target.name : 'Unmapped location');
+                    // M3-3 — what a pin DRAWS follows the zoom. The label is always in the markup and only
+                    // its visibility changes with `data-lod`, so it stays in the accessibility tree and
+                    // findable by in-page search at every zoom; a conditionally-rendered one would not be.
                     const dot = (
-                      <span
-                        style={{
-                          display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: '50%',
-                          border: '1px solid var(--hx-teal-1)', background: 'rgba(1,10,19,0.72)',
-                          color: 'var(--hx-teal-1)', fontSize: 12,
-                        }}
-                      >
-                        {p.icon || '◈'}
+                      <span className={styles.mapPin}>
+                        <span
+                          className={styles.mapPinDot}
+                          style={{
+                            display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: '50%',
+                            border: '1px solid var(--hx-teal-1)', background: 'rgba(1,10,19,0.72)',
+                            color: 'var(--hx-teal-1)', fontSize: 12,
+                          }}
+                        >
+                          {p.icon || '◈'}
+                        </span>
+                        <span className={styles.mapPinLabel}>{label}</span>
                       </span>
                     );
                     return (

@@ -48,7 +48,7 @@ export default function LibraryChatDock({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className={styles.headTitle}>RULES LIBRARIAN</div>
             <div className={styles.headSub}>
-              {systemName ? `Answers from the ${systemName} library` : 'Answers from the rules library'}
+              {systemName ? `Answers from the ${systemName} library` : 'Answers from the system library'}
             </div>
           </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close" className={styles.close}>×</button>

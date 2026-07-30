@@ -96,7 +96,7 @@ export const PALETTE_GROUP_LABELS: Record<PaletteKind, string> = {
   character: 'Characters',
   campaign: 'Campaigns',
   content: 'Custom content',
-  library: 'Rules library',
+  library: 'System library',
   action: 'Actions',
 };
 
@@ -112,7 +112,7 @@ export const PALETTE_ACTIONS: PaletteItem[] = [
   { id: 'a:my-characters', kind: 'action', title: 'My characters', href: '/dnd/characters', keywords: 'list index all' },
   { id: 'a:content-builder', kind: 'action', title: 'Content Builder', href: '/dnd/content/new', keywords: 'homebrew create class feat item studio' },
   { id: 'a:my-content', kind: 'action', title: 'My custom content', href: '/dnd/content?tab=mine', keywords: 'homebrew mine' },
-  { id: 'a:library', kind: 'action', title: 'Rules library', href: '/dnd/library', keywords: 'rules reference spells conditions' },
+  { id: 'a:library', kind: 'action', title: 'System library', href: '/dnd/library', keywords: 'rules reference spells conditions' },
   { id: 'a:profile', kind: 'action', title: 'Profile', href: '/dnd/profile', keywords: 'account password avatar recovery' },
   { id: 'a:requests', kind: 'action', title: 'Requests', href: '/dnd/suggestions', keywords: 'suggestions feedback board' },
 ];

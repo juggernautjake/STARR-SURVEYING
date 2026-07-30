@@ -97,7 +97,8 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
       </ActionGroup>
 
       <ActionGroup label="Browse">
-        <ActionLink href="/dnd/library" title="Rules, classes, spells and conditions for every playable system.">📖 Rules library</ActionLink>
+        <ActionLink href="/dnd/library" title="Rules, classes, spells and conditions for every playable system.">📖 System library</ActionLink>
+        <ActionLink href="/dnd/bestiary" title="Every creature in the catalogue — stat blocks you can roll, fork and drop into a fight.">☠ Bestiary</ActionLink>
         <ActionLink href="/dnd/content" title="Browse what everyone has published.">Everyone’s content</ActionLink>
       </ActionGroup>
 

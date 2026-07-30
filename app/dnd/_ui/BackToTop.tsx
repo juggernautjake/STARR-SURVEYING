@@ -31,7 +31,7 @@ export default function BackToTop({ label = 'Back to top' }: { label?: string })
     // Move FOCUS to the search field, not just the viewport. A keyboard user sent to the top whose
     // focus stayed at the bottom would have to tab through the whole page again — which would make
     // this button actively worse than no button for them.
-    const search = document.querySelector<HTMLInputElement>('input[aria-label="Search the rules library"]');
+    const search = document.querySelector<HTMLInputElement>('input[aria-label="Search the system library"]');
     search?.focus({ preventScroll: true });
   };
 

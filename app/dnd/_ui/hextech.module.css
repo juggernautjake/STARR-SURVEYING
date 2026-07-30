@@ -2265,3 +2265,43 @@ details[open] > .disclosure::before {
     transition: none;
   }
 }
+
+/* ── Map pins, by level of detail (M3-3) ───────────────────────────────────────────────────────────────
+   *"What is drawn depends on zoom: pins as dots when far out, labelled icons closer in."*
+
+   Driven entirely by the `data-lod` MapViewport publishes on its transformed layer, for the same reason
+   `--map-scale` is a CSS variable: the campaign world page is a SERVER component, and a pin that needed a
+   React prop to know the zoom would force the whole page to become a client one.
+
+   The label is always in the MARKUP — only its visibility changes. That keeps it in the accessibility tree
+   and findable by in-page search at every zoom, which a conditionally-rendered label would not be. */
+.mapPinLabel {
+  display: none;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid var(--hx-line);
+  border-radius: 999px;
+  background: rgba(1, 10, 19, 0.82);
+  color: var(--hx-text);
+  font-size: 11.5px;
+  white-space: nowrap;
+  /* The pin's own counter-scale already keeps it screen-sized; the label must not double it. */
+  pointer-events: none;
+}
+[data-lod='labels'] .mapPinLabel,
+[data-lod='full'] .mapPinLabel {
+  display: inline-block;
+}
+
+/* Far out, the dot shrinks too — a full-size marker per pin turns a zoomed-out region into a field of
+   circles with no map visible behind them. */
+[data-lod='dots'] .mapPinDot {
+  width: 12px;
+  height: 12px;
+  font-size: 0;
+}
+
+.mapPin {
+  display: inline-flex;
+  align-items: center;
+}
