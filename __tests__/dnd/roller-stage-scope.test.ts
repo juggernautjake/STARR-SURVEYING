@@ -119,8 +119,25 @@ describe('the die reads as a solid on every system, not just where 5e variables 
   });
 
   it('and the facets are painted as light, not as a colour', () => {
-    // Shading composes over any body fill on any skin; a facet palette in one accent would fight every
-    // theme it is not. The component supplies the alpha, so the rule must not hardcode a fill.
-    expect(read(`${DIR}/ImpactRoller.tsx`)).toMatch(/fill=\{f\.shade >= 0 \? '#ffffff' : '#000000'\}/);
+    // Shading composes over any body fill on any skin; a facet palette in one accent would fight every theme it
+    // is not. The component supplies the alpha, so the fill must stay pure white/black.
+    //
+    // Checked in `Die3D.tsx`, which is where the die moved when it became a real rotating solid. This assertion
+    // named `ImpactRoller.tsx` and broke on that move — pinning WHERE a property lives rather than THAT it holds.
+    expect(read(`${DIR}/Die3D.tsx`)).toMatch(/fill=\{f\.shade >= 0 \? '#ffffff' : '#000000'\}/);
+  });
+
+  it("and the die's own stylesheet is scoped to the die, not to a panel", () => {
+    // The same lesson as the Impact stage, applied to the new component before it can go wrong: `die3d.css` must
+    // key off `.d3-die`, which `Die3D` renders, so it works on all four systems including the two that mount a
+    // bare stage.
+    const css = read(`${DIR}/die3d.css`).replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).toMatch(/^\.d3-die[\s.,{:]/m);
+    for (const panel of PANEL_ONLY) {
+      expect(css, `die3d.css must not depend on ${panel}`).not.toContain(`${panel} `);
+    }
+    // And its colours must resolve where the 5e tokens do not exist.
+    expect(css).toContain('--hx-accent');
+    expect(css).toContain('--hx-panel-rgb');
   });
 });

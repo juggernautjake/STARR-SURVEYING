@@ -124,9 +124,17 @@ function assignPips(normals: Vec3[], total: number | null): number[] {
 }
 
 function build(verts: Vec3[], rawFaces: number[][], oppositeSum: number | null): Solid {
-  const faces = orientOutward(verts, rawFaces);
-  const normals = faces.map((f) => faceNormal(verts, f));
-  return { verts, faces, normals, pips: assignPips(normals, oppositeSum) };
+  // EVERY SOLID IS SCALED TO UNIT CIRCUMRADIUS, and it has to happen here rather than in each constructor.
+  // The Platonic dice come out unit-length because their vertices are normalised, but the d10's apex height is
+  // SOLVED (about 1.95 with an equator radius of 1) and the bipyramid's is chosen — so those two projected to
+  // roughly twice the intended size, which put the die's poles at −35 in a 0…100 viewBox. Caught by the test
+  // asserting the projection stays inside its box; entirely invisible in the geometry tests, which only care
+  // about shape. It also means every die renders at the same size, which is what you want on a shared tray.
+  const far = verts.reduce((m, v) => Math.max(m, len(v)), 0) || 1;
+  const scaled = verts.map((v) => scale(v, 1 / far));
+  const faces = orientOutward(scaled, rawFaces);
+  const normals = faces.map((f) => faceNormal(scaled, f));
+  return { verts: scaled, faces, normals, pips: assignPips(normals, oppositeSum) };
 }
 
 // ── the five Platonic dice ────────────────────────────────────────────────────

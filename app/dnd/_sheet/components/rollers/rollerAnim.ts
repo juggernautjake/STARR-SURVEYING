@@ -79,6 +79,55 @@ export function dropSummaries(breakdown: string): string {
   return (breakdown ?? '').replace(/\s*=\s*-?\d+/g, '').trim();
 }
 
+/** One die that was actually rolled, as recovered from a breakdown. */
+export interface RolledDie {
+  /** Faces on this die — 6 for a `2d6` group. */
+  sides: number;
+  /** What it came up. */
+  value: number;
+  /** False for the discarded die of an advantage/disadvantage pair. */
+  kept: boolean;
+}
+
+/**
+ * THE INDIVIDUAL DICE OF A ROLL, read from its breakdown.
+ *
+ * The store records `2d6[3,5]` — every die and what it showed — so the display never needs its own source of
+ * truth for this, and multiple dice cost nothing to show correctly.
+ *
+ * FOUND BY WATCHING A DIE LIE. The Impact roller drew its die from `activeRoll.landing`, which for a d20 check is
+ * the natural roll but for a DAMAGE roll is the folded total. So a `1d6+3` that rolled a 6 for 12 total handed
+ * "12" to a six-sided die, which has no such face — the die fell back to showing 1 while the breakdown beneath it
+ * correctly said 6. The number on the die and the number in the row disagreed, which is worse than either being
+ * absent, and no test could see it because both values were individually right.
+ *
+ * `d20[7,18]→18` also yields both dice of an advantage pair, with the discarded one marked — so a roller can show
+ * what a player actually saw hit the table rather than only the survivor.
+ */
+export function diceOf(breakdown: string): RolledDie[] {
+  const out: RolledDie[] = [];
+  // `NdM[v,v,…]` optionally followed by `→N` for the kept die of a pair.
+  const re = /(\d*)d(\d+)\[([^\]]*)\](?:\s*→\s*(-?\d+))?/g;
+  for (const m of dropSummaries(breakdown).matchAll(re)) {
+    const sides = Number(m[2]);
+    if (!Number.isFinite(sides) || sides < 2) continue;
+    const kept = m[4] === undefined ? null : Number(m[4]);
+    const values = m[3]
+      .split(',')
+      .map((v) => parseInt(v.trim(), 10))
+      .filter((v) => Number.isFinite(v));
+    let keptTaken = false;
+    for (const value of values) {
+      // With a `→N`, exactly one die is the kept one — the FIRST that matches, so a pair of equal rolls does not
+      // mark both.
+      const isKept = kept === null ? true : !keptTaken && value === kept;
+      if (isKept && kept !== null) keptTaken = true;
+      out.push({ sides, value, kept: isKept });
+    }
+  }
+  return out;
+}
+
 /** One term of a roll's breakdown: a die group (`1d8[5]`) or a flat modifier. */
 export interface BreakdownTerm {
   key: string;

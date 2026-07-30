@@ -179,6 +179,34 @@
   flex-direction: column;
   align-items: center;
 }
+/* THE TRAY — every die of the roll, laid out so it always fits. The arena is a fixed height shared by all four
+   rollers, so a handful of dice has to shrink to fit rather than push the panel taller or make it scroll (plan
+   ground rule G7 — the roller window never scrolls). `dieSizeFor` in the component picks the per-die size; this
+   handles the arrangement. */
+.ir-arena .ir-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.ir-arena .ir-tray-few {
+  gap: 8px;
+}
+.ir-arena .ir-tray-many {
+  gap: 5px;
+}
+.ir-arena .ir-tray-lots {
+  gap: 3px;
+}
+/* The discarded die of an advantage/disadvantage pair: still shown, because a player saw it hit the table, but
+   visibly not the one that counted. */
+.ir-arena .d3-die.is-discarded {
+  opacity: 0.4;
+  filter: grayscale(0.65);
+}
+
 /* The die's shadow on the table — it shrinks and sharpens as the die falls, which is most of what sells
    the throw as a throw. Purely decorative, and it never affects layout. */
 .ir-arena .ir-die-shadow {

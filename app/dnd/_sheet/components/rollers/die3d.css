@@ -1,0 +1,110 @@
+/* die3d.css — the die's material.
+   SCOPED TO `.d3-die`, THE COMPONENT'S OWN ROOT. Not to a panel, not to `.dnd-sheet`. The Impact roller shipped
+   invisible on Pathfinder and Intuitive Games for exactly that mistake: its stage rules were written
+   `.iroller .ir-die`, a descendant of the 5e panel, while `rollerStageFor` mounts the stage without that panel.
+   CSS travels with a component only if it keys off something the COMPONENT renders.
+
+   EVERY COLOUR FALLS BACK THROUGH `--hx-*`. The 5e sheet defines `--panel-rgb`/`--tealbright`; the PF2 and IG
+   sheets define the hextech tokens instead. A chain that stops at a hardcoded hex silently ignores the player's
+   theme on half the systems — which is the same bug in a different costume. */
+
+.d3-die {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  /* The shading is painted as white and black over this fill, so it composes on any skin (plan rule G4). */
+  --d3-body: rgba(var(--panel-rgb, var(--hx-panel-rgb, 20, 18, 28)), 0.99);
+  --d3-edge: var(--tealbright, var(--hx-accent, var(--gold, #6ee0cf)));
+  --d3-pip: var(--ink, var(--hx-text, #e8e6f0));
+  --d3-pip-landing: var(--tealbright, var(--hx-accent, #6ee0cf));
+}
+
+.d3-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* One drop shadow for the whole die, on the SVG rather than per polygon: a shadow per face would draw a
+     hundred of them on a d100 and shade the seams between facets. */
+  filter: drop-shadow(0 10px 18px rgba(var(--void-rgb, 6, 5, 12), 0.85));
+}
+
+.d3-body {
+  fill: var(--d3-body);
+}
+
+.d3-facet {
+  /* A hairline seam, or two facets of similar shade merge into one flat region and the die loses its faceting.
+     `vector-effect` keeps it one device pixel at every size — without it the seams thicken as the die scales and
+     a d100 turns into a mesh. */
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+
+.d3-edge {
+  fill: none;
+  stroke: var(--d3-edge);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+}
+
+.d3-sheen {
+  pointer-events: none;
+}
+
+.d3-pip {
+  fill: var(--d3-pip);
+  font-family: var(--font-display, var(--hx-font-display, inherit));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  /* Numerals sit on facets that range from near-white to near-black, so they need their own contrast rather than
+     relying on the fill beneath them (plan rule G6 — legibility wins every conflict with realism). */
+  paint-order: stroke fill;
+  stroke: rgba(var(--void-rgb, 6, 5, 12), 0.85);
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+  user-select: none;
+}
+
+/* The rolled face reads as the answer even while its neighbours are legible. */
+.d3-pip.is-landing {
+  fill: var(--d3-pip-landing);
+}
+.d3-die.is-tumbling .d3-pip.is-landing {
+  /* Mid-throw it is just another face — highlighting it early would give the result away before the die lands. */
+  fill: var(--d3-pip);
+}
+
+/* Crit and fumble recolour the edge and the landing numeral, matching the Dice Core contract. */
+.d3-die.is-crit {
+  --d3-edge: var(--gold, var(--hx-gold, #c8aa6e));
+  --d3-pip-landing: var(--gold, var(--hx-gold, #c8aa6e));
+}
+.d3-die.is-fumble {
+  --d3-edge: var(--danger, var(--hx-danger, #ff6b6b));
+  --d3-pip-landing: var(--danger, var(--hx-danger, #ff6b6b));
+}
+
+/* The settle: a short squash as the die hits, and nothing at all if motion is unwelcome. The tumble itself is
+   driven by the projection, frame by frame — there is no CSS animation rotating anything here, which is the
+   whole point. */
+.d3-die.is-settled .d3-svg {
+  animation: d3-land 0.34s cubic-bezier(0.2, 1.5, 0.3, 1) both;
+}
+@keyframes d3-land {
+  0% {
+    transform: scale(1.07);
+  }
+  40% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .d3-die.is-settled .d3-svg {
+    animation: none;
+  }
+}

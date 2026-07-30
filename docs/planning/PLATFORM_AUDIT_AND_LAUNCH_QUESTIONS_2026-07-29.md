@@ -1,0 +1,471 @@
+# Surveying Platform — Full Audit & Pre-Launch Question Bank
+**Date:** 2026-07-29 · **Scope:** everything under `/admin`, `/api`, `lib/`, `mobile/`, and the public
+marketing/pay surfaces. The `/dnd` subsystem is explicitly out of scope except where it shares
+infrastructure or competes for the same code.
+
+---
+
+## 0. What actually exists (measured, not estimated)
+
+| Thing | Count |
+|---|---|
+| Admin page routes | **158** |
+| API route handlers | **517** (340 under `/api/admin`) |
+| Distinct DB tables/views queried in code | **249** |
+| Tables/views with a `CREATE` statement in `seeds/` | **197** |
+| **Tables queried in code with NO schema in the repo** | **78** |
+| Tables carrying an `org_id` (multi-tenant scoping) | **28 of 188** |
+| Admin `.tsx` lines of code | **196,254** |
+| Test files (whole repo) | 1,335 — of which **571 are D&D** |
+| Hard-coded hexes inside `style={{}}` | **1,662 across 267 files** (ratcheted) |
+| Curated help-drawer entries | **8 of 158 pages** |
+| API routes using the RLS-bypassing service role | **466 of 517** |
+
+**The honest headline:** the feature surface is genuinely impressive and unusually complete for a
+one-person build — jobs, hours, payroll, payouts, receipts, mileage, equipment (incl. maintenance,
+consumables, valuation, templates, reservations), CAD, research automation, an LMS with real exam
+prep, messaging, leads, invoicing, a customer pay portal, a mobile app, and a SaaS/multi-tenant
+scaffold. The auth coverage on API routes is solid (no admin route lacks an auth check).
+
+**The honest problem:** it is a collection of ~20 well-built subsystems that have not yet been made
+into one product. The gaps below are almost all *integration, reproducibility, and coherence* gaps —
+not missing features.
+
+---
+
+## 1. Launch blockers (do not go live without these)
+
+### 1.1 🔴 78 core tables have no schema in the repo
+The single most serious finding. `jobs` — the central entity of the entire business — is never
+`CREATE TABLE`'d anywhere in `seeds/`. It is only ever `ALTER`ed (seeds 280, 304, 306, 452). Same for:
+
+```
+jobs, job_team, job_time_entries, job_equipment, job_field_data, job_payments,
+job_research, job_checklists, job_stages_history, job_tags,
+employee_profiles, employee_certifications, employee_role_history, daily_time_logs,
+payroll_runs, pay_stubs, pay_raises, pay_rate_standards, pay_advance_requests,
+payout_log, withdrawal_requests, work_type_rates, seniority_brackets, role_tiers,
+xp_transactions, xp_balances, xp_pay_milestones, badges, rewards_catalog, rewards_purchases,
+learning_modules, learning_lessons, learning_topics, lesson_blocks, lesson_versions,
+question_bank, quiz_attempts, quiz_attempt_answers, user_lesson_progress, user_progress,
+equipment_inventory, media_library, activity_log, error_reports, recycle_bin, …(and 33 more)
+```
+
+**Consequences right now:**
+- You cannot stand up a staging or dev database. There is one database — production.
+- A new machine, a new developer, or a rebuild after an incident cannot be done from the repo.
+- Every schema change to these tables is an undocumented click in the Supabase dashboard.
+- Disaster recovery depends entirely on Supabase's PITR retention, not on anything you control.
+
+**Fix:** `pg_dump --schema-only` the live DB, diff it against `seeds/`, and backfill the missing
+`CREATE TABLE` statements as `seeds/500_baseline_reconstruct.sql`. Then adopt a
+migration-file-per-change discipline. This is roughly a one-day job and it de-risks everything else.
+
+### 1.2 🔴 Multi-tenancy is skin-deep
+`org_id` exists on 28 tables — and they are all the *SaaS wrapper* tables (billing, subscriptions,
+support tickets, invites, audit log, payments). The tables that hold the actual business — `jobs`,
+`users`, `employees`, `equipment*`, `receipts`, `contacts`, `leads`, `messages`, `cad_drawings`,
+`research_projects`, every `learn*` table — have **no tenant column at all**.
+
+The `/platform`, `/admin/orgs`, `/admin/billing`, bundle-gating and operator-console code all imply
+you intend to sell this to other surveying firms. As built, onboarding a second firm means every
+firm sees every job, every employee, and every drawing. See §Q1 — this is the decision that most
+changes what "launch" means.
+
+### 1.3 🟠 Two navigation systems, drifted apart
+`AdminSidebar.tsx` (legacy, 11 hand-maintained sections) and `lib/admin/route-registry.ts` (the new
+IconRail/workspace/⌘K source of truth) both exist. `adminNavV2Enabled` defaults to `true` but the
+legacy sidebar is still shipped and reachable.
+
+They have diverged badly: **32 routes are in the registry and missing from the sidebar** — including
+Invoicing, Contacts, Files, Calendar, Support, Reports, Billing, Org Settings, Audit Log, Invites,
+Announcements. Three routes are in the sidebar and missing from the registry (`/admin/invoices/new`,
+`/admin/payments/inbox`, `/admin/payouts/runs`).
+
+**Fix:** delete `AdminSidebar.tsx` and the `adminNavV2Enabled` flag. One source of truth.
+
+### 1.4 🟠 36 built pages are unreachable from navigation
+Pages that exist, work, and are not in the route registry (so: not on the rail, not in ⌘K, no
+breadcrumb, no help):
+
+```
+/admin/finances/overview        ← the money-in/out dashboard you built for go-live (G2)
+/admin/finances/reconcile       ← bank reconciliation (G3)
+/admin/payments/inbox           /admin/payouts/runs      /admin/payouts/ad-hoc
+/admin/payouts/tax-report       /admin/invoices/new      /admin/invoicing/categories
+/admin/billing/invoices         /admin/billing/plan-history   /admin/billing/upgrade
+/admin/email/new                /admin/email/sent        /admin/notifications
+/admin/weather                  /admin/me/privacy        /admin/support/new
+/admin/learn/references         /admin/learn/manage/media
+/admin/learn/manage/question-builder   /admin/learn/flashcards/create
+/admin/learn/exam-prep/sit      /admin/learn/exam-prep/sit/mock-exam
+/admin/learn/exam-prep/rpls     /admin/equipment/templates/new
+/admin/work-mode/*  (9 routes)  /admin/login  /admin
+```
+
+Three of these (`finances/overview`, `finances/reconcile`, `payouts/tax-report`) were built
+*specifically* to close go-live gaps G2/G3/G5 — and nothing links to them from the nav.
+
+This is the repo's most common defect class, already noted in memory: **"authored but not wired."**
+
+### 1.5 🟠 Deploy-time secrets & flags not yet set
+From `BLOCKERS.md` §D and `GO_LIVE_GUIDE.md`: `PAYMENTS_LIVE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`,
+`CRON_SECRET`, `NEXTAUTH_SECRET`, the mobile install URLs, storage buckets, and the owner-account
+provisioning. All owner-gated, all still open.
+
+---
+
+## 2. Structure & organization — "is the site built weird?"
+
+Partly, yes — but in a specific, fixable way. The information architecture is **organized by the
+order features were built, not by how a surveying business actually works.**
+
+### 2.1 Four competing "home" concepts
+| Surface | What it is |
+|---|---|
+| `/admin/dashboard` | 474-line hardcoded tile page, heavily learning-oriented |
+| `/admin/me` | The real Hub — customizable widget canvas, saved layouts, greeting |
+| `/admin/work` `/admin/office` `/admin/research-cad` | Workspace landings that literally render *"Phase 4 adds at-a-glance widgets here; for now this lists every accessible page"* |
+| `/admin/work-mode/*` | A separate role-specific shell you *enter*, with its own 9 routes |
+
+A new employee logging in has no idea which of these is "the app." **Recommendation:** `/admin/me`
+is the home. Delete `/admin/dashboard` (fold its useful tiles in as widgets). Either give the three
+placeholder landings real widgets or make the rail icon jump straight to the workspace's busiest
+page. Decide whether Work Mode is a *mode* (full-screen takeover) or a *view* — right now it's both.
+
+### 2.2 Thirty money surfaces, no single financial home
+```
+finances · finances/overview · finances/reconcile · reports · invoicing · invoicing/categories
+invoices/new · payments/inbox · billing · billing/invoices · billing/plan-history · billing/upgrade
+payouts · payouts/runs · payouts/ad-hoc · payouts/tax-report · payout-log · payroll · payroll/[email]
+pay-progression · pay-progression/[email] · receipts · receipts/new · mileage · rewards · rewards/admin
+research/billing · equipment/fleet-valuation · /pay · /pay/[invoice]
+```
+Worse, the vocabulary collides: **"Billing"** means *the subscription you pay for the software*,
+**"Invoicing"** means *what your customers pay you*, and **"Finances"** means *job profitability*.
+Nobody will guess that. Suggested consolidation into one **Money** workspace with four tabs:
+*Money In* (invoices, payments, the pay portal) · *Money Out* (payouts, payroll, receipts, mileage) ·
+*Profitability* (per-job finances, reports, fleet valuation) · *Company Account* (the SaaS subscription).
+
+### 2.3 Six people surfaces, no single Person record
+`/admin/employees` (list) · `/admin/employees/manage` (edit) · `/admin/users` (roles) ·
+`/admin/team` (live field status) · `/admin/contacts` (CRM, includes employees) ·
+`/admin/messages/contacts` (pick someone to message) — plus `/admin/team/[email]`,
+`/admin/payroll/[email]`, `/admin/pay-progression/[email]`, and
+`/admin/employees/manage/[email]/history`.
+
+That's ten routes describing one noun. **Recommendation:** one `/admin/people/[id]` profile with
+tabs (Profile · Roles & Access · Pay · Hours · Equipment · Certifications · History), and the list
+pages become *filters* on one directory, not separate pages.
+
+### 2.4 Ten time/schedule surfaces
+`schedule` · `calendar` · `timeline` · `hours-approval` · `time-off` · `personnel/crew-calendar` ·
+`equipment/timeline` · `equipment/today` · `me?tab=hours` · `mileage`. Four of them are calendars.
+A dispatcher deciding "who and what is available Thursday" has to open three pages.
+
+### 2.5 Twelve communication surfaces
+`messages` · `messages/new` · `messages/contacts` · `messages/settings` · `discussions` ·
+`email/new` · `email/sent` · `notes` · `announcements` · `notifications` · `support` · plus lead
+replies. Internal chat, internal forum, customer email, company notes, release notes, alerts, and
+tickets are seven different mental models. At minimum, merge Discussions into Messages (channels)
+and Notes into Files.
+
+### 2.6 Overlapping log/audit surfaces
+`/admin/audit` · `/admin/error-log` · `/admin/timeline` · `/admin/equipment/overrides` ·
+`/platform/audit` · `activity_log`. Five places to answer "what happened and who did it."
+
+---
+
+## 3. Content & function gaps (things a surveying firm needs that aren't there)
+
+- **No proposal / estimate / contract with customer acceptance.** A lead has a `quote_amount`
+  field and that's it. There is no document you send, no line items, no scope-of-work template,
+  no acceptance/e-signature, no "signed proposal → auto-create job." Searching for signature code
+  finds only CAD seals. For a surveying firm this is the *front door* of every job.
+- **No customer portal.** Customers get a marketing site, an email thread, and `/pay/[invoice]`
+  (which requires them to already know the invoice number). They cannot log in to see job status,
+  approve a change order, or download their plat. `/share/[token]` exists but is research-report-only.
+- **No deliverable/document control.** There's a file explorer and CAD drawings, but no concept of
+  a *deliverable* with a revision number, an issued-date, a recipient, and a "final signed & sealed"
+  state — which is the artifact a surveying firm is legally on the hook for.
+- **No RPLS/licensure & insurance tracking as a compliance surface.** `employee_certifications`
+  exists as a table with no schema and no expiry-alerting surface. CE hours, license renewal, COI
+  expiry, and vehicle registration/inspection are all business-critical dates with no home.
+- **No change orders.** Scope creep is how surveying jobs lose money; there is no way to record
+  "customer added 3 acres on 7/14 at $X."
+- **No AR / collections view.** Invoices exist; "who owes me money and for how long" (aging report)
+  does not appear in the finance code.
+- **Job costing is one-directional.** Hours, mileage, receipts and equipment all attach to jobs, but
+  there is no *estimate vs actual* comparison, which is the number that tells you if you're pricing
+  right.
+- **Weather page is orphaned** — for a field business, weather should be a first-class scheduling
+  input (auto-flag rain days, suggest reschedules), not an unlinked page.
+
+---
+
+## 4. Good ideas that need fleshing out
+
+| Idea | Where it stands | What it needs |
+|---|---|---|
+| **Hub widget canvas** | Real, good, saved layouts, role-seeded | Widgets for the money/equipment/compliance surfaces; it's the answer to "one home page" if it's finished |
+| **Workspace landings** | 3 of 6 are literal placeholders | Widgets, or delete and jump straight to the busiest page |
+| **Help drawer (`?`)** | Fully built; **8 of 158 pages** have content | This is the single best AI opportunity in the app (see §5) |
+| **Command palette (⌘K)** | Built, ranked, recency-boosted | Only knows *routes*. Add actions ("clock in", "new job", "log mileage"), and records (job #, person, equipment) |
+| **Personas / role override** | Built | Undiscoverable, and its relationship to Work Mode is unclear |
+| **Research self-healing adapters** | Spec is ready in `RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md` Part II, still `pending/` | The county-portal scrapers *will* break; this is the thing that keeps research working unattended |
+| **Rewards / XP / pay progression** | Substantial build (2,578-line page) | Zero schema in repo; unclear if it's actually your comp policy or an experiment |
+| **SaaS platform / operator console** | Scaffolded, bundle-gating, billing | Blocked on §1.2 — it can't ship without tenant-scoping the business tables |
+| **Stripe payouts (G4)** | Foundation only, `PAYOUTS_STRIPE_LIVE` gated | Connect onboarding + transfers |
+| **Mobile app** | 73 screens, pure logic tested | Device runtime (camera, background upload, offline) verified only by you on a real phone |
+
+---
+
+## 5. AI integration — the biggest opportunity
+
+Today there are **six unrelated AI surfaces**, each with its own hand-rolled prompt and its own
+Anthropic client:
+
+| Surface | File |
+|---|---|
+| CAD deed parser / drawing chat / pipeline | `lib/cad/ai-engine/*`, `lib/cad/ai/*` |
+| Lead reply drafting | `lib/leads/ai-draft.ts` |
+| Learning tutor / grader / definitions / quiz gen | `app/api/admin/learn/*` |
+| Research analysis + chat | `app/api/admin/research/testing/*` |
+| Work-mode field assistant | `app/api/admin/work-mode/assistant/route.ts` |
+| (D&D librarian — separate) | `lib/dnd/ai/*` |
+
+### What's wrong with it
+1. **No assistant knows anything about your data.** The work-mode field assistant is a stateless
+   chat with a system prompt. It cannot see the crew's active job, cannot clock them in, cannot
+   look up which total station is checked out. It answers trig questions. That is a calculator with
+   manners, not an assistant.
+2. **No tool use anywhere.** Not one of these routes defines tools. Every AI surface is
+   text-in/text-out. The platform has 517 API endpoints and the AI can call none of them.
+3. **No shared context layer.** Nothing assembles "who is this user, what role, what job are they
+   on, what's on their plate" into a reusable digest — even though the D&D side already proved
+   this pattern works (`characterDigest` + grounding blocks).
+4. **Model IDs are inconsistent and a generation behind:** `claude-sonnet-4-5-20250929` (12 uses),
+   `claude-sonnet-4-6` (4), `claude-opus-4-7` (1), `claude-haiku-4-5` (1). The current family is
+   Claude 5 (`claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`). There's no central model config.
+5. **The help drawer — the literal "help me, I'm stuck" surface — has no AI at all**, and 150 of
+   158 pages show *"No help curated for this page yet."*
+
+### What "AI fully integrated" should mean here
+- **One assistant, everywhere** — a persistent dock (the `?`/⌘K surface) that knows the current
+  page, the user's role, and their live context, and can *act* via tools: create a job, log hours,
+  submit a receipt, check out equipment, draft a customer email, start a research run, explain
+  this page.
+- **AI-generated page help** as the fallback when `help-catalog.ts` has no entry — grounded in the
+  route registry entry + the actual page, so those 150 empty drawers fill themselves.
+- **Proactive, not just reactive** — "you're still clocked in at 7pm," "this job is 12 hours over
+  estimate," "Bobby's RPLS renews in 30 days," "rain Thursday, want to move the Belton job?"
+- **AI in the data-entry paths** where surveying is painful: deed → legal description parsing
+  (partially exists in CAD), field-note → job-notes cleanup, receipt OCR (exists), photo →
+  point-code suggestion, invoice line-items from logged hours.
+- **A central `lib/ai/` module**: one client factory, one model config, one tool registry, one
+  context digest builder, one cost/usage log. Six copies of the same 40 lines is how prompt drift
+  and cost surprises happen.
+
+---
+
+## 6. Styling & formatting
+
+- **Four styling systems coexist:** 67 CSS files, **3,085 inline `style={{}}` objects across 281
+  admin files**, Tailwind utilities in 97 files, and `styled-jsx` in 29.
+- **1,662 hard-coded hexes live inside inline styles** (267 files). You already have a good ratchet
+  test holding the line — but the pile only shrinks if someone pays it down.
+- **`app/styles/tokens.css` (149 lines) is a real, well-documented token system that the components
+  largely don't use.** `docs/admin-styling-contract.md` is excellent and mostly aspirational.
+- **Consequence:** there is **no dark mode**, and there *cannot* be one until the hexes move to
+  tokens. Same for white-labeling a SaaS customer's brand, and same for the print stylesheet
+  (which overrides variables an inline hex can't see).
+- **Page-size outliers** that will be painful to restyle or hand off:
+  `research/[projectId]/page.tsx` (3,770 lines, 173 hexes), `pay-progression` (2,578),
+  `equipment/maintenance/[id]` (2,569), `learn/manage/lesson-builder/[id]` (2,545),
+  `equipment/inventory` (2,392), `receipts` (2,285).
+- **Dead code:** `app/admin/profile/ProfilePanel.tsx` is still in the hex baseline though
+  `/admin/profile` was consolidated away.
+
+---
+
+## 7. What's genuinely solid (don't touch)
+
+- **API auth coverage.** Every one of the 340 `/api/admin` routes performs an auth check. The only
+  unauthenticated routes are the intentional public ones (invoice pay, share token, webhooks,
+  signup, NextAuth).
+- **Route registry as data.** `lib/admin/route-registry.ts` is the right abstraction — breadcrumbs,
+  ⌘K, rail, fly-outs and the audit test all derive from it.
+- **The ratchet test pattern** (`inline-style-hex-ratchet.test.ts`). Pragmatic and honest.
+- **Equipment subsystem.** Genuinely deep: templates + versions, reservations, maintenance history,
+  consumables, valuation, overrides audit, cleanup queue.
+- **Payments/finance foundation.** G1–G5 are all built and gated behind flags; only account
+  activation remains.
+- **The planning-doc discipline** (208 completed docs with a clear promotion rubric) is unusual
+  and worth keeping.
+
+---
+
+## 8. Suggested sequencing
+
+**Phase 0 — De-risk (before anything else)**
+1. Reconstruct the 78 missing table schemas into `seeds/`. Stand up a staging DB from the repo.
+2. Decide the SaaS question (§Q1). If yes, tenant-scope the business tables *now* — it only gets
+   more expensive.
+
+**Phase 1 — Make it one product**
+3. Delete `AdminSidebar.tsx` + the v2 flag. Register all 36 orphan routes.
+4. Kill `/admin/dashboard`; make `/admin/me` the unambiguous home.
+5. Consolidate Money (30 → ~6 surfaces) and People (10 → 1 profile + 1 directory).
+6. Rename Billing/Invoicing/Finances to non-colliding words.
+
+**Phase 2 — Close the business gaps**
+7. Proposal → acceptance → job (with e-signature).
+8. Customer portal (job status + deliverables + pay).
+9. Deliverable revision control + AR aging + change orders.
+10. Certification/insurance expiry alerting.
+
+**Phase 3 — AI as the connective tissue**
+11. `lib/ai/` — one client, one model config, one tool registry, one context digest.
+12. One assistant dock with tool use, everywhere.
+13. AI-fallback page help.
+14. Proactive alerts.
+
+**Phase 4 — Polish**
+15. Pay down inline hexes on the top 20 files → tokens → dark mode.
+16. Split the six >2,000-line pages.
+17. Onboarding/empty states for a brand-new firm.
+
+---
+
+## 9. Question bank
+
+### Q1 — Business model (this changes everything downstream)
+1. Is this **one firm's internal tool**, or **software you intend to sell to other surveying
+   firms**? The `/platform`, `/admin/orgs`, billing, bundles and operator console say "sell it";
+   the schema says "one firm."
+2. If you're selling it: how many tenants in year one, and are they full firms or solo surveyors?
+3. If selling — is Starr Surveying itself tenant #1 in the same database, or does it stay separate?
+4. What's the pricing model you actually want (per-seat? per-firm? bundles as built)?
+5. Does the D&D platform ship in the same repo/deploy forever, or does it get split out before you
+   have paying customers looking at your app?
+
+### Q2 — Launch scope & timing
+6. What is the **actual launch date** you're aiming at, and who is the first real user besides you?
+7. At launch, how many employees are on it? Which roles?
+8. Is Hank (or whoever runs the business day-to-day) going to use this, and has he seen it?
+9. What is the **one workflow** that must work perfectly on day one? (Clock in → work → get paid?
+   Lead → job → invoice → paid?)
+10. Are you replacing something today (spreadsheets? QuickBooks? paper?), and does data need to
+    migrate in?
+11. Is there a date by which you *must* be off the old system (tax year, contract, etc.)?
+
+### Q3 — Data & operations
+12. Are you comfortable that **`jobs` has no schema in the repo** and there's no staging DB? Should
+    fixing that be the next thing I do?
+13. Do you have Supabase PITR / backups turned on, and have you ever tested a restore?
+14. How much real production data is in there now — is it live business data, or still test data?
+15. Who else can access the Supabase dashboard?
+16. If the database vanished tomorrow, what's the recovery plan?
+
+### Q4 — Money
+17. Does **QuickBooks / an accountant** need to consume anything from this? (That determines whether
+    you need an export, or whether this *is* the books.)
+18. Are employees W-2, 1099, or both? (The classification field exists — is it populated?)
+19. Is payroll actually going to run through this app, or does a payroll provider do it and this
+    just tracks hours?
+20. Who currently sends invoices, and in what tool? Is `/admin/invoicing` replacing it?
+21. Do you need **AR aging / collections** (who owes what, how late)?
+22. Do you need **estimate vs actual job costing** — is knowing your per-job margin a launch
+    requirement or a later nice-to-have?
+23. Is the **Rewards/XP/pay-progression** system real company policy, or an experiment? (It's ~5,000
+    lines and it isn't in the schema.)
+24. Are you handling sales tax on any of this?
+
+### Q5 — Customers
+25. Do customers ever need to **log in**, or is email + a pay link enough forever?
+26. Do you need a **signed proposal / contract** before work starts? How is that done today?
+27. How do customers receive deliverables today (email a PDF? a link?), and do you need proof of
+    delivery?
+28. Do you need **change orders** tracked?
+29. Should customers see job status ("field work complete, in drafting"), or is that too much
+    transparency?
+30. Who answers the phone / the contact form today, and how fast does a lead need a reply?
+
+### Q6 — Field crew (the highest-stakes users)
+31. Do crews have reliable cell service on your jobs? **How much must work fully offline?**
+32. iPhone, Android, or both? Company phones or personal?
+33. What do crews do today that this must replace — paper field notes? Texting photos?
+34. Is the **mobile app** part of launch, or is the web app on a phone browser good enough for v1?
+35. What's the single biggest daily annoyance for a crew member that software could remove?
+36. Does clock-in need GPS/geofence enforcement, or is trust fine?
+37. Who approves hours, and how fast does that need to happen relative to payroll?
+
+### Q7 — Roles & access
+38. Eleven roles exist (`admin, developer, teacher, student, researcher, drawer, field_crew,
+    employee, guest, tech_support, equipment_manager`). **Which of these are real jobs at your
+    company?** Several look like they came from the LMS.
+39. `internalOnly` gates on `@starr-surveying.com` email. Will contractors/1099s have company
+    emails? If not, they lose most of the app.
+40. Is there a **role between employee and admin** — a foreman/PM who sees their crew's jobs and
+    hours but not payroll?
+41. Should an employee be able to see other employees' pay? Hours? Certifications?
+42. Do you want the **custom role builder** (`/admin/roles/custom`) in the launch product, or is the
+    fixed list simpler?
+
+### Q8 — Navigation & IA
+43. Do you agree `/admin/me` should be the single home page and `/admin/dashboard` should go?
+44. Is **Work Mode** a full-screen mode you *enter*, or just a mobile-friendly view? (Right now it's
+    ambiguous and has 9 routes.)
+45. Are the six workspaces (Hub, Work, Equipment, Research & CAD, Knowledge, Office) the right six?
+    I'd argue **Money** deserves its own and **Knowledge** could fold into Office for a working firm.
+46. Do you want me to consolidate the People pages into one profile-with-tabs?
+47. What should the **Billing / Invoicing / Finances** words become? (Suggestion: *Company Account* /
+    *Customer Invoices* / *Job Profitability*.)
+48. Should Discussions merge into Messages? Should Company Notes merge into Files?
+
+### Q9 — AI
+49. What are the **top five questions or tasks** you'd want an in-app assistant to handle on day one?
+50. Should the assistant be allowed to **take actions** (create a job, log hours, send an email), or
+    only answer questions and draft things for you to confirm?
+51. Whose data can it see? Can a field crew member's assistant read job financials? Other people's
+    hours?
+52. What's an acceptable **monthly AI spend**? (That decides Haiku-vs-Sonnet-vs-Opus routing.)
+53. Should I standardize every AI call on current Claude 5 models and one central config?
+54. Do you want AI-generated help content for the 150 pages with none, or hand-written?
+55. Do you want **proactive** AI (it messages you about problems), or strictly on-demand?
+56. Is voice input for the field app a real requirement or a nice-to-have?
+57. Is there anything the AI must **never** touch (payroll amounts, sending customer emails
+    unreviewed, deleting anything)?
+
+### Q10 — Learning platform
+58. The LMS (modules, lessons, quizzes, flashcards, FS/RPLS exam prep, NMSU course) is a huge
+    surface. **Is it part of the surveying business product, a separate product, or your personal
+    study tool?**
+59. If it ships: is it for your employees' CE/licensure, or for sale to students?
+60. Does it belong in the same navigation as job dispatch, or should it be its own app?
+
+### Q11 — Research & CAD
+61. Is the automated county research pipeline running against real counties today, and what's its
+    success rate?
+62. When a county portal changes and scraping breaks, who notices? (Should I activate the
+    self-healing adapter plan?)
+63. Is Starr CAD meant to replace your real CAD, or supplement it? Do drafters actually use it?
+64. Does research/CAD work need to be billable and tracked against job costs?
+
+### Q12 — Compliance & risk
+65. Do you need **license/certification expiry tracking with alerts** (RPLS renewal, CE hours, COI,
+    vehicle inspection)?
+66. Any records-retention requirement on survey deliverables (state board rules)?
+67. Do you need an **immutable audit trail** on financial records for an accountant or auditor?
+68. Is there PII you're storing (SSNs for 1099s, driver's licenses) and where does it live?
+69. Do you carry E&O insurance that imposes any documentation requirements the software should
+    enforce?
+
+### Q13 — Quality bar & process
+70. What's your tolerance for **breaking changes** once real employees depend on this daily?
+71. Do you want a staging environment, or ship straight to production?
+72. Should I keep the "one planning doc per initiative" process, or switch to something lighter?
+73. How much of the **1,662 inline hexes** do you want paid down, and is **dark mode** something you
+    actually want?
+74. Are the six 2,000+ line page files worth splitting, or leave them alone if they work?
+75. What should I do with `/admin/weather` — wire it into scheduling, or delete it?

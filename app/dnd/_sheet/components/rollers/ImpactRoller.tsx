@@ -23,10 +23,52 @@ import type { ActiveRoll } from '../../state/store'
 import { useSheetModule } from '../../state/sheetConfig'
 import { tick, blip, errorBuzz, tada, whoosh, setMuted, isMuted, primeAudio } from '../../lib/audio'
 import { useRollerDock, useExpandOnRoll } from './FloatingRoller'
-import { shouldAnimateRoller, adoptedToken, breakdownTerms } from './rollerAnim'
+import { shouldAnimateRoller, adoptedToken, breakdownTerms, diceOf, type RolledDie } from './rollerAnim'
 import { useRollFeed } from './rollFeed'
-import { dieSides, dieNet } from './dieShape'
+import { dieSides } from './dieShape'
+import Die3D from './Die3D'
 import './impactRoller.css'
+
+// The tumble length, shared by the stage's timeline (sounds, commit) and the die's own trajectory so the throw
+// and the clack land together. One constant, because two that happened to match would drift apart.
+const TUMBLE_MS = 1080
+
+/**
+ * The dice to draw for a roll.
+ *
+ * Normally straight from the breakdown, which records every die and its face. The fallback matters though: a roll
+ * whose breakdown carries no die notation at all — a manually entered IRL result, or a recorded total — still has
+ * to show something, and for a d20 check the natural roll (`landing`) IS a real face of a real d20. Anything else
+ * gets nothing, and the stage falls back to its neutral box rather than inventing a die (plan ground rule G2:
+ * the renderer displays, it never decides).
+ */
+function diceForRoll(roll: ActiveRoll): RolledDie[] {
+  const parsed = diceOf(roll.entry.breakdown ?? '')
+  if (parsed.length) return parsed
+  if (roll.isD20 && roll.landing >= 1 && roll.landing <= 20) {
+    return [{ sides: 20, value: roll.landing, kept: true }]
+  }
+  return []
+}
+
+/** How big each die is drawn, for a handful of `n`. The tray must fit the arena at every count, never scroll. */
+function dieSizeFor(n: number): number {
+  if (n <= 1) return 108
+  if (n === 2) return 82
+  if (n <= 4) return 64
+  if (n <= 6) return 52
+  if (n <= 9) return 44
+  if (n <= 16) return 36
+  return 30
+}
+
+/** A coarse bucket for the tray's layout class, so CSS can adjust gaps without a style per count. */
+function trayBucket(n: number): 'one' | 'few' | 'many' | 'lots' {
+  if (n <= 1) return 'one'
+  if (n <= 4) return 'few'
+  if (n <= 9) return 'many'
+  return 'lots'
+}
 
 type RowKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
 interface BreakRow {
@@ -102,6 +144,9 @@ export function ImpactStage() {
   const [face, setFace] = useState<number | null>(adopted ? adopted.landing : null)
   // How many sides the die SHAPE has, from the die being rolled (D-4). null → the neutral rounded shape.
   const [sides, setSides] = useState<number | null>(adopted ? dieSides(adopted) : null)
+  // The individual dice of the roll, read from the breakdown (`2d6[3,5]` → two d6s showing 3 and 5). This is what
+  // the tray renders, and it is why the die can no longer contradict the rows beneath it.
+  const [dice, setDice] = useState<RolledDie[]>(() => (adopted ? diceForRoll(adopted) : []))
   const [meta, setMeta] = useState<{ crit: boolean; fumble: boolean; total: number; label: string; landing: number; isD20: boolean; tag?: string } | null>(
     adopted
       ? { crit: adopted.crit, fumble: adopted.fumble, total: adopted.entry.total, label: adopted.entry.label, landing: adopted.landing, isD20: adopted.isD20, tag: adopted.entry.tag }
@@ -138,6 +183,7 @@ export function ImpactStage() {
       setFace(null)
       setMeta(null)
       setSides(null)
+      setDice([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoll])
@@ -158,6 +204,7 @@ export function ImpactStage() {
     setRows(r)
     setMeta({ crit: activeRoll.crit, fumble: activeRoll.fumble, total: entry.total, label: entry.label, landing, isD20, tag: entry.tag })
     setSides(dieSides(activeRoll))
+    setDice(diceForRoll(activeRoll))
     primeAudio()
 
     // Instant: no tumble — land the die and headline immediately, still commit + chime. Taken when the
@@ -186,7 +233,7 @@ export function ImpactStage() {
       setFace(lo + Math.floor(Math.random() * (hi - lo + 1)))
       tick(Math.random())
     }, 85)
-    const TUMBLE = 1080
+    const TUMBLE = TUMBLE_MS
     const land = window.setTimeout(() => {
       if (scrambler.current != null) {
         window.clearInterval(scrambler.current)
@@ -225,38 +272,44 @@ export function ImpactStage() {
   return (
     <div className={`ir-arena ${phase === 'landed' ? 'ir-landed' : 'ir-throwing'} ${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}`}>
       <div className="ir-stage">
-        {/* The die is drawn as a SHADED SOLID, not an outlined polygon: `dieNet` gives the real face-on net
-            for the die being rolled (a d6's three isometric rhombi, a d20's centre triangle and the facets
-            turning away from you), and each face is painted as light or shadow over the themed body fill so
-            it composes on any system and any skin. `.ir-cast` carries the throw — the tumble spins the
-            solid in 3D while the shadow beneath tracks it — and the numeral rides on top, upright, because
-            a rolling die you cannot read is a worse die. No recognised die → the neutral rounded square. */}
+        {/* A REAL ROTATING SOLID (`Die3D`), not a picture of a die. It projects the actual polyhedron every
+            frame — faces come round, catch the light, turn away and vanish at the silhouette — and every visible
+            face carries its own numeral, so a d20 mid-throw is eight or nine numbers wheeling past. The rolled
+            value is a PROP: the trajectory is planned to end with that face square-on, so the die cannot disagree
+            with the total beneath it.
+
+            When the die is ambiguous (a mixed pool like 2d6+1d4 has no single shape) the neutral box keeps the
+            scrambling numeral it always had — a made-up shape would be a worse answer than an honest one. */}
         <div className="ir-cast">
-          <div className={`ir-die${sides ? ' has-shape' : ''}`} aria-hidden data-sides={sides ?? undefined}>
-            {sides && (
-              <svg className="ir-die-shape" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden>
-                {(() => {
-                  const net = dieNet(sides)
-                  return (
-                    <>
-                      <polygon className="ir-die-body" points={net.silhouette} />
-                      {net.facets.map((f, i) => (
-                        <polygon
-                          key={i}
-                          className="ir-die-facet"
-                          points={f.points}
-                          fill={f.shade >= 0 ? '#ffffff' : '#000000'}
-                          fillOpacity={Math.abs(f.shade)}
-                        />
-                      ))}
-                      <polygon className="ir-die-edge" points={net.silhouette} />
-                    </>
-                  )
-                })()}
-              </svg>
-            )}
-            <span className="ir-die-face">{face ?? '·'}</span>
-          </div>
+          {dice.length ? (
+            // EVERY DIE THAT WAS ROLLED, each its own solid with its own trajectory (owner: "make it so that we
+            // can roll multiple dice at once"). They come from the breakdown, which already records what each die
+            // showed — so a handful is not a special mode, it is just what the data said all along.
+            //
+            // Sized down as the handful grows, never scrolled: the tray has to fit the arena at any count.
+            <div className={`ir-tray ir-tray-${trayBucket(dice.length)}`}>
+              {dice.map((d, i) => (
+                <Die3D
+                  key={`${lastToken.current}-${i}`}
+                  sides={d.sides}
+                  // The die's OWN value, not the roll's total. Handing a d6 the folded total of 12 is what made
+                  // the die show 1 while the breakdown said 6.
+                  value={d.value}
+                  // Index in the seed, so dice in one throw tumble differently but reproducibly.
+                  seed={lastToken.current * 31 + i}
+                  animate={animate && phase === 'tumbling'}
+                  size={dieSizeFor(dice.length)}
+                  duration={TUMBLE_MS}
+                  className={`${meta?.crit ? 'is-crit' : ''} ${meta?.fumble ? 'is-fumble' : ''}${d.kept ? '' : ' is-discarded'}`}
+                />
+              ))}
+            </div>
+          ) : (
+            // Nothing parseable in the breakdown — show the neutral box rather than inventing a die.
+            <div className="ir-die" aria-hidden>
+              <span className="ir-die-face">{face ?? '·'}</span>
+            </div>
+          )}
           <span className="ir-die-shadow" aria-hidden />
         </div>
         {phase === 'landed' && meta && (
