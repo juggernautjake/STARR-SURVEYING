@@ -443,8 +443,27 @@ a bare *genus* is a coin toss. Every remaining genus-only entry in the table (`P
 kind, and the honest position is that **1 in 6 sampled was wrong before the fix and the true rate across
 all 105 is unmeasured**.
 
-**Still open:** view the remaining ~99, and decide the 724 non-animals (hand-pick the signature monsters,
-sigils for the rest).
+#### Genus-only entries verified — the risk is smaller than feared, and differently shaped
+
+The 19 genus-only mappings account for 22 creatures with art. Nine of the 105 have now been viewed:
+
+| Verdict | Creatures |
+| --- | --- |
+| ✅ correct | Giant Lizard (monitor), Giant Hyena + Hyena (spotted hyenas), Spider + Giant Spider, Giant Wasp (hornet) |
+| ❌ wrong, fixed | Giant Fire Beetle — genus `Lampyridae` returned a **stealth aircraft**; now `Lampyris noctiluca` |
+| ⚠️ fossils | **Saber-Toothed Tiger** (a Smilodon skeleton) and **Tyrannosaurus Rex** (a mounted skull) |
+
+**The fossils are not a defect and are deliberately left alone.** Commons has no photograph of a Smilodon
+because none can exist; a museum mount is the truthful best available, and for a T. rex a dramatic skull is
+arguably the better bestiary image anyway. But it is a *systematic category* — `Mammuthus`, `Plesiosaurus`,
+`Triceratops` and `Smilodon` will all behave this way — so it is recorded rather than discovered again
+later by someone who thinks it is a bug.
+
+Revised read: **a bare genus is risky only when the taxon name is also something else** (`Lampyridae` the
+aircraft), not because it is a genus. Living animals resolved correctly in every case checked.
+
+**Still open:** ~96 of the 105 unviewed; and the 724 non-animals, where automated search is known-bad and
+the choice is hand-picking the signature monsters versus leaving everything on sigils.
 `scripts/fetch-creature-art.mjs`: for each creature, look for a PD/CC image, store it with its attribution in
 the existing media plumbing, and record `image_url` + `image_attribution`. Never a hotlink — files are saved
 locally (G3). Reports coverage honestly (G6).
