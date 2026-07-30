@@ -22,6 +22,7 @@ import { loadMapTree } from '@/lib/dnd/maps/query';
 import { breadcrumb, childrenOf, rootsOf } from '@/lib/dnd/maps/tree';
 import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
+import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 
 export const metadata: Metadata = { title: 'World | Starr Tabletop' };
 export const dynamic = 'force-dynamic';
@@ -108,21 +109,30 @@ export default async function WorldPage({
             <>
               <section className={styles.framedPanel} style={{ padding: 0, overflow: 'hidden' }}>
                 <div className={styles.framedPanelTop} />
-                {/* aspect-ratio rather than a fixed height: the map fills the column at any width, so the
-                    360px phone and the desktop get the same picture rather than a letterboxed one. */}
-                <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#02121a' }}>
+                {/* M3-1's pan/zoom wraps the map AND its pins in ONE transformed layer, so a pin stays
+                    glued to its spot at every zoom instead of sliding across the map.
+                    aspect-ratio rather than a fixed height: the frame fills the column at any width, so a
+                    360px phone and a desktop get the same picture rather than a letterboxed one. */}
+                <MapViewport
+                  label={current.name}
+                  bounds={{ minX: 0, minY: 0, maxX: 100, maxY: 100 }}
+                  style={{ width: '100%', aspectRatio: '16 / 9', background: '#02121a' }}
+                >
                   {current.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={current.image_url}
                       alt={`${current.name} — ${TIER_LABEL[tierOf(current.tier)] ?? current.tier}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      style={{ position: 'absolute', left: 0, top: 0, width: 100, height: 100, objectFit: 'cover' }}
                     />
                   ) : (
-                    <GeneratedMap nodeId={current.id} tier={current.tier} name={current.name} />
+                    <div style={{ position: 'absolute', left: 0, top: 0, width: 100, height: 100 }}>
+                      <GeneratedMap nodeId={current.id} tier={current.tier} name={current.name} />
+                    </div>
                   )}
 
-                  {/* Pins sit on the map in its own 0-100 space, so they stay put at any size. */}
+                  {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
+                      map under pan and zoom rather than floating over it. */}
                   {nodePins.map((p) => {
                     const target = p.child_node_id && nodes.find((n) => n.id === p.child_node_id);
                     const label = p.label || (target ? target.name : 'Unmapped location');
@@ -143,9 +153,16 @@ export default async function WorldPage({
                         title={label}
                         style={{
                           position: 'absolute',
-                          left: `${p.x}%`,
-                          top: `${p.y}%`,
-                          transform: 'translate(-50%, -50%)',
+                          // WORLD UNITS, not percent. Inside the transformed layer 1px === 1 world unit
+                          // (the map is a 100×100 box), so `50%` would resolve against the layer's own
+                          // frame-sized box and put every pin in the wrong place.
+                          left: p.x,
+                          top: p.y,
+                          // COUNTER-SCALED so the marker stays the same size on screen at every zoom —
+                          // otherwise a pin balloons to fill the frame as you zoom in. `--map-scale` is
+                          // published by MapViewport on the transformed layer.
+                          transform: 'translate(-50%, -50%) scale(calc(1 / var(--map-scale, 1)))',
+                          transformOrigin: 'center',
                           // 44px hit area around a 26px dot — G5's touch minimum, met by padding rather
                           // than by making the marker itself ugly.
                           padding: 9,
@@ -161,7 +178,7 @@ export default async function WorldPage({
                       </div>
                     );
                   })}
-                </div>
+                </MapViewport>
               </section>
 
               {current.blurb && (
