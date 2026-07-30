@@ -1888,6 +1888,36 @@ of homebrew.
 
 ## Phase 7 — The live synced session (the Roll20-shaped table)
 
+> ## ⛔ SUPERSEDED 2026-07-29 — do not build P7 from this doc
+>
+> `MAP_LAYERS_AND_TACTICAL_ENCOUNTERS_2026-07-29.md` covers the same feature with a **different and
+> incompatible schema**, and it is the newer, owner-briefed plan. Two agents are working this repo
+> concurrently; without this note one could build P7's tables while the other builds M1's, and both would
+> be "following the plan".
+>
+> | | P7 (here, 07-28) | M1 (MAP_LAYERS, 07-29) |
+> |---|---|---|
+> | tables | `dnd_battle_maps`, `dnd_battle_tokens` | `dnd_map_nodes`, `_pins`, `_objects`, `_discoveries`, `_triggers` |
+> | structure | one flat map per encounter | self-nesting node tree, depth 1–7 |
+> | route | `/dnd/campaigns/[id]/battle` | drill-down from the campaign map |
+> | tokens | `dnd_battle_tokens` rows | `map_objects` with `kind='token'` |
+> | overlap | grid, pan/zoom, tokens-from-sheets, fog of war, templates, turn order, realtime — **all of it** | same |
+>
+> **M1's model wins, and not merely because it is newer.** The owner's 07-29 brief asks for *"up to 7 levels
+> of map layers"*; a flat `dnd_battle_maps` cannot express that, and retrofitting nesting onto it later means
+> migrating live token rows. The one-node-tree model contains the flat case as its leaf.
+>
+> **Also wrong here, concretely:** P7-1 specifies `seeds/456_dnd_battle.sql`, but **`seeds/456` is already
+> taken** by `456_dnd_rate_limits.sql` (shipped). Following P7-1 literally produces a duplicate seed number.
+>
+> P7's slices are NOT worthless — several name things MAP_LAYERS does not, and they should be folded in
+> rather than lost: setting the grid *by dragging across two known squares* rather than typing a pixel size
+> (P7-2, the better interaction), Pointer Events from the start for tablets (P7-2), presence + late-joiner
+> full-state + reconnect-after-sleep as first-class sync concerns (P7-4), and seeding tokens from the
+> encounter's **initiative entries** so HP and conditions arrive correct rather than re-entered (P7-3).
+>
+> Leaving the slices below unchecked and unbuilt, as reference material for M-phase work.
+
 > **The owner's vision, 2026-07-28:** *"a Roll20 kind of session thing where people can fully build maps and
 > stuff and add their character tokens to the maps and be able to actually keep track of initiative and hp
 > and stats and movement and all of that in real time for the DM and each player. Everything and everyone in
@@ -3185,6 +3215,30 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       acceptance is precisely how the payload reached the wrong store.
 
 ## Phase 13 — The Bestiary
+
+> ## ⚠️ ALSO PLANNED IN `BESTIARY_BUILDOUT_2026-07-29.md` — that doc is the live one
+>
+> Same feature, two plans, 14 slices here (P13-1…14) against 20 there (B1-1…B5-5). The other doc is newer,
+> carries the owner's verbatim brief, and is what the concurrent agent is working from — its B1-1/B1-2/B2-*
+> shipped on 2026-07-29 (`/dnd/bestiary`, the stat block, the aura system, seed 464).
+>
+> **Work the bestiary from `BESTIARY_BUILDOUT`, not from here.** The mapping, so nothing here is lost:
+>
+> | here | there | state |
+> |---|---|---|
+> | P13-1 model, P13-2 tables, P13-3 5e SRD import | (assumed built) | ✅ shipped |
+> | P13-4 SRD 5.2 import | B1-4 | open |
+> | P13-5 PF2 import | B1-5 | open |
+> | P13-8 AI creature generation | *(no B equivalent — keep this one)* | open, unique to this doc |
+> | catalogue / statblock / variants / transposition / play | B1-1/1-2, B3-*, B4-*, M-phase | mostly shipped |
+>
+> **P8-1 above is now stale** — it says *"No monster catalogue exists in any system"*, which stopped being
+> true on 2026-07-29. Leaving the text as written rather than silently editing an audit finding, but it
+> should be read as closed.
+>
+> The one item genuinely unique to this doc is **P13-8, AI creature generation** ("describe it → statblock →
+> retry / accept / edit"). `BESTIARY_BUILDOUT` has no equivalent, so it must not be dropped when that doc
+> becomes the single source.
 
 > The largest item in the brief, and the one with the most moving parts. Ordered so that each slice is
 > usable on its own.

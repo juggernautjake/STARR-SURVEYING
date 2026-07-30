@@ -1,5 +1,22 @@
 # Nested map layers & tactical encounters — 2026-07-29
 
+> **This doc supersedes Phase 7 of `TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md`**
+> (reconciled 2026-07-29). P7 plans the same feature with a flat `dnd_battle_maps` / `dnd_battle_tokens`
+> schema, which cannot express the owner's *"up to 7 levels of map layers"*; M1's node tree contains the
+> flat case as its leaf. P7 is marked superseded there rather than deleted, because four of its slices are
+> better than anything here and should be folded into the M phases:
+>
+> - **Set the grid by dragging across two known squares**, never by typing a pixel size nobody knows (P7-2)
+>   → belongs in **M4-1**.
+> - **Pointer Events from the start**, so it works on a tablet on day one (P7-2) → **M3-1**, and it is how
+>   G5 gets satisfied rather than retrofitted.
+> - **Presence, late-joiner full state, and reconnect-after-sleep** as first-class sync concerns, not
+>   polish (P7-4) → **M7-3**. These are the unglamorous parts that decide whether a table feels alive.
+> - **Seed tokens from the encounter's initiative entries** so HP, conditions and turn order arrive correct
+>   rather than re-entered (P7-3) → **M5-1**, and it is a stronger statement of G4 than M5-1 currently makes.
+>
+> Also inherited: `seeds/456` is **taken** (`456_dnd_rate_limits.sql`). M1's seeds must claim a free number.
+
 **Owner ask, verbatim:**
 
 > *"Please make the map and the world and stuff all look good on pc and mobile as well. Please make it that for

@@ -1,5 +1,16 @@
 # Bestiary buildout — 2026-07-29
 
+> **This doc is the live bestiary plan; it supersedes Phase 13 of
+> `TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md`** (reconciled 2026-07-29). P13 plans the
+> same feature in 14 slices against this doc's 20; the mapping is recorded there so nothing is lost.
+>
+> **One item exists only in P13 and must not be dropped: P13-8, AI creature generation** — *"describe it →
+> statblock → retry / accept / edit"*. There is no B-slice for it. It belongs after B1-5, once there is
+> enough catalogued content for a generated creature to be checked against real ones.
+>
+> Also note: **P8-1 in that doc ("no monster catalogue exists in any system") went stale on 2026-07-29** and
+> should be read as closed.
+
 **Owner ask, verbatim:**
 
 > *"Please also really work on the bestiary so that we create a full and robust list of all kinds of creatures
