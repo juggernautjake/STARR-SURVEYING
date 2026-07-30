@@ -7,10 +7,10 @@
 // licences that let us carry this content require the attribution to travel with it. A catalogue page that omits it
 // is not merely impolite, it is out of compliance — so it renders as part of the page rather than as a tooltip.
 //
-// USE IN A CAMPAIGN IS LIVE (B3-3): the same SendCreatureToFight control the Studio uses, pointed at a catalogue
-// row instead of a homebrew one, so a DM never re-types a monster HP. "Create a variant" is still a disabled
-// affordance with its reason visible — the derived weak/elite pair renders below, but AUTHORING your own needs
-// the editor (B3-1b). A button that silently does nothing is worse than one that says what it is waiting for.
+// BOTH OWNER-ASKED ACTIONS ARE LIVE. "Use in a campaign" (B3-3) is the same SendCreatureToFight the Studio
+// uses, pointed at a catalogue row, so a DM never re-types a monster HP. "Make my own version" (B3-1b) FORKS
+// the creature into a Studio piece rather than editing the catalogue (G1) — which is what makes it shareable
+// and adoptable with no new machinery, since homebrew already has all of that.
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -23,6 +23,7 @@ import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
 import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
 import { transposeCreature, type BestiarySystem } from '@/lib/dnd/bestiary/transpose';
 import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
+import ForkCreature from '@/app/dnd/_ui/bestiary/ForkCreature';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,15 +130,12 @@ export default async function CreaturePage({
                 {/* B3-3, live: the same control the Studio uses, pointed at a catalogue row. Name, art and
                     HP come across from the stat block, so a DM never re-types a monster's HP. */}
                 <SendCreatureToFight source={{ creatureId: c.id }} />
-                <button
-                  type="button"
-                  className={styles.hexBtn}
-                  disabled
-                  title="Slice B3-1b — authoring your own variant needs the editor. The derived weak/elite pair is below."
-                  style={{ minHeight: 40 }}
-                >
-                  Create a variant
-                </button>
+                {/* B3-1b, live: forking copies the creature into your own Studio piece (the catalogue stays
+                    immutable, G1), which is where sharing and adoption already work. */}
+                <ForkCreature
+                  creatureId={c.id}
+                  variants={variants.map((v) => ({ id: v.id, name: v.name, tier: v.tier }))}
+                />
               </div>
             </div>
           </section>

@@ -513,7 +513,40 @@ derivation sentence.
 A CR ¼ goblin correctly gets **no** variants — the plan's own example of a creature that does not need
 them.
 
-### B3-1b · "Create a variant" from a listing (owner-authored variants)
+### B3-1b · "Create a variant" — **SHIPPED 2026-07-30**, and B3-2 came with it
+
+`POST /api/dnd/bestiary/[id]/fork` + `ForkCreature`. The last disabled stub on the creature page is gone:
+**✎ Make my own version**, plus a button per derived tier so a DM can start from the elite they were
+reading rather than the base.
+
+**The catalogue stays immutable; your changes fork (G1).** This writes a normal `dnd_homebrew` piece of
+kind `creature` with `forked_from` set — which is why **B3-2 (visibility and sharing) needed no work at
+all**. A forked creature is private/public, shareable, adoptable and history-tracked by every mechanism the
+Studio already has; re-implementing any of it here would have been building a second answer to a solved
+question.
+
+It also keeps the catalogue re-importable. `npm run import:bestiary` upserts 829 rows on every run — if
+editing wrote back to `dnd_creatures`, the next import would silently clobber someone's work.
+
+Decisions worth recording:
+
+- **A dedicated route, not the generic `POST /api/dnd/homebrew`.** That one deliberately drops
+  `forked_from` via `pickCreatorWritable`, and it should: a client that can name its own ancestor can claim
+  descent from anything. Provenance is a server-side fact, set only by the route that verified the ancestor
+  exists.
+- **A variant fork starts from the VARIANT's numbers.** Verified live: forking the Elite Ogre carries HP
+  74, not the parent's 59. Handing over the base would silently discard the adjustment the reader clicked on.
+- **The variant must belong to the creature.** Without the check a caller could graft any variant's
+  statblock onto any ancestor, and the provenance line would be a lie.
+- **Private and draft, always.** A fork is a starting point, not a publication. `statusForVisibility` is
+  bypassed by construction rather than trusted from the client.
+- **Attribution travels into the copy.** A fork is a derivative work and the catalogue's licence requires
+  the credit; `dnd_homebrew` has no licence columns, so it goes into the description prose.
+
+Verified against the live schema in a rolled-back transaction: ancestor recorded, private+draft defaults,
+variant HP carried, licence text present.
+
+### B3-1b · "Create a variant" from a listing (original plan text)
 Straight onto the existing variant machinery — the same VERSIONS/lineage/tag model characters use, which is
 what the owner is comparing it to. Stronger/weaker presets (CR up/down with proportional HP, damage, attack
 and DC scaling via `variants.ts`) plus free-form editing.
