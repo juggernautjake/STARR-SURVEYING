@@ -28,7 +28,11 @@ const MAPS_DIR = path.join(ROOT, 'public/dnd/maps');
  * to keep. DELETE an entry when the surface is genuinely 2D-only; never add one.
  */
 const KNOWN_3D_SURFACES = [
-  // A `>3D<` tab inside the studio, alongside `>2D<`. 148 references to the 3D machinery in this one file.
+  // PARTIALLY CLEARED 2026-07-29. The ⛶ 3D **map viewer** is now gated behind `__G2_2D_ONLY`, same as the
+  // console. What still loads Three on every page view is the in-editor OBJECT PREVIEW — an ungated inline
+  // module that renders one planet/star spinning while a DM authors it. Left deliberately: previewing an
+  // asset you are building is not "displaying the map in 3D", which is what the owner's sentence is about.
+  // Awaiting the owner call recorded in the plan (same question as planet-3d.html below).
   'public/dnd/maps/map-studio.html',
   // The planet baker. Arguably already 2D-in-effect — its OUTPUT is a baked sprite sheet imported as a
   // `.planet3d` file — but it renders a live three.js planet to do it, so the owner sees 3D. Needs a call.
@@ -52,15 +56,43 @@ const KNOWN_3D_SURFACES = [
  * The rule: it loads 3D if it references an engine module OUTSIDE a `__G2_2D_ONLY` gate.
  */
 function loadsThreeD(src: string): boolean {
-  const ENGINE = /map3d\.js|planet3d-model\.js|three\/addons|from\s+['"]three['"]/;
-  if (!ENGINE.test(src)) return false;
-  // Gated: the engine is only reached when the flag is off.
-  if (/__G2_2D_ONLY/.test(src)) {
-    // …but only if EVERY engine reference sits inside the gated branch. A file that also has a static
-    // `<script src=…map3d.js>` alongside the gate is still loading it.
-    return /<script[^>]+src=["'][^"']*(map3d|planet3d-model)\.js["']/.test(src);
-  }
-  return true;
+  // Every way these files actually pull the engine in. Written as one list because each omission cost a
+  // wrong answer against a real file: the static form was there from the start; `import('…map3d.js')` was
+  // added when console.html was gated; and `await import("three")` — the DYNAMIC bare specifier, which is
+  // how planet-3d.html loads it — was missing until the predicate cleared the planet baker as 2D.
+  const ENGINE = new RegExp(
+    [
+      'map3d\\.js',                 // the map viewer, however referenced
+      'planet3d-model\\.js',        // the model builder
+      'three/addons',               // an addon path outside an importmap
+      `from\\s+['"]three['"]`,      // static:  import * as THREE from 'three'
+      `import\\s*\\(\\s*['"]three['"]`, // dynamic: await import('three')
+    ].join('|'),
+  );
+
+  // Comments first. Both real files discuss the engine in prose at length, and a guard that counts a
+  // sentence about `map3d.js` as a load reports every documented file as broken.
+  let rest = src.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+  // Then the importmap, which DECLARES and never loads — the distinction this whole predicate rests on.
+  // A real importmap carries a `three/addons/` key, which the ENGINE pattern matches, so leaving it in
+  // makes every page with an importmap look like a 3D page forever. (The first version of this function
+  // missed it because the test used a simplified importmap with only the bare `three` key.)
+  rest = rest.replace(/<script\b[^>]*type=["']importmap["'][^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // Then remove the GATED blocks: any <script> whose body mentions the flag. What remains is everything
+  // that runs unconditionally, which is the only thing that can ship 3D to a viewer.
+  //
+  // THIS REPLACED A NARROWER RULE THAT WAS WRONG. The first version asked only "is there a static
+  // <script src=…map3d.js> alongside the gate", and it cleared `map-studio.html` the moment the map
+  // viewer was gated — while an ungated inline module at the bottom of that same file still ran
+  // `import * as THREE from 'three'` and fetched the whole engine. A false green in the exact place this
+  // predicate exists to be trusted.
+  rest = rest.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (block) =>
+    /__G2_2D_ONLY/.test(block) ? '' : block,
+  );
+
+  return ENGINE.test(rest);
 }
 
 /** React routes that embed a static map tool by iframe. The real coupling, and what a guard must read. */
@@ -88,7 +120,13 @@ function routeIframeSources(): Array<{ route: string; src: string }> {
 describe('loadsThreeD — the rule the whole ratchet rests on', () => {
   // If this predicate is wrong the ratchet keeps passing while 3D ships, which is the failure it exists to
   // prevent. It is subtle enough (declaring vs loading, gated vs ungated) to deserve its own cases.
-  const IMPORTMAP = `<script type="importmap">{"imports":{"three":"/dnd/maps/vendor/three/three.module.js"}}</script>`;
+  // The REAL importmap, addons key and all. An earlier version of this constant omitted `three/addons/`,
+  // which made the "importmap alone is not a load" case pass against a string no real page contains —
+  // and the predicate then flagged every page carrying a genuine importmap. A fixture simpler than
+  // production is a fixture that tests something other than production.
+  const IMPORTMAP =
+    `<script type="importmap">{"imports":{"three":"/dnd/maps/vendor/three/three.module.js",` +
+    `"three/addons/":"/dnd/maps/vendor/three/addons/"}}</script>`;
 
   it('an importmap ALONE is not a load — it declares a resolution and fetches nothing', () => {
     expect(loadsThreeD(IMPORTMAP)).toBe(false);
@@ -100,6 +138,12 @@ describe('loadsThreeD — the rule the whole ratchet rests on', () => {
 
   it('a bare `import … from "three"` is a load', () => {
     expect(loadsThreeD(`<script type="module">import * as T from 'three';</script>`)).toBe(true);
+  });
+
+  it('a DYNAMIC `await import("three")` is a load too', () => {
+    // How planet-3d.html actually does it. Missing this cleared the planet baker as 2D — a page whose
+    // entire purpose is rendering a three.js planet.
+    expect(loadsThreeD(`${IMPORTMAP}<script type="module">let T; try { T = await import("three"); } catch {}</script>`)).toBe(true);
   });
 
   it('an engine import GATED behind __G2_2D_ONLY is not reachable', () => {
@@ -114,6 +158,24 @@ describe('loadsThreeD — the rule the whole ratchet rests on', () => {
     const half = `<script>window.__G2_2D_ONLY = true;</script>
       <script type="module" src="/dnd/maps/map3d.js"></script>`;
     expect(loadsThreeD(half)).toBe(true);
+  });
+
+  it('nor an UNGATED inline module elsewhere in the same file', () => {
+    // The case that actually happened. map-studio.html gated its map viewer while a separate inline
+    // module at the bottom still ran `import * as THREE from 'three'` — so Three was still fetched on
+    // every page load. The first version of this predicate cleared the file. This is that regression.
+    const partial = `<script>window.__G2_2D_ONLY = true;</script>
+      <script type="module">if (window.__G2_2D_ONLY) {} else { await import('/dnd/maps/map3d.js'); }</script>
+      <script type="module">import * as THREE from 'three';</script>`;
+    expect(loadsThreeD(partial)).toBe(true);
+  });
+
+  it('prose about the engine is not a load', () => {
+    // Both real files discuss map3d.js at length in comments. Counting those would report every
+    // well-documented file as broken, which is how a guard gets switched off.
+    const proseOnly = `<!-- the ⛶ 3D toggle used to load map3d.js here -->
+      <script>window.__G2_2D_ONLY = true; // map3d.js is no longer imported</script>`;
+    expect(loadsThreeD(proseOnly)).toBe(false);
   });
 
   it('a page with no 3D at all is not a 3D surface', () => {

@@ -288,9 +288,43 @@ is wrong the ratchet passes while 3D ships, which is precisely the failure it ex
 
 `__tests__/dnd/map-3d-reachability.test.ts` is now 13 tests, and the ratchet is down **4 → 3**.
 
-**Remaining for M2-1:** `map-studio.html` (the DM's `>3D<` tab, 148 references) and `planet-3d.html`. The
-planet baker needs an owner call rather than an edit — its *output* is a baked 2D sprite sheet, so it is
-arguably already 2D-in-effect and only the authoring view is three.js.
+**MAP STUDIO'S VIEWER ALSO DONE, same session.** `map-studio.html` carried the identical `⛶ 3D` map viewer
+(`view3dBtn` + `map3d.js`); it is gated behind the same flag, same removal-not-hiding treatment.
+
+**What deliberately remains, and why it is a question rather than a task.** Two surfaces still load Three,
+and both are *authoring previews of an asset* rather than *displays of a map*:
+
+- **The studio's in-editor object preview** (`EditorPreview3D`, an ungated inline module) — one planet or
+  star spinning in the edit card while a DM builds it. Switching it off removes the only way to see what a
+  planet will actually look like.
+- **`planet-3d.html` / `/planet-forge`** — the planet baker. Its *output* is a baked 2D sprite sheet
+  imported into the studio, so it is arguably already 2D-in-effect; only the authoring view is three.js.
+
+G2 says *"no 3D on any display surface"*, and the owner's sentence is *"we only display the 2d versions of
+space maps"*. Reading that as covering asset authoring is a stretch; reading it as covering only map render
+is my judgement. **Owner question: may a DM author assets in 3D while every map renders 2D?** If the answer
+is no, each is one more `if (window.__G2_2D_ONLY)` — the gate is already in both files.
+
+Ratchet: **4 → 3** (`console.html` cleared; `map-studio.html` half-cleared and annotated).
+
+### The guard was wrong three times, and each was caught by running it against real files
+
+Worth recording, because it is the argument for testing a predicate against production rather than only
+fixtures. `loadsThreeD` had to learn, in order:
+
+1. **Declaring ≠ loading.** v1 flagged any file mentioning `vendor/three`, so `console.html` could never be
+   cleared and "finish the 2D work" was unreachable without deleting files G2 retains.
+2. **A gate does not cover the whole file.** v2 asked only "is there a static `<script src=…map3d.js>`
+   beside the gate", and cleared `map-studio.html` the moment its viewer was gated — while an ungated
+   inline module in the same file still ran `import * as THREE from 'three'`. A false green in the exact
+   place the predicate has to be trusted. Now it strips gated `<script>` blocks and tests what remains.
+3. **The fixture was simpler than production.** The "an importmap alone is not a load" test used an
+   importmap with only the bare `three` key; every real one also has `three/addons/`, which the pattern
+   matched — so v3 flagged every page with a genuine importmap. And `planet-3d.html` loads via
+   `await import("three")`, a dynamic bare specifier the pattern missed entirely, which cleared the planet
+   baker as 2D.
+
+Sixteen tests now, including one per hole.
 
 ### M2-2 · HTML worlds
 A node with no image renders as generated HTML/CSS: a starfield for `space`, a disc with landmass shapes for

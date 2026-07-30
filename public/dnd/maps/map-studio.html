@@ -14,6 +14,24 @@
   "three/addons/": "/dnd/maps/vendor/three/addons/"
 }}
 </script>
+<script>
+// ── G2: 2D ONLY, FOR NOW ────────────────────────────────────────────────────────────────────────────
+//
+// Owner, 2026-07-29: *"for now we only display the 2d versions of space maps. We will work on the 3d and
+// hybrid version later."* Set to `false` to restore everything; nothing is deleted, which is the
+// "retained but not reachable" half of G2.
+//
+// SCOPE, STATED SO THE NEXT READER DOES NOT HAVE TO GUESS. This gates the ⛶ 3D **map viewer** — the thing
+// that renders the world in 3D, which is what the owner's sentence is about. It does NOT gate the
+// in-editor object preview (`EditorPreview3D`, at the bottom of this file), which shows a single planet or
+// star spinning while a DM authors it. Previewing an asset you are building is not "displaying the map in
+// 3D", and switching it off would remove the only way to see what a planet will actually look like.
+//
+// That distinction is a judgement, not a certainty, and it is recorded in the plan as an owner question
+// alongside the same question about /planet-forge. If the answer is "no 3D anywhere at all", gating the
+// preview is one more `if (window.__G2_2D_ONLY)` around the module at the end of this file.
+window.__G2_2D_ONLY = true;
+</script>
 <style>
   :root{--void:#010a13;--panel:#0b1a2c;--panel2:#10233b;--raised:#16304a;--line:#1e2d3d;--line2:#2a3f52;
     --ink:#f0e6d2;--dim:#a09b8c;--faint:#6d6a5f;--gold:#c89b3c;--aether:#0ac8b9;--cyan:#0ac8b9;--green:#0ac8b9;--red:#c6403b;}
@@ -2794,8 +2812,20 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
   if(dbMapId) loadFromCampaign(dbMapId);
 })();
 </script>
-<!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself. -->
-<script type="module" src="/dnd/maps/map3d.js"></script>
+<!-- Real-time 3D viewer (vendored Three via the importmap above). Wires the ⛶ 3D toggle itself.
+     GATED BY G2 — see the flag block near the top of this file. Identical treatment to console.html: the
+     ⛶ 3D map toggle is what G2 is about, so it is removed and the engine is never fetched. The in-editor
+     object preview BELOW is deliberately left alone; it previews one asset while a DM authors it, which is
+     a different question (recorded in the plan for the owner). -->
+<script type="module">
+  if (window.__G2_2D_ONLY) {
+    // Removed, not hidden: a display:none button stays focusable and in the tab order, so a keyboard DM
+    // would land on a control that does nothing.
+    document.getElementById('view3dBtn')?.remove();
+  } else {
+    await import('/dnd/maps/map3d.js');
+  }
+</script>
 <!-- In-editor 2D<->3D preview (parity Slice 5): a minimal live scene rendering the SAME buildPlanetModel/
      buildStarModel the map uses, so a placed planet/moon/star can be edited previewing either dimension. -->
 <script type="module">
