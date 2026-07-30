@@ -218,7 +218,49 @@ Verified: `dnd_creatures` now holds **337** (334 `dnd5e-2014` + 3 `dnd5e-2024`),
 coexist correctly — `srd51:aboleth` and `srd52:aboleth` are separate rows, which is exactly what the slug
 prefix exists to guarantee.
 
-### B1-5 · The PF2 import — **scouted 2026-07-29, not yet built**
+### B1-5 · The PF2 import — **SHIPPED 2026-07-29. 492 creatures. Bestiary total: 829.**
+
+`npm run import:bestiary:pf2`. Pathfinder Monster Core via the Foundry `pf2e` pack, ORC-licensed.
+**492 transformed, 0 refused**, every one with AC, HP, speed, level and at least one strike or action.
+Level coverage: 30 at ≤0, 201 at 1–4, 156 at 5–10, 70 at 11–16, 35 at 17+.
+
+**A separate transform** (`lib/dnd/bestiary/import-pf2.ts`, 20 tests), not a flag on the 5e one — the two
+sources share no field paths at all. Pointing `srdCreatureToRow` at a Foundry actor yields a creature with
+no AC, no HP, no abilities and no actions, and reports it as a *successful* import because every field is
+optional. That is the B1-3 lesson applied before it could cost anything.
+
+#### The modelling decision that mattered: abilities are modifiers
+
+PF2's remaster prints only modifiers — there is no score behind `Dex +3` and no formula recovers one.
+Writing 3 into `abilities` renders it as a **score** of 3: a crippling weakness where the source states a
+strength. Not a rounding error, an inversion.
+
+So `Statblock` gained an optional `abilityMods`, which permits negatives where `abilities` validates 1–99.
+That range difference is not cosmetic — **10 imported creatures have a negative Wisdom modifier**, and every
+one of them would have silently lost it, reading as "no Wisdom listed".
+
+#### A flaw in my own licence rule, caught by the run
+
+The first version read the **first** item's `publication.license` and required ORC. That refused the
+**Halfling Street Watcher** — a genuine Monster Core creature whose six items carry *both* `OGL` and `ORC`,
+because one legacy entry was never re-marked in the remaster.
+
+"First item wins" is arbitrary: item order is an implementation detail of the pack file, so which weapon
+happened to be listed first decided whether a creature existed. Now `pf2Licences` collects the whole set and
+`pf2IsRedistributable` asks whether ORC is present anywhere — a stale marker on one item does not
+un-license the creature, while an actor stating *no* licence is still refused, because unstated is unknown.
+
+That one refusal was the run telling me my rule was wrong, which is the entire reason the importer reports
+refusals by name instead of counting them (G6).
+
+Other decisions: Foundry prose is HTML salted with `@UUID[…]{Label}` references, so the reader keeps the
+readable label and drops the reference — left in, a stat block reads
+`@UUID[Compendium.pf2e.actionspf2e.Item.Step]{Steps}` at the table. Creature type is matched against a
+closed list rather than taken by position, because a PF2 trait array mixes ancestry and type
+(`["goblin", "humanoid"]`) with no marker saying which is which. Fetching is 8-way concurrent with a
+per-file cache and a descriptive User-Agent — 492 files from someone else's server.
+
+### B1-5 · Scouting notes (2026-07-29, superseded by the slice above)
 
 Not started, but the plan's premise checked so the next pass starts from facts rather than an assumption.
 

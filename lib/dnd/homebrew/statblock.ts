@@ -37,6 +37,19 @@ export interface Statblock {
   hitDice?: string;
   speed?: string;
   abilities?: Partial<Record<StatblockAbility, number>>;
+  /**
+   * Ability MODIFIERS, for systems that have no scores at all.
+   *
+   * Pathfinder 2e's remaster prints a creature's abilities only as modifiers — `Dex +3`, `Wis -1`. There is
+   * no 14 behind that +3, and there is no formula that recovers one. Writing the modifier into `abilities`
+   * would render "+3" as a SCORE of 3, i.e. a crippling weakness where the source states a strength: not a
+   * rounding error, an inversion.
+   *
+   * So this is a separate, optional field rather than a reinterpretation of the existing one. A renderer
+   * shows scores when it has them and modifiers when it does not — and, importantly, a negative value is
+   * legal here where `abilities` rejects anything below 1.
+   */
+  abilityMods?: Partial<Record<StatblockAbility, number>>;
   /** Proficiency bonus, where the system uses one. Absent is normal, not missing. */
   proficiencyBonus?: number;
   /** Saving throws and skills as written — "DEX +5, CON +6". Free text for the same reason as `acNote`:
@@ -146,6 +159,15 @@ export function normalizeStatblock(raw: unknown): Statblock {
     const v = num(abilitiesRaw[k], 1, 99);
     if (v !== undefined) abilities[k] = v;
   }
+  // Modifiers use their own range: −10…+20 covers every published creature, and NEGATIVES ARE LEGAL here
+  // where a score below 1 is not. Reusing the score range would have silently dropped every PF2 creature's
+  // negative modifiers — a Goblin Warrior's Wis −1 would vanish and read as "no Wisdom listed".
+  const modsRaw = (r.abilityMods && typeof r.abilityMods === 'object' ? r.abilityMods : {}) as Record<string, unknown>;
+  const abilityMods: Partial<Record<StatblockAbility, number>> = {};
+  for (const k of STATBLOCK_ABILITIES) {
+    const v = num(modsRaw[k], -10, 20);
+    if (v !== undefined) abilityMods[k] = v;
+  }
   return {
     ...(num(r.ac, 0, 99) !== undefined ? { ac: num(r.ac, 0, 99) } : {}),
     ...(str(r.acNote) ? { acNote: str(r.acNote) } : {}),
@@ -153,6 +175,7 @@ export function normalizeStatblock(raw: unknown): Statblock {
     ...(str(r.hitDice) ? { hitDice: str(r.hitDice) } : {}),
     ...(str(r.speed) ? { speed: str(r.speed) } : {}),
     ...(Object.keys(abilities).length ? { abilities } : {}),
+    ...(Object.keys(abilityMods).length ? { abilityMods } : {}),
     ...(num(r.proficiencyBonus, 0, 20) !== undefined ? { proficiencyBonus: num(r.proficiencyBonus, 0, 20) } : {}),
     ...(str(r.saves) ? { saves: str(r.saves) } : {}),
     ...(str(r.skills) ? { skills: str(r.skills) } : {}),
