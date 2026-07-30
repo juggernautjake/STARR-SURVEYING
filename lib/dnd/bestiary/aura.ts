@@ -19,7 +19,6 @@
 // most portraits will be public-domain illustration or a generated sigil. The aura is what makes a woodcut of a
 // wolf and a generated emblem for an owlbear both look deliberate — it carries the feeling the picture cannot.
 import { parseCr } from './eligibility';
-import { CREATURE_TAGS } from './taxonomy';
 
 /** What an aura looks like. Colours are literal here because a creature's atmosphere is its own, not the sheet's —
  *  a zombie is sickly green on every skin, which is the whole point of the effect. */
@@ -56,18 +55,27 @@ const BY_TYPE: Record<string, AuraSpec> = {
   swarm: { id: 'swarm', rgb: '140, 128, 90', rgb2: '70, 62, 44', motion: 'glimmer', density: 0.9, feel: 'a restless, crawling mass' },
 };
 
-/** Tags beat type where the tag is more specific about the FEEL — a demon is a fiend, but abyssal is the mood. */
-const BY_TAG: Record<string, Partial<AuraSpec>> = {
-  abyssal: { rgb: '150, 44, 96', rgb2: '48, 14, 40', motion: 'ember', density: 0.85, feel: 'abyssal murk, embers falling upward' },
-  demonic: { rgb: '198, 60, 52', rgb2: '58, 16, 18', motion: 'ember', density: 0.8, feel: 'infernal heat and cinders' },
-  sea: { rgb: '68, 154, 186', rgb2: '24, 68, 104', motion: 'wash', density: 0.6, feel: 'cold currents and drifting silt' },
-  bird: { rgb: '164, 190, 206', rgb2: '86, 112, 136', motion: 'drift', density: 0.4, feel: 'high thin air, a few loose feathers' },
-  woodland: { rgb: '104, 172, 88', rgb2: '52, 100, 56', motion: 'drift', density: 0.55, feel: 'pleasant green, leaf-fall, woodland calm' },
-  companion: { rgb: '186, 174, 128', rgb2: '104, 94, 70', motion: 'drift', density: 0.3, feel: 'warm and domestic' },
-};
+// ── THE TAG LAYER IS GONE, AND THAT IS THE POINT ────────────────────────────────────────────────────
+//
+// This used to hold six overrides keyed on the OLD bespoke tags — `abyssal`, `demonic`, `sea`, `bird`,
+// `woodland`, `companion`. The owner replaced that vocabulary with the standard creature types on
+// 2026-07-29, so every one of those keys stopped existing and the whole layer went silently dead: a shark
+// fell through to the generic `beast` aura and nothing said so.
+//
+// Rather than re-key them onto types (which `BY_TYPE` already covers — the tag IS the type now), the ones
+// that carried real character moved into `BY_NAME` below, where they are matched on what the creature
+// actually is rather than on a category that no longer exists. A shark still gets cold water; it now gets
+// it because it is a shark.
 
-/** The unmistakable ones, by name. This is the per-creature escape hatch the derivation exists to make optional. */
+/** The unmistakable ones, by name. This is the per-creature escape hatch the derivation exists to make
+ *  optional — and, since the tag layer was retired, the only place sub-type character lives. */
 const BY_NAME: Array<{ match: RegExp; spec: Partial<AuraSpec> }> = [
+  // Rescued from the retired `sea` / `bird` / `woodland` tags: a standard type says "beast" for a shark,
+  // an eagle and a wolf alike, and those three should not look the same.
+  { match: /\bshark|octopus|squid|kraken|crab|eel|whale|merfolk|sahuagin|quipper|hippocampus\b/i, spec: { rgb: '68, 154, 186', rgb2: '24, 68, 104', motion: 'wash', density: 0.6, feel: 'cold currents and drifting silt' } },
+  { match: /\beagle|hawk|raven|owl|vulture|roc|crow|falcon|peryton|cockatrice|harpy\b/i, spec: { rgb: '164, 190, 206', rgb2: '86, 112, 136', motion: 'drift', density: 0.4, feel: 'high thin air, a few loose feathers' } },
+  { match: /\bwolf|bear|boar|deer|stag|elk|owlbear|badger|fox|dryad|satyr\b/i, spec: { rgb: '104, 172, 88', rgb2: '52, 100, 56', motion: 'drift', density: 0.55, feel: 'pleasant green, leaf-fall, woodland calm' } },
+  { match: /\bdemon|balor|marilith|vrock|hezrou|glabrezu|nalfeshnee|quasit\b/i, spec: { rgb: '198, 60, 52', rgb2: '58, 16, 18', motion: 'ember', density: 0.8, feel: 'infernal heat and cinders' } },
   { match: /\brabbit|hare|bunny\b/i, spec: { rgb: '132, 196, 108', rgb2: '64, 122, 68', motion: 'drift', density: 0.45, feel: 'gentle green drift — the owner\'s own example' } },
   { match: /\bzombie|ghoul|rotting\b/i, spec: { rgb: '126, 168, 74', rgb2: '44, 60, 38', motion: 'plume', density: 0.9, feel: 'thick green stench rolling off it — the owner\'s own example' } },
   { match: /\blich|wraith|banshee|spectre|specter|ghost\b/i, spec: { rgb: '96, 200, 190', rgb2: '28, 56, 72', motion: 'plume', density: 0.7, feel: 'cold spectral light, a rising chill' } },
@@ -106,19 +114,9 @@ export function auraFor(c: AuraInput): AuraSpec & { intensity: number; boss: boo
   const type = (c.type ?? '').toLowerCase().split(/[\s(,]/)[0];
   let spec: AuraSpec = BY_TYPE[type] ?? FALLBACK;
 
-  // THE FIRST TAG IN TAXONOMY ORDER WINS, and both halves of that matter.
-  //
-  // Taxonomy order, because the row's array order is incidental — it is whatever the importer happened to derive
-  // first — and an aura that depends on it would differ between two creatures with the same tags. Caught in the
-  // browser: a wolf is tagged `woodland` AND `companion`, and iterating the row applied companion last, so it came
-  // out warm domestic ochre instead of woodland green. The comment here already claimed taxonomy order; the code
-  // did not do it.
-  //
-  // FIRST rather than last, because `CREATURE_TAGS` is ordered from most to least characterful (bosses, massive,
-  // woodland …). For a wolf that yields woodland, which is what a wolf should look like.
-  const present = new Set(c.tags ?? []);
-  const winner = CREATURE_TAGS.find((t) => present.has(t) && BY_TAG[t]);
-  if (winner) spec = { ...spec, ...BY_TAG[winner], id: `${spec.id}-${winner}` };
+  // The tag layer that used to sit here is gone — see the note above `BY_NAME`. Tags are now the standard
+  // creature types, which `BY_TYPE` already keys on, so re-reading them here would have applied the same
+  // spec twice. What the old layer actually contributed (sea, bird, woodland, demonic) moved to BY_NAME.
   for (const { match, spec: over } of BY_NAME) {
     if (match.test(c.name)) {
       spec = { ...spec, ...over, id: `${spec.id}-named` };
@@ -130,7 +128,18 @@ export function auraFor(c: AuraInput): AuraSpec & { intensity: number; boss: boo
   // A gentle curve: CR 0 sits at 0.45, CR 5 near 0.7, CR 20+ at 1. Linear would make everything under CR 5 look
   // switched off, and most of any bestiary is under CR 5.
   const intensity = cr === null ? 0.6 : Math.min(1, 0.45 + Math.sqrt(Math.max(0, cr)) / 6.5);
-  const boss = (c.tags ?? []).includes('boss');
+
+  // BOSS IS NOW DERIVED FROM THE RATING, not from a tag.
+  //
+  // This read `tags.includes('boss')`, and when the taxonomy switched to standard creature types nothing
+  // emitted `boss` any more — so the distinct boss frame the plan asks for ("a final boss reads as one at a
+  // glance") silently stopped appearing on every creature in the bestiary. A dead condition that evaluates
+  // to false is the worst kind: nothing errors, the feature just quietly leaves.
+  //
+  // CR ≥ 10 is the same threshold `variantReason` uses for `boss-tier`, so the frame and the variant
+  // eligibility cannot disagree about what a boss is. A caller-supplied `boss` tag still counts, since
+  // `tags` is an input a campaign can set.
+  const boss = (cr !== null && cr >= 10) || (c.tags ?? []).includes('boss');
 
   return { ...spec, intensity: Math.round(intensity * 100) / 100, boss };
 }

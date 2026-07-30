@@ -12,7 +12,6 @@
 // drops the name rules would otherwise still pass every structural test here.
 import { describe, it, expect } from 'vitest';
 import { auraFor, sigilFor } from '@/lib/dnd/bestiary/aura';
-import { CREATURE_TAGS } from '@/lib/dnd/bestiary/taxonomy';
 
 describe('auraFor — precedence', () => {
   it('falls back to the type when nothing more specific applies', () => {
@@ -169,7 +168,7 @@ describe('auraFor — two applicable tags resolve the same way every time', () =
   // instead of woodland green. The comment directly above that loop already claimed taxonomy order; the code did
   // not do it, and nothing could catch the difference until two tags actually collided on a real row.
   //
-  // `CREATURE_TAGS` is ordered most- to least-characterful, so the FIRST match wins.
+  // BY_NAME is ordered so the FIRST match wins — specific creatures before broad word groups.
   it('the row order does not change the result', () => {
     const a = auraFor({ name: 'Wolf', type: 'beast', tags: ['woodland', 'companion'] });
     const b = auraFor({ name: 'Wolf', type: 'beast', tags: ['companion', 'woodland'] });
@@ -183,10 +182,31 @@ describe('auraFor — two applicable tags resolve the same way every time', () =
     expect(auraFor({ name: 'Wolf', type: 'beast', tags: ['companion', 'woodland'] }).feel).toMatch(/woodland/i);
   });
 
-  it('and the winner is chosen from the taxonomy, so a new tag cannot silently outrank an old one', () => {
-    // Every tag in BY_TAG must be a real taxonomy tag, or its precedence is undefined — it would simply never win.
-    for (const tag of ['abyssal', 'demonic', 'sea', 'bird', 'woodland', 'companion'] as const) {
-      expect(CREATURE_TAGS, `${tag} is not in the taxonomy`).toContain(tag);
-    }
+  it('BOSS IS DERIVED FROM THE RATING, not from a tag that no longer exists', () => {
+    // The regression this pins: `boss` was read off the old bespoke `boss` tag. When the taxonomy switched
+    // to standard creature types nothing emitted it any more, so the distinct boss frame silently stopped
+    // appearing on EVERY creature in the bestiary. A dead condition that evaluates to false is the worst
+    // kind — nothing errors, the feature just leaves.
+    expect(auraFor({ name: 'Ancient Red Dragon', type: 'dragon', cr: '24' }).boss).toBe(true);
+    expect(auraFor({ name: 'Rat', type: 'beast', cr: '0' }).boss).toBe(false);
+  });
+
+  it('uses the same CR threshold as variant eligibility, so the two cannot disagree', () => {
+    // `variantReason` calls CR ≥ 10 boss-tier. If these drifted, a creature could be a boss for variants
+    // and not for its frame.
+    expect(auraFor({ name: 'A', type: 'fiend', cr: '10' }).boss).toBe(true);
+    expect(auraFor({ name: 'B', type: 'fiend', cr: '9' }).boss).toBe(false);
+  });
+
+  it('still honours a caller-supplied boss tag, since `tags` is an input a campaign can set', () => {
+    expect(auraFor({ name: 'Rat', type: 'beast', cr: '0', tags: ['boss'] }).boss).toBe(true);
+  });
+
+  it('keeps sub-type character now that the tag layer is gone', () => {
+    // A standard type says "beast" for a shark, an eagle and a wolf alike. Those three should not look the
+    // same, so the flavour the retired `sea`/`bird`/`woodland` tags carried moved into the name rules.
+    expect(auraFor({ name: 'Giant Shark', type: 'beast' }).feel).toMatch(/current|silt/i);
+    expect(auraFor({ name: 'Giant Eagle', type: 'beast' }).feel).toMatch(/thin air|feather/i);
+    expect(auraFor({ name: 'Dire Wolf', type: 'beast' }).feel).toMatch(/woodland/i);
   });
 });

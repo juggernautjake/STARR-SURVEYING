@@ -40,8 +40,10 @@ const EXEMPT: Record<string, string> = {
   // `dnd_creatures` row — split from the writer deliberately, because the transform is testable today and
   // the INSERT needs a table that does not exist. Its caller is the writer loop, which is the one thing
   // here that genuinely cannot be built or verified yet.
-  'lib/dnd/bestiary/import.ts':
-    'P13-3 (pure half). Consumed by the import writer, which needs dnd_creatures — seed 462 is unapplied. Remove when the writer lands.',
+  // `import.ts`'s exemption expired exactly as its note said it would: the writer landed
+  // (`scripts/import-bestiary.mjs`, B1-3, 334 creatures), `import-pf2.ts` now imports its shared types,
+  // and this guard failed with "now imported and should be removed from EXEMPT". Fourth honoured expiry
+  // in this file's history — deleted rather than left to rot.
   // `lib/dnd/homebrew/kinds.ts` was exempted here on 2026-07-28 with an expiry note naming the slice that
   // would remove it. P6-4 shipped the API that imports it, this test failed with "now imported and should
   // be removed from EXEMPT", and the note was honoured. Recorded because an exemption that actually got
@@ -115,7 +117,11 @@ function sourceFiles(roots: string[]): string[] {
       if (entry.isDirectory()) {
         if (['node_modules', '.next', '.git', '__tests__'].includes(entry.name)) continue;
         walk(rel);
-      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+      // `.mjs` too, and that was a real blind spot rather than a nicety. The comment below already said
+      // "scripts counts as a consumer", but the filter only collected .ts/.tsx — so the bestiary's import,
+      // art and variant scripts (all .mjs, because they run under vite-node rather than Next) counted for
+      // nothing, and three modules they call every day were reported as orphans on 2026-07-29.
+      } else if (/\.(ts|tsx|mjs)$/.test(entry.name)) {
         out.push(rel);
       }
     }
@@ -142,11 +148,18 @@ function importersOf(moduleRel: string): string[] {
     const fromDir = path.dirname(file);
     for (const m of src.matchAll(/from '([^']+)'/g)) {
       const spec = m[1];
-      const resolved = spec.startsWith('@/')
+      const raw = spec.startsWith('@/')
         ? spec.slice(2)
         : spec.startsWith('.')
           ? path.posix.normalize(path.posix.join(fromDir, spec))
           : null;
+      // STRIP THE EXTENSION FROM THE SPECIFIER TOO, not just from the target.
+      //
+      // `target` is already extensionless, so an import written WITH an extension never matched. That is
+      // not a hypothetical: native ESM requires it, and the bestiary's `.mjs` importers say
+      // `from '../lib/dnd/bestiary/art.ts'` — so art.ts, variants.ts and eligibility.ts were reported as
+      // orphans while three scripts imported them every day.
+      const resolved = raw ? raw.replace(/\.(tsx?|mjs|js)$/, '') : null;
       // An import of `foo` also resolves a barrel at `foo/index`.
       if (resolved === target || resolved === path.posix.dirname(target) && path.basename(target) === 'index') {
         hits.push(file);

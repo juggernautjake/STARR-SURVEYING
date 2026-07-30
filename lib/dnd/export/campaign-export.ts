@@ -45,6 +45,10 @@ export const CAMPAIGN_EXPORT_TABLES: CampaignTable[] = [
   { table: 'dnd_initiative_entries', link: { via: 'encounter', column: 'encounter_id' }, key: 'initiativeEntries', describes: 'initiative order' },
   { table: 'dnd_handouts', link: { via: 'campaign' }, key: 'handouts', describes: 'handouts' },
   { table: 'dnd_maps', link: { via: 'campaign' }, key: 'maps', describes: 'maps' },
+  // The nested world (seed 465). A campaign's geography is campaign data in the most literal sense — the
+  // DM authored every node — so an export that omitted it would hand someone their campaign with the world
+  // missing. Children come along automatically: every node carries `campaign_id`, not just the roots.
+  { table: 'dnd_map_nodes', link: { via: 'campaign' }, key: 'mapNodes', describes: 'world map locations' },
   { table: 'dnd_media', link: { via: 'campaign' }, key: 'media', describes: 'uploaded media' },
   { table: 'dnd_content', link: { via: 'campaign' }, key: 'content', describes: 'campaign content' },
   { table: 'dnd_messages', link: { via: 'campaign' }, key: 'messages', describes: 'chat' },

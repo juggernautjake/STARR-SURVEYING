@@ -65,7 +65,17 @@ const AUTH_PREDICATES = [
  *  helpers resolve the session themselves and return the caller's permissions with it, so a route using
  *  one does not also call `getDndSession` — requiring both would have flagged two correctly-gated routes.
  *  (It did, on this suite's first run.) */
-const CALLER_PREDICATES = ['getDndSession', 'getCharacterAccess', 'requireCharacterWrite', 'requireDm'];
+const CALLER_PREDICATES = [
+  'getDndSession', 'getCharacterAccess', 'requireCharacterWrite', 'requireDm',
+  // `getCampaignRole` reads the session itself and returns null for anyone not signed in, so a route
+  // gated on it has established the caller — it is a STRICTLY STRONGER check than `getDndSession`, not a
+  // weaker one, because it also answers "whose is it?". Added 2026-07-29 when the world route (M4-4) was
+  // flagged: it authorizes correctly on `getCampaignRole(...) !== 'dm'` and named no other predicate.
+  //
+  // This does not soften the guard. The point is that identity ALONE is insufficient, and every entry here
+  // still has to be paired with an AUTH_PREDICATES match below.
+  'getCampaignRole',
+];
 
 describe('the sweep still covers what it claims', () => {
   it('finds the DELETE routes', () => {
