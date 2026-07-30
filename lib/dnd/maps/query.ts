@@ -28,6 +28,9 @@ export interface MapNode extends MapNodeLike {
   bounds: Record<string, unknown>;
   published: boolean;
   sort_order: number;
+  /** The stardust `instances[].id` this node represents in the player console (seed 466). Null = unlinked;
+   *  the console then falls back to a case-insensitive name match. */
+  console_ref: string | null;
 }
 
 export interface MapPin {
@@ -42,7 +45,7 @@ export interface MapPin {
 }
 
 const NODE_COLS =
-  'id, campaign_id, parent_id, tier, depth, name, blurb, image_url, render_kind, grid, bounds, published, sort_order';
+  'id, campaign_id, parent_id, tier, depth, name, blurb, image_url, render_kind, grid, bounds, published, sort_order, console_ref';
 const PIN_COLS = 'id, map_node_id, child_node_id, x, y, icon, label, visibility';
 
 /**

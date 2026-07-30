@@ -23,6 +23,7 @@ import { breadcrumb, childrenOf, rootsOf } from '@/lib/dnd/maps/tree';
 import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
+import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 
 export const metadata: Metadata = { title: 'World | Starr Tabletop' };
 export const dynamic = 'force-dynamic';
@@ -94,6 +95,29 @@ export default async function WorldPage({
             </nav>
           )}
 
+          {/* The DM's controls sit ABOVE the map and are present in the empty state too — that is where a
+              DM starts, and an empty world with no way to create anything is how this stack spent the
+              afternoon: schema live, browser working, console wired, and nothing able to make a node. */}
+          {isDm && (
+            <WorldAuthor
+              campaignId={campaignId}
+              childCount={children.length}
+              current={
+                current
+                  ? {
+                      id: current.id,
+                      name: current.name,
+                      tier: current.tier,
+                      depth: current.depth,
+                      blurb: current.blurb,
+                      published: current.published,
+                      consoleRef: current.console_ref,
+                    }
+                  : null
+              }
+            />
+          )}
+
           {!current ? (
             // Distinguish "nothing built yet" from "nothing you can see" — the two need different actions
             // from the reader, and "No maps" reads as broken for both.
@@ -101,7 +125,7 @@ export default async function WorldPage({
               <div className={styles.framedPanelTop} />
               <p style={{ color: 'var(--hx-muted)', margin: 0, maxWidth: 640, fontSize: 13.5 }}>
                 {isDm
-                  ? 'No maps yet. Create a space map to start — every location you add afterwards nests inside it, up to seven levels deep.'
+                  ? 'No maps yet. Create a space map above to start — every location you add afterwards nests inside it, up to seven levels deep.'
                   : 'Your DM has not published any maps for this campaign yet.'}
               </p>
             </section>

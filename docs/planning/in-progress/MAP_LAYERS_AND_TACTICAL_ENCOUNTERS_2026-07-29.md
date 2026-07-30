@@ -461,7 +461,51 @@ box-select. Snap to grid, with a modifier to override. Every action goes through
 Reuse the existing File Explorer / media plumbing rather than a new uploader. Campaign-scoped asset tray with
 search; recently-used first, because placing forty trees means using the same asset forty times.
 
-### M4-4 · Node authoring
+### M4-4 · Node authoring — **SHIPPED 2026-07-29, and it was the slice that mattered**
+
+**The whole map stack was unreachable and nothing said so.** The schema was live (M1), the browser worked
+(M3-2), the pan/zoom was wired (M3-1), the player console was plugged in (MC-1) — and **there was no way to
+create a single node**. Read-only infrastructure nobody can put data into is the same defect as an unwired
+component, arriving from the other direction, and it is harder to notice: every test passes, every page
+renders, and the product does nothing.
+
+| Piece | What |
+| --- | --- |
+| `app/api/dnd/campaigns/[id]/world/route.ts` | POST / PATCH / DELETE, DM-gated |
+| `app/dnd/_ui/maps/WorldAuthor.tsx` | Create a location here · rename · re-tier · edit description · publish/unpublish · link to a console body · delete |
+
+Mounted **above the map and present in the empty state**, because that is where a DM starts.
+
+Decisions worth recording:
+
+- **Field whitelists, never `...body`.** Mass assignment here would let a caller set `depth` (the trigger
+  owns it), `campaign_id` (moving a node between campaigns), or `id`. Every writable field is named, and
+  PATCH distinguishes *absent* from *explicitly null* so a partial update does not blank what it omits.
+- **`.eq('campaign_id')` is authorization, not a filter.** Without it a DM of one campaign could edit any
+  node in another by id. Verified: a cross-campaign PATCH changes 0 rows.
+- **Postgres's refusals are passed through, not replaced.** The trigger messages are written *for a DM*
+  ("Seven levels is the maximum. Place this location in a shallower parent.") — swapping them for a generic
+  500 throws away the only useful part. Constraint names are translated; real guidance is kept verbatim.
+- **A parent must belong to this campaign.** The FK only requires the row to *exist*, so without the check
+  a DM could nest their world under someone else's node.
+- **Delete names what it destroys.** It cascades to the whole subtree, so the confirm reads "delete Ironrow
+  AND the 6 locations directly inside it" rather than a bare "Are you sure?" — and afterwards the UI
+  navigates away, since `?node=` would otherwise point at a row that no longer exists.
+
+**Verified against the live schema** in a rolled-back transaction — 9 checks, all passing: root→depth 1,
+child→depth 2, the PATCH whitelist, cross-campaign PATCH affecting nothing, `console_ref` unique within a
+campaign but free across campaigns, an 8th level refused with a readable message, re-parenting into a
+descendant refused, and DELETE cascading with the right child count.
+
+*Also fixed:* `console_ref` was missing from `NODE_COLS`, so the edit form would have shown the console link
+permanently blank and silently cleared it on every save.
+
+**Still open in M4:** the grid designer (M4-1), drag-to-place objects (M4-2) and the asset tray (M4-3) —
+this slice is node authoring only.
+
+---
+
+### M4-4 · Node authoring (original plan text)
 Create a child node from a pin in one gesture ("this pin needs a map" → new node, correct parent, correct
 depth). Rename, re-tier, re-parent (with the cycle rule enforced), publish/unpublish, delete with confirmation
 that names the children it will orphan.
