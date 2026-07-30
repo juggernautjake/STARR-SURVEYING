@@ -76,6 +76,83 @@ turned out not to be blocked, and several "authored" features turned out never t
 
 ---
 
+## M0 — the audit. DONE 2026-07-29, and it changes three later slices.
+
+### What is actually there
+
+| Thing | Reality |
+| --- | --- |
+| `dnd_maps` | Exists (seed 421). **1 row live**, `kind='built'`, `published=true`. Columns: `campaign_id, name, kind('image'\|'built'), image_url, storage_path, data jsonb, published, created_by`. |
+| `dnd_map_nodes` / `_pins` / `_objects` / `_discoveries` / `_triggers` | **None exist.** All of M1 is greenfield. |
+| Maps API | `app/api/dnd/campaigns/[id]/maps/route.ts` — full GET/POST/PATCH/DELETE, plus `maps/asset/route.ts`. |
+| React map routes | **Three, and all three are iframes**: `map-studio` → `map-studio.html`, `console` → `console.html`, `planet-forge` → `planet-3d.html`. Each React file is 16–35 lines of chrome around an `<iframe>`. |
+| The actual map engine | **7,362 lines of vanilla HTML/JS in `public/dnd/maps/`** — `map-studio.html` (2,888), `console.html` (1,341), `planet-3d.html` (586), `map3d.js` (1,363), `planet3d-model.js` (591), `labels.js` (287), `sky2d.js` (282) — plus a bundled **three.js** in `vendor/three`. |
+| Entry points | `CampaignHub.tsx:188`, `CampaignMapsDm.tsx:86/114/121`. |
+
+### Finding 1 — this plan is a rewrite, and it does not say so
+
+Everything M1–M7 describes — a `map_nodes` tree, a React pan/zoom viewport, tokens bound to character sheets
+through the per-system derivation, server-filtered hidden objects, a trigger engine — is **React reading
+Postgres**. The map that exists is **vanilla JS in an iframe reading a `data jsonb` blob**. The two cannot
+share a viewport, a token, an undo stack, or a renderer; an iframe cannot call the sheet's derivation, and the
+existing studio has no concept of a node, a pin, or a character.
+
+So M1–M7 does not *extend* the map studio, it **replaces** it — and until that is stated, the slice order
+reads as incremental work on top of something that is actually being superseded. The plan is still right (the
+node-tree model is the correct answer to "7 levels of map layers", and the iframe tool cannot get there), but
+it needs to own the migration: what happens to the 1 live built map, to `dnd_maps.data`, and to the
+`planet-forge` → `.planet3d` → Map Studio import handoff, none of which M1–M7 currently mentions.
+
+**Owner question:** is the Stardust Map Studio (the galaxy/planet tool) meant to *become* the tactical map
+system, or to stay a separate space-map authoring tool alongside a new React battle-map system? They solve
+different problems and the answer decides whether M2 is "route around it" or "port it".
+
+### Finding 2 — M2-1's guard would pass while the thing it guards against is on screen
+
+M2-1 says: *"The 3D/spiral/hybrid engines stay in the repo, unreferenced by the app's display paths. A guard
+test asserts no `/dnd` route imports them."*
+
+That guard cannot work here, because **the coupling is not a JS import.** It is (a) an `<iframe src>` pointing
+at a static HTML file, and (b) a `>3D<` tab *inside* `map-studio.html`, which carries 148 references to the 3D
+machinery and loads three.js. A test asserting "no route imports map3d.js" passes today, unchanged, while a DM
+still clicks a 3D tab and `/dnd/campaigns/[id]/planet-forge` still renders a three.js planet baker.
+
+G2 as written ("2D only, retained but not reachable") therefore requires three things the plan does not list:
+hide the studio's 3D tab, decide what happens to `/planet-forge` (it is a *creation* tool whose output is
+imported as a sprite sheet — arguably already 2D-in-effect), and write the guard against **iframe sources and
+tab markup**, not imports.
+
+**Guard shipped:** `__tests__/dnd/map-3d-reachability.test.ts`, written against **iframe sources and script
+tags** rather than imports. It is a ratchet, not an end-state assertion — 3D is reachable today, and a test
+asserting otherwise would simply be red. It enumerates the current reachability points, forbids new ones, and
+starts enforcing the end state by itself the moment the list empties. It also keeps the useless import-based
+assertion as a live control case, so the reason it is useless stays visible instead of becoming folklore.
+
+### Finding 2b — the ratchet immediately found two surfaces the manual audit missed
+
+Written to pin four known offenders; it failed on first run with six. The two extra are the point:
+
+- **`public/dnd/maps/console.html` — the PLAYER console.** It loads `vendor/three/three.module.js` and calls
+  into `map3d.js` at three sites. G2 is a statement about **what a player sees**, and this is the player's
+  map — so this is the *first* thing to fix, not the last. The manual audit walked the React routes and the
+  studio and never opened the console's script tags.
+- **`public/dnd/maps/_fbxtest.html`** — 24 lines of FBX-loader scratch with **zero references anywhere in the
+  repo**, publicly served at `/dnd/maps/_fbxtest.html`, pulling three.js **from a jsdelivr CDN at runtime**.
+  That makes it the only external script dependency in the map tree and a live page on a public site. It
+  should just be deleted; left in the ratchet rather than removed unilaterally while a second agent is
+  working in this tree.
+
+Worth stating plainly: a mechanical guard beat a careful manual read on its first execution. That is the
+argument for writing the guard *during* the audit rather than after the migration.
+
+### Finding 3 — the good news
+
+The API layer is real and complete (GET/POST/PATCH/DELETE + asset upload), DM-gating via `getCampaignRole`
+works, and `dnd-media` storage plumbing is in place. M1's seeds and the M4-3 asset library have somewhere to
+land. Nothing in the audit is a blocker — but two premises were wrong, which is what M0 is for.
+
+---
+
 ## Phase M1 — the data model
 
 ### M1-1 · `map_nodes`
@@ -268,7 +345,7 @@ their reason — the feed work already shipped is the right home, not a second l
 
 ## Slice order
 
-**M0** audit → **M1-1…M1-5** schema + seeds (applied and verified live) → **M2-1…M2-3** 2D-only + HTML worlds
+**M0** audit ✅ (2026-07-29 — see above; findings 1 and 2 change M1 and M2-1) → **M1-1…M1-5** schema + seeds (applied and verified live) → **M2-1…M2-3** 2D-only + HTML worlds
 → **M3-1…M3-2** viewport + drill-down → **M3-3…M3-4** LOD + prefetch → **M4-1…M4-4** DM tools → **M5-1…M5-3**
 tokens + movement + templates → **M6-1…M6-3** hidden + descriptions → **M6-4…M6-5** triggers → **M5-4…M5-5**
 conditions + initiative → **M7-1…M7-4** live play.
