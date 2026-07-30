@@ -8,6 +8,31 @@
 > statblock → retry / accept / edit"*. There is no B-slice for it. It belongs after B1-5, once there is
 > enough catalogued content for a generated creature to be checked against real ones.
 >
+> **P13-8 SHIPPED 2026-07-30**, and checking it is what found the gap. The describe → retry → accept → edit
+> flow already existed for every homebrew kind (`/api/dnd/homebrew/draft` + `DraftAssistPanel`, shipped as
+> P6-15b) — **but not the statblock**. `fieldAcceptsDraft` was an alias for `fieldAcceptsIngest`, which
+> excludes structured editors because "they are not text". That is right for INGEST, which reads a document
+> you uploaded and have not necessarily read; it is wrong for drafting, which is asked for by name from a
+> sentence describing a creature. **A creature draft with no numbers is not a draft** — it filled in the
+> name, summary and alignment and left the author to do the actual work, so the middle step of P13-8 was
+> simply missing.
+>
+> Now: the statblock is a drafted field, the prompt spells out its SHAPE (every other field is prose, and a
+> model asked for "the statblock" with no schema returns a paragraph describing one), and **Pathfinder gets
+> a different instruction** — `abilityMods`, may be negative, *do not invent ability scores* — because
+> asking for scores there invents numbers its rules do not have (B1-5).
+>
+> Nothing is trusted: the model's object goes through `normalizeStatblock`, which DROPS anything
+> unparseable or out of range rather than clamping it, so `ac: "very high"` yields a row visibly missing
+> its AC instead of a plausible wrong number. The review row shows a readable stat block line and writes
+> the structured object — writing the summary would replace the creature's numbers with a sentence.
+> `levels` and `list` stay excluded: they carry ordering and per-row identity a flat proposal cannot
+> express.
+>
+> Verified end to end against the live API. "A hawk whose feathers smoulder; it dives and leaves burning
+> trails" returned AC 13 · HP 13 (3d8) · fly 60 ft. · full ability scores · Perception +4 · fire resistance
+> · and four entries — Keen Sight, Heated Body, Talons, Burning Dive.
+>
 > Also note: **P8-1 in that doc ("no monster catalogue exists in any system") went stale on 2026-07-29** and
 > should be read as closed.
 
@@ -1022,7 +1047,36 @@ The owner asked for each stat block to be *cultivated*, not just present. A qual
 
 - **B5-1** Completeness sweep — every creature has type, alignment, CR, senses, languages, speeds, and at
   least one action. Report and fix gaps rather than shipping blanks.
-- **B5-2** Plane and environment tagging, so "creatures from every plane" is a filter and not a claim.
+- **B5-2** Plane and environment tagging — **PLANE SHIPPED 2026-07-30 (1,371 creatures); ENVIRONMENT
+  DEFERRED, because nothing publishes it.**
+
+  The audit called this "the largest honest gap in the phase": 8 of 5,025 carried an environment, so G7's
+  required **plane** filter would have been an empty control. Measuring before building split it cleanly in
+  two.
+
+  **Plane is published, and is not a derivation at all.** A creature's TYPE states its plane of origin —
+  that is what the type *means*. A fiend is defined as a native of the Lower Planes, a celestial of the
+  Upper Planes, an elemental of the Elemental Planes, a fey of the Feywild. **1,371 of 5,025**, now a live
+  filter (`?plane=lower`), a chip row on the browse page, and a line on the creature page that prints its
+  **basis** — "Fiends are defined as natives of the Lower Planes" — because the label alone reads as
+  something we decided.
+
+  Derived from `tags` rather than stored: the plane IS the type, so a column would duplicate a fact and let
+  the two disagree after a re-import, and deriving keeps the filter in the database per B1-1's rule.
+
+  Refined by the creature's own prose where it names something specific — 223 name the Abyss, 84 an
+  Elemental Plane — so a balor reads "The Abyss" where its family reads "The Lower Planes".
+
+  **Undead and constructs deliberately have none.** Both are *made*, usually on the Material Plane; filing
+  them under a plane would state something the rules do not. **Aberrations are hedged in the label itself**
+  — "The Far Realm (many)" — because the published wording is "many of them from the Far Realm", and
+  flattening that would overclaim on 281 creatures.
+
+  **Terrestrial environment stays absent, and that is the finding rather than a shortfall.** Neither source
+  publishes it. Prose is not a substitute: 148 descriptions mention "forest" and 48 mention "swamp", but a
+  Cloud Giant's history paragraph naming a swamp does not put it in one, and a filter built on that would
+  be confidently wrong rather than honestly empty. The audit now restates this every run so nobody
+  re-opens it as a bug.
 - **B5-3** Alignment coverage check across all nine, per system.
 - **B5-4** CR-band coverage check, so every difficulty level is actually populated.
 - **B5-5** Per-creature aura overrides — **SHIPPED 2026-07-30. Dragons on a generic aura: 408 → 98.**

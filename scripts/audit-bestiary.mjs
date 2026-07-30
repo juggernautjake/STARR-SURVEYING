@@ -143,10 +143,30 @@ async function main() {
   const { rows: [envs] } = await c.query(
     "SELECT count(*) FILTER (WHERE coalesce(array_length(environments,1),0) > 0)::int tagged, count(*)::int n FROM dnd_creatures",
   );
-  console.log(`  ${envs.tagged} of ${envs.n} carry an environment.`);
-  if (envs.tagged === 0) {
-    console.log('  ⚠️  NONE. Neither source publishes environment data, so "creatures from every plane" is');
-    console.log('     not yet a filter — it would have to be derived (as the tags are) or authored.');
+  // PLANE first, because it is the half that now works. Derived from the creature TYPE — which is the
+  // thing that states a plane of origin — so it is a live filter rather than a column to backfill.
+  const { rows: planes } = await c.query(`
+    SELECT CASE
+             WHEN tags && ARRAY['fiend']      THEN 'The Lower Planes (fiends)'
+             WHEN tags && ARRAY['celestial']  THEN 'The Upper Planes (celestials)'
+             WHEN tags && ARRAY['elemental']  THEN 'The Elemental Planes (elementals)'
+             WHEN tags && ARRAY['fey']        THEN 'The Feywild (fey)'
+             WHEN tags && ARRAY['aberration'] THEN 'The Far Realm (aberrations, "many" not "all")'
+           END AS plane, count(*)::int n
+      FROM dnd_creatures GROUP BY 1 ORDER BY 2 DESC`);
+  // The CASE yields NULL for every creature with no planar type — most of the catalogue — so the group is
+  // dropped here rather than in a HAVING clause that would have to repeat the whole expression.
+  const planarRows = planes.filter((r) => r.plane);
+  const planar = planarRows.reduce((s, r) => s + r.n, 0);
+  console.log(`  ${planar} of ${envs.n} have a plane of origin their TYPE states (a live filter, B5-2):`);
+  for (const r of planarRows) console.log(`     ${String(r.n).padStart(4)}  ${r.plane}`);
+
+  console.log(`  ${envs.tagged} of ${envs.n} carry a terrestrial ENVIRONMENT.`);
+  if (envs.tagged < envs.n * 0.05) {
+    // Not a defect to fix — a fact about the sources, restated each run so nobody re-opens it as a bug.
+    console.log('     Neither source publishes environment data, and prose is not a substitute: 148');
+    console.log('     descriptions mention "forest" and 48 mention "swamp", but a Cloud Giant\'s history');
+    console.log('     paragraph naming a swamp does not put it in one. Deliberately left absent.');
   }
 
   // ── categories + variants ──────────────────────────────────────────────────────────────────────

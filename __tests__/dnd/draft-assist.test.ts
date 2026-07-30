@@ -210,3 +210,72 @@ describe('AND IT HAS A DOOR', () => {
     expect(ui).toContain('line-through');
   });
 });
+
+describe('the statblock, which drafting excluded and P13-8 needs (B-final)', () => {
+  const sb = (over: Record<string, unknown> = {}) => ({
+    ac: 15, acNote: 'natural armor', hp: 52, hitDice: '8d8 + 16', speed: '30 ft.',
+    abilities: { str: 16, dex: 12, con: 15, int: 6, wis: 11, cha: 8 },
+    entries: [{ kind: 'action', name: 'Claw', body: 'Melee Weapon Attack.' }],
+    ...over,
+  });
+
+  it('offers a statblock row at all — the middle step of "describe it → statblock → accept"', () => {
+    // fieldAcceptsDraft was fieldAcceptsIngest, which excludes structured editors because "they are not
+    // text". Right for ingest, which reads a document; wrong for drafting, where a creature with no
+    // numbers is not a draft.
+    const rows = draftProposalRows('creature', {}, { statblock: sb() });
+    expect(rows.map((r) => r.key)).toContain('statblock');
+  });
+
+  it('shows a stat block, not a JSON blob — the reviewer has to be able to decide', () => {
+    const row = draftProposalRows('creature', {}, { statblock: sb() }).find((r) => r.key === 'statblock')!;
+    expect(row.proposed).toContain('AC 15 (natural armor)');
+    expect(row.proposed).toContain('HP 52 (8d8 + 16)');
+    expect(row.proposed).toContain('STR 16');
+    expect(row.proposed).not.toContain('{');
+  });
+
+  it('writes the OBJECT on accept, never the summary line', () => {
+    // Writing "AC 15 · HP 52 · …" into the statblock field would replace the creature's numbers with a
+    // sentence, and the form would happily save it.
+    const rows = draftProposalRows('creature', {}, { statblock: sb() });
+    const { values } = applyDraftChoices('creature', {}, rows, ['statblock']);
+    expect((values.statblock as { ac?: number }).ac).toBe(15);
+    expect(typeof values.statblock).toBe('object');
+  });
+
+  it('DROPS a value the model invented rather than clamping it', () => {
+    // normalizeStatblock refuses out-of-range and unparseable values, so the row simply lacks that line —
+    // visible to the reviewer — instead of showing a plausible wrong number they have to catch.
+    const rows = draftProposalRows('creature', {}, { statblock: sb({ ac: 'very high', abilities: { str: 400 } }) });
+    const row = rows.find((r) => r.key === 'statblock')!;
+    expect(row.proposed).not.toContain('very high');
+    expect(row.proposed).not.toContain('400');
+  });
+
+  it('marks a statblock row as overwriting when the author already has numbers', () => {
+    const rows = draftProposalRows('creature', { statblock: sb({ ac: 12 }) }, { statblock: sb() });
+    expect(rows.find((r) => r.key === 'statblock')?.overwrites).toBe(true);
+  });
+
+  it('keeps levels and lists out, because a flat proposal cannot carry their ordering', () => {
+    const rows = draftProposalRows('class', {}, { levels: [{ level: 1 }] });
+    expect(rows.map((r) => r.key)).not.toContain('levels');
+  });
+
+  it('tells the model the SHAPE, and tells Pathfinder it states modifiers', () => {
+    // A model asked for "the statblock" with no schema returns a paragraph describing one. And asking
+    // Pathfinder for ability SCORES invents numbers its rules do not have (B1-5).
+    const dnd = draftUserPrompt({ kind: 'creature', system: 'dnd5e-2014', name: 'X', idea: 'y' });
+    expect(dnd).toMatch(/ability SCORES from 1 to 30/);
+    expect(dnd).not.toMatch(/abilityMods/);
+
+    const pf2 = draftUserPrompt({ kind: 'creature', system: 'pathfinder2e', name: 'X', idea: 'y' });
+    expect(pf2).toMatch(/abilityMods/);
+    expect(pf2).toMatch(/Do not invent ability scores/);
+  });
+
+  it('says nothing about statblocks for a kind that has none', () => {
+    expect(draftUserPrompt({ kind: 'feat', system: 'dnd5e-2014', name: 'X', idea: 'y' })).not.toMatch(/statblock` field is an OBJECT/);
+  });
+});

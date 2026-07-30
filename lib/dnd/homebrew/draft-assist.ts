@@ -17,10 +17,26 @@
 import { fieldsForKind, type FieldSpec } from './kinds';
 import type { HomebrewKind } from './model';
 import { fieldAcceptsIngest } from './ingest';
+import { normalizeStatblock, STATBLOCK_ABILITIES, type Statblock } from './statblock';
 
-/** Fields a whole-draft proposal may fill. The same set ingest may fill — structured editors (statblock,
- *  levels, lists) are excluded there for the same reason they are excluded here: they are not text. */
-export const fieldAcceptsDraft = fieldAcceptsIngest;
+/**
+ * Fields a whole-draft proposal may fill.
+ *
+ * Everything ingest may fill, PLUS the statblock — and that difference is P13-8.
+ *
+ * Ingest and draft were the same set because structured editors "are not text", which is the right rule
+ * for INGEST: it reads a document you uploaded and have not necessarily read, and a document is not a
+ * schema. Drafting is asked for by name, from a sentence describing a creature, and **a creature draft
+ * with no numbers is not a draft** — it fills in the name, the summary and the alignment and leaves the
+ * author to do the actual work. P13-8 is "describe it → STATBLOCK → retry / accept / edit"; without this
+ * the middle step was missing.
+ *
+ * Safe because nothing is trusted: the model's object goes through `normalizeStatblock`, which drops any
+ * field that is unparseable or out of range rather than clamping it, and the author still has to tick the
+ * row. `levels` and `list` stay excluded — they carry ordering and per-row identity that a flat proposal
+ * cannot express, so accepting one would silently discard structure the author had.
+ */
+export const fieldAcceptsDraft = (f: FieldSpec): boolean => fieldAcceptsIngest(f) || f.type === 'statblock';
 
 export function draftFields(kind: HomebrewKind): FieldSpec[] {
   return fieldsForKind(kind).filter(fieldAcceptsDraft);
@@ -42,9 +58,30 @@ export function draftUserPrompt(args: {
   name: string;
   idea: string;
 }): string {
-  const fields = draftFields(args.kind)
+  const specs = draftFields(args.kind);
+  const fields = specs
     .map((f) => `- ${f.key} (${f.label}${f.help ? `: ${f.help}` : ''})`)
     .join('\n');
+
+  // The statblock is the one field whose SHAPE has to be spelled out — every other field is prose, and a
+  // model asked for "the statblock" with no schema returns a paragraph describing one. Pathfinder gets a
+  // different instruction because it states ability MODIFIERS and has no scores behind them (B1-5);
+  // asking for scores there would produce invented numbers the source does not have.
+  const wantsStatblock = specs.some((f) => f.type === 'statblock');
+  const pf2 = args.system === 'pathfinder2e';
+  const statblockShape = wantsStatblock ? [
+    '',
+    'The `statblock` field is an OBJECT, not prose. Use these keys, and omit any you are unsure of:',
+    '  ac (number), acNote, hp (number), hitDice, speed, saves, skills, senses, languages,',
+    '  resistances, immunities, conditionImmunities,',
+    pf2
+      ? '  abilityMods: { str, dex, con, int, wis, cha } — Pathfinder 2e states MODIFIERS, which may be negative. Do not invent ability scores.'
+      : '  abilities: { str, dex, con, int, wis, cha } — ability SCORES from 1 to 30, not modifiers.',
+    '  entries: [{ kind, name, body, toHit, damage }] where kind is one of trait, action, bonus, reaction, legendary, lair.',
+    'Numbers must be numbers, not strings. A field you cannot state confidently should be omitted rather than guessed —',
+    'an omitted line renders as absent, and a wrong one gets read off the page mid-combat.',
+  ].join('\n') : '';
+
   return [
     `KIND: ${args.kind}`,
     `SYSTEM: ${args.system}`,
@@ -53,6 +90,7 @@ export function draftUserPrompt(args: {
     '',
     'FIELDS you may fill:',
     fields,
+    statblockShape,
     '',
     'Respond with JSON only.',
   ].join('\n');
@@ -70,6 +108,38 @@ export interface DraftRow {
    *  so: overwriting a paragraph someone typed is a different act from filling an empty box, and a review
    *  screen that presents them identically is a review screen that gets clicked through. */
   overwrites: boolean;
+  /**
+   * The STRUCTURED value to write, when the field is not text.
+   *
+   * `proposed` stays the human-readable line the review panel shows — "AC 15 · HP 52 (8d8 + 16) · …" — so
+   * the reviewer reads a stat block rather than a JSON blob, while what actually gets written is the
+   * normalized object. Absent for every text field, where `proposed` IS the value.
+   */
+  value?: unknown;
+}
+
+/**
+ * A stat block as one readable line, for the review row.
+ *
+ * The panel shows `current` beside `proposed` and asks the author to choose. Two JSON objects side by side
+ * is not a choice anyone can make, so this prints what a stat block prints, in the order it prints it.
+ */
+export function summariseStatblock(sb: Statblock): string {
+  const parts: string[] = [];
+  if (sb.ac !== undefined) parts.push(`AC ${sb.ac}${sb.acNote ? ` (${sb.acNote})` : ''}`);
+  if (sb.hp !== undefined) parts.push(`HP ${sb.hp}${sb.hitDice ? ` (${sb.hitDice})` : ''}`);
+  if (sb.speed) parts.push(sb.speed);
+  const scores = STATBLOCK_ABILITIES.filter((a) => sb.abilities?.[a] !== undefined);
+  if (scores.length) parts.push(scores.map((a) => `${a.toUpperCase()} ${sb.abilities![a]}`).join(' '));
+  // Pathfinder states modifiers and has no scores behind them — see B1-5. Printing them as scores here
+  // would misread the proposal in exactly the way the split field exists to prevent.
+  const mods = STATBLOCK_ABILITIES.filter((a) => sb.abilityMods?.[a] !== undefined);
+  if (mods.length) parts.push(mods.map((a) => `${a.toUpperCase()} ${sb.abilityMods![a]! >= 0 ? '+' : ''}${sb.abilityMods![a]}`).join(' '));
+  if (sb.saves) parts.push(`Saves ${sb.saves}`);
+  if (sb.skills) parts.push(`Skills ${sb.skills}`);
+  if (sb.senses) parts.push(sb.senses);
+  if (sb.entries?.length) parts.push(`${sb.entries.length} trait/action${sb.entries.length === 1 ? '' : 's'}`);
+  return parts.join(' · ');
 }
 
 const asText = (v: unknown): string => {
@@ -101,6 +171,21 @@ export function draftProposalRows(
   for (const f of draftFields(kind)) {
     if (!(f.key in r)) continue;
     const spec = allowed.get(f.key)!;
+
+    if (spec.type === 'statblock') {
+      // NORMALIZED BEFORE IT IS SHOWN, not on the way in to the form. `normalizeStatblock` drops anything
+      // unparseable or out of range rather than clamping it, so a model that invents `ac: "very high"` or
+      // a Strength of 400 produces a row missing that line — which the reviewer can see — instead of a
+      // plausible wrong number they would have to catch.
+      const sb = normalizeStatblock(r[f.key]);
+      const proposed = summariseStatblock(sb);
+      if (!proposed) continue;
+      const existing = summariseStatblock(normalizeStatblock(current[f.key]));
+      if (existing && existing === proposed) continue;
+      rows.push({ key: spec.key, label: spec.label, current: existing, proposed, overwrites: !!existing, value: sb });
+      continue;
+    }
+
     const proposed = asText(r[f.key]);
     if (!proposed) continue;
     const existing = asText(current[f.key]);
@@ -138,7 +223,11 @@ export function applyDraftChoices(
     if (!want.has(row.key)) continue;
     const spec = byKey.get(row.key);
     if (!spec) continue;
-    if (spec.type === 'tags') {
+    // A structured row writes its OBJECT, never its summary line — writing "AC 15 · HP 52 · …" into the
+    // statblock field would replace the creature's numbers with a sentence.
+    if (row.value !== undefined) {
+      values[row.key] = row.value;
+    } else if (spec.type === 'tags') {
       values[row.key] = row.proposed.split(',').map((s) => s.trim()).filter(Boolean);
     } else if (spec.type === 'number') {
       const n = Number(row.proposed);

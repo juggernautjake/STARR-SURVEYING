@@ -19,6 +19,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { loadBestiary, CR_BANDS } from '@/lib/dnd/bestiary/query';
+import { PLANES } from '@/lib/dnd/bestiary/planes';
 import { TAG_LABELS, type CreatureTag } from '@/lib/dnd/bestiary/taxonomy';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
@@ -28,7 +29,7 @@ export const metadata: Metadata = { title: 'Bestiary | Starr Tabletop' };
 /** Always fresh: the catalogue grows by import, and a cached empty bestiary would look like a broken one. */
 export const dynamic = 'force-dynamic';
 
-type Search = { system?: string; tag?: string; type?: string; band?: string; alignment?: string; q?: string; page?: string };
+type Search = { system?: string; tag?: string; type?: string; band?: string; alignment?: string; plane?: string; q?: string; page?: string };
 
 /** How many creatures a page shows. `loadBestiary` caps at 200; 60 fills three or four rows of cards at
  *  desktop widths and keeps the aura count per page well inside what the still-tint renderer is cheap at. */
@@ -53,12 +54,13 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
   const { creatures, total, facets } = await loadBestiary({
-    system: sp.system, tag: sp.tag, type: sp.type, band: sp.band, alignment: sp.alignment, q: sp.q,
+    system: sp.system, tag: sp.tag, type: sp.type, band: sp.band, alignment: sp.alignment,
+    plane: sp.plane, q: sp.q,
     limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
   });
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const anyFilter = Boolean(sp.system || sp.tag || sp.type || sp.band || sp.alignment || sp.q);
+  const anyFilter = Boolean(sp.system || sp.tag || sp.type || sp.band || sp.alignment || sp.plane || sp.q);
 
   /** One row of filter chips. Rendered only when the catalogue actually contains more than one value — a lone
    *  option is not a choice, and a filter that cannot change anything is noise. */
@@ -133,6 +135,16 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
                 is supposed to avoid. `systems` is the proxy: `system` is NOT NULL, so any creature yields one. */}
             {facets.systems.length > 0 && chips('Challenge', 'band', CR_BANDS.map((b) => ({ value: b.id, label: b.label })))}
             {chips('Alignment', 'alignment', facets.alignments.map((a) => ({ value: a, label: a })))}
+            {/* PLANE (B5-2, G7). Derived from the creature TYPE, which is the thing that states a plane of
+                origin — a fiend IS a native of the Lower Planes, by definition rather than by our reading.
+                Offered only for planes the loaded catalogue actually contains, like every other facet, so
+                "creatures from every plane" is a filter that works rather than a claim.
+
+                Terrestrial environment — arctic, forest, swamp — is deliberately NOT here: neither source
+                publishes it, and prose is not a substitute. See planes.ts. */}
+            {chips('Plane', 'plane', PLANES
+              .filter((p) => facets.tags.includes(p.tag))
+              .map((p) => ({ value: p.key, label: p.label })))}
           </section>
 
           <section className={styles.framedPanel} style={{ padding: '14px 16px' }}>

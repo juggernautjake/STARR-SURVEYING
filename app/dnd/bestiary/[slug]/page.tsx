@@ -18,6 +18,7 @@ import styles from '@/app/dnd/_ui/hextech.module.css';
 import { loadCreature } from '@/lib/dnd/bestiary/query';
 import { TAG_LABELS, type CreatureTag } from '@/lib/dnd/bestiary/taxonomy';
 import { auraFor } from '@/lib/dnd/bestiary/aura';
+import { planeFor } from '@/lib/dnd/bestiary/planes';
 import { GAME_SYSTEMS } from '@/lib/dnd/systems';
 import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
 import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
@@ -75,6 +76,7 @@ export default async function CreaturePage({
   // A picture on a catalogue row is what EVERY reader sees, so setting it is not a per-user preference.
   // Anyone else who wants their own art forks the creature and gives their copy a picture in the Studio.
   const canEditArt = isDndOwner(getDndSession());
+  const plane = planeFor(c);
 
   // Only a target this module actually converts to, and never the creature's own system — a self-transpose
   // is a no-op that would render an empty warning box and look broken.
@@ -127,6 +129,19 @@ export default async function CreaturePage({
                   {/* What its aura is meant to convey — visible so a reader can tell us when it is wrong, which is
                       the only way a derived effect gets corrected. */}
                   <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>Aura: {aura.feel}</p>
+                  {/* B5-2. Shown with its BASIS, because "The Lower Planes" on its own reads as something
+                      we decided — where "Fiends are defined as natives of the Lower Planes" is a rule a
+                      reader can check. Absent for most creatures, which is correct: a wolf has no plane of
+                      origin and inventing one is the failure this is designed around. */}
+                  {plane && (
+                    <p style={{ margin: '2px 0 0', fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                      Plane:{' '}
+                      <Link href={`/dnd/bestiary?plane=${encodeURIComponent(plane.key)}`} style={{ color: 'var(--hx-teal-1)' }}>
+                        {plane.label}
+                      </Link>
+                      <span style={{ opacity: 0.75 }}> — {plane.basis}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -13,6 +13,7 @@
 // time someone adds a creature.
 import { supabaseAdmin } from '@/lib/supabase';
 import { CREATURE_TAGS, type CreatureTag } from './taxonomy';
+import { planeByKey } from './planes';
 import type { Statblock } from '@/lib/dnd/homebrew/statblock';
 
 /** One catalogued creature, as the pages consume it. */
@@ -75,6 +76,9 @@ export interface BestiaryFilters {
   type?: string | null;
   band?: string | null;
   alignment?: string | null;
+  /** A plane of origin — see `planes.ts`. Resolved to the creature TYPE it is the origin of, so this
+   *  filters in the database like every other one rather than in the page. */
+  plane?: string | null;
   q?: string | null;
   limit?: number;
   offset?: number;
@@ -145,6 +149,11 @@ export async function loadBestiary(filters: BestiaryFilters = {}): Promise<Besti
   if (filters.alignment) q = q.eq('alignment', filters.alignment);
   // `tags` is a text[]; `contains` is the array operator, not a substring match.
   if (filters.tag) q = q.contains('tags', [filters.tag]);
+  // A plane resolves to the creature type it is the origin of, so this stays a database filter. An
+  // unrecognised plane key is IGNORED rather than matching nothing — a bad URL should show the catalogue,
+  // not an empty page that reads as "there are no fiends".
+  const plane = planeByKey(filters.plane);
+  if (plane) q = q.contains('tags', [plane.tag]);
   const band = crBand(filters.band);
   if (band) q = q.gte('cr_sort', band.min).lte('cr_sort', band.max);
   if (filters.q?.trim()) {
