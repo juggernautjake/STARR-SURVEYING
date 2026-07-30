@@ -24,9 +24,12 @@ describe('systemGroundingBlock', () => {
     expect(g.block).toMatch(/Proficiency Bonus/);
   });
 
-  it('null system is treated as ambiguous', async () => {
+  it('a null system grounds in the DEFAULT edition rather than refusing', async () => {
+    // WAS "treated as ambiguous". Owner, 2026-07-30: the default is the 2024 edition, and no surface can
+    // produce a system-less character any more — so null here means "not stated", not "unknowable". The
+    // test below keeps the important half: a value we cannot IDENTIFY still refuses.
     const g = await systemGroundingBlock(null, 'x');
-    expect(g.instruction).toMatch(/SYSTEM-AMBIGUOUS/);
+    expect(g.instruction).toMatch(/2024/);
   });
 
   it('a NON-CANONICAL system key (a typo / legacy value from the DB) is treated as ambiguous, never a raw system', async () => {

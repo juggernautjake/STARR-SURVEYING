@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, normalizeSystem, systemLabel } from '@/lib/dnd/systems';
+import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, DEFAULT_SYSTEM, normalizeSystem, systemLabel } from '@/lib/dnd/systems';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const HERO = read('app/dnd/_sheet/components/Hero.tsx');
@@ -90,9 +90,25 @@ describe('normalizeSystem is a strict exact-key gate (the routing safety net)', 
     for (const s of GAME_SYSTEMS) expect(normalizeSystem(s.key)).toBe(s.key);
   });
 
-  it('falls back to ambiguous for nullish, non-string, and unknown/alias values (never guesses a rulebook)', () => {
-    for (const v of [null, undefined, '', '   ', 42, {}, [], 'D&D', 'pathfinder', 'IG', 'dnd-5e-2024']) {
+  it('NEVER GUESSES A RULEBOOK for a value it cannot identify', () => {
+    // The safety net, unchanged: a typo, an alias, a legacy value or a crafted string must not route as a
+    // real system. Applying one rulebook's rules to a character built against another — confidently, and
+    // inside an AI prompt — is the failure this gate exists for.
+    for (const v of [42, {}, 'D&D', 'pathfinder', 'IG', 'dnd-5e-2024']) {
       expect(normalizeSystem(v)).toBe(SYSTEM_AMBIGUOUS);
+    }
+  });
+
+  it('but NOTHING SPECIFIED is a default rather than an unknown (owner, 2026-07-30)', () => {
+    // The half that changed. An empty or absent value carries no information to lose, so it becomes the
+    // default edition — which is what removes "system-ambiguous" from every surface a player touches.
+    // A non-empty value we cannot identify is the case above, and still refuses.
+    //
+    // `[]` belongs here rather than above: it stringifies to the empty string, so it genuinely carries
+    // nothing. Leaving it in the "cannot identify" list would have been asserting a coincidence of
+    // JavaScript coercion as if it were a rule about systems.
+    for (const v of [null, undefined, '', '   ', []]) {
+      expect(normalizeSystem(v)).toBe(DEFAULT_SYSTEM);
     }
   });
 

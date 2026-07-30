@@ -139,11 +139,19 @@ describe('the systems with no sourced list say so instead of borrowing one', () 
     expect(cat.note).toMatch(/free text/i);
   });
 
-  it('an unknown or missing system degrades to the same honest empty', () => {
-    for (const s of [null, undefined, 'nonsense' as never]) {
-      const cat = languageCatalogFor(s);
-      expect(cat.languages).toEqual([]);
-      expect(cat.note.length).toBeGreaterThan(20);
+  it('an UNIDENTIFIABLE system still degrades to the honest empty', () => {
+    // Borrowing another system's language list for a value we cannot identify would be inventing content
+    // for a character built against something else.
+    const cat = languageCatalogFor('nonsense' as never);
+    expect(cat.languages).toEqual([]);
+    expect(cat.note.length).toBeGreaterThan(20);
+  });
+
+  it('but a MISSING system uses the default edition’s list (owner, 2026-07-30)', () => {
+    // Unset is a default, not an unknown — see normalizeSystem. A character with no system recorded is a
+    // 2024 character, so it gets 2024's languages rather than an empty list and an apology.
+    for (const s of [null, undefined]) {
+      expect(languageCatalogFor(s).languages.length).toBeGreaterThan(0);
     }
   });
 });

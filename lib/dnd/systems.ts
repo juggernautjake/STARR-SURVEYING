@@ -5,6 +5,25 @@
 
 export const SYSTEM_AMBIGUOUS = 'ambiguous' as const;
 
+/**
+ * What a character, sheet or piece of content is built against when nothing says otherwise.
+ *
+ * OWNER, 2026-07-30: *"I want you to get rid of anything on the site that is system ambiguous… trying to
+ * have a catch-all ambiguous option doesn't make sense. The default should always be the 2024 D&D
+ * edition."*
+ *
+ * `SYSTEM_AMBIGUOUS` is NOT deleted, and that distinction is the whole change. It stays as the value that
+ * means *"we genuinely do not know"* — which `normalizeSystem` no longer produces, but which the AI
+ * grounding and the rules-validation layers still need in order to REFUSE to answer rather than guess a
+ * system's rules. What is gone is offering it as a CHOICE: nothing asks a player to pick it, and nothing
+ * falls back to it.
+ *
+ * Safe to switch because the live data has none — every character carries a real system, and no homebrew
+ * piece is ambiguous. Checked before changing it, precisely because relabelling a genuinely
+ * system-less character as 2024 would state a rule set it was never built against.
+ */
+export const DEFAULT_SYSTEM = 'dnd5e-2024';
+
 /** Whether a system is fully built out and playable, or a placeholder we'll finish later. */
 export type SystemStatus = 'available' | 'under-construction';
 
@@ -73,7 +92,24 @@ export type CharacterSystem = string; // a GAME_SYSTEMS key, or SYSTEM_AMBIGUOUS
 /** Normalize any stored/user value to a known system key or 'ambiguous'. */
 export function normalizeSystem(value: unknown): CharacterSystem {
   const v = String(value ?? '').trim();
-  if (!v || v === SYSTEM_AMBIGUOUS) return SYSTEM_AMBIGUOUS;
+  // An EXPLICIT ambiguous is honoured: the AI grounding establishes it deliberately and then refuses to
+  // answer, and coercing it here would turn "I cannot tell you" into a confident answer from one system.
+  if (v === SYSTEM_AMBIGUOUS) return SYSTEM_AMBIGUOUS;
+
+  // NOTHING SPECIFIED → the default edition (owner, 2026-07-30). This is the case the owner's ask is
+  // about: a new character, a fresh form, a surface with no system yet. There is no information to lose.
+  if (!v) return DEFAULT_SYSTEM;
+
+  // SOMETHING SPECIFIED THAT WE DO NOT RECOGNISE → still ambiguous, and this half must not change.
+  //
+  // A typo, a legacy value, or a corrupt row is NOT "no system chosen" — it is a system we cannot
+  // identify, and defaulting it to 5e 2024 would apply one rulebook's rules to a character built against
+  // something else, confidently, including inside an AI prompt. Four tests exist for exactly this and
+  // they are right: *"never guesses a rulebook"*.
+  //
+  // Nothing a player can create reaches here — every surface now offers the four real systems and starts
+  // on the default — so this branch guards data, not choices, which is why the owner's ask and this
+  // safety net do not actually conflict.
   return GAME_SYSTEMS.some((s) => s.key === v) ? v : SYSTEM_AMBIGUOUS;
 }
 

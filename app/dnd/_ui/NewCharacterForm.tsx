@@ -8,7 +8,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
-import { GAME_SYSTEMS, SYSTEM_AMBIGUOUS, isSystemAvailable } from '@/lib/dnd/systems'
+import { GAME_SYSTEMS, DEFAULT_SYSTEM, isSystemAvailable } from '@/lib/dnd/systems'
 import { BUILD_MODES, type BuildMode } from '@/lib/dnd/build-modes'
 import InfoTip from './InfoTip'
 import BuilderHelp from './BuilderHelp'
@@ -31,7 +31,10 @@ export default function NewCharacterForm({
 }) {
   const router = useRouter()
   const [name, setName] = useState(initialName)
-  const [system, setSystem] = useState<string>(SYSTEM_AMBIGUOUS)
+  // Defaults to the 2024 edition rather than to "no ruleset" (owner, 2026-07-30). A build with no system
+  // could not be grounded, so the AI refused to use any system's rules — the option looked like a choice
+  // and behaved like a dead end.
+  const [system, setSystem] = useState<string>(DEFAULT_SYSTEM)
   const [mode, setMode] = useState<BuildMode>('questioning')
   const [notes, setNotes] = useState('')
   const [style, setStyle] = useState('')
@@ -127,9 +130,11 @@ export default function NewCharacterForm({
 
             <div style={{ display: 'grid', gap: 4 }}>
               <span style={label}>Game System <InfoTip topic="system" /></span>
-              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Pick a ruleset so the AI grounds the build in that system only — or leave it system-ambiguous.</span>
+              <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>The AI grounds the build in this system only — never mixing rules across systems.</span>
+              {/* NO "system-ambiguous" OPTION (owner, 2026-07-30). It looked like a choice and behaved like
+                  a dead end: a build with no system cannot be grounded, so the AI refused to use any
+                  system's rules for it. Four real systems, defaulting to the 2024 edition. */}
               <select style={input} value={system} onChange={(e) => setSystem(e.target.value)}>
-                <option value={SYSTEM_AMBIGUOUS}>System-ambiguous (no specific ruleset)</option>
                 {/* Only the four playable systems are buildable; under-construction systems are hidden
                     (owner 2026-07-18). */}
                 {GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => (<option key={s.key} value={s.key}>{s.name}</option>))}

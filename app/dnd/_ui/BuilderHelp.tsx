@@ -10,7 +10,7 @@ import { useState } from 'react';
 import styles from './hextech.module.css';
 
 const STEPS: { n: string; title: string; body: string }[] = [
-  { n: '1', title: 'Choose a system', body: 'Pick a ruleset (Pathfinder, D&D 5e 2014/2024, …) or stay system-ambiguous. The AI builds using ONLY that system’s rules — never mixing systems or inventing mechanics.' },
+  { n: '1', title: 'Choose a system', body: 'Pick a ruleset — D&D 5e 2024 (the default), D&D 5e 2014, Pathfinder 2e or Intuitive Games. The AI builds using ONLY that system’s rules, never mixing systems or inventing mechanics.' },
   { n: '2', title: 'Pick a build mode', body: 'Ruthless builds it all now, Questioning asks about gaps and conflicts, Step-by-step guides you field by field. You can change your mind later.' },
   { n: '3', title: 'Upload what you have', body: 'PDFs, sheets, screenshots, and notes. They’re stored privately with your character; the AI reads them to fill the sheet, and anything it can’t map is saved so nothing is lost.' },
   { n: '4', title: 'The AI builds your sheet', body: 'It fills stats, feats, abilities, mechanics, attacks, spells and gear — grounded in your system. If it’s confused or two sources disagree, it asks you instead of guessing.' },

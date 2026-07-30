@@ -62,8 +62,16 @@ describe('it never throws on the jsonb it is actually pointed at', () => {
     expect(characterCard({ meta: { className: 'Fighter', level: -3 } }, 'dnd5e-2024').level).toBe(0);
   });
 
-  it('and a system-less character says so rather than showing a blank badge', () => {
-    expect(characterCard({}, null).systemName).toBe('No system yet');
+  it('and a character with no system recorded shows the default edition', () => {
+    // WAS "No system yet". Owner, 2026-07-30: nothing is system-ambiguous any more and the default is the
+    // 2024 edition — so an unset system is a default rather than a gap to report.
+    expect(characterCard({}, null).systemName).toBe('D&D 5e (2024)');
+  });
+
+  it('but a system we cannot IDENTIFY still says so rather than claiming an edition', () => {
+    // The distinction the whole change turns on: nothing specified is a default; something specified that
+    // we do not recognise is a value we must not guess a rulebook for.
+    expect(characterCard({}, 'dnd-5e-2024-typo').systemName).toBe('No system yet');
   });
 });
 

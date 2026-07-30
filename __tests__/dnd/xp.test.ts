@@ -64,8 +64,11 @@ describe('the system with NO sourced table says so', () => {
     expect(xpRulesFor('intuitive-games').maxLevel).toBe(10);
   });
 
-  it('a system-agnostic character is milestone too', () => {
-    expect(xpRulesFor(null).model).toBe('milestone');
+  it('an unset system uses the default edition’s table; an unidentifiable one still does not', () => {
+    // Owner, 2026-07-30: unset means the 2024 edition. A value we cannot identify is a different case and
+    // keeps the honest fallback — guessing a rulebook's XP table for a corrupt row would be worse than
+    // falling back to milestone.
+    expect(xpRulesFor(null).model).not.toBe('milestone');
     expect(xpRulesFor('nonsense').model).toBe('milestone');
   });
 });

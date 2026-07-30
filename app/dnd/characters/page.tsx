@@ -144,8 +144,8 @@ export default async function MyCharactersPage({
             <span style={{ fontSize: 11, letterSpacing: '0.12em', color: 'var(--hx-gold-2)', minWidth: 62 }}>SYSTEM //</span>
             {chip(`All · ${cards.length}`, withSystem(), !systemFilter)}
             {availableSystems().map((s) => chip(`${s.name} · ${countFor(s.key)}`, withSystem(s.key), systemFilter === s.key))}
-            {countFor(SYSTEM_AMBIGUOUS) > 0
-              && chip(`No system · ${countFor(SYSTEM_AMBIGUOUS)}`, withSystem(SYSTEM_AMBIGUOUS), systemFilter === SYSTEM_AMBIGUOUS)}
+            {/* The "No system" chip is gone (owner, 2026-07-30). Nothing can be created without a system
+                any more, so it would be a permanently empty bucket beside four real ones. */}
           </section>
 
           {shown.length === 0 ? (
