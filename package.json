@@ -27,6 +27,7 @@
     "import:bestiary:pf2": "npx --yes vite-node -c vitest.config.ts scripts/import-bestiary-pf2.mjs --",
     "art:creatures": "npx --yes vite-node -c vitest.config.ts scripts/fetch-creature-art.mjs --",
     "variants:creatures": "npx --yes vite-node -c vitest.config.ts scripts/generate-creature-variants.mjs --",
+    "audit:bestiary": "node scripts/audit-bestiary.mjs",
     "db:seed": "node scripts/apply-seeds.mjs",
     "db:seed:all": "node scripts/apply-seeds.mjs --continue-on-error",
     "db:seed:reset": "node scripts/apply-seeds.mjs --reset",

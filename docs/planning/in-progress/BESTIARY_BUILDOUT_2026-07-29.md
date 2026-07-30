@@ -541,6 +541,44 @@ as transposed with its origin, so nothing pretends to be published IG content.
 
 ## Phase B5 — cultivation
 
+> ### B5-1 … B5-4 audit — **SHIPPED 2026-07-29**, `npm run audit:bestiary`
+>
+> The owner asked for each stat block to be *cultivated*, not merely present, and "every plane, every
+> alignment, all difficulty levels" is a **claim**. This turns it into a measurement — or into a list of
+> what is missing, which is the more useful outcome. It **reports and never repairs**: a sweep that
+> silently backfilled a blank alignment would be inventing content, and one that "fixed" what it found
+> would hide that the import produced it.
+>
+> **B5-1 — completeness: 100% clean across all 829.** Every creature has a name, system, licence, type,
+> size, CR/level, AC, HP, speed, senses, at least one action, and abilities. Nothing to fix, which
+> retroactively validates the four import bugs caught in B1-3 and B1-5.
+>
+> **B5-3 — alignment: complete where the system has it.** All 334 5e creatures are aligned (16 distinct
+> values, 128 "unaligned" beasts). **All 492 PF2 creatures have none — and that is correct**, because the
+> remaster removed alignment from stat blocks. Reported per system for exactly this reason: a global count
+> would have read as "492 missing" and sent someone hunting a bug in Paizo's design decision.
+>
+> **B5-4 — challenge coverage: every band populated** in both real systems (5e 113/105/67/29/20, PF2
+> 30/201/156/70/35). The 2024 set has gaps at ≤0, 1–4 and 17+, which is what three creatures looks like.
+>
+> **B5-2 — environments: 0 of 829.** Neither source publishes environment data, so **"creatures from every
+> plane" is not a filter and cannot become one without deriving or authoring it.** G7 lists "plane" among
+> the required filters; today it would be an empty control. That is the largest honest gap in the phase.
+>
+> **Category tags: 320 of 829 (39%) carry none.** Not a PF2 problem — 41% of PF2 and 36% of 5e. The cause
+> is that `TYPE_TAGS` maps only five creature types (undead, dragon, construct, fiend, ooze), so a
+> `celestial`, `elemental`, `giant`, `fey`, `plant`, `aberration` or `monstrosity` gets a tag only if its
+> NAME happens to match a word rule. Mountain Oni, Aesra and Air Scamp all come back bare.
+>
+> **Not a bug, but a decision to make:** `CREATURE_TAGS` is the owner's own vocabulary ("bosses, woodland
+> creatures, massive creatures, demons…"), deliberately curated rather than exhaustive, and those creatures
+> remain findable by `type` and CR, which are separate filters. Extending the list to cover the missing
+> types is a product call about what categories to offer, not a defect to patch.
+>
+> The audit exits non-zero only on **hard** failures (a nameless creature, an unlicensed image), so it can
+> become a CI gate without nagging about soft coverage. It currently exits 0.
+
+
 The owner asked for each stat block to be *cultivated*, not just present. A quality pass, in bulk:
 
 - **B5-1** Completeness sweep — every creature has type, alignment, CR, senses, languages, speeds, and at
