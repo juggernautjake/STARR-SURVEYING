@@ -103,7 +103,16 @@ export function variantReason(c: EligibilityInput): VariantReason {
   const cr = parseCr(c.cr);
   if (cr !== null && cr >= BOSS_CR) return 'boss-tier';
 
-  // 4. Explicitly tagged a boss by the taxonomy (P13-6), for the ones a CR alone misses.
+  // 4. Explicitly tagged a boss by the taxonomy.
+  //
+  // DEAD SINCE 2026-07-29, and kept deliberately rather than deleted. The taxonomy used to derive a `boss`
+  // tag; the owner asked for the STANDARD creature classifications instead ("not the ones I made up"), so
+  // `CREATURE_TAGS` is now the published type list and nothing emits `boss` any more. Rule 3 above already
+  // catches every creature this was for — it fires on CR ≥ BOSS_CR, which is the same threshold the tag
+  // used — so removing it changes no outcome, and the taxonomy test asserts `boss` is gone.
+  //
+  // It stays because `tags` is caller-supplied: a campaign or an import could pass its own `boss` marker,
+  // and honouring that costs one line. If a future taxonomy revives the tag, this keeps working.
   if (tags.includes('boss')) return 'boss-tier';
 
   return 'none';

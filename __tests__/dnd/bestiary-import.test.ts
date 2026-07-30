@@ -55,7 +55,12 @@ describe('the transform', () => {
 
   it('composes the derived fields via deriveCreature', () => {
     // Tags, eligibility and variants all arrive from one call, so an importer cannot apply two of three.
-    expect(out.row.tags).toEqual(expect.arrayContaining(['dragon', 'massive', 'boss']));
+    //
+    // ONE tag now, not three. This used to expect ['dragon', 'massive', 'boss'] from the bespoke browsing
+    // vocabulary; the owner asked for the STANDARD classifications instead (2026-07-29), and a published
+    // bestiary states exactly one type per creature. Eligibility is unaffected — it fires on CR ≥ 10 here,
+    // not on the retired `boss` tag.
+    expect(out.row.tags).toEqual(['dragon']);
     expect(out.row.variant_eligible).toBe(true);
     expect(out.derived.variants.map((v) => v.tier)).toEqual(['weak', 'elite']);
   });

@@ -599,7 +599,7 @@ as transposed with its origin, so nothing pretends to be published IG content.
 > plane" is not a filter and cannot become one without deriving or authoring it.** G7 lists "plane" among
 > the required filters; today it would be an empty control. That is the largest honest gap in the phase.
 >
-> **Category tags: 320 of 829 (39%) carry none.** Not a PF2 problem — 41% of PF2 and 36% of 5e. The cause
+> **Category tags: 320 of 829 (39%) carry none.** *(RESOLVED 2026-07-29 — see below.)* Not a PF2 problem — 41% of PF2 and 36% of 5e. The cause
 > is that `TYPE_TAGS` maps only five creature types (undead, dragon, construct, fiend, ooze), so a
 > `celestial`, `elemental`, `giant`, `fey`, `plant`, `aberration` or `monstrosity` gets a tag only if its
 > NAME happens to match a word rule. Mountain Oni, Aesra and Air Scamp all come back bare.
@@ -685,3 +685,45 @@ So the ordering here is deliberate — **the page comes before the content**, an
 polish. A surface with three fixture creatures tells you whether the taxonomy, filters and stat block are right;
 900 rows behind no surface tell you nothing. And because auras are derived rather than authored per creature,
 the thousandth import gets the same care as the first without anyone having to remember it.
+
+---
+
+## Standard classifications — owner directive, 2026-07-29
+
+> *"Please use the standard classifications for all of the creatures in the bestiary. Not the ones I made
+> up."*
+
+**Done. Tag coverage went from 509/829 to 829/829 — zero untagged.**
+
+`CREATURE_TAGS` was the owner's bespoke browsing vocabulary (bosses, woodland, massive, demons, abyssal,
+sea, birds, companions, folklore) derived from type + size + CR + name matching. It is now the **published
+creature types**: 5e's fourteen, plus `swarm`, plus the nine Pathfinder 2e adds.
+
+**Why this fixes the coverage problem structurally rather than by luck.** The old scheme depended on a
+word-list happening to match a creature's name, and its type→tag map covered five of fifteen types — so a
+Mountain Oni, an Aesra and an Air Scamp all came back bare. Every creature *already has a type*, because
+both source publications state one for every entry, so the standard list is 100% by construction.
+
+Decisions inside the change:
+
+- **One tag, not several.** The old categories overlapped by design — a vampire lord was `undead` *and*
+  `boss`. A published bestiary states exactly one type, and returning two would misrepresent the source.
+  The return shape stays an array so the column, the filters and every caller are untouched.
+- **`animal` → `beast`.** PF2's word for an ordinary creature. Without the alias a filter for "beast"
+  returns 5e's wolves and none of Pathfinder's.
+- **PF2-only types are kept, not squashed.** `astral`, `dream`, `time`, `monitor`, `petitioner`, `shade`,
+  `spirit`, `fungus` have no 5e equivalent; mapping them to "aberration" would invent a classification the
+  source does not make.
+- **The head word is the classification.** Published types carry subtypes — `humanoid (goblinoid)`,
+  `fiend (demon)`. Treating each as its own category would fragment the humanoids into dozens of
+  one-creature buckets.
+- **`swarm` was added after the re-run.** Ten 5e creatures were the only ones still untagged; their type
+  line reads *"Medium swarm of Tiny beasts"*, and `swarm` is a genuine SRD classification. Found by the
+  audit, not by guessing.
+
+**One dead branch left in place deliberately.** `variantReason` still honours a caller-supplied `boss` tag,
+which nothing now emits. Rule 3 above it already catches every creature it was for — same CR threshold — so
+removing it would change no outcome, and `tags` is caller-supplied, so a campaign passing its own marker
+still works. Commented as dead rather than silently retained.
+
+All three sources re-imported to re-derive, and the audit confirms **0 untagged**. 132 bestiary tests pass.
