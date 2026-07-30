@@ -21,8 +21,8 @@ import { auraFor } from '@/lib/dnd/bestiary/aura';
 import { planeFor } from '@/lib/dnd/bestiary/planes';
 import { GAME_SYSTEMS, DEFAULT_SYSTEM } from '@/lib/dnd/systems';
 import CreatureAura from '@/app/dnd/_ui/bestiary/CreatureAura';
-import CreatureStatblock from '@/app/dnd/_ui/bestiary/CreatureStatblock';
 import SystemLens from '@/app/dnd/_ui/bestiary/SystemLens';
+import VariantCarousel from '@/app/dnd/_ui/bestiary/VariantCarousel';
 import type { BestiarySystem } from '@/lib/dnd/bestiary/transpose';
 import SendCreatureToFight from '@/app/dnd/_ui/SendCreatureToFight';
 import ForkCreature from '@/app/dnd/_ui/bestiary/ForkCreature';
@@ -202,22 +202,21 @@ export default async function CreaturePage({ params }: { params: Promise<{ slug:
             />
           </section>
 
+          {/* N3-5 — the variant CAROUSEL, beneath the stat block, with every difference noted.
+              Replaces a stack of collapsed <details> whose only account of what changed was the
+              derivation SENTENCE: a claim about what a formula intended rather than a record of what it
+              did. VariantCarousel computes the diff from the two blocks instead. */}
           {variants.length > 0 && (
             <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12 }}>
               <div className={styles.framedPanelTop} />
-              <h2 className={styles.panelTitle} style={{ margin: 0 }}>Variants</h2>
-              {variants.map((v) => (
-                <details key={v.id} style={{ border: '1px solid var(--hx-line)', background: 'rgba(1,10,19,0.4)', padding: '8px 10px' }}>
-                  <summary style={{ cursor: 'pointer', minHeight: 34, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <strong style={{ color: 'var(--hx-gold-2)' }}>{v.name}</strong>
-                    {v.cr && <span style={{ fontSize: 11.5, color: 'var(--hx-teal-1)' }}>CR {v.cr}</span>}
-                    {v.derivation && <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>— {v.derivation}</span>}
-                  </summary>
-                  <div style={{ marginTop: 8 }}>
-                    <CreatureStatblock statblock={v.statblock} name={v.name} />
-                  </div>
-                </details>
-              ))}
+              <h2 className={styles.panelTitle} style={{ margin: 0 }}>Versions of this creature</h2>
+              <VariantCarousel
+                baseName={c.name}
+                baseCr={c.cr}
+                baseStatblock={c.statblock}
+                variants={variants}
+                system={c.system}
+              />
             </section>
           )}
 

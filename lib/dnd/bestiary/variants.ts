@@ -94,6 +94,24 @@ export function deriveVariant(
   const notes: string[] = [DAMAGE_UNVERIFIED];
   let derivation: string;
 
+  // ── HIT DICE DESCRIBE THE HP WE ARE ABOUT TO REPLACE ──────────────────────────────────────────────
+  //
+  // Caught on the page, not in a test: the Elite Balor rendered **"Hit Points 374 (26d12+130)"** — and
+  // 26d12+130 averages 299, the BASE's total. The spread above carried the dice across unchanged while
+  // the line above rewrote the number they are supposed to explain, so the block contradicted itself in
+  // the one place a DM rolls from.
+  //
+  // Dropped rather than recomputed, which is the same call `deriveNativeStatblock` makes for the same
+  // reason: a die expression that averages the new total (27d12+167? 31d12+140?) is a fabrication with
+  // several equally defensible answers, and printing one would state a creature's constitution as fact.
+  // A missing line reads as missing; a wrong one reads as authoritative.
+  //
+  // Only when HP actually moves — a creature with no `hp` keeps whatever dice it was written with.
+  if (sb.hp !== undefined && sb.hitDice) {
+    delete out.hitDice;
+    notes.push('Hit dice were dropped: they described the original hit points, and a die expression invented to average the new total would be a made-up number in the place a DM rolls from.');
+  }
+
   if (isPf2(creature.system)) {
     const level = parseCr(creature.cr) ?? 1;
     const hp = pf2HpDelta(level);

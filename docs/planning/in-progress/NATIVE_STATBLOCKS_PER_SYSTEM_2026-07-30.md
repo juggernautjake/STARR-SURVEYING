@@ -97,12 +97,48 @@ So N7 changes two slices already in this plan:
 
 Plus one new slice:
 
-### N3-5 · Variants as a carousel beneath the stat block
+### N3-5 · Variants as a carousel beneath the stat block — **SHIPPED 2026-07-30**
 `dnd_creature_variants` already holds **4,378** weak/elite derivations with a stated derivation sentence
-each, and the creature page renders them as a plain list. The owner wants a carousel under the block, and —
-the part that matters — ***"all differences in the variant stat block should be noted."*** That is a diff,
-not a badge: show the variant's numbers with what changed from the base called out, which is exactly what
-`deriveVariant`'s derivation string already records and the page currently does not surface per-field.
+each, and the creature page rendered them as a stack of collapsed `<details>` nobody opened. The owner
+wanted a carousel under the block, and — the part that matters — ***"all differences in the variant stat
+block should be noted."***
+
+**The diff is COMPUTED, not quoted, and that distinction is the whole slice.** The obvious implementation
+is to print the derivation sentence beside each variant. `lib/dnd/statblocks/diff.ts` compares the two
+blocks instead, because **a sentence is a claim about what a formula intended and the block is what it
+did** — and they demonstrably disagree. The PF2 adjustment's sentence says it shifts *"AC, attacks, DCs and
+saves"*; `deriveVariant` shifts AC, saves, skills and each entry's `toHit`, and a DC written inside an
+action's prose (*"DC 16 Fortitude"*) is untouched. Quoting the sentence repeats a promise the data does not
+keep. That gap is now asserted in a test, so the day someone fixes it the test says exactly what changed.
+
+Entries are matched **by name, not by index** — a variant that adds one trait would otherwise shift every
+later entry and report the whole action list as changed, which is a diff nobody reads. `null` is kept
+distinct from `0` throughout: a field absent is not a field set to zero, and conflating them would report
+an AC of 0 for a creature that simply has none.
+
+`VariantCarousel` opens on the first VARIANT rather than the base, because the lens renders the base
+directly above and two near-identical stat blocks read as a rendering bug. The base card stays — it is the
+anchor every difference is measured from.
+
+#### The bug this surfaced: 4,378 variants contradicting themselves
+
+Visible the moment the carousel rendered: the Elite Balor showed **"Hit Points 374 (26d12+130)"** — and
+26d12+130 averages **299**, the base's total. `deriveVariant` spread the source block and rewrote `hp`
+while carrying `hitDice` across untouched, so the block disagreed with itself **in the one place a DM
+actually rolls from**, and had done for every one of the 4,378 stored rows.
+
+Dropped rather than recomputed, which is the same call `deriveNativeStatblock` already makes for the same
+reason: a die expression averaging the new total has several equally defensible answers, and printing one
+states a creature's constitution as a fact. **A missing line reads as missing; a wrong one reads as
+authoritative.** The variant now carries a note saying so, and the diff reports *"Hit Dice removed (was
+26d12+130)"* rather than the line quietly vanishing between two blocks.
+
+**The stored rows were regenerated, not just the code path fixed** — `npm run variants:creatures` upserts
+on `(creature_id, tier)`, so 4,376 rows were corrected in place with nothing deleted. Verified against the
+live database: **0 of 4,378 variants now carry hit dice that describe a different HP total**, down from all
+of them.
+
+Guarded by `__tests__/dnd/statblock-diff.test.ts` (20 cases).
 
 **Identity is the hard part and it is not the name.** "Skunk" in Pathfinder Bestiary 3 and "Skunk" in
 Monstrous Menagerie may be different creatures; "Badger" and "Giant Badger" are certainly different.
