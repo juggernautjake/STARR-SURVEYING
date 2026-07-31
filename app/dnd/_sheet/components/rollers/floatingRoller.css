@@ -131,9 +131,72 @@
    half-way and re-introduce the scroll on a tall screen. */
 .fld-body [data-scrollable='true'] {
   flex: 1 1 auto;
-  min-height: 0;
+  /* A FLOOR, NOT ZERO — and this is the line that decides what happens on a screen too small for the
+     roller at all.
+     With `min-height: 0` the two scrollers shrank all the way to nothing on a 360×640 phone: the window
+     reported a perfect fit while the roll breakdown and the history were both zero pixels tall. A
+     scroller with no height cannot be scrolled, so that is not a fit — it is content deleted to make a
+     measurement pass, which is the exact failure `detectClipped` ranks `hidden` below `auto` for.
+     With a floor, a window that genuinely cannot hold its roller overflows instead, `.fld-body` scrolls,
+     the player can still reach everything, and D7-3 REPORTS it. Reachable beats hidden, and an honest
+     red beats a green that was bought by hiding something. 48px is two rows plus the touch minimum. */
+  min-height: 48px;
   max-height: none;
   overflow-y: auto;
+}
+
+/* NOT ALL PERMITTED SCROLLERS ARE EQUALLY EXPENDABLE. There are two of them now — roll history and the
+   roll breakdown — and left equal, flex shrinks both in proportion. On a 360×640 phone that took the
+   BREAKDOWN to zero height: a scroller with no height cannot be scrolled, so "your total is one flick
+   away" quietly became "your total is gone", which is worse than the clipping this all started with.
+   History yields four times as fast, because a list of rolls you have already seen is the one thing in
+   this window nobody needs while a die is landing. The four logs are enumerated for the same reason the
+   three arenas are, and `roller-history-cap.test.ts` already keeps that list honest. */
+.fld-body .tray-log,
+.fld-body .sigil-log,
+.fld-body .rboard-log,
+.fld-body .iroller-log {
+  flex-shrink: 4;
+}
+
+/* ── THE ARENA TAKES THE SPARE ROOM ─────────────────────────────────────────────────────────────
+ *
+ * With the body fixed, D7-3's next round of failures were all INSIDE the stage: `.stage-core`,
+ * `.rb-felt` and `.ir-arena` clipping 7–132px, every one of them `overflow: hidden`.
+ *
+ * The first read was that this is a false positive — a dice arena clips on purpose, because the die
+ * tumbles and throws a shadow that paint outside the box. Measuring it says otherwise: on Impact at
+ * 1280×900 the deepest element in the arena is `.ir-detail.is-open`, whose bottom sits at 285px in a
+ * 273px box. That is the roll BREAKDOWN — the die row and the total — and it is the single most
+ * important thing in the window. Twelve pixels of "what did I actually roll" is a defect, not decoration.
+ *
+ * The arenas were sized by their own `min-height` and never grew for a breakdown they contain, so on a
+ * screen with hundreds of spare pixels they still clipped. Inside the flex column they can now take that
+ * spare room, and roll history — which is allowed to scroll — yields it.
+ *
+ * THE THREE NAMES ARE HERE ON PURPOSE, and `roller-arena-flex.test.ts` enumerates them. There is no
+ * shared arena class to hook (each stage's arena is its own thing, which is right — they are different
+ * visual objects), so the alternative is the same rule copied into three stylesheets, which is how two
+ * get fixed and one does not. One rule plus a test that fails when a fourth stage appears is the trade
+ * D7-2 already made for HISTORY_PREVIEW. */
+.fld-body .stage-core,
+.fld-body .rb-felt,
+.fld-body .ir-arena {
+  /* THE ARENA GROWS INTO SPARE ROOM AND SHRINKS WHEN THERE IS NONE — safe only because the thing inside
+     it that used to be clipped now scrolls on purpose.
+
+     This was briefly `1 0 auto`. Shrink-0 did stop the breakdown being clipped on a desktop, and it was
+     the wrong fix: it made the arena immovable, so on a 360×640 phone the Impact roller stayed 81px over
+     budget with nothing left to give and `.fld-body` scrolled instead. That trades a clipped total for a
+     scrolling window — the exact thing this phase exists to prevent, arrived at by fixing the symptom.
+
+     The answer was to decide what the BREAKDOWN is. It is unbounded content — a 20-dice roll is twenty
+     rows, and no window height makes that finite — so it is tagged `data-scrollable` like roll history,
+     and the generic rule above makes it the elastic child. With that in place the arena can shrink
+     safely: on a desktop it takes the spare room and the breakdown is fully visible; on a phone it falls
+     to the token minimum and the breakdown scrolls inside itself. */
+  flex: 1 1 auto;
+  min-height: var(--roller-stage-min-h, 176px);
 }
 
 /* ── A SHORT SCREEN: THE STAGE GIVES WAY FIRST ──────────────────────────────────────────────────

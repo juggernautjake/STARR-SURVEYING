@@ -354,9 +354,14 @@ async function main() {
           if (skin && !(await isSelected(page, skin))) { results.skipped.push(`${system}/${skin}/${tpl}: skin drifted`); continue; }
           const name = `${slug(system)}__${slug(skin ?? 'default')}__${slug(tpl)}`;
           const shot = `${name}.jpeg`;
-          await page.locator(ROOT).screenshot({ path: path.join(outDir, shot), type: 'jpeg', quality: 82 }).catch(() => {});
           const clipped = await page.evaluate(detectClipped, ROOT);
           const sized = await page.evaluate(detectOversized, ROOT);
+          // MEASURE BEFORE SHOOTING, and do not shoot a window that is not showing. A picture of a hidden
+          // window is a blank tile in the contact sheet, and a blank tile is read as "this combination
+          // renders as nothing" — a claim about the product made by a bug in the harness. The first run
+          // of this axis produced two of them (`0×0` in the log) before the `rendered` flag existed.
+          if (!sized.rendered) { results.skipped.push(`${system}/${skin}/${tpl}: window not rendered — not photographed`); continue; }
+          await page.locator(ROOT).screenshot({ path: path.join(outDir, shot), type: 'jpeg', quality: 82 }).catch(() => {});
           results.look.push({ system, skin: skin ?? 'default', template: tpl, shot, clipped: clipped.count, w: sized.width, h: sized.height });
           console.log(`  shot ${name} — ${sized.width}×${sized.height}`);
         }

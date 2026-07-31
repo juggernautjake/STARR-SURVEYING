@@ -343,7 +343,17 @@ export function ImpactStage() {
           (the natural die, ability/proficiency, adv/dis kept pair, condition/feat bonuses & penalties),
           then the final total — never behind a "show breakdown" toggle. */}
       {phase === 'landed' && (
-        <div className="ir-detail is-open">
+        // A SECOND PERMITTED SCROLLER, and the rule it follows is D7-2's rather than an exception to it:
+        // content that is UNBOUNDED BY NATURE may scroll; chrome may not. Roll history earned the tag
+        // because the store keeps 40 entries; this breakdown earns it because a 20-dice roll is twenty
+        // rows, and no window height makes that finite.
+        //
+        // It is what the D7-3 sweep came down to. On a 360×640 phone the Impact roller was 69–81px over
+        // budget with everything else already given up, and the arena — holding this breakdown — could not
+        // shrink because the breakdown is real content that was being clipped. Tagging it means the arena
+        // collapses to its token minimum and the breakdown scrolls INSIDE itself, which is the difference
+        // between "you cannot see your total" and "your total is one flick away".
+        <div className="ir-detail is-open" data-scrollable="true">
           {/* Row class is `ir-r-<kind>`, NOT `ir-<kind>` — a bare `ir-die` row would collide with the
               `.ir-die` DICE element selector and get styled as a 108px square (the "weird square" bug). */}
           {rows.map((row) => (

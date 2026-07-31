@@ -446,6 +446,23 @@ the harness twice — once now against a window size that may change, once after
 claim it would confirm is now asserted by the guard; what the screenshots add is the *visual* half, and that
 is worth doing once, correctly, after the sizing question is answered.
 
+> ### ✅ CONTACT SHEET SHIPPED 2026-07-31 — and the deferral was the right call
+>
+> `node scripts/roller-sweep.mjs --axis look` — **53 cells** (system × skin × template, each skin's own
+> theme list read live), every one at **396×700**, **0 with any clipping**. Browsable index at
+> `.audit/roller/index.html`, with each tile captioned by its measured size so a cell that is the wrong
+> shape is visible without opening the picture.
+>
+> **Waiting was worth it exactly as predicted.** The harness measures the window with the same
+> `detectClipped` / `detectOversized` the fit axis uses, so the contact sheet is not merely pictures — it
+> reports that all 53 cells are structurally clean too. Had it been built on 2026-07-30 it would have
+> photographed 80 cells at a 560px window that no longer exists, and every one would have been re-shot.
+>
+> **A cell whose picker did not take is never photographed**, and — since the `rendered` flag landed — a
+> window that is not showing is never photographed either. The first run of this axis produced two blank
+> tiles before that check existed, and a blank tile in a contact sheet reads as *"this combination renders
+> as nothing"*: a claim about the product made by a bug in the harness.
+
 ---
 
 ## Phase D7 — the window is always the right size (G7)
@@ -563,7 +580,64 @@ actually make.
 Breakdown rows are bounded by the roll, and multi-dice trays already scale rather than overflow, so those
 halves of the slice needed nothing.
 
-### D7-3 · Prove no scrollbar exists
+### D7-3 · Prove no scrollbar exists — **SWEEP SHIPPED 2026-07-31. Desktop and tablet are clean; a 360px phone is not, and the residue is measured below.**
+
+> **Result: 86 cells. 768×1024 — 30/30 pass. 1280×900 — 26/26 pass. 360×640 — 20 pass, 10 fail.**
+> Harness: `scripts/roller-sweep.mjs`, which serves D6-3 as well (see below). Report:
+> `.audit/roller/report.json` + a browsable `index.html`.
+>
+> #### The first complete run was GREEN, and that was the worst result of the whole phase
+>
+> 92 of 92 cells passed with `width: 0, height: 0` in every one. Nothing fit, because nothing was measured:
+> `useFloatingDock` paints the window `visibility: hidden` with no box until its per-character state
+> hydrates, **and it deliberately starts MINIMIZED on a fresh load**. `detectOversized` reported
+> `found: true` — honestly — and every other field described a box that was not on screen.
+>
+> That is the same false-green the detector already refuses for a *missing* root, arriving from a direction
+> nobody had thought of: **not "the element is absent" but "the element is present and not rendered".** The
+> detector now answers it explicitly with `rendered`, pinned by four cases, and the sweep treats a
+> non-rendered window as NOT MEASURED rather than as a pass. Recording this is the point of the slice: a
+> sweep that cannot fail is worth less than no sweep, because it is believed.
+>
+> #### What it found once it could see
+>
+> **42 of 88 failing**, and the shape was the surprise: both 5e sheets clipped on **all four templates at
+> every viewport**, including a 1280×900 desktop with 300px to spare. The window was never too big for the
+> screen — it was too small for its own contents:
+>
+> - **`ROLLER_IDEAL_H` was still 560**, the 07-28 constant, while the 07-30 decision that superseded it says
+>   the size is *"derived from the tallest roller's content"*. D7-1's clamping was right; it was clamping
+>   the wrong ideal. Measured the tallest combination (5e Dice Core, history open) at ~690 → **700**.
+> - **`.fld-body` was a block** that let its children be any height and then scrolled. It is now a flex
+>   column that hands out its height, written against structure rather than the four roller class names.
+> - **`overflow: auto` stays on the body.** `hidden` would make every remaining failure invisible instead of
+>   fixed, and `detectClipped` ranks hidden *worse* than auto for exactly that reason.
+> - **The D7-2 lesson repeated exactly.** Three of four stages read `--roller-stage-min-h`; the **Dice Core
+>   — the tallest, and the 5e default — had a hard `height: 178px` in `theme.css`** and so was outside every
+>   list anyone was looking at, including the one in the slice that created the token.
+> - **The roll BREAKDOWN is a second permitted scroller**, on D7-2's own rule rather than as an exception:
+>   *unbounded content may scroll, chrome may not*. A 20-dice roll is twenty rows. Without that the arena
+>   could not shrink without clipping the total.
+> - **Permitted scrollers have a 48px floor**, and this was the last thing learned. With `min-height: 0`
+>   both of them shrank to nothing on a phone and the sweep went green while the roll total was zero pixels
+>   tall — a pass bought by deleting content. A floor makes such a window overflow and be **reported**.
+>   *Reachable beats hidden, and an honest red beats a green that was bought by hiding something.*
+>
+> #### What remains, precisely — this is NOT "done"
+>
+> **Ten cells, all at 360×640**, all on 5e or Impact:
+>
+> | offender | cells | hidden |
+> |---|---|---|
+> | `.tray` (Dice Core, both 5e editions) | 4 | **10px** |
+> | `.fld-body` (Impact on both 5e editions) | 4 | **69–81px** |
+> | `.fld-body` (Impact on PF2) | 2 | **6px** |
+>
+> The cause is not sizing any more, it is **content**: the Impact roller's fixed chrome — head, advantage
+> row, toggles, surge line, dice pad and two section headers — is about 90px more than a 360×640 phone can
+> hold once the stage is at its minimum and both scrollers are at their floor. Closing it means compressing
+> that chrome on phone-height screens, which is stage design rather than window sizing, so it is **D7-4**
+> below rather than a silent extension of this slice.
 
 **DETECTOR SHIPPED 2026-07-29; the browser sweep is the remaining half.**
 
@@ -601,6 +675,29 @@ decision above, since what "correct" means at 360px depends on which of the two 
 
 *Acceptance:* zero scrollbars in the whole matrix; window never exceeds the viewport; drag/minimise/reset
 still work; mobile keeps the 44px touch minimum.
+
+*Acceptance status:* met at **768×1024 and 1280×900** (56/56). **Not met at 360×640** for 5e Dice Core and
+for Impact on any system — see the measured table above. The window never exceeds the viewport anywhere,
+which is the half of the acceptance that was about sizing.
+
+### D7-4 · The phone-sized roller — **OPEN, and it is the honest remainder of D7-3**
+
+The last ten cells are not a sizing bug and cannot be fixed by the window. The Impact roller asks a 360×640
+phone for roughly 90px more chrome than it has, with the stage already at its minimum and both permitted
+scrollers already at their 48px floor.
+
+Three candidates, in the order they should be tried:
+
+1. **Start roll history collapsed on a short screen.** Removes the log *and* its floor from the budget
+   (~90px — almost exactly the shortfall), and costs nothing: the section header stays visible, so the
+   player can see it exists and open it. The one that most likely closes this on its own.
+2. **Fold the advantage / toggles / surge rows into one line under a height media query.** They are three
+   rows of small controls that read fine as one on a phone.
+3. **A more compact section header** — two 32px headers is 64px of pure chrome.
+
+Not attempted here on purpose: each is a change to how a stage LOOKS, and the honest place to make those is
+against the contact sheet D6-3 now produces, with someone looking at the result — not inside a slice whose
+job was to measure.
 
 ---
 
