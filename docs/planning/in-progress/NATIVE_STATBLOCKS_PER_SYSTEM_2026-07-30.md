@@ -263,15 +263,58 @@ Takes a creature and a target system; returns a stat block whose numbers come fr
 mapped tier, whose prose is the source's, and whose every derived field carries a one-line note. Pure and
 tested, like every other transform in this codebase.
 
-### N2-2 · Per-system character
-Beyond the numbers, each system has shape: PF2 wants three saves and modifiers, 5e six saves and scores, and
-strikes are written differently. Most of this already exists (`transposeCreature`, `abilityMods`,
-`igCreatureEntries`) and is composed here rather than rewritten.
+### N2-3 · What each system does that the others do not — **SHIPPED 2026-07-30**
 
-### N2-3 · What each system does that the others do not
-The research slice the owner asked for — *"study how each system works"*. Read each system's own creature
-rules and record, per system, what a native stat block MUST carry that a converted one currently lacks.
-Written into this doc as findings before N2-1 is trusted.
+The research slice the owner asked for — *"study how each system works"*. Done as a **measurement of the
+corpus rather than a reading of the rulebooks**, for the same reason N1-1 measured the tier tables: the
+books are DMG and Monster Core content we cannot quote, and what 4,418 published creatures actually print
+is a stronger statement about a system's shape than a recollection of what its designers intended.
+
+`npm run derive:tiers` now reports coverage per field per tier, and the answer is unambiguous:
+
+| field | Pathfinder 2e | D&D 5e |
+|---|---|---|
+| Fortitude | **25 / 25 tiers** | 0 / 31 |
+| Reflex | **25 / 25** | 0 / 31 |
+| Will | **25 / 25** | 0 / 31 |
+| Perception modifier | **25 / 25** | 0 / 31 |
+
+**That asymmetry is the finding, and it is a fact about the systems rather than a gap in our data.** Every
+published Pathfinder creature prints three saves and a Perception modifier. Most 5e creatures state **no
+saving throws at all**, and 5e writes perception as *"passive Perception 13"* inside its senses line — a
+different quantity in a different place, not the same field spelled differently.
+
+**So a derived Pathfinder block was recognisably not a Pathfinder block**, whatever its AC said. N2-1
+correctly DROPS the source's saves when crossing families (a Pathfinder block listing *"WIS +3"* names a
+save Pathfinder has not got) — and nothing replaced them, so the creature had none. That is the concrete
+answer to *"what a native stat block MUST carry that a converted one lacks"*.
+
+### N2-2 · Per-system character — **SHIPPED 2026-07-30**
+
+The three gaps N2-3 found, closed. All measured by the same method as AC and HP, so N1 holds: the numbers
+still come from creatures that exist rather than from a book we may not quote.
+
+- **Fort / Ref / Will**, rebuilt at the target tier's measured medians wherever the target publishes saves.
+  Never for D&D — the 5e rows carry no `fort` at all, because a "median 5e save" computed from the
+  minority of creatures that happen to have one is the N1-1 zero-table bug in a new costume. Never over a
+  same-family derivation either: those keep the creature's real saves, which are a designer's numbers and
+  beat a median.
+- **Perception**, set from the tier as a Pathfinder LINE — with the rest of the senses kept. Darkvision and
+  scent describe the *creature*; dropping the whole line to fix one phrase would lose real content.
+- **"Level", not "Challenge".** The renderer hardcoded the 5e word while already receiving `system` as a
+  prop, so an otherwise-native Pathfinder block ended on one last piece of 5e vocabulary. Changed only for
+  Pathfinder, where the term is certain — Intuitive Games keeps "Challenge" rather than having a label
+  guessed for it.
+
+Verified in the browser on a derived Pathfinder Aboleth: AC 31, HP 195, ability modifiers, **Fort +22 /
+Ref +20 / Will +21**, **Perception +21; blindsight 30 ft.; darkvision 120 ft.**, Level 11 — with all nine
+derivation notes and the N4-2 caveat beneath it.
+
+**The boundary that stays open, stated rather than papered over:** entry KINDS are the source's, so a
+derived Pathfinder block can still print a *Legendary Actions* heading, which Pathfinder does not have.
+That is N5 working as designed — prose is translated, not regenerated — and rewriting a creature's action
+economy per system is a different project from rebuilding its numbers. Recorded here as the honest edge of
+what "native" currently means.
 
 ---
 

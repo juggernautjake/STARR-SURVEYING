@@ -71,10 +71,32 @@ async function main() {
       const t = Number(r.cr_sort);
       const sb = r.statblock || {};
       if (sb.ac == null || sb.hp == null) continue;
-      if (!by.has(t)) by.set(t, { ac: [], hp: [], atk: [] });
+      if (!by.has(t)) by.set(t, { ac: [], hp: [], atk: [], fort: [], ref: [], will: [], per: [] });
       const cell = by.get(t);
       cell.ac.push(sb.ac);
       cell.hp.push(sb.hp);
+
+      // ── N2-3: the fields a NATIVE Pathfinder block cannot do without ─────────────────────────────
+      //
+      // Every published PF2 creature prints Fort/Ref/Will and a Perception modifier. A derived block had
+      // neither — saves are DROPPED when crossing families (a 5e block's "WIS +3" names a save Pathfinder
+      // has not got, correctly refused) and Perception lived inside 5e's `senses` prose as "passive
+      // Perception 13", which is 5e's vocabulary and not a PF2 line at all.
+      //
+      // So a derived Pathfinder creature was recognisably not a Pathfinder creature, whatever its AC said.
+      // Measured here from the same corpus and by the same method as AC and HP, which keeps N1 intact:
+      // the numbers still come from creatures that exist rather than from a book we may not quote.
+      //
+      // Parsed out of the free-text lines the import stored them in — `saves` is "Fort +8, Ref +5, Will
+      // +6" and `senses` is "Perception +6; low-light-vision". Each name is matched INDIVIDUALLY rather
+      // than by position, because a creature with only two of the three would otherwise shift the others
+      // into the wrong column and nothing would look wrong.
+      for (const [name, bucket] of [['fort', cell.fort], ['ref', cell.ref], ['will', cell.will]]) {
+        const m = new RegExp(`\\b${name}[a-z]*\\s*([+-]\\d+)`, 'i').exec(sb.saves || '');
+        if (m) bucket.push(Number(m[1]));
+      }
+      const per = /\bperception\s*([+-]\d+)/i.exec(sb.senses || '');
+      if (per) cell.per.push(Number(per[1]));
       // Attack bonus, from the entries that ACTUALLY CARRY ONE.
       //
       // The missing-value guard is the whole line: `Number('')` is 0 and `Number.isFinite(0)` is true, so
@@ -94,13 +116,39 @@ async function main() {
     const hp = monotonic(tiers.map((t) => median(by.get(t).hp)));
     const atk = monotonic(tiers.map((t) => median(by.get(t).atk) ?? 0));
 
-    out[key] = { system, tiers, ac, hp, atk, samples: tiers.map((t) => by.get(t).ac.length), thin };
+    // MEASURED ONLY WHERE THE SYSTEM ACTUALLY PRINTS THEM, per tier rather than per table. 5e creatures
+    // legitimately have no saving throws — most do not — so a 5e "median save" would be a number invented
+    // out of the minority that happen to carry one, which is the N1-1 zero-table bug wearing a hat. A tier
+    // whose creatures do not state a field gets `null` and the derivation simply omits the line.
+    const opt = (field) => tiers.map((t) => {
+      const xs = by.get(t)[field];
+      return xs.length >= MIN_SAMPLE ? median(xs) : null;
+    });
+    // Monotonic only across the tiers that HAVE a value; nulls are put back afterwards so a gap does not
+    // silently borrow its neighbour's number.
+    const fit = (vals) => {
+      const idx = vals.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0);
+      const fitted = monotonic(idx.map((i) => vals[i]));
+      const back = vals.slice();
+      idx.forEach((i, k) => { back[i] = fitted[k]; });
+      return back;
+    };
+    const fort = fit(opt('fort'));
+    const ref = fit(opt('ref'));
+    const will = fit(opt('will'));
+    const per = fit(opt('per'));
 
+    out[key] = { system, tiers, ac, hp, atk, fort, ref, will, per, samples: tiers.map((t) => by.get(t).ac.length), thin };
+
+    const cover = (a) => `${a.filter((v) => v !== null).length}/${tiers.length}`;
     console.log(`\n=== ${system} — ${rows.length} rated creatures, ${tiers.length} usable tiers ===`);
-    console.log('tier    n     AC    HP   atk');
+    console.log(`  save/perception coverage — Fort ${cover(fort)}, Ref ${cover(ref)}, Will ${cover(will)}, Perception ${cover(per)}`);
+    console.log('tier    n     AC    HP   atk   Fort  Ref  Will  Perc');
+    const pad = (v, w) => String(v === null ? '—' : v).padStart(w);
     tiers.forEach((t, i) => console.log(
       String(t).padStart(5), String(by.get(t).ac.length).padStart(4),
       String(ac[i]).padStart(6), String(hp[i]).padStart(5), String(atk[i]).padStart(5),
+      pad(fort[i], 6), pad(ref[i], 4), pad(will[i], 5), pad(per[i], 5),
     ));
     if (thin.length) console.log(`  (${thin.length} tier(s) below the ${MIN_SAMPLE}-creature minimum, omitted: ${thin.join(', ')})`);
   }
@@ -111,7 +159,15 @@ async function main() {
     const d = out[k];
     return `/** Measured from ${d.tiers.reduce((n, t, i) => n + d.samples[i], 0)} creatures across ${d.tiers.length} tiers of \`${d.system}\`. */
 export const ${k.toUpperCase()}_TIERS: TierRow[] = [
-${d.tiers.map((t, i) => `  { tier: ${t}, ac: ${d.ac[i]}, hp: ${d.hp[i]}, attack: ${d.atk[i]}, sample: ${d.samples[i]} },`).join('\n')}
+${d.tiers.map((t, i) => {
+      // Omitted entirely rather than written as null: an absent property IS the statement "this system
+      // does not print this line", and every 5e row would otherwise carry four nulls saying it four times.
+      const extra = [['fort', d.fort[i]], ['ref', d.ref[i]], ['will', d.will[i]], ['perception', d.per[i]]]
+        .filter(([, v]) => v !== null)
+        .map(([n, v]) => `, ${n}: ${v}`)
+        .join('');
+      return `  { tier: ${t}, ac: ${d.ac[i]}, hp: ${d.hp[i]}, attack: ${d.atk[i]}${extra}, sample: ${d.samples[i]} },`;
+    }).join('\n')}
 ];`;
   };
 
@@ -138,6 +194,22 @@ export interface TierRow {
   hp: number;
   /** Median attack bonus across the tier's creatures. 0 where the tier's creatures carry no to-hit. */
   attack: number;
+
+  // ── N2-3: the lines only SOME systems print ────────────────────────────────────────────────────────
+  //
+  // Optional because their absence is a FACT ABOUT THE SYSTEM, not missing data. Measured coverage:
+  // Pathfinder prints Fort/Ref/Will and a Perception modifier on **25 of 25** tiers — every published
+  // creature has them — and D&D prints them on **0 of 31**, because most 5e creatures state no saving
+  // throws at all and 5e writes perception as "passive Perception 13" inside its senses line.
+  //
+  // That asymmetry is why a derived Pathfinder block used to be recognisably not a Pathfinder block: saves
+  // are correctly DROPPED when crossing families (a 5e block's "WIS +3" names a save Pathfinder has not
+  // got) and nothing replaced them. These are the replacement, measured the same way as AC and HP.
+  fort?: number;
+  ref?: number;
+  will?: number;
+  perception?: number;
+
   /** How many creatures this row was measured from — so a thin tier is visible rather than implied. */
   sample: number;
 }

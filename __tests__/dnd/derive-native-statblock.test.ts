@@ -210,12 +210,45 @@ describe('deriveNativeStatblock — each system’s shape (N2-2)', () => {
     expect(proficiencyFor(17)).toBe(6);
   });
 
-  it('drops saves when crossing systems, because the two do not have the same ones', () => {
+  it('drops the source’s saves when crossing, then REBUILDS the target’s own (N2-3)', () => {
     const r = deriveNativeStatblock(skunk, 'pathfinder2e');
     if (isRefusal(r)) throw new Error(r.reason);
-    // A Pathfinder block listing "DEX +4" names a save Pathfinder has not got.
-    expect(r.statblock.saves).toBeUndefined();
+    // Dropping is still right — a Pathfinder block listing "DEX +4" names a save Pathfinder has not got.
     expect(r.notes.join(' ')).toMatch(/saving throws dropped/i);
+    expect(r.statblock.saves).not.toMatch(/DEX/);
+
+    // But dropping ALONE left a derived Pathfinder creature with NO saving throws, and every published
+    // PF2 creature has three — measured: Pathfinder prints Fort/Ref/Will on 25 of 25 tiers, D&D on 0 of
+    // 31. A block without them is not a Pathfinder block, whatever its AC says.
+    const row = PF2_TIERS.find((t) => t.tier === -1)!;
+    expect(r.statblock.saves).toBe(`Fort +${row.fort}, Ref +${row.ref}, Will +${row.will}`);
+    expect(r.notes.join(' ')).toMatch(/every Pathfinder creature prints three saves/i);
+  });
+
+  it('rebuilds Perception as a LINE, keeping the senses that describe the creature', () => {
+    // Perception is a line in Pathfinder and a phrase inside 5e's senses ("passive Perception 13"), so it
+    // transfers neither way. Darkvision and scent DO describe the creature rather than its numbers, so
+    // they survive — dropping the whole senses line to fix one phrase would lose real content.
+    const r = deriveNativeStatblock(
+      { ...skunk, statblock: { ...skunk.statblock, senses: 'darkvision 30 ft., passive Perception 11' } },
+      'pathfinder2e',
+    );
+    if (isRefusal(r)) throw new Error(r.reason);
+    expect(r.statblock.senses).toMatch(/^Perception \+\d+;/);
+    expect(r.statblock.senses).toMatch(/darkvision 30 ft\./);
+    // The 5e phrasing is gone rather than sitting beside the new line saying something different.
+    expect(r.statblock.senses).not.toMatch(/passive Perception/i);
+  });
+
+  it('does not invent saves for a system that does not print them', () => {
+    // The other half of the same measurement: 5e creatures mostly state no saving throws, so a "median 5e
+    // save" would be a number invented out of the minority that carry one. The 5e rows have no `fort`,
+    // and the derivation must therefore add nothing.
+    const pf2Source = { ...skunk, system: 'pathfinder2e', cr: '-1', statblock: { ...skunk.statblock, saves: 'Fort +4, Ref +7, Will +3' } };
+    const r = deriveNativeStatblock(pf2Source, 'dnd5e-2024');
+    if (isRefusal(r)) throw new Error(r.reason);
+    expect(DND5E_TIERS.every((t) => t.fort === undefined)).toBe(true);
+    expect(r.statblock.saves).toBeUndefined();
   });
 
   it('keeps saves when the systems are the same family', () => {
@@ -231,7 +264,10 @@ describe('deriveNativeStatblock — the prose is the source’s', () => {
 
   it('keeps what the creature IS', () => {
     expect(r.statblock.speed).toBe('20 ft.');
-    expect(r.statblock.senses).toBe('darkvision 30 ft.');
+    // Perception is a LINE in Pathfinder and a phrase inside 5e's senses ("passive Perception 13"), so it
+    // transfers neither way and is set from the tier. Everything else in the senses list — darkvision,
+    // scent — describes the CREATURE rather than its numbers, and is kept.
+    expect(r.statblock.senses).toBe(`Perception +${PF2_TIERS.find((t) => t.tier === -1)!.perception}; darkvision 30 ft.`);
     expect(r.statblock.entries?.map((e) => e.name)).toEqual(['Keen Smell', 'Bite']);
     expect(r.statblock.entries?.[0].body).toBe(skunk.statblock.entries![0].body);
   });

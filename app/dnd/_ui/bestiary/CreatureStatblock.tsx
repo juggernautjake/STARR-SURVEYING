@@ -120,7 +120,15 @@ export default function CreatureStatblock({
           : null}
         {line('Senses', s.senses)}
         {line('Languages', s.languages)}
-        {line('Challenge', s.cr === undefined ? undefined : `${s.cr}${s.xp ? ` (${s.xp.toLocaleString()} XP)` : ''}`)}
+        {/* N2-2 — Pathfinder prints "Level", not "Challenge". The `system` prop was already here and this
+            line ignored it, so a derived Pathfinder block read "Challenge 11" over Pathfinder numbers:
+            the last piece of 5e vocabulary left on an otherwise native block. Changed ONLY for Pathfinder,
+            where the term is certain; Intuitive Games keeps "Challenge" rather than having a label
+            guessed for it. */}
+        {line(
+          system === 'pathfinder2e' ? 'Level' : 'Challenge',
+          s.cr === undefined ? undefined : `${s.cr}${s.xp ? ` (${s.xp.toLocaleString()} XP)` : ''}`,
+        )}
         {line('Proficiency Bonus', s.proficiencyBonus === undefined ? undefined : formatModifier(s.proficiencyBonus))}
       </div>
 

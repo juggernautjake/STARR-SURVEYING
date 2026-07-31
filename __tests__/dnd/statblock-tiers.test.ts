@@ -75,4 +75,40 @@ describe('the numbers are plausible for the game they describe', () => {
     expect(at(PF2_TIERS, 5).ac).toBeGreaterThan(18);
     expect(at(PF2_TIERS, 5).ac).toBeLessThan(25);
   });
+
+  // ── N2-3: the per-system study, as an assertion rather than a paragraph ─────────────────────────────
+  //
+  // The finding the whole slice rests on, measured from the corpus: **Pathfinder prints Fort/Ref/Will and
+  // a Perception modifier on every tier; D&D prints them on none.** That is not a gap in our data — it is
+  // what the two systems are. 5e creatures mostly state no saving throws, and 5e writes perception as
+  // "passive Perception 13" inside its senses line rather than as a modifier.
+  //
+  // Pinned both ways round. If PF2 ever loses these, derived Pathfinder blocks silently stop being
+  // Pathfinder blocks; if 5e ever GAINS them, it means a median was invented from the minority of 5e
+  // creatures that carry a save, which is the N1-1 zero-table bug in a new costume.
+  it('Pathfinder publishes saves and Perception at every tier', () => {
+    for (const r of PF2_TIERS) {
+      expect(r.fort, `level ${r.tier} Fort`).toBeTypeOf('number');
+      expect(r.ref, `level ${r.tier} Ref`).toBeTypeOf('number');
+      expect(r.will, `level ${r.tier} Will`).toBeTypeOf('number');
+      expect(r.perception, `level ${r.tier} Perception`).toBeTypeOf('number');
+    }
+  });
+
+  it('D&D publishes neither, and no median is invented for it', () => {
+    for (const r of DND5E_TIERS) {
+      expect(r.fort, `CR ${r.tier}`).toBeUndefined();
+      expect(r.perception, `CR ${r.tier}`).toBeUndefined();
+    }
+  });
+
+  it('Pathfinder saves rise with level, like everything else on its scale', () => {
+    // Same non-decreasing property as AC and HP: a higher-level creature must not be easier to affect.
+    for (const k of ['fort', 'ref', 'will', 'perception'] as const) {
+      const series = PF2_TIERS.map((r) => r[k]!);
+      for (let i = 1; i < series.length; i += 1) {
+        expect(series[i], `${k} at level ${PF2_TIERS[i].tier}`).toBeGreaterThanOrEqual(series[i - 1]);
+      }
+    }
+  });
 });

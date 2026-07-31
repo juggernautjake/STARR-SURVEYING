@@ -20,6 +20,22 @@ export interface TierRow {
   hp: number;
   /** Median attack bonus across the tier's creatures. 0 where the tier's creatures carry no to-hit. */
   attack: number;
+
+  // ── N2-3: the lines only SOME systems print ────────────────────────────────────────────────────────
+  //
+  // Optional because their absence is a FACT ABOUT THE SYSTEM, not missing data. Measured coverage:
+  // Pathfinder prints Fort/Ref/Will and a Perception modifier on **25 of 25** tiers — every published
+  // creature has them — and D&D prints them on **0 of 31**, because most 5e creatures state no saving
+  // throws at all and 5e writes perception as "passive Perception 13" inside its senses line.
+  //
+  // That asymmetry is why a derived Pathfinder block used to be recognisably not a Pathfinder block: saves
+  // are correctly DROPPED when crossing families (a 5e block's "WIS +3" names a save Pathfinder has not
+  // got) and nothing replaced them. These are the replacement, measured the same way as AC and HP.
+  fort?: number;
+  ref?: number;
+  will?: number;
+  perception?: number;
+
   /** How many creatures this row was measured from — so a thin tier is visible rather than implied. */
   sample: number;
 }
@@ -61,29 +77,29 @@ export const DND5E_TIERS: TierRow[] = [
 
 /** Measured from 1591 creatures across 25 tiers of `pathfinder2e`. */
 export const PF2_TIERS: TierRow[] = [
-  { tier: -1, ac: 15, hp: 8, attack: 7, sample: 37 },
-  { tier: 0, ac: 16, hp: 15, attack: 7, sample: 36 },
-  { tier: 1, ac: 16, hp: 20, attack: 8, sample: 153 },
-  { tier: 2, ac: 17, hp: 30, attack: 10, sample: 151 },
-  { tier: 3, ac: 18, hp: 45, attack: 11, sample: 115 },
-  { tier: 4, ac: 21, hp: 60, attack: 13, sample: 109 },
-  { tier: 5, ac: 21, hp: 75, attack: 15, sample: 103 },
-  { tier: 6, ac: 24, hp: 99, attack: 17, sample: 91 },
-  { tier: 7, ac: 25, hp: 115, attack: 18, sample: 99 },
-  { tier: 8, ac: 27, hp: 135, attack: 20, sample: 91 },
-  { tier: 9, ac: 28, hp: 155, attack: 21, sample: 85 },
-  { tier: 10, ac: 30, hp: 175, attack: 23, sample: 81 },
-  { tier: 11, ac: 31, hp: 195, attack: 24, sample: 63 },
-  { tier: 12, ac: 33, hp: 215, attack: 25, sample: 58 },
-  { tier: 13, ac: 34, hp: 245, attack: 27, sample: 58 },
-  { tier: 14, ac: 36, hp: 252, attack: 29, sample: 53 },
-  { tier: 15, ac: 37, hp: 285, attack: 30, sample: 42 },
-  { tier: 16, ac: 39, hp: 295, attack: 32, sample: 33 },
-  { tier: 17, ac: 40, hp: 330, attack: 33, sample: 29 },
-  { tier: 18, ac: 42, hp: 340, attack: 35, sample: 34 },
-  { tier: 19, ac: 43, hp: 370, attack: 36, sample: 23 },
-  { tier: 20, ac: 45, hp: 375, attack: 38, sample: 29 },
-  { tier: 21, ac: 46, hp: 420, attack: 39, sample: 8 },
-  { tier: 22, ac: 47, hp: 485, attack: 40, sample: 5 },
-  { tier: 23, ac: 49, hp: 485, attack: 41, sample: 5 },
+  { tier: -1, ac: 15, hp: 8, attack: 7, fort: 4, ref: 7, will: 3, perception: 5, sample: 37 },
+  { tier: 0, ac: 16, hp: 15, attack: 7, fort: 6, ref: 7, will: 4, perception: 6, sample: 36 },
+  { tier: 1, ac: 16, hp: 20, attack: 8, fort: 6, ref: 8, will: 6, perception: 6, sample: 153 },
+  { tier: 2, ac: 17, hp: 30, attack: 10, fort: 8, ref: 9, will: 6, perception: 8, sample: 151 },
+  { tier: 3, ac: 18, hp: 45, attack: 11, fort: 9, ref: 10, will: 7, perception: 9, sample: 115 },
+  { tier: 4, ac: 21, hp: 60, attack: 13, fort: 11, ref: 11, will: 10, perception: 11, sample: 109 },
+  { tier: 5, ac: 21, hp: 75, attack: 15, fort: 13, ref: 12, will: 10, perception: 12, sample: 103 },
+  { tier: 6, ac: 24, hp: 99, attack: 17, fort: 15, ref: 14, will: 13, perception: 14, sample: 91 },
+  { tier: 7, ac: 25, hp: 115, attack: 18, fort: 16, ref: 15, will: 14, perception: 15, sample: 99 },
+  { tier: 8, ac: 27, hp: 135, attack: 20, fort: 17, ref: 16, will: 16, perception: 16, sample: 91 },
+  { tier: 9, ac: 28, hp: 155, attack: 21, fort: 19, ref: 17, will: 17, perception: 18, sample: 85 },
+  { tier: 10, ac: 30, hp: 175, attack: 23, fort: 20, ref: 19, will: 19, perception: 19, sample: 81 },
+  { tier: 11, ac: 31, hp: 195, attack: 24, fort: 22, ref: 20, will: 21, perception: 21, sample: 63 },
+  { tier: 12, ac: 33, hp: 215, attack: 25, fort: 23, ref: 21, will: 22, perception: 22, sample: 58 },
+  { tier: 13, ac: 34, hp: 245, attack: 27, fort: 24, ref: 23, will: 23, perception: 24, sample: 58 },
+  { tier: 14, ac: 36, hp: 252, attack: 29, fort: 25, ref: 25, will: 26, perception: 26, sample: 53 },
+  { tier: 15, ac: 37, hp: 285, attack: 30, fort: 27, ref: 25, will: 27, perception: 27, sample: 42 },
+  { tier: 16, ac: 39, hp: 295, attack: 32, fort: 30, ref: 28, will: 28, perception: 28, sample: 33 },
+  { tier: 17, ac: 40, hp: 330, attack: 33, fort: 30, ref: 29, will: 30, perception: 30, sample: 29 },
+  { tier: 18, ac: 42, hp: 340, attack: 35, fort: 32, ref: 30, will: 31, perception: 32, sample: 34 },
+  { tier: 19, ac: 43, hp: 370, attack: 36, fort: 34, ref: 32, will: 34, perception: 33, sample: 23 },
+  { tier: 20, ac: 45, hp: 375, attack: 38, fort: 35, ref: 32, will: 36, perception: 36, sample: 29 },
+  { tier: 21, ac: 46, hp: 420, attack: 39, fort: 38, ref: 34, will: 36, perception: 37, sample: 8 },
+  { tier: 22, ac: 47, hp: 485, attack: 40, fort: 38, ref: 36, will: 36, perception: 37, sample: 5 },
+  { tier: 23, ac: 49, hp: 485, attack: 41, fort: 39, ref: 37, will: 37, perception: 40, sample: 5 },
 ];

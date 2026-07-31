@@ -194,14 +194,41 @@ export function deriveNativeStatblock(
   }
   if (sb.spellcasting) out.spellcasting = sb.spellcasting;
 
-  // Saves and skills are dropped rather than carried: they are written in the SOURCE system's vocabulary
-  // (5e's six saves versus Pathfinder's three), and a Pathfinder block listing "WIS +3" is a block that
-  // names a save the system does not have.
+  // ── Saves: dropped when crossing, then REBUILT where the target publishes them (N2-3) ─────────────
+  //
+  // Dropping is still right — a Pathfinder block listing "WIS +3" names a save Pathfinder has not got —
+  // but dropping ALONE left a derived Pathfinder creature with no saving throws at all, and every
+  // published PF2 creature has three. Measured coverage says so plainly: Pathfinder prints Fort/Ref/Will
+  // on 25 of 25 tiers, D&D on 0 of 31. So the foreign saves go, and the target's own measured ones
+  // replace them wherever the target actually prints saves.
   if (sb.saves && readAs !== toScale) {
     notes.push(`Saving throws dropped — ${label(input.system)} and ${label(target)} do not have the same saves, so carrying them across would name saves this system has not got.`);
   } else if (sb.saves) {
     out.saves = sb.saves;
   }
+
+  if (row.fort !== undefined && row.ref !== undefined && row.will !== undefined) {
+    // Only when the block does not already carry the target's own saves — a same-family derivation keeps
+    // the creature's real ones, which are a designer's numbers and beat a median.
+    if (!out.saves) {
+      out.saves = `Fort ${signed(row.fort)}, Ref ${signed(row.ref)}, Will ${signed(row.will)}`;
+      notes.push(`Fort/Ref/Will rebuilt at ${scaleWord(toScale)} ${out.cr}'s measured medians — every Pathfinder creature prints three saves, and a block without them is not a Pathfinder block.`);
+    }
+  }
+
+  // Perception is a LINE in Pathfinder and a phrase inside 5e's senses ("passive Perception 13"), so it
+  // cannot simply be carried either way. Where the target publishes it, the measured value is stated and
+  // the source's other senses — darkvision, scent — are kept, since those describe the creature rather
+  // than its numbers.
+  if (row.perception !== undefined) {
+    const rest = (sb.senses ?? '')
+      .split(/[;,]/)
+      .map((s) => s.trim())
+      .filter((s) => s && !/perception/i.test(s));
+    out.senses = [`Perception ${signed(row.perception)}`, ...rest].join('; ');
+    notes.push(`Perception set to ${signed(row.perception)}, this tier's measured median — the source wrote it in its own system's form, which does not transfer.`);
+  }
+
   if (sb.skills) out.skills = sb.skills;
 
   return { system: target, statblock: out, tier: out.cr, notes, sample: row.sample };
@@ -215,6 +242,11 @@ export function isRefusal(r: DeriveResult | DeriveRefusal): r is DeriveRefusal {
 /** What a reader calls the number: 5e says CR, Pathfinder says level. */
 function scaleWord(s: TierScale): string {
   return s === 'pf2' ? 'level' : 'CR';
+}
+
+/** "+8" / "-1". A modifier printed without its sign is a modifier a reader has to guess at. */
+function signed(n: number): string {
+  return n >= 0 ? `+${n}` : String(n);
 }
 
 /**
