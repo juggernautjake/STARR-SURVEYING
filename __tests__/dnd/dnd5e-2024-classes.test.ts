@@ -15,9 +15,17 @@ const CLASSES = classesForSystem(SYS);
 // structural soundness so it doesn't have to live in the RAW golden maps.
 const OFFICIAL = CLASSES.filter((c) => !c.custom);
 
+// The official 2024 roster: the 12 PHB classes PLUS the Artificer.
+//
+// This list used to be "the 12 PHB classes" and the Artificer's arrival is exactly the case that makes the
+// distinction matter. It is FIRST-PARTY rules — Eberron: Forge of the Artificer — not homebrew, so it does
+// not belong with the Pugilist below; but it is not in the PHB either, so a list named for the PHB was
+// always going to be ambiguous the moment a supplement shipped a class. The line-up this file pins is
+// "official 2024 classes", and a future supplement class is added here rather than filtered out.
 const EXPECTED = [
   'Barbarian', 'Bard', 'Cleric', 'Druid', 'Fighter', 'Monk',
   'Paladin', 'Ranger', 'Rogue', 'Sorcerer', 'Warlock', 'Wizard',
+  'Artificer',
 ];
 
 // The RAW hit die per class (identical in 2014 and 2024). Drives max HP + the hit-dice pool, so a wrong
@@ -27,6 +35,7 @@ const HIT_DICE: Record<string, number> = {
   Barbarian: 12, Fighter: 10, Paladin: 10, Ranger: 10,
   Bard: 8, Cleric: 8, Druid: 8, Monk: 8, Rogue: 8, Warlock: 8,
   Sorcerer: 6, Wizard: 6,
+  Artificer: 8,
 };
 
 // The RAW pair of saving-throw proficiencies per class (identical in 2014/2024). The generic "exactly 2
@@ -36,6 +45,7 @@ const SAVES: Record<string, string[]> = {
   Barbarian: ['con', 'str'], Bard: ['cha', 'dex'], Cleric: ['cha', 'wis'], Druid: ['int', 'wis'],
   Fighter: ['con', 'str'], Monk: ['dex', 'str'], Paladin: ['cha', 'wis'], Ranger: ['dex', 'str'],
   Rogue: ['dex', 'int'], Sorcerer: ['cha', 'con'], Warlock: ['cha', 'wis'], Wizard: ['int', 'wis'],
+  Artificer: ['con', 'int'],
 };
 
 // The EXACT ASI cadence per 2024 class. Most take one at 4/8/12/16 (level 19 is an Epic Boon, NOT an ASI
@@ -46,11 +56,11 @@ const ASI_LEVELS: Record<string, number[]> = {
   Fighter: [4, 6, 8, 12, 14, 16], Rogue: [4, 8, 10, 12, 16],
   Barbarian: [4, 8, 12, 16], Bard: [4, 8, 12, 16], Cleric: [4, 8, 12, 16], Druid: [4, 8, 12, 16],
   Monk: [4, 8, 12, 16], Paladin: [4, 8, 12, 16], Ranger: [4, 8, 12, 16], Sorcerer: [4, 8, 12, 16],
-  Warlock: [4, 8, 12, 16], Wizard: [4, 8, 12, 16],
+  Warlock: [4, 8, 12, 16], Wizard: [4, 8, 12, 16], Artificer: [4, 8, 12, 16],
 };
 
 describe('the 2024 class roster', () => {
-  it('registers all 12 PHB classes', () => {
+  it('registers the 12 PHB classes plus the Artificer', () => {
     expect(OFFICIAL.map((c) => c.name).sort()).toEqual([...EXPECTED].sort());
     expect(systemHasClasses(SYS)).toBe(true);
   });

@@ -35,9 +35,13 @@ describe('the 2024 class list still contains the homebrew class, flagged', () =>
     expect(pug!.custom?.authorName).toBe('Jacob');
   });
 
-  it('leaves the twelve official classes unflagged', () => {
+  // Thirteen since 2026-07-31: the 12 PHB classes plus the Artificer (Eberron: Forge of the Artificer).
+  // The Artificer is FIRST-PARTY, so the point of this test — that only homebrew carries `custom` — holds
+  // with it on the unflagged side. Flagging a published class to keep the count at 12 would have been the
+  // wrong fix: it would have made the picker badge official rules as someone's homebrew.
+  it('leaves the official classes unflagged', () => {
     const official = classes.filter((c) => !/pugilist/i.test(c.name));
-    expect(official).toHaveLength(12);
+    expect(official).toHaveLength(13);
     for (const c of official) expect(c.custom, `${c.name} must NOT be flagged custom`).toBeFalsy();
   });
 });

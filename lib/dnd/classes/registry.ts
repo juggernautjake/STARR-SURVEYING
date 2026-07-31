@@ -38,10 +38,15 @@ import { CLERIC_2014, CLERIC_SUBCLASSES_2014 } from './dnd5e-2014/cleric';
 import { DRUID_2014, DRUID_SUBCLASSES_2014 } from './dnd5e-2014/druid';
 import { WIZARD_2014, WIZARD_SUBCLASSES_2014 } from './dnd5e-2014/wizard';
 import { ARTIFICER_2014, ARTIFICER_SUBCLASSES_2014 } from './dnd5e-2014/artificer';
+import { ARTIFICER_2024, ARTIFICER_SUBCLASSES_2024 } from './dnd5e-2024/artificer';
 
 const DND5E_2024_CLASSES: ClassDefinition[] = [
   BARBARIAN_2024, BARD_2024, CLERIC_2024, DRUID_2024, FIGHTER_2024, MONK_2024,
   PALADIN_2024, RANGER_2024, ROGUE_2024, SORCERER_2024, WARLOCK_2024, WIZARD_2024,
+  // Official, but not a PHB class: published in Eberron: Forge of the Artificer, after the 2024 PHB.
+  // It belongs in this list rather than the custom one — it is first-party rules, and the picker's
+  // "12 PHB classes" framing is about the PHB, not about what a 2024 character may legally be.
+  ARTIFICER_2024,
   // Homebrew, but fully authored 1–20 so the builder can walk it like any class. Flagged `custom` so the
   // picker badges it and a DM can gate it (Area H — Rangor/Pugilist as selectable 2024 custom options).
   PUGILIST_2024,
@@ -55,6 +60,9 @@ const DND5E_2024_SUBCLASSES: SubclassDefinition[] = [
   ...PUGILIST_SUBCLASSES_2024,
   // The published 2024 line-up has SIX subclasses; the import above carried only Sweet Science.
   ...PUGILIST_2024_EXTRA_SUBCLASSES,
+  // Six as well: the four that carried over from 2014, plus Cartographer (Forge of the Artificer) and
+  // Reanimator (Ravenloft: The Horrors Within).
+  ...ARTIFICER_SUBCLASSES_2024,
 ];
 
 /**

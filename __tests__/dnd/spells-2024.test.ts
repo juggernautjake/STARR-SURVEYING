@@ -67,11 +67,18 @@ describe('the 2024 spell catalog is structurally sound', () => {
   });
 
   it('attributes every record to a source', () => {
-    // Two legitimate sources since the 2026-07-20 verification pass: the 2024 PHB, and earlier
-    // 5e books for spells the 2024 PHB does not reprint. Labelling the latter 'PHB 2024' would
-    // tell a player filtering by source that they are current 2024 options when they are not.
+    // Four legitimate sources. The 2024 PHB; earlier 5e books for spells the 2024 PHB does not reprint
+    // (labelling those 'PHB 2024' would tell a player filtering by source that they are current 2024
+    // options when they are not); and — since the Artificer landed on 2026-07-31 — two CURRENT
+    // non-PHB 2024 sources. The last two are deliberately not folded into the LEGACY bucket: they are
+    // in-print 2024 content, and calling them leftovers is the same lie in the other direction.
     for (const s of SPELLS_2024) {
-      expect(['PHB 2024', 'Earlier 5e sourcebook (not in the 2024 PHB)'], s.key).toContain(s.source);
+      expect([
+        'PHB 2024',
+        'Earlier 5e sourcebook (not in the 2024 PHB)',
+        'Eberron: Forge of the Artificer',
+        'D&D Beyond Drops (June 2026)',
+      ], s.key).toContain(s.source);
     }
   });
 

@@ -112,7 +112,10 @@ const SKILLS_5E: SkillDef[] = [
 const CONDITIONS_5E = ['Blinded', 'Charmed', 'Deafened', 'Exhaustion', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious'];
 
 // The 12 core 5e classes (hit die, key ability, level-1 save proficiencies, caster type) — the same
-// twelve in the 2014 and 2024 PHBs (Artificer is a 2014-era optional class, added below for 2014 only).
+// twelve in the 2014 and 2024 PHBs. The Artificer is in NEITHER PHB and is appended to both editions
+// below: 2014's comes from Eberron: Rising from the Last War, 2024's from Eberron: Forge of the
+// Artificer. Its headline knobs happen to be identical across the two (INT, d8, CON/INT, half caster) —
+// what changed between editions is its features, which live in `lib/dnd/classes/*/artificer.ts`.
 const CLASSES_5E_CORE: ClassDef[] = [
   { name: 'Barbarian', keyAbility: 'STR', hitDie: 12, hpPerLevel: null, saves: ['STR', 'CON'], caster: 'none' },
   { name: 'Bard', keyAbility: 'CHA', hitDie: 8, hpPerLevel: null, saves: ['DEX', 'CHA'], caster: 'full' },
@@ -203,7 +206,11 @@ export const SYSTEM_RULES: Record<string, SystemRules> = {
     ],
     content: {
       skills: SKILLS_5E,
-      classes: CLASSES_5E_CORE,
+      classes: [
+        ...CLASSES_5E_CORE,
+        // Eberron: Forge of the Artificer. Same headline knobs as its 2014 ancestor; different features.
+        { name: 'Artificer', keyAbility: 'INT', hitDie: 8, hpPerLevel: null, saves: ['CON', 'INT'], caster: 'half' },
+      ],
       // The 2024 PHB species list differs from 2014: no standalone Half-Elf/Half-Orc; adds Aasimar, Goliath, Orc.
       species: ['Aasimar', 'Dragonborn', 'Dwarf', 'Elf', 'Gnome', 'Goliath', 'Halfling', 'Human', 'Orc', 'Tiefling'],
       conditions: CONDITIONS_5E,

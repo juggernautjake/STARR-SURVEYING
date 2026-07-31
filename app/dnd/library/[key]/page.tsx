@@ -26,6 +26,14 @@ import JumpNav from '@/app/dnd/_ui/JumpNav';
 import CollapsibleSection from '@/app/dnd/_ui/CollapsibleSection';
 import { igSystemLogo, IG_ART_CREDIT } from '@/lib/dnd/systems/intuitive-games/art';
 
+/** Pluralise a subclass label. Naive `+ 's'` printed "6 artificer subclasss" the moment a class whose
+ *  label ends in `s` arrived (the 2024 Artificer, whose book calls it an "Artificer Subclass"). Every
+ *  other label — Divine Domain, Sacred Oath, Primal Path — pluralises with a bare `s`, which is why the
+ *  bug went unnoticed for twelve classes. */
+function pluralLabel(label: string): string {
+  return /(s|x|z|ch|sh)$/i.test(label) ? `${label}es` : `${label}s`;
+}
+
 export function generateStaticParams() {
   // Only the playable systems have a public library page; under-construction systems are hidden (owner 2026-07-18).
   return GAME_SYSTEMS.filter((s) => isSystemAvailable(s.key)).map((s) => ({ key: s.key }));
@@ -309,7 +317,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                     <summary className={styles.disclosure} style={{ padding: '9px 12px', color: 'var(--hx-gold-2)', fontFamily: 'var(--hx-font-display)', fontSize: 15 }}>
                       {c.name}
                       <span style={{ color: 'var(--hx-muted)', fontSize: 12, fontFamily: 'var(--hx-font-body)' }}>
-                        {' '}· d{c.hitDie} · {c.savingThrows.map((s) => s.toUpperCase()).join('/')} saves · {c.features.length} features · {subs.length} {c.subclassLabel.toLowerCase()}s
+                        {' '}· d{c.hitDie} · {c.savingThrows.map((s) => s.toUpperCase()).join('/')} saves · {c.features.length} features · {subs.length} {pluralLabel(c.subclassLabel.toLowerCase())}
                       </span>
                     </summary>
                     <div style={{ padding: '4px 12px 12px', display: 'grid', gap: 8 }}>
@@ -345,7 +353,7 @@ export default async function LibrarySystemPage({ params }: { params: { key: str
                       {subs.length > 0 && (
                         <div style={{ borderTop: '1px solid var(--hx-gold-1)', paddingTop: 8 }}>
                           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--hx-gold-2)', marginBottom: 4 }}>
-                            {c.subclassLabel}s
+                            {pluralLabel(c.subclassLabel)}
                           </div>
                           {subs.map((s) => (
                             <div key={s.key} style={{ marginBottom: 8 }}>

@@ -1363,11 +1363,47 @@ So "get all the classes built" is **mostly already true**. What is actually left
       (master) and again at 13 (legendary); a warpriest's level-19 master is favored-weapon-only. Every such
       step is marked `limitedTo` and left unapplied, so those weapons read one rank low — the safe
       direction. Closing it needs a per-character weapon-group choice, which is a slot, not a data fix.
-- [ ] **P5-12 — The 2024 Artificer.** *(Blocked on data.)* Published after the 2024 PHB; the repo has the
-      2014 one. Needs the owner to supply the revised text, exactly as the Pugilist was.
+- [x] **P5-12 — The 2024 Artificer. UNBLOCKED AND SHIPPED 2026-07-31.** The owner supplied four sources;
+      the class is `lib/dnd/classes/dnd5e-2024/artificer.ts` — full table 1–20, six subclasses, registered,
+      pinned by 24 tests in `__tests__/dnd/artificer-2024.test.ts`, and browser-verified in the library and
+      the builder's class picker.
+
+      **It is a genuinely different class, not a reskin of the 2014 file one directory over.** Eight
+      structural differences, each of which a copy-forward would have shipped wrong: Infuse Item →
+      **Replicate Magic Item** (learn *plans* 4→8, create *items* 2→6, both table columns rather than
+      formulas); Magical Tinkering → **Tinker's Magic** (Mending plus conjured mundane gear); prepared
+      spells is a **fixed table**, not `INT + half level`; **Tool Expertise is gone**, replaced by Magic
+      Item Tinker's Charge/Drain/Transmute; **Flash of Genius fires after the roll FAILS**; Spell-Storing
+      Item takes **level 1–3**; Magic Item Savant → **Advanced Artifice** (no longer bypasses attunement
+      requirements); and **level 19 is an Epic Boon**. Six subclasses, not four — **Cartographer** (FotA)
+      and **Reanimator** (Ravenloft: The Horrors Within) are new.
+
+      **The half-finished part was the spell list, and it is the part that would have shipped broken.**
+      Authoring the class is not enough: `spellEligibility` refuses any spell whose catalog record does not
+      name the class, so a fully-correct Artificer would have been unable to prepare a single spell. The
+      **81-spell 2024 Artificer list** is now tagged across the catalog, and the two spells its own book
+      adds — **Homunculus Servant** and **Tortoise Shell** — are catalogued (they were missing entirely).
+      A test asserts the picker accepts Cure Wounds and refuses Sacred Flame, because "the class exists"
+      and "the class is playable" turned out to be two different claims.
+
+      **Two guards had to be told what they meant rather than silenced.** `dnd5e-2024-classes.test.ts`
+      pinned "the 12 PHB classes" and the provenance test pinned "twelve official classes unflagged" —
+      the same shape of decision the SLOT_DRIVEN doc parked Magus/Summoner on. Resolved deliberately: the
+      Artificer is **first-party and unflagged**, the roster means *official 2024 classes* rather than
+      *PHB classes*, and both guards now say so. Flagging it `custom` to keep the count at 12 would have
+      made the picker badge published rules as somebody's homebrew.
+
+      *Found in passing and fixed:* the library printed **"6 artificer subclasss"** — a naive `+ 's'` that
+      twelve classes never exposed because no other `subclassLabel` ends in `s`.
 
 Everything above except P5-10 / P5-10b and P5-11 is **blocked on source material, not on effort** — worth
 saying plainly so this priority is not mistaken for a large build. The unblocked ones are real rules bugs.
+
+> **P5-12 is the counter-example to that sentence, and it is worth keeping.** It sat "blocked on data" while
+> the published class table was on a public wiki the whole time. The same reading error the SLOT_DRIVEN doc
+> recorded — *Ground Rule 1 says do not invent what you do not have; it does not say do not go and look* —
+> cost this item several weeks. The remaining blocked entries (P5-8, P0-6) have each now been re-checked
+> rather than assumed: see their own notes.
 
 - [x] **P5-7 — The guided builder's live preview.** *(C-6. The remaining per-slot screens are P5-7b.)*
       ~~`/dnd/characters/[id]/builder` is still B1 for all four systems~~ — **half of this was already
