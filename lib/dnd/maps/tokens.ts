@@ -42,9 +42,27 @@ export type TokenSubject =
 
 export interface TokenData {
   subject: TokenSubject;
-  size: TokenSize;
+  /**
+   * The DM's explicit OVERRIDE of the footprint, or **null when they have not stated one**.
+   *
+   * Null is not "medium". A creature already knows how big it is — a character through its species, a
+   * bestiary creature through its stat block — and defaulting here would silently draw every Ogre at one
+   * square while the sheet next to it says Large. So the parser reports what was written and the RENDERER
+   * resolves it against the subject, which is the only layer that knows what the subject is.
+   *
+   * The override still exists because footprint genuinely is the map's business (M5-1): a DM who wants
+   * this particular giant to take four squares should get four squares.
+   */
+  size: TokenSize | null;
   /** A DM's own name for this instance — "Goblin B" — when three of the same creature are on the map. */
   nickname?: string;
+}
+
+/** Stable key for a subject, so a token and the row it stands for can be matched in one map lookup. */
+export function subjectKey(subject: TokenSubject): string {
+  if ('characterId' in subject) return `character:${subject.characterId}`;
+  if ('creatureVariantId' in subject) return `variant:${subject.creatureVariantId}`;
+  return `creature:${subject.creatureId}`;
 }
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
@@ -68,9 +86,26 @@ export function readToken(data: unknown): TokenData | null {
   else if (isId(raw.creatureId)) subject = { creatureId: raw.creatureId };
   if (!subject) return null;
 
-  const size = TOKEN_SIZES.includes(d.size as TokenSize) ? (d.size as TokenSize) : 'medium';
+  // An unrecognised size reads as NOT STATED rather than as medium — see `TokenData.size`. A token whose
+  // blob says `size: "enormous"` is a token whose author's intent we cannot honour, and guessing "medium"
+  // for it hides that just as thoroughly as guessing for a blank.
+  const size = TOKEN_SIZES.includes(d.size as TokenSize) ? (d.size as TokenSize) : null;
   const nickname = typeof d.nickname === 'string' && d.nickname.trim() ? d.nickname.trim() : undefined;
   return { subject, size, ...(nickname ? { nickname } : {}) };
+}
+
+/**
+ * Read a size written by a system that is not this one — a species' `"Medium"`, a stat block's
+ * `"Large"`, PF2's `"Gargantuan"`. Returns null for anything unrecognised rather than guessing.
+ *
+ * Every system in this app uses the same six words for creature size, which is the reason a single
+ * `TokenSize` can serve all four (M5-1) — this is just the case-and-whitespace tolerance for reading
+ * them back out of prose fields written by four different catalogues.
+ */
+export function parseTokenSize(raw: unknown): TokenSize | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim().toLowerCase();
+  return (TOKEN_SIZES as readonly string[]).includes(s) ? (s as TokenSize) : null;
 }
 
 /**
@@ -99,6 +134,44 @@ export function tokenFootprint(size: TokenSize, grid: unknown): number {
   // A gridless map still needs a drawable size; 2 world units reads as a marker at the zoom these maps
   // open at, and a token there is a pin rather than a piece on a board.
   return g ? g.size * squares : 2 * squares;
+}
+
+/**
+ * Where a token of this footprint should be CENTRED so that it covers whole squares.
+ *
+ * ── WHY THE STORED POSITION IS NOT ALWAYS THE ANSWER ─────────────────────────────────────────────────
+ *
+ * Tokens render with `translate(-50%, -50%)`, so the stored point is the token's centre. M4-1 snaps that
+ * point to a cell CENTRE, which is exactly right for a creature one square wide — and exactly wrong for
+ * one that is two squares wide. A 2×2 token centred on a cell centre reaches half a square past the grid
+ * in all four directions and covers **nine** squares partially instead of four completely.
+ *
+ * The rule is the one every published grid uses, and it is about parity rather than size:
+ *
+ *   - **Odd footprints** (Medium 1×1, Huge 3×3) centre on a cell CENTRE.
+ *   - **Even footprints** (Large 2×2, Gargantuan 4×4) centre on a grid VERTEX — the corner where four
+ *     squares meet — because that is the only point an even-sided square can sit on and still align.
+ *
+ * Hex grids are exempt: a hex has no four-way vertex to straddle, so a token of any size centres on its
+ * own hex, and a bigger one simply overlaps its neighbours the way a big miniature does on a real hex mat.
+ *
+ * Snap-off returns the point untouched, like every other placement rule here — a DM who turned snapping
+ * off is placing something deliberately between squares and must not be corrected.
+ */
+export function tokenAnchor(x: number, y: number, size: TokenSize, grid: unknown): { x: number; y: number } {
+  const g = readGrid(grid);
+  if (!g || !g.snap) return { x, y };
+  if (g.kind === 'hex') return snapPoint(x, y, g);
+
+  const squares = SIZE_SQUARES[size] ?? 1;
+  if (squares % 2 === 1) return snapPoint(x, y, g);
+
+  // Nearest vertex. `round`, not `floor`: the token should move to the corner it is closest to, so a
+  // nudge of a fraction of a square does not slide it a whole square.
+  return {
+    x: Math.round((x - g.offsetX) / g.size) * g.size + g.offsetX,
+    y: Math.round((y - g.offsetY) / g.size) * g.size + g.offsetY,
+  };
 }
 
 /**

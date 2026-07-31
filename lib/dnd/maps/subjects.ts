@@ -1,0 +1,169 @@
+// lib/dnd/maps/subjects.ts — what the thing a token stands for LOOKS LIKE (M5-1b).
+//
+// Owner, 2026-07-30: *"We should be able to place the actual round token images from the character sheets
+// and they should be adjusted in size to match the grid size."*
+//
+// ── THE PORTRAIT IS RESOLVED, NEVER STORED ───────────────────────────────────────────────────────────
+//
+// `dnd_map_objects` has an `asset_url`, and copying the character's token art into it at placement time
+// would have been one line in `PlaceToken`. It is the wrong line, for the same reason `tokens.ts` refuses
+// to store HP: **a copied number is a number that goes stale.** A player who changes their portrait would
+// keep the old face on the board for as long as that token existed, with nothing on either surface saying
+// the two disagree — and the DM's only fix would be to delete the token and place it again.
+//
+// So a token stores WHO it is (M5-1's rule, unchanged) and this module answers WHAT THAT LOOKS LIKE, at
+// read time, every time. `asset_url` stays for objects that genuinely ARE an image — a rug, a crate, a
+// prop the DM uploaded — which is a picture with no subject behind it to ask.
+//
+// ── AND THE SIZE COMES FROM THE SAME PLACE ───────────────────────────────────────────────────────────
+//
+// `PlaceToken` used to write `size: 'medium'` for everything, so an Ogre stood on one square while its own
+// stat block said Large. A creature knows how big it is; the map asks. The DM's explicit override still
+// wins where they have set one — footprint is the map's business (M5-1) — but "not stated" now means "ask"
+// rather than "medium".
+//
+// ── G3 IS NOT AT STAKE HERE, AND THAT IS WORTH SAYING OUT LOUD ───────────────────────────────────────
+//
+// This is only ever called with subjects taken from tokens the viewer's own `loadMapObjects` query already
+// returned. A player's query cannot return a `dm`-visibility token, so a player can never reach this with a
+// hidden creature's id: the filtering has already happened upstream, in the query, which is where G3 says
+// it belongs. Names and portraits are exactly what a token is FOR — a marker nobody can identify is a
+// marker a DM has to narrate.
+import { supabaseAdmin } from '@/lib/supabase';
+import { speciesView } from '@/lib/dnd/species/view';
+import { parseTokenSize, subjectKey, type TokenSize, type TokenSubject } from './tokens';
+
+export interface TokenSubjectView {
+  /** The subject's own name — what the token is called when the DM has not nicknamed it. */
+  name: string;
+  /** Round token art. `token_url` before `art_url`: one is cropped to a circle for exactly this use. */
+  portrait: string | null;
+  /** The subject's OWN size. Null when nothing states one — the renderer then falls back to medium. */
+  size: TokenSize | null;
+}
+
+/** `character:<id>` → view. Keyed by `subjectKey` so a caller matches without re-deriving the shape. */
+export type SubjectViews = Map<string, TokenSubjectView>;
+
+/**
+ * Look up every subject in one round trip per table, rather than per token.
+ *
+ * A battle map with twenty goblins is twenty tokens pointing at ONE creature row. Querying per token
+ * would be twenty identical reads; de-duplicating first makes it one, and it is the `in(...)` list that
+ * does it rather than a cache with a lifetime to reason about.
+ */
+export async function loadTokenSubjects(subjects: readonly TokenSubject[]): Promise<SubjectViews> {
+  const views: SubjectViews = new Map();
+  if (!subjects.length) return views;
+
+  const characterIds = new Set<string>();
+  const creatureIds = new Set<string>();
+  const variantIds = new Set<string>();
+  for (const s of subjects) {
+    if ('characterId' in s) characterIds.add(s.characterId);
+    else if ('creatureVariantId' in s) variantIds.add(s.creatureVariantId);
+    else creatureIds.add(s.creatureId);
+  }
+
+  await Promise.all([
+    loadCharacters(characterIds, views),
+    loadCreatures(creatureIds, views),
+    loadVariants(variantIds, views),
+  ]);
+
+  return views;
+}
+
+async function loadCharacters(ids: Set<string>, views: SubjectViews): Promise<void> {
+  if (!ids.size) return;
+  // `data->meta` rather than the whole `data` blob: that column is the ENTIRE sheet state, and pulling
+  // twenty of them to read one species name would move megabytes to render a row of circles.
+  const { data, error } = await supabaseAdmin
+    .from('dnd_characters')
+    .select('id, name, token_url, art_url, system, data->meta')
+    .in('id', [...ids]);
+  // Errors are read, never discarded — the repeated defect this codebase keeps rediscovering. A token
+  // with no portrait and a token whose lookup FAILED must not look the same to the page.
+  if (error) throw new Error(`token subjects (characters) query failed: ${error.message}`);
+
+  for (const row of (data ?? []) as CharacterRow[]) {
+    const species = typeof row.meta?.species === 'string' ? row.meta.species : null;
+    views.set(subjectKey({ characterId: row.id }), {
+      name: row.name,
+      portrait: row.token_url ?? row.art_url ?? null,
+      // Through `speciesView`, which is the system-keyed dispatcher for lineage data — so a PF2 ancestry's
+      // size is read by PF2's rules and a 2014 race's by 2014's, rather than by a table living here.
+      size: parseTokenSize(speciesView(row.system, species)?.size),
+    });
+  }
+}
+
+interface CharacterRow {
+  id: string;
+  name: string;
+  token_url: string | null;
+  art_url: string | null;
+  system: string | null;
+  /** `data->meta`, so the sheet's identity block without the sheet. */
+  meta: { species?: unknown } | null;
+}
+
+async function loadCreatures(ids: Set<string>, views: SubjectViews): Promise<void> {
+  if (!ids.size) return;
+  const { data, error } = await supabaseAdmin
+    .from('dnd_creatures')
+    .select('id, name, image_url, size')
+    .in('id', [...ids]);
+  if (error) throw new Error(`token subjects (creatures) query failed: ${error.message}`);
+
+  for (const row of (data ?? []) as CreatureRow[]) {
+    views.set(subjectKey({ creatureId: row.id }), {
+      name: row.name,
+      portrait: row.image_url ?? null,
+      size: parseTokenSize(row.size),
+    });
+  }
+}
+
+interface CreatureRow {
+  id: string;
+  name: string;
+  image_url: string | null;
+  size: string | null;
+}
+
+/**
+ * A variant carries its own NAME and stat block, and nothing else — `dnd_creature_variants` has no
+ * `image_url` and no `size` column.
+ *
+ * That is the schema stating the right thing rather than a gap to fill: "Elite Ogre" is a different stat
+ * block for the same ogre, so it looks like an ogre and takes an ogre's space. Both come from the parent
+ * through the join, which also means new art on the creature reaches every variant of it at once.
+ */
+async function loadVariants(ids: Set<string>, views: SubjectViews): Promise<void> {
+  if (!ids.size) return;
+  const { data, error } = await supabaseAdmin
+    .from('dnd_creature_variants')
+    .select('id, name, creature:dnd_creatures(name, image_url, size)')
+    .in('id', [...ids]);
+  if (error) throw new Error(`token subjects (variants) query failed: ${error.message}`);
+
+  for (const row of (data ?? []) as unknown as VariantRow[]) {
+    // PostgREST types an embedded to-one as an array in some versions — normalised once here rather than
+    // at each of the three reads below.
+    const parent = Array.isArray(row.creature) ? row.creature[0] : row.creature;
+    views.set(subjectKey({ creatureVariantId: row.id }), {
+      // The variant's own name wins: a DM who placed "Elite Ogre" should read "Elite Ogre" on the board.
+      name: row.name || parent?.name || 'Creature',
+      portrait: parent?.image_url ?? null,
+      size: parseTokenSize(parent?.size),
+    });
+  }
+}
+
+interface ParentCreature { name: string; image_url: string | null; size: string | null }
+interface VariantRow {
+  id: string;
+  name: string | null;
+  creature: ParentCreature | ParentCreature[] | null;
+}

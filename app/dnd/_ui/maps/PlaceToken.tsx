@@ -98,7 +98,10 @@ export default function PlaceToken({
       label: s.name,
       data: {
         [s.kind === 'character' ? 'characterId' : 'creatureId']: s.id,
-        size: 'medium',
+        // NO `size` — deliberately. This used to write `size: 'medium'` for everything, so an Ogre stood
+        // on one square while its own stat block said Large. A creature knows how big it is; the renderer
+        // asks its sheet (M5-1b). The field stays available as the DM's explicit override, which is what
+        // it was always meant to be — writing a default into it made every token an override of nothing.
         nickname: s.name,
       },
       // Visible to the party on placement. A token is the one object kind whose whole purpose is to be

@@ -20,7 +20,8 @@ import styles from '@/app/dnd/_ui/hextech.module.css';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndUser, getCampaignRole } from '@/lib/dnd/auth';
 import { loadMapTree, loadMapObjects } from '@/lib/dnd/maps/query';
-import { readToken, tokenFootprint } from '@/lib/dnd/maps/tokens';
+import { readToken, subjectKey, tokenAnchor, tokenFootprint } from '@/lib/dnd/maps/tokens';
+import { loadTokenSubjects } from '@/lib/dnd/maps/subjects';
 import { breadcrumb, childrenOf, rootsOf } from '@/lib/dnd/maps/tree';
 import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
@@ -93,6 +94,12 @@ export default async function WorldPage({
   const nodeTokens = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'token') : [])
     .map((o) => ({ o, t: readToken(o.data) }))
     .filter((x): x is { o: typeof x.o; t: NonNullable<typeof x.t> } => x.t !== null);
+
+  // M5-1b — what each token STANDS FOR: its portrait and its own size, resolved now rather than copied
+  // onto the object when it was placed. A player who changes their portrait changes their token; a token
+  // carrying a copy would keep the old face for as long as it existed, with nothing saying the two
+  // disagree. Same rule that keeps HP off a token.
+  const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
 
   return (
@@ -254,8 +261,19 @@ export default async function WorldPage({
                       the map grew would slide off the space it is standing in. Its footprint comes from the
                       node's own grid (tokenFootprint), so a Large creature covers 2×2 and looks it. */}
                   {nodeTokens.map(({ o, t }) => {
-                    const side = tokenFootprint(t.size, current.grid);
-                    const label = t.nickname || o.label || 'Token';
+                    const subject = subjects.get(subjectKey(t.subject));
+                    // The DM's explicit override, else the creature's own size, else medium. "Not stated"
+                    // now means ASK rather than "medium", which is why an Ogre stops standing on one square.
+                    const size = t.size ?? subject?.size ?? 'medium';
+                    const side = tokenFootprint(size, current.grid);
+                    // ANCHORED, not just positioned. An even footprint (Large 2×2, Gargantuan 4×4) centres
+                    // on a grid VERTEX; an odd one on a cell centre. Centring a 2×2 on a cell centre covers
+                    // nine squares partially instead of four completely.
+                    const at = tokenAnchor(o.x, o.y, size, current.grid);
+                    const label = t.nickname || subject?.name || o.label || 'Token';
+                    // `asset_url` is the DM's own override for THIS piece; otherwise the character's round
+                    // token art, resolved live from the sheet.
+                    const art = o.asset_url ?? subject?.portrait ?? null;
                     return (
                       <div
                         key={o.id}
@@ -263,14 +281,19 @@ export default async function WorldPage({
                         aria-label={label}
                         style={{
                           position: 'absolute',
-                          left: o.x,
-                          top: o.y,
+                          left: at.x,
+                          top: at.y,
                           width: side,
                           height: side,
                           transform: 'translate(-50%, -50%)',
                           borderRadius: '50%',
-                          border: '2px solid var(--hx-gold-2)',
-                          background: o.asset_url ? `center/cover url(${o.asset_url})` : 'rgba(1,10,19,0.82)',
+                          // PROPORTIONAL TO THE TOKEN, not a pixel count. Inside the transformed layer one
+                          // CSS pixel IS one world unit, so the old `2px` ring was 2 of a Medium token's 5
+                          // units — 40% of its diameter, and thicker still as the reader zoomed in. A
+                          // fraction of the footprint keeps the ring the same weight at every zoom AND at
+                          // every size, so a Gargantuan token is not outlined like a hairline.
+                          border: `${side * 0.07}px solid var(--hx-gold-2)`,
+                          background: 'rgba(1,10,19,0.82)',
                           display: 'grid',
                           placeItems: 'center',
                           color: 'var(--hx-gold-2)',
@@ -280,7 +303,21 @@ export default async function WorldPage({
                           overflow: 'hidden',
                         }}
                       >
-                        {!o.asset_url && label.slice(0, 1).toUpperCase()}
+                        {art ? (
+                          // An <img> rather than a background-image URL. A `background: url(${art})` builds
+                          // CSS out of a string the DM supplied, where an unescaped `)` ends the url() and
+                          // whatever follows is parsed as more CSS. `src` has no such grammar to escape out
+                          // of. `object-fit: cover` fills the circle from any aspect ratio, which is what
+                          // makes a rectangular portrait usable as a round token.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={art}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '50%' }}
+                          />
+                        ) : (
+                          label.slice(0, 1).toUpperCase()
+                        )}
                       </div>
                     );
                   })}
@@ -307,8 +344,13 @@ export default async function WorldPage({
                     nodeId={current.id}
                     subjects={placeable}
                     // The SAME list the map draws, so a token the DM can see is always a token they can
-                    // move — a control listing rows the renderer dropped would offer to move nothing.
-                    placed={nodeTokens.map(({ o, t }) => ({ id: o.id, label: o.label || t.nickname || 'Token' }))}
+                    // move — a control listing rows the renderer dropped would offer to move nothing. The
+                    // label resolves the same way the token's own does, so the board and this control
+                    // cannot call the same piece two different things.
+                    placed={nodeTokens.map(({ o, t }) => ({
+                      id: o.id,
+                      label: t.nickname || subjects.get(subjectKey(t.subject))?.name || o.label || 'Token',
+                    }))}
                   />
                 </section>
               )}

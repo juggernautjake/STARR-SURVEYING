@@ -1,8 +1,33 @@
 # Dice realism & roller parity — 2026-07-29
 
-<!-- HOOK:BLOCKED Everything left (D7-1, D7-3's sweep, D6-3's contact sheet) waits on one owner decision: when a roller cannot fit a 360x640 phone, does the consistent window size give, or the no-scrollbar rule? Asked 2026-07-30, twice, unanswered. Remove this line once answered. -->
+> ## ✅ ANSWERED 2026-07-30 — **one size per screen**
+>
+> > *"All templates still share ONE size — but that size is derived from the tallest roller's content and
+> > recomputed per screen. On a phone it becomes a full-width sheet sized to the viewport. Consistency
+> > holds within any given screen, and nothing ever scrolls."* — owner, choosing between four options.
+>
+> **Both asks survive, and neither is downgraded.** 07-28's *consistent size, template to template* is
+> read as consistent **at a given screen** rather than one universal constant; 07-29's *never scrolls* is
+> then satisfiable because the size can shrink to the viewport instead of overflowing it. `FIXED_W = 396`
+> / `FIXED_H = 560` become the DESKTOP ideal, clamped down per viewport, never a value the window exceeds.
+>
+> **What this unblocks, and what each now has to do:**
+>
+> - **D7-1** — the size becomes a pure function of the viewport, shared by every template. Three live bugs
+>   fall out of the reading and are recorded below rather than fixed in passing.
+> - **D7-3** — the sweep's definition of "correct at 360px" is now settled: the window is exactly as large
+>   as the screen allows and no larger, and nothing inside it scrolls except the tagged roll history.
+> - **D6-3** — the contact sheet uses the same Playwright harness, built once against a settled size.
+>
+> **Three defects this reading exposes in `useFloatingDock`, none yet fixed** (D7-1's actual work):
+> 1. `loadDockState` pins `w: FIXED_W, h: FIXED_H` regardless of viewport, so a restored window on a phone
+>    is larger than the screen.
+> 2. The resize handler only ever `Math.min`s the stored size down — a phone rotated to landscape keeps
+>    the portrait size and never grows back.
+> 3. `reset()` sets `h: null` (content-fit), which is exactly the shape-changing behaviour 07-28 forbade —
+>    so double-clicking the header still reintroduces the original complaint.
 
-> ## ⚠ Blocked on one decision — everything else here is shipped
+> ## ⚠ Previously blocked — everything else here is shipped
 >
 > **D1 through D6 are done.** Solids, projection, throw, `Die3D`, multi-dice, materials, sound, flare
 > (D5-4 deferred with a reason), and D6's parity audit + guards. Plus two owner reports fixed on

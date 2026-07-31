@@ -676,6 +676,51 @@ the viewport, drill-down and node authoring are all built, and no campaign has e
 "run sessions with it" today means starting from an empty world — which makes M4-1/M4-2 (the DM's placing
 tools) the next thing that matters, not another read path.
 
+### M5-1b · The token looks like the character, and fills its squares — **SHIPPED 2026-07-30**
+
+> *"We should be able to place the actual round token images from the character sheets and they should be
+> adjusted in size to match the grid size. Make sure that tokens are properly anchored to the center of the
+> grid they are on."* — owner, 2026-07-30
+
+M5-1's original text already promised this (*"its portrait, name, size category and colour come from the
+sheet — not typed in twice"*) and M5-1 shipped none of it: every token was a gold circle with a letter in it,
+every token was Medium, and `asset_url` — the one field that could have carried art — was never written.
+
+**The portrait is RESOLVED, never stored.** Copying `token_url` onto the map object at placement time was one
+line in `PlaceToken`, and it is the wrong line for exactly the reason `tokens.ts` already refuses to store HP:
+a copied value goes stale, and a player who changes their portrait would keep the old face on the board with
+nothing saying the two disagree. `lib/dnd/maps/subjects.ts` looks it up at read time — one query per table for
+the whole node, not one per token, because twenty goblins are twenty tokens pointing at one row. `asset_url`
+survives as the DM's per-piece override, which is what it was always for.
+
+**Size comes from the same place, and this was a live defect.** `PlaceToken` wrote `size: 'medium'` for
+everything, so an Ogre stood on one square while its own stat block said Large. `readToken` now reports an
+unstated size as **null rather than 'medium'** — the parser is the one layer that cannot ask the subject — and
+the renderer resolves *DM override → the creature's own size → medium*. Character size comes through
+`speciesView`, so a PF2 ancestry is read by PF2's rules; creature size off the bestiary row; a variant
+inherits its parent's art and size, because "Elite Ogre" is a different stat block for the same ogre.
+
+**Anchoring turned out to be about PARITY, not size.** Tokens draw with `translate(-50%, -50%)`, so M4-1's
+snap-to-cell-centre is right for a creature one square wide and wrong for one two squares wide: a Large 2×2
+centred on a cell centre reaches half a square past the grid on all four sides and covers **nine** squares
+partially instead of four completely. So `tokenAnchor` centres odd footprints (1×1, 3×3) on a cell centre and
+even ones (2×2, 4×4) on a grid **vertex**. Hex grids are exempt — a hex has no four-way vertex to straddle.
+
+Measured live at 8× zoom, in world units: Medium **20–25 × 30–35** (exactly one cell, centred on its centre),
+Large **50–60 × 30–40** (exactly 2×2, edges flush to grid lines).
+
+#### The bug the browser found this time
+
+**The token's ring was 2px inside a layer scaled 6×.** One CSS pixel *is* one world unit in there, so a `2px`
+border was 2 of a Medium token's 5 units — 40% of its diameter, swallowing the portrait it was framing, and
+getting heavier as the reader zoomed in. Now a fraction of the footprint (`side * 0.07`), which holds at every
+zoom and at every size. The same mistake as M4-1's 0.18-pixel grid line, in the opposite direction: both come
+from writing a pixel count inside a coordinate space that is not pixels.
+
+*Also fixed in passing:* the portrait renders as an `<img>` rather than `background: url(${art})`. The latter
+builds CSS from a DM-supplied string, where an unescaped `)` ends the `url()` and whatever follows is parsed
+as more CSS.
+
 ### M5-1 · Tokens bound to characters (original plan text)
 A `token` object references a `character_id` (PC or NPC/creature from the bestiary). Its portrait, name, size
 category and colour come from the sheet — not typed in twice.
