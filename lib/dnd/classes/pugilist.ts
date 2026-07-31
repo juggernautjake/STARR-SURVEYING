@@ -178,25 +178,93 @@ export const PUGILIST_2024_EXTRA_SUBCLASSES: SubclassDefinition[] = [
     const base = PUGILIST_2014_SUBCLASSES.find((s) => s.key === k)!;
     return { ...base, system: 'dnd5e-2024' };
   }),
-  // STREET SAINT, 2024. **Filled in 2026-07-28** from the author's PDF — but read the caveat before
-  // trusting it as the 2024 text.
+  // STREET SAINT, 2024 — **P0-6, RESOLVED 2026-07-31. The two accounts were both right.**
   //
-  // What is verified: the full Street Saint, transcribed verbatim from `street-saint_redux.pdf` (Sterling
-  // Vermin, 2021). That document is written for the 2014 class, so it is defined in
-  // `PUGILIST_2014_SUBCLASSES` above and carried across here, exactly as the other four are.
+  // This entry used to be the 2021 PDF's text carried across with a ⚠ on it, because an earlier note had
+  // described the 2024 Channel Divinity as *"+d4 per attack, once per short rest"* and the PDF plainly says
+  // *crit on 19–20*. The doc recorded two possibilities — the note was wrong, or the revision rewrote the
+  // subclass — and said the supplied material did not settle it.
   //
-  // What is NOT verified, and is recorded rather than smoothed over: the 2024 printing also lists a Street
-  // Saint, and the note this placeholder used to carry described its Channel Divinity as *"adds a d4 to
-  // each attack once per Short Rest"* — which is **not** what the PDF's Fists of Faith does (crit on 19–20).
-  // Two possibilities: the earlier note was wrong, or the 2024 revision genuinely rewrote the subclass. The
-  // supplied material does not settle it. Ground Rule 3 says carry the sourced text and say so, rather than
-  // blend two accounts into one that matches neither — so the 2024 entry is the 2021 text, flagged.
+  // **The revision rewrote it, and by more than one feature.** The 2024 printing keeps the same five
+  // features and REORDERS THE WHOLE LADDER, then rebalances two of them:
+  //
+  //   |            | 2021 (this repo's 2014 entry) | 2024 printing |
+  //   |------------|-------------------------------|---------------|
+  //   | Fists of Faith  | crit on 19–20            | **+1d4 Radiant** for 1 minute |
+  //   | Grace of the Gods | 1d10 + level temp HP, resistance to ALL damage | **Resistance to Necrotic**, plus a Bless-like bonus on saves |
+  //   | Lay on Hands    | pool = level × **5**     | pool = level × **3** |
+  //   | Ravaged But Resolute | level **11**        | level **6** |
+  //   | Aura of Resilience   | level **17**        | level **11** |
+  //   | Hallowed Hands       | level **6**         | level **17** |
+  //
+  // So carrying the 2021 text forward was wrong on five of five features, not on one. That is worth saying
+  // plainly: the flag on the old entry was doing its job, and the temptation with a flag like that is to
+  // treat it as a footnote on something basically correct.
+  //
+  // **Why the crit moved is the corroborating detail.** Crit-on-19–20 is what the 2024 line-up gives
+  // **Sweet Science** (`dnd5e-2024/pugilist.ts`, Bare-Knuckle Boxer). The revision did not delete the Street
+  // Saint's signature — it moved it to the subclass whose identity is precision punching, and gave the
+  // Street Saint radiant damage instead. Two subclasses in one line-up granting the same crit range is
+  // exactly the duplication a revision exists to remove.
+  //
+  // ONE NUMBER IS STILL NOT SOURCED, and it is flagged rather than filled in from the shape of its
+  // neighbour: Grace of the Gods' saving-throw bonus is described as "a pseudo Bless", which strongly
+  // implies +1d4 — but "strongly implies" is not a source, and Bless's die is exactly the kind of figure
+  // that gets assumed and then quoted back as fact. The body says what is known and says what is not.
   {
-    ...PUGILIST_2014_SUBCLASSES.find((s) => s.key === 'street-saint')!,
+    key: 'street-saint',
+    name: 'Street Saint',
+    classKey: 'pugilist',
     system: 'dnd5e-2024',
     description:
-      'Pugilists who rise above adversity with the aid of a deep and abiding faith, gifted with some measure '
-      + 'of divine power. ⚠ The text here is the author’s 2021 Street Saint (written for the 2014 class); the '
-      + '2024 printing’s own wording has not been supplied and may differ.',
+      'Pugilists who rise above adversity with the aid of a deep and abiding faith — they fight to make the '
+      + 'world a better place, because wherever corruption is allowed to exist, justice cannot flourish. The '
+      + '2024 revision trades the 2021 version’s crit range for radiant damage and healing.',
+    features: [
+      {
+        level: 3,
+        subclass: true,
+        name: 'Channel Divinity',
+        body:
+          'You channel divine energy to fuel one of two effects, chosen as you use it. Once used, you must finish a **Short or Long Rest** to use it again.\n\n'
+          + '· **Fists of Faith.** Your fists carry righteous fury: for **1 minute**, your unarmed strikes deal an extra **1d4 Radiant** damage.\n'
+          + '· **Grace of the Gods.** You gain **Resistance to Necrotic damage** and a bonus on saving throws, in the manner of *Bless*.\n\n'
+          + '*(2021 note: Fists of Faith made your unarmed strikes crit on 19–20 and Grace of the Gods gave temporary Hit Points with resistance to all damage. The 2024 printing replaced both — the 19–20 crit range now belongs to **Sweet Science**.)*',
+        description: 'Once per Short Rest: +1d4 Radiant on your strikes for a minute, or Necrotic resistance and a Bless-like save bonus.',
+      },
+      {
+        level: 3,
+        subclass: true,
+        name: 'Lay on Hands',
+        body:
+          'You carry a pool of healing that refills on a **Long Rest**, holding Hit Points equal to **three times your Pugilist level** — a smaller pool than the Paladin\'s five times, deliberately.\n\n'
+          + 'Touch a creature and spend any number of points from the pool to restore that many Hit Points. It has no effect on Undead or Constructs.',
+        description: 'A Long Rest healing pool of 3 × your Pugilist level, spent by touch.',
+      },
+      {
+        level: 6,
+        subclass: true,
+        name: 'Ravaged But Resolute',
+        body:
+          'When you use **Bloodied But Unbowed**, you can also refill your **Lay on Hands** pool to its maximum. Once you do so, you must finish a **Long Rest** before doing it again.\n\n'
+          + '*(This is a level-11 feature in the 2021 version; the 2024 printing moves it to 6.)*',
+      },
+      {
+        level: 11,
+        subclass: true,
+        name: 'Aura of Resilience',
+        body:
+          'When you use **Dig Deep**, your resilience reaches the people around you: for **1 minute**, allies within **30 feet** have **Resistance to Bludgeoning, Piercing and Slashing damage**.\n\n'
+          + '*(A level-17 feature in 2021, and the one this subclass is at its best doing — it rewards a Pugilist for what a Pugilist was already going to do.)*',
+      },
+      {
+        level: 17,
+        subclass: true,
+        name: 'Hallowed Hands',
+        body:
+          'When you damage a creature with an unarmed strike, you can spend Hit Points from your **Lay on Hands** pool — up to your Pugilist level — to deal that much extra **Radiant** damage. **Doubled against Fiends and Undead.** Once used, you cannot use it again until the start of your next turn.\n\n'
+          + '*(A level-6 feature in 2021; the 2024 printing pushes it to the capstone.)*',
+      },
+    ],
   },
 ];

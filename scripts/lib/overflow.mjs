@@ -165,9 +165,30 @@ export function detectOversized(rootSelector) {
   const el = document.querySelector(rootSelector);
   if (!el) return { found: false, rootSelector };
   const r = el.getBoundingClientRect();
+
+  // A ZERO-SIZE BOX IS NOT A SMALL WINDOW, AND REPORTING IT AS ONE IS THE WORST ANSWER AVAILABLE.
+  //
+  // Added 2026-07-31 after the first full D7-3 sweep came back 92/92 GREEN with `width: 0, height: 0` in
+  // every single cell. Nothing fit, because nothing was measured: `useFloatingDock` renders the window as
+  // `{ position: 'fixed', visibility: 'hidden' }` with no width or height until its per-character state
+  // hydrates, AND it deliberately starts MINIMIZED (`display: none` + a corner FAB) on a fresh load. Both
+  // states yield a 0×0 rect on an element that is really there — so `found: true` was honest and every
+  // other field was meaningless, and a sweep that measured nothing reported a clean bill of health.
+  //
+  // That is the same false-green `detectClipped` already refuses for a missing root, arriving from a
+  // direction nobody had thought of: not "the element is absent" but "the element is present and not
+  // rendered". Callers must be able to tell those apart from "the element is present and fits", so the
+  // question is answered explicitly rather than left to be inferred from suspicious zeroes.
+  const cs = getComputedStyle(el);
+  const rendered = r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden';
+
   return {
     found: true,
     rootSelector,
+    /** False when the element exists but paints nothing — hidden, minimized, or not yet laid out.
+     *  When this is false, every measurement below describes a box that is not on screen: treat the
+     *  result as NOT MEASURED, never as a pass. */
+    rendered,
     width: Math.round(r.width),
     height: Math.round(r.height),
     viewportW: window.innerWidth,

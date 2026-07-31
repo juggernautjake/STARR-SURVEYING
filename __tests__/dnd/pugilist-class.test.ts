@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { findClass, subclassesFor } from '@/lib/dnd/classes/registry';
 import { validateClassDefinition, progressionTable } from '@/lib/dnd/classes/engine';
-import { PUGILIST_2014 } from '@/lib/dnd/classes/pugilist';
+import { PUGILIST_2014, PUGILIST_2014_SUBCLASSES } from '@/lib/dnd/classes/pugilist';
 
 describe('2014 — the original, with all seven Fight Clubs', () => {
   it('resolves from the registry like any other class', () => {
@@ -80,23 +80,47 @@ describe('2024 — the revision, with all six subclasses', () => {
     ]);
   });
 
-  it('Street Saint is fully written out — the pin that recorded the gap has flipped', () => {
-    // This assertion used to require the body to say "under construction", because the subclass was named
-    // in the line-up with no text to hand. The owner supplied the author's PDF on 2026-07-28, so the pin
-    // has done its job and is replaced by assertions on the real thing.
+  it('Street Saint 2024 is the REVISED subclass, not the 2021 text wearing a 2024 label (P0-6)', () => {
+    // Two earlier versions of this assertion were each right about the state they pinned and each wrong
+    // about the world. The first required "under construction" (the subclass was named with no text). The
+    // second, after the author's PDF arrived on 2026-07-28, pinned that PDF's ladder — 6:Hallowed Hands,
+    // 11:Ravaged But Resolute, 17:Aura of Resilience — and a `pugilist level × 5` pool.
+    //
+    // That was the 2021 printing. The 2024 revision REORDERS the ladder and rebalances two features, so
+    // the previous pin was asserting, confidently, that a wrong thing was right. This one pins the 2024
+    // ladder and — more usefully — pins the DIFFERENCES, so a future edit that quietly re-imports the
+    // 2021 text fails here rather than shipping.
     const ss = subclassesFor('dnd5e-2024', 'pugilist').find((s) => s.key === 'street-saint')!;
     expect(ss.features.map((f) => `${f.level}:${f.name}`)).toEqual([
-      '3:Channel Divinity', '3:Lay on Hands', '6:Hallowed Hands',
-      '11:Ravaged But Resolute', '17:Aura of Resilience',
+      '3:Channel Divinity', '3:Lay on Hands', '6:Ravaged But Resolute',
+      '11:Aura of Resilience', '17:Hallowed Hands',
     ]);
     expect(ss.features.every((f) => f.body.length > 80), 'every feature carries its real rules text').toBe(true);
-    // The two Channel Divinity options are the part a summary would have lost.
-    expect(ss.features[0].body).toMatch(/Fists of Faith/);
-    expect(ss.features[0].body).toMatch(/Grace of the Gods/);
-    // Lay on Hands is the pool everything else in the subclass spends from — the number matters.
-    expect(ss.features[1].body).toMatch(/pugilist level × 5/);
-    // And the 2024 caveat is recorded rather than smoothed over: the supplied text is the 2021 printing.
-    expect(ss.description, 'the 2024 wording was never supplied — say so').toMatch(/2024 printing/i);
+
+    const cd = ss.features[0];
+    expect(cd.body).toMatch(/Fists of Faith/);
+    expect(cd.body).toMatch(/Grace of the Gods/);
+    // The rebalance itself: radiant damage, NOT the 2021 crit range — which the 2024 line-up gave to
+    // Sweet Science instead. Asserting both halves is what makes this a guard rather than a restatement.
+    expect(cd.body, 'Fists of Faith deals 1d4 Radiant in 2024').toMatch(/1d4 \*\*Radiant\*\*|\*\*1d4 Radiant\*\*/);
+    const sweet = subclassesFor('dnd5e-2024', 'pugilist').find((s) => s.key === 'sweet-science')!;
+    expect(sweet.features[0].body, 'the 19–20 crit belongs to Sweet Science now').toMatch(/19 or 20/);
+
+    // The pool everything else spends from. 3× in 2024, 5× in 2021 — and the 2014 entry keeps 5×, so a
+    // single shared definition would make one of the two editions wrong.
+    expect(ss.features[1].body).toMatch(/three times your Pugilist level/i);
+    const ss2014 = PUGILIST_2014_SUBCLASSES.find((s) => s.key === 'street-saint')!;
+    expect(ss2014.features.find((f) => f.name === 'Lay on Hands')!.body).toMatch(/× 5/);
+  });
+
+  it('the one figure that is still not sourced is flagged, not filled in', () => {
+    // Grace of the Gods' saving-throw bonus is described only as "a pseudo Bless", which implies +1d4 —
+    // and implication is not a source. Ground Rule 1 is that a missing number is left missing and said
+    // so; the failure mode it prevents is a guess being quoted back as fact six months later.
+    const ss = subclassesFor('dnd5e-2024', 'pugilist').find((s) => s.key === 'street-saint')!;
+    const cd = ss.features[0].body;
+    expect(cd, 'say it works like Bless').toMatch(/Bless/);
+    expect(cd, 'do NOT state a die nobody published').not.toMatch(/\+?1d4 (?:bonus )?(?:to|on) (?:all )?saving throws/i);
   });
 });
 

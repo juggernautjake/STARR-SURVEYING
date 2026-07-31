@@ -28,21 +28,21 @@ interface FakeEl {
   dataset: Record<string, string>;
   parentElement: FakeEl | null;
   children: FakeEl[];
-  style: { overflowY: string };
+  style: { overflowY: string; display: string; visibility: string };
   clientHeight: number;
   scrollHeight: number;
   rect: { width: number; height: number; top: number; left: number };
   getBoundingClientRect(): { width: number; height: number; top: number; left: number };
 }
 
-function el(opts: Partial<FakeEl> & { cls?: string; overflowY?: string; scrollable?: boolean } = {}): FakeEl {
+function el(opts: Partial<FakeEl> & { cls?: string; overflowY?: string; scrollable?: boolean; display?: string; visibility?: string } = {}): FakeEl {
   const node: FakeEl = {
     tagName: 'DIV',
     className: opts.cls ?? '',
     dataset: opts.scrollable ? { scrollable: 'true' } : {},
     parentElement: null,
     children: [],
-    style: { overflowY: opts.overflowY ?? 'visible' },
+    style: { overflowY: opts.overflowY ?? 'visible', display: opts.display ?? 'flex', visibility: opts.visibility ?? 'visible' },
     clientHeight: opts.clientHeight ?? 100,
     scrollHeight: opts.scrollHeight ?? 100,
     rect: opts.rect ?? { width: 396, height: 560, top: 10, left: 10 },
@@ -75,7 +75,7 @@ function mount(root: FakeEl | null, viewport = { w: 1024, h: 768 }) {
     querySelector: () => root,
   };
   g.window = { innerWidth: viewport.w, innerHeight: viewport.h };
-  g.getComputedStyle = (node: FakeEl) => ({ overflowY: node.style.overflowY });
+  g.getComputedStyle = (node: FakeEl) => ({ overflowY: node.style.overflowY, display: node.style.display, visibility: node.style.visibility });
   // `querySelectorAll('*')` on the root — the detector spreads it after the root itself.
   if (root) (root as unknown as { querySelectorAll: () => FakeEl[] }).querySelectorAll = () => descendants(root);
 }
@@ -215,6 +215,43 @@ describe('detectOversized — the window versus the viewport', () => {
     // assertion that would catch that clamp being removed.
     mount(el({ cls: 'roller-window', rect: { width: 396, height: 400, top: 10, left: 0 } }), { w: 360, h: 800 });
     expect(detectOversized('.roller-window').tooWide).toBe(true);
+  });
+
+  // ── `rendered` — the false-green that a full green sweep produced ──────────────────────────────
+  //
+  // These four cases exist because the first complete D7-3 run reported 92 cells passing with
+  // `width: 0, height: 0` in every one. The window was never on screen: `useFloatingDock` paints
+  // `visibility: hidden` with no box until its state hydrates, and it starts MINIMIZED (`display: none`)
+  // on a fresh load. `found: true` was true and every measurement beside it was about nothing.
+  //
+  // "It fits" and "it was not showing" must not be the same answer, so they are now different fields.
+  it('reports a hidden window as NOT RENDERED rather than as a window that fits', () => {
+    mount(el({ cls: 'roller-window', rect: { width: 0, height: 0, top: 0, left: 0 }, visibility: 'hidden' }));
+    const r = detectOversized('.roller-window');
+    expect(r.found, 'the element really is in the DOM').toBe(true);
+    expect(r.rendered).toBe(false);
+    // And it must NOT look like a pass on the fitting checks, which is exactly how it slipped through.
+    expect(r.tooWide).toBe(false);
+    expect(r.tooTall).toBe(false);
+  });
+
+  it('reports a MINIMIZED window (display:none) as not rendered', () => {
+    mount(el({ cls: 'roller-window', rect: { width: 0, height: 0, top: 0, left: 0 }, display: 'none' }));
+    expect(detectOversized('.roller-window').rendered).toBe(false);
+  });
+
+  it('reports a zero-size box as not rendered even when the styles look fine', () => {
+    // Pre-layout: the element is displayed and visible and simply has no box yet. Measuring it is
+    // meaningless, and this is the state a sweep is most likely to catch by racing the page.
+    mount(el({ cls: 'roller-window', rect: { width: 0, height: 0, top: 0, left: 0 } }));
+    expect(detectOversized('.roller-window').rendered).toBe(false);
+  });
+
+  it('reports a real window as rendered', () => {
+    mount(el({ cls: 'roller-window', rect: { width: 348, height: 560, top: 10, left: 10 } }));
+    const r = detectOversized('.roller-window');
+    expect(r.rendered).toBe(true);
+    expect(r.width).toBe(348);
   });
 
   it('flags a window pushed off the top, where the header would be unreachable', () => {
