@@ -2702,8 +2702,37 @@ text. Three things shipped, and a fourth is now a recorded conflict rather than 
    explicit caveat in its own description. **Do not reconcile these by picking the average** — that produces
    a version matching neither book.
 
-- [ ] **P0-6 — The 2024 Street Saint's own text.** *(Blocked on data.)* Needed to resolve row 4 above.
-      Until it arrives the 2024 entry correctly reuses the 2021 text and says so.
+- [x] **P0-6 — The 2024 Street Saint's own text. RESOLVED 2026-07-31, and the answer was the second option.**
+      Row 4's contradiction offered two possibilities — the old note was wrong, or the revision rewrote the
+      subclass. **It rewrote it, and by considerably more than the one feature the note named.** Same five
+      features, the whole ladder reordered, two rebalanced:
+
+      | | 2021 (the PDF we had) | 2024 printing |
+      |---|---|---|
+      | Fists of Faith | crit on 19–20 | **+1d4 Radiant** for 1 minute |
+      | Grace of the Gods | 1d10 + level temp HP, resistance to ALL damage | **Necrotic resistance** + a Bless-like save bonus |
+      | Lay on Hands | pool = level **× 5** | pool = level **× 3** |
+      | Ravaged But Resolute | level **11** | level **6** |
+      | Aura of Resilience | level **17** | level **11** |
+      | Hallowed Hands | level **6** | level **17** |
+
+      So the entry was wrong on **five of five features**, not on one. Worth saying plainly, because the
+      flag on it read as a footnote on something basically correct — and the natural next step from a
+      footnote is to leave it alone.
+
+      **The corroborating detail is where the crit went.** Crit-on-19–20 is what the 2024 line-up gives
+      **Sweet Science** (Bare-Knuckle Boxer). The revision did not delete the Street Saint's signature; it
+      moved it to the subclass whose identity is precision punching, which is exactly the de-duplication a
+      revision exists to do. Two subclasses granting the same crit range would have been the tell that one
+      of them was stale.
+
+      **One figure remains unsourced and is flagged rather than inferred:** Grace of the Gods' saving-throw
+      bonus is described only as *"a pseudo Bless"*, which implies +1d4 — and implying is not publishing.
+      A test asserts the body says *Bless* and does **not** state a die, so the guess cannot quietly become
+      a fact later.
+
+      *The old test pinned the 2021 ladder*, which means it was confidently asserting that a wrong thing was
+      right. It now pins the 2024 ladder **and the differences**, so re-importing the 2021 text fails.
 
 **Author's name corrected repo-wide: Benjamin *Huffman*, not Hoffman** (per the PDF's own credits and the
 community homebrew repo). It was wrong in three files and two tests.

@@ -63,7 +63,31 @@ export function safeTop(): number {
 
 /** What the window WANTS wherever there is room: the 07-28 constants, now a ceiling. */
 export const ROLLER_IDEAL_W = 396
-export const ROLLER_IDEAL_H = 560
+
+/**
+ * The height the TALLEST roller's content actually needs — measured, not chosen.
+ *
+ * D7-3's first real sweep failed 42 of 88 cells, and every failure was the same one: `.fld-body` scrolling
+ * by 84–94px on both 5e sheets, at EVERY viewport including a 1280×900 desktop with 300px to spare. The
+ * window was not too big for the screen; it was too small for its own contents, on a screen with room.
+ *
+ * 560 was never derived from anything. It is the 07-28 constant, and the 07-30 decision that superseded it
+ * says the size is *"derived from **the tallest roller's content**"* — so leaving 560 in place kept the
+ * exact number the decision replaced, while the code around it was rewritten to honour the decision. The
+ * clamp-to-viewport work (D7-1) was correct and did its job; it was clamping the wrong ideal.
+ *
+ * Measured in the browser at 348px wide, 5e Dice Core with roll history open — the tallest combination:
+ *   template bar 59 + tray 602 + window header 26 + body padding/borders ≈ 690.
+ * 700 gives that a little slack without inventing space. The other three templates and both bespoke
+ * systems are shorter, and a window taller than its content is not a defect — the content sits at the top
+ * of a slightly roomier box, which is what "one size, template to template" means.
+ *
+ * On a screen that cannot give 700 (a 360×640 phone has ~564 usable) this is still just a ceiling, and the
+ * content compresses instead: the stage gives up height first (`--roller-stage-min-h`, dropped by the
+ * short-window rule in `floatingRoller.css`) and roll history — the one permitted scroller — absorbs the
+ * remainder. That is the honest order: shrink the thing designed to scale, scroll the thing allowed to.
+ */
+export const ROLLER_IDEAL_H = 700
 
 /**
  * The one size every roller template uses on this screen.

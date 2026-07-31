@@ -2232,7 +2232,18 @@
 /* ------------------------------------------------------------------ ROLL STAGE (digital dice core) */
 .dnd-sheet .stage {
   position: relative;
-  height: 178px;
+  /* THE ONE STAGE THAT DID NOT READ THE SHARED TOKEN, and it is the TALLEST — 178px of hard height on the
+     Dice Core, the roller the 5e sheet shows by default. Sigil Stack, Roll Board and Impact all take
+     `--roller-stage-min-h`, so the short-window rule in `floatingRoller.css` moved three of the four and
+     left the worst offender exactly where it was.
+
+     This is D7-2's fourth-roll-log lesson arriving again from the same direction: a shared token is only
+     shared by the files that actually reference it, and `DiceTray` keeps its stage styling here in
+     `theme.css` rather than in a roller stylesheet, so it was never in the list anyone was looking at.
+
+     `height` → `min-height` matters as much as the token does: a fixed `height` cannot participate in the
+     flex column at all, so the stage would refuse to give up its 178px however cramped the window got. */
+  min-height: var(--roller-stage-min-h, 178px);
   border-radius: 14px;
   overflow: hidden;
   /* The dice "screen" follows the skin's own surfaces — this was hardcoded to the original

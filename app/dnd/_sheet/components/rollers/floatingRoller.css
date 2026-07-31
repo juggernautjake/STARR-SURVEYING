@@ -91,11 +91,70 @@
 }
 
 /* ── body — the roller reflows to fill it ─────────────────────────────────────────────────────── */
+/* ── THE WINDOW IS THE BUDGET (D7-3) ────────────────────────────────────────────────────────────
+ *
+ * The body was a plain block that let its children be as tall as they liked and then scrolled — which is
+ * the defect the owner named: *"there is never a need for a scrolling bar to appear or be used to see
+ * everything"*. It is now a flex column that HANDS OUT its height, so the parts that can give way do, and
+ * the one section allowed to scroll takes whatever is left.
+ *
+ * `overflow: auto` STAYS. Switching it to `hidden` would make every remaining failure invisible instead of
+ * fixed, and `detectClipped` deliberately ranks hidden as WORSE than auto: content nobody can even scroll
+ * to is more hidden, not less. If something still does not fit, the sweep must be able to say so.
+ *
+ * The rules are written against structure (`> *`, `> :last-child`, `[data-scrollable]`) rather than against
+ * `.tray` / `.sigil` / `.rboard` / `.iroller` by name, because four named copies is how three of them stay
+ * fixed and one silently does not — the same reasoning that put HISTORY_PREVIEW in one shared module. */
 .fld-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+}
+/* Chrome above the roller — the template picker — keeps its natural height. */
+.fld-body > * {
+  flex: 0 0 auto;
+}
+/* The roller node itself is the elastic one, and must be a column so its own children can flex. All four
+   roots are already vertical stacks; `.tray` was the one still using block flow. */
+.fld-body > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The permitted scroller absorbs the slack, in both directions: it grows into spare room and shrinks to
+   nothing on a cramped screen rather than pushing the window's fixed controls out of reach. `max-height`
+   is cleared because each roller had its own literal (260px, 320px…) that would otherwise cap the growth
+   half-way and re-introduce the scroll on a tall screen. */
+.fld-body [data-scrollable='true'] {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+}
+
+/* ── A SHORT SCREEN: THE STAGE GIVES WAY FIRST ──────────────────────────────────────────────────
+ *
+ * On a 360×640 phone the window can only be ~560 tall, and the 5e roller's FIXED content — head, stage,
+ * toggles, dice pad, two section headers — measured 491px against a 473px budget. Flexing alone cannot
+ * fix that: with roll history already collapsed to zero there is nothing left to give.
+ *
+ * The stage is what gives, because it is the one part built to scale: `dieSizeFor` already sizes dice to
+ * their arena, so a shorter stage shows the same throw smaller rather than showing less of it. Every
+ * stage reads these two tokens already (that is why they are tokens), so this is one rule rather than
+ * four, and a fifth roller inherits it for free.
+ *
+ * A VIEWPORT height query, not a container query, and that is deliberate: since D7-1 the window's height
+ * IS a function of the viewport, so the viewport is the honest signal — a container query would measure
+ * the effect and use it to explain the cause. */
+@media (max-height: 760px) {
+  .fld {
+    --roller-stage-min-h: 128px;
+    --roller-idle-min-h: 84px;
+  }
 }
 
 /* `.dnd-sheet` inside the roller is a TOKEN SCOPE, not a page (found by browser QA, RO-13).

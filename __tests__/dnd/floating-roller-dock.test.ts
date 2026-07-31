@@ -67,8 +67,13 @@ describe('roller dock — persistence round-trip (a per-character VIEW preferenc
     // it belongs to whatever screen it was saved on.
     saveDockState('char-h', { x: 10, y: 90, w: 370, h: null, minimized: false })
     const back = loadDockState('char-h')
-    // 1024×768 with no measurable header has room for the ideal, so here it IS the ideal.
-    expect(back).toMatchObject({ x: 10, y: 90, w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
+    // The size that comes back is THIS SCREEN'S, whatever that is — which is the property under test, so
+    // it is asserted against `rollerSize` rather than against a number. The line used to say "1024×768
+    // has room for the ideal, so here it IS the ideal", and that stopped being true the moment the ideal
+    // was corrected upward to the height the tallest roller actually needs (700): 768px of screen minus
+    // the header inset no longer reaches it. Pinning the ideal here was pinning a coincidence.
+    expect(back).toMatchObject({ x: 10, y: 90, ...rollerSize(1024, 768, safeTop()) })
+    expect(back?.w, 'the stored 370 must not survive').not.toBe(370)
     // The old "fit content" height is what made the window change shape per template.
     expect(back?.h, 'a content-fit height must not survive').not.toBeNull()
   })
@@ -155,10 +160,15 @@ describe('one size per screen (D7-1)', () => {
     const s = rollerSize(360, 640, TOP)
     expect(s.w).toBe(360 - 2 * EDGE)
     expect(s.w).toBeLessThan(360)
-    // The HEIGHT is untouched here, and that is the point of clamping each axis on its own: a 360×640
-    // phone has 564px of usable height, which is more than the 560px ideal. Only the width was ever the
-    // problem on this device — the old 396px constant was 36px wider than the whole screen.
-    expect(s.h).toBe(ROLLER_IDEAL_H)
+    // BOTH axes clamp on this device now, and the reason is worth keeping. This assertion used to read
+    // `s.h === ROLLER_IDEAL_H`, with a comment explaining that a 360×640 phone's 564px of usable height
+    // was MORE than the 560px ideal so only the width was ever the problem. That was arithmetically true
+    // and substantively wrong: 560 was not the height the content needed, it was the 07-28 constant. The
+    // first real D7-3 sweep found the roller scrolling by ~90px on a 1280×900 DESKTOP — a screen with
+    // 300px to spare — so the phone was never the interesting case. With the ideal derived from the
+    // tallest roller (700), a phone gets everything it can give and the content compresses to fit.
+    expect(s.h).toBe(640 - TOP - EDGE)
+    expect(s.h).toBeLessThan(ROLLER_IDEAL_H)
   })
 
   it('clamps the HEIGHT too, on a screen that is genuinely short', () => {
