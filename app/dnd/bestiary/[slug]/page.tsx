@@ -176,6 +176,16 @@ export default async function CreaturePage({ params }: { params: Promise<{ slug:
                   creatureId={c.id}
                   variants={variants.map((v) => ({ id: v.id, name: v.name, tier: v.tier }))}
                 />
+                {/* Forking starts from THIS creature; this starts from nothing. Both doors belong here — a
+                    reader looking at a Bulette is often one who wanted something like it and did not find it,
+                    and the statblock builder was previously reachable only by knowing the Studio URL. */}
+                <Link
+                  className={styles.hexBtn}
+                  href={`/dnd/content/new?kind=creature&system=${encodeURIComponent(c.system)}`}
+                  style={{ minHeight: 44 }}
+                >
+                  ☠ Build your own
+                </Link>
               </div>
 
               {/* B6-6. Rendered only for the catalogue owner — and rendered at all only because the

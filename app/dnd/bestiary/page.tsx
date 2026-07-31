@@ -108,12 +108,30 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
         <div style={{ width: '100%', maxWidth: 1080, margin: '0 auto', display: 'grid', gap: 16 }}>
           <div>
             <Link className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Lobby</Link>
-            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>Bestiary</h1>
-            <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0', maxWidth: 720 }}>
-              Every creature in the catalogue, from every plane and every alignment, at every difficulty. Open one to
-              read its full stat block, roll its attacks, build a stronger or weaker variant, or drop it into a
-              campaign.
-            </p>
+            {/* Title and the build door on one row, because the catalogue was a dead end for anyone who wanted
+                a creature that is not in it. The statblock builder has existed in the Studio the whole time —
+                `/dnd/content/new?kind=creature` — and nothing in the bestiary said so, which is the repo's
+                signature defect (built, correct, reachable from nowhere). */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+              <div style={{ minWidth: 0 }}>
+                <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>Bestiary</h1>
+                <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0', maxWidth: 720 }}>
+                  Every creature in the catalogue, from every plane and every alignment, at every difficulty. Open one to
+                  read its full stat block, roll its attacks, build a stronger or weaker variant, or drop it into a
+                  campaign — or build one of your own from scratch.
+                </p>
+              </div>
+              {/* The system filter rides along, so someone browsing PF2 creatures lands in the PF2 builder rather
+                  than having to pick the system again. `normalizeContentSystem` falls back on its own if it is
+                  a system the creature kind cannot be authored in. */}
+              <Link
+                className={styles.hexBtn}
+                href={sp.system ? `/dnd/content/new?kind=creature&system=${encodeURIComponent(sp.system)}` : '/dnd/content/new?kind=creature'}
+                style={{ minHeight: 44, whiteSpace: 'nowrap' }}
+              >
+                ☠ Build a creature
+              </Link>
+            </div>
           </div>
 
           <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
@@ -192,7 +210,10 @@ export default async function BestiaryPage({ searchParams }: { searchParams: Pro
                 {anyFilter ? (
                   <>
                     Nothing in the catalogue matches those filters.{' '}
-                    <Link href="/dnd/bestiary" style={{ color: 'var(--hx-teal-1)' }}>Clear them</Link> to see everything.
+                    <Link href="/dnd/bestiary" style={{ color: 'var(--hx-teal-1)' }}>Clear them</Link> to see everything —
+                    or <Link href="/dnd/content/new?kind=creature" style={{ color: 'var(--hx-teal-1)' }}>build the creature yourself</Link>.
+                    {/* The most useful moment to offer the builder is the one where the catalogue just told
+                        somebody it does not have what they came for. */}
                   </>
                 ) : (
                   <>
