@@ -44,6 +44,55 @@ export function safeTop(): number {
   return (bottom > 0 ? bottom : 0) + EDGE
 }
 
+// ── The roller window's size (D7-1) ─────────────────────────────────────────
+//
+// OWNER DECISION, 2026-07-30, resolving two asks that had pulled opposite ways
+// since 07-28: **one size per screen.** Every roller template shares ONE size,
+// and that size is derived from the viewport rather than being a universal
+// constant — so "consistent, template to template" is read as consistent AT A
+// GIVEN SCREEN, which is what makes "never scrolls" achievable at the same time.
+//
+// The two asks, and why neither survives on its own:
+//   07-28: *"the modal when open is a consistent size and is not resizable."*
+//   07-29: *"always … fully contain all of the content … never … a scrolling bar."*
+// A universal 396×560 honours the first and overflows a 360×640 phone. A
+// content-derived size honours the second and changes shape per template, which
+// is the complaint 07-28 was about. Clamping ONE shared size to the viewport
+// honours both, and only stops working on a screen too small for the content —
+// which is D7-3's job to detect and report, not this function's to hide.
+
+/** What the window WANTS wherever there is room: the 07-28 constants, now a ceiling. */
+export const ROLLER_IDEAL_W = 396
+export const ROLLER_IDEAL_H = 560
+
+/**
+ * The one size every roller template uses on this screen.
+ *
+ * Pure: it takes the viewport rather than reading it, so it is testable without a
+ * DOM and cannot disagree with itself between a render and a resize.
+ *
+ * NOTE THERE IS NO MINIMUM. `MIN_W`/`MIN_H` exist for the drag-resize path, and
+ * applying them here would be actively wrong: a floor can only bind when the
+ * screen is SMALLER than it, and the one thing worse than a cramped window is a
+ * window hanging off the side of the phone. Staying on the screen always wins.
+ */
+export function rollerSize(viewportW: number, viewportH: number, topInset: number): { w: number; h: number } {
+  const availW = viewportW - 2 * EDGE
+  const availH = viewportH - topInset - EDGE
+  return {
+    // An unmeasured viewport (SSR, a zero-size frame) falls back to the ideal rather
+    // than to zero — a window with no size at all is not a smaller window.
+    w: availW > 0 ? Math.min(ROLLER_IDEAL_W, availW) : ROLLER_IDEAL_W,
+    h: availH > 0 ? Math.min(ROLLER_IDEAL_H, availH) : ROLLER_IDEAL_H,
+  }
+}
+
+/** The live version of `rollerSize`, for callers that are already in the browser. */
+export function currentRollerSize(): { w: number; h: number } {
+  if (typeof window === 'undefined') return { w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H }
+  return rollerSize(window.innerWidth, window.innerHeight, safeTop())
+}
+
 export interface Box { x: number; y: number }
 
 // Clamp a window's top-left so the whole box stays on screen and its handle stays

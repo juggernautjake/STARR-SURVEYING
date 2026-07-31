@@ -130,19 +130,41 @@ describe('switching template does not re-roll (RO-7)', () => {
   });
 });
 
-describe('the roller window is a fixed, consistent size', () => {
+describe('the roller window is ONE SIZE PER SCREEN (D7-1)', () => {
   const dock = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/useFloatingDock.ts'), 'utf8');
   const win = readFileSync(join(process.cwd(), 'app/dnd/_sheet/components/rollers/FloatingRoller.tsx'), 'utf8');
 
-  it('declares one width and one height', () => {
-    expect(dock).toMatch(/export const FIXED_W = \d+/);
-    expect(dock).toMatch(/export const FIXED_H = \d+/);
+  // RE-POINTED 2026-07-31 (D7-1). These two cases used to assert `export const FIXED_W = 396` and
+  // `w: FIXED_W, h: FIXED_H` in `loadDockState` — and by the time D7-1 landed, that was a guard pinning
+  // the DEFECT in place: pinning the size to a constant regardless of viewport is exactly what made a
+  // window restored on a phone wider than the phone. The same failure shape as `dieSides` returning 10
+  // for a d100 with a test asserting it (D1-5). The invariant is now the one the owner actually asked
+  // for on 2026-07-30 — one size, shared by every template, DERIVED from the screen.
+
+  it('declares no size constants of its own — the size comes from lib/floating', () => {
+    // A local `FIXED_W`/`DEFAULT_W` is a second copy of one fact, and two copies is how they drift.
+    expect(dock, 'the retired fixed-size constants must not come back').not.toMatch(/const (FIXED|DEFAULT)_[WH]\s*=/);
+    expect(dock).toMatch(/export \{ ROLLER_IDEAL_W, ROLLER_IDEAL_H \} from '\.\.\/\.\.\/lib\/floating'/);
   });
 
-  it('restores POSITION but not size', () => {
-    // A box drag-resized before this change would otherwise live forever — including boxes too small for the
-    // tallest template, which is the complaint.
-    expect(dock).toMatch(/w: FIXED_W,\s*\n\s*h: FIXED_H,/);
+  it('restores POSITION but DERIVES size, so a laptop box never reopens on a phone', () => {
+    // `loadDockState` must compute the size rather than read `p.w`/`p.h` back off the stored payload.
+    expect(dock).toMatch(/const size = currentRollerSize\(\)/);
+    expect(dock).toMatch(/w: size\.w,\s*\n\s*h: size\.h,/);
+    expect(dock, 'a stored size must not be read back').not.toMatch(/\bw: p\.w\b/);
+  });
+
+  it('recomputes on resize rather than only shrinking', () => {
+    // The old handler was a one-way ratchet: `Math.min(s.w, …)` never grew the window back when a phone
+    // was rotated to landscape or a browser window was pulled wider.
+    expect(dock, 'the resize handler must not ratchet the stored size down').not.toMatch(/Math\.min\(s\.[wh]/);
+    expect(dock).toMatch(/const \{ w, h \} = currentRollerSize\(\)/);
+  });
+
+  it('and reset() does not fall back to content-fit', () => {
+    // `h: null` is the shape-changing behaviour the 07-28 ask forbade; reset must mean "this screen's
+    // size, in the default corner", not "whatever this template happens to measure".
+    expect(dock, 'reset must not reintroduce a content-fit height').not.toMatch(/setState\(\{ x, y, w, h: null/);
   });
 
   it('and the resize corner is gone from the window', () => {

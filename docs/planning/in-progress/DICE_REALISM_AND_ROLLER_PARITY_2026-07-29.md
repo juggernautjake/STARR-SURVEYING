@@ -19,7 +19,7 @@
 >   as the screen allows and no larger, and nothing inside it scrolls except the tagged roll history.
 > - **D6-3** — the contact sheet uses the same Playwright harness, built once against a settled size.
 >
-> **Three defects this reading exposes in `useFloatingDock`, none yet fixed** (D7-1's actual work):
+> **Three defects this reading exposes in `useFloatingDock` — ALL THREE FIXED 2026-07-31, see D7-1:**
 > 1. `loadDockState` pins `w: FIXED_W, h: FIXED_H` regardless of viewport, so a restored window on a phone
 >    is larger than the screen.
 > 2. The resize handler only ever `Math.min`s the stored size down — a phone rotated to landscape keeps
@@ -450,7 +450,52 @@ is worth doing once, correctly, after the sizing question is answered.
 
 ## Phase D7 — the window is always the right size (G7)
 
-### D7-1 · Measure, do not guess
+### D7-1 · One size per screen — **SHIPPED 2026-07-31**
+
+**The size is no longer stored, so it can no longer be restored stale.** That one change kills all three
+defects the 07-30 answer exposed, because all three were the same mistake wearing different clothes: a
+desktop ideal treated as a universal constant.
+
+`FIXED_W`/`FIXED_H` are retired. `lib/floating.ts` gains `rollerSize(viewportW, viewportH, topInset)` —
+pure, takes the viewport rather than reading it — plus `currentRollerSize()` for callers already in the
+browser. `ROLLER_IDEAL_W = 396` / `ROLLER_IDEAL_H = 560` survive as a **ceiling**, not a value.
+
+- **Defect 1 (restored window bigger than the phone):** `loadDockState` now derives the size instead of
+  returning the constants. Position is still the player's preference; size is a fact about the screen
+  they are on *right now*.
+- **Defect 2 (the one-way ratchet):** the resize handler recomputes rather than `Math.min`-ing down, so a
+  phone rotated to landscape grows back.
+- **Defect 3 (`reset()` → `h: null`):** reset now means "this screen's size, in the default corner". The
+  content-fit height that made the window change shape per template is gone from every path.
+
+**Each axis is clamped on its own**, which turns out to matter: a 360×640 phone has 564px of usable height
+— *more* than the 560 ideal — so only the width was ever wrong there. Clamping the pair together would have
+shortened a window that fit.
+
+**No minimum is applied**, deliberately. `MIN_W`/`MIN_H` belong to the drag-resize path; a floor here could
+only ever bind on a screen *smaller* than it, and a window hanging off the side of a phone is worse than a
+cramped one.
+
+**The guard was pinning the defect, and had to be re-pointed.** `roller-height-parity.test.ts` asserted
+`export const FIXED_W = \d+` and `w: FIXED_W, h: FIXED_H` — i.e. it required the viewport-blind behaviour
+that defect 1 *is*. Same shape as `dieSides` answering 10 for a d100 with a test asserting it (D1-5), and
+worth noting that it happened twice in one doc. It now asserts the property instead: no local size
+constants at all, size derived in `loadDockState`, no `Math.min` ratchet, no `h: null` in reset.
+
+Also retired: `DEFAULT_W = 396`, a third hand-maintained copy of the same number, still sitting next to the
+other two as a measured-fallback. The fallbacks now call `currentRollerSize()`.
+
+Coverage: `floating-roller-dock.test.ts` +9 cases (ideal where there is room, never exceeds it on a 4K
+monitor, full-width sheet at 360px, height clamped at 380px tall, **`rollerSize.length === 3` so it cannot
+take a template parameter** — the 07-28 ask made structural, header clearance, unmeasured-viewport
+fallback, no minimum, and a sweep over six real device sizes). 71 tests green across the three roller
+suites; typecheck and lint clean.
+
+**D7-3 and D6-3 are unblocked by this** — "correct at 360px" now has a definition: the window is exactly
+`360 − 2·EDGE` wide, and nothing inside it scrolls except the tagged roll history.
+
+<details>
+<summary>Original blocked note, kept for the decision trail</summary>
 
 > ⚠️ **BLOCKED — this slice as written would undo an explicit owner decision from the day before, and
 > needs the owner's call before anyone implements it.**
@@ -478,6 +523,11 @@ is worth doing once, correctly, after the sizing question is answered.
 >
 > *Owner question:* when a roller genuinely cannot fit a small viewport (a 396×560 window on a 360×640
 > phone), which gives — the consistent size, or the no-scrollbar rule?
+
+*Answered 2026-07-30: neither gives — "consistent" is read as consistent per screen. See the shipped note
+above.*
+
+</details>
 
 ### D7-2 · The content must be able to fit — **SHIPPED 2026-07-30**
 

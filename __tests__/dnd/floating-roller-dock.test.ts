@@ -6,13 +6,11 @@
 // handle under the sticky header). The clamp is `clampBox`/`safeTop` from lib/floating — the exact
 // functions useFloatingDock calls — so testing them here tests the dock's clamp.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { clampBox, safeTop, EDGE } from '@/app/dnd/_sheet/lib/floating'
+import { clampBox, rollerSize, safeTop, EDGE, ROLLER_IDEAL_W, ROLLER_IDEAL_H } from '@/app/dnd/_sheet/lib/floating'
 import {
   rollerStoreKey,
   loadDockState,
   saveDockState,
-  FIXED_W,
-  FIXED_H,
   type DockState,
 } from '@/app/dnd/_sheet/components/rollers/useFloatingDock'
 
@@ -62,12 +60,31 @@ describe('roller dock — persistence round-trip (a per-character VIEW preferenc
     expect(loadDockState('char-1')).toMatchObject({ x: 120, y: 200, minimized: true })
   })
 
-  it('but NOT a stored size — the window is fixed now', () => {
+  it('but NOT a stored size — the size is DERIVED from this screen', () => {
+    // RE-POINTED AGAIN 2026-07-30 (D7-1). The owner's answer to the two conflicting asks is "one size per
+    // screen": every template shares one size, and that size comes from the viewport rather than from a
+    // universal constant. So a stored size must not survive — not because it is drag-resized, but because
+    // it belongs to whatever screen it was saved on.
     saveDockState('char-h', { x: 10, y: 90, w: 370, h: null, minimized: false })
     const back = loadDockState('char-h')
-    expect(back).toMatchObject({ x: 10, y: 90, w: FIXED_W, h: FIXED_H })
+    // 1024×768 with no measurable header has room for the ideal, so here it IS the ideal.
+    expect(back).toMatchObject({ x: 10, y: 90, w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
     // The old "fit content" height is what made the window change shape per template.
     expect(back?.h, 'a content-fit height must not survive').not.toBeNull()
+  })
+
+  it('and a size saved on a laptop does not come back on a phone', () => {
+    // THE DEFECT D7-1 FIXES. `loadDockState` used to return the 396×560 constant whatever the screen, so a
+    // window saved on a desktop reopened on a 360×640 phone wider than the phone itself.
+    saveDockState('char-p', { x: 10, y: 90, w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H, minimized: false })
+    const w = globalThis as unknown as { window: { innerWidth: number; innerHeight: number } }
+    w.window.innerWidth = 360
+    w.window.innerHeight = 640
+    const back = loadDockState('char-p')!
+    expect(back.w).toBeLessThanOrEqual(360)
+    expect(back.h!).toBeLessThanOrEqual(640)
+    // Full-width sheet: everything the screen has, less the edge gutters.
+    expect(back.w).toBe(360 - 2 * EDGE)
   })
 
   it('does not leak one character’s window onto another', () => {
@@ -113,5 +130,80 @@ describe('roller dock — clamp keeps the window on-screen and below the header'
     const snapped = clampBox(VW - 396 - EDGE, VH - h - EDGE, 396, h)
     expect(snapped.y).toBe(VH - h - EDGE)
     expect(snapped.y + h).toBe(VH - EDGE) // flush to the bottom edge, no gap below
+  })
+})
+
+describe('one size per screen (D7-1)', () => {
+  // OWNER, 2026-07-30, resolving two asks that had pulled opposite ways since 07-28:
+  //   07-28: "the modal when open is a consistent size and is not resizable"
+  //   07-29: "always … fully contain all of the content … never … a scrolling bar"
+  // A universal 396×560 honours the first and overflows a 360×640 phone; a content-derived size honours
+  // the second and changes shape per template. ONE shared size, clamped to the viewport, honours both.
+  const TOP = 70 // FALLBACK_TOP (64) + EDGE, which is what safeTop returns with no document
+
+  it('gives the ideal wherever there is room for it', () => {
+    expect(rollerSize(1440, 900, TOP)).toEqual({ w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
+  })
+
+  it('never exceeds the ideal on a huge screen — consistency, not "as big as possible"', () => {
+    // The 07-28 ask is for a CONSISTENT size. A window that grew with the monitor would be a different
+    // size on every machine, which is the same complaint in a nicer disguise.
+    expect(rollerSize(3840, 2160, TOP)).toEqual({ w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
+  })
+
+  it('becomes a full-width sheet on a phone rather than hanging off it', () => {
+    const s = rollerSize(360, 640, TOP)
+    expect(s.w).toBe(360 - 2 * EDGE)
+    expect(s.w).toBeLessThan(360)
+    // The HEIGHT is untouched here, and that is the point of clamping each axis on its own: a 360×640
+    // phone has 564px of usable height, which is more than the 560px ideal. Only the width was ever the
+    // problem on this device — the old 396px constant was 36px wider than the whole screen.
+    expect(s.h).toBe(ROLLER_IDEAL_H)
+  })
+
+  it('clamps the HEIGHT too, on a screen that is genuinely short', () => {
+    // A phone in landscape, or a small laptop with a tall header. 380 − 70 − 6 = 304.
+    const s = rollerSize(740, 380, TOP)
+    expect(s.h).toBe(380 - TOP - EDGE)
+    expect(s.h).toBeLessThan(ROLLER_IDEAL_H)
+    // …and the width is left alone, because 740 has room for the ideal.
+    expect(s.w).toBe(ROLLER_IDEAL_W)
+  })
+
+  it('is the SAME size for every template, because it does not take one', () => {
+    // The property stated as a test: `rollerSize` has no template parameter, so Impact's tall arena and
+    // Sigil Stack's shorter stack cannot produce different windows. That is the whole of the 07-28 ask,
+    // and it is now structural rather than maintained by hand.
+    expect(rollerSize.length).toBe(3) // viewportW, viewportH, topInset — and nothing else
+  })
+
+  it('leaves room for the header, so the drag handle is never under it', () => {
+    // A window as tall as the viewport would park its own handle beneath the sticky /dnd header, which is
+    // the exact stranding `safeTop` exists to prevent.
+    const tall = rollerSize(1024, 400, TOP)
+    expect(tall.h).toBe(400 - TOP - EDGE)
+    expect(TOP + tall.h + EDGE).toBeLessThanOrEqual(400)
+  })
+
+  it('falls back to the ideal on an unmeasured viewport rather than to zero', () => {
+    // SSR, or a frame that has not been laid out yet. A window with no size at all is not a smaller window.
+    expect(rollerSize(0, 0, TOP)).toEqual({ w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
+    expect(rollerSize(-100, -100, TOP)).toEqual({ w: ROLLER_IDEAL_W, h: ROLLER_IDEAL_H })
+  })
+
+  it('applies NO minimum, because staying on the screen beats staying comfortable', () => {
+    // MIN_W/MIN_H belong to the drag-resize path. A floor here could only ever bind when the screen is
+    // smaller than it — and the one thing worse than a cramped window is one hanging off the phone.
+    const tiny = rollerSize(200, 300, TOP)
+    expect(tiny.w).toBe(200 - 2 * EDGE)
+    expect(tiny.w).toBeLessThan(248)
+  })
+
+  it('never returns a box that would not fit the screen it was given', () => {
+    for (const [vw, vh] of [[320, 568], [360, 640], [390, 844], [768, 1024], [1024, 768], [1920, 1080]]) {
+      const s = rollerSize(vw, vh, TOP)
+      expect(s.w + 2 * EDGE, `${vw}x${vh} width`).toBeLessThanOrEqual(vw)
+      expect(TOP + s.h + EDGE, `${vw}x${vh} height`).toBeLessThanOrEqual(vh)
+    }
   })
 })

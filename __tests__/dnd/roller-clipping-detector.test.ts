@@ -210,8 +210,9 @@ describe('detectOversized — the window versus the viewport', () => {
   });
 
   it('flags a window wider than a 360px phone', () => {
-    // FIXED_W is 396 — wider than a 360px viewport before `max-width` clamps it. This is the assertion
-    // that would catch the clamp being removed.
+    // 396 is the window's DESKTOP ideal (`ROLLER_IDEAL_W`) — wider than a 360px viewport. Since D7-1 the
+    // size is clamped to the screen, so this width should never reach a phone; the case stays as the
+    // assertion that would catch that clamp being removed.
     mount(el({ cls: 'roller-window', rect: { width: 396, height: 400, top: 10, left: 0 } }), { w: 360, h: 800 });
     expect(detectOversized('.roller-window').tooWide).toBe(true);
   });

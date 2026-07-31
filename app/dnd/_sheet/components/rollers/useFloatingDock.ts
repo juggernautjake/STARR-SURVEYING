@@ -19,7 +19,7 @@
 // via context by `FloatingRoller`) so a roller can pop itself open when a fresh roll arrives while
 // minimized — window behaviour, not roll behaviour.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { clampBox, safeTop, EDGE } from '../../lib/floating'
+import { clampBox, currentRollerSize, safeTop, EDGE } from '../../lib/floating'
 
 // ── persistence ─────────────────────────────────────────────────────────────────────────────────
 /** Bumped if the stored shape changes, so a stale entry is ignored rather than half-applied. */
@@ -37,29 +37,43 @@ export interface DockState {
   minimized: boolean
 }
 
-// Sensible tool-window defaults. 396px gives the roller headers (the Dice Core's title + style badge +
-// mute + clear) room to sit on ONE line inside the dock's own chrome + body padding — 370 was a touch
-// tight and wrapped "Dice Core". Players can still resize smaller (down to MIN_W); this is just the
-// comfortable detach size.
-export const DEFAULT_W = 396
+// Floors for the drag-resize path only. NOT a floor on the derived size — see `rollerSize`, which
+// deliberately applies none, because a minimum can only bind on a screen smaller than it.
 export const MIN_W = 248
 export const MIN_H = 168
 
 /**
- * The roller window is a FIXED size, and no longer resizable (owner, 2026-07-28: *"the modal when open is
- * a consistent size and is not resizable. It should always be big enough to show all of the elements of the
- * dice roller regardless of the roller template chosen."*).
+ * The roller window is ONE SIZE PER SCREEN, and no longer resizable.
  *
- * Before this the height was "fit content" (`h: null`) and drag-resizable, so the window CHANGED SHAPE when
+ * Owner, 2026-07-28: *"the modal when open is a consistent size and is not resizable. It should always be
+ * big enough to show all of the elements of the dice roller regardless of the roller template chosen."*
+ * Owner, 2026-07-29: *"always … fully contain all of the content … never … a scrolling bar."*
+ * Owner, 2026-07-30, resolving the two: **one size per screen** — every template shares one size, and that
+ * size is derived from the viewport instead of being a universal constant.
+ *
+ * Before 07-28 the height was "fit content" (`h: null`) and drag-resizable, so the window CHANGED SHAPE when
  * you switched roller template — Impact's tall arena against Sigil Stack's shorter stack — and any size a
  * player had dragged to was then too small for whichever template needed more room. Two variables (template
  * and stored size) both fed one dimension, which is why no single value ever looked right.
  *
- * 560px clears the tallest composition: header + template bar + the 176px stage + the controls + the
- * breakdown, with the body's own `overflow: auto` as the backstop rather than the primary mechanism.
+ * The fix for that was a pair of constants, and it left THREE defects that only showed on a small screen —
+ * all of them the same mistake, a size treated as universal when it was really a desktop ideal:
+ *
+ *   1. a restored window was pinned to 396×560 regardless of viewport, so on a phone it was bigger than
+ *      the screen;
+ *   2. the resize handler only ever shrank the stored size (`Math.min`), so a phone rotated to landscape
+ *      kept its portrait size and never grew back;
+ *   3. `reset()` set `h: null` — content-fit — which is precisely the shape-changing behaviour 07-28
+ *      forbade, so double-clicking the header reintroduced the original complaint.
+ *
+ * All three are gone because the size is no longer STORED at all: it is computed from the viewport wherever
+ * it is needed (`currentRollerSize`). A value that is never persisted cannot be restored stale.
+ *
+ * `ROLLER_IDEAL_H = 560` is what clears the tallest composition on a desktop — header + template bar + the
+ * 176px stage + the controls + the breakdown. D7-3's sweep is what proves that claim across the matrix
+ * rather than asserting it here.
  */
-export const FIXED_W = 396
-export const FIXED_H = 560
+export { ROLLER_IDEAL_W, ROLLER_IDEAL_H } from '../../lib/floating'
 
 export function loadDockState(characterId: string | null | undefined): DockState | null {
   if (typeof window === 'undefined') return null
@@ -68,14 +82,16 @@ export function loadDockState(characterId: string | null | undefined): DockState
     if (!raw) return null
     const p = JSON.parse(raw) as Partial<DockState>
     if (typeof p?.x !== 'number' || typeof p?.y !== 'number' || typeof p?.w !== 'number') return null
+    // POSITION is restored; SIZE is DERIVED, never restored. A stored size would keep an old box alive
+    // forever — a drag-resized one from before the window became fixed, or (D7-1) a desktop 396×560 saved
+    // on a laptop and reopened on a phone, where it is wider than the screen. Where the player put it is
+    // still their preference; how big it is is a fact about the screen they are on right now.
+    const size = currentRollerSize()
     return {
       x: p.x,
       y: p.y,
-      // POSITION is restored; SIZE is not. A size stored before the window became fixed would otherwise
-      // keep an old drag-resized box alive forever — including boxes too small for the tallest template,
-      // which is the complaint this change answers. Where the player put it is still their preference.
-      w: FIXED_W,
-      h: FIXED_H,
+      w: size.w,
+      h: size.h,
       minimized: p.minimized === true,
     }
   } catch {
@@ -113,12 +129,13 @@ export interface FloatingDock {
   ready: boolean
 }
 
-function defaultPos(w: number): { x: number; y: number } {
+function defaultPos(w: number, h: number): { x: number; y: number } {
   const iw = window.innerWidth
   const ih = window.innerHeight
-  // Bottom-right corner, a comfortable guess of height before the element is measured.
-  const guessH = Math.min(440, ih - safeTop() - EDGE)
-  return clampBox(iw - w - EDGE, ih - guessH - EDGE, w, guessH)
+  // Bottom-right corner. The height is no longer GUESSED at 440 — `currentRollerSize` already knows it,
+  // and guessing here is what used to leave a shorter roller hanging above the corner until a second
+  // measuring pass moved it.
+  return clampBox(iw - w - EDGE, ih - h - EDGE, w, h)
 }
 
 export function useFloatingDock(characterId: string | null | undefined): FloatingDock {
@@ -134,7 +151,9 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
   // Measure the window's live height (used for clamping when h is "fit content", and to place the
   // default bottom-right corner once we can see how tall the roller renders).
   const measuredH = useCallback(() => ref.current?.offsetHeight ?? 300, [])
-  const measuredW = useCallback(() => ref.current?.offsetWidth ?? DEFAULT_W, [])
+  // The fallback is this screen's derived width, not a 396 literal. A second copy of that number living
+  // here is how `DEFAULT_W` and `FIXED_W` came to be two names for one fact, both hand-maintained.
+  const measuredW = useCallback(() => ref.current?.offsetWidth ?? currentRollerSize().w, [])
 
   // Restore AFTER mount, never during render (a localStorage read while rendering desyncs SSR/CSR and
   // Next discards it with a hydration warning — the classic "works in dev, does nothing in prod" bug).
@@ -143,19 +162,20 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
     loaded.current = true
     const saved = loadDockState(characterId)
     if (saved) {
-      const h = saved.h
-      const { x, y } = clampBox(saved.x, saved.y, saved.w, h ?? FIXED_H)
+      // `saved.w`/`saved.h` are already this screen's derived size — `loadDockState` computes them rather
+      // than reading them back — so the clamp is against the box that will actually render.
+      const { x, y } = clampBox(saved.x, saved.y, saved.w, saved.h ?? currentRollerSize().h)
       setState({ ...saved, x, y })
     } else {
-      const w = FIXED_W
-      const { x, y } = defaultPos(w)
+      const { w, h } = currentRollerSize()
+      const { x, y } = defaultPos(w, h)
       freshDefault.current = true
       // Start MINIMIZED (just the corner dice FAB) rather than open. An open 396px window docked
       // bottom-right otherwise overlaps the right edge of the sheet on a fresh load — on every
       // template and system — before the player has moved it. Minimized keeps the sheet unobstructed;
       // the roller pops open on the first roll (useExpandOnRoll) or a click of the FAB, and its
       // position/size/open-state persist per character from then on.
-      setState({ x, y, w, h: FIXED_H, minimized: true })
+      setState({ x, y, w, h, minimized: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId])
@@ -189,10 +209,13 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
     const onResize = () => {
       setState((s) => {
         if (!s) return s
-        const w = Math.min(s.w, window.innerWidth - 2 * EDGE)
-        const h = s.h != null ? Math.min(s.h, window.innerHeight - safeTop() - EDGE) : measuredH()
+        // RECOMPUTED, not shrunk. This used to `Math.min` the stored size against the new viewport, which
+        // is a one-way ratchet: a phone rotated to landscape, or a browser window pulled wider, kept the
+        // smaller size forever because nothing ever grew it back. Deriving it fresh means the window is
+        // correct for the screen it is on at every moment, which is the whole of the 07-30 decision.
+        const { w, h } = currentRollerSize()
         const { x, y } = clampBox(s.x, s.y, w, h)
-        return { ...s, x, y, w, h: s.h != null ? h : null }
+        return { ...s, x, y, w, h }
       })
     }
     window.addEventListener('resize', onResize)
@@ -211,7 +234,7 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
     const move = (ev: PointerEvent) => {
       if (!dragOff.current) return
       const el2 = ref.current
-      const w = el2?.offsetWidth ?? DEFAULT_W
+      const w = el2?.offsetWidth ?? currentRollerSize().w
       const h = el2?.offsetHeight ?? 300 // measured height clamps correctly whether fixed or content-fit
       const { x, y } = clampBox(ev.clientX - dragOff.current.dx, ev.clientY - dragOff.current.dy, w, h)
       setState((s) => (s ? { ...s, x, y } : s))
@@ -275,9 +298,12 @@ export function useFloatingDock(characterId: string | null | undefined): Floatin
   }, [])
 
   const reset = useCallback(() => {
-    const w = DEFAULT_W
-    const { x, y } = defaultPos(w)
-    setState({ x, y, w, h: null, minimized: false })
+    // `h: null` — content-fit — used to be the reset, and it was the third defect: the escape hatch put the
+    // window straight back into the shape-changing behaviour 07-28 forbade, so a double-click on the header
+    // reintroduced the original complaint. Reset now means "this screen's size, in the default corner".
+    const { w, h } = currentRollerSize()
+    const { x, y } = defaultPos(w, h)
+    setState({ x, y, w, h, minimized: false })
   }, [])
 
   const style: React.CSSProperties = state
