@@ -1,5 +1,18 @@
 # Native stat blocks per system — 2026-07-30
 
+**COMPLETE 2026-07-30.** Every slice is closed: N1-1/N1-2/N1-4 (measured tier tables + tier map), N2-1/N2-2/
+N2-3 (the derivation and each system's own shape), N3-3/N3-4/N3-5/N3-6 (the lens, the badge, the variant
+carousel, one creature one row), N4-1/N4-2 (coverage report and the stated ceiling). Two are closed without
+code and the reasons are recorded inline rather than pending: **N1-3** — Intuitive Games publishes no
+creature-building table, so it keeps transposition and the UI says so — and **N3-1**, dropped because the
+lens derives on read and a generated table of rows would be a second copy to keep in sync. **N3-2** was done
+inside N2-1.
+
+What is deliberately NOT promised is in N4-2 and on the page: derived blocks are rebuilt from each system's
+measured tier table at a defensible tier, not hand-balanced per creature, and entry KINDS remain the
+source's (a derived Pathfinder block can still print a *Legendary Actions* heading — N5, prose is translated
+rather than regenerated).
+
 **Owner asks, verbatim:**
 
 > *"Right now it seems like the skunk has the same stat block for all four systems. You need to study how
