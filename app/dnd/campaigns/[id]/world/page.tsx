@@ -24,6 +24,8 @@ import { readToken, tokenFootprint } from '@/lib/dnd/maps/tokens';
 import { breadcrumb, childrenOf, rootsOf } from '@/lib/dnd/maps/tree';
 import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
+import GridDesigner from '@/app/dnd/_ui/maps/GridDesigner';
+import GridOverlay from '@/app/dnd/_ui/maps/GridOverlay';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -183,6 +185,13 @@ export default async function WorldPage({
                     </div>
                   )}
 
+                  {/* M4-1 — the grid, drawn between the picture and everything standing on it. Inside the
+                      transform like the pins, so it is a grid ON the map rather than over the window; and
+                      FIRST in the DOM among the overlays, so a token is never crossed by a line meant to
+                      be underneath it. Renders nothing at all on a node with no grid, which is every space
+                      map and every continent. */}
+                  <GridOverlay grid={current.grid} label={`${current.name} grid`} />
+
                   {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
                       map under pan and zoom rather than floating over it. */}
                   {nodePins.map((p) => {
@@ -245,7 +254,7 @@ export default async function WorldPage({
                       the map grew would slide off the space it is standing in. Its footprint comes from the
                       node's own grid (tokenFootprint), so a Large creature covers 2×2 and looks it. */}
                   {nodeTokens.map(({ o, t }) => {
-                    const side = tokenFootprint(t.size, current.grid as { size?: number } | null);
+                    const side = tokenFootprint(t.size, current.grid);
                     const label = t.nickname || o.label || 'Token';
                     return (
                       <div
@@ -282,8 +291,17 @@ export default async function WorldPage({
                   map" is its second half. Putting it up with WorldAuthor would arm a mode whose target is
                   scrolled off the screen. */}
               {isDm && (
-                <section className={styles.framedPanel} style={{ padding: '12px 16px' }}>
+                <section className={styles.framedPanel} style={{ padding: '12px 16px', display: 'grid', gap: 12 }}>
                   <div className={styles.framedPanelTop} />
+                  {/* M4-1 — the grid designer sits with the placing control and above it, because the two
+                      are one job: a DM lays the grid, then puts pieces on it. It is also the control whose
+                      effect is only judgeable against the map directly above. */}
+                  <GridDesigner
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    nodeName={current.name}
+                    grid={current.grid}
+                  />
                   <PlaceToken
                     campaignId={campaignId}
                     nodeId={current.id}

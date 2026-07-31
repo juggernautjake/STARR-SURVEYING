@@ -449,9 +449,70 @@ seven levels deep navigable and returnable; back button correct at every level.
 
 ## Phase M4 — the DM's authoring tools
 
-### M4-1 · Grid designer
-Square or hex, size in pixels, **feet per square**, offset nudge, colour and opacity, snap on/off. Feeds G4:
-the grid is what converts a sheet's speed in feet into squares.
+### M4-1 · Grid designer — **SHIPPED 2026-07-30**
+
+Square or hex, size, **feet per square**, offset nudge, colour and opacity, snap on/off. Feeds G4: the grid
+is what converts a sheet's speed in feet into squares — which makes this the slice M5-2 was blocked on, and
+the reason it came before movement rather than after.
+
+| Piece | What |
+| --- | --- |
+| `lib/dnd/maps/grid.ts` | The ONE reader. Parse, snap, cells, hex maths, and the feet ↔ world conversion |
+| `app/dnd/_ui/maps/GridOverlay.tsx` | Draws it — a server component, inside the transformed layer |
+| `app/dnd/_ui/maps/GridDesigner.tsx` | The DM's controls, under the map they change |
+| `world/route.ts` PATCH | `grid` added to the field whitelist, via `sanitizeGrid` |
+| `__tests__/dnd/map-grid.test.ts` | 24 cases |
+
+**The size is in WORLD UNITS, not pixels — this plan's own wording was wrong.** A node's picture is a 0–100
+box drawn through a pan/zoom transform, so a cell measured in screen pixels would be a different fraction of
+the map at every zoom level. A grid is a property of the map, not of the reader's window.
+
+**And the DM sets a COUNT, not a size.** Storage needs a cell size; nobody has ever thought *"I would like a
+3.3333-unit cell"*. They think *"this room is twenty squares wide"*. So the control is `cells across`, the
+size is derived, and the form states the consequence — *"20 × 20 squares · 5 ft each · **100 ft across**"* —
+which is what stops a DM discovering at the table that their dungeon is four miles wide.
+
+**Hex is real, not a stub.** Pointy-top axial coordinates with cube rounding, because rounding `q` and `r`
+independently leaves points near the corners belonging to no hex — a token that visibly refuses to snap.
+Verified live: a click at world (61.4, 33.8) stored (62.5, 32.4760), which is exactly the computed centre of
+hex (7, 6).
+
+#### Two defects that were already in the tree, both invisible until a grid existed
+
+Neither was failing, because **no node had ever had a grid** — M4-1 is the first writer. That is this
+codebase's signature defect with the halves swapped: not storage nobody reads, but a reader and a writer
+that never met.
+
+1. **The cell size had two names.** `seeds/465` documents the column as `{ kind, size_px, unit_ft, … }`;
+   `tokens.ts` read `grid.size`. The moment the designer wrote the documented key, every snap and every
+   footprint would have silently gone back to "no grid" and carried on working, wrongly. Settled: `size` is
+   canonical, the snake_case names are accepted as read-only aliases, and `sanitizeGrid` emits exactly one
+   shape so the aliases cannot spread.
+2. **Snapping landed on the grid CORNER.** `snapToGrid(7, 12)` on a 5-unit grid returned `(5, 10)` — an
+   intersection. Tokens draw with `translate(-50%, -50%)`, so every snapped token straddled four squares and
+   the one question a battle grid exists to answer had four answers. Now the cell centre, verified live: a
+   click at world (32.3, 47.9) stored **(32.5, 47.5)**, not (30, 45).
+
+#### And three the browser found, which the suite could not
+
+The standing lesson again — 20,092 passing tests said nothing about any of these.
+
+- **The grid was drawn 0.18 pixels wide.** `STROKE` is divided by `--map-scale` so the line stays a constant
+  width on screen, which means the constant is *in screen pixels* — and a plausible-looking `0.18` produced a
+  line that was present, correct, in the DOM, and almost invisible. Set to `1`. (`non-scaling-stroke` reaches
+  the same place implicitly but pins the width to one DEVICE pixel, which is a much fainter line on the
+  high-DPI phones G5 is about, so the width stays stated rather than inherited from the display.)
+- **The snap checkbox's label was near-black on a near-black panel** (`rgb(15,20,25)`), because a `label`
+  inside the hextech shell inherits a colour meant for a light surface, and every other label in the form
+  escaped it only by setting `var(--hx-muted)` as part of its layout style. Nothing testable was wrong: the
+  control was present, labelled, focusable and correct in the accessibility tree.
+- **A test was measuring the wrong thing.** `map-objects-route` asserted the DM gate by looking for
+  `{isDm && (` within 400 characters above `<PlaceToken>`. Mounting `GridDesigner` as a legitimate sibling in
+  the same DM-only section pushed it past 400 and failed a test whose subject had not changed. Rewritten to
+  assert containment — the gate is still open where the control is mounted.
+
+*Verified at desktop and at 360px (G5): the form stacks to two columns, the nudge arrows stay 44px, and the
+grid holds a constant hairline from fit-scale through 8×.*
 
 ### M4-2 · Place, move, layer — **SHIPPED 2026-07-30 (place / move / remove); the rest listed below**
 Drag from an asset tray onto the map; move, resize, rotate, z-order, duplicate, delete. Multi-select with
@@ -619,11 +680,19 @@ tools) the next thing that matters, not another read path.
 A `token` object references a `character_id` (PC or NPC/creature from the bestiary). Its portrait, name, size
 category and colour come from the sheet — not typed in twice.
 
-### M5-2 · Movement from the sheet (G4)
+### M5-2 · Movement from the sheet (G4) — **NEXT, and now unblocked**
 Select a token → its remaining movement shows as a reachable-squares overlay computed from the character's
 **actual speed** through the per-system derivation (including the exhaustion −5ft/level rule that already
 exists, and PF2's action-based movement). Difficult terrain and blockers reduce it. Dragging beyond the
 allowance warns rather than forbids — the DM is in charge (G7).
+
+*What M4-1 leaves it:* `feetToWorld` / `worldToFeet` are the whole of G4's conversion and are already
+measured from the node rather than assumed, `squareAt` / `hexAt` / `hexDistance` give it cells to spend, and
+speed comes off the sheet through the existing ledger (`buildLedger(char).value('speed_walk', …)`), which is
+where the exhaustion rule already lives. **Difficult terrain and blockers have no authoring surface yet** —
+`dnd_map_objects` can carry them but nothing writes one, so M5-2 must either add that or state plainly that
+the overlay ignores terrain. Building the reader without the writer would be the same defect this slice just
+found twice.
 
 ### M5-3 · Reach, radius and templates
 Attack reach from the weapon; spell areas as the system defines them (5e cone/sphere/line/cube, PF2 emanation/

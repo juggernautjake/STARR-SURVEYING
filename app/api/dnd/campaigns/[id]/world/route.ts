@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCampaignRole } from '@/lib/dnd/auth';
 import { loadMapTree } from '@/lib/dnd/maps/query';
+import { sanitizeGrid } from '@/lib/dnd/maps/grid';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -178,6 +179,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ('consoleRef' in body) patch.console_ref = str(body.consoleRef, 200);
   if ('published' in body) patch.published = body.published === true;
   if ('sortOrder' in body && Number.isFinite(Number(body.sortOrder))) patch.sort_order = Number(body.sortOrder);
+  // M4-1 — the grid. `sanitizeGrid` is the WRITE half of `lib/dnd/maps/grid.ts`: it emits exactly one
+  // canonical shape, so the aliases the reader tolerates (`size_px`, `unit_ft`) never get written again,
+  // and a colour that is not a colour never reaches the `style` attribute the overlay puts it in.
+  //
+  // Null is a meaningful value here — "this node has no battle grid" — so it is stored as `{}` rather than
+  // rejected. The column is NOT NULL with a `{}` default, and `readGrid` treats both as no grid.
+  if ('grid' in body) patch.grid = sanitizeGrid(body.grid) ?? {};
   // Re-parenting is allowed; the cycle and depth triggers police it and their messages are surfaced.
   if ('parentId' in body) patch.parent_id = str(body.parentId, 64);
 

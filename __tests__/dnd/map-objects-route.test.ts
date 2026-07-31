@@ -151,8 +151,15 @@ describe('M4-2 is wired, not just written', () => {
 
   it('and never for a player', () => {
     const at = page.indexOf('<PlaceToken');
-    // The nearest enclosing conditional above it is the DM check.
-    expect(page.slice(Math.max(0, at - 400), at)).toMatch(/\{isDm && \(/);
+    const gate = page.lastIndexOf('{isDm && (', at);
+    expect(gate).toBeGreaterThan(-1);
+    // The gate is still OPEN where the control is mounted — no `)}` closes it in between.
+    //
+    // This used to assert `{isDm && (` within 400 characters above, which was a proximity heuristic
+    // standing in for containment. M4-1 mounting `GridDesigner` as a legitimate sibling in the same
+    // DM-only section pushed the distance past 400 and failed a test whose subject had not changed. A
+    // guard that breaks when you add a sibling is measuring the wrong thing.
+    expect(page.slice(gate, at)).not.toMatch(/^\s*\)\}\s*$/m);
   });
 
   it('the party it offers excludes library templates', () => {

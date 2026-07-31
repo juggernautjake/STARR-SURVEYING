@@ -77,8 +77,18 @@ describe('footprint on the grid', () => {
 });
 
 describe('placement', () => {
-  it('snaps to a node’s grid', () => {
-    expect(snapToGrid(7, 12, { size: 5 })).toEqual({ x: 5, y: 10 });
+  it('snaps to the CENTRE of a node’s square, not to the corner', () => {
+    // CHANGED BY M4-1, and the old expectation was the bug. This asserted `(5, 10)` — a grid INTERSECTION,
+    // because the rule rounded to a multiple of the cell size. Tokens draw with `translate(-50%, -50%)`,
+    // so every snapped token straddled four squares and the one question a battle grid exists to answer
+    // had four answers. It had never misbehaved in the app because no node had a grid until the designer
+    // shipped; the geometry now lives in `lib/dnd/maps/grid.ts` beside the drawing and the feet conversion.
+    expect(snapToGrid(7, 12, { size: 5 })).toEqual({ x: 7.5, y: 12.5 });
+  });
+
+  it('does not snap when the DM has turned snapping off', () => {
+    // A rug across a doorway, a body in a corner and a door in a wall all sit BETWEEN squares.
+    expect(snapToGrid(7.3, 12.8, { size: 5, snap: false })).toEqual({ x: 7.3, y: 12.8 });
   });
 
   it('does NOT snap on a map with no grid', () => {

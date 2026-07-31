@@ -51,7 +51,7 @@ function place(node: { grid: Record<string, unknown>; bounds: Record<string, unk
   const nx = Number(x);
   const ny = Number(y);
   if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
-  const snapped = snapToGrid(nx, ny, node.grid as { size?: number });
+  const snapped = snapToGrid(nx, ny, node.grid);
   return clampToMap(snapped.x, snapped.y, node.bounds as { maxX?: number; maxY?: number });
 }
 

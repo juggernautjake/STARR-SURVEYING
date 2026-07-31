@@ -17,6 +17,8 @@
 // pulled from the bestiary), plus the size category — which is a property of the token's FOOTPRINT on the
 // grid rather than of the creature's current state, and is therefore genuinely the map's business.
 
+import { readGrid, snapPoint } from './grid';
+
 /** Grid footprint, in squares. The words are shared across all four systems, which is why this is one map. */
 export const TOKEN_SIZES = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
 export type TokenSize = (typeof TOKEN_SIZES)[number];
@@ -74,24 +76,29 @@ export function readToken(data: unknown): TokenData | null {
 /**
  * Snap a position to the grid a node declares.
  *
- * `size` is 0 or absent on a node with no grid — a world map, a region — and there SNAPPING IS WRONG:
- * a city pin does not sit on a battle grid, and rounding its position would visibly move every marker the
- * DM placed. So no grid means the position is returned untouched, rather than snapped to an imagined
- * one-unit grid.
+ * A node with no grid — a world map, a region — is NOT snapped: a city pin does not sit on a battle grid,
+ * and rounding its position would visibly move every marker the DM placed. Same for a grid whose owner has
+ * turned snapping off, which is how a rug gets laid across a doorway.
+ *
+ * ── IT USED TO SNAP TO THE CORNER, AND M4-1 IS WHAT MADE THAT VISIBLE ────────────────────────────────
+ *
+ * This rounded to a MULTIPLE of the cell size — `(7, 12)` on a 5-unit grid became `(5, 10)`, a grid
+ * INTERSECTION. Tokens are drawn with `translate(-50%, -50%)`, so a snapped token straddled four squares
+ * and the one question a battle grid exists to answer had four answers. It had never misbehaved because
+ * no node had a grid until the designer shipped; the geometry now lives in `grid.ts` with the drawing and
+ * the feet-to-squares conversion, so the line a DM sees and the square a token lands in cannot disagree.
  */
-export function snapToGrid(x: number, y: number, grid: { size?: number } | null | undefined) {
-  const size = Number(grid?.size ?? 0);
-  if (!Number.isFinite(size) || size <= 0) return { x, y };
-  return { x: Math.round(x / size) * size, y: Math.round(y / size) * size };
+export function snapToGrid(x: number, y: number, grid: unknown) {
+  return snapPoint(x, y, readGrid(grid));
 }
 
 /** The on-screen side of a token in world units — its footprint, from the node's grid. */
-export function tokenFootprint(size: TokenSize, grid: { size?: number } | null | undefined): number {
-  const cell = Number(grid?.size ?? 0);
+export function tokenFootprint(size: TokenSize, grid: unknown): number {
+  const g = readGrid(grid);
   const squares = SIZE_SQUARES[size] ?? 1;
   // A gridless map still needs a drawable size; 2 world units reads as a marker at the zoom these maps
   // open at, and a token there is a pin rather than a piece on a board.
-  return cell > 0 ? cell * squares : 2 * squares;
+  return g ? g.size * squares : 2 * squares;
 }
 
 /**
