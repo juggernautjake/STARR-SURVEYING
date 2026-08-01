@@ -153,6 +153,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // slot, and "what expires soon" is checked on purpose rather than arrived at from somewhere else —
   // a licence nobody thinks to look for is the whole failure mode this page exists to prevent.
   { href: '/admin/compliance',      label: 'Compliance',      workspace: 'work', iconName: 'ShieldCheck',   description: 'Licences, certifications, insurance, vehicle registration and instrument calibration — every date that expires.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours'] },
+  // "Receivables", not "AR". §2.2 measured what happens when this app invents finance vocabulary —
+  // three words that all sound like money and mean different things. AR is jargon only an accountant
+  // reads; the keywords carry it so ⌘K still finds it.
+  { href: '/admin/receivables',     label: 'Receivables',     workspace: 'work', iconName: 'Banknote',     description: 'Who owes money and how late — unpaid invoices aged from their due date.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['ar', 'aging', 'ageing', 'collections', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'chase'] },
 
   // Equipment workspace ───────────────────────────────────────────
   { href: '/admin/equipment',                          label: 'Catalogue',         workspace: 'equipment', iconName: 'Package',       description: 'All firm equipment.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['gear', 'inventory'] },

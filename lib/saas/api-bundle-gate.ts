@@ -92,6 +92,15 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // explicitly rather than derived, because the page it mirrors lives under Work Mode while the
   // capability being sold is Field.
   'field-ingest': { bundle: 'field', reason: 'Collector ingestion is the field product.' },
+  // The money spine (audit Phase 2 #9/#11). All `office`: proposals, deliverables, change orders and
+  // receivables are the back-office product, and a firm that bought only Recon or Draft has no
+  // customers of its own to invoice through this. Named rather than derived — proposals hang off a
+  // lead and deliverables off a job, so the workspace default would scatter them across two bundles
+  // for what is one workflow.
+  'proposals': { bundle: 'office', reason: 'Proposals are the office product.' },
+  'deliverables': { bundle: 'office', reason: 'Document control is the office product.' },
+  'change-orders': { bundle: 'office', reason: 'Change orders are the office product.' },
+  'ar-aging': { bundle: 'office', reason: 'Receivables are the office product.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },
