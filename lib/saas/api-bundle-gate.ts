@@ -101,6 +101,7 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'deliverables': { bundle: 'office', reason: 'Document control is the office product.' },
   'change-orders': { bundle: 'office', reason: 'Change orders are the office product.' },
   'ar-aging': { bundle: 'office', reason: 'Receivables are the office product.' },
+  'portal-access': { bundle: 'office', reason: 'The customer portal is the office product.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },
