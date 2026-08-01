@@ -72,11 +72,26 @@ const TEMPLATES = ['Dice Core', 'Sigil Stack', 'Roll Board', 'Impact'];
 
 // 360×640 is the phone the owner's rule is really about; 768 is a tablet in portrait; 1280 is the
 // desktop the FIXED_W/FIXED_H ideal was drawn for. A window that fits all three fits the middle.
-const VIEWPORTS = [
+// 1280×660 is here because of an owner report the original list could not have caught: the sweep measured
+// 1280×**900** and called the desktop clean, which was true of a 900px-tall viewport and false of a laptop.
+// A browser's usable height on a 1366×768 screen is nearer 660 once its own chrome is taken, and the
+// roller's height is derived from that. Test the machine people have, not the resolution on the box.
+const DEFAULT_VIEWPORTS = [
   { name: '360x640', w: 360, h: 640 },
   { name: '768x1024', w: 768, h: 1024 },
+  { name: '1280x660', w: 1280, h: 660 },
   { name: '1280x900', w: 1280, h: 900 },
 ];
+
+/** `--viewports 1280x660,1440x780` overrides the list, for chasing a specific report. */
+const VIEWPORTS = (() => {
+  const raw = arg('viewports', '');
+  if (!raw) return DEFAULT_VIEWPORTS;
+  return raw.split(',').map((s) => {
+    const [w, h] = s.trim().toLowerCase().split('x').map(Number);
+    return { name: `${w}x${h}`, w, h };
+  }).filter((v) => v.w > 0 && v.h > 0);
+})();
 
 // One die and twenty. The tray's own maximum is the interesting case: it is the most content the stage
 // can ever be asked to hold, so if the window fits at 20 it fits at everything.

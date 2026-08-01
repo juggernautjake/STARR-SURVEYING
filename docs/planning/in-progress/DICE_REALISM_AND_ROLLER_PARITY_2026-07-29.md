@@ -680,6 +680,42 @@ still work; mobile keeps the 44px touch minimum.
 for Impact on any system — see the measured table above. The window never exceeds the viewport anywhere,
 which is the half of the acceptance that was about sizing.
 
+### D7-5 · The modal is sized to its content — **SHIPPED 2026-07-31, owner-directed**
+
+**Owner report, with a screenshot:** *"It seems like the vertical scroll bar on the right side of the dice
+roller is still there. I want it so that all of the dice roller templates fit neatly into the modal for the
+pc version and all of the content is shown at once without the scroll bar."* Then, decisively:
+
+> *"Make it a little wider so that all of the template button choices sit side by side, and then make the
+> modal be tall enough to reveal all of the digital dice roller elements. Only the dice roll history should
+> have its own little scrollable section to review previous dice rolls."*
+
+**D7-3 measured 1280×900 and called the desktop clean. That was true and useless.** A browser's usable
+height on an ordinary laptop is nearer 620–680px once its own chrome is taken, and the window's height is
+derived from the viewport — so the sweep had been testing a resolution rather than a machine. `1280x660` is
+now in the default viewport list, and `--viewports` lets a specific report be chased directly.
+
+**The approach the owner replaced was worse than the one they asked for, and that is the lesson.** What was
+underway was *compaction*: hide the template chips' glyphs, tighten every padding, shave the section
+headers — squeezing the content to fit a box that was itself the wrong size. It was all reverted. Two
+measured constants replaced it:
+
+| | before | after | why that number |
+| --- | --- | --- | --- |
+| `ROLLER_IDEAL_W` | 396 | **500** | the template bar's own `scrollWidth` is **458** on 5e; + 24 body padding + 2 border = 484 |
+| `ROLLER_IDEAL_H` | 700 | **680** | content demands **508–575** with the scrollers at their floor; +100 makes history a readable section |
+
+**The height went DOWN while the content got more room**, which is the part worth remembering: the two axes
+are not independent. A wider window puts the five chips on one row (−29px) and stops the dice pad wrapping
+(−38px), so widening the modal is what made it possible to shorten it.
+
+**Result:** every PC viewport at **1280×760, 1440×780 and 1920×1080 is clean — 88/88.** At **1280×660** five
+cells still clip 3–48px inside the dice arena, where the window is clamped to 589 and the breakdown cannot
+have its full height. Recorded rather than rounded up.
+
+*Verified in the browser at 1440×900:* one row of buttons, `bodyHidden: 0`, dice pad on one row, and roll
+history an 88px section of its own — exactly the shape the owner described.
+
 ### D7-4 · The phone-sized roller — **OPEN, and it is the honest remainder of D7-3**
 
 The last ten cells are not a sizing bug and cannot be fixed by the window. The Impact roller asks a 360×640

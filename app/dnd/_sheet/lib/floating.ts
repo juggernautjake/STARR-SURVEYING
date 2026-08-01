@@ -61,33 +61,53 @@ export function safeTop(): number {
 // honours both, and only stops working on a screen too small for the content —
 // which is D7-3's job to detect and report, not this function's to hide.
 
-/** What the window WANTS wherever there is room: the 07-28 constants, now a ceiling. */
-export const ROLLER_IDEAL_W = 396
+/**
+ * The width that puts every template button on ONE ROW — measured, not chosen.
+ *
+ * OWNER, 2026-07-31: *"Make it a little wider so that all of the template button choices sit side by
+ * side, and then make the modal be tall enough to reveal all of the digital dice roller elements. Only
+ * the dice roll history should have its own little scrollable section."*
+ *
+ * That instruction replaced the approach that preceded it, and the replacement was better. At 396 the five
+ * chips (four templates + the Animated toggle) needed 458px of a 372px row, so the bar wrapped and spent a
+ * second 29px line. The fix being attempted was to make the chips smaller — hide their glyphs, tighten
+ * their padding — which is squeezing the content to fit the box when the box is the thing that was wrong.
+ * All of that was reverted.
+ *
+ * Measured: the bar's own `scrollWidth` is **458** on the 5e sheets (434 on PF2/IG, which have fewer
+ * controls). The body pads it 12px each side and the window has a 1px border, so the window needs
+ * 458 + 24 + 2 = **484**. 500 is that with a little room, and it also gives the dice stage a better shape.
+ */
+export const ROLLER_IDEAL_W = 500
 
 /**
- * The height the TALLEST roller's content actually needs — measured, not chosen.
+ * The height that reveals every element, with roll history as the one scrollable section.
  *
- * D7-3's first real sweep failed 42 of 88 cells, and every failure was the same one: `.fld-body` scrolling
- * by 84–94px on both 5e sheets, at EVERY viewport including a 1280×900 desktop with 300px to spare. The
- * window was not too big for the screen; it was too small for its own contents, on a screen with room.
+ * 560 was never derived from anything — it was the 07-28 constant, still sitting there after the 07-30
+ * decision said the size comes from *"the tallest roller's content"*. D7-3's first real sweep failed 42 of
+ * 88 cells against it, on a 1280×900 desktop with 300px to spare: the window was never too big for the
+ * screen, it was too small for its own contents.
  *
- * 560 was never derived from anything. It is the 07-28 constant, and the 07-30 decision that superseded it
- * says the size is *"derived from **the tallest roller's content**"* — so leaving 560 in place kept the
- * exact number the decision replaced, while the code around it was rewritten to honour the decision. The
- * clamp-to-viewport work (D7-1) was correct and did its job; it was clamping the wrong ideal.
+ * Measured, and re-measured after the WIDTH changed — the two are not independent. A wider window puts the
+ * template bar on one row and stops some control rows wrapping, so widening it made it shorter.
  *
- * Measured in the browser at 348px wide, 5e Dice Core with roll history open — the tallest combination:
- *   template bar 59 + tray 602 + window header 26 + body padding/borders ≈ 690.
- * 700 gives that a little slack without inventing space. The other three templates and both bespoke
- * systems are shorter, and a window taller than its content is not a defect — the content sits at the top
- * of a slightly roomier box, which is what "one size, template to template" means.
+ * Method: shrink the window until the body overflows, then read what the content demands with the
+ * permitted scrollers at their 48px floor. Across four systems × four templates, after a real roll, with
+ * history open: **508–575**, the 5e Dice Core being tallest.
  *
- * On a screen that cannot give 700 (a 360×640 phone has ~564 usable) this is still just a ceiling, and the
- * content compresses instead: the stage gives up height first (`--roller-stage-min-h`, dropped by the
- * short-window rule in `floatingRoller.css`) and roll history — the one permitted scroller — absorbs the
- * remainder. That is the honest order: shrink the thing designed to scale, scroll the thing allowed to.
+ * 680 is that maximum plus about 100px, and the 100 is not padding — it is what turns roll history from a
+ * 48px floor into a section you can read a few rolls in, which is what the owner asked for: *"only the
+ * dice roll history should have its own little scrollable section"*. Everything else shows at natural size.
+ *
+ * What stops this growing without end is the history CAP from D7-2: five entries, the rest behind
+ * "show all n" INSIDE the log's own scroller. A busy session cannot push the window taller, so the height
+ * is bounded by design rather than by luck.
+ *
+ * It remains a CEILING. Where a screen has less room the window clamps down (D7-1) and the content
+ * compresses in a fixed order — the stage first, since it is built to scale, then history, then the
+ * breakdown — and if even that is not enough the body scrolls and D7-3 reports it rather than hiding it.
  */
-export const ROLLER_IDEAL_H = 700
+export const ROLLER_IDEAL_H = 680
 
 /**
  * The one size every roller template uses on this screen.

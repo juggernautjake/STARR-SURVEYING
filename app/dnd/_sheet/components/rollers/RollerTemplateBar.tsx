@@ -77,6 +77,10 @@ export default function RollerTemplateBar({
     <div
       role="group"
       aria-label="Roller style"
+      // WRAPPING IS ALLOWED TO STAY. The chips fit one row because the WINDOW is wide enough for them
+      // (`ROLLER_IDEAL_W`, sized from this row's measured width), not because they were squeezed — the
+      // owner asked for the modal to be made wider, not for the buttons to be made smaller. `flexWrap`
+      // remains as the graceful fallback on a phone, where one row is not possible at any padding.
       style={{ display: 'flex', gap: 4, padding: '2px 2px 8px', flexWrap: 'wrap', alignItems: 'center' }}
     >
       {ROLLER_TEMPLATES.map((t) => {
