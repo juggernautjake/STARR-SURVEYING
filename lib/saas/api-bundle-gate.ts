@@ -87,6 +87,11 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // ones that stay reachable on a lapsed plan — gating it would leave a firm looking at an app with
   // no name on it while trying to fix their subscription.
   'tenant': { bundle: null, reason: 'A firm\'s own identity is not a product feature.' },
+  // Getting field data OUT of a collector and into the app (audit §3d). Gated to `field`: this is
+  // the crew-facing product, and a firm that bought only Office has no crews to collect it. Named
+  // explicitly rather than derived, because the page it mirrors lives under Work Mode while the
+  // capability being sold is Field.
+  'field-ingest': { bundle: 'field', reason: 'Collector ingestion is the field product.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },
