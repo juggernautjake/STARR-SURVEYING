@@ -76,8 +76,38 @@ BEGIN;
 CREATE INDEX IF NOT EXISTS dnd_creatures_identity_idx
   ON public.dnd_creatures ((lower(btrim(name))));
 
-DROP VIEW IF EXISTS public.dnd_creatures_canonical;
-DROP MATERIALIZED VIEW IF EXISTS public.dnd_creatures_canonical;
+-- ── `IF EXISTS` DOES NOT MEAN "IF IT IS ONE OF THESE" (fixed 2026-08-01) ────────────────────────────
+--
+-- These two lines were a plain `DROP VIEW IF EXISTS` followed by `DROP MATERIALIZED VIEW IF EXISTS`, on
+-- the reasonable-sounding theory that whichever one it is, one of them will match and the other will
+-- quietly skip. It does not work that way. `DROP VIEW IF EXISTS` skips only when **nothing** of that
+-- name exists; when a MATERIALIZED view exists it raises
+--   `42809  "dnd_creatures_canonical" is not a view`
+-- and the reverse is equally true of `DROP MATERIALIZED VIEW` against a plain view. So after this seed
+-- had run once — leaving a matview behind — running it again always failed, and took every later seed
+-- with it: `scripts/apply-seeds.mjs` stopped at file 292 of 305.
+--
+-- Swapping the order cannot fix it, because either order is wrong for one of the two states. The object's
+-- `relkind` has to be asked. Second instance of the same class of defect in one seed run (see 450), and
+-- the shared lesson is worth stating: **a seed that has never been run twice has never been tested.**
+DO $$
+DECLARE
+  kind "char";
+BEGIN
+  SELECT c.relkind INTO kind
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'public' AND c.relname = 'dnd_creatures_canonical';
+
+  IF kind = 'm' THEN
+    DROP MATERIALIZED VIEW public.dnd_creatures_canonical;
+  ELSIF kind = 'v' THEN
+    DROP VIEW public.dnd_creatures_canonical;
+  ELSIF kind IS NOT NULL THEN
+    -- A TABLE of this name would mean something else entirely owns it, and dropping it blind is how a
+    -- migration destroys data it did not create. Fail loudly with the thing that is actually there.
+    RAISE EXCEPTION 'public.dnd_creatures_canonical exists as relkind %, which this seed did not create', kind;
+  END IF;
+END $$;
 
 -- ── MATERIALIZED, AND ONLY BECAUSE A PLAIN VIEW WAS MEASURED FIRST ──────────────────────────────────
 --
