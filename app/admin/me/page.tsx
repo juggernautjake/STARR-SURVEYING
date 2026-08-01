@@ -23,6 +23,7 @@ import type { UserRole } from '@/lib/auth';
 
 import HubGreeting from './components/HubGreeting';
 import HubMeClient from './HubMeClient';
+import OnboardingChecklist from '../components/OnboardingChecklist';
 import { fetchHubLayoutForUser } from '@/lib/hub/server/fetch-hub-layout';
 
 // HubGreeting still relies on the `.hub-greeting*` selectors from
@@ -42,6 +43,12 @@ export default async function HubPage() {
   return (
     <div className="hub-page">
       <HubGreeting />
+      {/* First-run path (audit item 8i). Above the widget canvas because a firm that has set nothing
+          up has an empty canvas, and an empty canvas with no explanation is where a new customer
+          decides the software does not work. It renders nothing once the essentials are done, and
+          reappears on its own if they stop being — see the component header for why there is no
+          dismissal flag. */}
+      <OnboardingChecklist />
       <HubMeClient layout={layout} roles={roles} isSeeded={isSeeded} />
     </div>
   );

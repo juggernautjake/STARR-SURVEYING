@@ -102,6 +102,9 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'change-orders': { bundle: 'office', reason: 'Change orders are the office product.' },
   'ar-aging': { bundle: 'office', reason: 'Receivables are the office product.' },
   'portal-access': { bundle: 'office', reason: 'The customer portal is the office product.' },
+  // Setting the firm up. Gating this would be the sharpest possible own goal: a firm whose plan is
+  // not yet resolved could not reach the checklist that tells it how to finish signing up.
+  'onboarding': { bundle: null, reason: 'The first-run checklist must work before anything is bought.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },
