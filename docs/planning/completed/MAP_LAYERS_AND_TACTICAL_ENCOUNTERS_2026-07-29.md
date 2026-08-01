@@ -543,11 +543,19 @@ collapsing to a dropdown on mobile. Browser back mirrors it.
 > including ones with no child: an unbuilt pin still occupies the space that decides whether its
 > neighbours can be labelled, and the prefetcher filters for `href` itself.
 >
-> **What could not be verified in the dev server, stated rather than implied:** `router.prefetch` is a
-> hard no-op in development (`app-router.js`: *"Don't prefetch during development"*), so no network effect
-> is observable there. The selection is unit-tested six ways — nearest-first, bounded, stable on ties,
-> off-screen excluded, zero-limit meaning zero rather than everything — and the network behaviour was
-> confirmed against a production build.
+> **Dev could not show this, and a production build did.** `router.prefetch` is a hard no-op in
+> development (`app-router.js`: *"Don't prefetch during development"*), so no network effect is
+> observable there at all — which is worth writing down, because a feature verified only in dev here
+> would have been verified as nothing.
+>
+> Confirmed against `next start` on a clean production build, on the 40-pin city: **exactly 3 RSC
+> prefetch requests**, which is `PREFETCH_NEAREST`. Not forty — which is what Next's own eager `<Link>`
+> prefetch would have produced on this dynamic route, and the reason it is turned off on the pins. The
+> selection is unit-tested six ways besides: nearest-first, bounded, stable on ties, off-screen excluded,
+> and zero-limit meaning zero rather than everything.
+>
+> The same production pass confirmed M3-3 end to end: the crowded city opens at `dots` with every label
+> hidden, at a scale of 6.06 — the exact number that made the old absolute thresholds unreachable.
 
 ### M3-3 · Dynamic rendering (LOD) — original plan text
 What is drawn depends on zoom: pins as dots when far out, labelled icons closer in, full art and grid at

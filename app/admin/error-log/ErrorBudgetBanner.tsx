@@ -50,11 +50,17 @@ export default function ErrorBudgetBanner(): React.ReactElement | null {
       data-spiking={budget.spiking ? 'true' : 'false'}
       style={{
         margin: '0 0 14px', padding: '10px 14px', borderRadius: 8,
-        border: `1px solid ${budget.spiking ? 'var(--color-error, #DC2626)' : 'var(--color-border, #E5E7EB)'}`,
-        background: budget.spiking ? 'rgba(220,38,38,0.06)' : 'transparent',
+        // `--border-light` is the token this design system actually defines; `--color-border` was only
+        // ever somebody's fallback, so a bare `var(--color-border)` would have resolved to nothing and
+        // rendered no border at all. Checked against `app/styles/tokens.css` rather than assumed.
+        border: budget.spiking ? '1px solid var(--color-error)' : 'var(--border-light)',
+        // A tint of the error token rather than a hex of it: `color-mix` keeps the wash following the
+        // theme, which a literal rgba() cannot do — and an inline hex cannot be reached by a contrast
+        // audit or the print stylesheet either, which is what the ratchet is about.
+        background: budget.spiking ? 'color-mix(in srgb, var(--color-error) 6%, transparent)' : 'transparent',
       }}
     >
-      <strong style={{ color: budget.spiking ? 'var(--color-error, #DC2626)' : undefined }}>
+      <strong style={{ color: budget.spiking ? 'var(--color-error)' : undefined }}>
         {/* The sentence is built SERVER-SIDE, so the API and this banner cannot word the same numbers two
             different ways — the same rule the reconciliation report and the follow-up queue follow. */}
         {note}
@@ -65,7 +71,7 @@ export default function ErrorBudgetBanner(): React.ReactElement | null {
         </div>
       )}
       {budget.topRoutes.length > 0 && (
-        <div style={{ fontSize: 13, marginTop: 4, color: 'var(--color-text-muted, #6B7280)' }}>
+        <div style={{ fontSize: 13, marginTop: 4, color: 'var(--color-text-muted)' }}>
           {/* Grouped by route, because ten stack traces from one broken endpoint are ONE problem and a
               list keyed on the message shows them as ten. */}
           Mostly:{' '}

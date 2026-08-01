@@ -64,7 +64,7 @@ export default function FollowUpQueue(): React.ReactElement | null {
       <h2 style={{ margin: '0 0 4px', fontSize: 16 }}>
         Follow-ups{' '}
         {summary && (
-          <span style={{ fontWeight: 400, fontSize: 13, color: 'var(--color-text-muted, #6B7280)' }}>
+          <span style={{ fontWeight: 400, fontSize: 13, color: 'var(--color-text-muted)' }}>
             {summary.overdue} overdue · {summary.today} today · {summary.upcoming} coming up
           </span>
         )}
@@ -75,21 +75,21 @@ export default function FollowUpQueue(): React.ReactElement | null {
         if (!list.length) return null;
         return (
           <div key={due} data-testid={`follow-ups-${due}`} style={{ marginTop: 8 }}>
-            <h3 style={{ margin: '0 0 4px', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: due === 'overdue' ? 'var(--color-error, #DC2626)' : 'var(--color-text-muted, #6B7280)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: due === 'overdue' ? 'var(--color-error)' : 'var(--color-text-muted)' }}>
               {due === 'overdue' ? 'Overdue' : due === 'today' ? 'Due today' : 'Coming up'}
             </h3>
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
               {list.map((r) => (
                 <li key={r.id} data-testid="follow-up-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'baseline', fontSize: 13.5 }}>
                   <Link href={`/admin/leads/${r.id}`} style={{ fontWeight: 600 }}>{r.name || 'Unnamed lead'}</Link>
-                  <span style={{ color: 'var(--color-text-muted, #6B7280)' }}>{r.note}</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{r.note}</span>
                   {/* The phone number IS the action. A queue that makes you open a detail page to find it
                       is a queue that gets worked when there is time, which is never. */}
                   {r.phone && <a href={`tel:${r.phone.replace(/[^\d+]/g, '')}`}>{r.phone}</a>}
                   {r.quoteAmount ? <span>{money(r.quoteAmount)}</span> : null}
                   <span
                     title={r.attribution.detail ?? undefined}
-                    style={{ fontSize: 12, color: r.attribution.paid ? 'var(--color-warning, #B45309)' : 'var(--color-text-muted, #6B7280)' }}
+                    style={{ fontSize: 12, color: r.attribution.paid ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
                   >
                     {r.attribution.paid ? '💰 ' : ''}{r.attribution.label}
                   </span>

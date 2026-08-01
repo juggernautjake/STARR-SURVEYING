@@ -144,9 +144,17 @@ describe('inbound webhook route', () => {
     expect(SRC).toMatch(/\{ status: 503 \}/);
   });
 
-  it("requires the x-webhook-secret header to match the env value", () => {
+  it("requires the x-webhook-secret header to match the env value — in CONSTANT TIME", () => {
+    // This used to pin the exact expression `!provided || provided !== secret`, which is how a test
+    // ends up guarding the vulnerability rather than the rule: `!==` short-circuits at the first
+    // differing character, leaking how much of the secret a caller has right, and any fix for that
+    // would have turned this test red (B1-3, 2026-08-01).
+    //
+    // So it asserts the PROPERTY — the header is checked, and the comparison does not short-circuit.
     expect(SRC).toMatch(/req\.headers\.get\('x-webhook-secret'\)/);
-    expect(SRC).toMatch(/!provided \|\| provided !== secret/);
+    expect(SRC).toMatch(/!provided \|\| !timingSafeEqualStr\(provided, secret\)/);
+    const statements = SRC.split('\n').filter((l) => !l.trimStart().startsWith('//')).join('\n');
+    expect(statements).not.toMatch(/provided !== secret/);
   });
 
   it("looks up the lead by LIKE 'Ref: <reference>%'", () => {
