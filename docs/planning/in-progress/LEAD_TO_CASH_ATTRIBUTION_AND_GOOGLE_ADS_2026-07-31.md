@@ -403,8 +403,38 @@ attribute.
   (`origin-lead/route.ts:47`).
 - Emits milestone 5 — **the primary bidding conversion**.
 
-### A7 — Google Ads export, CSV first
+### A7 — Google Ads export, CSV first ✅ SHIPPED 2026-08-01
 *Ships value with zero Google API access and no developer-token wait.*
+
+> **Done.** `lib/integrations/google-ads/offline.ts` (23 tests), `/api/admin/marketing/exports`,
+> `/admin/marketing/exports`, registered in the route registry and gated `admin` in middleware.
+>
+> **Read from Google's live documentation today (2026-08-01)** and recorded in the module header:
+> a new conversion action needs **4–6 hours** before uploads land normally; Google's own GCLID sample uses
+> a **90-day expiry**, which matches the click window `attribution.ts` already assumed; Data Manager's
+> file-based lookback is 90 days.
+>
+> ⚠ **What could NOT be verified, and is flagged rather than asserted:** the exact CSV **column headers**.
+> Google's help page describes the process without printing the header row. The headers used are the
+> long-standing published set, and they are the one thing here that could be subtly wrong in a way that
+> only fails at upload. **The two-minute fix is in the module header:** Google Ads → Goals → Conversions →
+> Uploads → *Download template*. That template is account-specific and authoritative; if it disagrees,
+> the template wins. Claiming a source the code does not have would be worse than saying this.
+>
+> **Marking is a separate, explicit action — not a side effect of downloading.** Downloading is not
+> uploading. If the GET marked rows as sent, a file someone glanced at and closed, or one Google rejected,
+> would silently lose those conversions forever because the next export skips them.
+>
+> **The summary is the product; the CSV is delivery.** The page says what the file *will* contain before
+> you take it anywhere, broken down by why rows were left out — already exported, outside the 90-day
+> window, or no usable identifier. Those mean three different things and one of them is a bug; a bare
+> "37 conversions" from Google tells you which of them happened, never.
+>
+> **Rows Google would reject are filtered out rather than sent.** A rejected row produces an error report
+> someone has to interpret and makes a good upload look broken.
+>
+> Conversion action NAMES come from env with the plan's table as fallback, because Google matches them
+> exactly including capitalisation, and the response states which name it used so a mismatch is visible.
 
 - `lib/integrations/google-ads/offline.ts` — build upload rows from A4's stream: `Google Click ID`,
   `Conversion Name`, `Conversion Time` (Ads' required format, with timezone), `Conversion Value`,

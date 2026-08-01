@@ -38,6 +38,10 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // consolidation Slice 2 — the redirect at the top of the handler
   // takes the user to /admin/me?tab=… before we reach the role check.
   { prefix: '/admin/leads', roles: ['admin', 'developer', 'tech_support'] },
+  // A7 — admin only, and narrower than /admin/leads on purpose: this page hands out a file containing
+  // customer conversion values and hashed identifiers, and it writes into the ad account's record of what
+  // has been uploaded. That is a commercial control, not a work queue.
+  { prefix: '/admin/marketing', roles: ['admin'] },
   { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
   { prefix: '/admin/schedule', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
