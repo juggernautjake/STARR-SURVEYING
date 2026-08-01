@@ -725,7 +725,59 @@ as more CSS.
 A `token` object references a `character_id` (PC or NPC/creature from the bestiary). Its portrait, name, size
 category and colour come from the sheet — not typed in twice.
 
-### M5-2 · Movement from the sheet (G4) — **NEXT, and now unblocked**
+### M5-2 · Movement from the sheet (G4) — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/movement.ts` (24 tests), `lib/dnd/maps/reach.ts`, `app/dnd/_ui/maps/ReachOverlay.tsx`,
+> and `?token=` selection on the world page. Browser-verified end to end.
+>
+> **The diagonal is a rules decision, and picking one silently would draw a confidently wrong overlay for
+> two systems out of three.** 5e's PHB default charges one square for a diagonal (reach is a SQUARE); the
+> DMG variant and PF2's core rules alternate 5/10 ft (reach is an OCTAGON); orthogonal-only is a diamond.
+> It is an explicit policy defaulted per system, and the alternating rule is priced **against the path,
+> not the step** — its cost depends on how many diagonals the path has already used, so the search carries
+> that parity in its state. Charging 7.5 ft per diagonal, or doubling every one, is the plausible shortcut
+> that gets the second diagonal wrong on every path.
+>
+> **Dijkstra, not a breadth-first flood.** With difficult terrain the cheapest path is not the one with
+> fewest steps, so a flood marks each cell at whatever the first arrival happened to cost. Tested with a
+> mud patch the search correctly routes around.
+>
+> ## The terrain decision, made the way this slice's own note demanded
+>
+> The note said M5-2 *"must either add [an authoring surface] or state plainly that the overlay ignores
+> terrain"*, because building the reader without the writer would repeat a defect this plan had caught
+> twice. **Both, in effect:** terrain is a **parameter** (`cost: (cell) => number | null`), never a lookup
+> this module invents, so the reader is already correct for the day a writer exists and nothing in it
+> changes. Until then `terrainApplied` comes back `false` and the readout says, in the UI and not just in
+> a comment: *"Difficult terrain and blockers are not counted — nothing on this map authors them yet."*
+>
+> **Speed is read, never copied** — `buildLedger(char).value('speed_walk', base)`, the same ledger the
+> sheet uses, so the exhaustion −5ft/level rule is not reimplemented here. A second implementation would
+> drift, and the first symptom would be a map letting an exhausted character outrun their own sheet.
+>
+> A creature token gets **no** overlay rather than a plausible wrong one: creature speed lives in a
+> different shape and does not go through the ledger.
+>
+> ## Found in the browser, would not have been found otherwise
+>
+> `<title>{costFt} ft</title>` inside the SVG produced **13 hydration mismatches**, one per visible cell:
+> adjacent JSX children serialise as one text node on the server and hydrate as two. Typecheck, lint and
+> 20,000 tests were all green with it in place. Fixed to a single template expression; re-verified at zero
+> console errors.
+>
+> ## Verified against a real map
+>
+> No map nodes or tokens existed in the live database, so a temporary node (20 squares, 5 ft) and one
+> token were created, checked, and **deleted afterwards — back to 0 nodes, 0 objects.** A 30 ft speed on a
+> 5 ft grid drew exactly **168 cells** (13 × 13 − 1), the origin outlined once rather than filled, the
+> selected token ringed in the overlay's own teal, and the readout reading *"30 ft · diagonals cost one
+> square"*. Selection is a URL (`?token=`), matching M3-2's model — so it is shareable, survives a
+> refresh, and costs no client JavaScript.
+>
+> **Still open, and named rather than implied:** an authoring surface for difficult terrain and blockers
+> (M6 territory), and drag-to-move with the over-budget warning — `moveWarning` exists and is tested, but
+> nothing drags a token yet, so it has no caller.
+
+### M5-2 · Movement from the sheet (G4) — original plan text
 Select a token → its remaining movement shows as a reachable-squares overlay computed from the character's
 **actual speed** through the per-system derivation (including the exhaustion −5ft/level rule that already
 exists, and PF2's action-based movement). Difficult terrain and blockers reduce it. Dragging beyond the

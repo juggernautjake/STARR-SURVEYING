@@ -27,6 +27,9 @@ import { tierOf } from '@/lib/dnd/maps/html-world';
 import GeneratedMap from '@/app/dnd/_ui/maps/GeneratedMap';
 import GridDesigner from '@/app/dnd/_ui/maps/GridDesigner';
 import GridOverlay from '@/app/dnd/_ui/maps/GridOverlay';
+// M5-2 — the reachable-squares overlay and the loader that asks the sheet how fast the token is.
+import ReachOverlay from '@/app/dnd/_ui/maps/ReachOverlay';
+import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -47,7 +50,10 @@ export default async function WorldPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { node?: string };
+  // M5-2 — `token` is the selected piece, and it is a URL parameter for the same reason `node` is: this
+  // whole surface navigates by server-rendered link (M3-2), so the reachable set is computed once on the
+  // server rather than shipping a Dijkstra and a character sheet to the browser.
+  searchParams: { node?: string; token?: string };
 }) {
   const campaignId = params.id;
   const nodeParam = searchParams.node;
@@ -101,6 +107,29 @@ export default async function WorldPage({
   // disagree. Same rule that keeps HP off a token.
   const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
+
+  // M5-2 — the selected token's reach. Resolved for ONE token, not all of them: this runs the effect
+  // ledger over a character sheet, which is far too much work to repeat for every figure on a crowded
+  // board when only the selected one is drawn.
+  const selected = nodeTokens.find(({ o }) => o.id === searchParams.token) ?? null;
+  const reach = selected && current
+    ? await loadReach({
+        subject: selected.t.subject,
+        x: selected.o.x,
+        y: selected.o.y,
+        rawGrid: current.grid,
+        // No system passed: a map node has no ruleset, and the diagonal rule belongs to the CHARACTER's
+        // system anyway (a PF2 character alternates diagonals on any battle map). `loadReach` reads it
+        // off the character row.
+      })
+    : null;
+  /** Select a token, or clear the selection by clicking it again. */
+  const tokenHref = (objectId: string | null) => {
+    const p = new URLSearchParams();
+    if (current) p.set('node', current.id);
+    if (objectId) p.set('token', objectId);
+    return `/dnd/campaigns/${campaignId}/world?${p.toString()}`;
+  };
 
   return (
     <div className={styles.root}>
@@ -199,6 +228,19 @@ export default async function WorldPage({
                       map and every continent. */}
                   <GridOverlay grid={current.grid} label={`${current.name} grid`} />
 
+                  {/* M5-2 — where the selected token can get to, between the grid and the pieces: over the
+                      lines so they read through the wash, under the tokens so a figure is never tinted by
+                      its own overlay. Renders nothing at all when no token is selected. */}
+                  {reach && (
+                    <ReachOverlay
+                      grid={reach.grid}
+                      squares={reach.squares}
+                      hexes={reach.hexes}
+                      origin={reach.origin}
+                      label={`Reachable squares for ${selected?.t.nickname ?? 'the selected token'}`}
+                    />
+                  )}
+
                   {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
                       map under pan and zoom rather than floating over it. */}
                   {nodePins.map((p) => {
@@ -274,11 +316,19 @@ export default async function WorldPage({
                     // `asset_url` is the DM's own override for THIS piece; otherwise the character's round
                     // token art, resolved live from the sheet.
                     const art = o.asset_url ?? subject?.portrait ?? null;
+                    // M5-2 — the token is a LINK, so selecting it is a normal navigation like every other
+                    // control on this surface, and clicking the selected one clears the selection. A link
+                    // rather than a button because it changes the URL: the state is shareable, survives a
+                    // refresh, and a DM can send "look at this" to the table.
+                    const isSelected = selected?.o.id === o.id;
                     return (
-                      <div
+                      <Link
                         key={o.id}
-                        title={label}
-                        aria-label={label}
+                        href={tokenHref(isSelected ? null : o.id)}
+                        scroll={false}
+                        title={isSelected ? `${label} — selected; click to clear` : `${label} — click to show its movement`}
+                        aria-label={isSelected ? `${label}, selected. Clear selection` : `${label}. Show movement range`}
+                        aria-current={isSelected ? 'true' : undefined}
                         style={{
                           position: 'absolute',
                           left: at.x,
@@ -292,10 +342,15 @@ export default async function WorldPage({
                           // units — 40% of its diameter, and thicker still as the reader zoomed in. A
                           // fraction of the footprint keeps the ring the same weight at every zoom AND at
                           // every size, so a Gargantuan token is not outlined like a hairline.
-                          border: `${side * 0.07}px solid var(--hx-gold-2)`,
+                          // M5-2 — the selected token takes the teal of its own overlay, so the ring and
+                          // the wash read as one thing. Thicker too: colour alone would be the only
+                          // signal, and "which token is selected" must not depend on telling gold from
+                          // teal at a glance on a busy board.
+                          border: `${side * (isSelected ? 0.11 : 0.07)}px solid ${isSelected ? 'var(--hx-teal-1)' : 'var(--hx-gold-2)'}`,
                           background: 'rgba(1,10,19,0.82)',
                           display: 'grid',
                           placeItems: 'center',
+                          textDecoration: 'none',
                           color: 'var(--hx-gold-2)',
                           // Scales with the footprint so a Gargantuan token's initial does not stay tiny.
                           fontSize: Math.max(1, side * 0.5),
@@ -318,11 +373,47 @@ export default async function WorldPage({
                         ) : (
                           label.slice(0, 1).toUpperCase()
                         )}
-                      </div>
+                      </Link>
                     );
                   })}
                 </MapViewport>
               </section>
+
+              {/* M5-2 — the numbers behind the wash. The overlay answers "can I get there"; this answers
+                  "why that far", which is the question a DM asks the moment the shape surprises them —
+                  usually because something is reducing the speed.
+
+                  IT SAYS WHAT IT DOES NOT KNOW. Nothing authors difficult terrain or blockers yet, so the
+                  overlay is open-ground only and the panel states that rather than letting a DM read the
+                  wash as if it had consulted a terrain layer. The plan's own note on this slice is that
+                  building the reader without the writer would repeat a defect it had already caught twice;
+                  saying so plainly is the other half of not repeating it. */}
+              {reach && selected && (
+                <section
+                  className={styles.framedPanel}
+                  style={{ padding: '10px 14px', display: 'grid', gap: 6 }}
+                  data-testid="reach-readout"
+                >
+                  <div className={styles.framedPanelTop} />
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 13.5 }}>
+                      {selected.t.nickname || subjects.get(subjectKey(selected.t.subject))?.name || 'Token'}
+                    </strong>
+                    <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{reachSummary(reach)}</span>
+                    <Link className={styles.hexBtn} href={tokenHref(null)} style={{ marginLeft: 'auto', fontSize: 12 }}>
+                      Clear
+                    </Link>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                    {reach.squares.length + reach.hexes.length} cells reachable on open ground.{' '}
+                    {/* The honest caveat, not a disclaimer: it names what is missing and why the number is
+                        still useful. */}
+                    <strong>Difficult terrain and blockers are not counted</strong> — nothing on this map
+                    authors them yet, so this is the distance across clear ground.
+                    {reach.truncated && ' The search stopped early on this grid; the shape shown is incomplete.'}
+                  </p>
+                </section>
+              )}
 
               {/* M4-2 — the placing control sits DIRECTLY UNDER the map it writes to, because "click the
                   map" is its second half. Putting it up with WorldAuthor would arm a mode whose target is
