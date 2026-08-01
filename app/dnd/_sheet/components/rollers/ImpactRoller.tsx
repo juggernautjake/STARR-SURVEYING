@@ -29,6 +29,7 @@ import { useRollFeed } from './rollFeed'
 import { materialForSkin } from '@/lib/dnd/dice/materials'
 import Die3D from './Die3D'
 import './impactRoller.css'
+import { useHistoryOpen } from './useHistoryOpen'
 
 // The tumble length, shared by the stage's timeline (sounds, commit) and the die's own trajectory so the throw
 // and the clack land together. One constant, because two that happened to match would drift apart.
@@ -418,7 +419,7 @@ export default function ImpactRoller() {
   const [entryFace, setEntryFace] = useState('')
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
-  const [histOpen, setHistOpen] = useState(true)
+  const [histOpen, setHistOpen] = useHistoryOpen()
   /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
   const [histAll, setHistAll] = useState(false)
 

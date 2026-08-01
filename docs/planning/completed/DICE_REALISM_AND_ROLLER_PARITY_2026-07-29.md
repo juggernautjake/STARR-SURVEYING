@@ -1,5 +1,26 @@
 # Dice realism & roller parity — 2026-07-29
 
+> ## ✅ COMPLETE 2026-08-01 — every phase shipped, moved to `completed/`
+>
+> **D1–D6** solids, projection, throw, `Die3D`, multi-dice, materials, sound, flare (D5-4 deferred with a
+> reason), parity audit + guards, and the **D6-3 contact sheet** (53 cells, zero clipping).
+> **D7** the window: one size per screen (D7-1), content that fits (D7-2), the sweep that proved it (D7-3),
+> the modal sized to its content at 500×680 (D7-5), and the phone (D7-4).
+>
+> **Final state of the sweep** — `node scripts/roller-sweep.mjs --axis all`:
+> 360×640 and 390×844 **58/58**; 1280×760, 1440×780, 1920×1080 **88/88**; contact sheet **53 cells, 0 clipped**.
+>
+> **What this phase actually taught**, worth more than the pixels:
+> - A sweep that cannot fail is worth less than no sweep. The first complete run was 92/92 GREEN measuring
+>   a window that was never on screen.
+> - A green bought by hiding content is worse than an honest red. `min-height: 0` on the scrollers made the
+>   roll total zero pixels tall and the sweep passed.
+> - A list is only as wide as itself. Three times: the fourth roll log, the fourth stage token, the fourth
+>   `useState(true)`. Every one was three-of-four.
+> - Squeezing content to fit a box is the wrong move when the box is the thing that is wrong. The owner had
+>   to say so before it was seen.
+
+
 > ## ✅ ANSWERED 2026-07-30 — **one size per screen**
 >
 > > *"All templates still share ONE size — but that size is derived from the tallest roller's content and
@@ -716,7 +737,41 @@ have its full height. Recorded rather than rounded up.
 *Verified in the browser at 1440×900:* one row of buttons, `bodyHidden: 0`, dice pad on one row, and roll
 history an 88px section of its own — exactly the shape the owner described.
 
-### D7-4 · The phone-sized roller — **OPEN, and it is the honest remainder of D7-3**
+### D7-4 · The phone-sized roller — **SHIPPED 2026-08-01. The sweep is now clean on a phone.**
+
+> **58 fit cells at 360×640 and 390×844 — 0 failing.** The ten cells D7-3 could not close are closed.
+>
+> **Candidate 1 was enough on its own**, exactly as the ranking below predicted: roll history plus its
+> floor is ~90px and the shortfall was ~81. `useHistoryOpen` starts the history collapsed when the derived
+> window is under **640px**, and the section header stays visible — so the player can see the history is
+> there and open it with one tap, at which point it scrolls inside itself as designed. Candidates 2 and 3
+> were not needed and are not done; the chrome is untouched.
+>
+> **The threshold is derived, not chosen.** The roller's content needs 508–575px with both permitted
+> scrollers at their floor (D7-5), and history adds ~90 on top. Below 640 the history could only ever
+> render as a 48px sliver that scrolls — at which point a collapsed section is strictly more useful than a
+> slot too small to read one entry in. It asks about the WINDOW (`currentRollerSize().h`) rather than the
+> viewport, because `rollerSize` already folds in the header inset and edge margin.
+>
+> **One hook, not four `useState(false)`s.** All four rollers declared `useState(true)` on their own line —
+> which is precisely the shape of the two mistakes this phase already made (the fourth roll log in D7-2,
+> the fourth stage token in D7-3). `roller-history-collapse.test.ts` enumerates all four and also pins
+> that none of them re-declares the old default.
+>
+> **Two decisions that keep it from being annoying**, both pinned by tests:
+> - It starts **open** and collapses in an effect. `useState(() => window.innerHeight < X)` is the obvious
+>   version and cannot work — `window` does not exist during the server render, and initialising from it
+>   is a hydration mismatch.
+> - The effect runs **on mount only**. A rule that re-collapsed whenever the window was short would close
+>   the history the player had just deliberately opened, on every rotation — correct on paper, infuriating
+>   in the hand.
+>
+> *Incidental:* the first version of the guard failed on the hook's own comment explaining why
+> `window.innerHeight` is the wrong signal. The test now strips comments before asserting — a guard that
+> trips over the prose documenting it is a guard that teaches people to delete comments.
+
+<details>
+<summary>The original D7-4 plan, kept for the decision trail</summary>
 
 The last ten cells are not a sizing bug and cannot be fixed by the window. The Impact roller asks a 360×640
 phone for roughly 90px more chrome than it has, with the stage already at its minimum and both permitted
@@ -734,6 +789,8 @@ Three candidates, in the order they should be tried:
 Not attempted here on purpose: each is a change to how a stage LOOKS, and the honest place to make those is
 against the contact sheet D6-3 now produces, with someone looking at the result — not inside a slice whose
 job was to measure.
+
+</details>
 
 ---
 

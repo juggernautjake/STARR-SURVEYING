@@ -26,6 +26,7 @@ import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
 import { useRollFeed } from './rollFeed'
 import { useExpandOnRoll } from './FloatingRoller'
 import './sigilStack.css'
+import { useHistoryOpen } from './useHistoryOpen'
 
 type TileKind = 'die' | 'mod' | 'boost' | 'penalty' | 'total'
 interface StackTile {
@@ -298,7 +299,7 @@ export default function SigilStack() {
   const [entryFace, setEntryFace] = useState('')
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
-  const [histOpen, setHistOpen] = useState(true)
+  const [histOpen, setHistOpen] = useHistoryOpen()
   /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
   const [histAll, setHistAll] = useState(false)
 

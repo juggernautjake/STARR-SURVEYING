@@ -11,6 +11,7 @@ import { setMuted, isMuted, primeAudio } from '../lib/audio'
 import { useRollerDock } from './rollers/FloatingRoller'
 import { HISTORY_PREVIEW } from './rollers/rollerAnim'
 import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
+import { useHistoryOpen } from './rollers/useHistoryOpen'
 
 export default function DiceTray() {
   const { log, clearLog, resetStage, activeRoll, advMode, setAdvMode, vanillaMode, setVanillaMode, transformActive, topFormId, transform, endTransform, nextTurn, recklessActive, toggleReckless, rollCheck, rollExpr, manualD20, recordRoll, char, activeFormId, preferences } = useChar()
@@ -25,7 +26,7 @@ export default function DiceTray() {
   const hasReckless = useSheetModule('reckless')
   const hasForms = useSheetModule('forms')
   const dock = useRollerDock()
-  const [histOpen, setHistOpen] = useState(true)   // collapse/expand the roll history
+  const [histOpen, setHistOpen] = useHistoryOpen()   // collapse/expand the roll history
   /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
   const [histAll, setHistAll] = useState(false)
   // Auto-open the dock when a roll is triggered from the sheet while it's minimized, so the roll

@@ -25,6 +25,7 @@ import { shouldAnimateRoller, adoptedToken, HISTORY_PREVIEW } from './rollerAnim
 import { STANDARD_DICE } from '@/lib/dnd/dice/solids'
 import { useRollFeed } from './rollFeed'
 import './rollBoard.css'
+import { useHistoryOpen } from './useHistoryOpen'
 
 
 // ── The resolution stage: three face-down cards; one flips to reveal the roll ────────────────
@@ -327,7 +328,7 @@ export default function RollBoard() {
   const [entryFace, setEntryFace] = useState('')
   const [entryMod, setEntryMod] = useState('')
   const [entryTotal, setEntryTotal] = useState('')
-  const [histOpen, setHistOpen] = useState(true)
+  const [histOpen, setHistOpen] = useHistoryOpen()
   /** D7-2: history shows the last few until asked. See HISTORY_PREVIEW. */
   const [histAll, setHistAll] = useState(false)
 
