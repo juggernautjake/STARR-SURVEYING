@@ -1761,9 +1761,50 @@ identical lines apart from the number.
 
 Test data removed afterwards — 0 nodes.
 
-**Still open, and named:** drag-to-move (the write path exists; the gesture does not), and nothing emits
-`token_enters` automatically, so M6-4's executor is reachable from the DM's button and an explicit event
-POST but not yet from a token crossing a region.
+### The last two gaps, closed 2026-08-01
+
+Both were named at the end of M7 and both are done. They turned out to be one thing: a token that moves
+is the event, and a drag is how a token moves.
+
+**Drag-to-move.** The write path has existed since M4-2; the gesture had not, so moving a piece meant
+arming a control under the map and clicking. **It needs no mode, unlike box-select, and the reason is the
+whole design:** a drag on empty map is ambiguous between panning and selecting, but a drag that begins ON
+a token is not — nothing else could be meant. So the handler attaches to the tokens and stops the gesture
+reaching the viewport.
+
+It also does not break the click. A token is a LINK (selecting it shows its movement, M5-2), so a
+handler that swallowed every `pointerdown` would take that away. The distinction is DISTANCE — under
+five screen pixels is a click and the link is untouched; past it, the navigation is suppressed and the
+piece moves. Screen pixels rather than world units, because the threshold is about the reader's hand and
+not about the map. And the drop sends a **raw world coordinate**: snapping, clamping, the DM/own-token
+gate and the triggers all stay server-side, exactly as they are for click-to-place.
+
+**`token_enters` now fires by itself**, which is what makes M6-4's executor part of play rather than a
+button. `lib/dnd/maps/regions.ts` (12 tests) answers *"which regions did this token just walk into"*,
+and the distinction in that sentence is the design: **entered, not "is inside"**. Asking for containment
+would spring a pit trap on every step across the room it is in, which at a table reads as the map being
+broken rather than as the puzzle being clever. Regions are half-open on their far edge for the same
+reason the terrain patches are — a closed interval puts a shared wall in both rooms and fires two
+triggers for one step.
+
+A map with no triggers, or no regions, pays for none of this: both are checked before anything else is
+loaded.
+
+Verified live — a pit with a trap on it, and a walker:
+
+| Step | Result |
+|---|---|
+| Walk in | `triggered: ["Walker entered a region — 3 effects applied"]` · **HP 30 → 24** |
+| Move WITHIN the pit | no trigger, **HP unchanged** |
+| Walk out | no trigger |
+| Walk back in | fires again — it is not a `once` trap · **HP 24 → 18** |
+| The sheet | carries `prone` |
+| The feed | *"Read aloud — The flagstones give way."* |
+
+Test data removed afterwards — 0 nodes.
+
+**Nothing in this plan is now unbuilt.**
+
 
 
 ### The original M7 plan text

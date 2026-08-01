@@ -48,6 +48,8 @@ import FireTrigger from '@/app/dnd/_ui/maps/FireTrigger';
 // M7-2 — fog of war: the dark, the DM's brush, and what a player's own tokens can see through it.
 // M7-3 — everyone at the table sees the same board.
 import LiveMap from '@/app/dnd/_ui/maps/LiveMap';
+// M4-2 / M7-1 — pick a token up and put it somewhere else. The write path has existed since M4-2.
+import TokenDrag from '@/app/dnd/_ui/maps/TokenDrag';
 import FogOverlay from '@/app/dnd/_ui/maps/FogOverlay';
 import FogTools from '@/app/dnd/_ui/maps/FogTools';
 import { fogHoles, isVisible as visibleThroughFog, readFog, visionFt } from '@/lib/dnd/maps/fog';
@@ -738,6 +740,10 @@ export default async function WorldPage({
                     return (
                       <Link
                         key={o.id}
+                        // The drag handle. On the LINK itself, so a gesture that starts on a piece is
+                        // unambiguously about that piece — which is why dragging a token needs no mode
+                        // while box-select does.
+                        data-token-id={o.id}
                         href={tokenHref(isSelected ? null : o.id)}
                         scroll={false}
                         // Selecting a token is a same-node URL change, so there is no other level to warm
@@ -752,8 +758,12 @@ export default async function WorldPage({
                           top: at.y,
                           width: side,
                           height: side,
-                          transform: 'translate(-50%, -50%)',
+                          // `--drag-x/y` are set only while a piece is being dragged, and default to
+                          // zero — so the same declaration serves the resting token and the moving one,
+                          // and there is no second transform to keep in step with this one.
+                          transform: 'translate(calc(-50% + var(--drag-x, 0px)), calc(-50% + var(--drag-y, 0px)))',
                           borderRadius: '50%',
+                          touchAction: 'none',
                           // PROPORTIONAL TO THE TOKEN, not a pixel count. Inside the transformed layer one
                           // CSS pixel IS one world unit, so the old `2px` ring was 2 of a Medium token's 5
                           // units — 40% of its diameter, and thicker still as the reader zoomed in. A
@@ -809,6 +819,7 @@ export default async function WorldPage({
                 <div style={{ padding: '6px 12px 10px' }}>
                   {/* M7-3 — said out loud. A board that silently updates is one a DM distrusts the moment
                       something moves that they did not move. */}
+                  <TokenDrag campaignId={campaignId} />
                   <LiveMap
                     label={isDm
                       ? 'This map updates for everyone at the table.'

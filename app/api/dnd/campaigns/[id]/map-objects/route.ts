@@ -37,6 +37,10 @@ import {
   type MapObjectRow,
 } from '@/lib/dnd/maps/object-edits';
 import { OBJECT_COLS, newBatchId, readDiscoveries, readObjects, record } from '@/lib/dnd/maps/journal';
+// M6-4's missing events — a token that walks into a region sets off what is waiting there.
+import { entered, left, type Region } from '@/lib/dnd/maps/regions';
+import { preview, readTrigger, resolve, type TriggerEvent } from '@/lib/dnd/maps/triggers';
+import { executePlan } from '@/lib/dnd/maps/execute';
 
 export const dynamic = 'force-dynamic';
 
@@ -333,6 +337,17 @@ export async function PATCH(req: NextRequest) {
 
   const after = await readObjects(picked.ids);
   const byId = new Map(after.map((r) => [r.id, r]));
+
+  // ── M6-4 · the events a MOVE produces ────────────────────────────────────────────────────────────
+  //
+  // The trigger engine and its executor both shipped with nothing emitting the events they listen for, so
+  // a pit trap only sprang when the DM remembered to press a button — which is the thing a trigger exists
+  // to stop. A token that changed position is now checked against the node's regions, and anything
+  // waiting in one it just walked into fires.
+  //
+  // ENTERED, not "is inside": a token moving one square within a room has not entered it again, and
+  // firing on containment would set the trap off on every step across it.
+  const fired = await fireMoveEvents(gate.node.id, before, byId, session.userId);
   await record(
     gate.node.id,
     newBatchId(),
@@ -345,7 +360,7 @@ export async function PATCH(req: NextRequest) {
       summary: summarizeEdit('update', row),
     })),
   );
-  return NextResponse.json({ ok: true, changed: patches.length });
+  return NextResponse.json({ ok: true, changed: patches.length, ...(fired.length ? { triggered: fired } : {}) });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -382,4 +397,76 @@ export async function DELETE(req: NextRequest) {
     })),
   ]);
   return NextResponse.json({ ok: true, removed: before.length });
+}
+
+/**
+ * Fire whatever was waiting in the regions these tokens just walked into.
+ *
+ * Returns a short description per firing, so the client can say "the pit trap went off" rather than
+ * leaving a DM to notice that a sheet changed. Failures are swallowed **and named in the return value**
+ * rather than taking the move down: a token that moved and then could not resolve its triggers has still
+ * moved, and refusing the whole request would strand the piece.
+ */
+async function fireMoveEvents(
+  nodeId: string,
+  before: readonly MapObjectRow[],
+  after: ReadonlyMap<string, MapObjectRow>,
+  actorUserId: string,
+): Promise<string[]> {
+  const moved = before.filter((b) => {
+    const a = after.get(b.id);
+    return b.kind === 'token' && a && (Number(a.x) !== Number(b.x) || Number(a.y) !== Number(b.y));
+  });
+  if (!moved.length) return [];
+
+  const { data: triggerRows } = await supabaseAdmin
+    .from('dnd_map_triggers')
+    .select('id, name, fires_when, fires_then, once, armed, fired_at')
+    .eq('map_node_id', nodeId);
+  const triggers = ((triggerRows ?? []) as Parameters<typeof readTrigger>[0][]).map(readTrigger);
+  // No triggers on this map is the normal case, and the whole rest of this is skipped for it — a move on
+  // an ordinary battle map must not pay for a feature nobody on it is using.
+  if (!triggers.length) return [];
+
+  const { data: node } = await supabaseAdmin
+    .from('dnd_map_nodes').select('id, campaign_id, grid, bounds').eq('id', nodeId).maybeSingle();
+  if (!node) return [];
+  const n = node as { id: string; campaign_id: string; grid: unknown; bounds: unknown };
+
+  const { data: areaRows } = await supabaseAdmin
+    .from('dnd_map_objects').select('id, x, y, w, h').eq('map_node_id', nodeId).eq('kind', 'area');
+  const regions = ((areaRows ?? []) as Array<{ id: string; x: number; y: number; w: number | null; h: number | null }>)
+    .map<Region>((r) => ({ id: r.id, x: Number(r.x), y: Number(r.y), w: r.w == null ? null : Number(r.w), h: r.h == null ? null : Number(r.h) }));
+  if (!regions.length) return [];
+
+  const notes: string[] = [];
+  for (const b of moved) {
+    const a = after.get(b.id)!;
+    const from = { x: Number(b.x), y: Number(b.y) };
+    const to = { x: Number(a.x), y: Number(a.y) };
+    const events: TriggerEvent[] = [
+      ...entered(regions, from, to).map((r) => ({ kind: 'token_enters' as const, targetId: r.id, actorId: b.id })),
+      ...left(regions, from, to).map((r) => ({ kind: 'token_leaves' as const, targetId: r.id, actorId: b.id })),
+    ];
+    for (const event of events) {
+      // `resolve`, not `preview`: this is a token walking, and a disarmed or already-fired trigger must
+      // stay silent. Only the DM's explicit "fire it" button bypasses that.
+      const plan = resolve(event, triggers);
+      if (!plan.actions.length) continue;
+      const report = await executePlan(plan, {
+        campaignId: n.campaign_id, nodeId: n.id, grid: n.grid, bounds: n.bounds, actorName: null,
+      });
+      notes.push(`${b.label ?? 'A token'} ${event.kind === 'token_enters' ? 'entered' : 'left'} a region — ${report.done} effect${report.done === 1 ? '' : 's'} applied`);
+      // `once` is spent, exactly as it is on the DM's button. A trap that fired because someone walked
+      // into it is as fired as one the DM set off.
+      const spent = triggers.filter((t) => t.once && plan.fired.includes(t.id)).map((t) => t.id);
+      if (spent.length) {
+        await supabaseAdmin.from('dnd_map_triggers')
+          .update({ armed: false, fired_at: new Date().toISOString() }).in('id', spent);
+        for (const t of triggers) if (spent.includes(t.id)) t.armed = false;
+      }
+    }
+  }
+  void actorUserId;
+  return notes;
 }
