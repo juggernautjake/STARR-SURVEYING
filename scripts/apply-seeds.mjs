@@ -21,6 +21,21 @@
 // parsing it out of .env.local (so it works without dotenv installed).
 // Per memory/project_apply_seeds_to_supabase.md the node-pg path is the
 // one that actually connects (the supabase CLI paths fail here).
+//
+//   node scripts/apply-seeds.mjs --target staging   # STAGING_DB_URL instead of production
+//   node scripts/apply-seeds.mjs --target <url>     # an explicit connection string
+//
+// ── WHY --target EXISTS (platform audit §8.2) ───────────────────────
+//
+// The audit's remaining Phase 0 item is *"stand up an actual staging Supabase project from these
+// seeds"*, and the reason nobody had is visible right here: until now this script could only ever
+// reach ONE database. Bootstrapping staging meant editing `.env.local` to point at it, running the
+// seeds, and remembering to put production back — with `--reset` one forgotten edit away from
+// TRUNCATE-ing every table in the live business.
+//
+// So the escape hatch and the guard ship together, because either alone is worse than neither: a way
+// to point elsewhere makes the destructive flag easier to fire by accident, and a guard on a script
+// that can only hit production just makes the one necessary path annoying.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,17 +64,45 @@ const CONTINUE_ON_ERROR = hasFlag('--continue-on-error');
 const ONLY = getOpt('--only'); // exact filename
 const FROM = getOpt('--from'); // numeric prefix lower bound
 
+const TARGET = getOpt('--target'); // 'staging' | 'production' | a connection string
+const I_MEAN_IT = hasFlag('--yes-truncate-production');
+
 // ── resolve the DB url ──────────────────────────────────────────────
-function readDbUrl() {
-  if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL;
+function readEnv(name) {
+  if (process.env[name]) return process.env[name];
   const envPath = path.join(REPO_ROOT, '.env.local');
   if (fs.existsSync(envPath)) {
     for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-      const m = line.match(/^\s*SUPABASE_DB_URL\s*=\s*(.*)\s*$/);
+      const m = line.match(new RegExp(`^\\s*${name}\\s*=\\s*(.*)\\s*$`));
       if (m) return m[1].replace(/^['"]|['"]$/g, '').trim();
     }
   }
   return null;
+}
+
+/** @returns {{url: string|null, label: string, isProduction: boolean}} */
+function resolveTarget() {
+  if (TARGET && /^postgres(ql)?:\/\//.test(TARGET)) {
+    // An explicit URL is never assumed safe: it may well BE production, typed out by hand.
+    const prod = readEnv('SUPABASE_DB_URL');
+    return { url: TARGET, label: 'explicit --target url', isProduction: !!prod && sameHost(TARGET, prod) };
+  }
+  if (TARGET === 'staging') {
+    return { url: readEnv('STAGING_DB_URL'), label: 'STAGING_DB_URL', isProduction: false };
+  }
+  if (TARGET && TARGET !== 'production') {
+    console.error(`✗ Unknown --target "${TARGET}". Use "staging", "production", or a postgres:// URL.`);
+    process.exit(2);
+  }
+  return { url: readEnv('SUPABASE_DB_URL'), label: 'SUPABASE_DB_URL (production)', isProduction: true };
+}
+
+/** Compare by host+database only — credentials and pooler ports differ between equivalent URLs. */
+function sameHost(a, b) {
+  try {
+    const pa = new URL(a), pb = new URL(b);
+    return pa.hostname === pb.hostname && pa.pathname === pb.pathname;
+  } catch { return false; }
 }
 
 // ── build the ordered file list ─────────────────────────────────────
@@ -82,11 +125,39 @@ function planFiles() {
 }
 
 async function main() {
-  const dbUrl = readDbUrl();
+  const target = resolveTarget();
+  const dbUrl = target.url;
   if (!dbUrl) {
-    console.error('✗ SUPABASE_DB_URL not set and not found in .env.local.');
+    console.error(`✗ ${target.label} not set and not found in .env.local.`);
+    if (TARGET === 'staging') {
+      console.error('  Create a staging Supabase project, then add STAGING_DB_URL=postgres://… to .env.local');
+      console.error('  and run:  node scripts/apply-seeds.mjs --target staging --reset');
+    }
     process.exit(2);
   }
+
+  // ── The guard (platform audit §8.2) ───────────────────────────────
+  //
+  // `000_reset.sql` TRUNCATEs every table. Combined with a default target of production, that made
+  // `npm run db:seed:reset` a single un-prompted command away from deleting the entire live business —
+  // every job, every time log, every payroll run. It has been that way the whole time; nothing had
+  // fired it yet, which is not the same as it being safe.
+  //
+  // Deliberately a distinct flag rather than an interactive prompt: a prompt is a reflex to dismiss,
+  // and it does not survive the case that matters most — this running unattended from a script or CI.
+  if (INCLUDE_RESET && target.isProduction && !I_MEAN_IT) {
+    console.error('✗ REFUSING to run 000_reset.sql against PRODUCTION.');
+    console.error(`  Target: ${target.label}`);
+    console.error('  000_reset.sql TRUNCATEs every table — all jobs, time logs, payroll and receipts.');
+    console.error('');
+    console.error('  If you want a clean database, that is what staging is for:');
+    console.error('      node scripts/apply-seeds.mjs --target staging --reset');
+    console.error('  If you genuinely mean to wipe production, say so explicitly:');
+    console.error('      node scripts/apply-seeds.mjs --reset --yes-truncate-production');
+    process.exit(2);
+  }
+
+  console.log(`Target: ${target.label}${target.isProduction ? '  ⚠ PRODUCTION' : ''}`);
 
   const files = planFiles();
   if (files.length === 0) {

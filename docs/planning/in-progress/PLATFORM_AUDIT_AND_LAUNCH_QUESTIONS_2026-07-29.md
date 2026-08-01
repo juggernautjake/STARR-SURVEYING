@@ -82,6 +82,37 @@ Two ordering bugs were found and fixed while doing this:
 **Still to do:** stand up an actual staging Supabase project from these seeds and point a preview
 deploy at it. The repo can now do this; nobody has yet.
 
+> **⚠ PARTLY DONE 2026-08-01 — the tooling is built; creating the project is the owner's to do.**
+>
+> The reason nobody had done this was mechanical, and worth naming: `apply-seeds.mjs` could resolve
+> **exactly one connection** — production. Bootstrapping a second database meant editing `.env.local`,
+> running the seeds, and remembering to change it back. And `npm run db:seed:reset` runs
+> `000_reset.sql`, which **TRUNCATEs every table**, against whatever `.env.local` happens to say, with
+> no confirmation of any kind. So the one step Phase 0 asks for was also the step most likely to
+> delete the live business by a forgotten edit. It had been that way the whole time; nothing had fired
+> it, which is not the same as it being safe.
+>
+> Both halves now ship together, because either alone is worse than neither — a way to point elsewhere
+> makes the destructive flag easier to fire by accident, and a guard on a script that can only reach
+> production is pure friction:
+>
+> - `--target staging` reads `STAGING_DB_URL`; `--target <postgres://…>` takes an explicit string.
+>   Every run now **prints its destination**, so the target is never inferred.
+> - `--reset` against production is **refused** unless `--yes-truncate-production` is passed — a
+>   distinct flag rather than a prompt, since a prompt is a reflex to dismiss and does not survive the
+>   unattended case. It is refused even when production is typed out as an explicit `--target` URL
+>   (compared by host + database, since credentials and pooler ports differ between equivalent URLs).
+> - An unrecognised `--target` **fails** rather than falling back to production, so `--target stagng`
+>   cannot silently seed the live database.
+> - `npm run db:bootstrap:staging` is the whole bootstrap in one command.
+>
+> `__tests__/schema/seed-target-guard.test.ts` runs the real script for each case.
+>
+> **What remains is genuinely not mine to do:** creating the Supabase project and pointing a Vercel
+> preview at it requires an account on the owner's Supabase organisation and its billing. Once the
+> project exists, add `STAGING_DB_URL=…` to `.env.local` and run `npm run db:bootstrap:staging` —
+> the 307-file seed set applies from empty, and `scripts/verify-baseline-schema.mjs` confirms parity.
+
 ### 1.1b 🟠 NEW — three research routes query tables that exist nowhere
 Found by the census above. `research_artifacts` and `research_extracted_data_points` are queried by
 production code but exist in **neither `seeds/` nor the live database**:
@@ -435,7 +466,9 @@ Anthropic client:
 **Phase 0 — De-risk (before anything else)**
 1. ✅ **DONE 2026-07-29.** Reconstructed the 76 missing table schemas into `seeds/`, verified
    column-for-column against production, guarded by a test. See §1.1.
-2. ⬜ Stand up an actual staging Supabase project from `seeds/` and point a preview deploy at it.
+2. ⚠ **TOOLING DONE 2026-08-01, project creation is owner-gated.** `--target staging` + a
+   production-reset guard shipped; `npm run db:bootstrap:staging` does the rest once the Supabase
+   project exists and `STAGING_DB_URL` is set. See §1.1.
 3. ✅ **DONE 2026-08-01.** Per **D1**, nullable `org_id` now sits on the business tables — 53 → 126
    tables, via `seeds/513_org_scoping.sql`, backfilled to the single Starr org. See §1.2.
 4. ✅ **DONE 2026-08-01.** Resolved the two phantom research tables (§1.1b) — neither built nor

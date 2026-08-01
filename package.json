@@ -31,6 +31,8 @@
     "db:seed": "node scripts/apply-seeds.mjs",
     "db:seed:all": "node scripts/apply-seeds.mjs --continue-on-error",
     "db:seed:reset": "node scripts/apply-seeds.mjs --reset",
+    "db:seed:staging": "node scripts/apply-seeds.mjs --target staging",
+    "db:bootstrap:staging": "node scripts/apply-seeds.mjs --target staging --reset --continue-on-error",
     "db:seed:dry": "node scripts/apply-seeds.mjs --dry-run",
     "dnd:bootstrap": "node scripts/dnd-bootstrap.mjs",
     "dnd:seed-lazzuh": "tsx scripts/dnd-seed-lazzuh.ts",
