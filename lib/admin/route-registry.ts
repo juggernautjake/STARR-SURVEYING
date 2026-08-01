@@ -149,6 +149,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/mileage',         label: 'Mileage',         workspace: 'work', iconName: 'Car',           description: 'Mileage logs + reimbursement.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/finances',        label: 'Finances',        workspace: 'work', iconName: 'Briefcase',     description: 'Job finances + invoicing.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
   { href: '/admin/vehicles',        label: 'Vehicles',        workspace: 'work', iconName: 'Truck',         description: 'Vehicle fleet roster.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['fleet', 'trucks'] },
+  // On the rail, not palette-only. §1.4's split says destinations somebody navigates TO get a rail
+  // slot, and "what expires soon" is checked on purpose rather than arrived at from somewhere else —
+  // a licence nobody thinks to look for is the whole failure mode this page exists to prevent.
+  { href: '/admin/compliance',      label: 'Compliance',      workspace: 'work', iconName: 'ShieldCheck',   description: 'Licences, certifications, insurance, vehicle registration and instrument calibration — every date that expires.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours'] },
 
   // Equipment workspace ───────────────────────────────────────────
   { href: '/admin/equipment',                          label: 'Catalogue',         workspace: 'equipment', iconName: 'Package',       description: 'All firm equipment.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['gear', 'inventory'] },

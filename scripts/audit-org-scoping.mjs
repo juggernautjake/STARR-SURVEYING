@@ -80,17 +80,33 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
   const cols = await c.query(`select table_name from information_schema.columns where table_schema='public' and column_name='org_id'`);
   const hasOrg = new Set(cols.rows.map((r) => r.table_name));
 
+  // ── NULLABILITY IS PART OF THE DERIVED RULE, AND LEAVING IT OUT COST 16 TABLES ────────────────
+  //
+  // The rule "a child of a scoped table derives its tenant" is right. Applied without asking whether
+  // the foreign key is NOT NULL, it is wrong for every table whose parent link is optional:
+  //
+  //   job_equipment.job_id           NOT NULL → cannot exist without a job. Derivable.
+  //   equipment_inventory.vehicle_id NULLABLE → a total station in the cage is assigned to no
+  //                                             vehicle, no job and no receipt. NOTHING to derive
+  //                                             from, and no org_id column to filter on either.
+  //
+  // Measured 2026-08-01: 16 tables were in that state, including equipment_inventory, cad_drawings,
+  // user_files and lead_lifecycle_events — and equipment_assignments, a CHILD of
+  // equipment_inventory, already carried org_id while its parent did not. Fixed by seed 521.
   const fks = await c.query(`
-    select tc.table_name as child, ccu.table_name as parent
+    select tc.table_name as child, ccu.table_name as parent, col.is_nullable
     from information_schema.table_constraints tc
     join information_schema.key_column_usage kcu on kcu.constraint_name = tc.constraint_name
     join information_schema.constraint_column_usage ccu on ccu.constraint_name = tc.constraint_name
+    join information_schema.columns col
+      on col.table_schema = tc.table_schema and col.table_name = tc.table_name and col.column_name = kcu.column_name
     where tc.constraint_type='FOREIGN KEY' and tc.table_schema='public'`);
   const parents = new Map();
   for (const r of fks.rows) {
     if (r.child === r.parent) continue;
     if (!parents.has(r.child)) parents.set(r.child, new Set());
-    parents.get(r.child).add(r.parent);
+    // Only a MANDATORY link derives a tenant. An optional one is an association, not ownership.
+    if (r.is_nullable === 'NO') parents.get(r.child).add(r.parent);
   }
 
   const all = await c.query(`select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name`);
