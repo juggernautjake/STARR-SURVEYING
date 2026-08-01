@@ -104,3 +104,4 @@ dev-server.log
 # Evidence for a slice, not source: regenerate with `node scripts/contact-sheet.mjs`.
 .audit/
 .cache/
+scripts/_tmp_map/

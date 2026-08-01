@@ -1019,7 +1019,7 @@ a next-turn button, and nothing else required (the owner explicitly wants the si
 > logged — a player editing their total in devtools is doing what a player lying about a d20 does, and the
 > DM can see it either way.
 >
-> **Still open in M6:** M6-2 passive detection, M6-4 triggers and M6-5 trigger safety. `dnd_map_triggers`
+> **Still open in M6 (at the time this was written):** M6-2 passive detection, M6-4 triggers and M6-5 trigger safety. `dnd_map_triggers`
 > exists (M1-5) and has no reader — the `when`/`then` machinery is the largest remaining piece of this plan.
 
 ### M6-1 · Hidden objects with a DC (G3) (original plan text)
@@ -1028,7 +1028,64 @@ payload does not contain it.** When a player rolls the relevant check — throug
 result is auditable — the server compares and, on success, writes a `map_discovery` and pushes the reveal. A
 client that never received the secret cannot leak it.
 
-### M6-2 · Passive detection
+### M6-2 · Passive detection — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/passive.ts` (pure rules, 21 tests) + `lib/dnd/maps/passive-scan.ts` (the I/O half),
+> running on the player's world page. Verified end to end against a live server with four hidden objects.
+>
+> ## Passive is not a free roll, and that is the whole design
+>
+> The tempting implementation compares every hidden object's DC against a passive score. It would be
+> wrong in a way nobody would report as a bug: it quietly deletes the difference between **looking
+> around** and **searching the bookcase**, which for a lot of dungeons is the entire puzzle. So only
+> `PASSIVE_SKILLS` (Perception) is eligible — an **Investigation** secret still needs
+> `POST /api/dnd/maps/search`, because investigating is an action you take.
+>
+> **Range is required, not optional.** Without it, walking onto a map reveals every passively-findable
+> secret on it at once. 30 ft by default, short on purpose; a DM who wants a thing noticed from across
+> the room says so on the object (`noticeRangeFt`).
+>
+> **The score is not recomputed here.** `summarizeMember` already derives it per system — 10 + the
+> Perception modifier for 5e, PF2's Perception proficiency for PF2, and **null for IG**, which has no
+> equivalent and where inventing one from Wisdom would be a rule we made up. A second implementation
+> would drift, and the first symptom would be the map noticing things the party sheet says it should
+> not. A test reads the file and asserts it contains no `abilityMod` / `profBonus` / `10 +`.
+>
+> **A passive find is recorded with `found_by_roll: NULL`**, deliberately: a DM reading the audit trail
+> can then tell *"they walked past and spotted it"* from *"they searched and rolled a 17"*. Writing an
+> invented number would destroy the distinction the column exists for.
+>
+> **It runs on render, not on movement** — the plan says "when a token moves within range" and nothing
+> moves tokens yet. Rendering asks the same question at the only moment currently available: *the party
+> is standing here; what do they notice?* Building the comparison and leaving it uncalled until
+> drag-to-move exists is the pattern `no-orphan-modules` was written to stop.
+>
+> **It scans for the VIEWER's own characters only.** Scanning on the DM's behalf would write discoveries
+> onto sheets nobody was looking at — a player would return to find their character had "noticed" things
+> during someone else's session.
+>
+> ## The defect found before it shipped: the marker landed in the corner
+>
+> A discovery written *during* a render is not in the object payload that render already fetched — the
+> object was `visibility: 'dm'` at fetch time. The merge looked the position up in `objects` and fell
+> back to `?? 0`, so the first time a player noticed a rune beside them, its marker drew at world (0,0)
+> — the corner of the map — and was correct again on the next reload. **Wrong exactly once**, which is
+> the hardest kind of wrong to notice. `PassiveNotice` now carries `x`/`y`, because the caller genuinely
+> cannot look them up.
+>
+> ## Verified live, with four objects chosen to be told apart
+>
+> | | |
+> |---|---|
+> | A rune, Perception DC 14, 10 ft away (passive 16) | **found**, marker at exactly (12.5, 22.5) |
+> | A sigil, Perception DC 5, ~110 ft away | **not found** — range, not DC, is what stopped it |
+> | A flagstone, **Investigation** DC 5, adjacent | **not found** — it needs an action |
+> | The rune's `dm_notes` | **never in the player's HTML** |
+>
+> Plus: `found_by_roll` written as `null`; the banner appears once and not on the second visit while the
+> rune stays visible; the DM sees all four and the `dm_notes`, and **the DM's own visit wrote no
+> discoveries**. Throwaway campaign data removed afterwards — back to 0 nodes, 0 objects.
+
+### M6-2 · Passive detection (original plan text)
 Some systems notice things without rolling (5e passive Perception). Supported as an automatic server-side
 comparison when a token moves within range.
 

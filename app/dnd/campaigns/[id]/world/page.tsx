@@ -38,6 +38,8 @@ import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenCondit
 import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
 // M6-4 / M6-5 — the trigger engine, and the DM-side preview of what each one will do.
 import { describePlan, preview, readTrigger } from '@/lib/dnd/maps/triggers';
+// M6-2 — what the party notices by standing there, no roll required.
+import { scanPassive } from '@/lib/dnd/maps/passive-scan';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -144,7 +146,7 @@ export default async function WorldPage({
   // Found by the browser pass: the discovery was being WRITTEN and the object was being RETURNED, and the
   // page drew nothing, because it only ever rendered `kind === 'token'`. A secret you successfully find
   // and still cannot see is indistinguishable from one you failed to find.
-  const nodeReveals = current
+  const nodeRevealsBase = current
     ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'hidden')
     : [];
 
@@ -153,6 +155,49 @@ export default async function WorldPage({
   // carrying a copy would keep the old face for as long as it existed, with nothing saying the two
   // disagree. Same rule that keeps HP off a token.
   const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
+
+  // M6-2 — passive detection. The plan says "when a token moves within range"; nothing moves tokens yet
+  // (drag-to-move is still open), so this asks the same question at the only moment available: the party
+  // is standing here, what do they notice? Runs for the viewer's OWN characters only — scanning on the
+  // DM's behalf would write discoveries onto sheets nobody was looking at.
+  let passiveNoticed: Awaited<ReturnType<typeof scanPassive>> = { notices: [], recorded: 0 };
+  if (!isDm && current && discoveredBy.length) {
+    const mine = new Set(discoveredBy);
+    passiveNoticed = await scanPassive({
+      nodeId: current.id,
+      rawGrid: current.grid,
+      tokens: nodeTokens
+        .map(({ o, t }) => ('characterId' in t.subject
+          ? { characterId: t.subject.characterId, x: o.x, y: o.y }
+          : null))
+        .filter((t): t is { characterId: string; x: number; y: number } => t !== null && mine.has(t.characterId)),
+      characterIds: discoveredBy,
+    });
+  }
+
+  // The scan necessarily runs AFTER `loadMapObjects` — it needs the tokens, which come from those
+  // objects. So a thing noticed on THIS render is not in `objects`, and without this merge a player would
+  // walk in, notice a rune, and see nothing until they reloaded. The notice already carries the label and
+  // read-aloud text, so nothing has to be re-queried.
+  const nodeReveals = [
+    ...nodeRevealsBase,
+    ...passiveNoticed.notices
+      .filter((n) => !nodeRevealsBase.some((o) => o.id === n.objectId))
+      // Deduplicated by object: two characters noticing the same rune is one rune on the map.
+      .filter((n, i, all) => all.findIndex((m) => m.objectId === n.objectId) === i)
+      // Position comes off the NOTICE, not off `objects` — the object a player just noticed was
+      // `visibility: 'dm'` when this render fetched its objects, so it is not in there to look up, and a
+      // `?? 0` fallback would draw the marker in the map's corner on the one render that matters.
+      .map((n) => ({
+        id: n.objectId,
+        map_node_id: current!.id,
+        kind: 'hidden' as const,
+        x: n.x,
+        y: n.y,
+        label: n.label,
+        description: n.description,
+      } as (typeof nodeRevealsBase)[number])),
+  ];
   // M5-5 — the live encounter, if there is one. Null is the normal state of a map, so nothing about the
   // page depends on it.
   const turn = await loadLiveTurn(campaignId);
@@ -647,6 +692,16 @@ export default async function WorldPage({
                   <h2 style={{ fontSize: 13, margin: 0, fontWeight: 700 }}>
                     {isDm ? 'Hidden here' : 'What you have found'}
                   </h2>
+                  {/* M6-2 — said out loud. A thing that simply APPEARS is a thing a player distrusts;
+                      "you noticed it without looking" is how passive Perception actually feels at a table,
+                      and it also explains why no one rolled. */}
+                  {passiveNoticed.notices.length > 0 && (
+                    <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-teal-1)' }} data-testid="passive-notice">
+                      You noticed{' '}
+                      {passiveNoticed.notices.length === 1 ? 'something' : `${passiveNoticed.notices.length} things`}{' '}
+                      here without looking for it.
+                    </p>
+                  )}
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
                     {nodeReveals.map((o) => (
                       <li key={o.id} style={{ fontSize: 12.5 }}>
