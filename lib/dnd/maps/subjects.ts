@@ -40,6 +40,23 @@ export interface TokenSubjectView {
   portrait: string | null;
   /** The subject's OWN size. Null when nothing states one — the renderer then falls back to medium. */
   size: TokenSize | null;
+  /**
+   * M5-4 — the conditions the SHEET is tracking right now, read at the same moment as the portrait and
+   * for the same reason: a condition copied onto the token is a condition that stays after it ends. The
+   * DM would clear "poisoned" on the sheet and the board would keep showing it, with nothing saying the
+   * two disagree — which on a battle map is worse than not showing it at all.
+   *
+   * Empty for a creature: `dnd_creatures` has no per-instance state, and a bestiary row is a template
+   * rather than a thing standing on the board. Inventing one would attach a status to every copy of that
+   * monster at once.
+   */
+  conditions: string[];
+  /**
+   * 0–6, and NOT folded into `conditions`. Exhaustion is a LEVEL — "exhaustion 3" and "exhaustion 1" are
+   * different situations, and a badge that said only "exhausted" would hide the one number that decides
+   * whether the character can still act.
+   */
+  exhaustion: number;
 }
 
 /** `character:<id>` → view. Keyed by `subjectKey` so a caller matches without re-deriving the shape. */
@@ -76,11 +93,13 @@ export async function loadTokenSubjects(subjects: readonly TokenSubject[]): Prom
 
 async function loadCharacters(ids: Set<string>, views: SubjectViews): Promise<void> {
   if (!ids.size) return;
-  // `data->meta` rather than the whole `data` blob: that column is the ENTIRE sheet state, and pulling
-  // twenty of them to read one species name would move megabytes to render a row of circles.
+  // `data->meta` and `data->combat` rather than the whole `data` blob: that column is the ENTIRE sheet
+  // state, and pulling twenty of them to read one species name would move megabytes to render a row of
+  // circles. `combat` is added for M5-4's conditions — it is the small block with HP and status in it,
+  // not the inventory, spell list and feature text that make the column large.
   const { data, error } = await supabaseAdmin
     .from('dnd_characters')
-    .select('id, name, token_url, art_url, system, data->meta')
+    .select('id, name, token_url, art_url, system, data->meta, data->combat')
     .in('id', [...ids]);
   // Errors are read, never discarded — the repeated defect this codebase keeps rediscovering. A token
   // with no portrait and a token whose lookup FAILED must not look the same to the page.
@@ -94,6 +113,14 @@ async function loadCharacters(ids: Set<string>, views: SubjectViews): Promise<vo
       // Through `speciesView`, which is the system-keyed dispatcher for lineage data — so a PF2 ancestry's
       // size is read by PF2's rules and a 2014 race's by 2014's, rather than by a table living here.
       size: parseTokenSize(speciesView(row.system, species)?.size),
+      // Filtered to non-empty strings: a sheet with a stray '' in the array would otherwise render a
+      // badge with no word in it, which reads as a rendering bug rather than as empty data.
+      conditions: Array.isArray(row.combat?.conditions)
+        ? (row.combat!.conditions as unknown[]).filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+        : [],
+      exhaustion: typeof row.combat?.exhaustion === 'number' && row.combat.exhaustion > 0
+        ? Math.min(6, Math.round(row.combat.exhaustion))
+        : 0,
     });
   }
 }
@@ -106,6 +133,8 @@ interface CharacterRow {
   system: string | null;
   /** `data->meta`, so the sheet's identity block without the sheet. */
   meta: { species?: unknown } | null;
+  /** `data->combat` — the status block. M5-4 reads conditions and exhaustion from it. */
+  combat: { conditions?: unknown; exhaustion?: unknown } | null;
 }
 
 async function loadCreatures(ids: Set<string>, views: SubjectViews): Promise<void> {
@@ -121,6 +150,10 @@ async function loadCreatures(ids: Set<string>, views: SubjectViews): Promise<voi
       name: row.name,
       portrait: row.image_url ?? null,
       size: parseTokenSize(row.size),
+      // A bestiary row is a TEMPLATE, not a thing standing on the board — there is nowhere per-instance
+      // for a condition to live, and inventing one would poison every copy of that monster at once.
+      conditions: [],
+      exhaustion: 0,
     });
   }
 }
@@ -157,6 +190,9 @@ async function loadVariants(ids: Set<string>, views: SubjectViews): Promise<void
       name: row.name || parent?.name || 'Creature',
       portrait: parent?.image_url ?? null,
       size: parseTokenSize(parent?.size),
+      // Same as the base creature: a variant is still a template. See above.
+      conditions: [],
+      exhaustion: 0,
     });
   }
 }

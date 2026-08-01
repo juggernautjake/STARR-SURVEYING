@@ -849,7 +849,56 @@ Attack reach from the weapon; spell areas as the system defines them (5e cone/sp
 burst/cone/line). Placed by drag from the sheet's own attack/spell entries, so the map and the sheet cannot
 disagree about a spell's size.
 
-### M5-4 · Conditions and effects visible on the token
+### M5-4 · Conditions and effects visible on the token — **SHIPPED 2026-08-01 (conditions; area duration open)**
+> `app/dnd/_ui/maps/TokenConditions.tsx`, `subjects.ts` extended, badges on every token on the world page.
+> 15 tests. Browser-verified with an afflicted and a healthy token side by side.
+>
+> **Read at render time, never copied.** The plan says *"the conditions the sheet already tracks"* —
+> already, so the token stores nothing. A copied condition is one that stays after it ends: the DM clears
+> "poisoned" on the sheet and the board keeps showing it, with nothing saying the two disagree. Same rule
+> that keeps the portrait, the size and HP off a token, and the tests assert `tokens.ts` still refuses to
+> carry status.
+>
+> The query stays narrow — `data->meta, data->combat`, not `data`. That column is the entire sheet; pulling
+> twenty of them to draw a row of circles would move megabytes.
+>
+> **A creature gets no conditions, deliberately.** A bestiary row is a template, not a piece on the board —
+> there is nowhere per-instance for a status to live, and inventing one would poison every copy of that
+> monster at once. TypeScript caught both creature paths the moment the field was added.
+>
+> **Exhaustion is a level, not a badge.** "Exhaustion 5" and "exhaustion 1" are different situations; a pip
+> saying only "exhausted" would hide the number that decides whether the character can act.
+>
+> ## Two defects the browser found that the suite could not
+>
+> **1. The status column was 2.19× the height of the token it annotated.** Three conditions + exhaustion +
+> an overflow pip made a stack taller than the piece — the ring became the token and the token became a
+> detail underneath it. Measured, not eyeballed. The cap is now on the WHOLE column (three pips, the last
+> becoming "+N"), which brings it to **1.29×**. Nothing is lost: the dropped conditions are named in the
+> overflow tooltip and all of them are in the token's accessible name.
+>
+> **2. The glyph was 6.5 screen px.** Present, and too small to read. The ratio was re-measured rather than
+> guessed — 0.34 of the footprint for the pip and 0.8 of that for the glyph puts it at ~10px at play zoom
+> while staying under the token's own initial (`side * 0.5`), which is the ceiling it must not cross.
+>
+> **And one the repo's own ratchet found:** `inline-style-hex-ratchet.test.ts` failed on four hardcoded
+> colours — *"an inline hex cannot be reached by a token, a media query, the print stylesheet or a contrast
+> audit."* Now `--hx-danger` / `--hx-danger-2` / `--hx-gold-*` / `--hx-navy-0`, so the pips follow the skin.
+>
+> Glyphs rather than words, because a Medium token is a fingernail at play zoom and "Frightened" does not
+> fit on one — the words live in the `title` and the accessible name, where there is room. An unrecognised
+> condition still gets a mark (`●`) rather than being dropped: a homebrew status the map has not been
+> taught must not become the map quietly disagreeing with the sheet.
+>
+> Verified with five conditions + exhaustion 3 on one token and a clean token beside it; test data removed
+> afterwards (0 nodes, 0 objects, 0 QA characters). Zero console errors.
+>
+> **Still open:** *"area effects persist on the map with their own duration"* — M5-3's templates are drawn
+> from a URL and vanish on navigation. Persisting one needs a `dnd_map_objects` row with a duration and a
+> turn counter to tick it, which is M5-5's territory (`turn order`) and is better built once that exists
+> than invented twice.
+
+### M5-4 · Conditions and effects visible on the token (original plan text)
 The token shows the conditions the sheet already tracks, and area effects persist on the map with their own
 duration.
 

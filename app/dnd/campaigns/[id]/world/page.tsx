@@ -32,6 +32,8 @@ import ReachOverlay from '@/app/dnd/_ui/maps/ReachOverlay';
 import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
 // M5-3 — spell areas, read off the character's own spell list rather than restated here.
 import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
+// M5-4 — the conditions the sheet is already tracking, shown on the piece.
+import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenConditions';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -362,13 +364,19 @@ export default async function WorldPage({
                     // rather than a button because it changes the URL: the state is shareable, survives a
                     // refresh, and a DM can send "look at this" to the table.
                     const isSelected = selected?.o.id === o.id;
+                    // M5-4 — read from the sheet at render time, never copied onto the token. The words
+                    // go in the accessible name; the badges are `aria-hidden`, because a screen reader
+                    // announcing "circle, circle, circle" is noise.
+                    const conditions = subject?.conditions ?? [];
+                    const exhaustion = subject?.exhaustion ?? 0;
+                    const status = conditionSuffix(conditions, exhaustion);
                     return (
                       <Link
                         key={o.id}
                         href={tokenHref(isSelected ? null : o.id)}
                         scroll={false}
-                        title={isSelected ? `${label} — selected; click to clear` : `${label} — click to show its movement`}
-                        aria-label={isSelected ? `${label}, selected. Clear selection` : `${label}. Show movement range`}
+                        title={`${label}${status}${isSelected ? ' — selected; click to clear' : ' — click to show its movement'}`}
+                        aria-label={isSelected ? `${label}${status}, selected. Clear selection` : `${label}${status}. Show movement range`}
                         aria-current={isSelected ? 'true' : undefined}
                         style={{
                           position: 'absolute',
@@ -414,6 +422,9 @@ export default async function WorldPage({
                         ) : (
                           label.slice(0, 1).toUpperCase()
                         )}
+                        {/* M5-4 — status pips. Outside the art but inside the link's box, so they ride
+                            the token through pan and zoom without becoming their own click target. */}
+                        <TokenConditions conditions={conditions} exhaustion={exhaustion} side={side} />
                       </Link>
                     );
                   })}
