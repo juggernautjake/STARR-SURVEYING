@@ -77,7 +77,17 @@ export default async function WorldPage({
   // M5-1 — what is standing on the map. A SEPARATE QUERY per viewer (G3): a player's never selects
   // `dm_notes` and never matches a `dm`-visibility object, so a secret does not cross the wire and get
   // hidden in React. `dnd_map_objects` shipped applied with M1-3 and had no reader until now.
-  const objects = await loadMapObjects(nodes.map((n) => n.id), { isDm });
+  // M6-1 — which characters' discoveries count for this viewer. A player sees what THEIR characters have
+  // found; a DM sees everything anyway and the lookup is skipped.
+  let discoveredBy: string[] = [];
+  if (!isDm) {
+    const { data: mine } = await supabaseAdmin
+      .from('dnd_characters').select('id')
+      .eq('campaign_id', campaignId)
+      .eq('owner_user_id', user.id);
+    discoveredBy = ((mine ?? []) as Array<{ id: string }>).map((c) => c.id);
+  }
+  const objects = await loadMapObjects(nodes.map((n) => n.id), { isDm, discoveredBy });
 
   // M4-2 — what the DM can put on the board. The campaign's own characters: a token has to stand for
   // SOMETHING (G4), and the party is the set a DM reaches for first. Loaded only for the DM, because a
@@ -107,6 +117,18 @@ export default async function WorldPage({
   const nodeTokens = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'token') : [])
     .map((o) => ({ o, t: readToken(o.data) }))
     .filter((x): x is { o: typeof x.o; t: NonNullable<typeof x.t> } => x.t !== null);
+
+  // M6-1 — hidden objects the viewer is entitled to see. For a DM that is all of them (they authored the
+  // secrets); for a player it is only what `dnd_map_discoveries` says their characters have found, which
+  // `loadMapObjects` has already decided. Nothing is filtered here — by the time the objects arrive, the
+  // question of who may see what has been answered by the query.
+  //
+  // Found by the browser pass: the discovery was being WRITTEN and the object was being RETURNED, and the
+  // page drew nothing, because it only ever rendered `kind === 'token'`. A secret you successfully find
+  // and still cannot see is indistinguishable from one you failed to find.
+  const nodeReveals = current
+    ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'hidden')
+    : [];
 
   // M5-1b — what each token STANDS FOR: its portrait and its own size, resolved now rather than copied
   // onto the object when it was placed. A player who changes their portrait changes their token; a token
@@ -371,6 +393,39 @@ export default async function WorldPage({
                       </div>
                     );
                   })}
+                  {/* M6-1 — a hidden thing that has been found (or, for the DM, one they placed). Drawn
+                      UNDER the tokens, like the pins: a discovery is part of the room, not a piece on it. */}
+                  {nodeReveals.map((o) => (
+                    <div
+                      key={o.id}
+                      title={[o.label, o.description].filter(Boolean).join(' — ') || 'Something hidden'}
+                      data-testid="revealed-object"
+                      style={{
+                        position: 'absolute',
+                        left: o.x,
+                        top: o.y,
+                        // Counter-scaled like a pin: this is a MARKER, and its job is to stay legible at
+                        // every zoom rather than to occupy squares the way a token does.
+                        transform: 'translate(-50%, -50%) scale(calc(1 / var(--map-scale, 1)))',
+                        transformOrigin: 'center',
+                        display: 'grid',
+                        placeItems: 'center',
+                        width: 22,
+                        height: 22,
+                        borderRadius: 4,
+                        border: '1px dashed var(--hx-teal-1)',
+                        background: 'rgba(1,10,19,0.72)',
+                        color: 'var(--hx-teal-1)',
+                        fontSize: 12,
+                      }}
+                    >
+                      <span aria-hidden>◇</span>
+                      <span className={styles.srOnly}>
+                        {isDm ? 'Hidden object: ' : 'Discovered: '}{o.label ?? 'unnamed'}
+                      </span>
+                    </div>
+                  ))}
+
                   {/* M5-1 — the pieces on the board. Inside the transformed layer with the pins, so a
                       token stays on its square through pan and zoom.
 
@@ -561,6 +616,31 @@ export default async function WorldPage({
                       )}
                     </div>
                   )}
+                </section>
+              )}
+
+              {/* M6-3 — the read-aloud text. A marker on the map says WHERE; this says WHAT, which is the
+                  half a player actually needs. `description` is the read-aloud column; `dm_notes` is not
+                  selected for a player at all (see `query.ts`), so there is nothing here to filter — the
+                  DM's private commentary never crossed the wire. */}
+              {nodeReveals.length > 0 && (
+                <section className={styles.framedPanel} style={{ padding: '10px 14px', display: 'grid', gap: 8 }} data-testid="reveals-panel">
+                  <div className={styles.framedPanelTop} />
+                  <h2 style={{ fontSize: 13, margin: 0, fontWeight: 700 }}>
+                    {isDm ? 'Hidden here' : 'What you have found'}
+                  </h2>
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
+                    {nodeReveals.map((o) => (
+                      <li key={o.id} style={{ fontSize: 12.5 }}>
+                        <strong>{o.label ?? 'Something hidden'}</strong>
+                        {o.description && <div style={{ color: 'var(--hx-muted)' }}>{o.description}</div>}
+                        {/* DM-only, and only because the DM's own query selected it. */}
+                        {isDm && o.dm_notes && (
+                          <div style={{ color: 'var(--hx-gold-2)', fontSize: 11.5 }}>DM: {o.dm_notes}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
 

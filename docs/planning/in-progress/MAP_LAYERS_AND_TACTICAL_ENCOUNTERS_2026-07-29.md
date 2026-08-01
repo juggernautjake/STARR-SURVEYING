@@ -961,7 +961,68 @@ a next-turn button, and nothing else required (the owner explicitly wants the si
 
 ## Phase M6 — hidden things, descriptions, triggers
 
-### M6-1 · Hidden objects with a DC (G3)
+### M6-1 · Hidden objects with a DC (G3) — **SHIPPED 2026-08-01**, with M6-3's read-aloud text
+> `lib/dnd/maps/discovery.ts` (27 tests), `POST /api/dnd/maps/search`, `loadMapObjects({ discoveredBy })`,
+> and the reveal rendered on the world page. **G3 verified end to end against a live server**, not asserted.
+>
+> ## The shape is the security
+>
+> The client sends **a roll** and receives **what that roll found**. It never receives a list to filter and
+> it never learns a DC — a payload saying *"there is a thing here, DC 18"* is the same leak as sending the
+> object, one step removed: a player could read it in devtools and decide whether searching was worth an
+> action. The comparison is server-side because it cannot be anywhere else.
+>
+> `loadMapObjects` gained `discoveredBy` **as a second query, not a looser filter**. The player branch still
+> matches `visibility = 'players'` exactly as before; found objects arrive *by id* from
+> `dnd_map_discoveries`. So the only way a secret reaches a player is "there is a row saying they found
+> it" — never "the WHERE clause got more generous", which is the property this module's header argues a
+> refactor must not be able to undo. The revealed row is selected with `OBJECT_COLS`, **not** the DM
+> column set: finding a secret reveals the secret, not the DM's commentary about it.
+>
+> ## Verified live, in this order
+>
+> | Step | Result |
+> |---|---|
+> | Player's page **before** | label 0, DM notes 0, DC 0 |
+> | Search, rolled **12** vs DC 15 | `{"found":[]}` |
+> | Search, **wrong skill** at 30 | `{"found":[]}` |
+> | Search, rolled **17** | returns the object |
+> | Player's page **after** | label ✓, read-aloud ✓, **DM notes still 0** |
+> | DM's page | label ✓, DM notes ✓ |
+> | `dnd_map_discoveries` | one row, `found_by_roll: 17` |
+>
+> ## The defect the browser pass found
+>
+> After a successful search the discovery was **written** and the object was **returned** — and the page
+> still showed nothing, because it only ever rendered `kind === 'token'`. A secret you successfully find
+> and still cannot see is indistinguishable from one you failed to find. Reveals are now drawn as
+> counter-scaled markers plus a read-aloud panel, which is **M6-3 delivered alongside** (`description` for
+> everyone who has found it, `dm_notes` for the DM only — and only because the DM's own query selected it).
+>
+> ## Rules decisions
+>
+> - **`total >= dc` — equal MEETS it.** The single most common off-by-one in tabletop software, and it is
+>   silent: the puzzle just seems slightly harder than the DM set.
+> - **A hidden object with no DC is unfindable.** A half-written secret revealing itself to the first
+>   searcher is worse than one that never reveals, because the DM never learns it was unfinished.
+> - **No skill named means any check finds it** — "notice this somehow" is what an unset field means, and
+>   refusing every roll would make it permanently unfindable.
+> - **A miss is not an error.** 200 with an empty `found`; the player learns exactly what a player at a
+>   table learns. The per-reason miss counts exist for a DM log and are *deliberately not returned* —
+>   "3 things here you failed to find" is the map pointing at the secrets it just refused to show.
+>
+> The route also refuses a character from another campaign (without that check, a member could write
+> discoveries onto someone else's character) and bounds the client-supplied roll while recording it in
+> `found_by_roll`. It does **not** re-derive the roll from the sheet: a real search carries advantage,
+> guidance, a bardic die and a DM's flat bonus, and re-deriving would refuse half the rolls a table makes.
+> The honest description is that the DC stays secret, the comparison is server-side, and the roll is
+> logged — a player editing their total in devtools is doing what a player lying about a d20 does, and the
+> DM can see it either way.
+>
+> **Still open in M6:** M6-2 passive detection, M6-4 triggers and M6-5 trigger safety. `dnd_map_triggers`
+> exists (M1-5) and has no reader — the `when`/`then` machinery is the largest remaining piece of this plan.
+
+### M6-1 · Hidden objects with a DC (G3) (original plan text)
 A `hidden` object carries `{ skill: perception|investigation|…, dc, description, reveals }`. **The player's map
 payload does not contain it.** When a player rolls the relevant check — through the existing roller, so the
 result is auditable — the server compares and, on success, writes a `map_discovery` and pushes the reveal. A

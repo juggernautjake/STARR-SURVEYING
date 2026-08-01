@@ -139,7 +139,20 @@ export interface MapObject {
  */
 export async function loadMapObjects(
   nodeIds: readonly string[],
-  opts: { isDm: boolean },
+  opts: {
+    isDm: boolean;
+    /**
+     * M6-1 — the characters whose discoveries count. When supplied, objects THIS party has already found
+     * are added to a player's result; without it the behaviour is unchanged.
+     *
+     * Still a SECOND QUERY, not a relaxed filter. The base query keeps matching `visibility = 'players'`
+     * exactly as before, and found objects arrive by id from `dnd_map_discoveries` — so the way a secret
+     * reaches a player is always "there is a row saying they found it", never "the WHERE clause got
+     * looser". A refactor cannot widen this by moving a conditional, which is the property the header
+     * argues for.
+     */
+    discoveredBy?: readonly string[];
+  },
 ): Promise<MapObject[]> {
   if (!nodeIds.length) return [];
 
@@ -151,5 +164,34 @@ export async function loadMapObjects(
   // getting a different answer for equal z.
   const { data, error } = await q.order('z', { ascending: true }).order('id', { ascending: true });
   if (error) throw new Error(`map objects query failed: ${error.message}`);
-  return (data ?? []) as unknown as MapObject[];
+  const base = (data ?? []) as unknown as MapObject[];
+
+  // A DM sees everything already; asking for their discoveries would be work with no effect.
+  if (opts.isDm || !opts.discoveredBy?.length) return base;
+
+  const { data: found, error: foundErr } = await supabaseAdmin
+    .from('dnd_map_discoveries')
+    .select('map_object_id')
+    .in('character_id', opts.discoveredBy as string[]);
+  // Read, never discarded — a discovery lookup that FAILED must not look like "they found nothing", which
+  // is a secret staying hidden for the wrong reason and no one being told.
+  if (foundErr) throw new Error(`map discoveries query failed: ${foundErr.message}`);
+
+  const ids = [...new Set(((found ?? []) as Array<{ map_object_id: string }>).map((r) => r.map_object_id))];
+  if (!ids.length) return base;
+
+  const seen = new Set(base.map((o) => o.id));
+  const { data: revealed, error: revErr } = await supabaseAdmin
+    .from('dnd_map_objects')
+    .select(OBJECT_COLS)
+    .in('map_node_id', nodeIds as string[])
+    .in('id', ids.filter((id) => !seen.has(id)))
+    .order('z', { ascending: true })
+    .order('id', { ascending: true });
+  if (revErr) throw new Error(`revealed objects query failed: ${revErr.message}`);
+
+  // `OBJECT_COLS` again, NOT the DM column set — finding a secret reveals the secret, not the DM's private
+  // notes about it.
+  return [...base, ...((revealed ?? []) as unknown as MapObject[])]
+    .sort((a, b) => (a.z - b.z) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
