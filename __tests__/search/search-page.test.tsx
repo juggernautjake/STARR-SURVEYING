@@ -110,3 +110,50 @@ describe('honesty rules the page must not lose', () => {
     expect(src).toMatch(/setTimeout\(run/);
   });
 });
+
+// ── §8d: how a result was found is part of the result ────────────────────────────────────────────
+//
+// A document that matches nothing in the query is a surprising result, and a surprising result with
+// no explanation reads as a bug in the search. These render the component rather than reading its
+// source, because the failure being guarded against is "renders nothing", which source text cannot
+// see.
+import { Result } from '@/app/admin/search/page';
+
+const hit = (over: Record<string, unknown> = {}) => ({
+  corpus: 'research-documents', corpusLabel: 'Research documents', kind: 'document' as const,
+  id: 'd1', title: 'DEED — WHITTENBURG', snippet: 'a strip of land forty (40) feet in width',
+  type: 'deed', createdAt: '2026-01-02T00:00:00Z', effectiveAt: null, score: 0.9,
+  href: '/admin/research/p7', ...over,
+});
+
+const renderHit = (h: ReturnType<typeof hit>) =>
+  ReactDOMServer.renderToStaticMarkup(React.createElement(Result, { hit: h as never }));
+
+describe('a semantic-only hit explains itself', () => {
+  it('badges a document found by meaning alone', () => {
+    const out = renderHit(hit({ semanticOnly: true, passage: 'forty feet along the North boundary' }));
+    expect(out).toContain('found by meaning');
+    expect(out).toContain('data-testid="hit-semantic-only"');
+  });
+
+  it('badges corroboration differently from discovery', () => {
+    // "Also matched by meaning" and "only found by meaning" are different facts. Collapsing them
+    // would tell the user a result they typed the words for was conjured by the AI.
+    const out = renderHit(hit({ alsoFound: true, passage: 'x' }));
+    expect(out).toContain('also by meaning');
+    expect(out).not.toContain('found by meaning"'); // not the semantic-only testid
+  });
+
+  it('shows no badge at all for an ordinary keyword hit', () => {
+    const out = renderHit(hit());
+    expect(out).not.toContain('by meaning');
+    expect(out).toContain('DEED — WHITTENBURG');
+  });
+
+  it('still refuses to render a link when the corpus has no viewer page', () => {
+    // §8e's rule survives §8d: a semantic hit in a corpus with no page is still not a link.
+    const out = renderHit(hit({ href: null, semanticOnly: true }));
+    expect(out).toContain('data-linkless="true"');
+    expect(out).not.toContain('<a ');
+  });
+});

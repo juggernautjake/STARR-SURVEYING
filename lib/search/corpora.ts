@@ -60,6 +60,15 @@ export interface Corpus {
   orgColumn: string | null;
   /** Soft-delete column to exclude. `deleted_at`-style (exclude when NOT NULL) or boolean. */
   softDelete: { column: string; kind: 'timestamp' | 'boolean' } | null;
+  /** The column `href` needs beyond the row's own `id` — a parent a hit is opened *through*.
+   *
+   *  A research document has no page of its own; it is read on its project's page, so the link needs
+   *  `research_project_id`. `search_everything()` (seed 515) already selects exactly this and returns
+   *  it as `context_id`, but it did so as a hard-coded column name per branch — which made the SQL a
+   *  second, silent source of truth for something the registry is supposed to own. Semantic retrieval
+   *  (§3b/8d) does not go through that function at all and has to build the same link itself, so the
+   *  fact had to become data. A guard test asserts the two still agree. */
+  contextColumn: string | null;
   /** Builds the in-app URL for a hit, or `null` when the corpus has no viewer page.
    *
    *  `null` is deliberate rather than a placeholder link. `customers` is the live example: the table
@@ -97,6 +106,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: 'file_type',
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: 'research_project_id',
     href: (r) => `/admin/research/${r.research_project_id}`,
     roles: ['admin', 'developer', 'researcher', 'drawer', 'tech_support'],
   },
@@ -115,6 +125,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: 'mime_type',
     orgColumn: 'org_id',
     softDelete: { column: 'is_deleted', kind: 'boolean' },
+    contextColumn: 'job_id',
     href: (r) => `/admin/jobs/${r.job_id}`,
     roles: ['admin', 'developer', 'field_crew', 'tech_support', 'researcher'],
   },
@@ -135,6 +146,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: null,
     softDelete: null,
+    contextColumn: 'job_id',
     href: (r) => `/admin/jobs/${r.job_id}`,
     roles: ['admin', 'developer', 'field_crew', 'tech_support'],
   },
@@ -150,6 +162,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: null,
     href: () => '/admin/equipment/maintenance',
     roles: ['admin', 'developer', 'tech_support', 'equipment_manager'],
   },
@@ -168,6 +181,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: 'mime_type',
     orgColumn: 'org_id',
     softDelete: { column: 'deleted_at', kind: 'timestamp' },
+    contextColumn: null,
     href: (r) => `/admin/files?node=${r.id}`,
     roles: ['admin', 'developer', 'tech_support'],
   },
@@ -188,6 +202,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: null,
     // No viewer page exists — see the `href` doc comment. The result carries the contact details.
     href: () => null,
     roles: ['admin', 'developer', 'tech_support'],
@@ -213,6 +228,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: { column: 'deleted_at', kind: 'timestamp' },
+    contextColumn: null,
     href: (r) => `/admin/jobs/${r.id}`,
     roles: ['admin', 'developer', 'field_crew', 'tech_support', 'researcher'],
   },
@@ -231,6 +247,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: null,
     href: (r) => `/admin/contacts/${r.id}`,
     roles: ['admin', 'developer', 'tech_support'],
   },
@@ -249,6 +266,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: null,
     href: (r) => `/admin/leads/${r.id}`,
     roles: ['admin', 'developer', 'tech_support'],
   },
@@ -268,6 +286,7 @@ export const CORPORA: Corpus[] = [
     mimeColumn: null,
     orgColumn: 'org_id',
     softDelete: null,
+    contextColumn: null,
     href: (r) => `/admin/invoicing?invoice=${r.id}`,
     roles: ['admin', 'developer', 'tech_support'],
   },
@@ -286,6 +305,7 @@ export function columnsFor(c: Corpus): string[] {
   if (c.mimeColumn) cols.add(c.mimeColumn);
   if (c.orgColumn) cols.add(c.orgColumn);
   if (c.softDelete) cols.add(c.softDelete.column);
+  if (c.contextColumn) cols.add(c.contextColumn);
   return [...cols];
 }
 

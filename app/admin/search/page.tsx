@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Search, FileText, Building2, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, FileText, Building2, AlertCircle, Loader2, Sparkles, Info } from 'lucide-react';
 
 interface Hit {
   corpus: string;
@@ -33,9 +33,23 @@ interface Hit {
   effectiveAt: string | null;
   score: number;
   href: string | null;
+  /** The passage AI retrieval matched on — present only when semantic search contributed (§8d). */
+  passage?: string;
+  /** Found ONLY by meaning, not by any word in the query. */
+  semanticOnly?: boolean;
+  /** Found by keyword AND independently by meaning — corroboration worth showing. */
+  alsoFound?: boolean;
 }
 
 interface CorpusOption { id: string; label: string; kind: string }
+
+/** Whether the AI half ran, and if not, why. Rendered rather than ignored — see the note below. */
+interface SemanticStatus {
+  ran: boolean;
+  skipped: string | null;
+  found: number;
+  message: string | null;
+}
 
 interface SearchResponse {
   query: string;
@@ -44,6 +58,7 @@ interface SearchResponse {
   truncated?: boolean;
   notes?: string[];
   corpora?: CorpusOption[];
+  semantic?: SemanticStatus;
   error?: string;
 }
 
@@ -221,6 +236,23 @@ export default function SearchPage() {
         </ul>
       )}
 
+      {/* ── Whether the AI half actually ran ────────────────────────────────────────────────────
+          This line exists because its absence is the bug. AI search that silently falls back to
+          keyword looks EXACTLY like AI search that works — which is how the FS tutor's semantic path
+          sat at zero embeddings for months without anyone noticing (§8d). If it did not run, the page
+          says so, and says what would switch it on. */}
+      {!failed && data?.semantic?.message && (
+        <div data-testid="semantic-status" style={{
+          display: 'flex', gap: '0.5rem', alignItems: 'flex-start', padding: '0.55rem 0.7rem',
+          margin: '0 0 1rem', border: 'var(--border-light)', borderRadius: 'var(--radius-md)',
+          background: 'var(--color-bg-card)', color: 'var(--color-text-tertiary)',
+          fontSize: 'var(--text-xs)',
+        }}>
+          <Info size={14} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+          <span>{data.semantic.message}</span>
+        </div>
+      )}
+
       {loading && (
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--color-text-tertiary)', fontSize: 'var(--text-sm)' }}>
           <Loader2 size={16} className="spin" /> Searching…
@@ -257,7 +289,10 @@ export default function SearchPage() {
   );
 }
 
-function Result({ hit }: { hit: Hit }) {
+/** Exported for tests. The page itself only renders results after a debounced fetch, which SSR never
+ *  reaches — so without this the "found by meaning" states could only be asserted from source text,
+ *  and a source-text assertion passes just as happily when the component renders nothing at all. */
+export function Result({ hit }: { hit: Hit }) {
   const Icon = hit.kind === 'record' ? Building2 : FileText;
   const date = hit.effectiveAt ?? hit.createdAt;
 
@@ -265,8 +300,29 @@ function Result({ hit }: { hit: Hit }) {
     <div style={{ display: 'flex', gap: '0.6rem', padding: '0.6rem 0.7rem' }}>
       <Icon size={16} style={{ flexShrink: 0, marginTop: '0.15rem', color: 'var(--color-text-muted)' }} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)' }}>
-          {hit.title}
+        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)' }}>
+            {hit.title}
+          </span>
+          {/* Says HOW this result was found. A document nothing in the query mentions is a surprising
+              result, and a surprising result with no explanation reads as a bug in the search. */}
+          {(hit.semanticOnly || hit.alsoFound) && (
+            <span
+              data-testid={hit.semanticOnly ? 'hit-semantic-only' : 'hit-also-found'}
+              title={hit.semanticOnly
+                ? 'Found by meaning — none of your words appear in it.'
+                : 'Matched your words, and independently matched by meaning.'}
+              style={{
+                display: 'inline-flex', gap: '0.2rem', alignItems: 'center',
+                padding: '0.05rem 0.35rem', borderRadius: 'var(--radius-pill)',
+                border: 'var(--border-light)', color: 'var(--color-text-muted)',
+                fontSize: 'var(--text-2xs, 0.65rem)', whiteSpace: 'nowrap',
+              }}
+            >
+              <Sparkles size={10} />
+              {hit.semanticOnly ? 'found by meaning' : 'also by meaning'}
+            </span>
+          )}
         </div>
         {hit.snippet && (
           <div style={{

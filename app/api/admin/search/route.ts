@@ -24,6 +24,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { CORPUS_BY_ID, corporaFor } from '@/lib/search/corpora';
 import { parseQuery, normaliseFilters, MIN_QUERY_LENGTH, type SearchFilters } from '@/lib/search/query';
+import {
+  retrieveSemantic, hydrateSemantic, mergeSemantic, semanticCorpora, type SemanticSkip,
+} from '@/lib/search/semantic';
 
 /** A row as `search_everything()` returns it. */
 interface SearchRow {
@@ -102,17 +105,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  const { data, error } = await supabaseAdmin.rpc('search_everything', {
-    p_query: parsed.raw,
-    p_roles: roles,
-    p_corpora: requested ?? null,
-    p_types: filters.types ?? null,
-    p_date_role: filters.dateRole,
-    p_from: filters.from ?? null,
-    p_to: filters.to ?? null,
-    p_org: null,
-    p_limit: filters.limit,
-  });
+  // Keyword and semantic run CONCURRENTLY, and the keyword result is never made to wait on the AI
+  // one. Semantic is an upgrade (§3b/8d): if the provider is slow, misconfigured or down, the answer
+  // that already works must not be held up by it.
+  const semanticIds = semanticCorpora(
+    requested ? allowed.filter((c) => requested!.includes(c.id)) : allowed,
+  );
+
+  const [keyword, semantic] = await Promise.all([
+    supabaseAdmin.rpc('search_everything', {
+      p_query: parsed.raw,
+      p_roles: roles,
+      p_corpora: requested ?? null,
+      p_types: filters.types ?? null,
+      p_date_role: filters.dateRole,
+      p_from: filters.from ?? null,
+      p_to: filters.to ?? null,
+      p_org: null,
+      p_limit: filters.limit,
+    }),
+    retrieveSemantic(parsed.raw, { corpora: semanticIds, orgId: null }),
+  ]);
+
+  const { data, error } = keyword;
 
   if (error) {
     // Loudly. "The search failed" and "there is nothing to find" are different answers, and
@@ -145,12 +160,41 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     };
   });
 
+  // Hydration is the permission gate for semantic hits, not a formatting step — it re-reads the
+  // source row, so a deleted, soft-deleted or out-of-tenant document cannot surface through a chunk
+  // that outlived it. See the `hydrateSemantic` header.
+  const hydrated = semantic.hits.length ? await hydrateSemantic(semantic.hits, { orgId: null }) : [];
+  const withSemantic = mergeSemantic(results, hydrated);
+
+  // Date filters are applied by `search_everything`; semantic-only hits never passed through it, so
+  // they would otherwise ignore a filter the user explicitly set — a result outside the range they
+  // asked for reads as the filter being broken.
+  const inRange = (h: (typeof withSemantic)[number]) => {
+    if (!h.semanticOnly || (!filters.from && !filters.to)) return true;
+    const d = filters.dateRole === 'effective' ? (h.effectiveAt ?? h.createdAt) : h.createdAt;
+    if (!d) return false;
+    const t = Date.parse(d);
+    if (filters.from && t < Date.parse(filters.from)) return false;
+    if (filters.to && t > Date.parse(filters.to) + 86_400_000 - 1) return false;
+    return true;
+  };
+  const finalResults = withSemantic.filter(inRange);
+
   return NextResponse.json({
     query: parsed.raw,
     terms: parsed.terms,
-    results,
-    total: results.length,
+    results: finalResults,
+    total: finalResults.length,
     truncated: results.length >= filters.limit,
+    // Reported on every response, whether it ran or not. The one thing this must never do is stay
+    // quiet: a graceful fallback to keyword and a working AI search produce the same screen, which is
+    // how `fs_reference_chunks` sat at 0 embeddings for months without anyone noticing (§8d).
+    semantic: {
+      ran: semantic.skipped === null,
+      skipped: semantic.skipped,
+      found: hydrated.length,
+      message: semanticMessage(semantic.skipped),
+    },
     filters: {
       corpora: requested ?? null,
       types: filters.types ?? null,
@@ -163,6 +207,28 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     corpora: allowed.map((c) => ({ id: c.id, label: c.label, kind: c.kind })),
   });
 }, { routeName: 'admin/search' });
+
+/** What to tell a human when the AI half did not run.
+ *
+ *  Deliberately says what is true and what to do, rather than "AI unavailable". Two of these states
+ *  are one command apart from working, and an operator who cannot tell "switched off" from "broken"
+ *  will treat both as broken and neither as fixable. `no-corpora` returns null on purpose: filtering
+ *  to Jobs only is a choice, not a fault, and warning about it on every search is noise. */
+function semanticMessage(skip: SemanticSkip | null): string | null {
+  switch (skip) {
+    case 'not-configured':
+      return 'AI search is off: VOYAGE_API_KEY is not set. Keyword and spelling-tolerant search still ran.';
+    case 'empty-index':
+      return 'AI search is on but nothing is indexed yet — run `node scripts/embed-documents.mjs`. Keyword search still ran.';
+    case 'embed-failed':
+      return 'AI search could not reach the embedding provider, so only keyword results are shown.';
+    case 'query-failed':
+      return 'AI search failed to query the index, so only keyword results are shown.';
+    case 'no-corpora':
+    case null:
+      return null;
+  }
+}
 
 /** The corpus `href` builders read a parent id under different names (`job_id`,
  *  `research_project_id`, `parent_id`). The function returns whichever one applies as `context_id`,

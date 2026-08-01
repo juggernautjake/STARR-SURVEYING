@@ -34,6 +34,8 @@
     "db:seed:staging": "node scripts/apply-seeds.mjs --target staging",
     "db:bootstrap:staging": "node scripts/apply-seeds.mjs --target staging --reset --continue-on-error",
     "db:seed:dry": "node scripts/apply-seeds.mjs --dry-run",
+    "db:embed": "node scripts/embed-documents.mjs",
+    "db:embed:dry": "node scripts/embed-documents.mjs --dry-run",
     "dnd:bootstrap": "node scripts/dnd-bootstrap.mjs",
     "dnd:seed-lazzuh": "tsx scripts/dnd-seed-lazzuh.ts",
     "e2e": "playwright test",
