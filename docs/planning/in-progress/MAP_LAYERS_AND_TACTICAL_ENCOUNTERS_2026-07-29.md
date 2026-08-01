@@ -1405,7 +1405,7 @@ comparison when a token moves within range.
 Any object or region can carry read-aloud text and DM-only notes. Players see the former on discovery; the DM
 sees both, always.
 
-### M6-4 · Triggers — **SHIPPED 2026-08-01 (engine + DM preview board); executor still open**
+### M6-4 · Triggers — **SHIPPED 2026-08-01 (engine + DM preview board; the executor followed, below)**
 ### M6-5 · Trigger safety — **SHIPPED 2026-08-01**
 > `lib/dnd/maps/triggers.ts` (32 tests) and a DM-only trigger board on the world page.
 > `dnd_map_triggers` shipped with M1-5 and **had no reader until now**.
@@ -1460,6 +1460,100 @@ sees both, always.
 > Deliberately not rushed into this slice: a half-implemented executor that silently no-ops three of its
 > eleven actions is worse than an engine that plainly has no executor, because the DM's preview would
 > promise things that never happen.
+
+
+### M6-4b · the executor — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/execute.ts` (11 tests), `POST /api/dnd/campaigns/[id]/map-triggers/fire`, and a
+> "⚡ Fire it for real" button on the DM's trigger board. All eleven actions driven live.
+>
+> M6-5 deferred this with a condition attached, and the condition is the design:
+>
+> > *"a half-implemented executor that silently no-ops three of its eleven actions is worse than an engine
+> > that plainly has no executor, because the DM's preview would promise things that never happen."*
+>
+> So the contract is **not** "perform everything". Three of the eleven genuinely cannot be performed by a
+> server. The contract is that **no action returns nothing**, and each of the three says why in words a
+> DM can act on.
+>
+> ## Three outcomes, and `asked` is not a failure
+>
+> | | |
+> |---|---|
+> | `done` | the database changed |
+> | `asked` | the table has to do it — a die is rolled by a person, speakers are in the room |
+> | `failed` | attempted and refused, or it names something that is not there — with the reason |
+>
+> Recording an `asked` as a failure would make a healthy puzzle look broken; recording it as `done` would
+> be the lie this file exists to prevent. Both are posted to the campaign feed, so the DM sees the ask
+> rather than having to notice its absence.
+>
+> **It does not roll dice, and a test asserts there is no `Math.random` in it.** The server could
+> generate a number, and that would be the map quietly taking a roll away from the table — the same
+> reason `maps/search` accepts the player's own total instead of re-deriving it.
+>
+> ## The structural test is the one that matters
+>
+> `KNOWN_ACTIONS` has eleven entries; a test reads the executor's source and fails if any of them has no
+> `case`. That is the exact failure M6-5 refused to ship, and it is the one that returns silently the day
+> someone adds a twelfth action. There is also no `break` anywhere in the switch — every branch returns
+> an outcome, so a fall-through cannot quietly perform the wrong action.
+>
+> ## Decisions worth recording
+>
+> - **Every map write is scoped to the node, every sheet write to the campaign**, asserted by a test that
+>   scans the queries. Without it a trigger could name an object id belonging to someone else's map.
+> - **Damage floors at zero and refuses a sheet with no HP.** Negative HP is a rules question this map
+>   does not get to answer (5e says 0 and death saves; other systems differ), and `0 − amount` on a sheet
+>   with no HP would invent a number the map has no business deciding.
+> - **A condition already present is `done`, not a failure.** A pit trap that fires twice should not
+>   report an error the second time — the character is prone either way, which is the state asked for.
+> - **A moved or spawned token is snapped and clamped through the same helpers the placing route uses**,
+>   so a trigger cannot put a token somewhere a DM could not — including off the map, where M5-2's new
+>   bounds mean nothing could ever walk to it.
+> - **`once` is disarmed AFTER the work, and only for triggers that actually fired.** A run that failed
+>   part-way leaves them armed: a puzzle a DM can retry beats one that is spent and did nothing.
+> - **The live path resolves through the same `preview()` the board renders.** M6-4's whole argument was
+>   that a preview from a parallel code path is a preview of something else; firing from a "fire it"
+>   button uses the DM's explicit choice, so a disarmed trigger still fires rather than the control
+>   silently doing nothing.
+> - **The feed is `dnd_roll_log`**, which is where M7-4 already says map-driven activity belongs. A
+>   trigger with its own log would be a second place to look during a fight.
+>
+> ## The defect the live pass found
+>
+> The feed's `actor_name` was written as the DM's display name, so narration read *"Andrew — The floor
+> gives way beneath you."* That column answers **who is speaking**, and for a trap the answer is the
+> trap. Everyone at the table already knows who the DM is; what they cannot tell from a name is
+> read-aloud text from an instruction to roll. Now `Read aloud` / `Trigger` / `Map`.
+>
+> ## Verified live — one trigger carrying all eleven actions plus two malformed ones
+>
+> `401` anonymous · `403` player · then **9 done · 2 for the table · 3 failed**:
+>
+> ```
+> done   reveal_object     Revealed A sigil.
+> done   move_token        Moved Victim to (27.5, 27.5).        ← 27.3/27.9 snapped
+> done   apply_condition   QA-M64 Victim is now prone.
+> done   apply_condition   QA-M64 Victim was already Prone.     ← idempotent, not an error
+> done   apply_damage      QA-M64 Victim takes 7 damage (20 → 13).
+> done   show_description  The floor gives way beneath you.
+> done   post_feed         A gong sounds somewhere below.
+> asked  roll_check        Roll Dexterity save (DC 15).
+> asked  play_sound        Cue "QA-M64 Gong" on the soundboard.
+> done   spawn_creature    Spawned Acolyte at (62.5, 62.5).
+> done   hide_object       Hid A sigil.
+> failed apply_damage      apply_damage needs a characterId and a numeric amount.
+> failed reveal_object     No object "0000…" on this map.
+> failed melt_the_floor    "melt_the_floor" is not an action this map knows how to perform.
+> ```
+>
+> And the world actually changed: the sigil ended `dm` (revealed then hidden), the token at exactly
+> (27.5, 27.5), one `prone` rather than two, HP 13, the Acolyte on the board, and the `once` trigger
+> disarmed with a `fired_at`. Test data removed afterwards — 0 nodes.
+>
+> **Still open in M6:** nothing emits `token_enters` / `door_opened` automatically — the events exist and
+> the route accepts them, but only a DM's button and an explicit event POST reach them today. Emitting on
+> a token move belongs with drag-to-move, which is M7's territory.
 
 ### M6-4 · Triggers (original plan text)
 `when` → `then`, both data:

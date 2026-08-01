@@ -43,6 +43,8 @@ import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenCondit
 import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
 // M6-4 / M6-5 — the trigger engine, and the DM-side preview of what each one will do.
 import { describePlan, preview, readTrigger } from '@/lib/dnd/maps/triggers';
+// M6-4's executor, reachable from the board that previews it.
+import FireTrigger from '@/app/dnd/_ui/maps/FireTrigger';
 // M6-2 — what the party notices by standing there, no roll required.
 import { scanPassive } from '@/lib/dnd/maps/passive-scan';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
@@ -974,6 +976,15 @@ export default async function WorldPage({
                             )}
                           </div>
                         ))}
+                        {/* M6-4 — the executor, reachable. The board above is a DRY RUN of exactly this
+                            plan, built by the same resolver; this is the live path, and the button says
+                            so rather than leaving a DM to discover which one they pressed. */}
+                        <FireTrigger
+                          campaignId={campaignId}
+                          triggerId={trigger.id}
+                          name={trigger.name ?? 'this trigger'}
+                          once={trigger.once}
+                        />
                       </li>
                     ))}
                   </ul>
