@@ -79,8 +79,16 @@ describe('the badges are wired to the board', () => {
   });
 
   it('and folds the words into the token’s accessible name', () => {
+    // Asserts the BEHAVIOUR — status reaches the accessible name — not the exact shape of the
+    // expression. The first cut pinned the literal `aria-label={isSelected ? ...}` and broke the moment
+    // M5-5 added "current turn" to the same string, which was a true change failing a test about
+    // something else.
     expect(PAGE).toMatch(/conditionSuffix\(conditions, exhaustion\)/);
-    expect(PAGE).toMatch(/aria-label=\{isSelected \? `\$\{label\}\$\{status\}/);
+    // Line-scoped rather than a character class: the expression contains `${label}`, so `[^}]*` stops at
+    // the first closing brace and never reaches `${status}`. Asserting on the line that carries the
+    // token's aria-label is both simpler and harder to get subtly wrong.
+    const ariaLines = PAGE.split('\n').filter((l) => l.includes('aria-label={'));
+    expect(ariaLines.some((l) => l.includes('${status}')), 'no token aria-label carries the status').toBe(true);
   });
 });
 

@@ -902,7 +902,58 @@ disagree about a spell's size.
 The token shows the conditions the sheet already tracks, and area effects persist on the map with their own
 duration.
 
-### M5-5 · Turn order
+### M5-5 · Turn order — **SHIPPED 2026-08-01, and it was a CONNECTION, not a build**
+> `lib/dnd/maps/turn.ts` (16 tests), a turn banner and a turn ring on the world page. Browser-verified.
+>
+> ## ⚠ The audit this slice needed, and nearly did not get
+>
+> M5-5 asks for *"initiative list, current turn, round counter"* — and **all three already existed.**
+> `dnd_encounters` + `dnd_initiative_entries` shipped with the campaign platform (seed 410),
+> `InitiativeTracker.tsx` drives them, and `app/api/dnd/encounters/…` is the API behind it.
+>
+> I got as far as **writing `seeds/511_dnd_encounters.sql`** — its own encounter and combatant tables,
+> fully commented — before the apply failed with `column "active" does not exist`, because the table was
+> already there with a different shape. That is precisely the defect M0 opens this document by warning
+> about, caught by the database rather than by me. **The seed was deleted, not reconciled:** two initiative
+> models in one app is worse than none, because the DM's tracker and the map would each be right about a
+> different fight. A test now asserts that file cannot come back.
+>
+> So what was missing was never the data. It was that **the map had no idea whose turn it was.**
+>
+> ## `current_turn_index` is the authority; `is_current` is a copy
+>
+> The schema carries both — a position on the encounter and a flag per entry.
+> `app/api/dnd/encounters/[id]/route.ts` derives the current entry from the **index**, so that is the
+> authority and the flag is a denormalised second opinion any write can miss. The map reads the index for
+> the same reason, and a test pins **both sides** of that: if the API ever switches to the flag, the test
+> notices. A map highlighting a different token from the tracker beside it would make one screen a liar
+> with no way to tell which.
+>
+> ## Matched on the character, never the name
+>
+> A fight with three "Goblin" entries is the most ordinary encounter there is; a name match would ring all
+> three. `dnd_initiative_entries.character_id` is the only link the schema offers, so a creature token
+> never matches — correct rather than unfortunate. And when the current combatant is a typed-in name with
+> no character row, **the banner says so** rather than leaving a DM staring at a board where nothing
+> glows. Both branches were driven in the browser.
+>
+> ## It reads; it does not own
+>
+> No next-turn button here, no initiative editing, no second list. `InitiativeTracker` owns that state on
+> the session console, and duplicating it would be two trackers to keep in sync. A test asserts
+> `turn.ts` performs no insert, update, upsert or delete.
+>
+> Three token states stay tellable apart: **turn** (gold glow, loudest — it is the one fact the whole
+> table needs), **selected** (teal, matching its own overlay), and everything else. Turn outranks
+> selection, because a DM inspecting one token has not stopped the fight.
+>
+> Verified with a live session, a live encounter at round 3, and three combatants — two linked characters
+> and one unlinked "Goblin 1". Banner read *"Round 3 · QA Wizard's turn (2 of 3) · Ambush at the ford"*,
+> the Wizard's token glowed and its accessible name said *"Wizard, prone, current turn"* (M5-4's condition
+> still there). Advancing to the unlinked combatant produced *"— not linked to a character, so no token is
+> highlighted"* and zero glowing tokens. All test data removed afterwards.
+
+### M5-5 · Turn order (original plan text)
 Initiative list, current turn, round counter. "Simple turn-by-turn manual combat" is a first-class mode: a list,
 a next-turn button, and nothing else required (the owner explicitly wants the simple case to stay simple).
 

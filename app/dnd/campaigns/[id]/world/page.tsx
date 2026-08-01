@@ -34,6 +34,8 @@ import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
 import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
 // M5-4 — the conditions the sheet is already tracking, shown on the piece.
 import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenConditions';
+// M5-5 — whose turn it is, read from the initiative tracker that already exists.
+import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -111,6 +113,9 @@ export default async function WorldPage({
   // carrying a copy would keep the old face for as long as it existed, with nothing saying the two
   // disagree. Same rule that keeps HP off a token.
   const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
+  // M5-5 — the live encounter, if there is one. Null is the normal state of a map, so nothing about the
+  // page depends on it.
+  const turn = await loadLiveTurn(campaignId);
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
 
   // M5-2 — the selected token's reach. Resolved for ONE token, not all of them: this runs the effect
@@ -227,6 +232,34 @@ export default async function WorldPage({
             </section>
           ) : (
             <>
+              {/* M5-5 — whose turn it is, ABOVE the map rather than in it. The initiative list, the round
+                  counter and the next-turn button already exist in `InitiativeTracker` on the session
+                  console; duplicating them here would be a second tracker to keep in sync, and the two
+                  would eventually disagree about the same fight. This is a READ: one line, and a link to
+                  the tracker that owns the state. */}
+              {turn && (
+                <section
+                  className={styles.framedPanel}
+                  style={{ padding: '9px 14px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}
+                  data-testid="turn-banner"
+                >
+                  <div className={styles.framedPanelTop} />
+                  <span aria-hidden style={{ color: 'var(--hx-gold-1)' }}>⚔</span>
+                  <strong style={{ fontSize: 13 }}>{turnSummary(turn)}</strong>
+                  {turn.encounterName && (
+                    <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>· {turn.encounterName}</span>
+                  )}
+                  {!turn.currentCharacterId && turn.currentName && (
+                    // Said out loud rather than left as a token that mysteriously does not glow. A
+                    // combatant with no character row cannot be matched to a piece — the schema offers no
+                    // other link — and a DM should know that is why, not wonder.
+                    <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                      — not linked to a character, so no token is highlighted
+                    </span>
+                  )}
+                </section>
+              )}
+
               <section className={styles.framedPanel} style={{ padding: 0, overflow: 'hidden' }}>
                 <div className={styles.framedPanelTop} />
                 {/* M3-1's pan/zoom wraps the map AND its pins in ONE transformed layer, so a pin stays
@@ -370,13 +403,17 @@ export default async function WorldPage({
                     const conditions = subject?.conditions ?? [];
                     const exhaustion = subject?.exhaustion ?? 0;
                     const status = conditionSuffix(conditions, exhaustion);
+                    // M5-5 — matched on the CHARACTER, never the name: a fight with three "Goblin"
+                    // entries is the most ordinary encounter there is, and a name match would ring all
+                    // three at once.
+                    const isTurn = isCurrentToken(turn, t.subject);
                     return (
                       <Link
                         key={o.id}
                         href={tokenHref(isSelected ? null : o.id)}
                         scroll={false}
                         title={`${label}${status}${isSelected ? ' — selected; click to clear' : ' — click to show its movement'}`}
-                        aria-label={isSelected ? `${label}${status}, selected. Clear selection` : `${label}${status}. Show movement range`}
+                        aria-label={`${label}${status}${isTurn ? ', current turn' : ''}${isSelected ? ', selected. Clear selection' : '. Show movement range'}`}
                         aria-current={isSelected ? 'true' : undefined}
                         style={{
                           position: 'absolute',
@@ -395,7 +432,12 @@ export default async function WorldPage({
                           // the wash read as one thing. Thicker too: colour alone would be the only
                           // signal, and "which token is selected" must not depend on telling gold from
                           // teal at a glance on a busy board.
-                          border: `${side * (isSelected ? 0.11 : 0.07)}px solid ${isSelected ? 'var(--hx-teal-1)' : 'var(--hx-gold-2)'}`,
+                          // Three states, and they must stay tellable apart: whose TURN it is (gold glow,
+                          // the loudest, because it is the one fact everyone at the table needs), what the
+                          // DM has SELECTED (teal, matching its own overlay), and everything else. Turn
+                          // outranks selection — a DM inspecting one token has not stopped the fight.
+                          border: `${side * (isTurn ? 0.13 : isSelected ? 0.11 : 0.07)}px solid ${isTurn ? 'var(--hx-gold-1)' : isSelected ? 'var(--hx-teal-1)' : 'var(--hx-gold-2)'}`,
+                          ...(isTurn ? { boxShadow: `0 0 ${side * 0.5}px ${side * 0.08}px var(--hx-gold-1)` } : {}),
                           background: 'rgba(1,10,19,0.82)',
                           display: 'grid',
                           placeItems: 'center',
