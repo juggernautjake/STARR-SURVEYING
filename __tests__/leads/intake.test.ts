@@ -98,16 +98,25 @@ describe('buildLeadRowFromForm — pure mapper', () => {
 });
 
 describe('insertLeadFromForm — safe-insert (never throws)', () => {
+  // A14 — the insert now resolves `leads.org_id` first, because that column is NOT NULL with no default
+  // and nothing was setting it; every public submission was failing silently. So the fake client has to
+  // answer the `organizations` lookup as well as the insert. See __tests__/leads/intake-org-id.test.ts.
+  const orgLookup = () => ({
+    select: () => ({ limit: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) }),
+  });
+
   it('returns the new id on a happy-path INSERT', async () => {
     const single = vi.fn().mockResolvedValue({ data: { id: 'new-uuid' }, error: null });
     const select = vi.fn().mockReturnValue({ single });
     const insert = vi.fn().mockReturnValue({ select });
-    const from = vi.fn().mockReturnValue({ insert });
+    const from = vi.fn((table: string) => (table === 'organizations' ? orgLookup() : { insert }));
     const result = await insertLeadFromForm({ from } as never, baseInput());
     expect(result).toEqual({ id: 'new-uuid' });
     expect(from).toHaveBeenCalledWith('leads');
     expect(insert).toHaveBeenCalledTimes(1);
     expect((insert.mock.calls[0][0] as { name: string }).name).toBe('Jane Landowner');
+    // The column whose absence dropped six weeks of enquiries.
+    expect((insert.mock.calls[0][0] as { org_id: string }).org_id).toBe('org-1');
   });
 
   it('returns null + does NOT throw when supabase returns an error', async () => {
@@ -116,7 +125,7 @@ describe('insertLeadFromForm — safe-insert (never throws)', () => {
       .mockResolvedValue({ data: null, error: { message: 'permission denied' } });
     const select = vi.fn().mockReturnValue({ single });
     const insert = vi.fn().mockReturnValue({ select });
-    const from = vi.fn().mockReturnValue({ insert });
+    const from = vi.fn((table: string) => (table === 'organizations' ? orgLookup() : { insert }));
     const result = await insertLeadFromForm({ from } as never, baseInput());
     expect(result).toBeNull();
   });

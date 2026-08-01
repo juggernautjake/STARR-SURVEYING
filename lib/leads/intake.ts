@@ -300,6 +300,49 @@ export async function notifyIntakeRecipients(
   return { recipientCount: recipients.length };
 }
 
+/**
+ * Which organisation does a lead from the PUBLIC form belong to?
+ *
+ * ── A14, AND THIS IS A REAL BUG THIS FUNCTION EXISTS TO FIX ────────────────────────────────────────
+ *
+ * `leads.org_id` is `NOT NULL` with **no default**, and nothing here was setting it. Every public
+ * contact-form submission was failing its INSERT with
+ * `null value in column "org_id" ... violates not-null constraint` — and because the failure is
+ * deliberately silent (the email send is the legal record), nobody saw it. The newest lead in the live
+ * database when this was found was six weeks old, while the form kept returning 200 and the customer kept
+ * getting their confirmation.
+ *
+ * A green 15,000-test suite did not catch it, because every test builds the row and never inserts it.
+ * It was found by submitting the real form in a real browser and reading the real database.
+ *
+ * ── WHY NOT HARDCODE THE ID ────────────────────────────────────────────────────────────────────────
+ *
+ * The one thing worse than a lead that fails to save is a lead that saves into the wrong organisation,
+ * where the office will never look at it. So: an explicit env override first, then the single
+ * organisation when there is exactly one (which is true today and self-corrects if it stops being true),
+ * and `null` rather than a guess when the answer is ambiguous.
+ */
+export async function resolveIntakeOrgId(
+  client: Pick<SupabaseClient, 'from'>,
+): Promise<{ orgId: string } | { error: string }> {
+  const override = process.env.LEADS_DEFAULT_ORG_ID?.trim();
+  if (override) return { orgId: override };
+
+  const { data, error } = await client.from('organizations').select('id').limit(2);
+  if (error) return { error: `Could not read organizations: ${error.message}` };
+
+  const rows = (data ?? []) as Array<{ id: string }>;
+  if (rows.length === 1) return { orgId: rows[0].id };
+  if (rows.length === 0) {
+    return { error: 'No organizations exist, so a public lead has nowhere to live. Run the org seeds.' };
+  }
+  // Guessing here files a customer's enquiry somewhere nobody is looking.
+  return {
+    error: 'More than one organization exists and none is designated for public intake. '
+      + 'Set LEADS_DEFAULT_ORG_ID to the org that owns the public site.',
+  };
+}
+
 /** Insert a lead row. Returns the new lead's `id` on success, or `null`
  *  when the INSERT failed (the caller logs + continues; the email send
  *  remains the legal record of the customer query). */
@@ -309,6 +352,13 @@ export async function insertLeadFromForm(
 ): Promise<{ id: string } | null> {
   const row = buildLeadRowFromForm(input);
   try {
+    // See `resolveIntakeOrgId`. Without this the INSERT below fails on a NOT NULL constraint, silently,
+    // for every submission.
+    const org = await resolveIntakeOrgId(client);
+    if ('error' in org) {
+      console.error('[leads.intake] cannot resolve org_id — the lead will NOT be saved:', org.error);
+      return null;
+    }
     // A3 — give the enquiry a CUSTOMER before the lead row is written, so a returning landowner is
     // recognisable the moment their enquiry lands rather than after someone notices the name.
     //
@@ -326,11 +376,16 @@ export async function insertLeadFromForm(
 
     const { data, error } = await client
       .from('leads')
-      .insert({ ...row, customer_id: customer?.id ?? null })
+      .insert({ ...row, org_id: org.orgId, customer_id: customer?.id ?? null })
       .select('id')
       .single();
     if (error || !data) {
-      console.error('[leads.intake] INSERT failed:', error);
+      // Loud, and it names the row it lost. This log line is the ONLY trace a dropped enquiry leaves —
+      // the customer still gets a 200 and a confirmation email, by design.
+      console.error(
+        `[leads.intake] INSERT failed — enquiry from ${input.email || input.name} was NOT saved:`,
+        error,
+      );
       return null;
     }
 

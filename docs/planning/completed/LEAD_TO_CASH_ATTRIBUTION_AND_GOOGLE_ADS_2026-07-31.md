@@ -213,7 +213,16 @@ Milestones 2, 6, 7, 8 stay internal — they drive the cycle-time dashboard, not
 Ordered by dependency. **A1 first, always** — every day it isn't shipped is a day of clicks we can never
 attribute.
 
-### A1 — Capture the click at the door
+### A1 — Capture the click at the door ✅ SHIPPED 2026-07-31 *(verified in the browser 2026-08-01)*
+> Shipped under the other doc's numbering; the three deliberate deviations are in the table above —
+> `lib/leads/attribution.ts` not `lib/attribution/capture.ts`, and **`localStorage` not a cookie**,
+> because Safari's ITP caps a client-set cookie at 7 days and the click window is 90.
+>
+> **Confirmed end to end during A14's browser pass**, not just by its 18 unit tests: a real
+> `?gclid=…&utm_*` visit wrote `starr.attribution.v1` on the FIRST page view, the POST carried every
+> field, and `first_seen_at` on the saved lead was the timestamp of the original click rather than of the
+> submission — first-touch actually winning, against a real database.
+
 *The whole plan rests on this slice. It is also the smallest.*
 
 - `lib/attribution/capture.ts` — pure functions: read `gclid` / `gbraid` / `wbraid` / `utm_source` /
@@ -717,7 +726,66 @@ Everything above exists to make this page honest.
 > the account-side setup. Everything downstream of the click (the lifecycle stream, the uploader, the
 > dashboard) already handles a call conversion without modification.
 
-### A14 — QA and verification
+### A14 — QA and verification ✅ SHIPPED 2026-08-01
+> **The browser pass found a production bug that 20,000 green tests could not, and it was a bad one.**
+>
+> ## 🐛 `leads.org_id` — six weeks of enquiries were being dropped
+>
+> `leads.org_id` is `NOT NULL` with **no default**, and nothing in `lib/leads/intake.ts` was setting it.
+> Every public contact-form submission failed its INSERT with
+> `null value in column "org_id" of relation "leads" violates not-null constraint`.
+>
+> Because that failure is **deliberately silent** — the email send is the legal record, so a database
+> problem must never 500 a customer — nobody saw it. The form returned **200**, the customer got their
+> confirmation, and the lead never existed. When this was found the newest row in the live `leads` table
+> was dated **2026-06-20, six weeks earlier**.
+>
+> **Why the suite missed it:** every existing test exercises `buildLeadRowFromForm`, which is pure and
+> entirely correct. None of them INSERT. The bug lived in the gap between a well-tested row builder and a
+> schema constraint — the exact shape of defect this repo's standing lesson warns about. It was found by
+> submitting the real form in a real browser and reading the real database.
+>
+> **Fixed** with `resolveIntakeOrgId`: an explicit `LEADS_DEFAULT_ORG_ID` override, else the single
+> organisation when there is exactly one, else a **refusal**. It does not guess — the only thing worse
+> than a lead that fails to save is one that saves into an org nobody looks at. The failure log now names
+> the customer it lost, because that line is the only trace a dropped enquiry leaves. Locked by
+> `__tests__/leads/intake-org-id.test.ts` (7 tests), whose fake client reproduces the real constraint and
+> proves it by failing when `org_id` is absent.
+>
+> ## Unit — all 13 modules the plan names, 228 tests
+>
+> attribution (18) · honeypot (13) · quotes (17) · identity (14) · events (14) · funnel (29) ·
+> offline/CSV (23) · ads client (15) · select (14) · adjustments (19) · spend (22) · self-reported (10) ·
+> org_id (7). Audited by listing them, not asserted.
+>
+> ## Integration — one lead, all the way through
+>
+> `__tests__/integrations/lead-to-cash-lifecycle.test.ts` (23 tests) walks a single lead from ad click to
+> final payment and asserts the exact event stream, export rows, API payloads, adjustment and dashboard
+> figures. **It exists for the failures unit tests structurally cannot see — the seams:** the CSV and the
+> API disagreeing about what time a conversion happened, the dedupe key drifting between writer and
+> exporter, the adjustment keying off a different order id than the upload that created it. Each is
+> invisible until Google's numbers quietly differ from ours weeks later. It also walks the same journey
+> **with no click**, because that is most of this business.
+>
+> ## Browser — the real form, a real `gclid`, the real database
+>
+> Submitted `/contact?gclid=TEST-A14-QA-abc123&utm_campaign=A14%20QA%20Verification` in Chromium against
+> a dev server with Resend disabled. Verified in order:
+> 1. `localStorage['starr.attribution.v1']` captured the click on the FIRST page view.
+> 2. The POST body carried `gclid`, all three UTMs, `landing_page`, `first_seen_at` and `howHeard`.
+> 3. → the `org_id` bug above, found here.
+> 4. After the fix, the live row had `org_id`, `gclid`, `utm_campaign`, **`how_heard: "Google Search"`**
+>    (A13), `first_seen_at` preserved from the earlier click (A1's first-write-wins), a hashed customer
+>    (A3), and exactly one `inquiry_received` lifecycle event (A4).
+> 5. Test lead, customer and event deleted afterwards; `leads` back to 4 rows.
+>
+> ⏸ **Cannot be done: "verify in Google Ads that a test upload lands."** There is no developer token and
+> no connected account — the same blocker as A8. It is the one item here that needs the owner, and it is
+> the first thing to do when credentials arrive: run `/api/cron/google-ads-upload` and read
+> `/admin/marketing/uploads`. The double-fire from Finding 3 **is** verified gone: the DOM-polling script
+> is deleted (A2) and a single `transaction_id`-keyed call remains.
+
 - Unit: attribution capture, hashing, dedupe keys, CSV row builder, upload retry/partial-failure handling.
 - Integration: full lifecycle fixture — click → form → quote → accept → job → deliver → pay — asserting the
   exact event stream and the exact export rows.
