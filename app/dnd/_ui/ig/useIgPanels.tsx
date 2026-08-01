@@ -124,11 +124,19 @@ function Section({ id, title, accent, aside, children }: {
     <section id={id} style={{ scrollMarginTop: 108, border: '1px solid var(--hx-line)', borderRadius: 10, background: 'var(--hx-inset-soft)', padding: '13px 15px 15px', display: 'grid', gap: 11 }}>
       {/* The heading is the section's anchor, so it carries a 700 weight and a 14px size with a taller teal ◆
           tick — a solid, unmistakable divider. A 2px gold underline replaces the hairline so each card reads
-          as "designed". */}
+          as "designed".
+
+          `h2`, NOT `h3`. It was an `h3` while the IG sheet had no `h1` at all; slice 105 added the character
+          name as the `h1`, which turned every section head into an `h1 → h3` SKIP — a defect created by
+          fixing the one above it. Measured in a browser 2026-08-01: one skip, repeated on all five sections.
+
+          Nothing moves on screen. Every visual property here is inline, so the tag carries no styling — the
+          exact situation the 5e "Dossier" note said did NOT hold there (that `h3` was styled BY TAG in
+          `theme.css`, which is why promoting it needed a call). Here it is a one-character change. */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, borderBottom: '2px solid var(--hx-line)', paddingBottom: 7, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.13em', textTransform: 'uppercase', color: accent ?? 'var(--hx-gold-2)' }}>
+        <h2 style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'var(--hx-font-display)', fontWeight: 700, fontSize: 14, letterSpacing: '0.13em', textTransform: 'uppercase', color: accent ?? 'var(--hx-gold-2)' }}>
           <span aria-hidden style={{ color: 'var(--hx-teal-1)', fontSize: 9 }}>◆</span>{title}
-        </h3>
+        </h2>
         {aside ? <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--hx-muted)' }}>{aside}</div> : null}
       </div>
       {children}

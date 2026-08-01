@@ -127,7 +127,18 @@ function ActionCost({ cost }: { cost?: PF2ActionCost }) {
 function SectionHead({ title, note, children }: { title: React.ReactNode; note?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className={styles.pf2SectionHead}>
-      <span className={styles.pf2SectionTitle}>{title}{note ? <span className={styles.pf2SectionNote}> {note}</span> : null}</span>
+      {/* `h2`, not `span`. Found 2026-08-01 by checking the sibling after fixing IG's `h1 → h3` skip —
+          the habit `clamped-token-surface.test.ts` records ("THE SAME BUG, THREE TIMES … the third only
+          because the second's write-up said to check the siblings"). PF2 had a different shape of the
+          same defect: its sheet has exactly ONE heading, the character name, and every section title is a
+          styled `span`. A screen-reader user could not navigate the sheet by section at all, and an
+          automated pass sees no level skip because there are no levels to skip.
+
+          `margin: 0` is the only thing needed: `.pf2SectionTitle` already sets family, size, weight,
+          letter-spacing, case and colour, so the class carries the whole look — but it never set a margin,
+          because a `span` has none and an `h2` has `0.83em 0`, which would break this flex row's baseline.
+          Measured after the change: computed styles identical, layout unmoved. */}
+      <h2 style={{ margin: 0 }} className={styles.pf2SectionTitle}>{title}{note ? <span className={styles.pf2SectionNote}> {note}</span> : null}</h2>
       <span className={styles.pf2SectionRule} />
       {children}
     </div>

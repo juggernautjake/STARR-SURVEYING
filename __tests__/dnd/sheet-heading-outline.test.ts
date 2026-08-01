@@ -114,3 +114,41 @@ describe('the bespoke sheets — top-level heading, FIXED 2026-07-27', () => {
     expect(portrait).not.toContain('<h1');
   });
 });
+
+describe('the bespoke sheets’ SECTION heads — found 2026-08-01, and the first was caused by the fix above', () => {
+  // Adding IG's `h1` (slice 105, above) turned every IG section head into an `h1 → h3` SKIP. The sheet had
+  // no `h1`, so its `h3`s never skipped anything; giving it one made them all wrong at once. A fix that
+  // creates the next defect is exactly what a browser pass catches and a source-lock does not, and this
+  // one was measured on a live IG sheet: one skip, repeated on all five sections.
+  //
+  // Then PF2, by the sibling habit: it had a DIFFERENT shape of the same defect. Its sheet carried exactly
+  // ONE heading — the character name — and every section title was a styled `<span>`. No level skip,
+  // because there were no levels; and no way to navigate the sheet by section at all.
+  //
+  // Neither change moves a pixel. Every IG heading property is inline, and `.pf2SectionTitle` already
+  // carried the whole PF2 look; only `margin: 0` had to be added, because a `span` has none and an `h2`
+  // has `0.83em 0`, which would have broken the flex row's baseline. Computed styles were re-measured
+  // after each change and are identical.
+  it('IG section heads are h2, directly under the character h1', () => {
+    expect(IG_PANELS, 'an IG section head went back to h3 — that is an h1 → h3 skip').not.toMatch(/<h3[ >]/);
+    expect(IG_PANELS).toMatch(/<h2 style=\{\{ margin: 0, display: 'inline-flex'/);
+  });
+
+  it('PF2 section heads are h2 rather than a styled span', () => {
+    const pf2 = read('app/dnd/_ui/pf2/usePf2Panels.tsx');
+    expect(pf2).toMatch(/<h2 style=\{\{ margin: 0 \}\} className=\{styles\.pf2SectionTitle\}/);
+    expect(pf2, 'the section title reverted to a semantically inert span')
+      .not.toMatch(/<span className=\{styles\.pf2SectionTitle\}/);
+  });
+
+  it('the PF2 heading still needs its explicit margin reset', () => {
+    // `.pf2SectionTitle` sets family, size, weight, letter-spacing, case and colour — but NOT margin,
+    // because it was written for a span. If someone drops the inline `margin: 0` the UA h2 margin comes
+    // back and the section rule stops sitting on the title's baseline.
+    const css = read('app/dnd/_ui/hextech.module.css');
+    const rule = css.slice(css.indexOf('.pf2SectionTitle {'), css.indexOf('.pf2SectionRule'));
+    expect(rule).toContain('font-size: 14.5px');
+    expect(rule, 'the class now sets a margin — the inline reset may be redundant, re-measure before removing it')
+      .not.toMatch(/^\s*margin:/m);
+  });
+});
