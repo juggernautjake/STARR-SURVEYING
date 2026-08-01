@@ -391,6 +391,64 @@ and Notes into Files.
 
 ---
 
+## 3b. 🔴 OWNER OBJECTIVE (added 2026-08-01) — one search across every document
+
+**Owner's words:** *"I want there to be a robust file searching system on the backend so that if we
+need to pull up a customer's info or job info, or business documents, we can do that. I want it to
+be that we can filter docs by type, date and search using key words and matching spellings and also
+by using AI to help find specific documents or information."*
+
+### Where this actually stands (measured 2026-08-01, live DB)
+
+Not "needs polish" — **there is no cross-corpus search over business data at all.** What exists is
+real, but it is pointed entirely at the *learning* content:
+
+| Capability | Built for | NOT built for |
+|---|---|---|
+| Full-text (`tsvector` + GIN) | `kb_articles`, `fs_reference_chunks`, lessons, modules, topics, flashcards, fieldbook notes | every business document and record |
+| Semantic / embeddings (`pgvector`) | `fs_reference_chunks.embedding`, `dnd_system_entries.embedding` | every business document and record |
+| Spelling-tolerant matching | **nothing — `pg_trgm` is not even installed** | everything |
+
+And the documents are **scattered across nine tables that never talk to each other**:
+`research_documents` (654 rows — by far the biggest real corpus), `job_files`, `field_media`,
+`employee_images`, `maintenance_event_documents`, `payment_receipts`, `fs_reference_docs`,
+`user_files`, plus `file_nodes`.
+
+The obvious place to look is the File Explorer, and that is the trap: **`/admin/files` has 6 rows.**
+It is a virtual filesystem shell whose `mnt:` mounts are read-only views. Searching it finds almost
+nothing, which reads as "search is broken" rather than "search was never built over the real data."
+
+The records people actually ask for by name — `customers`, `jobs`, `contacts`, `leads`,
+`customer_invoices` — have no search surface either. Today "pull up that customer's info" means
+knowing which page to open first.
+
+### What must be true when this is done
+
+1. **One entry point.** A single query reaches every corpus — documents *and* records — and returns
+   one ranked, permission-filtered list. Not nine search boxes on nine pages.
+2. **Filter by type and by date**, as asked: document type / MIME / source corpus, and created,
+   modified, and *recorded/effective* date where the corpus has one (a deed's recording date is not
+   its upload date, and for a title chain the recording date is the one that matters).
+3. **Keyword search that survives a typo.** `pg_trgm` for similarity so "Waggner" finds "Waggoner"
+   and "esment" finds "easement" — surveying documents are dense with proper nouns and legal terms
+   that nobody spells right the first time.
+4. **AI-assisted retrieval** for the questions keywords cannot express — *"the deed that mentions a
+   40-foot access easement on the north line"* — via embeddings over extracted text, mirroring the
+   `fs_reference_chunks` pattern already proven in this repo rather than inventing a new one.
+5. **It must never leak.** Search is a permission bypass waiting to happen: results are assembled by
+   the service role across tables whose own pages gate access individually. Every hit must be
+   filtered by the same rules its own surface would apply, and `org_id` (§1.2) respected.
+6. **Empty is a real answer.** A search that silently drops a corpus it failed to query is worse
+   than one that finds nothing — see §1.1b for what that failure mode already cost here.
+
+### Deliberately NOT in scope for the first pass
+
+OCR of un-extracted PDFs, and indexing CAD geometry. Both are large, and `research_documents`
+already carries `extracted_text` for the corpus that matters most — build against what is there,
+then widen.
+
+---
+
 ## 4. Good ideas that need fleshing out
 
 | Idea | Where it stands | What it needs |
@@ -512,6 +570,20 @@ Anthropic client:
 6. Kill `/admin/dashboard`; make `/admin/me` the unambiguous home.
 7. Consolidate Money (30 → ~6 surfaces) and People (10 → 1 profile + 1 directory).
 8. Rename Billing/Invoicing/Finances to non-colliding words.
+
+**Phase 1b — Unified document & record search (§3b, owner objective 2026-08-01)**
+
+Placed here, ahead of Phase 2, deliberately: it is the surface that makes everything already built
+*findable*, and every Phase 2 item (proposals, deliverables, change orders) adds documents that will
+need to be found. Building it after them means retro-fitting search onto three more corpora.
+
+8a. Search backbone — `pg_trgm`, a normalised index over the nine document tables + the core
+    business records, and one ranked query with permission + `org_id` filtering.
+8b. Filters — type / corpus / MIME, and created / modified / effective-date ranges.
+8c. Spelling-tolerant keyword ranking (trigram similarity + full-text, combined score).
+8d. AI retrieval — embeddings over `extracted_text`, mirroring `fs_reference_chunks`; natural-language
+    questions answered with cited documents, never with an unsourced summary.
+8e. One search UI, reachable from the rail and ⌘K, that returns documents and records together.
 
 **Phase 2 — Close the business gaps**
 9. Proposal → acceptance → job (with e-signature).
