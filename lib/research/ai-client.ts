@@ -5,12 +5,15 @@
 // - Request timeout handling
 import Anthropic from '@anthropic-ai/sdk';
 import { PROMPTS, type PromptKey } from './prompts';
+import { modelFor } from '../ai/models';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
 });
 
-const AI_MODEL = process.env.RESEARCH_AI_MODEL || 'claude-sonnet-4-5-20250929';
+// Model resolved centrally (audit §5). RESEARCH_AI_MODEL still wins so an operator can pin a
+// specific model on this pipeline without touching the shared table.
+const AI_MODEL = process.env.RESEARCH_AI_MODEL || modelFor('reasoning').model;
 
 // Retry configuration
 const MAX_RETRIES = 3;

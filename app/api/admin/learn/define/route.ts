@@ -12,9 +12,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { modelFor } from '@/lib/ai/models';
 
 export const maxDuration = 30;
-const MODEL = process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.CAD_AI_MODEL ?? modelFor('extraction').model;
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();

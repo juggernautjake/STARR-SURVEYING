@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import Anthropic from '@anthropic-ai/sdk';
+import { modelFor } from '@/lib/ai/models';
 
 const TIMEOUT_MS = 30_000;
-const MODEL = process.env.RESEARCH_AI_MODEL || 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.RESEARCH_AI_MODEL || modelFor('reasoning').model;
 
 interface AnalyzeRequest {
   type: 'ocr' | 'classify' | 'explain' | 'validate';

@@ -1,5 +1,6 @@
 // app/api/admin/learn/quizzes/route.ts
 import { auth, isAdmin } from '@/lib/auth';
+import { modelFor } from '@/lib/ai/models';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -84,7 +85,7 @@ ${referenceAnswer}
 ${studentAnswer}`;
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: modelFor('extraction').model,
       max_tokens: 500,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],

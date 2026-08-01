@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import Anthropic from '@anthropic-ai/sdk';
+import { modelFor } from '@/lib/ai/models';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -91,7 +92,7 @@ Grade this response now. Return ONLY valid JSON.`;
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: modelFor('extraction').model,
       max_tokens: 500,
       messages: [
         { role: 'user', content: userPrompt },

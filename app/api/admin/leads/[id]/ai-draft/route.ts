@@ -14,6 +14,7 @@
 // button when it sees that response.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { modelFor } from '@/lib/ai/models';
 import Anthropic from '@anthropic-ai/sdk';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -25,7 +26,7 @@ import {
   type AiDraftContext,
 } from '@/lib/leads/ai-draft';
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = modelFor('drafting').model;
 const MAX_TOKENS = 1024;
 
 function leadIdFromPath(req: NextRequest): string | null {

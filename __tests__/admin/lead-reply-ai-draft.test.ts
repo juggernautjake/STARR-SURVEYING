@@ -127,8 +127,14 @@ describe('ai-draft API route', () => {
     expect(SRC).toMatch(/\{ status: 503 \}/);
   });
 
-  it("uses claude-sonnet-4-6 per project model convention", () => {
-    expect(SRC).toMatch(/const MODEL = 'claude-sonnet-4-6'/);
+  it("takes its model from the central config, not a literal", () => {
+    // This used to assert `const MODEL = 'claude-sonnet-4-6'`, which is exactly the defect audit §5
+    // measured: "model IDs are inconsistent and a generation behind… there's no central model
+    // config". A test pinning one of the four stale literals made the drift durable — it would have
+    // failed the fix and passed the bug. The property it was reaching for is that this route uses
+    // the FIRM'S model choice rather than one somebody typed here.
+    expect(SRC).toMatch(/const MODEL = modelFor\('drafting'\)\.model/);
+    expect(SRC).not.toMatch(/'claude-(opus|sonnet|haiku)-[a-z0-9-]*'/);
   });
 
   it("loads lead + recent reply history + recent office notes", () => {

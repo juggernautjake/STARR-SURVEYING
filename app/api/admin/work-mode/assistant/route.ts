@@ -6,8 +6,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { modelFor } from '@/lib/ai/models';
 
-const MODEL = process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.CAD_AI_MODEL ?? modelFor('assistant').model;
 const MAX_TOKENS = 900;
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string }

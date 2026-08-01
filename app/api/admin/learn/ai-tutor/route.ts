@@ -19,9 +19,10 @@ import { splitTutorReply } from '@/lib/learn/tutor-script';
 import { retrieveSources, formatSourcesBlock, type RetrievedSource } from '@/lib/learn/tutor-retrieval';
 import { isInScope, refusalMessage } from '@/lib/learn/tutor-guard';
 import { moduleSuggestions } from '@/lib/learn/tutor-suggestions';
+import { modelFor } from '@/lib/ai/models';
 
 export const maxDuration = 60;
-const MODEL = process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.CAD_AI_MODEL ?? modelFor('drafting').model;
 // Higher than before because each turn now emits two channels — the display
 // reply AND a spoken teaching script.
 const MAX_TOKENS = 2600;

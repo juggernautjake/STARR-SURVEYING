@@ -3,8 +3,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isDeveloper } from '@/lib/auth';
 import Anthropic from '@anthropic-ai/sdk';
+import { modelFor } from '@/lib/ai/models';
 
-const MODEL = process.env.RESEARCH_AI_MODEL || 'claude-sonnet-4-5-20250929';
+const MODEL = process.env.RESEARCH_AI_MODEL || modelFor('assistant').model;
 
 const SYSTEM_PROMPT =
   "You are an AI assistant embedded in the STARR Research Testing Lab. You help developers debug the STARR AI property research pipeline — a Node.js worker that scrapes Texas county CAD portals, harvests deed/plat documents, and performs AI-powered land boundary analysis. The pipeline processes Bell County, TX properties. Help the developer understand code, debug failures, and suggest fixes.";

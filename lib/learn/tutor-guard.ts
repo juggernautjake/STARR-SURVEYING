@@ -7,8 +7,9 @@
 // tutor system prompt also enforces scope, so a classifier hiccup fails safe (allow → the
 // main prompt still refuses obvious off-topic asks and won't write code / do trivia).
 import Anthropic from '@anthropic-ai/sdk';
+import { modelFor } from '@/lib/ai/models';
 
-const GUARD_MODEL = process.env.LEARN_GUARD_MODEL || 'claude-haiku-4-5-20251001';
+const GUARD_MODEL = process.env.LEARN_GUARD_MODEL || modelFor('guard').model;
 
 const GUARD_SYSTEM = [
   'You are a strict topic gate for a land-surveying exam tutor. Decide if the student\'s latest message is IN SCOPE.',

@@ -24,6 +24,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { MissingApiKeyError } from '../ai-engine/claude-deed-parser';
 import type { Point2D } from '../types';
+import { modelFor } from '@/lib/ai/models';
 
 export interface SketchReconcileInput {
   /** Sketch image bytes — JPEG / PNG / WebP. */
@@ -67,7 +68,7 @@ const SYSTEM_PROMPT =
   'in the narrative what is unclear — do NOT invent measurements. Never wrap the JSON in ' +
   'Markdown fences; emit the JSON object as the entire response.';
 
-const MODEL = 'claude-opus-4-7';
+const MODEL = modelFor('reasoning').model;
 const MAX_TOKENS = 4096;
 
 /**

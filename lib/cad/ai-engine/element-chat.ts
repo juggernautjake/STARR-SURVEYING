@@ -24,9 +24,10 @@ import type {
   ElementExplanation,
 } from './types';
 import { MissingApiKeyError } from './claude-deed-parser';
+import { modelFor } from '@/lib/ai/models';
 
 const DEFAULT_MODEL =
-  process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+  process.env.CAD_AI_MODEL ?? modelFor('reasoning').model;
 const MAX_TOKENS = 1024;
 const REQUEST_TIMEOUT_MS = 45_000;
 // Window long conversations to the most recent turns so the request stays

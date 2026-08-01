@@ -72,6 +72,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'ad_spend_daily',
   'admin_alert_settings',
   'admin_discussion_threads',
+  'ai_usage_log',
   'app_settings',
   'assignments',
   'audit_log',

@@ -4,8 +4,9 @@
 // Mirrors the approach already proven in lib/research/document.service.ts, kept
 // self-contained so the learn feature doesn't depend on the research_documents schema.
 import Anthropic from '@anthropic-ai/sdk';
+import { modelFor } from '@/lib/ai/models';
 
-const OCR_MODEL = process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+const OCR_MODEL = process.env.CAD_AI_MODEL ?? modelFor('extraction').model;
 const PDF_TEXT_MIN_CHARS = 100; // below this, treat the PDF as scanned and OCR it
 const IMG_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 

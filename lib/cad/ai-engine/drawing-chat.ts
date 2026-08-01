@@ -35,9 +35,10 @@ import type { DrawingDocument } from '../types';
 import { MissingApiKeyError } from './claude-deed-parser';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
 import { inverseBearingDistance, formatBearing } from '../geometry/bearing';
+import { modelFor } from '@/lib/ai/models';
 
 const DEFAULT_MODEL =
-  process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+  process.env.CAD_AI_MODEL ?? modelFor('reasoning').model;
 const MAX_TOKENS = 1024;
 const REQUEST_TIMEOUT_MS = 45_000;
 // Keep the most recent turns so a long conversation doesn't grow the

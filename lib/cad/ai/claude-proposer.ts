@@ -32,8 +32,9 @@ import {
   type ProjectContext,
 } from './system-prompt';
 import { generateId } from '../types';
+import { modelFor } from '@/lib/ai/models';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_MODEL = modelFor('reasoning').model;
 const MAX_TOKENS = 4096;
 const REQUEST_TIMEOUT_MS = 45_000;
 

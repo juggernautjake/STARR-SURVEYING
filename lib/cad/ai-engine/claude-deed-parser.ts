@@ -16,9 +16,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import type { DeedCall, DeedCurve } from './types';
+import { modelFor } from '@/lib/ai/models';
 
 const DEFAULT_MODEL =
-  process.env.CAD_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+  process.env.CAD_AI_MODEL ?? modelFor('reasoning').model;
 const MAX_TOKENS = 4096;
 const REQUEST_TIMEOUT_MS = 60_000;
 

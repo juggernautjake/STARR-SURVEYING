@@ -105,6 +105,12 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // Setting the firm up. Gating this would be the sharpest possible own goal: a firm whose plan is
   // not yet resolved could not reach the checklist that tells it how to finish signing up.
   'onboarding': { bundle: null, reason: 'The first-run checklist must work before anything is bought.' },
+  // The AI layer (audit §5). All open: the assistant, its generated page help and its proactive
+  // alerts span every workspace, so gating them to one bundle would make the help drawer stop
+  // working on exactly the pages a firm did not buy — which is where somebody most needs help.
+  'assistant': { bundle: null, reason: 'The assistant spans every workspace; it gates its own tools by role.' },
+  'help': { bundle: null, reason: 'A help drawer that stops working on unbought pages is where help is most needed.' },
+  'alerts': { bundle: null, reason: 'Alerts span every bundle a firm holds, like notifications.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },
