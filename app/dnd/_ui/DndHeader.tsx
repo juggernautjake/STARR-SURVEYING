@@ -100,9 +100,13 @@ export default function DndHeader({ userName }: { userName?: string | null }) {
                   unreviewed badge is owner-only, enforced server-side rather than hidden here. */}
               <RequestsNavLink className={styles.siteNavLink} onNavigate={() => setOpen(false)} />
               <Link href="/dnd?new=campaign" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Campaign</Link>
-              {/* Maps live inside a campaign's Map Studio, so this takes a signed-in user to the campaigns hub to
-                  pick which campaign to make a map for. */}
-              <Link href="/dnd?new=map" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Map</Link>
+              {/* Straight into the Map Studio, with no campaign in the way (owner request 2026-08-01).
+                  This used to point at /dnd?new=map — a query string nothing has ever read, so the button
+                  silently landed on the campaigns hub. Maps no longer need a campaign to exist: the Studio
+                  saves to the person's own library at /dnd/maps, and a map is added to a campaign from
+                  there when they want players to see it. */}
+              <Link href="/dnd/maps" className={styles.siteNavLink} onClick={() => setOpen(false)}>My Maps</Link>
+              <Link href="/dnd/maps/studio" className={styles.siteNavLink} onClick={() => setOpen(false)}>＋ Map</Link>
               <span className={styles.siteNavUser}>
                 <span style={{ opacity: 0.85 }}>Signed in as <strong>{userName}</strong></span>
                 <LogoutButton />

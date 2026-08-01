@@ -2680,19 +2680,29 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
 })();
 </script>
 <!-- ============================================================
-     CAMPAIGN DB BRIDGE (platform integration — Phase U, slice 3)
-     When this tool is embedded under /dnd with ?campaign=<id> it swaps the
-     localStorage "publish" flow for the campaign maps API. The native
-     Save-file / Open-file (export/import) flows are left intact; only the
-     campaign persistence seam is redirected to Postgres so the DM's maps
-     survive across devices and the player Console can load them.
+     DB BRIDGE (platform integration — Phase U slice 3; personal maps 2026-08-01)
+     When this tool is embedded under /dnd it swaps the localStorage "publish"
+     flow for a maps API. The native Save-file / Open-file (export/import)
+     flows are left intact; only the persistence seam is redirected to
+     Postgres so maps survive across devices.
+
+     Two modes, ONE bridge, because they differ by an endpoint and a label and
+     nothing else — a forked copy would drift the de-inlining logic, which is
+     the fiddliest part of this file:
+       ?campaign=<id> → the campaign's maps; Save + Publish-to-players.
+       ?personal=1    → the signed-in user's own library; Save only. There is
+                        no table to publish to, so no Publish button exists —
+                        an inert one would be worse than a missing one.
 ============================================================ -->
 <script>
-(function campaignBridge(){
+(function dbBridge(){
   const qs = new URLSearchParams(location.search);
   const campaign = qs.get("campaign");
-  if(!campaign) return;                       // stand-alone use → unchanged
-  const api = "/api/dnd/campaigns/"+encodeURIComponent(campaign)+"/maps";
+  const personal = qs.get("personal") === "1";
+  if(!campaign && !personal) return;          // pure stand-alone file use → unchanged
+  const api = campaign
+    ? "/api/dnd/campaigns/"+encodeURIComponent(campaign)+"/maps"
+    : "/api/dnd/maps";
   let dbMapId = qs.get("map") || null;        // the row we're editing (null = unsaved)
 
   // Reflect the current db map id in the URL without reloading (so refresh keeps it).
@@ -2774,7 +2784,7 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
     if(j.map && j.map.data){
       applyMapData(j.map.data);
       if(state.meta) state.meta.name = j.map.name || state.meta.name;
-      toast('Opened “'+(j.map.name||"map")+'” from the campaign');
+      toast('Opened “'+(j.map.name||"map")+'” from '+(campaign ? 'the campaign' : 'your maps'));
     }
   }
 
@@ -2790,14 +2800,16 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
     b.id = id; b.className = "tbtn" + (cls ? " " + cls : ""); b.textContent = label;
     return b;
   }
-  const saveBtn = mkBtn("dbSaveBtn", "", "☁ Save to campaign");
-  const pubBtn  = mkBtn("dbPublishBtn", "aether", "✦ Publish to players");
-  saveBtn.title = "Save this map to the campaign (visible to you; players see it only after Publish).";
-  pubBtn.title  = "Save + make this the map players see in the campaign hub.";
+  const saveBtn = mkBtn("dbSaveBtn", "", campaign ? "☁ Save to campaign" : "☁ Save map");
+  saveBtn.title = campaign
+    ? "Save this map to the campaign (visible to you; players see it only after Publish)."
+    : "Save this map to your library. It is yours alone until you add it to a campaign.";
+  const pubBtn = campaign ? mkBtn("dbPublishBtn", "aether", "✦ Publish to players") : null;
+  if(pubBtn) pubBtn.title = "Save + make this the map players see in the campaign hub.";
   if(bar){
     if(nativePublish) bar.insertBefore(saveBtn, nativePublish);
     else bar.appendChild(saveBtn);
-    bar.insertBefore(pubBtn, saveBtn.nextSibling);
+    if(pubBtn) bar.insertBefore(pubBtn, saveBtn.nextSibling);
   }
 
   async function guard(btn, label, fn){
@@ -2806,8 +2818,8 @@ function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");cl
     catch(err){ toast(err.message || "Something went wrong"); }
     finally{ btn.disabled = false; btn.textContent = orig; }
   }
-  saveBtn.onclick = () => guard(saveBtn, "Saved to the campaign", saveToCampaign);
-  pubBtn.onclick  = () => guard(pubBtn, "Published — players can open it now", publishToPlayers);
+  saveBtn.onclick = () => guard(saveBtn, campaign ? "Saved to the campaign" : "Saved to your maps", saveToCampaign);
+  if(pubBtn) pubBtn.onclick = () => guard(pubBtn, "Published — players can open it now", publishToPlayers);
 
   if(dbMapId) loadFromCampaign(dbMapId);
 })();
