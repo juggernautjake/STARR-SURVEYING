@@ -41,7 +41,9 @@ export type RateBucket =
   // These are counted per IP, because by definition there is no user. That makes them blunter than the
   // buckets above — an office behind one NAT shares a counter — so their limits are set with that in
   // mind: high enough that a shared address never notices, low enough that a script does.
-  | 'contact-form' | 'contact-form-daily' | 'public-lookup';
+  | 'contact-form' | 'contact-form-daily' | 'public-lookup' | 'public-payment'
+  // A1-5 — counted in MEGABYTES rather than requests. See `contact-storage-daily` below.
+  | 'contact-storage-daily';
 
 export interface BucketPolicy {
   /** Requests allowed per window. */
@@ -122,6 +124,47 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
     windowSec: 300,
     message: 'Too many lookups just now. Wait a moment and try again, or call (936) 662-0077.',
   },
+
+  // ── B1-1 · the public payment surface ────────────────────────────────────────────────────────────
+  //
+  // Found by the route sweep, not by reading the payment plan: A1-4 throttled the invoice LOOKUP and the
+  // four routes beside it were never given one. They are the worse half.
+  //
+  //   · `POST …/intent`   creates a Stripe PaymentIntent — a paid external call per request.
+  //   · `POST …/attempt`  records an "I sent it" claim **and emails the office**.
+  //   · `POST …/receipt`  emails a receipt.
+  //   · `GET  …/receipt/pdf` renders one.
+  //
+  // Two of those send mail, which is F1's finding arriving on a different endpoint: an exhausted Resend
+  // quota does not merely stop receipts, it stops **real customer enquiries** being emailed at all.
+  //
+  // Tighter than `public-lookup` because these have side effects rather than being a read: a customer
+  // paying an invoice makes one intent, one attempt and a receipt request or two, so ten in a quarter of
+  // an hour is invisible to them and a wall to anything else.
+  'public-payment': {
+    limit: 10,
+    windowSec: 900,
+    message: 'Too many payment requests just now. Wait a few minutes and try again, or call (936) 662-0077.',
+  },
+
+  // ── A1-5 · the storage a single address can consume ──────────────────────────────────────────────
+  //
+  // `UPLOAD_LIMITS` caps ONE file and `QUOTE_ATTACHMENT_MAX_TOTAL_BYTES` caps one submission at 25 MB.
+  // Nothing capped a DAY: A1-2 allows 20 submissions per address, so one connection could put **500 MB**
+  // into the bucket, and nobody would find out until a storage bill or a quota wall did it for them.
+  //
+  // COUNTED IN MEGABYTES, which is why `checkRateLimit` takes a cost. A per-submission limit cannot
+  // express "a lot of small ones", and a per-request limit set low enough to bound the bytes would refuse
+  // the customer who legitimately sends one big site plan.
+  //
+  // 60 MB is deliberately far above a real enquiry — a survey request is a few photographs and a PDF —
+  // and far below what makes filling the bucket worth anyone's time. A shared office address sending
+  // three genuine quote requests in a day is nowhere near it.
+  'contact-storage-daily': {
+    limit: 60,
+    windowSec: 24 * 3600,
+    message: 'That is a lot of files from this connection today. Please email them to us directly and we will pick it up from there.',
+  },
 };
 
 /**
@@ -184,7 +227,16 @@ export function decide(bucket: RateBucket, count: number, atMs: number): RateLim
 export async function checkRateLimit(
   bucket: RateBucket,
   subject: string,
-  opts: { now?: number } = {},
+  opts: {
+    now?: number;
+    /**
+     * How much this request consumes. One by default — a request is one request.
+     *
+     * A1-5 uses it to count MEGABYTES instead, which is the only way to express "a lot of small uploads"
+     * in a counter that otherwise knows only how often something happened.
+     */
+    cost?: number;
+  } = {},
 ): Promise<RateLimitResult> {
   const atMs = opts.now ?? Date.now();
   const policy = RATE_LIMIT_BUCKETS[bucket];
@@ -214,7 +266,10 @@ export async function checkRateLimit(
     // from a silent miscount is an outage nobody can see.
     if (error) throw error;
 
-    const next = ((data as { count?: number } | null)?.count ?? 0) + 1;
+    // Floored at 1 and rounded UP: a fractional cost would let a thousand 0.4 MB uploads count as nothing
+    // in a column that stores integers, and a zero cost would make the check free to bypass.
+    const charge = Math.max(1, Math.ceil(opts.cost ?? 1));
+    const next = ((data as { count?: number } | null)?.count ?? 0) + charge;
 
     await supabaseAdmin
       .from('rate_limits')
@@ -267,9 +322,10 @@ export function rateLimitHeaders(r: RateLimitResult, bucket: RateBucket): Record
 export async function enforceRateLimit(
   bucket: RateBucket,
   userId: string | null | undefined,
-  opts: { ip?: string | null; now?: number } = {},
+  /** `cost` is passed straight through — see `checkRateLimit`. A1-5 charges megabytes with it. */
+  opts: { ip?: string | null; now?: number; cost?: number } = {},
 ): Promise<NextResponse | null> {
-  const result = await checkRateLimit(bucket, rateLimitSubject({ userId, ip: opts.ip }), { now: opts.now });
+  const result = await checkRateLimit(bucket, rateLimitSubject({ userId, ip: opts.ip }), { now: opts.now, cost: opts.cost });
   if (result.allowed) return null;
   return NextResponse.json({ error: result.message }, { status: 429, headers: rateLimitHeaders(result, bucket) });
 }

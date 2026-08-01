@@ -23,6 +23,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { enforceRateLimit } from '@/lib/rate-limit';
+// A1-4b — a hit and a miss must take the same time, or the timing answers what the body refuses to.
+import { notBefore, now } from '@/lib/http/constant-time';
 import {
   PUBLIC_BLOCKED_STATUSES,
   describePaymentForReceipt,
@@ -79,11 +81,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const limited = await enforceRateLimit('public-lookup', null, { ip });
   if (limited) return limited;
 
+  // A1-4b — every path below returns through `notBefore(startedAt, …)`, so a 404 and a hit leave at the
+  // same moment. Started AFTER the rate-limit check on purpose: a throttled caller should be refused
+  // immediately, and padding their 429 would only make the endpoint slower to say no.
+  const startedAt = now();
+
   const url = new URL(req.url);
   const segments = url.pathname.split('/').filter(Boolean);
   const rawKey = decodeURIComponent(segments[segments.length - 1] ?? '').trim();
   if (!rawKey) {
-    return NextResponse.json({ error: 'Missing invoice number' }, { status: 400 });
+    // Floored like every other terminal path. A blank key is not a guess at an invoice number, so this
+    // one leaks nothing — but a route where one return is unpadded is a route where the next one added
+    // will be unpadded too, and the test below asserts there are none.
+    return notBefore(startedAt, NextResponse.json({ error: 'Missing invoice number' }, { status: 400 }));
   }
   // Normalize for case-insensitive lookup — invoice numbers print
   // in uppercase, slugs are typed exactly.
@@ -96,20 +106,28 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: 'Lookup failed' }, { status: 500 });
-  }
-  if (!invoice) {
-    return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-  }
-  if (PUBLIC_BLOCKED_STATUSES.has(invoice.status)) {
-    return NextResponse.json({ error: 'Invoice not available' }, { status: 410 });
+    return notBefore(startedAt, NextResponse.json({ error: 'Lookup failed' }, { status: 500 }));
   }
 
+  // A1-4b — THE SAME ROUND TRIPS EITHER WAY. This is the half that matters: a miss that skipped the
+  // payments query would be structurally faster, and a difference that scales with how busy the database
+  // is cannot be padded away. So the second query runs on both paths — for a miss it looks up an id that
+  // exists nowhere, which costs one indexed lookup and returns nothing.
+  //
+  // The rate limit (30 per 5 minutes, A1-4) is what keeps that extra query from being worth exploiting as
+  // load in its own right.
   const { data: payments } = await supabaseAdmin
     .from('payments')
     .select('amount_cents, method, status, cleared_at, external_id, payer_email')
-    .eq('invoice_id', invoice.id)
+    .eq('invoice_id', invoice?.id ?? '00000000-0000-0000-0000-000000000000')
     .order('cleared_at', { ascending: false });
+
+  if (!invoice) {
+    return notBefore(startedAt, NextResponse.json({ error: 'Invoice not found' }, { status: 404 }));
+  }
+  if (PUBLIC_BLOCKED_STATUSES.has(invoice.status)) {
+    return notBefore(startedAt, NextResponse.json({ error: 'Invoice not available' }, { status: 410 }));
+  }
 
   const paid = sumSucceededPayments(payments ?? []);
   const paymentSummaries: PublicPaymentSummary[] = ((payments ?? []) as Array<Parameters<typeof describePaymentForReceipt>[0]>)
@@ -148,5 +166,5 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     payments: paymentSummaries,
   };
 
-  return NextResponse.json({ invoice: body });
+  return notBefore(startedAt, NextResponse.json({ invoice: body }));
 });

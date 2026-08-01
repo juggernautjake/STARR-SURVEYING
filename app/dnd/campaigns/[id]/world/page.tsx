@@ -32,15 +32,44 @@ import ReachOverlay from '@/app/dnd/_ui/maps/ReachOverlay';
 import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
 // M5-3 — spell areas, read off the character's own spell list rather than restated here.
 import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
+// M5-3's other half — weapon reach, measured the same way movement is so the two overlays agree.
+import { reachCells } from '@/lib/dnd/maps/attacks';
+// M5-4's other half — an area that stays on the map and runs out, counted against the encounter's round.
+import KeepArea from '@/app/dnd/_ui/maps/KeepArea';
+import { describeDuration, isExpired, readDuration } from '@/lib/dnd/maps/durations';
 // M5-4 — the conditions the sheet is already tracking, shown on the piece.
 import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenConditions';
 // M5-5 — whose turn it is, read from the initiative tracker that already exists.
 import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
 // M6-4 / M6-5 — the trigger engine, and the DM-side preview of what each one will do.
 import { describePlan, preview, readTrigger } from '@/lib/dnd/maps/triggers';
+// M6-4's executor, reachable from the board that previews it.
+import FireTrigger from '@/app/dnd/_ui/maps/FireTrigger';
+// M7-2 — fog of war: the dark, the DM's brush, and what a player's own tokens can see through it.
+// M7-3 — everyone at the table sees the same board.
+import LiveMap from '@/app/dnd/_ui/maps/LiveMap';
+// M4-2 / M7-1 — pick a token up and put it somewhere else. The write path has existed since M4-2.
+import TokenDrag from '@/app/dnd/_ui/maps/TokenDrag';
+import FogOverlay from '@/app/dnd/_ui/maps/FogOverlay';
+import FogTools from '@/app/dnd/_ui/maps/FogTools';
+import { fogHoles, isVisible as visibleThroughFog, readFog, visionFt } from '@/lib/dnd/maps/fog';
+import { feetToWorld } from '@/lib/dnd/maps/grid';
+// M6-2 — what the party notices by standing there, no roll required.
+import { scanPassive } from '@/lib/dnd/maps/passive-scan';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
+// M4-2 — the rest of the DM's object tools, and G7's undo behind them.
+import MapObjectTools from '@/app/dnd/_ui/maps/MapObjectTools';
+import MapObjectView, { DRAWN_KINDS } from '@/app/dnd/_ui/maps/MapObjectView';
+// M4-3 — the campaign's existing media, offered as map assets. No new uploader, no new table.
+import AssetTray from '@/app/dnd/_ui/maps/AssetTray';
+// M5-2's other half — the DM paints difficult ground and blockers, and the movement overlay counts them.
+import TerrainBrush from '@/app/dnd/_ui/maps/TerrainBrush';
+import { patchesFrom, readTerrain } from '@/lib/dnd/maps/terrain';
+import { loadMapAssets, type MapAsset } from '@/lib/dnd/maps/assets';
+import { pendingUndo } from '@/lib/dnd/maps/journal';
+import { readGrid } from '@/lib/dnd/maps/grid';
 
 export const metadata: Metadata = { title: 'World | Starr Tabletop' };
 export const dynamic = 'force-dynamic';
@@ -144,7 +173,7 @@ export default async function WorldPage({
   // Found by the browser pass: the discovery was being WRITTEN and the object was being RETURNED, and the
   // page drew nothing, because it only ever rendered `kind === 'token'`. A secret you successfully find
   // and still cannot see is indistinguishable from one you failed to find.
-  const nodeReveals = current
+  const nodeRevealsBase = current
     ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'hidden')
     : [];
 
@@ -153,10 +182,106 @@ export default async function WorldPage({
   // carrying a copy would keep the old face for as long as it existed, with nothing saying the two
   // disagree. Same rule that keeps HP off a token.
   const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
+  /** A token's displayed name, resolved once so the board and the DM's tools cannot disagree. */
+  const tokenLabel = (objectId: string): string | null => {
+    const hit = nodeTokens.find(({ o }) => o.id === objectId);
+    if (!hit) return null;
+    return hit.t.nickname || subjects.get(subjectKey(hit.t.subject))?.name || null;
+  };
+  // ── M7-2 · fog of war ────────────────────────────────────────────────────────────────────────────
+  //
+  // The holes are the DM's revealed patches plus what the VIEWER's own tokens can see. A DM passes no
+  // tokens and gets only the patches: their fog is a wash reminding them what the party cannot see, not
+  // a limit on themselves.
+  const fogOn = Boolean(current?.fog);
+  const revealedPatches = fogOn && current
+    ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'area' && readFog(o.data))
+      .map((o) => ({ x: Number(o.x), y: Number(o.y), w: o.w == null ? null : Number(o.w), h: o.h == null ? null : Number(o.h) }))
+    : [];
+  const fogGrid = readGrid(current?.grid);
+  const seeingTokens = fogOn && !isDm && current
+    ? nodeTokens
+      .filter(({ t }) => 'characterId' in t.subject && discoveredBy.includes(t.subject.characterId))
+      .map(({ o, t }) => {
+        const view = subjects.get(subjectKey(t.subject));
+        const ft = visionFt(view?.senses);
+        return {
+          x: Number(o.x), y: Number(o.y),
+          // Feet → world units through the node's OWN grid, so 60 ft of darkvision is 60 feet of THIS
+          // map rather than a number that means something different on every one. A map with no grid
+          // has no feet, so vision falls back to a fixed slice of the world box.
+          radiusWorld: fogGrid ? feetToWorld(ft, fogGrid) : 8,
+        };
+      })
+    : [];
+  const holes = fogOn ? fogHoles(revealedPatches, seeingTokens) : [];
+  /**
+   * What fog HIDES rather than darkens.
+   *
+   * A player's fog is opaque, and the things under it are not rendered at all — a token drawn beneath a
+   * translucent overlay is a token anybody can find by turning up their screen brightness, which is the
+   * same class of mistake as filtering a secret in React instead of in the query (G3). The DM is exempt,
+   * because their fog is a wash over a map they are supposed to be able to read.
+   */
+  const throughFog = (x: number, y: number) => !fogOn || isDm || visibleThroughFog(holes, x, y);
+
+  // M4-2 / G7 — what the undo control will say it takes back. DM-only: a player has nothing to undo, and
+  // the query would be work nobody reads.
+  const undoLabel = isDm && current ? await pendingUndo(current.id) : null;
+  // M4-3 — DM ONLY, and the gate matters: this reads the campaign's whole media library, including rows
+  // no player has ever been shown. Loading it for a player would be the same leak as `dm_notes`, arriving
+  // through a different door.
+  const mapAssets: MapAsset[] = isDm ? await loadMapAssets(campaignId) : [];
+
+  // M6-2 — passive detection. The plan says "when a token moves within range"; nothing moves tokens yet
+  // (drag-to-move is still open), so this asks the same question at the only moment available: the party
+  // is standing here, what do they notice? Runs for the viewer's OWN characters only — scanning on the
+  // DM's behalf would write discoveries onto sheets nobody was looking at.
+  let passiveNoticed: Awaited<ReturnType<typeof scanPassive>> = { notices: [], recorded: 0 };
+  if (!isDm && current && discoveredBy.length) {
+    const mine = new Set(discoveredBy);
+    passiveNoticed = await scanPassive({
+      nodeId: current.id,
+      rawGrid: current.grid,
+      tokens: nodeTokens
+        .map(({ o, t }) => ('characterId' in t.subject
+          ? { characterId: t.subject.characterId, x: o.x, y: o.y }
+          : null))
+        .filter((t): t is { characterId: string; x: number; y: number } => t !== null && mine.has(t.characterId)),
+      characterIds: discoveredBy,
+    });
+  }
+
+  // The scan necessarily runs AFTER `loadMapObjects` — it needs the tokens, which come from those
+  // objects. So a thing noticed on THIS render is not in `objects`, and without this merge a player would
+  // walk in, notice a rune, and see nothing until they reloaded. The notice already carries the label and
+  // read-aloud text, so nothing has to be re-queried.
+  const nodeReveals = [
+    ...nodeRevealsBase,
+    ...passiveNoticed.notices
+      .filter((n) => !nodeRevealsBase.some((o) => o.id === n.objectId))
+      // Deduplicated by object: two characters noticing the same rune is one rune on the map.
+      .filter((n, i, all) => all.findIndex((m) => m.objectId === n.objectId) === i)
+      // Position comes off the NOTICE, not off `objects` — the object a player just noticed was
+      // `visibility: 'dm'` when this render fetched its objects, so it is not in there to look up, and a
+      // `?? 0` fallback would draw the marker in the map's corner on the one render that matters.
+      .map((n) => ({
+        id: n.objectId,
+        map_node_id: current!.id,
+        kind: 'hidden' as const,
+        x: n.x,
+        y: n.y,
+        label: n.label,
+        description: n.description,
+      } as (typeof nodeRevealsBase)[number])),
+  ];
   // M5-5 — the live encounter, if there is one. Null is the normal state of a map, so nothing about the
   // page depends on it.
   const turn = await loadLiveTurn(campaignId);
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
+  // How many places are inside a pin's destination — counted from the tree the viewer can actually see,
+  // so a player is never told there are six locations in a district when four of them are unpublished.
+  const childCount = (nid: string) => nodes.filter((n) => n.parent_id === nid).length;
 
   // M5-2 — the selected token's reach. Resolved for ONE token, not all of them: this runs the effect
   // ledger over a character sheet, which is far too much work to repeat for every figure on a crowded
@@ -168,6 +293,10 @@ export default async function WorldPage({
         x: selected.o.x,
         y: selected.o.y,
         rawGrid: current.grid,
+        // M5-2 — the node's own difficult ground and blockers. Read from the objects THIS VIEWER can
+        // see, deliberately: a player's overlay must not route around a wall the DM has not revealed,
+        // because a path that mysteriously bends is a wall announced.
+        terrain: patchesFrom(objects.filter((o) => o.map_node_id === current.id && readTerrain(o.data))),
         // No system passed: a map node has no ruleset, and the diagonal rule belongs to the CHARACTER's
         // system anyway (a PF2 character alternates diagonals on any battle map). `loadReach` reads it
         // off the character row.
@@ -186,6 +315,13 @@ export default async function WorldPage({
   // geometry never reaches the browser.
   const dirDeg = Number(searchParams.dir ?? 0);
   const tplChoice = reach?.templates.find((t) => t.param === searchParams.tpl) ?? null;
+  // M5-3 — a weapon reach uses the SAME `?tpl=` slot as a spell area (`atk:10` vs `cone:15`), because
+  // from the reader's side they are one question — "show me what this can touch from here" — and two
+  // parameters would let a DM aim a cone and a reach at once and see them overlap into one shape.
+  const atkChoice = reach?.attacks.find((a) => a.param === searchParams.tpl) ?? null;
+  const attackReach = atkChoice && selected && reach?.grid
+    ? reachCells(selected.o.x, selected.o.y, atkChoice.reachFt, reach.grid, reach.diagonals)
+    : null;
   const template = tplChoice && selected && reach?.grid
     ? templateCells({
         shape: tplChoice.shape,
@@ -198,6 +334,35 @@ export default async function WorldPage({
         coneAngleDeg: coneAngleFor(reach.system),
       })
     : null;
+  // M5-4 — the areas a DM has LEFT on this map. Their cells are recomputed from the stored shape at read
+  // time, exactly as the live template is: saving the cell list would be a copy that silently disagrees
+  // with the grid the moment a DM changes the squares-across.
+  const keptAreas = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'area') : [])
+    .map((o) => {
+      const tpl = (o.data as { template?: { shape?: string; sizeFt?: number; directionDeg?: number } } | null)?.template;
+      const grid = readGrid(current?.grid);
+      if (!tpl?.shape || !Number.isFinite(Number(tpl.sizeFt)) || !grid) return null;
+      const duration = readDuration(o.data);
+      return {
+        o,
+        duration,
+        expired: isExpired(duration, turn?.round ?? null),
+        note: describeDuration(duration, turn?.round ?? null),
+        cells: templateCells({
+          shape: tpl.shape as Parameters<typeof templateCells>[0]['shape'],
+          sizeFt: Number(tpl.sizeFt),
+          x: Number(o.x), y: Number(o.y), grid,
+          directionDeg: Number(tpl.directionDeg) || 0,
+          // The system that CAST it, not the viewer's — an area left by a PF2 caster keeps its
+          // quarter-circle cone even when a 5e character is the one selected.
+          coneAngleDeg: coneAngleFor(
+            (o.data as { template?: { system?: string | null } } | null)?.template?.system ?? null,
+          ),
+        }).cells,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+
   const tplHref = (param: string | null, dir = dirDeg) => {
     const p = new URLSearchParams();
     if (current) p.set('node', current.id);
@@ -310,6 +475,20 @@ export default async function WorldPage({
                   label={current.name}
                   bounds={{ minX: 0, minY: 0, maxX: 100, maxY: 100 }}
                   style={{ width: '100%', aspectRatio: '16 / 9', background: 'var(--hx-map-void)' }}
+                  // M3-3 / M3-4 — the pins, as plain data. The viewport is the only piece that knows
+                  // where the reader is looking, and this page is a server component that cannot hand it
+                  // a callback; `{href, x, y}` crosses that line and a function does not.
+                  //
+                  // EVERY pin, not only the ones that go somewhere: an unbuilt pin still occupies the
+                  // space that decides whether its neighbours have room for their names. The prefetcher
+                  // filters for `href` itself.
+                  markers={nodePins.map((p) => ({
+                    href: p.child_node_id && nodes.some((n) => n.id === p.child_node_id)
+                      ? href(p.child_node_id)
+                      : undefined,
+                    x: p.x,
+                    y: p.y,
+                  }))}
                 >
                   {current.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -344,6 +523,25 @@ export default async function WorldPage({
                     />
                   )}
 
+                  {/* M5-4 — the areas already ON the map, under the one being aimed: what is there is
+                      context, what you are aiming is the decision. An EXPIRED area is drawn faded rather
+                      than removed — a wall of fire that silently vanished would look like a bug or like
+                      something a player dispelled, and taking it off is one press in the object tools. */}
+                  {keptAreas.filter((a) => throughFog(Number(a.o.x), Number(a.o.y))).map((a) => (
+                    readGrid(current.grid) && (
+                      <ReachOverlay
+                        key={a.o.id}
+                        grid={readGrid(current.grid)!}
+                        squares={a.cells.map((cell) => ({ cell, costFt: 0 }))}
+                        hexes={[]}
+                        origin={null}
+                        tone="template"
+                        faded={a.expired}
+                        label={`${a.o.label ?? 'Area'}${a.note ? ` — ${a.note}` : ''}`}
+                      />
+                    )
+                  ))}
+
                   {/* M5-3 — the spell area, over the movement wash: a template is what you are about to
                       do, the reach is where you could stand, and the one you are aiming reads on top. */}
                   {template && reach?.grid && (
@@ -357,9 +555,53 @@ export default async function WorldPage({
                     />
                   )}
 
+                  {/* M5-3 — what a weapon can touch from here. Same colour as a spell area, because it
+                      answers the same question and a third colour on a busy board is a third thing to
+                      learn. Its SHAPE is what distinguishes it, and that shape comes from the system's
+                      own distance rule rather than from a circle — see `attacks.ts`. */}
+                  {attackReach && reach?.grid && (
+                    <ReachOverlay
+                      grid={reach.grid}
+                      squares={attackReach.squares.map((cell) => ({ cell, costFt: 0 }))}
+                      hexes={attackReach.hexes.map((cell) => ({ cell, costFt: 0 }))}
+                      origin={null}
+                      tone="template"
+                      label={atkChoice ? `${atkChoice.name} reach` : 'Weapon reach'}
+                    />
+                  )}
+
+                  {/* M4-2 — the props, images, lights, areas and notes. UNDER the pins and the tokens,
+                      because they are the room rather than what is standing in it: a prop drawn over a
+                      creature would hide the one thing a battle map exists to show.
+
+                      These had never been drawn. `dnd_map_objects` has carried all seven kinds since
+                      M1-3 and the page rendered two of them, which was survivable only while nothing
+                      could create one — M4-2's tools can, so without this a DM would place a brazier,
+                      see nothing, and still be offered controls to resize it. */}
+                  {objects
+                    .filter((o) => o.map_node_id === current.id && DRAWN_KINDS.has(o.kind))
+                    // A fog patch is the HOLE, not a thing on the map — drawing it as a translucent
+                    // rectangle would put a visible box around every revealed room.
+                    .filter((o) => !readFog(o.data))
+                    .filter((o) => throughFog(Number(o.x), Number(o.y)))
+                    .map((o) => (
+                      <MapObjectView
+                        key={o.id}
+                        isDm={isDm}
+                        o={{
+                          id: o.id, kind: o.kind, x: Number(o.x), y: Number(o.y),
+                          w: o.w == null ? null : Number(o.w),
+                          h: o.h == null ? null : Number(o.h),
+                          rotation: Number(o.rotation ?? 0), z: Number(o.z ?? 0),
+                          asset_url: o.asset_url ?? null, label: o.label, visibility: o.visibility,
+                          terrain: readTerrain(o.data),
+                        }}
+                      />
+                    ))}
+
                   {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
                       map under pan and zoom rather than floating over it. */}
-                  {nodePins.map((p) => {
+                  {nodePins.filter((p) => throughFog(Number(p.x), Number(p.y))).map((p) => {
                     const target = p.child_node_id && nodes.find((n) => n.id === p.child_node_id);
                     const label = p.label || (target ? target.name : 'Unmapped location');
                     // M3-3 — what a pin DRAWS follows the zoom. The label is always in the markup and only
@@ -377,7 +619,17 @@ export default async function WorldPage({
                         >
                           {p.icon || '◈'}
                         </span>
-                        <span className={styles.mapPinLabel}>{label}</span>
+                        <span className={styles.mapPinLabel}>
+                          {label}
+                          {/* M3-3 — the extra detail that makes `full` a tier rather than a synonym for
+                              `labels`. Always in the markup so a screen reader hears it at every zoom;
+                              only the drawing changes, like the label itself. */}
+                          {target && childCount(target.id) > 0 && (
+                            <span className={styles.mapPinMeta}>
+                              {' · '}{childCount(target.id)} inside
+                            </span>
+                          )}
+                        </span>
                       </span>
                     );
                     return (
@@ -404,7 +656,12 @@ export default async function WorldPage({
                         {/* A pin with no child is a place the DM has MARKED but not built. It must render
                             and must not be a dead link — the plan calls that a normal authoring state. */}
                         {target ? (
-                          <Link href={href(target.id)} aria-label={`Open ${label}`}>{dot}</Link>
+                          // M3-4 — Next's automatic prefetch is turned OFF here on purpose. This route is
+                          // dynamic, so an eager Link fetches the whole RSC payload the moment it scrolls
+                          // into view: forty pins, forty requests, to make one of them fast. The viewport
+                          // warms the three nearest the centre instead, which is the one the reader is
+                          // actually about to open.
+                          <Link href={href(target.id)} prefetch={false} aria-label={`Open ${label}`}>{dot}</Link>
                         ) : (
                           <span aria-label={`${label} (not yet mapped)`} style={{ opacity: 0.55 }}>{dot}</span>
                         )}
@@ -413,7 +670,7 @@ export default async function WorldPage({
                   })}
                   {/* M6-1 — a hidden thing that has been found (or, for the DM, one they placed). Drawn
                       UNDER the tokens, like the pins: a discovery is part of the room, not a piece on it. */}
-                  {nodeReveals.map((o) => (
+                  {nodeReveals.filter((o) => throughFog(Number(o.x), Number(o.y))).map((o) => (
                     <div
                       key={o.id}
                       title={[o.label, o.description].filter(Boolean).join(' — ') || 'Something hidden'}
@@ -451,7 +708,7 @@ export default async function WorldPage({
                       every zoom, but a token occupies squares, and a token that kept its screen size while
                       the map grew would slide off the space it is standing in. Its footprint comes from the
                       node's own grid (tokenFootprint), so a Large creature covers 2×2 and looks it. */}
-                  {nodeTokens.map(({ o, t }) => {
+                  {nodeTokens.filter(({ o }) => throughFog(Number(o.x), Number(o.y))).map(({ o, t }) => {
                     const subject = subjects.get(subjectKey(t.subject));
                     // The DM's explicit override, else the creature's own size, else medium. "Not stated"
                     // now means ASK rather than "medium", which is why an Ogre stops standing on one square.
@@ -483,8 +740,15 @@ export default async function WorldPage({
                     return (
                       <Link
                         key={o.id}
+                        // The drag handle. On the LINK itself, so a gesture that starts on a piece is
+                        // unambiguously about that piece — which is why dragging a token needs no mode
+                        // while box-select does.
+                        data-token-id={o.id}
                         href={tokenHref(isSelected ? null : o.id)}
                         scroll={false}
+                        // Selecting a token is a same-node URL change, so there is no other level to warm
+                        // — and a crowded board would otherwise fire one RSC request per figure on it.
+                        prefetch={false}
                         title={`${label}${status}${isSelected ? ' — selected; click to clear' : ' — click to show its movement'}`}
                         aria-label={`${label}${status}${isTurn ? ', current turn' : ''}${isSelected ? ', selected. Clear selection' : '. Show movement range'}`}
                         aria-current={isSelected ? 'true' : undefined}
@@ -494,8 +758,12 @@ export default async function WorldPage({
                           top: at.y,
                           width: side,
                           height: side,
-                          transform: 'translate(-50%, -50%)',
+                          // `--drag-x/y` are set only while a piece is being dragged, and default to
+                          // zero — so the same declaration serves the resting token and the moving one,
+                          // and there is no second transform to keep in step with this one.
+                          transform: 'translate(calc(-50% + var(--drag-x, 0px)), calc(-50% + var(--drag-y, 0px)))',
                           borderRadius: '50%',
+                          touchAction: 'none',
                           // PROPORTIONAL TO THE TOKEN, not a pixel count. Inside the transformed layer one
                           // CSS pixel IS one world unit, so the old `2px` ring was 2 of a Medium token's 5
                           // units — 40% of its diameter, and thicker still as the reader zoomed in. A
@@ -543,7 +811,21 @@ export default async function WorldPage({
                       </Link>
                     );
                   })}
+                  {/* M7-2 — the dark. Last in the DOM so it lies over the map and its scenery; its own
+                      z-index puts it UNDER the tokens, because a piece the party CAN see must not be
+                      dimmed by the fog around it. */}
+                  {fogOn && <FogOverlay holes={holes} isDm={isDm} id={current.id} />}
                 </MapViewport>
+                <div style={{ padding: '6px 12px 10px' }}>
+                  {/* M7-3 — said out loud. A board that silently updates is one a DM distrusts the moment
+                      something moves that they did not move. */}
+                  <TokenDrag campaignId={campaignId} />
+                  <LiveMap
+                    label={isDm
+                      ? 'This map updates for everyone at the table.'
+                      : 'This map updates as your DM changes it.'}
+                  />
+                </div>
               </section>
 
               {/* M5-2 — the numbers behind the wash. The overlay answers "can I get there"; this answers
@@ -572,11 +854,22 @@ export default async function WorldPage({
                     </Link>
                   </div>
                   <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-muted)' }}>
-                    {reach.squares.length + reach.hexes.length} cells reachable on open ground.{' '}
-                    {/* The honest caveat, not a disclaimer: it names what is missing and why the number is
-                        still useful. */}
-                    <strong>Difficult terrain and blockers are not counted</strong> — nothing on this map
-                    authors them yet, so this is the distance across clear ground.
+                    {reach.squares.length + reach.hexes.length} cells reachable
+                    {reach.terrainApplied ? '' : ' on open ground'}.{' '}
+                    {/* Two different claims, and the readout makes exactly one of them. "Counted terrain
+                        and found none" is not "did not look", and a caveat that stayed on a map with mud
+                        painted across it would be a lie in the other direction. */}
+                    {reach.terrainApplied ? (
+                      <>
+                        <strong>Difficult ground and blockers are counted</strong> — the route goes around
+                        a blocker and pays double to cross difficult ground.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Difficult terrain and blockers are not counted</strong> — nothing on this
+                        map authors them, so this is the distance across clear ground.
+                      </>
+                    )}
                     {reach.truncated && ' The search stopped early on this grid; the shape shown is incomplete.'}
                   </p>
 
@@ -585,6 +878,35 @@ export default async function WorldPage({
                       disagree with the sheet about a spell's size, and a menu of generic shapes would be
                       exactly that disagreement waiting to happen. A caster with no area spells gets no
                       controls, which is the correct amount. */}
+                  {/* M5-3's other half — the reach of this character's own weapons, in the same picker
+                      and for the same reason: the map must not hold an opinion about how far a glaive
+                      goes. A character whose attacks state no parseable range gets no buttons, which is
+                      the correct amount. */}
+                  {reach.attacks.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }} data-testid="attack-picker">
+                      <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Reach:</span>
+                      {reach.attacks.map((a) => (
+                        <Link
+                          key={a.param}
+                          className={styles.hexBtn}
+                          href={tplHref(atkChoice?.param === a.param ? null : a.param)}
+                          scroll={false}
+                          style={{ fontSize: 11.5, padding: '3px 8px' }}
+                          aria-current={atkChoice?.param === a.param ? 'true' : undefined}
+                          title={a.label}
+                        >
+                          {a.name} · {a.reachFt} ft
+                        </Link>
+                      ))}
+                      {atkChoice && (
+                        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                          {(attackReach?.squares.length ?? 0) + (attackReach?.hexes.length ?? 0)} squares in
+                          reach, measured the way this character moves.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {reach.templates.length > 0 && (
                     <div style={{ display: 'grid', gap: 6, marginTop: 2 }} data-testid="template-picker">
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -606,6 +928,21 @@ export default async function WorldPage({
                       {/* Aiming. Eight compass points rather than a drag: this page renders on the server,
                           and a link per direction costs no JavaScript while still letting a DM point a
                           cone anywhere that matters on a square grid. */}
+                      {/* M5-4 — persist what is currently aimed. Only when something IS aimed: a button
+                          that saves nothing is a button that has to explain itself. */}
+                      {tplChoice && selected && isDm && (
+                        <KeepArea
+                          campaignId={campaignId}
+                          nodeId={current.id}
+                          label={`${tplChoice.spell} (${tplChoice.sizeFt} ft ${tplChoice.shape})`}
+                          shape={tplChoice.shape}
+                          sizeFt={tplChoice.sizeFt}
+                          directionDeg={Number.isFinite(dirDeg) ? dirDeg : 0}
+                          x={selected.o.x}
+                          y={selected.o.y}
+                          currentRound={turn?.round ?? null}
+                        />
+                      )}
                       {tplChoice && (tplChoice.shape === 'cone' || tplChoice.shape === 'line' || tplChoice.shape === 'cube') && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Aim:</span>
@@ -647,6 +984,16 @@ export default async function WorldPage({
                   <h2 style={{ fontSize: 13, margin: 0, fontWeight: 700 }}>
                     {isDm ? 'Hidden here' : 'What you have found'}
                   </h2>
+                  {/* M6-2 — said out loud. A thing that simply APPEARS is a thing a player distrusts;
+                      "you noticed it without looking" is how passive Perception actually feels at a table,
+                      and it also explains why no one rolled. */}
+                  {passiveNoticed.notices.length > 0 && (
+                    <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-teal-1)' }} data-testid="passive-notice">
+                      You noticed{' '}
+                      {passiveNoticed.notices.length === 1 ? 'something' : `${passiveNoticed.notices.length} things`}{' '}
+                      here without looking for it.
+                    </p>
+                  )}
                   <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
                     {nodeReveals.map((o) => (
                       <li key={o.id} style={{ fontSize: 12.5 }}>
@@ -701,6 +1048,15 @@ export default async function WorldPage({
                             )}
                           </div>
                         ))}
+                        {/* M6-4 — the executor, reachable. The board above is a DRY RUN of exactly this
+                            plan, built by the same resolver; this is the live path, and the button says
+                            so rather than leaving a DM to discover which one they pressed. */}
+                        <FireTrigger
+                          campaignId={campaignId}
+                          triggerId={trigger.id}
+                          name={trigger.name ?? 'this trigger'}
+                          once={trigger.once}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -734,6 +1090,60 @@ export default async function WorldPage({
                       id: o.id,
                       label: t.nickname || subjects.get(subjectKey(t.subject))?.name || o.label || 'Token',
                     }))}
+                  />
+                  {/* M4-3 — the campaign's own images, between placing a token and editing what is
+                      already there, because that is the order a DM builds a scene in: the room, then
+                      the things in it, then the people. */}
+                  <AssetTray
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    assets={mapAssets}
+                    cell={readGrid(current.grid)?.size ?? null}
+                  />
+                  {/* M7-2 — fog sits with the dressing tools for the same reason: it is part of
+                      preparing a room, and it is the one control a DM reaches for the moment the party
+                      opens a door. */}
+                  <FogTools
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    fog={Boolean(current.fog)}
+                    cell={readGrid(current.grid)?.size ?? null}
+                  />
+                  {/* M5-2 — terrain sits with the asset tray because it is the same job: dressing the
+                      room before anyone stands in it. */}
+                  <TerrainBrush
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    cell={readGrid(current.grid)?.size ?? null}
+                  />
+                  {/* M4-2's remainder — resize, rotate, layer, duplicate, multi-select, the snap
+                      override and G7's undo. Separate from `PlaceToken` because it answers a different
+                      question: that one is "what goes on the board", this is "what do I do with what is
+                      already there", and one control that did both would be a wall of buttons whose
+                      meaning depended on a mode. */}
+                  <MapObjectTools
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    // EVERY object on this node, not only the tokens: the whole point of this control is
+                    // to reach the props, lights and secrets that nothing else can select, and a list
+                    // that quietly showed one kind would make the others uneditable with no sign why.
+                    objects={objects
+                      .filter((o) => o.map_node_id === current.id)
+                      .map((o) => ({
+                        id: o.id,
+                        kind: o.kind,
+                        // Tokens read their name the same way the board does, so the two cannot call the
+                        // same piece different things.
+                        label: tokenLabel(o.id) ?? o.label,
+                        x: Number(o.x), y: Number(o.y),
+                        w: o.w == null ? null : Number(o.w),
+                        h: o.h == null ? null : Number(o.h),
+                        rotation: Number(o.rotation ?? 0),
+                        z: Number(o.z ?? 0),
+                        visibility: o.visibility,
+                      }))}
+                    cell={readGrid(current.grid)?.size ?? null}
+                    undoLabel={undoLabel}
                   />
                 </section>
               )}

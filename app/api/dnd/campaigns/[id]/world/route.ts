@@ -186,6 +186,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Null is a meaningful value here — "this node has no battle grid" — so it is stored as `{}` rather than
   // rejected. The column is NOT NULL with a `{}` default, and `readGrid` treats both as no grid.
   if ('grid' in body) patch.grid = sanitizeGrid(body.grid) ?? {};
+  // M7-2 — fog of war for this node. A plain boolean and coerced rather than trusted: `fog: "false"`
+  // from a form would be truthy, and a map that went dark because a string arrived is a bug a DM would
+  // report as "the map broke".
+  if ('fog' in body) patch.fog = body.fog === true;
   // Re-parenting is allowed; the cycle and depth triggers police it and their messages are surfaced.
   if ('parentId' in body) patch.parent_id = str(body.parentId, 64);
 

@@ -1230,6 +1230,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
+
+      // ── A1-5 · the storage this address has consumed today ──────────────────────────────────────
+      //
+      // `validateQuoteAttachments` caps ONE submission at 25 MB. A1-2 allows 20 submissions per address
+      // per day, so the uncapped total was **500 MB from one connection** — and the only thing that would
+      // have noticed is a storage bill or a quota wall.
+      //
+      // Charged in MEGABYTES, rounded up: the counter stores integers, so a thousand 0.4 MB uploads would
+      // otherwise cost nothing at all.
+      //
+      // NECESSARILY AFTER `parseRequest`, unlike the burst limit above — the sizes are the thing being
+      // limited and they do not exist until the body is read. That is acceptable precisely because the
+      // burst limit is already above it: an abuser gets five parses per ten minutes to reach this wall.
+      const megabytes = fileSummaries.reduce((sum, f) => sum + (f.size || 0), 0) / (1024 * 1024);
+      const overStorage = await enforceRateLimit('contact-storage-daily', null, { ip, cost: megabytes });
+      if (overStorage) return overStorage;
     }
 
     // Normalize field names
@@ -1445,7 +1461,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check results
     const [businessEmail, customerEmail] = emailResults;
     
-    if (businessEmail.status === 'rejected' || customerEmail.status === 'rejected') {
+    // ── E1-2 · a silent mail failure becomes visible WORK ─────────────────────────────────────────
+    //
+    // The analysis asks two things: is the lead still captured if the email fails, and does anyone know
+    // the email did not send. The first was already yes — the lead row is written regardless, a few
+    // lines below. The second was a `console.error`, which on a serverless host is a line in a log
+    // nobody reads, about a customer nobody replied to.
+    //
+    // So the failure is stamped ON THE LEAD, and the lead is given a follow-up date of TODAY — which
+    // puts it straight into the queue D1-2 built. A failure that becomes a task in a list somebody
+    // already works is worth more than an alert to an inbox nobody has configured.
+    const emailFailed = businessEmail.status === 'rejected' || customerEmail.status === 'rejected';
+    if (emailFailed) {
       console.error(`[${referenceNumber}] Email send failure:`, {
         business: businessEmail.status,
         customer: customerEmail.status,
@@ -1465,6 +1492,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const insertedLead = await insertLeadFromForm(supabaseAdmin, intake);
       if (insertedLead) {
         console.log(`[${referenceNumber}] Lead inserted as ${insertedLead.id}`);
+
+        // E1-2 — if the mail did not go, say so ON THE LEAD and put it in today's queue. The office
+        // then sees a row that needs a human, on a screen they already open, instead of a log line.
+        //
+        // Fire-and-forget and last: the customer has already been told their enquiry was received, and
+        // it HAS been — the lead row above is the capture. Failing this update must not turn a captured
+        // lead into a 500 for someone who did nothing wrong.
+        if (emailFailed) {
+          const today = new Date();
+          const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+          // The existing notes are READ rather than reconstructed. `insertLeadFromForm` puts the
+          // reference number at the head of `notes`, and rebuilding them from the intake input would
+          // silently drop it — the one line that lets the office match an inbox email to a row.
+          void (async () => {
+            const { data: row } = await supabaseAdmin
+              .from('leads').select('notes').eq('id', insertedLead.id).maybeSingle();
+            const existing = (row as { notes?: string | null } | null)?.notes ?? '';
+            const warning = `⚠ ${stamp}: the confirmation email FAILED to send for ${referenceNumber}. `
+              + 'This customer has not heard from us — contact them directly.';
+            await supabaseAdmin
+              .from('leads')
+              .update({
+                follow_up_date: stamp,
+                // The warning goes FIRST. A note appended below a long enquiry is a note nobody scrolls
+                // to, and this one is the reason the row is in the queue at all.
+                notes: [warning, existing].filter(Boolean).join('\n\n'),
+              })
+              .eq('id', insertedLead.id);
+          })().catch(() => {});
+        }
         // lead-attachments-storage-2026-06-18 — once the lead.id
         // exists, upload the customer's files to the private
         // `lead-attachments` bucket under `{leadId}/{uuid}-{name}`

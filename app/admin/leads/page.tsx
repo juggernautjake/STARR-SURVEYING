@@ -3,6 +3,9 @@
 import '../styles/AdminJobs.css';
 import '../styles/Leads.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
+// D1-2 / D1-3 — the calls nobody has made, and where each lead came from.
+import FollowUpQueue from './FollowUpQueue';
+import { attributionOf } from '@/lib/leads/follow-up';
 import { Inbox, Check } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -23,6 +26,14 @@ interface Lead {
   survey_type: string | null;
   estimated_acreage: number | null;
   created_at: string;
+  // D1-3 — where it came from, in order of how much each field is worth believing. See
+  // `attributionOf`, which both this board and the follow-up queue call so the two cannot disagree.
+  gclid?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  how_heard?: string | null;
+  referrer?: string | null;
 }
 
 const STATUS_OPTIONS = [
@@ -255,6 +266,11 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* D1-2 — the calls nobody has made, above the board rather than on a route of its own: a report
+          nobody opens is a report nobody reads. Silent when nothing is due, so it costs no attention on
+          the days it has no news. */}
+      <FollowUpQueue />
+
       {/* Leads list */}
       {loading ? (
         <div className="jobs-page__empty">
@@ -284,6 +300,20 @@ export default function LeadsPage() {
                   <span className="lead-card__status" data-testid="lead-card-status">
                     {statusOption?.label ?? lead.status}
                   </span>
+                  {/* D1-3 — the attribution, from the shared function. `paid` is marked because a
+                      lead that cost money is the one whose outcome the Google upload depends on. */}
+                  {(() => {
+                    const attr = attributionOf(lead as unknown as Parameters<typeof attributionOf>[0]);
+                    return (
+                      <span
+                        className="lead-card__source"
+                        data-testid="lead-card-source"
+                        title={attr.detail ? `${attr.label} — ${attr.detail}` : attr.label}
+                      >
+                        {attr.paid ? '💰 ' : ''}{attr.label}
+                      </span>
+                    );
+                  })()}
                   <span className="lead-card__age" title={lead.created_at}>
                     {formatRelativeAge(lead.created_at)}
                   </span>

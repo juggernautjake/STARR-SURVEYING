@@ -13,11 +13,16 @@
 // speed any other way in this file would be a second implementation that drifts — and the first symptom
 // would be a map that lets an exhausted character move further than their own sheet says.
 //
-// ── WHAT IT STILL DOES NOT KNOW ────────────────────────────────────────────────────────────────────
+// ── TERRAIN, WHICH IT NOW DOES KNOW ────────────────────────────────────────────────────────────────
 //
-// Difficult terrain and blockers. `dnd_map_objects` can carry them; nothing writes one. `terrainApplied`
-// comes back `false` and the UI says so out loud — see `movement.ts` on why the reader takes terrain as a
-// parameter instead of inventing a lookup.
+// This header used to say difficult terrain and blockers were unauthored and the overlay said so out
+// loud. `lib/dnd/maps/terrain.ts` is the writer's half, and **nothing in the search changed to accept
+// it** — terrain was always a parameter (`cost: (cell) => number | null`) rather than a lookup this
+// module invents, which is exactly why the day it arrived cost one argument.
+//
+// It stays optional, and `terrainApplied` still comes back `false` on a map that authors none, because
+// "counted terrain and found none" and "did not look" are different claims and the readout makes one of
+// them.
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { buildLedger } from '@/lib/dnd/effects/ledger';
@@ -25,11 +30,15 @@ import type { Character } from '@/app/dnd/_sheet/types';
 import { readGrid, squareAt, hexAt, type MapGrid } from './grid';
 import type { TokenSubject } from './tokens';
 import {
-  diagonalRuleFor, reachableHexes, reachableSquares,
+  MAP_BOUNDS, diagonalRuleFor, reachableHexes, reachableSquares,
   type DiagonalRule, type HexCell, type Reachable,
 } from './movement';
 import { describeArea, parseAreas, type TemplateShape } from './templates';
 import type { Cell } from './grid';
+// M5-2's other half — difficult ground and blockers, read off the node's own objects.
+import { hexTerrainCost, terrainCost, type TerrainPatch } from './terrain';
+// M5-3's other half — the reach of this character's own weapons, parsed from the sheet.
+import { attacksFrom, type SheetAttack } from './attacks';
 
 /** A spell on this character's sheet that states an area, ready to lay on the map (M5-3). */
 export interface SheetTemplate {
@@ -52,7 +61,8 @@ export interface ReachView {
   /** The cell the token is standing in — excluded from the reachable set, needed for the outline. */
   origin: Cell | HexCell | null;
   truncated: boolean;
-  /** Always false today. See the header — it is a promise the UI must not make on the map's behalf. */
+  /** Whether terrain was CONSULTED — false on a map that authors none. "Counted and found nothing" and
+   *  "did not look" are different claims, and the readout makes exactly one of them. */
   terrainApplied: boolean;
   /** Null when the node has no grid, which is every space map and every continent. */
   grid: MapGrid | null;
@@ -63,13 +73,20 @@ export interface ReachView {
    * about a spell's size"*, and a second structured copy of the number is a copy that goes stale.
    */
   templates: SheetTemplate[];
+  /**
+   * M5-3 — the reaches this character's OWN attacks state, parsed from the sheet's `range` field.
+   *
+   * Read, never restated, exactly like the spell areas beside them: a glaive that becomes a whip on the
+   * sheet becomes a whip on the map, with nothing to re-save and nothing that can disagree.
+   */
+  attacks: SheetAttack[];
   /** The character's own ruleset — it decides the cone angle, not the map's. */
   system: string | null;
 }
 
 const EMPTY: ReachView = {
   speedFt: 0, baseFt: 0, diagonals: 'free', squares: [], hexes: [],
-  origin: null, truncated: false, terrainApplied: false, grid: null, templates: [], system: null,
+  origin: null, truncated: false, terrainApplied: false, grid: null, templates: [], attacks: [], system: null,
 };
 
 /**
@@ -110,6 +127,15 @@ export async function loadReach(args: {
   x: number; y: number;
   rawGrid: unknown;
   system?: string | null;
+  /**
+   * M5-2's other half, arriving. The node's own `area` objects that carry `data.terrain` — passed in
+   * rather than queried here, because the page has already fetched this node's objects through the G3
+   * split and a second query would be both wasted work and a second chance to get the filter wrong.
+   *
+   * Absent means what it has always meant: open ground, and `terrainApplied` stays false so the UI keeps
+   * saying so out loud.
+   */
+  terrain?: readonly TerrainPatch[];
 }): Promise<ReachView> {
   const grid = readGrid(args.rawGrid);
   // No grid is a normal state, not a failure — you cannot count squares on a continent.
@@ -138,16 +164,19 @@ export async function loadReach(args: {
   const diagonals = diagonalRuleFor(system);
 
   const templates = templatesFrom(char);
+  const attacks = attacksFrom(char.attacks as Array<{ name?: string; range?: string }> | undefined, system);
+
+  const patches = args.terrain ?? [];
 
   if (grid.kind === 'hex') {
     const origin = hexAt(args.x, args.y, grid);
-    const r = reachableHexes(origin, { budgetFt: speedFt, grid });
-    return { speedFt, baseFt, diagonals, squares: [], hexes: r.cells, origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, system };
+    const r = reachableHexes(origin, { budgetFt: speedFt, grid, cost: hexTerrainCost(patches, grid), bounds: MAP_BOUNDS });
+    return { speedFt, baseFt, diagonals, squares: [], hexes: r.cells, origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, attacks, system };
   }
 
   const origin = squareAt(args.x, args.y, grid);
-  const r = reachableSquares(origin, { budgetFt: speedFt, grid, diagonals });
-  return { speedFt, baseFt, diagonals, squares: r.cells, hexes: [], origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, system };
+  const r = reachableSquares(origin, { budgetFt: speedFt, grid, diagonals, cost: terrainCost(patches, grid), bounds: MAP_BOUNDS });
+  return { speedFt, baseFt, diagonals, squares: r.cells, hexes: [], origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, attacks, system };
 }
 
 /** How the overlay describes itself. Kept here so the wording and the caveat travel with the data. */

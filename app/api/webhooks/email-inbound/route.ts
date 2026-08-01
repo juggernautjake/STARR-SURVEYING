@@ -31,7 +31,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
   const provided = req.headers.get('x-webhook-secret');
-  if (!provided || provided !== secret) {
+  // B1-3 — CONSTANT TIME. `provided !== secret` short-circuits at the first differing character, so the
+  // time to reject leaks how much of the secret a caller has right. That is only worth exploiting
+  // against an endpoint anyone can call as often as they like — which is exactly what a webhook is.
+  //
+  // The Stripe webhook beside this one already compares its signature this way; this one did not, and
+  // the difference was not a decision anyone made.
+  if (!provided || !timingSafeEqualStr(provided, secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -119,3 +125,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     replyId: inserted?.id ?? null,
   });
 }, { routeName: 'webhooks/email-inbound' });
+
+
+/**
+ * Constant-time string comparison.
+ *
+ * The length check is unavoidable and harmless: a secret's LENGTH is not the secret, and comparing
+ * different-length strings byte-by-byte would either read past the end or leak through the loop bound.
+ * Everything after it takes the same time whatever the contents are.
+ */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}

@@ -1,8 +1,10 @@
-// app/api/dnd/campaigns/[id]/map-objects/route.ts — put things on a map, move them, take them off (M4-2).
+// app/api/dnd/campaigns/[id]/map-objects/route.ts — put things on a map, change them, take them off (M4-2).
 //
-//   POST   { nodeId, kind?, x, y, data, label?, visibility? }  → place
-//   PATCH  { id, x?, y?, z?, visibility?, label?, data? }      → move / relayer / reveal
-//   DELETE ?id=…                                               → remove
+//   POST   { nodeId, kind?, x, y, data, label?, visibility? }        → place
+//   POST   { duplicateOf: <id> }                                     → copy, offset one cell
+//   PATCH  { id, x?, y?, w?, h?, rotation?, z?, visibility?, … }     → move / resize / rotate / relayer
+//   PATCH  { ids: [...], dx?, dy?, dz?, visibility? }                → the same change to a selection
+//   DELETE ?id=…  |  ?ids=a,b,c                                      → remove
 //
 // DM ONLY, every verb. A map object is the DM's authored content — where the ambush is, which door is
 // secret, what the party has not found yet — and a player who could write one could also move a token onto
@@ -10,22 +12,67 @@
 // checked against the campaign that owns the NODE rather than against the id in the URL: those are the same
 // thing only if you check, and "the caller said this node is in their campaign" is not a check.
 //
-// ── THE RULES LIVE IN `lib/dnd/maps/tokens.ts`, NOT HERE ─────────────────────────────────────────────
+// ── THE RULES LIVE IN `lib/dnd/maps/tokens.ts` AND `object-edits.ts`, NOT HERE ───────────────────────
 //
 // Snapping to the grid and clamping to the map are applied SERVER-SIDE from the node's own `grid` and
 // `bounds`. A client that computes its own position is a client that can put a token outside the map —
 // where the viewport's pan clamp means nothing could ever scroll to it — and a second implementation of
 // snapping is a second answer to "which square is this on".
+//
+// ── EVERY WRITE IS JOURNALLED, IN ONE BATCH PER REQUEST (G7) ────────────────────────────────────────
+//
+// G7: *"Map authoring is destructive by nature — drag something, lose its old position."* So every verb
+// here records what the row was before and what it became, under a single batch id, and
+// `map-objects/undo` walks it backwards. One request is one undo: removing four tokens is one press to
+// get all four back, not four presses that each return one.
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { clampToMap, readToken, snapToGrid } from '@/lib/dnd/maps/tokens';
+import { getDndUser } from '@/lib/dnd/auth';
+import { readGrid } from '@/lib/dnd/maps/grid';
+import {
+  SIZEABLE_KINDS, clampSize, clampZ, duplicateOffset, normalizeRotation, summarizeEdit,
+  type MapObjectRow,
+} from '@/lib/dnd/maps/object-edits';
+import { OBJECT_COLS, newBatchId, readDiscoveries, readObjects, record } from '@/lib/dnd/maps/journal';
+// M6-4's missing events — a token that walks into a region sets off what is waiting there.
+import { entered, left, type Region } from '@/lib/dnd/maps/regions';
+import { preview, readTrigger, resolve, type TriggerEvent } from '@/lib/dnd/maps/triggers';
+import { executePlan } from '@/lib/dnd/maps/execute';
 
 export const dynamic = 'force-dynamic';
 
 const KINDS = new Set(['image', 'prop', 'token', 'light', 'area', 'note', 'hidden']);
 const VISIBILITIES = new Set(['dm', 'players', 'discovered']);
+/** One request may not touch more than this. A selection is a handful of pieces; a thousand ids is a
+ *  script, and a bulk verb with no ceiling is the cheapest way to make a route expensive to call. */
+const MAX_BULK = 100;
+
+/**
+ * M7-1 — may this player move THIS token?
+ *
+ * The plan's player view is *"read-only, fog-limited, own-token movable"*, and the last clause is the
+ * only hole in the DM-only rule — deliberately narrow. A player may change the POSITION of a token bound
+ * to a character they own, and nothing else: not its visibility (which would reveal an ambusher), not
+ * its label, not its layer, and not another player's piece.
+ *
+ * The ownership is checked against the CHARACTER row, not against anything the client said. A token's
+ * `data.characterId` is the DM's claim about what it stands for; `dnd_characters.owner_user_id` is the
+ * database's claim about whose it is, and only the second one is a permission.
+ */
+async function ownsToken(userId: string, row: MapObjectRow): Promise<boolean> {
+  if (row.kind !== 'token') return false;
+  const token = readToken(row.data);
+  if (!token || !('characterId' in token.subject)) return false;
+  const { data } = await supabaseAdmin
+    .from('dnd_characters').select('id').eq('id', token.subject.characterId).eq('owner_user_id', userId).maybeSingle();
+  return Boolean(data);
+}
+
+/** The fields a player is allowed to change on their own token — position, and only position. */
+const PLAYER_MOVE_FIELDS = new Set(['id', 'ids', 'x', 'y', 'dx', 'dy', 'freehand']);
 
 /** The node, and whether this caller is the DM of the campaign that actually owns it. */
 async function nodeGate(nodeId: unknown) {
@@ -46,13 +93,59 @@ async function nodeGate(nodeId: unknown) {
   return { node };
 }
 
+type Node = { grid: Record<string, unknown>; bounds: Record<string, unknown> };
+
 /** Snap and clamp a position using the node's own grid and bounds. */
-function place(node: { grid: Record<string, unknown>; bounds: Record<string, unknown> }, x: unknown, y: unknown) {
+function place(node: Node, x: unknown, y: unknown, freehand = false) {
   const nx = Number(x);
   const ny = Number(y);
   if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
-  const snapped = snapToGrid(nx, ny, node.grid);
+  // THE SNAP OVERRIDE (M4-2). A grid is a convenience, not a law — a rug across a doorway or a torch on
+  // a wall belongs between two cells, and a DM who has said "not this time" must be believed rather than
+  // corrected. The clamp is NOT optional in the same way: it is what keeps an object inside the map,
+  // where the viewport can actually reach it.
+  const snapped = freehand ? { x: nx, y: ny } : snapToGrid(nx, ny, node.grid);
   return clampToMap(snapped.x, snapped.y, node.bounds as { maxX?: number; maxY?: number });
+}
+
+/**
+ * An asset URL that is safe to put in an `<img src>`, or null.
+ *
+ * The renderer already refuses to build `background: url(${…})` out of a DM-supplied string, because an
+ * unescaped `)` there ends the url() and whatever follows is parsed as more CSS. `src` has no such
+ * grammar to escape out of — but it does have SCHEMES, and `javascript:` or `data:text/html` in one is
+ * the DM handing a script to every player who opens the map. So the scheme is checked here, once, rather
+ * than trusted at each of the places that draw it.
+ *
+ * Relative paths are allowed: `/api/...` and `/dnd/...` are same-origin by construction.
+ */
+function safeAssetUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const url = raw.trim();
+  if (!url) return null;
+  if (url.startsWith('/') && !url.startsWith('//')) return url;
+  try {
+    const scheme = new URL(url).protocol;
+    return scheme === 'http:' || scheme === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The ids a bulk verb is addressing, refused rather than silently truncated (G6). */
+function readIds(raw: unknown): { ids: string[] } | { error: NextResponse } {
+  const list = Array.isArray(raw) ? raw : String(raw ?? '').split(',');
+  const ids = list.map((s) => String(s).trim()).filter(Boolean);
+  if (!ids.length) return { error: NextResponse.json({ error: 'id or ids is required.' }, { status: 400 }) };
+  if (ids.length > MAX_BULK) {
+    return {
+      error: NextResponse.json(
+        { error: `That is ${ids.length} objects; ${MAX_BULK} is the most one request may change.` },
+        { status: 400 },
+      ),
+    };
+  }
+  return { ids };
 }
 
 export async function POST(req: NextRequest) {
@@ -62,11 +155,40 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
+
+  // ── duplicate ────────────────────────────────────────────────────────────────────────────────────
+  // The source decides the node, so a caller cannot copy someone else's object onto their own map by
+  // naming their node — the same rule PATCH and DELETE follow.
+  if (typeof body.duplicateOf === 'string') {
+    const [src] = await readObjects([body.duplicateOf]);
+    if (!src) return NextResponse.json({ error: 'No such object.' }, { status: 404 });
+    const gate = await nodeGate(src.map_node_id);
+    if ('error' in gate) return gate.error;
+
+    const grid = readGrid(gate.node.grid);
+    const { dx, dy } = duplicateOffset(grid?.size ?? null);
+    const at = place(gate.node, src.x + dx, src.y + dy);
+    const { id: _drop, ...rest } = src;
+    const { data: copy, error } = await supabaseAdmin
+      .from('dnd_map_objects')
+      .insert({ ...rest, x: at?.x ?? src.x, y: at?.y ?? src.y })
+      .select(OBJECT_COLS)
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const row = copy as unknown as MapObjectRow;
+    await record(src.map_node_id, newBatchId(), session.userId, [
+      { entityId: row.id, action: 'create', after: row, summary: summarizeEdit('create', row) },
+    ]);
+    return NextResponse.json({ object: { id: row.id } }, { status: 201 });
+  }
+
+  // ── place ────────────────────────────────────────────────────────────────────────────────────────
   const gate = await nodeGate(body.nodeId);
   if ('error' in gate) return gate.error;
 
   const kind = KINDS.has(String(body.kind)) ? String(body.kind) : 'token';
-  const at = place(gate.node, body.x, body.y);
+  const at = place(gate.node, body.x, body.y, body.freehand === true);
   if (!at) return NextResponse.json({ error: 'x and y must be numbers.' }, { status: 400 });
 
   const data = (body.data && typeof body.data === 'object' ? body.data : {}) as Record<string, unknown>;
@@ -88,6 +210,11 @@ export async function POST(req: NextRequest) {
       kind,
       x: at.x,
       y: at.y,
+      // Size only where a size means something. A token's footprint comes from the creature's own size
+      // category through the node's grid (M5-1b) — writing a width onto one would be the map holding a
+      // second opinion about how big an Ogre is.
+      ...(SIZEABLE_KINDS.has(kind) && Number.isFinite(Number(body.w)) ? { w: clampSize(Number(body.w)) } : {}),
+      ...(SIZEABLE_KINDS.has(kind) && Number.isFinite(Number(body.h)) ? { h: clampSize(Number(body.h)) } : {}),
       data,
       // DM-ONLY BY DEFAULT. A thing the DM has just placed and not yet described should not appear on the
       // players' screen the instant it exists — revealing is a decision, and defaulting to visible would
@@ -95,12 +222,21 @@ export async function POST(req: NextRequest) {
       visibility,
       label: typeof body.label === 'string' ? body.label.trim() || null : null,
       dm_notes: typeof body.dmNotes === 'string' ? body.dmNotes : null,
+      description: typeof body.description === 'string' ? body.description : null,
+      // M4-3 — the picture, when the DM placed one from the asset tray. Validated as a URL rather than
+      // taken on trust: this string ends up in an `<img src>` on every viewer's screen, and a
+      // `javascript:` or `data:text/html` value there is the DM handing the whole table a script.
+      asset_url: safeAssetUrl(body.assetUrl),
     })
-    .select('id')
+    .select(OBJECT_COLS)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ object: created }, { status: 201 });
+  const row = created as unknown as MapObjectRow;
+  await record(gate.node.id, newBatchId(), session.userId, [
+    { entityId: row.id, action: 'create', after: row, summary: summarizeEdit('create', row) },
+  ]);
+  return NextResponse.json({ object: { id: row.id } }, { status: 201 });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -108,46 +244,229 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
-  if (typeof body.id !== 'string') return NextResponse.json({ error: 'id is required.' }, { status: 400 });
+  const picked = readIds(body.ids ?? body.id);
+  if ('error' in picked) return picked.error;
 
-  // The object's node decides the campaign, and therefore the gate — the caller does not get to say.
-  const { data: row } = await supabaseAdmin
-    .from('dnd_map_objects').select('id, map_node_id').eq('id', body.id).maybeSingle();
-  if (!row) return NextResponse.json({ error: 'No such object.' }, { status: 404 });
-  const gate = await nodeGate((row as { map_node_id: string }).map_node_id);
-  if ('error' in gate) return gate.error;
-
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (body.x !== undefined || body.y !== undefined) {
-    const at = place(gate.node, body.x, body.y);
-    if (!at) return NextResponse.json({ error: 'x and y must both be numbers to move.' }, { status: 400 });
-    patch.x = at.x;
-    patch.y = at.y;
+  // Read the rows FIRST. They are both the `before` half of the journal and the gate's subject — the
+  // object's node decides the campaign, so a caller naming their own node cannot reach someone else's
+  // object.
+  const before = await readObjects(picked.ids);
+  if (!before.length) return NextResponse.json({ error: 'No such object.' }, { status: 404 });
+  // One request, one map. A mixed set would need a gate per node and an undo entry per node, and there
+  // is no interaction that produces one — a selection is made on the map the DM is looking at.
+  const nodeIds = new Set(before.map((r) => r.map_node_id));
+  if (nodeIds.size > 1) {
+    return NextResponse.json({ error: 'Those objects are on different maps.' }, { status: 400 });
   }
-  if (Number.isFinite(Number(body.z))) patch.z = Math.round(Number(body.z));
-  if (VISIBILITIES.has(String(body.visibility))) patch.visibility = String(body.visibility);
-  if (typeof body.label === 'string') patch.label = body.label.trim() || null;
-  if (typeof body.dmNotes === 'string') patch.dm_notes = body.dmNotes;
-  if (body.data && typeof body.data === 'object') patch.data = body.data;
+  let gate = await nodeGate(before[0].map_node_id);
+  if ('error' in gate) {
+    // M7-1 — a player moving their OWN token. Only reached when the DM gate refused, and only for a
+    // request that changes nothing but position: a body carrying `visibility` alongside `x` is not a
+    // move with an extra field, it is a reveal wearing a move's clothes.
+    const user = await getDndUser();
+    const onlyMoves = Object.keys(body).every((k) => PLAYER_MOVE_FIELDS.has(k));
+    const mine = user && onlyMoves && before.length === 1 && (await ownsToken(user.id, before[0]));
+    if (!mine) return gate.error;
+    const { data: node } = await supabaseAdmin
+      .from('dnd_map_nodes').select('id, campaign_id, grid, bounds').eq('id', before[0].map_node_id).maybeSingle();
+    if (!node) return NextResponse.json({ error: 'No such map node.' }, { status: 404 });
+    // Still a member of the campaign the node belongs to — owning a character is not membership, and a
+    // character can outlive the campaign it was made in.
+    if ((await getCampaignRole((node as { campaign_id: string }).campaign_id)) === null) {
+      return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    }
+    gate = { node: node as { id: string; campaign_id: string; grid: Record<string, unknown>; bounds: Record<string, unknown> } };
+  }
 
-  const { error } = await supabaseAdmin.from('dnd_map_objects').update(patch).eq('id', body.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  const bulk = Array.isArray(body.ids);
+  const freehand = body.freehand === true;
+  const patches: Array<{ id: string; patch: Record<string, unknown> }> = [];
+
+  for (const row of before) {
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    // ABSOLUTE for one object, RELATIVE for a selection. Moving five tokens to the same x,y would stack
+    // them on one square; a delta keeps the shape of the group, which is the only thing "move these"
+    // can sensibly mean.
+    if (bulk && (body.dx !== undefined || body.dy !== undefined)) {
+      const at = place(gate.node, Number(row.x) + Number(body.dx ?? 0), Number(row.y) + Number(body.dy ?? 0), freehand);
+      if (!at) return NextResponse.json({ error: 'dx and dy must be numbers.' }, { status: 400 });
+      patch.x = at.x;
+      patch.y = at.y;
+    } else if (!bulk && (body.x !== undefined || body.y !== undefined)) {
+      const at = place(gate.node, body.x, body.y, freehand);
+      if (!at) return NextResponse.json({ error: 'x and y must both be numbers to move.' }, { status: 400 });
+      patch.x = at.x;
+      patch.y = at.y;
+    }
+
+    // Resize is refused for kinds that do not own their size, rather than written and ignored at render
+    // time — a control that appears to work and does nothing is worse than one that is not offered.
+    for (const [key, val] of [['w', body.w], ['h', body.h]] as const) {
+      if (val === undefined) continue;
+      if (!SIZEABLE_KINDS.has(row.kind)) {
+        return NextResponse.json(
+          { error: `A ${row.kind} has no size of its own — a token's footprint comes from the creature's size and the node's grid.` },
+          { status: 400 },
+        );
+      }
+      if (!Number.isFinite(Number(val))) return NextResponse.json({ error: 'w and h must be numbers.' }, { status: 400 });
+      patch[key] = clampSize(Number(val));
+    }
+
+    if (body.rotation !== undefined) patch.rotation = normalizeRotation(Number(body.rotation));
+    // Relative for a selection, so "send these to the back" keeps their order among themselves.
+    if (body.dz !== undefined) patch.z = clampZ(Number(row.z) + Number(body.dz));
+    else if (body.z !== undefined) patch.z = clampZ(Number(body.z));
+
+    if (VISIBILITIES.has(String(body.visibility))) patch.visibility = String(body.visibility);
+    if (typeof body.label === 'string') patch.label = body.label.trim() || null;
+    if (typeof body.description === 'string') patch.description = body.description || null;
+    if (typeof body.dmNotes === 'string') patch.dm_notes = body.dmNotes;
+    // Through the same scheme check as POST — a PATCH is the other door into the same `<img src>`.
+    if (typeof body.assetUrl === 'string') patch.asset_url = safeAssetUrl(body.assetUrl);
+    if (body.data && typeof body.data === 'object') patch.data = body.data;
+
+    patches.push({ id: row.id, patch });
+  }
+
+  for (const p of patches) {
+    const { error } = await supabaseAdmin.from('dnd_map_objects').update(p.patch).eq('id', p.id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const after = await readObjects(picked.ids);
+  const byId = new Map(after.map((r) => [r.id, r]));
+
+  // ── M6-4 · the events a MOVE produces ────────────────────────────────────────────────────────────
+  //
+  // The trigger engine and its executor both shipped with nothing emitting the events they listen for, so
+  // a pit trap only sprang when the DM remembered to press a button — which is the thing a trigger exists
+  // to stop. A token that changed position is now checked against the node's regions, and anything
+  // waiting in one it just walked into fires.
+  //
+  // ENTERED, not "is inside": a token moving one square within a room has not entered it again, and
+  // firing on containment would set the trap off on every step across it.
+  const fired = await fireMoveEvents(gate.node.id, before, byId, session.userId);
+  await record(
+    gate.node.id,
+    newBatchId(),
+    session.userId,
+    before.map((row) => ({
+      entityId: row.id,
+      action: 'update' as const,
+      before: row,
+      after: byId.get(row.id) ?? null,
+      summary: summarizeEdit('update', row),
+    })),
+  );
+  return NextResponse.json({ ok: true, changed: patches.length, ...(fired.length ? { triggered: fired } : {}) });
 }
 
 export async function DELETE(req: NextRequest) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
+  const picked = readIds(req.nextUrl.searchParams.get('ids') ?? req.nextUrl.searchParams.get('id'));
+  if ('error' in picked) return picked.error;
 
-  const { data: row } = await supabaseAdmin
-    .from('dnd_map_objects').select('id, map_node_id').eq('id', id).maybeSingle();
-  if (!row) return NextResponse.json({ error: 'No such object.' }, { status: 404 });
-  const gate = await nodeGate((row as { map_node_id: string }).map_node_id);
+  const before = await readObjects(picked.ids);
+  if (!before.length) return NextResponse.json({ error: 'No such object.' }, { status: 404 });
+  if (new Set(before.map((r) => r.map_node_id)).size > 1) {
+    return NextResponse.json({ error: 'Those objects are on different maps.' }, { status: 400 });
+  }
+  const gate = await nodeGate(before[0].map_node_id);
   if ('error' in gate) return gate.error;
 
-  const { error } = await supabaseAdmin.from('dnd_map_objects').delete().eq('id', id);
+  // Read the discoveries BEFORE the delete cascades them away — see `journal.readDiscoveries`. After the
+  // delete they are gone and unrecoverable, so an undo would hand back the secret with the party's
+  // knowledge of it silently erased.
+  const discoveries = await readDiscoveries(picked.ids);
+
+  const { error } = await supabaseAdmin.from('dnd_map_objects').delete().in('id', picked.ids);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+
+  const batch = newBatchId();
+  await record(gate.node.id, batch, session.userId, [
+    // Discoveries first, so `undoOrder`'s newest-first walk restores the OBJECT before the discovery
+    // that references it — the FK would refuse it the other way round.
+    ...discoveries.map((d) => ({
+      entity: 'discovery' as const, entityId: d.id, action: 'delete' as const, before: d, summary: null,
+    })),
+    ...before.map((row) => ({
+      entityId: row.id, action: 'delete' as const, before: row, summary: summarizeEdit('delete', row),
+    })),
+  ]);
+  return NextResponse.json({ ok: true, removed: before.length });
+}
+
+/**
+ * Fire whatever was waiting in the regions these tokens just walked into.
+ *
+ * Returns a short description per firing, so the client can say "the pit trap went off" rather than
+ * leaving a DM to notice that a sheet changed. Failures are swallowed **and named in the return value**
+ * rather than taking the move down: a token that moved and then could not resolve its triggers has still
+ * moved, and refusing the whole request would strand the piece.
+ */
+async function fireMoveEvents(
+  nodeId: string,
+  before: readonly MapObjectRow[],
+  after: ReadonlyMap<string, MapObjectRow>,
+  actorUserId: string,
+): Promise<string[]> {
+  const moved = before.filter((b) => {
+    const a = after.get(b.id);
+    return b.kind === 'token' && a && (Number(a.x) !== Number(b.x) || Number(a.y) !== Number(b.y));
+  });
+  if (!moved.length) return [];
+
+  const { data: triggerRows } = await supabaseAdmin
+    .from('dnd_map_triggers')
+    .select('id, name, fires_when, fires_then, once, armed, fired_at')
+    .eq('map_node_id', nodeId);
+  const triggers = ((triggerRows ?? []) as Parameters<typeof readTrigger>[0][]).map(readTrigger);
+  // No triggers on this map is the normal case, and the whole rest of this is skipped for it — a move on
+  // an ordinary battle map must not pay for a feature nobody on it is using.
+  if (!triggers.length) return [];
+
+  const { data: node } = await supabaseAdmin
+    .from('dnd_map_nodes').select('id, campaign_id, grid, bounds').eq('id', nodeId).maybeSingle();
+  if (!node) return [];
+  const n = node as { id: string; campaign_id: string; grid: unknown; bounds: unknown };
+
+  const { data: areaRows } = await supabaseAdmin
+    .from('dnd_map_objects').select('id, x, y, w, h').eq('map_node_id', nodeId).eq('kind', 'area');
+  const regions = ((areaRows ?? []) as Array<{ id: string; x: number; y: number; w: number | null; h: number | null }>)
+    .map<Region>((r) => ({ id: r.id, x: Number(r.x), y: Number(r.y), w: r.w == null ? null : Number(r.w), h: r.h == null ? null : Number(r.h) }));
+  if (!regions.length) return [];
+
+  const notes: string[] = [];
+  for (const b of moved) {
+    const a = after.get(b.id)!;
+    const from = { x: Number(b.x), y: Number(b.y) };
+    const to = { x: Number(a.x), y: Number(a.y) };
+    const events: TriggerEvent[] = [
+      ...entered(regions, from, to).map((r) => ({ kind: 'token_enters' as const, targetId: r.id, actorId: b.id })),
+      ...left(regions, from, to).map((r) => ({ kind: 'token_leaves' as const, targetId: r.id, actorId: b.id })),
+    ];
+    for (const event of events) {
+      // `resolve`, not `preview`: this is a token walking, and a disarmed or already-fired trigger must
+      // stay silent. Only the DM's explicit "fire it" button bypasses that.
+      const plan = resolve(event, triggers);
+      if (!plan.actions.length) continue;
+      const report = await executePlan(plan, {
+        campaignId: n.campaign_id, nodeId: n.id, grid: n.grid, bounds: n.bounds, actorName: null,
+      });
+      notes.push(`${b.label ?? 'A token'} ${event.kind === 'token_enters' ? 'entered' : 'left'} a region — ${report.done} effect${report.done === 1 ? '' : 's'} applied`);
+      // `once` is spent, exactly as it is on the DM's button. A trap that fired because someone walked
+      // into it is as fired as one the DM set off.
+      const spent = triggers.filter((t) => t.once && plan.fired.includes(t.id)).map((t) => t.id);
+      if (spent.length) {
+        await supabaseAdmin.from('dnd_map_triggers')
+          .update({ armed: false, fired_at: new Date().toISOString() }).in('id', spent);
+        for (const t of triggers) if (spent.includes(t.id)) t.armed = false;
+      }
+    }
+  }
+  void actorUserId;
+  return notes;
 }
