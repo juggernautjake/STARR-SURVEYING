@@ -441,6 +441,45 @@ knowing which page to open first.
 6. **Empty is a real answer.** A search that silently drops a corpus it failed to query is worse
    than one that finds nothing — see §1.1b for what that failure mode already cost here.
 
+> **✅ 8a–8c + 8e SHIPPED 2026-08-01 — the backbone, the filters, and a search box that reaches them.**
+>
+> `seeds/514_search_indexes.sql` installs `pg_trgm` and trigram + full-text indexes over the document
+> tables and business records. `seeds/515_search_function.sql` adds `search_everything()` — one ranked,
+> permission-filtered query across ten corpora. `/api/admin/search` and `/admin/search` sit on top,
+> and the route is **registered on the rail and in ⌘K**, because a search API with no search box is the
+> purest possible instance of the §1.4 defect.
+>
+> Verified against live data, not just tested: **"Waggner" → Waggoner**, **"esment" → RIGHT OF WAY
+> EASEMENT**, exact `deed` outranking both — and confirmed a second time through PostgREST, since the
+> route calls the function over the wire rather than through `pg`.
+>
+> **Four findings, each of which would have shipped a search box that looks built and finds nothing:**
+>
+> 1. **`similarity()` is the wrong function.** It compares whole strings, so it is length-sensitive.
+>    Measured here: `"Waggoner"` against `"3424 Waggoner Dr, Belton, TX"` scores **0.33** — a perfect
+>    match, barely above the 0.3 default, and missed outright in a slightly longer label.
+>    `word_similarity()`, which matches against the best word sequence *inside* the field, scores
+>    **1.00**. That is what somebody typing a street name means.
+> 2. **The default threshold rejects real typos.** Single-letter slips measured on this data cluster at
+>    **0.43–0.55** (`esment` 0.429, `Belon` 0.500, `Waggner` 0.545). At the 0.6 default, *"matching
+>    spellings"* would have matched nothing at all.
+> 3. **That threshold cannot be set where you would expect, and it fails silently.** `ALTER DATABASE …
+>    SET` reports success and `pg_db_role_setting` shows the value — and a fresh connection still reads
+>    0.6, because the Supabase **pooler** hands back a backend that never re-read it. `SET LOCAL` fails
+>    the same way. It looks applied and is not. The threshold is now pinned inside the function, via
+>    `SET LOCAL` in a plpgsql body rather than the tidier `CREATE FUNCTION … SET` clause, which
+>    Supabase denies outright (`42501`).
+> 4. **Two hazards came with that forced move to plpgsql**, both fixed: `RETURNS TABLE` column names
+>    become OUT variables that shadow the query's own columns, and `nullif(jsonb, '')` fails because
+>    `''` is not valid JSON.
+>
+> **`customers` results are deliberately not links.** There is no `/admin/customers` page anywhere in
+> the app; a link would be a 404 dressed as a feature. The result carries the contact details instead,
+> and a test pins both halves so building the page later is a prompt rather than a silent divergence.
+>
+> **Still open:** **8d** (AI/embedding retrieval for questions keywords cannot express) — the
+> `fs_reference_chunks` pattern is proven in this repo and is the next slice.
+
 ### Deliberately NOT in scope for the first pass
 
 OCR of un-extracted PDFs, and indexing CAD geometry. Both are large, and `research_documents`
@@ -733,13 +772,13 @@ Placed here, ahead of Phase 2, deliberately: it is the surface that makes everyt
 *findable*, and every Phase 2 item (proposals, deliverables, change orders) adds documents that will
 need to be found. Building it after them means retro-fitting search onto three more corpora.
 
-8a. Search backbone — `pg_trgm`, a normalised index over the nine document tables + the core
+8a. ✅ **DONE 2026-08-01.** Search backbone — `pg_trgm`, a normalised index over the nine document tables + the core
     business records, and one ranked query with permission + `org_id` filtering.
-8b. Filters — type / corpus / MIME, and created / modified / effective-date ranges.
-8c. Spelling-tolerant keyword ranking (trigram similarity + full-text, combined score).
+8b. ✅ **DONE 2026-08-01.** Filters — type / corpus / MIME, and created / modified / effective-date ranges.
+8c. ✅ **DONE 2026-08-01.** Spelling-tolerant keyword ranking (trigram similarity + full-text, combined score).
 8d. AI retrieval — embeddings over `extracted_text`, mirroring `fs_reference_chunks`; natural-language
     questions answered with cited documents, never with an unsourced summary.
-8e. One search UI, reachable from the rail and ⌘K, that returns documents and records together.
+8e. ✅ **DONE 2026-08-01.** One search UI, reachable from the rail and ⌘K, that returns documents and records together.
 
 **Phase 1c — Sellable to other firms (§3c, owner objective 2026-08-01)**
 

@@ -100,6 +100,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // /admin/me itself lands in Phase 2; the legacy `My …` routes stay
   // accessible until then. After Phase 2 they redirect into /admin/me.
   { href: '/admin/me',              label: 'Hub',             workspace: 'hub', iconName: 'Home',           description: 'Your personalized landing — today, pinned, recents.', keywords: ['home', 'me', 'personal', 'landing'] },
+  { href: '/admin/search',          label: 'Search Everything', workspace: 'hub', iconName: 'Search',       description: 'One search across documents, jobs, customers, contacts, leads and invoices — spelling need not be exact.', keywords: ['find', 'lookup', 'documents', 'deed', 'plat', 'customer', 'job', 'files', 'fuzzy'] },
   { href: '/admin/dashboard',       label: 'Dashboard',       workspace: 'hub', iconName: 'LayoutDashboard', description: 'Overview metrics + activity.', keywords: ['overview', 'home', 'stats'] },
   { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'Your assigned jobs + tasks.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks'] },
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
