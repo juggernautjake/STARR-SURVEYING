@@ -678,10 +678,44 @@ Everything above exists to make this page honest.
   timeline. This is the "track exactly what is happening with each lead" ask, and it is the screen Daddy will
   actually use.
 
-### A13 — Phone-call attribution *(scoped, not on the critical path)*
-- Google forwarding numbers / call reporting; a dynamic-number-insertion snippet on the public site.
-- Wire `how_heard` (already collected by `ContactForm`) into `leads` as a self-reported fallback dimension.
-- Manual "which ad did they mention?" field on the lead detail page for phone intake.
+### A13 — Phone-call attribution ✅ SHIPPED 2026-08-01 *(two of three; DNI deferred, reason below)*
+> **Seed 510** (applied live), `how_heard` wired end to end, `AttributionCard` +
+> `/api/admin/leads/[id]/attribution`, and a `how_heard` slice on A12's dashboard. 10 tests.
+>
+> **`how_heard` was already being collected and thrown away.** `ContactForm.tsx` has asked *"How Did You
+> Hear About Us?"* since launch; `app/api/contact/route.ts` put the answer in the notification email and
+> **nowhere else**. Every submission since launch answered the attribution question and the answer was
+> deleted on arrival. That is the whole fix, and it is the cheapest coverage this plan buys.
+>
+> **Two columns, not one.** `how_heard` is what the CUSTOMER picked from a dropdown; `mentioned_ad` is
+> what STAFF recorded from a phone call. Merging them destroys the distinction that matters — a
+> self-report from a menu and a human's recollection of a conversation have different reliability and get
+> corrected by different people, and one field would just hold whichever was written last. The card shows
+> **three kinds of evidence as three kinds**: a click id (hard), what they said (self-reported), what we
+> noted (staff). Flattening them is how a half-remembered call ends up carrying the same weight as a
+> `gclid`.
+>
+> Only `mentioned_ad` is writable through the API. Letting staff edit `how_heard` would turn a self-report
+> into a staff opinion while keeping the *name* of a self-report, after which no row could be told from
+> another. Clearing it clears the recorder and timestamp too — "recorded by X at Y" beside an empty field
+> describes an observation that no longer exists.
+>
+> **Neither is ever uploaded to Google, and the UI says so.** Google matches on click ids and hashed
+> identity; *"she said she saw us on Facebook"* is not a conversion signal, and sending it as one would be
+> inventing attribution — the one thing this plan exists to avoid. It is an internal dimension, and the
+> dashboard now slices by it because it is the only thing that says anything at all about phone and
+> referral leads.
+>
+> ⏸ **Deferred: Google call reporting / forwarding numbers + the DNI snippet.** Not a cost-vs-value call —
+> **it cannot be built.** A forwarding number is provisioned inside a Google Ads account, by the account,
+> and there is no developer token or connected account yet (same blocker as A8). The DNI snippet is one
+> `gtag` config line that must reference a call conversion action that does not exist. Building it now
+> would mean shipping a snippet pointed at a placeholder, which fails silently — exactly the failure mode
+> A2 removed. **When credentials arrive:** create the call conversion action, enable call reporting, and
+> add `gtag('config', AW_ID, {phone_conversion_number: '<the office number>'})` to
+> `app/components/GoogleAdsScript.tsx` — the tag is already loaded there, so it is a one-line change plus
+> the account-side setup. Everything downstream of the click (the lifecycle stream, the uploader, the
+> dashboard) already handles a call conversion without modification.
 
 ### A14 — QA and verification
 - Unit: attribution capture, hashing, dedupe keys, CSV row builder, upload retry/partial-failure handling.

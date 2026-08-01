@@ -33,6 +33,8 @@ import LeadNotesCard from './LeadNotesCard';
 import QuotesCard from './QuotesCard';
 // A12 — the "track exactly what is happening with each lead" screen.
 import LifecycleTimeline from './LifecycleTimeline';
+// A13 — the self-reported and staff-recorded halves of attribution, for leads with no click.
+import AttributionCard from './AttributionCard';
 
 interface LeadAttachment {
   name: string;
@@ -455,6 +457,9 @@ export default function LeadDetailPage() {
             because the two answer the same question from opposite ends: what we asked for, and what
             actually happened. */}
         <LifecycleTimeline leadId={lead.id} />
+
+        {/* A13 — three kinds of evidence about where this lead came from, shown as three kinds. */}
+        <AttributionCard leadId={lead.id} />
 
         <LeadNotesCard leadId={lead.id} />
 

@@ -70,6 +70,15 @@ export interface LeadIntakeInput {
    *  posted along with the form. Absent for phone/referral/walk-in leads,
    *  which is the majority: never treat its absence as an error. */
   attribution?: Attribution | null;
+  /** A13 — what the customer picked from "How Did You Hear About Us?".
+   *
+   *  The form has asked this since launch and the answer went into the notification email and NOWHERE
+   *  ELSE. Every submission answered the attribution question and the answer was deleted on arrival.
+   *
+   *  Self-reported and weak, and that is exactly why it is worth keeping: a phone or referral lead
+   *  carries no click, so this is the only signal it has at all. It is an internal dimension only —
+   *  never uploaded to Google, because "she saw us on Facebook" is not a conversion signal. */
+  howHeard?: string;
   /** Salted hash of the submitting IP, computed by the route (which is the
    *  only layer that can see it). Never the raw address. */
   clientIpHash?: string | null;
@@ -101,6 +110,8 @@ export interface LeadRow {
   state: string;
   survey_type: string | null;
   estimated_acreage: number | null;
+  /** A13 — the customer's own answer. Null when they skipped the dropdown, which is common. */
+  how_heard: string | null;
   created_by: 'website-form';
   /** lead-attachments-2026-06-18 — empty array when the customer
    *  attached no files. Always non-null so the JSONB column's NOT
@@ -154,6 +165,7 @@ export function buildLeadRowFromForm(input: LeadIntakeInput): LeadRow {
     city: cleanString(input.city),
     state: (cleanString(input.state) ?? 'TX').toUpperCase(),
     survey_type: cleanString(input.serviceType),
+    how_heard: cleanString(input.howHeard),
     estimated_acreage:
       typeof input.estimatedAcreage === 'number' && Number.isFinite(input.estimatedAcreage)
         ? input.estimatedAcreage

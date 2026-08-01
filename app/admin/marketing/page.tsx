@@ -47,6 +47,8 @@ const SLICES = [
   { key: 'source', label: 'Source' },
   { key: 'survey_type', label: 'Survey type' },
   { key: 'county', label: 'County' },
+  // A13 — the only dimension that says anything about phone and referral leads.
+  { key: 'how_heard', label: 'How they heard' },
 ];
 
 /** An em-dash, never a zero. See the header — this distinction is the whole point. */

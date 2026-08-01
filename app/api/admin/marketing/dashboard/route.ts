@@ -28,7 +28,9 @@ import {
 import type { Milestone } from '@/lib/pipeline/events';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const SLICES = ['campaign', 'source', 'survey_type', 'county'] as const;
+// A13 adds `how_heard` — the self-reported dimension. It is the only one that says anything about the
+// phone and referral leads, which at this business are the majority.
+const SLICES = ['campaign', 'source', 'survey_type', 'county', 'how_heard'] as const;
 type Slice = (typeof SLICES)[number];
 
 interface EventRow {
@@ -38,7 +40,7 @@ interface EventRow {
 interface LeadRow {
   id: string; gclid: string | null; gbraid: string | null; wbraid: string | null;
   email: string | null; phone: string | null; source: string | null;
-  utm_campaign: string | null; survey_type: string | null;
+  utm_campaign: string | null; survey_type: string | null; how_heard: string | null;
 }
 interface JobRow {
   id: string; customer_id: string | null; created_at: string;
@@ -73,7 +75,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .gte('occurred_at', fromIso).lte('occurred_at', toIso)
       .order('occurred_at', { ascending: true }).limit(5000),
     supabaseAdmin.from('leads')
-      .select('id, gclid, gbraid, wbraid, email, phone, source, utm_campaign, survey_type')
+      .select('id, gclid, gbraid, wbraid, email, phone, source, utm_campaign, survey_type, how_heard')
       .gte('created_at', fromIso).lte('created_at', toIso).limit(5000),
     supabaseAdmin.from('jobs')
       .select('id, customer_id, created_at, final_amount, quote_amount, survey_type, county, origin_lead_id')
@@ -128,6 +130,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       case 'source': return lead?.source || '(unknown)';
       case 'survey_type': return j.survey_type || lead?.survey_type || '(unspecified)';
       case 'county': return j.county || '(unknown)';
+      // '(not asked)' rather than '(unknown)': a blank here means the customer skipped the dropdown or
+      // never saw the form at all, which is a different fact from a missing county.
+      case 'how_heard': return lead?.how_heard || '(not asked)';
     }
   };
 

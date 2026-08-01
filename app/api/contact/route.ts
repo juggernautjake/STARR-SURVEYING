@@ -1310,6 +1310,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         estimatedAcreage,
         referenceNumber,
         source: isCalculator ? 'Pricing Calculator' : 'Website',
+        // A13 — the form has asked "How Did You Hear About Us?" since launch and the answer went into
+        // the notification email and nowhere else. For a phone or referral lead it is the ONLY
+        // attribution signal there is, and it was being deleted on arrival.
+        howHeard: data.howHeard || undefined,
         isRush,
         // lead-attachments-2026-06-18 — persist the file summaries so
         // the admin lead-detail page can list what the customer sent.
