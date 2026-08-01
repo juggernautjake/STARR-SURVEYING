@@ -27,11 +27,6 @@ interface AdminNavStore {
    *  end). Surfaces on the IconRail below the workspaces and as the
    *  Hub's Pinned column. */
   pinnedRoutes: string[];
-  /** Phase 3 — when true, AdminLayoutClient shows the new IconRail
-   *  instead of AdminSidebar. Default off; flipped to true by default
-   *  in Phase 5 after the PR-cycle grace. Persisted so a user can
-   *  opt-in for early review. */
-  adminNavV2Enabled: boolean;
   /** Phase 4 — when set, the rail uses this persona's order instead
    *  of the one inferred from `session.user.roles`. Lets a multi-hat
    *  user lock the view they actually want. `null` ⇒ infer from
@@ -54,7 +49,6 @@ interface AdminNavStore {
   /** Returns the post-toggle pinned state (true = pinned). */
   togglePin: (href: string) => boolean;
 
-  setNavV2: (enabled: boolean) => void;
   setPersonaOverride: (persona: Persona | null) => void;
 }
 
@@ -64,13 +58,6 @@ export const useAdminNavStore = create<AdminNavStore>()(
       paletteOpen: false,
       recentRoutes: [],
       pinnedRoutes: [],
-      // Phase 5 cutover — V2 is the default. Existing users who
-      // already opted in keep their stored true; new users land on
-      // the rail by default. The HubGreeting still offers a "Revert
-      // to old nav" toggle until AdminSidebar is deleted (gated on
-      // the §8 Phase 5 PR-cycle grace period — see deferral note in
-      // the planning doc).
-      adminNavV2Enabled: true,
       personaOverride: null,
 
       openPalette: () => set({ paletteOpen: true }),
@@ -130,7 +117,6 @@ export const useAdminNavStore = create<AdminNavStore>()(
         return true;
       },
 
-      setNavV2: (enabled) => set({ adminNavV2Enabled: !!enabled }),
 
       setPersonaOverride: (persona) => {
         const prev = get().personaOverride;
@@ -142,12 +128,15 @@ export const useAdminNavStore = create<AdminNavStore>()(
     }),
     {
       name: 'starr-admin-nav',
+      // Deliberately still version 1 after `adminNavV2Enabled` was dropped (platform audit §1.3).
+      // Bumping it without a `migrate` makes zustand DISCARD the whole persisted object — which would
+      // throw away every user's pinned routes and recents to tidy away one dead boolean. The stale key
+      // simply sits in localStorage, unread, which costs nothing.
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         recentRoutes: s.recentRoutes,
         pinnedRoutes: s.pinnedRoutes,
-        adminNavV2Enabled: s.adminNavV2Enabled,
         personaOverride: s.personaOverride,
       }),
     },

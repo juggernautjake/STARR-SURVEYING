@@ -1,12 +1,17 @@
 // app/admin/components/AdminSidebar.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/lib/auth';
 import { RouteIcon } from '@/lib/admin/route-icons';
+import {
+  accessibleRoutes,
+  WORKSPACES,
+  WORKSPACE_ORDER,
+} from '@/lib/admin/route-registry';
 import { ChevronRight } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -19,14 +24,13 @@ interface AdminSidebarProps {
   onClose: () => void;
 }
 
-// roles: which roles can see this item. If omitted, all authenticated users see it.
-// internalOnly: if true, only company-domain (@starr-surveying.com) users see it.
+// No `roles` / `internalOnly` here any more: gating happens once, in `accessibleRoutes`, off the
+// registry entry. Two places to express "who may see this" is how the desktop rail and this drawer
+// came to disagree about 32 routes in the first place (§1.3).
 interface NavItem {
   href: string;
   label: string;
   icon: string;
-  roles?: UserRole[];
-  internalOnly?: boolean;
 }
 interface NavSection { label: string; items: NavItem[]; }
 
@@ -59,21 +63,8 @@ const BRAND_LABELS: Record<string, string> = {
   guest: 'Learning Portal',
 };
 
-// ── Shorthand role groups for readability ──
-// These match the access matrix in docs/USER_ROLES_AND_ACCESS_CONTROL.md
-const WORK_ROLES: UserRole[] = ['admin', 'developer', 'field_crew'];
-const RESEARCH_ROLES: UserRole[] = ['admin', 'developer', 'researcher', 'drawer'];
-const CONTENT_MGMT_ROLES: UserRole[] = ['admin', 'developer', 'teacher'];
-const INTERNAL_COMM_ROLES: UserRole[] = ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'];
-const PAY_ROLES: UserRole[] = ['admin', 'developer', 'field_crew'];
-// Phase F10.6 — Equipment sidebar group. The §4.6 access matrix:
-// dispatchers (admin / developer / tech_support) AND the
-// equipment_manager hat. The equipment_manager role lives almost
-// entirely inside this nav group; gating on this constant keeps
-// the Catalogue / Templates / future-Today / future-Timeline /
-// etc. links visible to whoever holds that hat without leaking
-// admin-wide nav.
-const EQUIPMENT_ROLES: UserRole[] = ['admin', 'developer', 'tech_support', 'equipment_manager'];
+// The role groups that used to live here (WORK_ROLES, RESEARCH_ROLES, EQUIPMENT_ROLES, …) moved to
+// lib/admin/route-registry.ts, which is now the only place that decides who sees which route.
 
 export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
@@ -85,125 +76,35 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     ? notableRoles.map(r => ROLE_DISPLAY[r]).join(' + ')
     : ROLE_DISPLAY[role];
 
-  // ── Navigation structure ──
-  // Each item's `roles` array defines who sees it. Admin always sees everything
-  // (enforced in canAccess). Items without `roles` are visible to all users.
-  // Items with `internalOnly` require @starr-surveying.com domain.
-  const sections: NavSection[] = [
-    { label: 'Main', items: [
-      { href: '/admin/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-      { href: '/admin/assignments', label: 'Assignments', icon: 'ClipboardList', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/schedule', label: 'My Schedule', icon: 'Calendar', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
-    ]},
+  // ── Navigation structure — DERIVED, not hand-maintained ──────────────────────────────────────
+  //
+  // This used to be ~180 lines of literal nav items, and platform audit §1.3 measured what that cost:
+  // **32 routes were in the route registry and missing from here** — Invoicing, Contacts, Files,
+  // Calendar, Support, Reports, Billing, Org Settings, Audit Log, Invites, Announcements. Every one of
+  // them reachable on desktop and invisible on a phone, because two lists of the same thing drift the
+  // moment anybody adds a page to one of them.
+  //
+  // The audit's prescribed fix was "delete AdminSidebar.tsx". That would have deleted mobile
+  // navigation outright — this component is not merely the legacy desktop sidebar, it is also the
+  // mobile drawer, and the only nav a phone has. What was actually wrong was the second SOURCE, not
+  // the second SURFACE. So the surface stays and the list goes: sections are now derived from
+  // `ADMIN_ROUTES`, grouped by workspace, in `WORKSPACE_ORDER`.
+  //
+  // `showInRail: false` routes are excluded, matching the icon rail. Those are the palette-only
+  // entries (§1.4) — registering all 131 here would trade an incomplete drawer for an unscannable one.
+  const sections: NavSection[] = useMemo(() => {
+    const visible = accessibleRoutes({ roles, isCompanyUser })
+      .filter((r) => r.showInRail !== false);
 
-    { label: 'Learning', items: [
-      { href: '/admin/learn', label: 'Learning Hub', icon: 'GraduationCap' },
-      { href: '/admin/learn/roadmap', label: 'My Roadmap', icon: 'Map' },
-      { href: '/admin/learn/modules', label: 'Modules', icon: 'BookOpen' },
-      { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: 'BookMarked' },
-      { href: '/admin/learn/flashcards', label: 'Flashcards', icon: 'Layers' },
-      { href: '/admin/learn/exam-prep', label: 'Exam Prep', icon: 'ClipboardCheck' },
-      { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: 'BarChart3' },
-      { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: 'Notebook' },
-      { href: '/admin/learn/search', label: 'Search', icon: 'Search' },
-      { href: '/admin/learn/students', label: 'Student Progress', icon: 'Users', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
-      { href: '/admin/learn/manage', label: 'Manage Content', icon: 'SquarePen', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
-    ]},
-
-    { label: 'Work', items: [
-      { href: '/admin/jobs', label: 'All Jobs', icon: 'ListChecks', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      // consolidation Slice 2 (2026-05-30) — sidebar hrefs now point
-      // at the canonical hub URLs directly, bypassing the middleware
-      // redirect for one fewer round-trip on in-app clicks. External
-      // bookmarks still redirect via the LEGACY_REDIRECTS table.
-      { href: '/admin/me?tab=jobs', label: 'My Jobs', icon: 'FolderOpen', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=hours', label: 'My Hours', icon: 'Clock', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/jobs/new', label: 'New Job', icon: 'FilePlus', roles: ['admin'], internalOnly: true },
-      { href: '/admin/jobs/import', label: 'Import Jobs', icon: 'Package', roles: ['admin'], internalOnly: true },
-      { href: '/admin/leads', label: 'Leads', icon: 'Inbox', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/invoices/new', label: 'New Invoice', icon: 'Receipt', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/payments/inbox', label: 'Payments Inbox', icon: 'Inbox', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/payouts/runs', label: 'Payout Runs', icon: 'Banknote', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/hours-approval', label: 'Hours Approval', icon: 'CheckCircle2', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/time-off', label: 'Time Off', icon: 'Palmtree' },
-      { href: '/admin/team', label: 'Field Team', icon: 'Satellite', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/field-data', label: 'Field Data', icon: 'MapPin', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/timeline', label: 'Daily Timeline', icon: 'Route', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/mileage', label: 'Mileage', icon: 'Car', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/finances', label: 'Finances', icon: 'Briefcase', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/vehicles', label: 'Vehicles', icon: 'Truck', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-    ]},
-
-    // Equipment group — Phase F10.6 sidebar scaffold. Catalogue + templates
-    // already shipped (F10.1 + F10.2); the F10.6-b..g panels add their own
-    // entries to this section as they land. Role gate matches §4.6:
-    // dispatchers (admin/developer/tech_support) get full access; the
-    // equipment_manager role is the §4.6 hat that lives mostly in this
-    // group so it appears here even when the user has no other admin role.
-    { label: 'Equipment', items: [
-      { href: '/admin/equipment/today', label: 'Today', icon: 'CalendarDays', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/timeline', label: 'Timeline', icon: 'Activity', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/personnel/crew-calendar', label: 'Crew calendar', icon: 'Users', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/consumables', label: 'Consumables', icon: 'PaintBucket', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/maintenance', label: 'Maintenance', icon: 'Wrench', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment', label: 'Catalogue', icon: 'Package', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/templates', label: 'Templates', icon: 'Files', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/templates/cleanup-queue', label: 'Cleanup queue', icon: 'Trash2', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/overrides', label: 'Overrides audit', icon: 'AlertTriangle', roles: EQUIPMENT_ROLES, internalOnly: true },
-      { href: '/admin/equipment/fleet-valuation', label: 'Fleet valuation', icon: 'Landmark', roles: EQUIPMENT_ROLES, internalOnly: true },
-    ]},
-
-    { label: 'Research', items: [
-      { href: '/admin/research', label: 'Property Research', icon: 'Microscope', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true },
-      { href: '/admin/research/testing', label: 'Testing Lab', icon: 'FlaskConical', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-    ]},
-
-    { label: 'CAD', items: [
-      // Slice W4 — temporary bypass (user spec: any signed-in
-      // user reaches the CAD editor). `roles:` is intentionally
-      // absent. Restore the role gate when permissions (W7)
-      // land.
-      { href: '/admin/cad', label: 'CAD Editor', icon: 'DraftingCompass', internalOnly: true },
-    ]},
-
-    { label: 'Rewards & Pay', items: [
-      { href: '/admin/rewards', label: 'Rewards & Store', icon: 'Trophy', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/pay-progression', label: 'Pay Progression', icon: 'TrendingUp', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: 'Lightbulb', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: 'Settings', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=pay', label: 'My Pay', icon: 'Wallet', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-      { href: '/admin/payout-log', label: 'Payout History', icon: 'Notebook', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-    ]},
-
-    { label: 'People', items: [
-      { href: '/admin/employees', label: 'Employees', icon: 'Users', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/users', label: 'Manage Users', icon: 'KeyRound', roles: ['admin', 'tech_support'] },
-      { href: '/admin/payroll', label: 'Payroll', icon: 'Banknote', roles: ['admin'], internalOnly: true },
-      { href: '/admin/receipts', label: 'Receipts', icon: 'Receipt', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-    ]},
-
-    { label: 'Communication', items: [
-      { href: '/admin/messages', label: 'Messages', icon: 'MessageSquare', roles: INTERNAL_COMM_ROLES, internalOnly: true },
-      { href: '/admin/messages/contacts', label: 'Team Directory', icon: 'Contact', roles: INTERNAL_COMM_ROLES, internalOnly: true },
-      { href: '/admin/discussions', label: 'Discussions', icon: 'MessagesSquare', roles: INTERNAL_COMM_ROLES, internalOnly: true },
-    ]},
-
-    { label: 'Notes & Files', items: [
-      { href: '/admin/notes', label: 'Company Notes', icon: 'StickyNote', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-      { href: '/admin/me?tab=notes', label: 'My Notes', icon: 'NotebookPen' },
-      { href: '/admin/my-files', label: 'My Files', icon: 'Folder' },
-    ]},
-
-    { label: 'Account', items: [
-      { href: '/admin/me?tab=profile', label: 'My Profile', icon: 'User' },
-      // Visible to every signed-in employee (no role/internal gate) — the
-      // mobile app is the field crew's primary tool, and they may sign in
-      // with non-company emails.
-      { href: '/admin/install', label: 'Get the App', icon: 'Smartphone' },
-      { href: '/admin/settings', label: 'Settings', icon: 'Settings', roles: ['admin'] },
-      { href: '/admin/error-log', label: 'Error Log', icon: 'Bug', roles: ['admin', 'developer', 'tech_support'] },
-    ]},
-  ];
+    return WORKSPACE_ORDER
+      .map((ws) => ({
+        label: WORKSPACES[ws].label,
+        items: visible
+          .filter((r) => r.workspace === ws)
+          .map((r) => ({ href: r.href, label: r.label, icon: r.iconName })),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [roles, isCompanyUser]);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -222,12 +123,6 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     });
   };
 
-  const canAccess = (item: NavItem): boolean => {
-    if (item.internalOnly && !isCompanyUser) return false;
-    if (!item.roles) return true;
-    if (roles.includes('admin')) return true;
-    return item.roles.some(r => roles.includes(r));
-  };
 
   const isActive = (href: string): boolean => {
     if (href === '/admin/dashboard') return pathname === '/admin/dashboard';
@@ -269,7 +164,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
         </div>
         <nav className="admin-sidebar__nav">
           {sections.map((section) => {
-            const items = section.items.filter(canAccess);
+            const items = section.items;
             if (!items.length) return null;
 
             const sectionActive = isSectionActive(section);

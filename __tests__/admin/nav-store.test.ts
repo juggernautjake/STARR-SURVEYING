@@ -19,7 +19,6 @@ function reset() {
     paletteOpen: false,
     recentRoutes: [],
     pinnedRoutes: [],
-    adminNavV2Enabled: false,
   });
 }
 

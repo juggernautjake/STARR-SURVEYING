@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
 
 const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
@@ -128,11 +129,16 @@ describe('/admin/payments/inbox page — source-lock', () => {
   });
 });
 
-describe('AdminSidebar wires the inbox link', () => {
-  const SRC = read('app/admin/components/AdminSidebar.tsx');
-
-  it("adds a Payments Inbox entry routed to /admin/payments/inbox", () => {
-    expect(SRC).toMatch(/href: '\/admin\/payments\/inbox', label: 'Payments Inbox'/);
+describe('the Payments Inbox link is reachable from navigation', () => {
+  // Was asserted against the literal text of AdminSidebar.tsx. That stopped being the right question
+  // when the drawer started DERIVING its sections from the route registry (platform audit §1.3): the
+  // link is still there, the string is not, and a source-text match would have reported a regression
+  // where none existed. Assert reachability, which is what the slice actually promised.
+  it('is registered, and shows in the rail and drawer rather than palette-only', () => {
+    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/payments/inbox');
+    expect(route, '/admin/payments/inbox must be registered').toBeDefined();
+    expect(route!.label).toBe('Payments Inbox');
+    expect(route!.showInRail, 'a close-out queue nobody can find is one nobody works').not.toBe(false);
   });
 });
 

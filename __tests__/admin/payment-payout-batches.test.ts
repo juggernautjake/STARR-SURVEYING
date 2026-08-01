@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
 import {
   batchItemTotalCents,
   batchTotalCents,
@@ -212,10 +213,15 @@ describe('/admin/payouts/runs page — source-lock', () => {
   });
 });
 
-describe('AdminSidebar wires the Payout Runs link', () => {
-  const SRC = read('app/admin/components/AdminSidebar.tsx');
-  it("adds a Payout Runs entry routed to /admin/payouts/runs", () => {
-    expect(SRC).toMatch(/href: '\/admin\/payouts\/runs', label: 'Payout Runs'/);
+describe('the Payout Runs link is reachable from navigation', () => {
+  // Retargeted from AdminSidebar.tsx's source text to the registry, which now feeds BOTH the desktop
+  // rail and the mobile drawer (platform audit §1.3). The old assertion would have failed on a change
+  // that made this link strictly more reachable, not less.
+  it('is registered, and shows in the rail and drawer rather than palette-only', () => {
+    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/payouts/runs');
+    expect(route, '/admin/payouts/runs must be registered').toBeDefined();
+    expect(route!.label).toBe('Payout Runs');
+    expect(route!.showInRail).not.toBe(false);
   });
 });
 

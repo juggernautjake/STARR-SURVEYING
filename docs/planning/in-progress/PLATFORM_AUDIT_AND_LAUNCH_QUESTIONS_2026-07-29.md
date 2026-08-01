@@ -211,6 +211,38 @@ Announcements. Three routes are in the sidebar and missing from the registry (`/
 
 **Fix:** delete `AdminSidebar.tsx` and the `adminNavV2Enabled` flag. One source of truth.
 
+> **✅ RESOLVED 2026-08-01 — one source of truth, but NOT by deleting the sidebar.**
+>
+> The prescribed fix was wrong in a way worth recording. `AdminSidebar.tsx` is not merely the legacy
+> desktop sidebar — it is **the mobile drawer, and the only navigation a phone has**. Deleting it
+> would have removed navigation from every mobile user to fix a consistency problem. The defect was
+> the second **source**, not the second **surface**.
+>
+> So the surface stayed and the list went. ~180 lines of hand-written nav items became a derivation:
+> `accessibleRoutes()` → filter `showInRail` → group by workspace → `WORKSPACE_ORDER`. The drawer and
+> the rail now cannot disagree, because they read the same array. Role gating went with it — the
+> drawer's own `canAccess` and its six copied role-group constants are gone, since two places
+> expressing *"who may see this"* is the same bug wearing a different hat. `adminNavV2Enabled` is
+> deleted and the rail is unconditional.
+>
+> **The conversion nearly shipped a regression, and that is the part worth keeping.** Five routes —
+> `invoices/new`, `payments/inbox`, `payouts/runs`, `rewards/how-it-works`, `rewards/admin` — had been
+> registered `showInRail: false` during §1.4, on the sound-sounding grounds that a rail with
+> everything on it is a rail nobody scans. But the hand-written drawer *had shown them*. The moment
+> the drawer derived from the registry, "palette-only" silently became "gone from mobile" — a
+> navigation regression delivered as a cleanup. Two existing tests caught it by failing; both had been
+> asserting the wrong thing (a literal `href:` string inside `AdminSidebar.tsx`) and were retargeted
+> to assert reachability, which is the property they were always meant to protect.
+>
+> `__tests__/admin/sidebar-registry-parity.test.ts` freezes all 33 hrefs the hand-written drawer
+> showed, so no future edit can quietly drop one. `__tests__/admin/sidebar-render.test.tsx` **actually
+> renders the component** rather than reading its source — every string assertion in this slice would
+> still pass if the derivation produced an empty array, and shipping an empty drawer is precisely the
+> "authored but not wired" failure §1.4 is about. Rendered as an admin: **97 links across all six
+> workspaces** (44 for a field-crew user), including the Invoicing / Contacts / Files / Calendar /
+> Support / Reports / Billing / Audit Log / Invites / Announcements entries this section measured as
+> missing — against **33** the hand-written list managed.
+
 ### 1.4 ✅ RESOLVED 2026-08-01 — 36 built pages were unreachable from navigation
 
 Pages that existed, worked, and were not in the route registry — so: not on the rail, not in ⌘K, no
@@ -475,7 +507,8 @@ Anthropic client:
    deleted: the real tables were `extracted_data_points` and `research_documents` all along.
 
 **Phase 1 — Make it one product**
-5. Delete `AdminSidebar.tsx` + the v2 flag. Register all 36 orphan routes.
+5. ✅ **DONE 2026-08-01.** All 35 orphan routes registered (§1.4), and the v2 flag is gone. The
+   sidebar was NOT deleted — it is the mobile drawer; it now derives from the registry (§1.3).
 6. Kill `/admin/dashboard`; make `/admin/me` the unambiguous home.
 7. Consolidate Money (30 → ~6 surfaces) and People (10 → 1 profile + 1 directory).
 8. Rename Billing/Invoicing/Finances to non-colliding words.

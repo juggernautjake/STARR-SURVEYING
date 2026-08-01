@@ -32,11 +32,17 @@ describe('CAD bypass — nav / quick-actions / command palette (W4)', () => {
     expect(line![0]).not.toMatch(/roles:\s*\[/);
   });
 
-  it('admin sidebar no longer carries a roles: gate on the CAD entry', () => {
+  it('the mobile drawer cannot re-introduce a CAD role gate, because it declares none', () => {
+    // This used to find `{ href: '/admin/cad', … }` inside AdminSidebar.tsx and check it carried no
+    // `roles:`. That entry no longer exists — the drawer derives its sections from the registry
+    // (platform audit §1.3), so the gate asserted by the test ABOVE is now the only one there is.
+    //
+    // Stronger than the original: rather than checking that one entry lacks a gate, assert the drawer
+    // has no per-item nav vocabulary at all. Hand-writing a nav item with its own `roles:` is exactly
+    // how the two navigation systems came to disagree about 32 routes, and it now fails here.
     const SRC = read('app/admin/components/AdminSidebar.tsx');
-    const line = SRC.match(/\{\s*href:\s*'\/admin\/cad'[^}]*\}/);
-    expect(line).not.toBeNull();
-    expect(line![0]).not.toMatch(/roles:\s*\[/);
+    expect(SRC, 'the drawer must gate via accessibleRoutes()').toMatch(/accessibleRoutes\(/);
+    expect(SRC, 'the drawer must not hand-declare route hrefs').not.toMatch(/href: '\/admin\//);
   });
 
   it('command palette no longer carries a roles: gate on the CAD action', () => {

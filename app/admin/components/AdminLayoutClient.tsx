@@ -16,7 +16,6 @@ import { ToastProvider } from './Toast';
 import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
-import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
 import { useCadReturnPathTracker } from '@/lib/admin/cad-return-path';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
@@ -174,7 +173,6 @@ function Inner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const navV2 = useAdminNavStore((s) => s.adminNavV2Enabled);
   // cad-exit-return-path 2026-05-30 — record the prior admin path
   // whenever the user navigates INTO /admin/cad, so the CAD Exit
   // button can return there instead of always defaulting to
@@ -210,17 +208,18 @@ function Inner({ children }: { children: React.ReactNode }) {
       <ToastProvider>
       <CommandPaletteProvider>
       <CalculatorProvider>
-      <div className={`admin-layout${navV2 ? ' admin-layout--nav-v2' : ''}`}>
-        {navV2 && <IconRail />}
-        {/* AdminSidebar is the mobile drawer (and the only nav at desktop
-            widths when nav-v2 is off). When nav-v2 is on, it is hidden
-            on desktop via CSS but still present so the hamburger has
-            something to toggle on mobile. */}
+      <div className="admin-layout admin-layout--nav-v2">
+        <IconRail />
+        {/* AdminSidebar is the MOBILE DRAWER — hidden on desktop via CSS, where the IconRail above
+            is the nav. It is not a second navigation system any more: since platform audit §1.3 it
+            derives its sections from the same `ADMIN_ROUTES` registry the rail uses, so a page
+            registered once appears in both. Deleting it, as the audit first proposed, would leave a
+            phone with no navigation at all. */}
         <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">
-            {navV2 ? <AdminPageHeader /> : null}
+            <AdminPageHeader />
             <ErrorBoundary
               pageName={pageTitle}
               userEmail={session.user.email || undefined}
