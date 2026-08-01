@@ -449,6 +449,162 @@ then widen.
 
 ---
 
+## 3c. 🔴 OWNER OBJECTIVE (added 2026-08-01) — sellable to other firms, and instrument-native
+
+**Owner's words:** *"make sure that everything is set up to work well for our personal business,
+'Starr Surveying', but also … thoroughly analyze all the backend pages and make sure that everything
+is fully set up so that we can package the different parts of the app and have a subscription service
+so that surveying firms can use our product and keep all of their business info in one place and have
+full surveying business management. We need to be able to integrate … Trimble … Hexagon (Leica
+Geosystems) … Topcon … GeoMax … Spectra Precision."*
+
+This is **D1 arriving in full** (§8b: *"internal now, SaaS later"*). Later is now a build objective,
+so the two audiences have to be served by one codebase without either degrading the other.
+
+### 3c.1 Packaging — defined, and almost entirely unenforced
+
+`lib/saas/bundles.ts` already defines six bundles — `recon`, `draft`, `field`, `office`, `academy`,
+`firm_suite` — with pricing, seat rules, `implies` chains and Stripe price-id slots. The plumbing
+around it is real too: `bundle-gate.ts`, `organizations`, `organization_members`, `subscriptions`,
+`org_settings`, an operator console, and an `/admin/billing/upgrade` surface.
+
+**And exactly 1 of the 131 registered admin routes carries a `requiredBundle`.**
+
+That is the finding. Packaging is not missing — it is *declared and not applied*, which is this
+repo's signature defect (§1.4, "authored but not wired") wearing its most expensive costume: every
+firm that subscribes to one bundle currently gets the entire application. The catalogue says there
+are six products; the software ships one.
+
+**What must be true:**
+
+1. **Every route, API handler and mobile tab declares which bundle it belongs to.** The audit of
+   *"all the backend pages"* the owner asked for is precisely this sweep: 158 admin pages and 517 API
+   handlers, each assigned, with a ratchet test so a new page cannot ship unassigned. Server-side, not
+   just hidden in the nav — a bundle gate that only hides a menu item is decoration.
+2. **`org_id` stops being a column and starts being a filter.** §1.2 shipped the column on 73 tables
+   and said plainly that it is inert until queries use it. Selling to a second firm is the event that
+   makes that inertness a data breach.
+3. **Starr Surveying is tenant #1 in the same database, not a special case in the code.** The moment
+   "does this work for us" and "does this work for a customer" are answered by different code paths,
+   every future bug has to be found twice.
+4. **Onboarding a firm from zero.** Today the app assumes Starr's data exists. A new firm needs empty
+   states, a first-run setup, and defaults that are not ours (§Phase 4 item 19 names this; it becomes
+   load-bearing here).
+
+### 3c.2 Instruments — the part that decides whether a firm can actually switch
+
+A surveying firm will not move its business into software that cannot read what its instruments
+produce. Current state, measured:
+
+| Vendor | What exists today |
+|---|---|
+| **Trimble** | Partly built — `lib/cad/import/jobxml-parser.ts` (JobXML), a `trimble-pnezd` CSV preset, and `rw5-parser.ts` |
+| **Topcon** | Partly covered by the same RW5 / PNEZD paths; nothing Topcon-specific |
+| **Hexagon (Leica Geosystems)** | Nothing — no GSI8/GSI16 reader |
+| **GeoMax** | Nothing (Hexagon subsidiary; GSI-compatible, so it rides on the Leica work) |
+| **Spectra Precision** | Nothing specific (Survey Pro raw is RW5-family, so partly covered) |
+
+Also: `equipment_inventory` already has `brand`, `model`, `serial_number`, `last_calibration` and
+`next_calibration_due_at` — and **0 rows**. The fleet register these integrations would hang off is
+an empty table.
+
+**Sequenced by what unlocks the most for the least:**
+
+- **File-level import first.** Every one of the five vendors exports **LandXML**, and it is the
+  neutral interchange the whole industry already uses. One good LandXML reader covers all five for
+  points, alignments and surfaces before a single vendor-specific parser is written.
+- **Then the native raw formats**, in order of what is closest to done: Trimble JobXML (exists,
+  needs hardening) → RW5 family, which carries Topcon and Spectra Survey Pro (exists) → Leica
+  GSI8/GSI16 (new, and unlocks GeoMax with it).
+- **Then the fleet.** Instrument records with make/model/serial tied to `equipment_inventory`, so a
+  calibration certificate and its instrument are the same object — which is also the compliance
+  surface §3 says is missing.
+- **Cloud APIs last, and owner-gated.** Trimble Connect and Leica Exchange are account-and-credential
+  products; they cannot be built or tested without the owner's vendor accounts. File import works for
+  every firm on day one and needs nobody's permission.
+
+### 3c.3 The trap to avoid
+
+*"Make it work for Starr"* and *"make it sellable"* pull in opposite directions exactly once: when a
+hard-coded Starr assumption is cheaper than a configurable one. Those are already in the code —
+`@starr-surveying.com` as the internal-user test, Starr branding in the drawer, Bell County hard-coded
+in the lot-verification pipeline (which returns a 400 for any other county). Each is correct today and
+each is a per-tenant setting tomorrow. **They should be found and catalogued now, while they are a
+list, rather than discovered one support ticket at a time.**
+
+---
+
+## 3d. 🔬 FEASIBILITY (researched 2026-08-01) — "a stored point shows up in the app shortly after"
+
+**Owner's question:** *"I would love it if when a data collector stores a point, that point shows up
+on the app shortly thereafter. I don't know if this is possible. Please look into it."*
+
+**Short answer: yes — in seconds to minutes, not instantly — and only along one vendor's path today.**
+The honest version matters here, because the difference between "instant" and "a minute after the
+crew has signal" changes what can be promised to a customer.
+
+### Why per-point push does not exist
+
+Data collectors sync at the **job/file** level, not per measurement. Nothing in the Trimble, Leica,
+Topcon, GeoMax or Spectra ecosystem emits an event when a surveyor presses *Store*. What actually
+happens is: the point lands in the job file on the collector, the collector syncs that job to the
+vendor's cloud on a trigger or interval, and anything downstream learns about it from the cloud.
+
+So the achievable behaviour is **"the point appears shortly after the next sync"**, and the honest
+latency is *seconds to a couple of minutes with connectivity* — which is what the owner asked for,
+just not by the mechanism it sounds like.
+
+### What each vendor actually offers
+
+| Vendor | Path | Verdict |
+|---|---|---|
+| **Trimble** | Trimble Access → auto-sync → **Trimble Connect**, which has a public developer API, a .NET SDK, and a **Field Data extension** built for exactly this ("securely upload, manage, review and process data collected with Trimble Access") | ✅ **Viable today.** Best path by a distance. |
+| **Topcon** | MAGNET/Topcon Enterprise is a cloud hub connecting Topcon hardware and third-party products; Topcon **Integration Services** already bridge to Autodesk Construction Cloud, MS Project, P6, JDLink | ⚠️ Integration exists but appears **partner/service-mediated** rather than self-serve. Needs a vendor conversation. |
+| **Leica / Hexagon** | No public integration API surfaced by research | ❌ **Assume closed** until proven otherwise. Partner-gated. |
+| **GeoMax** | Hexagon subsidiary — rides on whatever Leica path opens | ❌ Blocked with Leica. |
+| **Spectra Precision** | Survey Pro raw is RW5-family; no distinct cloud API found | ⚠️ File-level only. |
+
+**Two constraints found that shape the whole design:**
+
+1. **Trimble Connect has no webhooks.** The Core API provides **Object Sync**, which detects changes
+   *since a given timestamp* — a **polling** mechanism, not push. So the architecture is a poller with
+   a cursor, and "how fresh" is a dial we set (poll interval), not something the vendor pushes to us.
+2. **It requires a Trimble Connect licence** on the signed-in user to sync field data at all. That is
+   a per-customer cost and a per-customer prerequisite — it belongs in the subscription conversation
+   (§3c.1), not buried in a technical setting.
+
+### The part that is genuinely ours to solve: no signal
+
+Rural Texas boundary work regularly has no cell service. Whatever the vendor path, ingestion must be
+**store-and-forward**: points arrive late, in bursts, and out of order, hours after they were shot.
+A design that assumes ordered near-real-time arrival will look perfect in town and lose data in the
+field. Every ingested point therefore carries **two clocks** — measured-at and received-at — and the
+app must never present the second as if it were the first.
+
+### Recommended sequence (each step useful on its own)
+
+1. **Watched-folder ingestion — universal, works with all five vendors, needs nobody's permission.**
+   Every collector can auto-export to a cloud folder (Drive/Dropbox/OneDrive) or FTP. Watch it, parse,
+   ingest. Unglamorous, and the only option that covers Leica and GeoMax at all today.
+2. **LandXML as the interchange spine** (§3c.2) — all five export it.
+3. **Trimble Connect poller** — the real near-real-time win, and the one vendor where it is clearly
+   buildable. Object Sync cursor + configurable interval, per-firm credentials.
+4. **Our own mobile app as the true-instant path.** The repo already captures field media, GPS and
+   notes on the phone. For a crew willing to carry it alongside the collector, a point can appear
+   *actually* instantly — no vendor cloud in the loop. This is the only route to the literal version
+   of the owner's request, and it is entirely under our control.
+5. **Topcon and Leica partnership conversations** — owner-gated, and worth opening early because they
+   are slow.
+
+**Do not promise "instant, any brand."** Promise "Trimble near-live; everything else lands on sync or
+import." Under-promising here is cheap; a firm that switches on the strength of a demo and then loses
+a day's shots in a dead zone is not a customer we get back.
+
+*Sources: Trimble Connect developer documentation, Trimble Access/Connect connected-workflow and Field
+Data extension material, Topcon MAGNET/Topcon Enterprise and Integration Services product pages.*
+
+---
+
 ## 4. Good ideas that need fleshing out
 
 | Idea | Where it stands | What it needs |
@@ -584,6 +740,29 @@ need to be found. Building it after them means retro-fitting search onto three m
 8d. AI retrieval — embeddings over `extracted_text`, mirroring `fs_reference_chunks`; natural-language
     questions answered with cited documents, never with an unsourced summary.
 8e. One search UI, reachable from the rail and ⌘K, that returns documents and records together.
+
+**Phase 1c — Sellable to other firms (§3c, owner objective 2026-08-01)**
+
+8f. Bundle sweep — assign a `requiredBundle` to every admin route, API handler and mobile tab, gated
+    **server-side**, with a ratchet so a new page cannot ship unassigned. (Today: 1 of 131 routes.)
+8g. Make `org_id` load-bearing — scope every tenant query to it, not merely store it.
+8h. Catalogue every hard-coded Starr assumption (`@starr-surveying.com`, branding, Bell-County-only
+    lot verification) and turn each into a per-tenant setting.
+8i. First-run onboarding for a firm with no data: empty states, setup wizard, non-Starr defaults.
+
+**Phase 1d — Instrument integration (§3c.2)**
+
+8j. LandXML import/export — one reader covering all five vendors for points, alignments and surfaces.
+8k. Harden Trimble JobXML; extend the RW5 family to cover Topcon and Spectra Survey Pro explicitly.
+8l. Leica GSI8/GSI16 reader (unlocks GeoMax with it).
+8m. Instrument fleet register on `equipment_inventory` — make/model/serial + calibration certificates.
+8n. Watched-folder ingestion — universal store-and-forward intake that works with all five vendors
+    and needs no partner agreement. Two clocks on every point (measured-at, received-at).
+8o. Trimble Connect poller — Object Sync cursor + configurable interval. The near-live path (§3d).
+    Requires a per-firm Trimble Connect licence, which is a subscription-tier fact, not a setting.
+8p. Our mobile app as the true-instant capture path — the only route to literally live points, and
+    the only one with no vendor in the loop.
+8q. ⏸ Topcon / Leica partnership conversations — **owner-gated**; open early, they are slow.
 
 **Phase 2 — Close the business gaps**
 9. Proposal → acceptance → job (with e-signature).
