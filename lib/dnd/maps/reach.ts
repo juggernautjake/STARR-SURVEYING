@@ -28,7 +28,18 @@ import {
   diagonalRuleFor, reachableHexes, reachableSquares,
   type DiagonalRule, type HexCell, type Reachable,
 } from './movement';
+import { describeArea, parseAreas, type TemplateShape } from './templates';
 import type { Cell } from './grid';
+
+/** A spell on this character's sheet that states an area, ready to lay on the map (M5-3). */
+export interface SheetTemplate {
+  spell: string;
+  shape: TemplateShape;
+  sizeFt: number;
+  label: string;
+  /** `cone:15` — the URL form, so a template is a link like every other control on this surface. */
+  param: string;
+}
 
 export interface ReachView {
   /** Walking speed in feet AFTER every effect the ledger folds in. */
@@ -45,12 +56,47 @@ export interface ReachView {
   terrainApplied: boolean;
   /** Null when the node has no grid, which is every space map and every continent. */
   grid: MapGrid | null;
+  /**
+   * M5-3 — the areas this character's OWN spells state, parsed from the sheet's text.
+   *
+   * Read, never restated. The whole point of the slice is that *"the map and the sheet cannot disagree
+   * about a spell's size"*, and a second structured copy of the number is a copy that goes stale.
+   */
+  templates: SheetTemplate[];
+  /** The character's own ruleset — it decides the cone angle, not the map's. */
+  system: string | null;
 }
 
 const EMPTY: ReachView = {
   speedFt: 0, baseFt: 0, diagonals: 'free', squares: [], hexes: [],
-  origin: null, truncated: false, terrainApplied: false, grid: null,
+  origin: null, truncated: false, terrainApplied: false, grid: null, templates: [], system: null,
 };
+
+/**
+ * The areas stated by the spells on this sheet (M5-3).
+ *
+ * Deduplicated by shape + size, because a caster with four 15ft cones needs ONE 15ft-cone template, not
+ * four identical buttons — the map cares about the shape, not which spell asked for it. The first spell
+ * to state it keeps the naming, so the control still says something a player recognises.
+ */
+function templatesFrom(char: Character): SheetTemplate[] {
+  const spells = (char.spells ?? []) as Array<{ name?: string; range?: string }>;
+  const seen = new Map<string, SheetTemplate>();
+  for (const sp of spells) {
+    for (const area of parseAreas(sp.range)) {
+      const key = `${area.shape}:${area.sizeFt}`;
+      if (seen.has(key)) continue;
+      seen.set(key, {
+        spell: sp.name ?? 'Spell',
+        shape: area.shape as TemplateShape,
+        sizeFt: area.sizeFt,
+        label: `${sp.name ?? 'Spell'} — ${describeArea(area)}`,
+        param: key,
+      });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.sizeFt - b.sizeFt);
+}
 
 /**
  * Resolve the reach of one token.
@@ -91,15 +137,17 @@ export async function loadReach(args: {
   const system = args.system ?? row.system ?? null;
   const diagonals = diagonalRuleFor(system);
 
+  const templates = templatesFrom(char);
+
   if (grid.kind === 'hex') {
     const origin = hexAt(args.x, args.y, grid);
     const r = reachableHexes(origin, { budgetFt: speedFt, grid });
-    return { speedFt, baseFt, diagonals, squares: [], hexes: r.cells, origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid };
+    return { speedFt, baseFt, diagonals, squares: [], hexes: r.cells, origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, system };
   }
 
   const origin = squareAt(args.x, args.y, grid);
   const r = reachableSquares(origin, { budgetFt: speedFt, grid, diagonals });
-  return { speedFt, baseFt, diagonals, squares: r.cells, hexes: [], origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid };
+  return { speedFt, baseFt, diagonals, squares: r.cells, hexes: [], origin, truncated: r.truncated, terrainApplied: r.terrainApplied, grid, templates, system };
 }
 
 /** How the overlay describes itself. Kept here so the wording and the caveat travel with the data. */

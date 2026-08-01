@@ -791,7 +791,60 @@ where the exhaustion rule already lives. **Difficult terrain and blockers have n
 the overlay ignores terrain. Building the reader without the writer would be the same defect this slice just
 found twice.
 
-### M5-3 · Reach, radius and templates
+### M5-3 · Reach, radius and templates — **SHIPPED 2026-08-01 (spell areas; weapon reach still open)**
+> `lib/dnd/maps/templates.ts` (30 tests), spell areas surfaced through `loadReach`, a template overlay and
+> an area picker on the world page. Browser-verified.
+>
+> **The areas are PARSED from the sheet, never restated.** The catalogues already write them in the field
+> a player reads — `range: 'Self (15-foot cone)'`, `area: '20-foot burst'` — and this slice's whole point
+> is that *"the map and the sheet cannot disagree about a spell's size"*. A second structured copy of the
+> number would be a copy that goes stale, the same rule that keeps a portrait and HP off a token. The
+> picker offers **only the areas that character's own spells state**; a menu of generic templates would be
+> precisely the disagreement this slice exists to prevent.
+>
+> **Tested against the real catalogue, not fixtures.** Running the parser over the shipped 2024 spell list
+> proves it agrees with data someone else wrote — a parser tested on strings I invented would only prove
+> it agrees with me. Both directions are asserted: every spell whose range states an area yields one, and
+> **no spell that states only a distance yields anything** (`'120 feet'` is how far you can cast it, not
+> how big it is — inventing a 120-foot template there is the worst failure this file could have).
+>
+> ## Two things that are RULES, one that is a table ruling
+>
+> - **Cone angle is per system.** A 5e cone's width equals its distance, which is 2·atan(0.5) ≈ **53.13°**;
+>   a PF2 cone is a quarter circle, **90°**. One number for both draws a visibly wrong template for
+>   whichever system loses, so it is chosen from the character's own ruleset — and the readout names which
+>   one it used.
+> - **Emanation ≠ burst.** Same circle; they differ at exactly the square the caster is standing in. An
+>   emanation radiates from the creature and includes its square; a burst is centred on a point and does
+>   not. Encoded and tested.
+> - **Whether a clipped square counts is a TABLE RULING**, so it is a parameter (`centre` | `any`),
+>   defaulted to the common virtual-tabletop convention rather than asserting a book's wording I cannot
+>   quote.
+>
+> ## The bug the arithmetic hid
+>
+> A 15ft cube came out **3×4**. Measuring `0 ≤ along ≤ 15` from a cell centre admits the centres at 0, 5,
+> 10 *and* 15 — a closed interval counts both ends of a span with room for three cells. Half-open `[0, 15)`
+> gives 3×3, and a 60ft line gives **12** squares rather than 13. One extra square of Lightning Bolt, every
+> cast, and nothing would have flagged it.
+>
+> ## Wiring was not optional here
+>
+> `no-orphan-modules.test.ts` failed the moment `templates.ts` landed with no caller: *"A module nothing
+> calls is indistinguishable from one that does not exist — and worse, because it looks done."* The repo's
+> own guard caught the defect I was about to log as "rules layer only". It is wired.
+>
+> **Verified in a browser** with a throwaway caster (Burning Hands, Lightning Bolt, Spirit Guardians, Fire
+> Bolt), all removed afterwards — back to 0 nodes, 0 objects, 0 QA characters. The picker offered exactly
+> the three area spells and correctly omitted Fire Bolt's `120 feet`; a 15ft cone aimed south drew **6
+> squares in the danger colour** over the teal movement wash — two different claims, two different
+> colours, because "I can walk here" and "this is on fire" must not look alike. Zero console errors.
+>
+> **Still open, and named:** weapon/attack reach from the sheet (the other half of this slice's title), and
+> drag-to-aim — direction is eight compass links today, which costs no client JavaScript and points a cone
+> anywhere that matters on a square grid.
+
+### M5-3 · Reach, radius and templates (original plan text)
 Attack reach from the weapon; spell areas as the system defines them (5e cone/sphere/line/cube, PF2 emanation/
 burst/cone/line). Placed by drag from the sheet's own attack/spell entries, so the map and the sheet cannot
 disagree about a spell's size.

@@ -30,6 +30,8 @@ import GridOverlay from '@/app/dnd/_ui/maps/GridOverlay';
 // M5-2 — the reachable-squares overlay and the loader that asks the sheet how fast the token is.
 import ReachOverlay from '@/app/dnd/_ui/maps/ReachOverlay';
 import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
+// M5-3 — spell areas, read off the character's own spell list rather than restated here.
+import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -53,7 +55,8 @@ export default async function WorldPage({
   // M5-2 — `token` is the selected piece, and it is a URL parameter for the same reason `node` is: this
   // whole surface navigates by server-rendered link (M3-2), so the reachable set is computed once on the
   // server rather than shipping a Dijkstra and a character sheet to the browser.
-  searchParams: { node?: string; token?: string };
+  // M5-3 — `tpl` is a spell area laid from the selected token (`cone:15`), `dir` the direction it faces.
+  searchParams: { node?: string; token?: string; tpl?: string; dir?: string };
 }) {
   const campaignId = params.id;
   const nodeParam = searchParams.node;
@@ -128,6 +131,31 @@ export default async function WorldPage({
     const p = new URLSearchParams();
     if (current) p.set('node', current.id);
     if (objectId) p.set('token', objectId);
+    return `/dnd/campaigns/${campaignId}/world?${p.toString()}`;
+  };
+
+  // M5-3 — the spell area laid from the selected token, read off that character's own spell list. The
+  // cells are computed here for the same reason the reach is: this page renders on the server, so the
+  // geometry never reaches the browser.
+  const dirDeg = Number(searchParams.dir ?? 0);
+  const tplChoice = reach?.templates.find((t) => t.param === searchParams.tpl) ?? null;
+  const template = tplChoice && selected && reach?.grid
+    ? templateCells({
+        shape: tplChoice.shape,
+        sizeFt: tplChoice.sizeFt,
+        x: selected.o.x,
+        y: selected.o.y,
+        grid: reach.grid,
+        directionDeg: Number.isFinite(dirDeg) ? dirDeg : 0,
+        // The character's own system decides the cone's angle: 5e's is 53°, PF2's a quarter circle.
+        coneAngleDeg: coneAngleFor(reach.system),
+      })
+    : null;
+  const tplHref = (param: string | null, dir = dirDeg) => {
+    const p = new URLSearchParams();
+    if (current) p.set('node', current.id);
+    if (searchParams.token) p.set('token', searchParams.token);
+    if (param) { p.set('tpl', param); if (dir) p.set('dir', String(dir)); }
     return `/dnd/campaigns/${campaignId}/world?${p.toString()}`;
   };
 
@@ -238,6 +266,19 @@ export default async function WorldPage({
                       hexes={reach.hexes}
                       origin={reach.origin}
                       label={`Reachable squares for ${selected?.t.nickname ?? 'the selected token'}`}
+                    />
+                  )}
+
+                  {/* M5-3 — the spell area, over the movement wash: a template is what you are about to
+                      do, the reach is where you could stand, and the one you are aiming reads on top. */}
+                  {template && reach?.grid && (
+                    <ReachOverlay
+                      grid={reach.grid}
+                      squares={template.cells.map((cell) => ({ cell, costFt: 0 }))}
+                      hexes={[]}
+                      origin={null}
+                      tone="template"
+                      label={tplChoice ? `${tplChoice.label} area` : 'Spell area'}
                     />
                   )}
 
@@ -412,6 +453,61 @@ export default async function WorldPage({
                     authors them yet, so this is the distance across clear ground.
                     {reach.truncated && ' The search stopped early on this grid; the shape shown is incomplete.'}
                   </p>
+
+                  {/* M5-3 — the areas THIS character's spells state, read off the sheet. No list of
+                      standard templates to pick from: the point of the slice is that the map cannot
+                      disagree with the sheet about a spell's size, and a menu of generic shapes would be
+                      exactly that disagreement waiting to happen. A caster with no area spells gets no
+                      controls, which is the correct amount. */}
+                  {reach.templates.length > 0 && (
+                    <div style={{ display: 'grid', gap: 6, marginTop: 2 }} data-testid="template-picker">
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Areas:</span>
+                        {reach.templates.map((t) => (
+                          <Link
+                            key={t.param}
+                            className={styles.hexBtn}
+                            href={tplHref(tplChoice?.param === t.param ? null : t.param)}
+                            scroll={false}
+                            style={{ fontSize: 11.5, padding: '3px 8px' }}
+                            aria-current={tplChoice?.param === t.param ? 'true' : undefined}
+                            title={t.label}
+                          >
+                            {t.sizeFt} ft {t.shape}
+                          </Link>
+                        ))}
+                      </div>
+                      {/* Aiming. Eight compass points rather than a drag: this page renders on the server,
+                          and a link per direction costs no JavaScript while still letting a DM point a
+                          cone anywhere that matters on a square grid. */}
+                      {tplChoice && (tplChoice.shape === 'cone' || tplChoice.shape === 'line' || tplChoice.shape === 'cube') && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Aim:</span>
+                          {[['E', 0], ['SE', 45], ['S', 90], ['SW', 135], ['W', 180], ['NW', 225], ['N', 270], ['NE', 315]].map(([name, deg]) => (
+                            <Link
+                              key={String(deg)}
+                              className={styles.hexBtn}
+                              href={tplHref(tplChoice.param, deg as number)}
+                              scroll={false}
+                              style={{ fontSize: 11, padding: '3px 7px' }}
+                              aria-current={dirDeg === deg ? 'true' : undefined}
+                            >
+                              {name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                      {template && (
+                        <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                          {tplChoice?.label} — <strong>{template.cells.length} squares</strong>
+                          {tplChoice?.shape === 'cone' && (
+                            <> · {reach.system === 'pathfinder2e' ? 'quarter-circle cone (PF2)' : '53° cone (5e)'}</>
+                          )}
+                          {template.includesOrigin && ' · includes the caster’s own square'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </section>
               )}
 

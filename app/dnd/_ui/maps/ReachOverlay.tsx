@@ -24,14 +24,30 @@ import type { Cell } from '@/lib/dnd/maps/grid';
 /** On-screen outline width in CSS pixels, held constant at every zoom — see GridOverlay's note. */
 const STROKE = 1.5;
 
+/**
+ * Two things this draws, and they must not look the same.
+ *
+ * `reach` is where the token COULD stand — teal, matching its selection ring. `template` (M5-3) is what
+ * a spell is ABOUT to cover, which is a different claim entirely, so it takes the danger colour and a
+ * heavier outline. Drawing both in one wash would make "I can walk here" and "this is on fire"
+ * indistinguishable at a glance, which is the one confusion a battle map cannot afford.
+ */
+export type OverlayTone = 'reach' | 'template';
+
+const TONE: Record<OverlayTone, { fill: string; fillOpacity: number; strokeOpacity: number; stroke: number }> = {
+  reach: { fill: 'var(--hx-teal-1, #37d0c0)', fillOpacity: 0.17, strokeOpacity: 0.5, stroke: 1.5 },
+  template: { fill: 'var(--danger, #ff5252)', fillOpacity: 0.26, strokeOpacity: 0.85, stroke: 2 },
+};
+
 export default function ReachOverlay({
-  grid, squares, hexes, origin, label,
+  grid, squares, hexes, origin, label, tone = 'reach',
 }: {
   grid: MapGrid | null;
   squares: Array<Reachable<Cell>>;
   hexes: Array<Reachable<HexCell>>;
   origin: Cell | HexCell | null;
   label?: string;
+  tone?: OverlayTone;
 }) {
   if (!grid) return null;
   if (!squares.length && !hexes.length) return null;
@@ -48,7 +64,7 @@ export default function ReachOverlay({
       // The overlay is a drawing aid; the readout beside the map carries the accessible description, so a
       // screen reader is told the numbers rather than "graphic" 130 times.
       aria-hidden="true"
-      data-testid="reach-overlay"
+      data-testid={tone === 'template' ? 'template-overlay' : 'reach-overlay'}
       data-reach-cells={squares.length + hexes.length}
       style={{
         position: 'absolute', left: 0, top: 0, width: WORLD, height: WORLD,
@@ -59,11 +75,11 @@ export default function ReachOverlay({
     >
       <title>{label ?? 'Reachable squares'}</title>
       <g
-        fill="var(--hx-teal-1, #37d0c0)"
-        fillOpacity={0.17}
-        stroke="var(--hx-teal-1, #37d0c0)"
-        strokeOpacity={0.5}
-        strokeWidth={`calc(${STROKE} / var(--map-scale, 1))`}
+        fill={TONE[tone].fill}
+        fillOpacity={TONE[tone].fillOpacity}
+        stroke={TONE[tone].fill}
+        strokeOpacity={TONE[tone].strokeOpacity}
+        strokeWidth={`calc(${TONE[tone].stroke} / var(--map-scale, 1))`}
       >
         {grid.kind === 'square'
           ? squares.map(({ cell, costFt }) => {
