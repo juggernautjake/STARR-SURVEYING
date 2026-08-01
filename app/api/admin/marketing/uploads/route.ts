@@ -22,11 +22,16 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { CREDENTIAL_HELP, credentialProblem } from '@/lib/integrations/google-ads/client';
+import { WINDOW_SKIP_KEY } from '@/lib/integrations/google-ads/adjustments';
 
 interface LogRow {
   id: string;
   event_id: string | null;
   conversion_action: string;
+  /** 'conversion' | 'adjustment'. See seed 508 — a rejected conversion is revenue Google never heard
+   *  about; a rejected adjustment is revenue Google heard about at the WRONG number. */
+  kind: string;
+  adjustment_type: string | null;
   status: string;
   error_code: string | null;
   error_detail: string | null;
@@ -50,12 +55,20 @@ export const GET = withErrorHandler(async () => {
 
   const { data: rows } = await supabaseAdmin
     .from('conversion_upload_log')
-    .select('id, event_id, conversion_action, status, error_code, error_detail, attempts, uploaded_at, created_at')
+    .select('id, event_id, conversion_action, kind, adjustment_type, status, error_code, error_detail, attempts, uploaded_at, created_at')
     .order('created_at', { ascending: false })
     .limit(100);
 
   const log = (rows ?? []) as LogRow[];
   const failures = log.filter((r) => r.status === 'failed');
+
+  // A9 — the window skips. These are NOT failures: the upload was never attempted, deliberately, because
+  // the 90-day window had closed. They are counted separately because the response to them is different:
+  // nothing to retry, and the gap between our revenue and Google's is now permanent for those jobs.
+  const { count: windowSkips } = await supabaseAdmin
+    .from('lead_lifecycle_events')
+    .select('id', { count: 'exact', head: true })
+    .not(`metadata->${WINDOW_SKIP_KEY}`, 'is', null);
 
   return NextResponse.json({
     connection: {
@@ -74,6 +87,12 @@ export const GET = withErrorHandler(async () => {
       uploaded: log.filter((r) => r.status === 'uploaded').length,
       failed: failures.length,
       pending: log.filter((r) => r.status === 'pending').length,
+      // Split out because the two failure modes need different responses, not the same one twice.
+      conversions: log.filter((r) => r.kind === 'conversion').length,
+      adjustments: log.filter((r) => r.kind === 'adjustment').length,
+      failedConversions: failures.filter((r) => r.kind === 'conversion').length,
+      failedAdjustments: failures.filter((r) => r.kind === 'adjustment').length,
+      windowSkips: windowSkips ?? 0,
     },
     // Google's OWN error text, unparaphrased — it is what the help pages are written against and what an
     // operator can actually search for.

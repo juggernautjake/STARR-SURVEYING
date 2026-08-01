@@ -263,6 +263,108 @@ export async function uploadClickConversions(conversions: ClickConversion[]): Pr
   }
 }
 
+// ── ADJUSTMENTS (A9) ────────────────────────────────────────────────────────────────────────────────
+//
+// Read off `developers.google.com/google-ads/api/docs/conversions/upload-adjustments` on **2026-08-01**,
+// quoting the requirements that shape this code:
+//
+//   • *"You must specify the order_id in the ConversionAdjustment ... [if] the original conversion you
+//     are adjusting was assigned an order_id."* Ours always are — so `orderId` is REQUIRED here, not
+//     optional, and the `gclid_date_time_pair` alternative is deliberately not offered.
+//   • *"The adjustment fails with a CONVERSION_NOT_FOUND error if the conversion was never imported, or
+//     was imported, but discarded due to being deemed invalid or spam."* This is why the planner refuses
+//     to adjust anything without a successful upload log row.
+//   • *"You cannot change the ConversionAction assigned to a conversion with an adjustment. Instead, use
+//     a RETRACTION to remove the previous conversion and import a new conversion."*
+//   • *"the partial_failure attribute ... should always be set to true."*
+//   • *"Wait 4 to 6 hours after creating the conversion action before adjusting its conversions to avoid
+//     a TOO_RECENT_CONVERSION_ACTION error."* — `isActionWarm` below governs this.
+
+export type AdjustmentType = 'RESTATEMENT' | 'RETRACTION';
+
+export interface ConversionAdjustment {
+  conversionAction: string;
+  /** Required: the original conversion carried an order id, so Google matches on it. */
+  orderId: string;
+  adjustmentType: AdjustmentType;
+  /** `YYYY-MM-DD HH:MM:SS±HH:MM`. WHEN we decided, not when the conversion happened. */
+  adjustmentDateTime: string;
+  /** RESTATEMENT only. In dollars. Omitted for a RETRACTION — a retraction has no value. */
+  restatementValue?: number;
+  currencyCode?: string;
+}
+
+/** Same fingerprint idea as `payloadHash`, over the fields an adjustment can differ in. */
+export function adjustmentHash(a: ConversionAdjustment): string {
+  const canonical = JSON.stringify({
+    o: a.orderId, a: a.conversionAction, k: a.adjustmentType, v: a.restatementValue ?? null,
+  });
+  return crypto.createHash('sha256').update(canonical).digest('hex').slice(0, 32);
+}
+
+/**
+ * Upload restatements and retractions. Returns an outcome; never throws.
+ *
+ * The response shape is the same `partialFailureError` + `results` pair as `uploadClickConversions`, so
+ * `parseUploadResponse` is reused rather than duplicated — one parser, one place to be wrong.
+ */
+export async function uploadConversionAdjustments(adjustments: ConversionAdjustment[]): Promise<UploadOutcome> {
+  if (!adjustments.length) return { attempted: 0, uploaded: 0, failures: [] };
+
+  const problem = credentialProblem();
+  if (problem) return { attempted: adjustments.length, uploaded: 0, failures: [], fatal: CREDENTIAL_HELP[problem] };
+
+  const auth = await getAccessToken();
+  if ('error' in auth) {
+    return { attempted: adjustments.length, uploaded: 0, failures: [], fatal: CREDENTIAL_HELP[auth.error] };
+  }
+
+  const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
+  const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}:uploadConversionAdjustments`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
+        ...(process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+          ? { 'login-customer-id': process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/\D/g, '') }
+          : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        conversionAdjustments: adjustments.map((a) => ({
+          conversionAction: a.conversionAction,
+          orderId: a.orderId,
+          adjustmentType: a.adjustmentType,
+          adjustmentDateTime: a.adjustmentDateTime,
+          // A RETRACTION carries no value. Sending `restatementValue: 0` alongside RETRACTION is a
+          // different statement — "it happened and was worth nothing" — and Google ignores it anyway.
+          ...(a.adjustmentType === 'RESTATEMENT' && typeof a.restatementValue === 'number'
+            ? { restatementValue: { adjustedValue: a.restatementValue, currencyCode: a.currencyCode ?? 'USD' } }
+            : {}),
+        })),
+        partialFailure: true,
+      }),
+    });
+
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const message = (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}`;
+      return { attempted: adjustments.length, uploaded: 0, failures: [], fatal: message };
+    }
+    return parseUploadResponse(body, adjustments.length);
+  } catch (e) {
+    return {
+      attempted: adjustments.length,
+      uploaded: 0,
+      failures: [],
+      fatal: e instanceof Error ? e.message : 'Adjustment upload failed',
+    };
+  }
+}
+
 /**
  * The 4–6 hour rule, read off Google's documentation on 2026-08-01: *"After creating a new conversion
  * action, wait 4-6 hours before uploading conversions for that conversion action."*

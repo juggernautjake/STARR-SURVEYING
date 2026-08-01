@@ -512,7 +512,49 @@ attribute.
 - **Lead-time risk:** the Ads API developer token requires an application and approval. Start that on day one
   of this plan; A7's CSV path exists precisely so the build is not blocked behind it.
 
-### A9 — Adjustments: restate the value when the real number lands
+### A9 — Adjustments: restate the value when the real number lands ✅ SHIPPED 2026-08-01
+> **Done.** `lib/integrations/google-ads/adjustments.ts` (19 tests), `uploadConversionAdjustments` in
+> `client.ts`, **seed 508** (applied live: `conversion_upload_log.kind` + `.adjustment_type`), phase 2 of
+> the nightly cron, and the counts on `/admin/marketing/uploads`.
+>
+> **Finding 5's instruction was followed: the rules were read off Google's live documentation today
+> (2026-08-01), not remembered.** `developers.google.com/google-ads/api/docs/conversions/upload-adjustments`
+> — and every refusal the planner makes is a documented error we would otherwise earn:
+>
+> - *"The adjustment fails with a `CONVERSION_NOT_FOUND` error if the conversion was never imported, or
+>   was imported, but discarded due to being deemed invalid or spam."* → an event with no **successful**
+>   upload log row is never adjusted. This is checked FIRST, because an un-uploaded conversion cannot be
+>   adjusted for any reason and reporting a different cause sends someone after the wrong problem.
+> - *"You must specify the `order_id` ... [if] the original conversion you are adjusting was assigned an
+>   `order_id`."* Ours always are, so `orderId` is required in the type and `gclidDateTimePair` is
+>   deliberately not offered.
+> - *"You cannot change the `ConversionAction` assigned to a conversion with an adjustment."* → a changed
+>   action is skipped as `action-changed` rather than sent as a doomed restatement.
+> - *"the `partial_failure` attribute ... should always be set to `true`."* → it is, and the response goes
+>   through the SAME `parseUploadResponse` as A8. One parser, one place to be wrong.
+>
+> ⚠ **What could NOT be verified:** the adjustment window in DAYS. Google's support page for it is
+> JS-rendered and the developer docs state the requirements without a day count. Rather than encode a
+> remembered figure — which Finding 5 explicitly forbids — the gate is the **90-day click window we did
+> verify** in A7, and anything Google rejects is logged with its own error text. If the real adjustment
+> window is shorter, that shows up as a named error rather than as silence.
+>
+> **A retraction is not a restatement to zero.** Zero means the conversion happened and was worth nothing;
+> a retraction means it should not be there at all. Both exist here, and a cancelled job at the quoted
+> figure still retracts — checking "no change" first would leave a dead conversion in the account forever.
+>
+> **G4 is implemented, not just asserted.** Outside the window the internal number is left correct and the
+> event is stamped `adjustment_skipped_window` carrying **both** figures — the stale one we reported and
+> the true one — so the discrepancy is queryable. Stamped once, not re-stamped nightly.
+>
+> **`kind` on the log, because "3 rejected" means two different things.** A rejected conversion is revenue
+> Google never heard about. A rejected adjustment is revenue Google heard about **at the wrong number** —
+> the estimate is still in the account, still being bid on. The admin page never merges the two counts.
+>
+> The adjustment phase looks back **120 days, not 30**: the whole point is a job that invoiced long after
+> its quote was reported, and it runs even when phase 1 has nothing to do — otherwise a quiet night is one
+> where corrections never happen.
+
 - When `final_amount` / `amount_paid` differs from the `quote_amount` we already reported, upload a
   **restatement** against the original `Order ID`.
 - Cancelled or refunded job → **retraction**.

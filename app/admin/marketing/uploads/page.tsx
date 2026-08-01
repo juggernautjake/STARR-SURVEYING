@@ -21,6 +21,8 @@ interface LogRow {
   id: string;
   event_id: string | null;
   conversion_action: string;
+  kind: string;
+  adjustment_type: string | null;
   status: string;
   error_code: string | null;
   error_detail: string | null;
@@ -38,7 +40,11 @@ interface Payload {
     lastUploadedAt: string | null;
     lastError: string | null;
   };
-  counts: { total: number; uploaded: number; failed: number; pending: number };
+  counts: {
+    total: number; uploaded: number; failed: number; pending: number;
+    conversions: number; adjustments: number;
+    failedConversions: number; failedAdjustments: number; windowSkips: number;
+  };
   failures: LogRow[];
   recent: LogRow[];
 }
@@ -110,11 +116,36 @@ export default function MarketingUploadsPage(): React.ReactElement {
           <h2 className="mu__h2">Last 100 attempts</h2>
           <ul className="mu__stats">
             <li><span>{data.counts.uploaded}</span> accepted by Google</li>
-            <li className={data.counts.failed ? 'mu__bad' : undefined}>
-              <span>{data.counts.failed}</span> rejected <em>(these conversions are NOT in Ads)</em>
+            {/* The two failures need different responses, so they are never shown as one number. */}
+            <li className={data.counts.failedConversions ? 'mu__bad' : undefined}>
+              <span>{data.counts.failedConversions}</span> conversions rejected{' '}
+              <em>(revenue Google never heard about)</em>
+            </li>
+            <li className={data.counts.failedAdjustments ? 'mu__bad' : undefined}>
+              <span>{data.counts.failedAdjustments}</span> adjustments rejected{' '}
+              <em>(Google still has the ESTIMATE and is still bidding on it)</em>
             </li>
             <li><span>{data.counts.pending}</span> pending</li>
+            <li>
+              <span>{data.counts.conversions}</span> conversions / <strong>{data.counts.adjustments}</strong> adjustments sent
+            </li>
           </ul>
+        </section>
+      )}
+
+      {data && data.counts.windowSkips > 0 && (
+        <section className="mu__panel" data-testid="uploads-window-skips">
+          <h2 className="mu__h2">{data.counts.windowSkips} correction{data.counts.windowSkips === 1 ? '' : 's'} the window closed on</h2>
+          <p className="mu__muted">
+            These jobs invoiced at a different figure than the quote we reported, but the click was more
+            than 90 days old — Google will not accept an adjustment. <strong>Our books are correct and
+            were not changed to match.</strong> Google&apos;s reported conversion value for these jobs is
+            permanently the original estimate.
+          </p>
+          <p className="mu__hint">
+            Recorded on each lifecycle event under <code>adjustment_skipped_window</code>, with both the
+            reported and the actual figure, so the gap can be measured rather than guessed at.
+          </p>
         </section>
       )}
 
@@ -124,12 +155,13 @@ export default function MarketingUploadsPage(): React.ReactElement {
           <div className="mu__scroll">
             <table className="mu__table">
               <thead>
-                <tr><th>When</th><th>Code</th><th>Detail</th><th>Action</th></tr>
+                <tr><th>When</th><th>What</th><th>Code</th><th>Detail</th><th>Action</th></tr>
               </thead>
               <tbody>
                 {data.failures.map((f) => (
                   <tr key={f.id}>
                     <td>{when(f.created_at)}</td>
+                    <td>{f.kind === 'adjustment' ? (f.adjustment_type ?? 'adjustment').toLowerCase() : 'conversion'}</td>
                     <td><code>{f.error_code ?? '—'}</code></td>
                     <td>{f.error_detail ?? '—'}</td>
                     <td className="mu__mono">{f.conversion_action}</td>
