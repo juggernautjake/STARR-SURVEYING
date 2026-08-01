@@ -46,6 +46,9 @@ import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken
 // M4-2 — the rest of the DM's object tools, and G7's undo behind them.
 import MapObjectTools from '@/app/dnd/_ui/maps/MapObjectTools';
 import MapObjectView, { DRAWN_KINDS } from '@/app/dnd/_ui/maps/MapObjectView';
+// M4-3 — the campaign's existing media, offered as map assets. No new uploader, no new table.
+import AssetTray from '@/app/dnd/_ui/maps/AssetTray';
+import { loadMapAssets, type MapAsset } from '@/lib/dnd/maps/assets';
 import { pendingUndo } from '@/lib/dnd/maps/journal';
 import { readGrid } from '@/lib/dnd/maps/grid';
 
@@ -169,6 +172,10 @@ export default async function WorldPage({
   // M4-2 / G7 — what the undo control will say it takes back. DM-only: a player has nothing to undo, and
   // the query would be work nobody reads.
   const undoLabel = isDm && current ? await pendingUndo(current.id) : null;
+  // M4-3 — DM ONLY, and the gate matters: this reads the campaign's whole media library, including rows
+  // no player has ever been shown. Loading it for a player would be the same leak as `dm_notes`, arriving
+  // through a different door.
+  const mapAssets: MapAsset[] = isDm ? await loadMapAssets(campaignId) : [];
 
   // M6-2 — passive detection. The plan says "when a token moves within range"; nothing moves tokens yet
   // (drag-to-move is still open), so this asks the same question at the only moment available: the party
@@ -862,6 +869,15 @@ export default async function WorldPage({
                       id: o.id,
                       label: t.nickname || subjects.get(subjectKey(t.subject))?.name || o.label || 'Token',
                     }))}
+                  />
+                  {/* M4-3 — the campaign's own images, between placing a token and editing what is
+                      already there, because that is the order a DM builds a scene in: the room, then
+                      the things in it, then the people. */}
+                  <AssetTray
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    assets={mapAssets}
+                    cell={readGrid(current.grid)?.size ?? null}
                   />
                   {/* M4-2's remainder — resize, rotate, layer, duplicate, multi-select, the snap
                       override and G7's undo. Separate from `PlaceToken` because it answers a different

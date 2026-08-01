@@ -79,6 +79,30 @@ function place(node: Node, x: unknown, y: unknown, freehand = false) {
   return clampToMap(snapped.x, snapped.y, node.bounds as { maxX?: number; maxY?: number });
 }
 
+/**
+ * An asset URL that is safe to put in an `<img src>`, or null.
+ *
+ * The renderer already refuses to build `background: url(${…})` out of a DM-supplied string, because an
+ * unescaped `)` there ends the url() and whatever follows is parsed as more CSS. `src` has no such
+ * grammar to escape out of — but it does have SCHEMES, and `javascript:` or `data:text/html` in one is
+ * the DM handing a script to every player who opens the map. So the scheme is checked here, once, rather
+ * than trusted at each of the places that draw it.
+ *
+ * Relative paths are allowed: `/api/...` and `/dnd/...` are same-origin by construction.
+ */
+function safeAssetUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const url = raw.trim();
+  if (!url) return null;
+  if (url.startsWith('/') && !url.startsWith('//')) return url;
+  try {
+    const scheme = new URL(url).protocol;
+    return scheme === 'http:' || scheme === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The ids a bulk verb is addressing, refused rather than silently truncated (G6). */
 function readIds(raw: unknown): { ids: string[] } | { error: NextResponse } {
   const list = Array.isArray(raw) ? raw : String(raw ?? '').split(',');
@@ -170,6 +194,10 @@ export async function POST(req: NextRequest) {
       label: typeof body.label === 'string' ? body.label.trim() || null : null,
       dm_notes: typeof body.dmNotes === 'string' ? body.dmNotes : null,
       description: typeof body.description === 'string' ? body.description : null,
+      // M4-3 — the picture, when the DM placed one from the asset tray. Validated as a URL rather than
+      // taken on trust: this string ends up in an `<img src>` on every viewer's screen, and a
+      // `javascript:` or `data:text/html` value there is the DM handing the whole table a script.
+      asset_url: safeAssetUrl(body.assetUrl),
     })
     .select(OBJECT_COLS)
     .single();
@@ -249,7 +277,8 @@ export async function PATCH(req: NextRequest) {
     if (typeof body.label === 'string') patch.label = body.label.trim() || null;
     if (typeof body.description === 'string') patch.description = body.description || null;
     if (typeof body.dmNotes === 'string') patch.dm_notes = body.dmNotes;
-    if (typeof body.assetUrl === 'string') patch.asset_url = body.assetUrl.trim() || null;
+    // Through the same scheme check as POST — a PATCH is the other door into the same `<img src>`.
+    if (typeof body.assetUrl === 'string') patch.asset_url = safeAssetUrl(body.assetUrl);
     if (body.data && typeof body.data === 'object') patch.data = body.data;
 
     patches.push({ id: row.id, patch });

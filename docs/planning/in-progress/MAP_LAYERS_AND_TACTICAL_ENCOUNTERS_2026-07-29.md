@@ -745,9 +745,44 @@ read; nothing edits it yet.
 > every tool at the 44px touch minimum — the selection chips inherited the shared `hexBtn`'s 38px and
 > were raised locally, since every other /dnd surface uses that class at its own size.
 
-### M4-3 · Asset library
-Reuse the existing File Explorer / media plumbing rather than a new uploader. Campaign-scoped asset tray with
-search; recently-used first, because placing forty trees means using the same asset forty times.
+### M4-3 · Asset library — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/assets.ts` (13 tests), `app/dnd/_ui/maps/AssetTray.tsx`, and a shared
+> `MapClickCatcher.tsx`. Driven live and in a browser.
+>
+> **No new uploader and no new table**, which is what the slice actually asks for. `dnd_media` already
+> stores every image a campaign has, with a kind, a label and a DM-only flag, and `POST /api/dnd/media`
+> already uploads with a quota, a size cap and a rate limit. A second uploader would be a second set of
+> all four, and the first one to get a fix would be whichever the author had open — the two `MAX_BYTES`
+> lesson, again. The tray's empty state links to the gallery rather than growing an upload button.
+>
+> **"Recently used" is measured from the MAPS, not from a click log.** The obvious implementation is a
+> `last_used_at` the tray writes on every placement, and it is wrong in a way that shows up immediately:
+> a DM who places forty trees and then undoes them has not stopped using trees, and one who imports a
+> map full of an asset has used it forty times without touching the tray. Counting `asset_url` across
+> the campaign's own map objects answers the real question — *what is actually on my maps* — and there
+> is nothing to keep in sync. The count is shown as well as sorted on (`×12`), because that is how a DM
+> recognises the tree they have been using without opening each one.
+>
+> **The tray stays armed after a placement.** *"Placing forty trees means using the same asset forty
+> times"* is the sentence the slice exists for; disarming after every drop would make it forty round
+> trips through the picker.
+>
+> **`MapClickCatcher` is now shared**, extracted when this became its second caller. The click-to-world
+> conversion has one non-obvious correctness argument — the transformed layer's rect is FRAME-sized, not
+> world-sized, so dividing by its width put every click at a ninth of where it was aimed — and two
+> copies would be two answers to *"where did the DM click"*, both looking right, only one carrying the
+> fix.
+>
+> **A scheme check the tray did not strictly need.** `asset_url` ends up in an `<img src>` on every
+> viewer's screen, so `javascript:` or `data:text/html` in one is the DM handing a script to the whole
+> table. Validated once, server-side, on **both** doors — POST and PATCH — rather than trusted at each
+> place that draws it. Verified live: `javascript:`, `data:text/html` and `vbscript:` all stored as
+> null; `/dnd/maps/tree.png` kept; `//evil.example/x.png` refused, because a protocol-relative URL is
+> not the same-origin path it looks like.
+>
+> Verified in the browser at the DM's map: seven usable images offered, search narrowing to zero with
+> *"Nothing matches …"* and restoring, and the place-as choice between Prop and Scenery. Throwaway node
+> removed afterwards.
 
 ### M4-4 · Node authoring — **SHIPPED 2026-07-29, and it was the slice that mattered**
 

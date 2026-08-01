@@ -19,6 +19,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from '../hextech.module.css';
+// M4-3 — the click-to-world conversion is SHARED with the asset tray. Two copies would be two answers
+// to "where did the DM click", and the argument for why it is not `rect.width / 100` lives in one place.
+import MapClickCatcher from './MapClickCatcher';
 
 export interface PlaceableSubject {
   /** `character` | `creature` — which id field the token's data carries. */
@@ -208,62 +211,15 @@ export default function PlaceToken({
       {/* The click target is the map itself, reached through the DOM rather than through a prop, so the
           world page stays a server component. The viewport publishes `--map-scale` and `data-lod` for the
           same reason — this is the third consumer of that pattern. */}
-      {armed && <MapClickCatcher onPick={pickedAt} onCancel={() => setArmed(null)} />}
+      {armed && (
+        <MapClickCatcher
+          onPick={pickedAt}
+          onCancel={() => setArmed(null)}
+          label={`Click the map to ${armed.mode === 'move' ? 'move' : 'place'} ${armedName}, or press Escape to cancel`}
+        />
+      )}
 
       {msg && <div role="status" style={{ fontSize: 12, color: 'var(--hx-gold-2)' }}>{msg}</div>}
     </div>
-  );
-}
-
-/** The map's world box. Every node draws its picture into a 0–100 square; `bounds` on the node agrees. */
-const WORLD = 100;
-
-/**
- * Turns the next click on the map into a world coordinate.
- *
- * ── WHY NOT `layerRect.width / 100` ──────────────────────────────────────────────────────────────────
- *
- * Tempting and WRONG, and the browser caught it: the transformed layer's own element is FRAME-sized, not
- * world-sized — its children are absolutely positioned in world units on top of it. At scale 6.06 in a
- * 1078px frame its rect measures 6536px wide while the map itself is 606px, so dividing by the rect width
- * put every click at a ninth of where it was aimed.
- *
- * What IS true is that the layer's `transform-origin` is `0 0`, so after `translate(...) scale(s)` its
- * rect's top-left is exactly where world (0,0) landed on screen — and `--map-scale`, which MapViewport
- * already publishes for the pins' counter-scaling, is `s`. So one subtraction and one divide is the whole
- * conversion, and it stays correct through pan and zoom because both terms are read at click time.
- */
-function MapClickCatcher({
-  onPick,
-  onCancel,
-}: {
-  onPick: (x: number, y: number) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div
-      // A full-window overlay, so the click cannot land on a pin's link or a zoom button first.
-      style={{ position: 'fixed', inset: 0, zIndex: 40, cursor: 'crosshair' }}
-      onClick={(e) => {
-        const layer = document.querySelector('[data-lod]') as HTMLElement | null;
-        if (!layer) { onCancel(); return; }
-        const scale = Number(getComputedStyle(layer).getPropertyValue('--map-scale'));
-        if (!Number.isFinite(scale) || scale <= 0) { onCancel(); return; }
-
-        const origin = layer.getBoundingClientRect(); // top-left === world (0,0), because transform-origin is 0 0
-        const x = (e.clientX - origin.left) / scale;
-        const y = (e.clientY - origin.top) / scale;
-
-        // Clicking OFF the map cancels rather than placing at the nearest edge — a token appearing in a
-        // corner because you clicked past the picture is worse than nothing happening. The server clamps
-        // too, but clamping is for a near-miss at the border, not for a click on the footer.
-        if (x < 0 || x > WORLD || y < 0 || y > WORLD) { onCancel(); return; }
-        onPick(x, y);
-      }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
-      role="button"
-      tabIndex={0}
-      aria-label="Click the map to place the token, or press Escape to cancel"
-    />
   );
 }
