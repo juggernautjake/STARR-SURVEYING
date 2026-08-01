@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 // on the exemption list to imply it. See lib/saas/org-scope.ts.
 import { supabaseUnscoped } from '@/lib/supabase';
 import { beginOrgScope, orgIdForSession } from '@/lib/saas/org-scope-context';
+import { resolveIsCompanyUser } from '@/lib/saas/internal-user';
 
 // =============================================================================
 // ROLE SYSTEM
@@ -74,8 +75,6 @@ const ADMIN_EMAILS: string[] = [
 ];
 
 const TEACHER_EMAILS: string[] = [];
-
-const ALLOWED_DOMAIN = 'starr-surveying.com';
 
 /** Role priority for determining the "primary" display role (highest first) */
 const ROLE_PRIORITY: UserRole[] = [
@@ -162,8 +161,11 @@ export async function ensureRegisteredUser(
       return;
     }
 
-    // Create new row — company users are auto-approved
-    const isCompany = lower.endsWith(`@${ALLOWED_DOMAIN}`);
+    // Create new row — someone arriving on a firm's own email domain is auto-approved. The domain is
+    // read from the `organizations` row rather than a constant (audit item 8h); a firm that has not
+    // configured one auto-approves nobody, which is the safe direction — the alternative would
+    // auto-approve every stranger who signs up.
+    const isCompany = await isFirmEmailDomain(lower);
     const defaultRoles: UserRole[] = ['employee'];
     if (ADMIN_EMAILS.includes(lower)) defaultRoles.push('admin');
     if (TEACHER_EMAILS.includes(lower)) defaultRoles.push('teacher');
@@ -268,10 +270,61 @@ export function isFullAdmin(emailOrRoles: string | UserRole[] | null | undefined
   return isAdmin(emailOrRoles);
 }
 
-/** Is this user a company domain employee (vs external registered user)? */
-export function isCompanyUser(email: string | null | undefined): boolean {
+// ── Which email domains belong to a firm ──────────────────────────────────────────────────────────
+//
+// Every configured `organizations.domain_restriction`, cached. Two callers need it and neither has an
+// org in hand: `ensureRegisteredUser` (deciding auto-approval for a brand-new row) and the Google
+// sign-in callback (deciding whether to let a stranger in at all). Both run BEFORE the person has any
+// membership, so both are asking about the domain specifically, not about staff status — that question
+// is `lib/saas/internal-user.ts` and it is answered from membership.
+//
+// Cached for a minute: this is read on every sign-in and the answer changes when an admin edits Org
+// Settings, which is approximately never.
+let domainCache: { at: number; domains: Set<string> } | null = null;
+const DOMAIN_TTL_MS = 60_000;
+
+/** For tests, and for the settings screen after a save. */
+export function clearFirmDomainCache(): void {
+  domainCache = null;
+}
+
+async function firmEmailDomains(): Promise<Set<string>> {
+  if (domainCache && Date.now() - domainCache.at < DOMAIN_TTL_MS) return domainCache.domains;
+  const { data, error } = await supabaseUnscoped.from('organizations').select('domain_restriction');
+  if (error) {
+    // Named, not swallowed. A silent empty set here would refuse every Google sign-in in the company
+    // and look like an outage with no cause — §1.1b's failure mode with a login page attached.
+    console.error('[auth] could not read organization domains', error.message);
+    return domainCache?.domains ?? new Set();
+  }
+  const rows = (data ?? []) as Array<{ domain_restriction: string | null }>;
+  const domains = new Set<string>(
+    rows
+      .map((r) => r.domain_restriction)
+      .filter((d): d is string => !!d)
+      .map((d) => d.replace(/^@/, '').toLowerCase()),
+  );
+  domainCache = { at: Date.now(), domains };
+  return domains;
+}
+
+/** Is this address on a domain some firm in this deployment claims as its own? */
+export async function isFirmEmailDomain(email: string | null | undefined): Promise<boolean> {
   if (!email) return false;
-  return email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
+  const domain = email.toLowerCase().split('@')[1];
+  if (!domain) return false;
+  return (await firmEmailDomains()).has(domain);
+}
+
+/** Is this user staff at a firm, rather than an external registered user?
+ *
+ *  **Deprecated in favour of `isInternalUser(session)` in `lib/saas/internal-user.ts`**, which reads
+ *  membership. This email-only form cannot see membership, so it is wrong for the two live accounts
+ *  that are org members without a company address — see that file's header for the measurement. It
+ *  survives for callers that genuinely only have an address, and it now asks the database which
+ *  domains are a firm's instead of naming one firm's domain in the source. */
+export async function isCompanyUser(email: string | null | undefined): Promise<boolean> {
+  return isFirmEmailDomain(email);
 }
 
 /** Check if user has ANY of the specified roles */
@@ -318,6 +371,10 @@ interface JwtSaasFields {
     bundles: Array<'recon' | 'draft' | 'office' | 'field' | 'academy' | 'firm_suite'>;
   }>;
   activeOrgId?: string | null;
+  /** Staff at a firm, rather than an external registered user. Resolved from membership + the firm's
+   *  configured email domain — see lib/saas/internal-user.ts for why an email suffix was the wrong
+   *  test and which two live accounts it was wrong about. */
+  isCompanyUser?: boolean;
 }
 
 async function populateSaasContext(token: Record<string, unknown> & JwtSaasFields): Promise<void> {
@@ -341,7 +398,9 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
     const [{ data: memberships }, { data: activeRow }] = await Promise.all([
       supabaseUnscoped
         .from('organization_members')
-        .select('org_id, role, organizations(id, slug, name)')
+        // `domain_restriction` rides along on a join that already runs — the staff test needs it and
+        // a second query for one column on a row we are already reading would be pure latency.
+        .select('org_id, role, organizations(id, slug, name, domain_restriction)')
         .eq('user_email', email)
         .eq('status', 'active'),
       supabaseUnscoped
@@ -351,7 +410,7 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
         .maybeSingle(),
     ]);
 
-    type MembershipRow = { org_id: string; role: string; organizations: { id: string; slug: string; name: string } | null };
+    type MembershipRow = { org_id: string; role: string; organizations: { id: string; slug: string; name: string; domain_restriction: string | null } | null };
     type OrgRole = 'admin' | 'surveyor' | 'bookkeeper' | 'field_only' | 'view_only';
     type Bundle = 'recon' | 'draft' | 'office' | 'field' | 'academy' | 'firm_suite';
 
@@ -387,9 +446,21 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
         // have a usable value.
         token.activeOrgId = rows[0]?.org_id ?? null;
       }
+
+      // Staff, because a firm said so. `memberOfAnyOrg` is true by construction in this branch —
+      // stated through the shared resolver anyway so the rule lives in one place and a test can
+      // assert it without a session.
+      token.isCompanyUser = resolveIsCompanyUser({
+        email,
+        memberOfAnyOrg: true,
+        emailDomain: rows.find((m) => m.organizations?.domain_restriction)?.organizations?.domain_restriction ?? null,
+      });
     } else {
       token.memberships = [];
       token.activeOrgId = null;
+      // No membership anywhere. The firm's own domain is the remaining way to qualify — that is how a
+      // new hire's first sign-in sees the app before an admin has added them to the org.
+      token.isCompanyUser = await isFirmEmailDomain(email);
     }
   } catch (err) {
     // SaaS-context failure must not break sign-in. Existing legacy
@@ -398,6 +469,10 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
     token.isOperator = token.isOperator ?? false;
     token.memberships = token.memberships ?? [];
     token.activeOrgId = token.activeOrgId ?? null;
+    // Left UNSET rather than defaulted to false. `isInternalUser` falls back to counting memberships
+    // when the field is absent, so a transient database blip degrades to the previous answer instead
+    // of demoting an admin to "external" and hiding half the app from them.
+    token.isCompanyUser = token.isCompanyUser;
   }
 }
 
@@ -456,7 +531,26 @@ const authConfig: NextAuthConfig = {
       if (account?.provider === 'google') {
         const email = user.email?.toLowerCase();
         if (!email) return false;
-        if (email.split('@')[1] !== ALLOWED_DOMAIN) return false;
+        // Two ways in, because one firm's domain was never the right test (audit item 8h). A person
+        // the firm has already added as a member gets in on that basis — johntoddharding@gmail.com is
+        // an `admin` member of the Starr org today and could NOT sign in with Google, because their
+        // address is not on the company domain. Anyone on a firm's configured domain also gets in,
+        // which is how a new employee signs in before anybody has added them.
+        //
+        // A deployment with no configured domain and no members admits nobody through Google, which is
+        // the correct closed default: the alternative is that an empty configuration lets the whole
+        // internet into an admin app.
+        const [onFirmDomain, isMember] = await Promise.all([
+          isFirmEmailDomain(email),
+          supabaseUnscoped
+            .from('organization_members')
+            .select('user_email')
+            .eq('user_email', email)
+            .eq('status', 'active')
+            .maybeSingle()
+            .then((res: { data: unknown }) => !!res.data),
+        ]);
+        if (!onFirmDomain && !isMember) return false;
         // Auto-create/update registered_users row for Google users
         try {
           await ensureRegisteredUser(email, user.name, user.image, 'google');
@@ -505,6 +599,7 @@ const authConfig: NextAuthConfig = {
         if (token.operatorRole !== undefined) session.user.operatorRole = token.operatorRole as 'platform_admin' | 'platform_billing' | 'platform_support' | 'platform_developer' | 'platform_observer';
         if (token.memberships !== undefined) session.user.memberships = token.memberships as NonNullable<typeof session.user.memberships>;
         if (token.activeOrgId !== undefined) session.user.activeOrgId = token.activeOrgId as string | null;
+        if (token.isCompanyUser !== undefined) session.user.isCompanyUser = token.isCompanyUser as boolean;
       }
       return session;
     },

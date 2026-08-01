@@ -9,6 +9,7 @@ import {
   DraftingCompass, Users, KeyRound,
 } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
+import { isInternalUser } from '@/lib/saas/internal-user';
 
 interface QuizAttempt {
   id: string;
@@ -47,7 +48,7 @@ export default function AdminDashboardPage() {
   const isAdminUser = roles.includes('admin');
   const isDevUser = roles.includes('developer');
   const isAdminOrDev = isAdminUser || isDevUser;
-  const isCompanyUser = session?.user?.email?.endsWith('@starr-surveying.com') ?? false;
+  const isCompanyUser = isInternalUser(session);
   const isFieldCrew = roles.includes('field_crew');
   const isResearcher = roles.includes('researcher');
   const firstName = session?.user?.name?.split(' ')[0] || 'there';

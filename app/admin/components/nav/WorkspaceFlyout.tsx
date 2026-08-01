@@ -22,6 +22,7 @@ import {
   accessibleRoutes,
   type Workspace,
 } from '@/lib/admin/route-registry';
+import { isInternalUser } from '@/lib/saas/internal-user';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import type { UserRole } from '@/lib/auth';
 
@@ -55,7 +56,7 @@ export default function WorkspaceFlyout({
         (session?.user?.role ? [session.user.role] : [])) as UserRole[],
     [session?.user?.roles, session?.user?.role],
   );
-  const isCompanyUser = !!session?.user?.email?.toLowerCase().endsWith('@starr-surveying.com');
+  const isCompanyUser = isInternalUser(session);
 
   const routes = useMemo(() => {
     return accessibleRoutes({ roles, isCompanyUser })

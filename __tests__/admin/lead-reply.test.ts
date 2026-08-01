@@ -57,9 +57,13 @@ describe('reply API route', () => {
     expect(SRC).toMatch(/key === 'attachments' && value instanceof File/);
   });
 
-  it("sends from info@starr-surveying.com via Resend with html + text + attachments", () => {
-    expect(SRC).toMatch(/from: 'Starr Surveying <info@starr-surveying\.com>'/);
-    expect(SRC).toMatch(/reply_to: 'info@starr-surveying\.com'/);
+  it("sends From the replying firm via Resend with html + text + attachments", () => {
+    // Was pinned to the literal 'Starr Surveying <info@…>'. That is the hard-code audit item 8h
+    // removed, so asserting it would now pin the bug. The property this always protected — outbound
+    // mail carries the sending firm's identity and a reply reaches them — is asserted instead.
+    expect(SRC).toMatch(/from: sender\.from/);
+    expect(SRC).toMatch(/reply_to: sender\.replyTo/);
+    expect(SRC).toMatch(/outboundIdentity\(/);
     expect(SRC).toMatch(/payload\.attachments = files/);
   });
 

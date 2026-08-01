@@ -15,6 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { TEST_FIRM, TEST_FIRM_OTHER } from '../fixtures/firm';
 import {
   describePaymentForReceipt,
   lastFour,
@@ -90,6 +91,7 @@ describe('describePaymentForReceipt (pure)', () => {
 
 describe('buildReceiptResend{Subject,Html,Text} (pure)', () => {
   const base = {
+    firm: TEST_FIRM,
     invoice_number: 'SS-260618-A1B2',
     customer_name: 'Mary Smith',
     total_cents: 125000,
@@ -134,6 +136,19 @@ describe('buildReceiptResend{Subject,Html,Text} (pure)', () => {
     expect(text).toContain(base.pay_link);
     expect(text).toContain('Paid $1,250.00 of $1,250.00');
   });
+
+  it("signs off with the SENDING firm, not a hard-coded one (audit item 8h)", () => {
+    // The whole point of making `firm` required: a second firm's customer must never receive a
+    // receipt signed by a competitor. Asserted on both renderings, since the plain-text fallback is
+    // the one nobody looks at.
+    const other = { ...base, firm: TEST_FIRM_OTHER };
+    expect(buildReceiptResendText(other)).toContain('— Brazos Land Surveying');
+    expect(buildReceiptResendText(other)).not.toContain('Starr Surveying');
+    expect(buildReceiptResendHtml(other)).toContain('Brazos Land Surveying');
+    expect(buildReceiptResendHtml(other)).not.toContain('Starr Surveying');
+    // …and its phone number, in the tel: link as well as the visible text.
+    expect(buildReceiptResendHtml(other)).toContain('tel:+15125550143');
+  });
 });
 
 describe('public invoice route — P8 payments array', () => {
@@ -177,9 +192,15 @@ describe('receipt resend route — source-lock', () => {
     expect(SRC).toMatch(/sent_to_email: to/);
   });
 
-  it("Resend HTTP API + brand From + dev-mode tolerant", () => {
+  it("Resend HTTP API + the sending firm's From + dev-mode tolerant", () => {
     expect(SRC).toMatch(/fetch\('https:\/\/api\.resend\.com\/emails'/);
-    expect(SRC).toMatch(/Starr Surveying <info@starr-surveying\.com>/);
+    // The From used to be the literal 'Starr Surveying <info@…>' and this test asserted it. That is
+    // the hard-code audit item 8h removed, so asserting it would now pin the bug. What the test was
+    // ALWAYS protecting is that outbound mail carries the firm's identity — which is now resolved
+    // per tenant by `outboundIdentity`, and the reply-to goes with it.
+    expect(SRC).toMatch(/from: sender\.from/);
+    expect(SRC).toMatch(/outboundIdentity\(/);
+    expect(SRC).not.toMatch(/from: 'Starr Surveying/);
     expect(SRC).toMatch(/\[receipt-resend\] DEV/);
   });
 });

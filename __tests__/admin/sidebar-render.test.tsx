@@ -36,6 +36,9 @@ function render(props: Partial<React.ComponentProps<typeof AdminSidebar>> = {}) 
       roles: ['admin'],
       userName: 'Jacob Maddux',
       userEmail: 'jacob@starr-surveying.com',
+      // Staff status is passed in now rather than derived from the address here, so the drawer and
+      // the desktop rail cannot answer it differently (audit item 8h).
+      isCompanyUser: true,
       isOpen: true,
       onClose: () => {},
       ...props,

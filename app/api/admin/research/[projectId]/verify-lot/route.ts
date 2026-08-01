@@ -53,6 +53,9 @@ import {
   type TriggerResult,
 } from '@/lib/research/analysis-triggers';
 import { callAI } from '@/lib/research/ai-client';
+import { isCountySupported, unsupportedCountyMessage } from '@/lib/research/county-support';
+import { getCountyCoverage } from '@/lib/saas/tenant-profile';
+import { orgIdForSession } from '@/lib/saas/org-scope-context';
 import type { PromptKey } from '@/lib/research/prompts';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -102,11 +105,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  // County guard — this pipeline currently only supports Bell County
-  const countyName = (project.county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
-  if (countyName && countyName !== 'bell') {
+  // Adapter guard — a CAPABILITY limit, not a statement about which firms this product is for.
+  // See lib/research/county-support.ts: the old message ("only supported for Bell County") described
+  // a coverage policy the code does not have, and read to any other firm as "this is not for you".
+  // Same behaviour, honest sentence, and one list to grow when the second adapter ships.
+  if (project.county && !isCountySupported(project.county)) {
+    const covered = (await getCountyCoverage(orgIdForSession(session))).map((c) => c.slug);
     return NextResponse.json(
-      { error: `Lot verification is currently only supported for Bell County. This project is in "${project.county}".` },
+      { error: unsupportedCountyMessage(project.county, covered) },
       { status: 400 },
     );
   }

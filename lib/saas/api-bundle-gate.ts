@@ -83,6 +83,10 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'roles': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },
   'audit': { bundle: null, reason: 'An audit trail a firm cannot read is not an audit trail.' },
   'settings': { bundle: null, reason: 'Account-level configuration.' },
+  // The firm's own name, phone and address (audit item 8h). Every screen renders it, including the
+  // ones that stay reachable on a lapsed plan — gating it would leave a firm looking at an app with
+  // no name on it while trying to fix their subscription.
+  'tenant': { bundle: null, reason: 'A firm\'s own identity is not a product feature.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for
   // a firm that bought the wrong half.
   'sun': { bundle: null, reason: 'An almanac lookup is not a product tier.' },

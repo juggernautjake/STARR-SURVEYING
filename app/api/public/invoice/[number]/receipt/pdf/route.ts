@@ -29,9 +29,8 @@ import {
 } from '@/lib/payments/invoice-public';
 import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
 import { buildReceiptModel, renderReceiptPdf } from '@/lib/payments/receipt-pdf';
-import { OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '@/app/components/ServiceAreaMap';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
 
-const OFFICE_PHONE = '(936) 662-0077';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -53,7 +52,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, customer_name, customer_email, total_cents')
+    .select('id, org_id, invoice_number, public_slug, status, customer_name, customer_email, total_cents')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
   if (!invoice) {
@@ -78,16 +77,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .filter((s: PaymentSummary | null): s is PaymentSummary => s !== null);
 
   const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
+  // Letterhead, address and phone all from the invoice's own org (audit item 8h). This route has no
+  // session — a customer downloading a receipt is not signed in — so the row is the only source.
+  const profile = await getTenantProfile(invoice.org_id);
   const model = buildReceiptModel({
+    firm_name: profile.name,
     invoice_number: invoice.invoice_number,
     customer_name: invoice.customer_name,
     customer_email: invoice.customer_email,
     total_cents: invoice.total_cents ?? 0,
     paid_cents: paidCents,
     payments: paymentSummaries,
-    office_address_line1: OFFICE_ADDRESS_LINE1,
-    office_address_line2: OFFICE_ADDRESS_LINE2,
-    office_phone: OFFICE_PHONE,
+    office_address_line1: profile.addressLine1,
+    office_address_line2: profile.addressLine2,
+    office_phone: profile.phone ?? '',
     pay_link: buildInvoicePayLink(host, invoice.public_slug),
   });
   const pdf = await renderReceiptPdf(model);

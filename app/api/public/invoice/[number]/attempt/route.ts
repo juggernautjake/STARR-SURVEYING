@@ -39,9 +39,11 @@ import {
   buildPledgeConfirmationSubject,
   buildPledgeConfirmationText,
 } from '@/lib/payments/invoice-email';
+import { firmForOrg } from '@/lib/payments/firm';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
-import { OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '@/app/components/ServiceAreaMap';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -137,13 +139,21 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if ((method === 'cash' || method === 'check') && row.payer_email) {
     const isMailing = (typeof body.is_mailing === 'boolean') ? body.is_mailing : method === 'check';
     const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
+    // No session on a public pay page, so the firm comes from the INVOICE's org (audit item 8h).
+    // The office address does too: it used to be imported from `app/components/ServiceAreaMap`, a
+    // MARKETING-SITE component, which would have told a second firm's customer to post their cheque
+    // to Starr's office.
+    const profile = await getTenantProfile(invoice.org_id);
+    const firm = await firmForOrg(invoice.org_id);
+    const sender = outboundIdentity(profile);
     const payload = {
+      firm,
       method: method as 'cash' | 'check',
       invoice_number: invoice.invoice_number,
       customer_name: invoice.customer_name,
       amount_cents: intended,
-      office_address_line1: OFFICE_ADDRESS_LINE1,
-      office_address_line2: OFFICE_ADDRESS_LINE2,
+      office_address_line1: profile.addressLine1,
+      office_address_line2: profile.addressLine2,
       pay_link: buildInvoicePayLink(host, invoice.public_slug),
       is_mailing: isMailing,
     };
@@ -161,9 +171,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Starr Surveying <info@starr-surveying.com>',
+            from: sender.from,
             to: [row.payer_email],
-            reply_to: 'info@starr-surveying.com',
+            reply_to: sender.replyTo,
             subject,
             html,
             text,

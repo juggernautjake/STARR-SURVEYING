@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { usePublicFirm } from '../usePublicFirm';
 import Link from 'next/link';
 import {
   PAYMENT_METHODS,
@@ -70,6 +71,9 @@ interface PublicInvoice {
 export default function PayInvoicePage(): React.ReactElement {
   const params = useParams<{ invoice: string }>();
   const invoiceKey = decodeURIComponent(params?.invoice ?? '');
+  // The firm THIS invoice belongs to (audit item 8h). Resolved from the invoice key, so a customer
+  // of a second firm sees their own firm's name, address and number — not whoever built the page.
+  const { firm } = usePublicFirm(invoiceKey);
   const [invoice, setInvoice] = useState<PublicInvoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -489,9 +493,9 @@ export default function PayInvoicePage(): React.ReactElement {
                         )}
                         {pledgeIsMailing && (
                           <p className="pay-methods__received-addr" data-testid="pay-pledge-mailing-addr">
-                            <strong>Starr Surveying</strong><br />
-                            3779 W FM 436<br />
-                            Belton, TX 76513
+                            <strong>{firm.name}</strong><br />
+                            {firm.addressLine1}<br />
+                            {firm.addressLine2}
                           </p>
                         )}
                         Your receipt will land at the email you provided once we log the payment.
@@ -502,8 +506,9 @@ export default function PayInvoicePage(): React.ReactElement {
                         your receipt will arrive at the email you provided.
                       </>
                     )}{' '}
-                    Questions?{' '}
-                    <a href="tel:+19366620077">(936) 662-0077</a>.
+                    {firm.phoneE164 && firm.phone && (
+                      <>Questions?{' '}<a href={`tel:${firm.phoneE164}`}>{firm.phone}</a>.</>
+                    )}
                   </div>
                 );
               })()}
@@ -511,7 +516,9 @@ export default function PayInvoicePage(): React.ReactElement {
               {pendingMethod && !attemptMethod && (
                 <div className="pay-methods__toast" data-testid="pay-methods-toast" role="status">
                   This payment method goes live once our bank account is fully set up.
-                  Please call <a href="tel:+19366620077">(936) 662-0077</a> in the meantime.
+                  {firm.phoneE164 && firm.phone && (
+                    <> Please call <a href={`tel:${firm.phoneE164}`}>{firm.phone}</a> in the meantime.</>
+                  )}
                 </div>
               )}
             </article>

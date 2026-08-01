@@ -24,6 +24,7 @@ import {
 } from '@/lib/admin/route-registry';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import type { UserRole } from '@/lib/auth';
+import { isInternalUser } from '@/lib/saas/internal-user';
 
 import '../../styles/AdminCommandPalette.css';
 
@@ -64,10 +65,8 @@ export default function CommandPalette() {
     () => (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[],
     [session?.user?.roles, session?.user?.role],
   );
-  const isCompanyUser = useMemo(
-    () => !!session?.user?.email?.toLowerCase().endsWith('@starr-surveying.com'),
-    [session?.user?.email],
-  );
+  // Staff, from the session's own answer rather than an email suffix (audit item 8h).
+  const isCompanyUser = useMemo(() => isInternalUser(session), [session]);
 
   const visiblePages = useMemo(
     () => accessibleRoutes({ roles, isCompanyUser }),

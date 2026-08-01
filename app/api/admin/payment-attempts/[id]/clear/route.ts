@@ -32,6 +32,9 @@ import {
   buildReceiptResendSubject,
   buildReceiptResendText,
 } from '@/lib/payments/invoice-email';
+import { firmForOrg } from '@/lib/payments/firm';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 import { buildInvoicePayLink } from '@/lib/payments/invoice-number';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -172,7 +175,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .filter((s: PaymentSummary | null): s is PaymentSummary => s !== null);
     const totalPaid = sumSucceededPayments(allPayments ?? []);
     const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
+    // Firm from the INVOICE's org — see lib/payments/firm.ts.
+    const firm = await firmForOrg(invoice.org_id);
+    const sender = outboundIdentity(await getTenantProfile(invoice.org_id));
     const payload = {
+      firm,
       invoice_number: invoice.invoice_number,
       customer_name: invoice.customer_name,
       total_cents: invoice.total_cents ?? 0,
@@ -194,9 +201,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Starr Surveying <info@starr-surveying.com>',
+            from: sender.from,
             to: [recipient],
-            reply_to: 'info@starr-surveying.com',
+            reply_to: sender.replyTo,
             subject,
             html,
             text,

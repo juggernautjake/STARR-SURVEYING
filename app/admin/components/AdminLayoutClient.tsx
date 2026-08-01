@@ -17,6 +17,7 @@ import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
+import { isInternalUser } from '@/lib/saas/internal-user';
 import { useCadReturnPathTracker } from '@/lib/admin/cad-return-path';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
 import CalculatorFab from './calculator/CalculatorFab';
@@ -215,7 +216,7 @@ function Inner({ children }: { children: React.ReactNode }) {
             derives its sections from the same `ADMIN_ROUTES` registry the rail uses, so a page
             registered once appears in both. Deleting it, as the audit first proposed, would leave a
             phone with no navigation at all. */}
-        <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isCompanyUser={isInternalUser(session)} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">

@@ -22,12 +22,16 @@ describe('PayHeader component — source-lock', () => {
 
   it("is a banner landmark with an accessible brand link", () => {
     expect(SRC).toMatch(/role="banner"/);
-    expect(SRC).toMatch(/aria-label="Starr Surveying — payment portal home"/);
+    // The label is built from the firm now (audit item 8h) — a second firm's customer must not be
+    // told by a screen reader that they are on a competitor's payment portal.
+    expect(SRC).toMatch(/aria-label=\{`\$\{firm\.name\} — payment portal home`\}/);
   });
 
   it("renders the call CTA with an accessible label + tel: link", () => {
-    expect(SRC).toMatch(/href="tel:\+19366620077"/);
-    expect(SRC).toMatch(/aria-label="Call Starr Surveying at \(936\) 662-0077"/);
+    expect(SRC).toMatch(/href=\{`tel:\$\{firm\.phoneE164\}`\}/);
+    // …and no button at all when there is no number, rather than a tel: link that dials nothing.
+    expect(SRC).toMatch(/firm\.phoneE164 && firm\.phone && \(/);
+    expect(SRC).toMatch(/aria-label=\{`Call \$\{firm\.name\} at \$\{firm\.phone\}`\}/);
     expect(SRC).toMatch(/data-testid="pay-header-call"/);
   });
 

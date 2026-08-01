@@ -18,6 +18,7 @@ import {
   accessibleRoutes,
   type Workspace,
 } from '@/lib/admin/route-registry';
+import { isInternalUser } from '@/lib/saas/internal-user';
 import type { UserRole } from '@/lib/auth';
 
 import './WorkspaceLanding.css';
@@ -32,7 +33,7 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
 
   const roles: UserRole[] =
     (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[];
-  const isCompanyUser = !!session?.user?.email?.toLowerCase().endsWith('@starr-surveying.com');
+  const isCompanyUser = isInternalUser(session);
 
   // Show the workspace's own routes. The landing page itself is in the
   // registry too (so the Hub's Workspaces column links to it) — filter

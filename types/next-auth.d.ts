@@ -45,6 +45,12 @@ declare module 'next-auth' {
       /** Current "as" org for this session. Drives RLS context, the
        *  subdomain redirect on org-switch, and bundle-gate evaluation. */
       activeOrgId?: string | null;
+      /** Staff at a firm, rather than an external registered user. Gates every `internalOnly` route.
+       *  Resolved once at sign-in from org membership (plus the firm's configured email domain) —
+       *  NOT from an email suffix, which was wrong for two of the six live accounts. Read it through
+       *  `isInternalUser()` in lib/saas/internal-user.ts, which handles a session minted before this
+       *  field existed. */
+      isCompanyUser?: boolean;
     };
   }
 }
@@ -60,5 +66,6 @@ declare module 'next-auth/jwt' {
     operatorRole?: OperatorRoleType;
     memberships?: OrgMembership[];
     activeOrgId?: string | null;
+    isCompanyUser?: boolean;
   }
 }

@@ -49,7 +49,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
-  // County guard — Bell CAD GIS only supports Bell County
+  // County guard — CORRECT AS WRITTEN, and deliberately not made configurable (audit item 8h).
+  // Bell CAD's ArcGIS endpoint serves Bell County parcels and nothing else. Letting a firm point it
+  // at another county would return a confident answer about the wrong piece of land. See
+  // lib/research/county-support.ts for why this guard is different from the verify-lot one.
   const countyName = (project.county ?? '').toLowerCase().replace(/\s+county$/i, '').trim();
   if (countyName && countyName !== 'bell') {
     return NextResponse.json(

@@ -105,8 +105,12 @@ vi.mock('bcryptjs', () => ({
   hash: vi.fn(),
 }));
 
+// `supabaseUnscoped` as well as `supabaseAdmin`: sign-in has to read a person's memberships BEFORE it
+// can know which org they are acting for, so it deliberately uses the unscoped client (audit item 8g).
+// Mocking only `supabaseAdmin` left every auth helper calling into the real one.
 vi.mock('@/lib/supabase', () => ({
   supabaseAdmin: { from: mockSupabaseFrom },
+  supabaseUnscoped: { from: mockSupabaseFrom },
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
@@ -119,10 +123,12 @@ import {
   isAdmin,
   isTeacher,
   canManageContent,
-  isCompanyUser,
+  // isCompanyUser moved to lib/saas/internal-user.ts and became membership-based — see below.
+
   ROLES_REFRESH_INTERVAL_SECONDS,
   type UserRole,
 } from '../../lib/auth.js';
+import { isInternalUser, resolveIsCompanyUser } from '../../lib/saas/internal-user';
 
 // ── Module A: Role helper functions ──────────────────────────────────────────
 
@@ -188,18 +194,47 @@ describe('Role helpers — isAdmin / isTeacher / canManageContent', () => {
   });
 });
 
-describe('Role helpers — isCompanyUser', () => {
-  it('14. isCompanyUser returns true for @starr-surveying.com email', () => {
-    expect(isCompanyUser('test@starr-surveying.com')).toBe(true);
+// ── Staff status (audit §3c.3, item 8h) ─────────────────────────────────────────────────────────
+//
+// These three tests used to assert that `isCompanyUser('test@starr-surveying.com')` is true and
+// `'test@gmail.com'` is false. Both halves were WRONG about the live database, and the second one
+// expensively so: `johntoddharding@gmail.com` is an active `admin` member of the Starr org, and
+// `jacobmaddux96@gmail.com` is an active member too. Under the old rule both were failing every
+// `internalOnly` gate and losing most of the app — question-bank Q39, already happening.
+//
+// So the test now asserts the RULE rather than the domain: a firm says who its staff are, by adding
+// them to the org. The email domain still qualifies someone, because a new hire signs in before an
+// admin has got round to adding them — but it can only ever ADD, never remove.
+describe('Role helpers — who counts as staff', () => {
+  it('14. an org member is staff, company address or not', () => {
+    expect(resolveIsCompanyUser({ email: 'contractor@gmail.com', memberOfAnyOrg: true, emailDomain: 'acme-survey.com' })).toBe(true);
+    expect(resolveIsCompanyUser({ email: 'rpls@acme-survey.com', memberOfAnyOrg: true, emailDomain: 'acme-survey.com' })).toBe(true);
   });
 
-  it('15. isCompanyUser returns false for external email', () => {
-    expect(isCompanyUser('test@gmail.com')).toBe(false);
+  it('15. a non-member on the firm\'s own domain is staff', () => {
+    expect(resolveIsCompanyUser({ email: 'newhire@acme-survey.com', memberOfAnyOrg: false, emailDomain: 'acme-survey.com' })).toBe(true);
   });
 
-  it('16. isCompanyUser returns false for null/undefined', () => {
-    expect(isCompanyUser(null)).toBe(false);
-    expect(isCompanyUser(undefined)).toBe(false);
+  it('16. a non-member on any other domain is not', () => {
+    expect(resolveIsCompanyUser({ email: 'student@gmail.com', memberOfAnyOrg: false, emailDomain: 'acme-survey.com' })).toBe(false);
+    expect(resolveIsCompanyUser({ email: null, memberOfAnyOrg: false, emailDomain: 'acme-survey.com' })).toBe(false);
+  });
+
+  it('17. a firm with NO configured domain still has staff — its members', () => {
+    // This is Starr's live state: `domain_restriction` was NULL. If the absence of a domain meant
+    // "nobody is staff", shipping this would have locked the entire company out of the app.
+    expect(resolveIsCompanyUser({ email: 'anyone@gmail.com', memberOfAnyOrg: true, emailDomain: null })).toBe(true);
+    expect(resolveIsCompanyUser({ email: 'stranger@gmail.com', memberOfAnyOrg: false, emailDomain: null })).toBe(false);
+  });
+
+  it('18. a session reads its staff flag, falling back to membership on an old token', () => {
+    // A session minted before `isCompanyUser` existed must not silently demote its user the moment
+    // this deploys — that would hide half the app from everyone until their token refreshed.
+    expect(isInternalUser({ user: { email: 'a@b.com', isCompanyUser: true } })).toBe(true);
+    expect(isInternalUser({ user: { email: 'a@b.com', isCompanyUser: false, memberships: [{ orgId: 'x' }] } })).toBe(false);
+    expect(isInternalUser({ user: { email: 'a@b.com', memberships: [{ orgId: 'x' }] } })).toBe(true);
+    expect(isInternalUser({ user: { email: 'a@b.com', memberships: [] } })).toBe(false);
+    expect(isInternalUser(null)).toBe(false);
   });
 });
 

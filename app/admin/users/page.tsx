@@ -7,6 +7,7 @@ import { Lock, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import type { UserRole } from '@/lib/auth';
 import InitialAvatar from '../components/InitialAvatar';
+import { useTenantProfile } from '@/lib/saas/use-tenant-profile';
 
 const ALL_ROLES: UserRole[] = [
   'admin', 'developer', 'teacher', 'student', 'researcher',
@@ -76,6 +77,7 @@ type FilterTab = 'all' | 'pending' | 'active' | 'banned' | 'company' | 'external
 
 export default function UsersPage() {
   const { data: session } = useSession();
+  const tenant = useTenantProfile();
   const [users, setUsers] = useState<RegisteredUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -116,6 +118,13 @@ export default function UsersPage() {
     return () => clearTimeout(t);
   }, [successMsg]);
 
+  // "Company vs external" is the firm's own email domain, read from the org row rather than named in
+  // the source (audit item 8h). A firm that has not configured one has no addresses of its own by this
+  // test, so every user lands in "External" — which is honest. The alternative, treating an unset
+  // domain as "everyone is ours", would label a competitor's address as company staff.
+  const firmDomain = tenant.profile.emailDomain;
+  const isFirmAddress = (email: string) => !!firmDomain && email.toLowerCase().endsWith(`@${firmDomain}`);
+
   const userRoles = session?.user?.roles || [];
   const isUserAdmin = userRoles.includes('admin');
   const isTechSupport = userRoles.includes('tech_support');
@@ -136,8 +145,8 @@ export default function UsersPage() {
       case 'pending': return !u.is_approved && !u.is_banned;
       case 'active': return u.is_approved && !u.is_banned;
       case 'banned': return u.is_banned;
-      case 'company': return u.email.endsWith('@starr-surveying.com');
-      case 'external': return !u.email.endsWith('@starr-surveying.com');
+      case 'company': return isFirmAddress(u.email);
+      case 'external': return !isFirmAddress(u.email);
       default: return true;
     }
   });
@@ -148,8 +157,8 @@ export default function UsersPage() {
     pending: pendingCount,
     active: users.filter(u => u.is_approved && !u.is_banned).length,
     banned: users.filter(u => u.is_banned).length,
-    company: users.filter(u => u.email.endsWith('@starr-surveying.com')).length,
-    external: users.filter(u => !u.email.endsWith('@starr-surveying.com')).length,
+    company: users.filter(u => isFirmAddress(u.email)).length,
+    external: users.filter(u => !isFirmAddress(u.email)).length,
   };
 
   async function handleAction(userId: string, action: string, payload: Record<string, unknown> = {}) {
@@ -443,7 +452,7 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td style={{ fontSize: '.78rem', color: '#6B7280' }}>
-                      {user.auth_provider === 'google' ? 'Google' : user.auth_provider === 'credentials' ? 'Email' : user.email.endsWith('@starr-surveying.com') ? 'Google' : 'Email'}
+                      {user.auth_provider === 'google' ? 'Google' : user.auth_provider === 'credentials' ? 'Email' : isFirmAddress(user.email) ? 'Google' : 'Email'}
                     </td>
                     <td className="um-cell-date" style={{ fontSize: '.78rem' }}>{formatDateTime(user.last_sign_in)}</td>
                     <td className="um-cell-date">{formatDate(user.created_at)}</td>
@@ -481,8 +490,8 @@ export default function UsersPage() {
                       <td colSpan={canEdit ? 7 : 6} style={{ padding: '0.75rem 1rem', background: '#F9FAFB', borderTop: 'none' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '.82rem' }}>
                           <div><strong>Email:</strong> {user.email}</div>
-                          <div><strong>Provider:</strong> {user.auth_provider || (user.email.endsWith('@starr-surveying.com') ? 'Google' : 'Email')}</div>
-                          <div><strong>Company:</strong> {user.email.endsWith('@starr-surveying.com') ? 'Yes' : 'No'}</div>
+                          <div><strong>Provider:</strong> {user.auth_provider || (isFirmAddress(user.email) ? 'Google' : 'Email')}</div>
+                          <div><strong>Company:</strong> {isFirmAddress(user.email) ? 'Yes' : 'No'}</div>
                           <div><strong>Last Sign In:</strong> {formatDateTime(user.last_sign_in)}</div>
                           <div><strong>Created:</strong> {formatDateTime(user.created_at)}</div>
                           <div><strong>Updated:</strong> {formatDateTime(user.updated_at)}</div>

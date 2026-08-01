@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { TEST_FIRM, TEST_FIRM_OTHER, TEST_FIRM_BLANK } from '../fixtures/firm';
 import {
   buildInvoicePayLink,
   computeInvoiceTotals,
@@ -115,6 +116,7 @@ describe('normalizeLineItem (pure)', () => {
 
 describe('buildInvoiceEmailSubject + Html + Text (pure)', () => {
   const payload = {
+    firm: TEST_FIRM,
     invoice_number: 'SS-260618-A1B2',
     customer_name: 'Mary Smith',
     pay_link: 'https://starr-surveying.com/pay/ABCD1234XYZ56789',
@@ -130,8 +132,13 @@ describe('buildInvoiceEmailSubject + Html + Text (pure)', () => {
   };
 
   it("subject mentions invoice number + brand", () => {
-    expect(buildInvoiceEmailSubject({ invoice_number: 'SS-X' })).toBe(
+    expect(buildInvoiceEmailSubject({ invoice_number: 'SS-X', firm: TEST_FIRM })).toBe(
       'Invoice SS-X from Starr Surveying',
+    );
+    // The firm is an input now (audit item 8h), so a different firm gets its own subject rather
+    // than everyone's mail being signed by whoever built the template.
+    expect(buildInvoiceEmailSubject({ invoice_number: 'SS-X', firm: TEST_FIRM_OTHER })).toBe(
+      'Invoice SS-X from Brazos Land Surveying',
     );
   });
 
@@ -218,9 +225,15 @@ describe('POST /api/admin/invoices/[id]/send — source-lock', () => {
     expect(SRC).toMatch(/buildInvoiceEmailText/);
   });
 
-  it("posts the email via fetch to Resend with the brand From", () => {
+  it("posts the email via fetch to Resend, From the sending firm", () => {
     expect(SRC).toMatch(/fetch\('https:\/\/api\.resend\.com\/emails'/);
-    expect(SRC).toMatch(/Starr Surveying <info@starr-surveying\.com>/);
+    // The From used to be the literal 'Starr Surveying <info@…>' and this test asserted it. That is
+    // the hard-code audit item 8h removed, so asserting it would now pin the bug. What the test was
+    // ALWAYS protecting is that outbound mail carries the firm's identity — which is now resolved
+    // per tenant by `outboundIdentity`, and the reply-to goes with it.
+    expect(SRC).toMatch(/from: sender\.from/);
+    expect(SRC).toMatch(/outboundIdentity\(/);
+    expect(SRC).not.toMatch(/from: 'Starr Surveying/);
   });
 
   it("flips status draft → issued + stamps issued_at on first send only", () => {

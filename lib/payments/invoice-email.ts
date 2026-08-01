@@ -1,16 +1,43 @@
 // lib/payments/invoice-email.ts
 //
 // P3b of payment-infrastructure-2026-06-18.md — pure builder for the
-// customer-facing "your invoice is ready" email. Brand-aligned with
-// the rest of the Starr Surveying transactional templates: dark
-// navy header, red CTA, line-item table, payment link.
+// customer-facing "your invoice is ready" email. Dark navy header, red
+// CTA, line-item table, payment link.
 //
 // HTML is built by hand (no JSX) so the helper stays a pure string
 // function — easy to source-lock in vitest.
+//
+// ── THE FIRM IS AN INPUT, NOT A CONSTANT (audit §3c.3, item 8h) ──────────────
+//
+// These builders named one firm fourteen times: in the subject line, in the
+// sign-off, on the "make checks payable to" line, and inside a tel: link. That
+// is the most expensive place for a hard-code to survive — an email is the
+// artefact that leaves the building, and a second firm's customer receiving an
+// invoice signed by a competitor is not a bug anyone gets to fix quietly.
+//
+// So `firm` is REQUIRED on every input. Not optional-with-a-default: an
+// optional field would compile at every existing call site and keep sending the
+// old name, which is exactly the failure this is meant to make impossible.
+// Required means the compiler names every place that has to decide.
 
 import { formatDollars } from './live';
 
+/** The sending firm's identity, as these templates need it. A narrow subset of
+ *  `TenantProfile` (lib/saas/tenant-profile-shape.ts) rather than the whole
+ *  thing, so the builders stay pure and a test can construct one in a line. */
+export interface FirmIdentity {
+  /** Display name — the sign-off, the subject line, the cheque payee. */
+  name: string;
+  /** As a human reads it. Null when the firm has not set one, in which case the
+   *  "call us" line is omitted rather than rendered with an empty number. */
+  phone: string | null;
+  /** As a `tel:` link wants it. Null for the same reason — a tel: href with no
+   *  digits is a button that does nothing when a customer taps it. */
+  phoneE164: string | null;
+}
+
 export interface InvoiceEmailInput {
+  firm: FirmIdentity;
   invoice_number: string;
   customer_name: string | null;
   pay_link: string;
@@ -33,10 +60,23 @@ function escape(s: string): string {
   return String(s).replace(SAFE_TAG_RE, (c) => SAFE_TAG_MAP[c] ?? c);
 }
 
+/** The "Questions? Call us at …" line, HTML. Omitted entirely when the firm has
+ *  no phone number: half a tel: link looks like a broken email. */
+function callUsHtml(firm: FirmIdentity, suffix = '.'): string {
+  if (!firm.phone || !firm.phoneE164) return '';
+  return `Questions? Call us at <a href="tel:${escape(firm.phoneE164)}" style="color:#BD1218;font-weight:700;">${escape(firm.phone)}</a>${suffix}`;
+}
+
+/** Same, plain text. Returns null so callers drop the line rather than push a blank. */
+function callUsText(firm: FirmIdentity): string | null {
+  return firm.phone ? `Questions? Call ${firm.phone}.` : null;
+}
+
+
 /** Pure helper — subject line. The invoice number is the customer's
  *  canonical reference. */
-export function buildInvoiceEmailSubject(input: { invoice_number: string }): string {
-  return `Invoice ${input.invoice_number} from Starr Surveying`;
+export function buildInvoiceEmailSubject(input: { invoice_number: string; firm: FirmIdentity }): string {
+  return `Invoice ${input.invoice_number} from ${input.firm.name}`;
 }
 
 /** Pure helper — HTML body. */
@@ -80,7 +120,7 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
           <tr>
             <td style="padding:28px;">
               <p style="margin:0 0 16px;font-size:16px;">${greeting}</p>
-              <p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">Thank you for choosing Starr Surveying. Your invoice is ready below. You can pay online by clicking the button at the bottom of this email.</p>
+              <p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">Thank you for choosing ${escape(input.firm.name)}. Your invoice is ready below. You can pay online by clicking the button at the bottom of this email.</p>
               ${dueLine}
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;border-collapse:collapse;">
@@ -114,9 +154,9 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
               ${notesBlock}
 
               <p style="margin:32px 0 0;color:#4a5470;font-size:14px;line-height:1.55;">
-                Questions? Call us at <a href="tel:+19366620077" style="color:#BD1218;font-weight:700;">(936) 662-0077</a> or reply to this email.
+                ${callUsHtml(input.firm, ' or reply to this email.')}
               </p>
-              <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— Starr Surveying</p>
+              <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— ${escape(input.firm.name)}</p>
             </td>
           </tr>
         </table>
@@ -131,6 +171,7 @@ export function buildInvoiceEmailHtml(input: InvoiceEmailInput): string {
  *  them this so they have the company mailing address + a reminder
  *  that the receipt arrives once the office logs the payment. */
 export interface PledgeConfirmationInput {
+  firm: FirmIdentity;
   method: 'cash' | 'check';
   invoice_number: string;
   customer_name: string | null;
@@ -151,11 +192,14 @@ export function buildPledgeConfirmationHtml(input: PledgeConfirmationInput): str
   const methodLabel = input.method === 'check' ? 'check' : 'cash';
   const deliveryLabel = input.is_mailing ? 'by mail' : 'in person';
   const checkPayee = input.method === 'check'
-    ? `<p style="margin:0 0 12px;"><strong>Make checks payable to:</strong> Starr Surveying</p>`
+    ? `<p style="margin:0 0 12px;"><strong>Make checks payable to:</strong> ${escape(input.firm.name)}</p>`
     : '';
   const mailingBlock = input.is_mailing
     ? `<p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">Mail your ${methodLabel} to the address above. We'll send your receipt the moment it arrives.</p>`
-    : `<p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">When you stop by, ask for Hank or anyone at the front desk. We'll send your receipt the moment we log the payment.</p>`;
+    // "ask for Hank" named one individual at one firm — the same class of
+    // hard-code as the firm name, and it does not even survive that person
+    // changing desks.
+    : `<p style="margin:0 0 16px;color:#4a5470;line-height:1.55;">When you stop by, ask for anyone at the front desk. We'll send your receipt the moment we log the payment.</p>`;
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8" /><title>Payment confirmed</title></head>
@@ -178,7 +222,7 @@ export function buildPledgeConfirmationHtml(input: PledgeConfirmationInput): str
               </p>
               ${checkPayee}
               <div style="background:#f4f5f9;border:1px solid #e4e7ee;border-radius:10px;padding:16px 18px;margin:0 0 16px;">
-                <div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">Starr Surveying</div>
+                <div style="font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">${escape(input.firm.name)}</div>
                 <div style="font-family:'Sora','Inter',sans-serif;font-size:15px;font-weight:700;">${escape(input.office_address_line1)}</div>
                 <div style="font-size:15px;color:#4a5470;">${escape(input.office_address_line2)}</div>
               </div>
@@ -190,9 +234,9 @@ export function buildPledgeConfirmationHtml(input: PledgeConfirmationInput): str
                 <a href="${escape(input.pay_link)}" data-testid="pledge-link" style="display:inline-block;background:#1D3095;color:#ffffff;text-decoration:none;font-weight:700;font-family:'Sora','Inter',sans-serif;padding:12px 22px;border-radius:10px;font-size:15px;">View your invoice</a>
               </div>
               <p style="margin:0;color:#4a5470;font-size:14px;line-height:1.55;">
-                Questions? Call us at <a href="tel:+19366620077" style="color:#BD1218;font-weight:700;">(936) 662-0077</a>.
+                ${callUsHtml(input.firm)}
               </p>
-              <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— Starr Surveying</p>
+              <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— ${escape(input.firm.name)}</p>
             </td>
           </tr>
         </table>
@@ -210,21 +254,21 @@ export function buildPledgeConfirmationText(input: PledgeConfirmationInput): str
     '',
     `Thanks for letting us know you're paying ${formatDollars(input.amount_cents)} in ${input.method} ${input.is_mailing ? 'by mail' : 'in person'}.`,
   ];
-  if (input.method === 'check') lines.push('', 'Make checks payable to: Starr Surveying');
+  if (input.method === 'check') lines.push('', `Make checks payable to: ${input.firm.name}`);
   lines.push(
     '',
-    'Starr Surveying',
+    input.firm.name,
     input.office_address_line1,
     input.office_address_line2,
     '',
     input.is_mailing
       ? `Mail your ${input.method} to the address above. We'll send your receipt the moment it arrives.`
-      : `When you stop by, ask for Hank or anyone at the front desk. We'll send your receipt the moment we log the payment.`,
+      : `When you stop by, ask for anyone at the front desk. We'll send your receipt the moment we log the payment.`,
     '',
     `View your invoice any time: ${input.pay_link}`,
     '',
-    'Questions? Call (936) 662-0077.',
-    '— Starr Surveying',
+    ...(callUsText(input.firm) ? [callUsText(input.firm) as string] : []),
+    `— ${input.firm.name}`,
   );
   return lines.join('\n');
 }
@@ -234,6 +278,7 @@ export function buildPledgeConfirmationText(input: PledgeConfirmationInput): str
  *  button on the return-to-portal paid-card. PDF attachment ships
  *  in P9; this slice keeps the email body itself self-contained. */
 export interface ReceiptResendInput {
+  firm: FirmIdentity;
   invoice_number: string;
   customer_name: string | null;
   total_cents: number;
@@ -304,9 +349,9 @@ export function buildReceiptResendHtml(input: ReceiptResendInput): string {
             </div>
 
             <p style="margin:24px 0 0;color:#4a5470;font-size:14px;line-height:1.55;">
-              Questions? Call us at <a href="tel:+19366620077" style="color:#BD1218;font-weight:700;">(936) 662-0077</a>.
+              ${callUsHtml(input.firm)}
             </p>
-            <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— Starr Surveying</p>
+            <p style="margin:8px 0 0;color:#6b7280;font-size:12px;">— ${escape(input.firm.name)}</p>
           </td>
         </tr>
       </table>
@@ -332,8 +377,8 @@ export function buildReceiptResendText(input: ReceiptResendInput): string {
     '',
     `View your invoice: ${input.pay_link}`,
     '',
-    'Questions? Call (936) 662-0077.',
-    '— Starr Surveying',
+    ...(callUsText(input.firm) ? [callUsText(input.firm) as string] : []),
+    `— ${input.firm.name}`,
   ];
   return lines.join('\n');
 }
@@ -342,7 +387,7 @@ export function buildReceiptResendText(input: ReceiptResendInput): string {
  *  doesn't render HTML. */
 export function buildInvoiceEmailText(input: InvoiceEmailInput): string {
   const lines: string[] = [
-    `Invoice ${input.invoice_number} — Starr Surveying`,
+    `Invoice ${input.invoice_number} — ${input.firm.name}`,
     '',
     input.customer_name ? `Hello ${input.customer_name},` : 'Hello,',
     '',
@@ -358,6 +403,7 @@ export function buildInvoiceEmailText(input: InvoiceEmailInput): string {
   lines.push(`Total:    ${formatDollars(input.total_cents)}`);
   if (input.due_at) lines.push('', `Due by ${new Date(input.due_at).toLocaleDateString()}`);
   if (input.notes) lines.push('', input.notes);
-  lines.push('', 'Questions? Call (936) 662-0077.', '— Starr Surveying');
+  const call = callUsText(input.firm);
+  lines.push('', ...(call ? [call] : []), `— ${input.firm.name}`);
   return lines.join('\n');
 }

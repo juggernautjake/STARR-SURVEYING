@@ -23,25 +23,39 @@
 // One-thumb tap target (44×44 minimum) on the phone CTA so a
 // customer can call from their mobile without zooming in.
 
-import Link from 'next/link';
+'use client'
 
-export default function PayHeader(): React.ReactElement {
+import Link from 'next/link';
+import { usePublicFirm } from './usePublicFirm';
+
+/** The firm comes from the invoice, not the source (audit item 8h). This component is currently
+ *  unrendered — see the note above — and that is exactly why it was worth converting: the day the
+ *  standalone portal ships is the day a hard-code in here reaches a customer, and nobody would think
+ *  to look in a retired file for it. */
+export default function PayHeader({ invoice }: { invoice?: string } = {}): React.ReactElement {
+  const { firm } = usePublicFirm(invoice);
+  const brandMark = (firm.name.split(/\s+/)[0] || '').toUpperCase();
+  const brandTail = firm.name.split(/\s+/).slice(1).join(' ');
   return (
     <header className="pay-header" role="banner" data-testid="pay-header">
       <div className="pay-header__inner">
-        <Link href="/pay" className="pay-header__brand" aria-label="Starr Surveying — payment portal home">
-          <span className="pay-header__brand-mark">STARR</span>
-          <span className="pay-header__brand-tail">Surveying · Payments</span>
+        <Link href="/pay" className="pay-header__brand" aria-label={`${firm.name} — payment portal home`}>
+          <span className="pay-header__brand-mark">{brandMark}</span>
+          <span className="pay-header__brand-tail">{brandTail ? `${brandTail} · Payments` : 'Payments'}</span>
         </Link>
-        <a
-          href="tel:+19366620077"
-          className="pay-header__call"
-          aria-label="Call Starr Surveying at (936) 662-0077"
-          data-testid="pay-header-call"
-        >
-          <span aria-hidden>📞</span>
-          <span className="pay-header__call-text">(936) 662-0077</span>
-        </a>
+        {/* No number → no button. A tel: link with nothing to dial is worse than an absent one on the
+            page where somebody is trying to pay a bill. */}
+        {firm.phoneE164 && firm.phone && (
+          <a
+            href={`tel:${firm.phoneE164}`}
+            className="pay-header__call"
+            aria-label={`Call ${firm.name} at ${firm.phone}`}
+            data-testid="pay-header-call"
+          >
+            <span aria-hidden>📞</span>
+            <span className="pay-header__call-text">{firm.phone}</span>
+          </a>
+        )}
       </div>
     </header>
   );

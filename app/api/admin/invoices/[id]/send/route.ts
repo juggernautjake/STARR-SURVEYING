@@ -23,6 +23,9 @@ import {
   buildInvoiceEmailSubject,
   buildInvoiceEmailText,
 } from '@/lib/payments/invoice-email';
+import { firmForOrg } from '@/lib/payments/firm';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -42,7 +45,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice, error } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, customer_name, customer_email, line_items, subtotal_cents, tax_cents, total_cents, due_at, notes')
+    .select('id, org_id, invoice_number, public_slug, status, customer_name, customer_email, line_items, subtotal_cents, tax_cents, total_cents, due_at, notes')
     .eq('id', invoiceId)
     .maybeSingle();
   if (error || !invoice) {
@@ -60,8 +63,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
   const payLink = buildInvoicePayLink(host, invoice.public_slug);
 
-  const subject = buildInvoiceEmailSubject({ invoice_number: invoice.invoice_number });
+  // The firm comes from the INVOICE's org, not the session's (audit item 8h). Same expression in
+  // the public receipt routes, which have no session at all — one rule, not two.
+  const firm = await firmForOrg(invoice.org_id);
+  const sender = outboundIdentity(await getTenantProfile(invoice.org_id));
+
+  const subject = buildInvoiceEmailSubject({ invoice_number: invoice.invoice_number, firm });
   const html = buildInvoiceEmailHtml({
+    firm,
     invoice_number: invoice.invoice_number,
     customer_name: invoice.customer_name,
     pay_link: payLink,
@@ -73,6 +82,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     notes: invoice.notes,
   });
   const text = buildInvoiceEmailText({
+    firm,
     invoice_number: invoice.invoice_number,
     customer_name: invoice.customer_name,
     pay_link: payLink,
@@ -96,9 +106,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Starr Surveying <info@starr-surveying.com>',
+          from: sender.from,
           to: [recipient],
-          reply_to: 'info@starr-surveying.com',
+          reply_to: sender.replyTo,
           subject,
           html,
           text,

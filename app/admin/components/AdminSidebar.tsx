@@ -20,6 +20,10 @@ interface AdminSidebarProps {
   userName: string;
   userEmail: string;
   userImage?: string;
+  /** Staff at the firm. Passed in rather than derived from `userEmail` here (audit item 8h): the
+   *  drawer and the desktop rail must answer this the same way, and they only can if neither of them
+   *  computes it. `AdminLayoutClient` reads it from the session, which resolved it at sign-in. */
+  isCompanyUser: boolean;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -66,10 +70,9 @@ const BRAND_LABELS: Record<string, string> = {
 // The role groups that used to live here (WORK_ROLES, RESEARCH_ROLES, EQUIPMENT_ROLES, …) moved to
 // lib/admin/route-registry.ts, which is now the only place that decides who sees which route.
 
-export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
+export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isCompanyUser, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isCompanyUser = userEmail.toLowerCase().endsWith('@starr-surveying.com');
 
   const notableRoles = roles.filter(r => r !== 'employee' && r !== 'guest');
   const roleDisplay = notableRoles.length > 0

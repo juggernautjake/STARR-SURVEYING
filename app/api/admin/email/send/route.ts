@@ -12,6 +12,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin, ALL_ROLES } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { orgIdForSession } from '@/lib/saas/org-scope-context';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 
 interface SendBody {
   to?: string;        // one address, or several separated by , ; or newlines
@@ -134,6 +137,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Send one message per recipient so addresses are never disclosed to the
   // others (important for customer privacy on a multi-send). Failures are
   // collected rather than aborting the whole batch.
+  // The firm's name on a no-reply envelope; the human sender stays the reply-to below, which is what
+  // the header comment on this route already describes (audit item 8h).
+  const sender = outboundIdentity(await getTenantProfile(orgIdForSession(session)), { noreply: true });
+
   const failed: string[] = [];
   await Promise.all(recipients.map(async (addr) => {
     try {
@@ -144,7 +151,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Starr Surveying <noreply@starr-surveying.com>',
+          from: sender.from,
           to: [addr],
           reply_to: senderEmail,
           subject,

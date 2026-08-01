@@ -10,11 +10,15 @@
 // white card, Sora display + Inter body).
 
 import { useState, FormEvent } from 'react';
+import { usePublicFirm } from './usePublicFirm';
 import { useRouter } from 'next/navigation';
 import '../styles/Pay.css';
 
 export default function PayLandingPage(): React.ReactElement {
   const router = useRouter();
+  // Whose portal this is. With one org it resolves to that org; with several it comes from the
+  // request's own domain. See app/api/public/tenant/route.ts — it never guesses.
+  const { firm } = usePublicFirm();
   const [invoiceInput, setInvoiceInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +41,9 @@ export default function PayLandingPage(): React.ReactElement {
       return;
     }
     if (res.status === 410) {
-      setError('That invoice is no longer available. Please call us at (936) 662-0077.');
+      setError(firm.phone
+        ? `That invoice is no longer available. Please call us at ${firm.phone}.`
+        : 'That invoice is no longer available. Please contact us for a new one.');
       return;
     }
     if (!res.ok) {
@@ -53,7 +59,9 @@ export default function PayLandingPage(): React.ReactElement {
         <div className="pay-hero__card">
           <div className="pay-hero__eyebrow">Pay your invoice</div>
           <h1 className="pay-hero__title">
-            Welcome to <span className="pay-hero__title-accent">Starr Surveying</span>
+            {/* The firm this portal belongs to (audit item 8h). Held back until it loads rather
+                than flashing a blank or, worse, a default that is somebody else's name. */}
+            Welcome to <span className="pay-hero__title-accent">{firm.name}</span>
           </h1>
           <p className="pay-hero__subtitle">
             Enter the invoice number printed on your paper invoice to see your balance
@@ -92,10 +100,12 @@ export default function PayLandingPage(): React.ReactElement {
             )}
           </form>
 
-          <p className="pay-lookup__help">
-            Can&rsquo;t find your invoice number? Call us at{' '}
-            <a href="tel:+19366620077">(936) 662-0077</a>.
-          </p>
+          {firm.phoneE164 && firm.phone && (
+            <p className="pay-lookup__help">
+              Can&rsquo;t find your invoice number? Call us at{' '}
+              <a href={`tel:${firm.phoneE164}`}>{firm.phone}</a>.
+            </p>
+          )}
         </div>
       </section>
     </main>

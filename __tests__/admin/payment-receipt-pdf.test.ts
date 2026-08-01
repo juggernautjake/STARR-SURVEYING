@@ -16,6 +16,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 const baseInput = {
+  firm_name: 'Starr Surveying',
   invoice_number: 'SS-260618-A1B2',
   customer_name: 'Mary Smith',
   customer_email: 'mary@example.com',
@@ -124,9 +125,14 @@ describe('public receipt PDF route — source-lock', () => {
     expect(SRC).toMatch(/'Cache-Control': 'private, max-age=0, must-revalidate'/);
   });
 
-  it("uses office mailing address constants (single source of truth)", () => {
-    expect(SRC).toMatch(/OFFICE_ADDRESS_LINE1/);
-    expect(SRC).toMatch(/OFFICE_ADDRESS_LINE2/);
+  it("takes the letterhead from the invoice's own firm, not the marketing site", () => {
+    // These constants live in `app/components/ServiceAreaMap` — a MARKETING-SITE component. A
+    // receipt PDF built from them prints Starr's office on every firm's paperwork, and the PDF is
+    // the artefact that outlives the session (audit item 8h).
+    expect(SRC).toMatch(/getTenantProfile\(invoice\.org_id\)/);
+    expect(SRC).toMatch(/firm_name: profile\.name/);
+    expect(SRC).not.toMatch(/OFFICE_ADDRESS_LINE1/);
+    expect(SRC).not.toMatch(/OFFICE_ADDRESS_LINE2/);
   });
 });
 

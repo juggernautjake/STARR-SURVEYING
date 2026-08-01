@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { TEST_FIRM, TEST_FIRM_BLANK } from '../fixtures/firm';
 import {
   buildPledgeConfirmationHtml,
   buildPledgeConfirmationSubject,
@@ -34,6 +35,7 @@ describe('buildPledgeConfirmationSubject (pure)', () => {
 
 describe('buildPledgeConfirmationHtml + Text (pure)', () => {
   const base = {
+    firm: TEST_FIRM,
     invoice_number: 'SS-260618-A1B2',
     customer_name: 'Mary Smith',
     amount_cents: 125000,
@@ -62,7 +64,10 @@ describe('buildPledgeConfirmationHtml + Text (pure)', () => {
     const mail = buildPledgeConfirmationHtml({ ...base, method: 'check', is_mailing: true });
     expect(mail).toContain("Mail your check to the address above");
     const inPerson = buildPledgeConfirmationHtml({ ...base, method: 'cash', is_mailing: false });
-    expect(inPerson).toContain('ask for Hank');
+    // Was 'ask for Hank' — one named individual at one firm, which does not survive that person
+    // changing desks, never mind a second firm using the software (audit item 8h).
+    expect(inPerson).toContain('ask for anyone at the front desk');
+    expect(inPerson).not.toContain('Hank');
   });
 
   it("HTML-escapes hostile customer names", () => {
@@ -91,9 +96,15 @@ describe('attempt route — P7 pledge email side-effect', () => {
     expect(SRC).toMatch(/\(method === 'cash' \|\| method === 'check'\) && row\.payer_email/);
   });
 
-  it("uses the brand From + Resend HTTP API (no SDK dependency)", () => {
+  it("uses the sending firm's From + Resend HTTP API (no SDK dependency)", () => {
     expect(SRC).toMatch(/fetch\('https:\/\/api\.resend\.com\/emails'/);
-    expect(SRC).toMatch(/Starr Surveying <info@starr-surveying\.com>/);
+    // The From used to be the literal 'Starr Surveying <info@…>' and this test asserted it. That is
+    // the hard-code audit item 8h removed, so asserting it would now pin the bug. What the test was
+    // ALWAYS protecting is that outbound mail carries the firm's identity — which is now resolved
+    // per tenant by `outboundIdentity`, and the reply-to goes with it.
+    expect(SRC).toMatch(/from: sender\.from/);
+    expect(SRC).toMatch(/outboundIdentity\(/);
+    expect(SRC).not.toMatch(/from: 'Starr Surveying/);
   });
 
   it("builds the body via the pure pledge helpers", () => {
@@ -102,9 +113,15 @@ describe('attempt route — P7 pledge email side-effect', () => {
     expect(SRC).toMatch(/buildPledgeConfirmationText/);
   });
 
-  it("uses the office mailing address constants (one source of truth)", () => {
-    expect(SRC).toMatch(/OFFICE_ADDRESS_LINE1/);
-    expect(SRC).toMatch(/OFFICE_ADDRESS_LINE2/);
+  it("takes the mailing address from the invoice's own firm, not the marketing site", () => {
+    // This used to import OFFICE_ADDRESS_LINE1/2 from `app/components/ServiceAreaMap` — a
+    // MARKETING-SITE component — so a second firm's customer would have been told to post their
+    // cheque to Starr's office. There is no session on a public pay page, so the org comes off the
+    // invoice row.
+    expect(SRC).toMatch(/office_address_line1: profile\.addressLine1/);
+    expect(SRC).toMatch(/office_address_line2: profile\.addressLine2/);
+    expect(SRC).toMatch(/getTenantProfile\(invoice\.org_id\)/);
+    expect(SRC).not.toMatch(/OFFICE_ADDRESS_LINE1/);
   });
 
   it("returns pledge_email_sent + pledge_email_error on the response", () => {
@@ -145,8 +162,10 @@ describe('app/pay/[invoice]/page.tsx — P7 pledge UI', () => {
 
   it("post-submit thank-you panel renders the office mailing address when mailing", () => {
     expect(SRC).toMatch(/data-testid="pay-pledge-mailing-addr"/);
-    expect(SRC).toMatch(/3779 W FM 436/);
-    expect(SRC).toMatch(/Belton, TX 76513/);
+    // The address is the firm's now, resolved from the invoice — see app/api/public/tenant.
+    expect(SRC).toMatch(/\{firm\.addressLine1\}/);
+    expect(SRC).toMatch(/\{firm\.addressLine2\}/);
+    expect(SRC).toMatch(/\{firm\.addressLine2\}/);
   });
 
   it("post-submit pledge testids distinct from the deeplink testids", () => {

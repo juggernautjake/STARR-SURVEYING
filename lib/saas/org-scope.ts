@@ -141,6 +141,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'mileage_entries',
   'module_completions',
   'notifications',
+  'org_counties',
   'org_invitations',
   'org_notifications',
   'org_settings',

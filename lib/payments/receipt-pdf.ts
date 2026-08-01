@@ -32,6 +32,10 @@ export interface ReceiptModelInput {
     external_id_tail: string | null;
   }>;
   generated_at?: Date;
+  /** The firm issuing the receipt. Was the literal 'Starr Surveying' twice — in the letterhead and
+   *  in the PDF's Author metadata, which travels with the file after it leaves the browser (audit
+   *  item 8h). */
+  firm_name: string;
   office_address_line1: string;
   office_address_line2: string;
   office_phone: string;
@@ -40,6 +44,9 @@ export interface ReceiptModelInput {
 
 export interface ReceiptModel {
   invoice_number: string;
+  /** Carried through to the PDF's Author metadata, which stays with the file after it leaves the
+   *  browser — a customer who checks Document Properties should see the firm that issued it. */
+  firm_name: string;
   greeting: string;
   paid_summary: string;
   payment_rows: ReadonlyArray<{ method: string; date: string; ref: string; amount: string }>;
@@ -62,6 +69,7 @@ export function buildReceiptModel(input: ReceiptModelInput): ReceiptModel {
   const greeting = input.customer_name ? `Receipt for ${input.customer_name}` : 'Receipt';
   return {
     invoice_number: input.invoice_number,
+    firm_name: input.firm_name,
     greeting,
     paid_summary: `Paid ${formatDollars(input.paid_cents)} of ${formatDollars(input.total_cents)}`,
     payment_rows: input.payments.map((p) => ({
@@ -73,7 +81,7 @@ export function buildReceiptModel(input: ReceiptModelInput): ReceiptModel {
     total_label: `Total: ${formatDollars(input.total_cents)}`,
     paid_label: `Paid: ${formatDollars(input.paid_cents)}`,
     office_lines: [
-      'Starr Surveying',
+      input.firm_name,
       input.office_address_line1,
       input.office_address_line2,
       input.office_phone,
@@ -93,7 +101,7 @@ export async function renderReceiptPdf(model: ReceiptModel): Promise<Buffer> {
     margin: 50,
     info: {
       Title: `Receipt — Invoice ${model.invoice_number}`,
-      Author: 'Starr Surveying',
+      Author: model.firm_name,
       Subject: `Receipt for invoice ${model.invoice_number}`,
     },
   });

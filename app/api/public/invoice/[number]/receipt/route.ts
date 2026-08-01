@@ -34,6 +34,9 @@ import {
   buildReceiptResendSubject,
   buildReceiptResendText,
 } from '@/lib/payments/invoice-email';
+import { firmForOrg } from '@/lib/payments/firm';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
@@ -61,7 +64,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: invoice } = await supabaseAdmin
     .from('customer_invoices')
-    .select('id, invoice_number, public_slug, status, customer_name, total_cents')
+    .select('id, org_id, invoice_number, public_slug, status, customer_name, total_cents')
     .or(`invoice_number.eq.${upper},public_slug.eq.${rawKey}`)
     .maybeSingle();
   if (!invoice) {
@@ -87,7 +90,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .filter((s: PaymentSummary | null): s is PaymentSummary => s !== null);
 
   const host = process.env.NEXT_PUBLIC_APP_URL ?? 'https://starr-surveying.com';
+  // No session on the public receipt route — the firm comes from the invoice's own org.
+  const firm = await firmForOrg(invoice.org_id);
+  const sender = outboundIdentity(await getTenantProfile(invoice.org_id));
   const payload = {
+    firm,
     invoice_number: invoice.invoice_number,
     customer_name: invoice.customer_name,
     total_cents: invoice.total_cents ?? 0,
@@ -111,9 +118,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Starr Surveying <info@starr-surveying.com>',
+          from: sender.from,
           to: [to],
-          reply_to: 'info@starr-surveying.com',
+          reply_to: sender.replyTo,
           subject,
           html,
           text,

@@ -32,6 +32,9 @@ import {
   signLeadAttachmentUrls,
   uploadLeadAttachments,
 } from '@/lib/leads/intake';
+import { orgIdForSession } from '@/lib/saas/org-scope-context';
+import { getTenantProfile } from '@/lib/saas/tenant-profile';
+import { outboundIdentity } from '@/lib/email/sender';
 
 interface ResendAttachment {
   filename: string;
@@ -189,6 +192,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
+  // Who this reply is from. An admin session, so the org comes from the session (audit item 8h) —
+  // unlike the public pay routes, where it has to come off the invoice row.
+  const sender = outboundIdentity(await getTenantProfile(orgIdForSession(gate.session ?? null)));
+
   // Send via Resend. Falls back to a dev-mode log when no key is set.
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   let resendId: string | null = null;
@@ -197,9 +204,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (RESEND_API_KEY && RESEND_API_KEY !== 'your_resend_api_key') {
     try {
       const payload: Record<string, unknown> = {
-        from: 'Starr Surveying <info@starr-surveying.com>',
+        from: sender.from,
         to: [recipient],
-        reply_to: 'info@starr-surveying.com',
+        reply_to: sender.replyTo,
         subject,
         html: bodyHtml,
         text: bodyText ?? undefined,

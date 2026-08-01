@@ -1,0 +1,177 @@
+// scripts/audit-starr-assumptions.mjs — where "our firm" is spelled into the code (audit §3c.3, item 8h).
+//
+// §3c.3 names the trap precisely:
+//
+//   *"'Make it work for Starr' and 'make it sellable' pull in opposite directions exactly once: when a
+//    hard-coded Starr assumption is cheaper than a configurable one. … Each is correct today and each
+//    is a per-tenant setting tomorrow. They should be found and catalogued now, while they are a list,
+//    rather than discovered one support ticket at a time."*
+//
+// This is the list, and it is generated rather than written, because a hand-written list of 150-odd
+// call sites is out of date the week after it is written.
+//
+// ── THE CLASSIFICATION IS THE WORK (AGAIN) ──────────────────────────────────────────────────────
+//
+// A raw grep for "Starr" finds ~153 files and is useless, because most of them are **correct** and
+// must never change. Starr Surveying is three different things in this repo at once:
+//
+//   · the SOFTWARE VENDOR — `/platform`, the operator console, the pricing pages. Starr Software sells
+//     this. A customer firm's name has no business there.
+//   · the OWNER OF A PUBLIC WEBSITE — `app/page.tsx`, `/about`, `/services`, `/contact`, the marketing
+//     header and footer. That is starr-surveying.com, the actual company website. It is not a tenant
+//     surface and never becomes one.
+//   · a TENANT — the firm whose invoices, emails, plat title blocks, login domain and county coverage
+//     the admin app manages. **This is the only bucket that has to become configurable**, and mixing it
+//     with the other two is what makes the problem look impossible.
+//
+// So: `own-site` and `vendor` are correct-forever, `fixture` is demo and test data, and `tenant` is the
+// backlog. The number that matters is the tenant count, and `__tests__/saas/starr-assumptions.test.ts`
+// ratchets it so a new hard-code cannot be added to a customer-facing surface without a decision.
+//
+// Run: `node scripts/audit-starr-assumptions.mjs [--all]`
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+/** Identity strings that mean "this specific firm". Deliberately narrow: `Starr CAD` and `Starr Recon`
+ *  are PRODUCT names owned by the vendor, not firm identity, and matching them would drown the signal. */
+const PATTERNS = [
+  { id: 'email-domain', re: /starr-surveying\.com/g, what: 'the firm’s email domain' },
+  { id: 'firm-name', re: /Starr Surveying/g, what: 'the firm’s display name' },
+  { id: 'phone', re: /\(936\)\s*662-0077|\+?19366620077/g, what: 'the firm’s phone number' },
+  { id: 'county', re: /\bBell County\b|countyName !== 'bell'|=== 'bell'/g, what: 'a single county assumed' },
+];
+
+// ── A FOURTH CATEGORY, FOUND WHILE FIXING THIS: county ADAPTER code ─────────────────────────────
+//
+// The `county` pattern was the largest bucket (106 references) and most of it was miscounted. A file
+// like `property-search.service.ts` names Bell in a **registry of ~35 Texas counties** — beside
+// McLennan, Williamson, Coryell and the rest — with each county's appraisal-district URL, clerk URL
+// and public-search host. That is a county catalogue, exactly the shared reference data audit §1.2
+// deliberately classified as NOT per-tenant ("a per-tenant copy of the county list is duplication with
+// extra steps"). And `bell-cad-arcgis.service.ts` is the Bell adapter; naming Bell inside the Bell
+// adapter is not a hard-code, it is the file's subject.
+//
+// The distinction that matters, and the one `lib/research/county-support.ts` is built around:
+//
+//   CAPABILITY — "can the software read that county's records?" Grows by writing adapters. Making it
+//     configurable would let a firm point Bell CAD's ArcGIS at a Travis County parcel and get a
+//     confident answer about the wrong land.
+//   COVERAGE — "does this firm work in that county?" Per-tenant, lives in `org_counties`.
+//
+// Counting adapter files as tenant debt would push toward "fixing" them, and the fix is the bug. They
+// get their own bucket so the tenant number means what it says.
+const COUNTY_ADAPTERS = [
+  { prefix: 'lib/research/bell-cad-arcgis.service', why: 'the Bell adapter — naming Bell here is the file’s subject' },
+  { prefix: 'lib/research/property-search.service', why: 'a registry of ~35 Texas counties; Bell is one row' },
+  { prefix: 'lib/research/boundary-fetch.service', why: 'per-county boundary endpoints' },
+  { prefix: 'lib/research/parcel-map-capture.service', why: 'per-county map portals' },
+  { prefix: 'lib/research/progressive-zoom.service', why: 'per-county map portals' },
+  { prefix: 'lib/research/map-image.service', why: 'per-county map portals' },
+  { prefix: 'lib/research/vendor-detection', why: 'identifies which vendor a county’s portal runs' },
+  { prefix: 'lib/research/document-analysis.service', why: 'county-specific document formats' },
+  { prefix: 'lib/research/iterative-image-analyzer.service', why: 'county-specific map rendering' },
+  { prefix: 'lib/research/self-heal-planner', why: 'per-county scraper repair' },
+  { prefix: 'app/api/admin/research/[projectId]/bell-cad-gis', why: 'the Bell CAD GIS route — the guard here is correct and must stay' },
+  { prefix: 'lib/research/county-support', why: 'the file that draws this very distinction' },
+];
+
+/** Paths whose Starr references are CORRECT and must not be counted as debt. Prefix-matched, and each
+ *  carries the reason — a bare path list would be indistinguishable from an ignore list. */
+const CORRECT_FOREVER = [
+  { prefix: 'app/platform', bucket: 'vendor', why: 'the operator console — Starr Software as the vendor' },
+  { prefix: 'app/pricing', bucket: 'vendor', why: 'what the vendor charges for the product' },
+  { prefix: 'app/page.tsx', bucket: 'own-site', why: 'starr-surveying.com — the firm’s own public website' },
+  { prefix: 'app/about', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/services', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/service-area', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/contact', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/resources', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/credentials', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/sitemap.ts', bucket: 'own-site', why: 'the firm’s own public website' },
+  { prefix: 'app/layout.tsx', bucket: 'own-site', why: 'metadata for the firm’s own public website' },
+  { prefix: 'app/components/Header', bucket: 'own-site', why: 'the public site’s chrome' },
+  { prefix: 'app/components/Footer', bucket: 'own-site', why: 'the public site’s chrome' },
+  { prefix: 'app/components/ServiceAreaMap', bucket: 'own-site', why: 'the public site’s service-area map' },
+  { prefix: 'app/components/GoogleReviewWidget', bucket: 'own-site', why: 'the firm’s own Google reviews' },
+  { prefix: 'app/components/SurveyCalculator', bucket: 'own-site', why: 'a public marketing calculator' },
+  { prefix: 'app/dnd', bucket: 'vendor', why: 'a separate product, explicitly out of this audit’s scope' },
+  { prefix: 'app/api/contact', bucket: 'own-site', why: 'the public site’s contact form' },
+  { prefix: '__tests__', bucket: 'fixture', why: 'test fixtures' },
+  { prefix: 'e2e', bucket: 'fixture', why: 'test fixtures' },
+  { prefix: 'worker/src', bucket: 'fixture', why: 'the research worker runs for one firm today; tenancy reaches it via the job payload, not the source' },
+  { prefix: 'app/admin/components/jobs/fieldwork-demo', bucket: 'fixture', why: 'demo data' },
+];
+
+const ROOTS = ['app', 'lib', 'mobile', 'types'];
+const EXTS = new Set(['.ts', '.tsx']);
+
+function walk(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else if (EXTS.has(path.extname(entry.name))) out.push(full.replace(/\\/g, '/'));
+  }
+  return out;
+}
+
+export function classifyPath(rel) {
+  for (const entry of CORRECT_FOREVER) {
+    if (rel === entry.prefix || rel.startsWith(entry.prefix)) return entry;
+  }
+  for (const entry of COUNTY_ADAPTERS) {
+    if (rel === entry.prefix || rel.startsWith(entry.prefix)) return { ...entry, bucket: 'adapter' };
+  }
+  return { bucket: 'tenant', why: 'a customer firm would expect this to say THEIR name' };
+}
+
+export function scan(root = process.cwd()) {
+  const files = ROOTS.filter((r) => fs.existsSync(path.join(root, r)))
+    .flatMap((r) => walk(path.join(root, r)))
+    .map((f) => path.relative(root, f).replace(/\\/g, '/'));
+
+  const hits = [];
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    for (const p of PATTERNS) {
+      const n = (src.match(p.re) ?? []).length;
+      if (n) hits.push({ file: rel, pattern: p.id, what: p.what, count: n, ...classifyPath(rel) });
+    }
+  }
+  return hits;
+}
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop())) {
+  const hits = scan();
+  const byBucket = new Map();
+  for (const h of hits) byBucket.set(h.bucket, [...(byBucket.get(h.bucket) ?? []), h]);
+
+  const tenant = byBucket.get('tenant') ?? [];
+  const files = new Set(tenant.map((h) => h.file));
+
+  console.log('Starr identity referenced in source:\n');
+  for (const [bucket, list] of [...byBucket].sort()) {
+    const fileCount = new Set(list.map((h) => h.file)).size;
+    const hitCount = list.reduce((a, h) => a + h.count, 0);
+    const note = bucket === 'tenant' ? '   ← the backlog'
+      : bucket === 'adapter' ? '   (per-COUNTY capability, not per-tenant — see COUNTY_ADAPTERS)'
+      : '   (correct — leave alone)';
+    console.log(`  ${bucket.padEnd(10)} ${String(fileCount).padStart(3)} files, ${String(hitCount).padStart(4)} references${note}`);
+  }
+
+  console.log(`\nTenant-surface files that hard-code this firm (${files.size}):\n`);
+  const grouped = new Map();
+  for (const h of tenant) grouped.set(h.file, [...(grouped.get(h.file) ?? []), h]);
+  for (const [file, list] of [...grouped].sort()) {
+    console.log(`  ${file}`);
+    for (const h of list) console.log(`      ${h.count}× ${h.what}`);
+  }
+
+  if (process.argv.includes('--all')) {
+    console.log('\nEverything else, for review:\n');
+    for (const h of hits.filter((x) => x.bucket !== 'tenant').sort((a, b) => a.file.localeCompare(b.file))) {
+      console.log(`  [${h.bucket}] ${h.file} — ${h.count}× ${h.what}`);
+    }
+  }
+}
