@@ -17,10 +17,32 @@ import pg from 'pg';
 
 const ROOT = process.cwd();
 // Tables first, then the foreign keys — the same order run-all applies them in.
+//
+// `513_org_scoping.sql` is in the DEFAULT list because it ALTERs baseline tables — it puts `org_id`
+// on 73 of them (D1). Leaving it out made the default run report 34 phantom mismatches: columns that
+// exist in production, are owned by a seed in this repo, and simply were not in the file list. A
+// verifier that cries wolf 34 times is one nobody runs.
 const FILES = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['seeds/000_baseline_tables.sql', 'seeds/499_baseline_fks.sql'];
+  : ['seeds/000_baseline_tables.sql', 'seeds/513_org_scoping.sql', 'seeds/499_baseline_fks.sql'];
 const SCRATCH = 'schema_verify_scratch';
+
+// ── Columns the baseline is EXPECTED not to have, and why it stays a short list ─────────────────────
+//
+// These three are added by seeds 503/505/506, which ALTER `jobs` to point at `leads`, `customers` and
+// `lead_quotes` — tables that are not part of the baseline. Including those seeds here would drag most
+// of the seed range in behind them, so the baseline legitimately stops short.
+//
+// This allowlist exists so the run can be GREEN when only these appear, and RED the moment anything
+// else does. Without it the default run exits non-zero forever, and a check that always fails is a
+// check nobody reads — the same failure mode as the false green above, arrived at from the other side.
+// Keep it exact (`table.column`) and keep it short: every entry is a column this script has stopped
+// checking, so a wildcard here would quietly switch off the parity guarantee it exists to provide.
+const EXPECTED_MISSING = new Set([
+  'jobs.accepted_quote_id', // seed 505 — REFERENCES lead_quotes
+  'jobs.customer_id',       // seed 503 — REFERENCES customers
+  'jobs.origin_lead_id',    // seed 506 — REFERENCES leads
+]);
 
 const env = fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8');
 const m = env.match(/SUPABASE_DB_URL\s*=\s*"?([^"\n\r]+)"?/);
@@ -33,7 +55,22 @@ const raw = FILES.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('
 // pg_indexes defs qualify the same way.
 const sql = raw
   .replace(/\bpublic\./g, `${SCRATCH}.`)
-  .replace(/\bON public\b/g, `ON ${SCRATCH}`);
+  .replace(/\bON public\b/g, `ON ${SCRATCH}`)
+  // ── STRIP THE SEED'S OWN TRANSACTION CONTROL, or this script's central promise is a lie ──────
+  //
+  // This file's header says *"runs the files inside ONE transaction, then ROLLS BACK — nothing
+  // persists and production is untouched"*. A seed containing its own `BEGIN; … COMMIT;` breaks that
+  // outright: the seed's COMMIT ends the wrapper transaction, the later ROLLBACK has nothing left to
+  // undo, and the scratch schema is committed into production.
+  //
+  // Found 2026-08-01, by seed 513 doing exactly that. The symptom was quiet and compounding — a leaked
+  // `schema_verify_scratch` that the NEXT run then diffed against instead of a fresh build, reporting
+  // ZERO mismatches. A green tick meaning the opposite of what it says, on the one check standing
+  // between this repo and a database nobody can rebuild.
+  //
+  // Only bare statement-level keywords on their own line are stripped — never a `BEGIN` inside a
+  // `DO $$ … $$` block, which is PL/pgSQL and means something entirely different.
+  .replace(/^[ \t]*(BEGIN|COMMIT|ROLLBACK)[ \t]*;[ \t]*$/gim, '-- (transaction control stripped by verify-baseline-schema)');
 
 const client = new pg.Client({
   connectionString: m[1].trim(),
@@ -44,6 +81,15 @@ await client.connect();
 let ok = false;
 try {
   await client.query('BEGIN');
+  // DROP FIRST, and it is not belt-and-braces — it fixes a FALSE GREEN.
+  //
+  // Observed 2026-08-01: a run left `schema_verify_scratch` behind (the footer says so, and says
+  // nothing else about it), and the NEXT run then reported **0 mismatches** — because it was diffing
+  // production against the stale schema from last time rather than against a fresh build. A schema
+  // verifier whose second run always says "clean" is worse than no verifier: it is a green tick that
+  // means the opposite of what it says, on the one check standing between the repo and a database
+  // nobody can rebuild.
+  await client.query(`DROP SCHEMA IF EXISTS ${SCRATCH} CASCADE`);
   await client.query(`CREATE SCHEMA ${SCRATCH}`);
   // Extensions live in public/extensions; make their functions reachable.
   await client.query(`SET LOCAL search_path TO ${SCRATCH}, public, extensions`);
@@ -108,19 +154,31 @@ try {
     [SCRATCH],
   );
 
-  if (diff.rows.length === 0) {
+  // Only allowlist MISSING columns — an EXTRA or a MISMATCH on the same column would be a real defect
+  // (a type that drifted, a default that vanished) and must still fail.
+  const explained = diff.rows.filter(
+    (r) => r.problem === 'MISSING in rebuild' && EXPECTED_MISSING.has(`${r.table_name}.${r.column_name}`),
+  );
+  const unexplained = diff.rows.filter((r) => !explained.includes(r));
+
+  if (explained.length) {
+    console.log(`\n○ ${explained.length} expected gap(s), added by later seeds outside the baseline:`);
+    for (const r of explained) console.log(`   ${r.table_name}.${r.column_name}`);
+  }
+
+  if (unexplained.length === 0) {
     console.log(`\n✅ column parity: every column matches production exactly.`);
     ok = true;
   } else {
-    console.error(`\n❌ column parity: ${diff.rows.length} difference(s) vs production:`);
-    for (const r of diff.rows.slice(0, 40)) {
+    console.error(`\n❌ column parity: ${unexplained.length} unexpected difference(s) vs production:`);
+    for (const r of unexplained.slice(0, 40)) {
       console.error(
         `   ${r.table_name}.${r.column_name} — ${r.problem}\n` +
           `      prod:    ${r.prod_type} null=${r.prod_null} default=${r.prod_default ?? '∅'}\n` +
           `      rebuilt: ${r.rebuilt_type} null=${r.rebuilt_null} default=${r.rebuilt_default ?? '∅'}`,
       );
     }
-    if (diff.rows.length > 40) console.error(`   …and ${diff.rows.length - 40} more.`);
+    if (unexplained.length > 40) console.error(`   …and ${unexplained.length - 40} more.`);
     ok = false;
   }
 } catch (e) {

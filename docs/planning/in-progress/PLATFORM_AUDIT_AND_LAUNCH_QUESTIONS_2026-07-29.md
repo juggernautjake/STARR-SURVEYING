@@ -14,7 +14,7 @@ infrastructure or competes for the same code.
 | Distinct DB tables/views queried in code | **249** |
 | Tables/views with a `CREATE` statement in `seeds/` | **197** |
 | **Tables queried in code with NO schema in the repo** | **78** → **0** (fixed, §1.1) |
-| Tables carrying an `org_id` (multi-tenant scoping) | **28 of 188** |
+| Tables carrying an `org_id` (multi-tenant scoping) | **28 of 188** → **126** (fixed, §1.2) |
 | Admin `.tsx` lines of code | **196,254** |
 | Test files (whole repo) | 1,335 — of which **571 are D&D** |
 | Hard-coded hexes inside `style={{}}` | **1,662 across 267 files** (ratcheted) |
@@ -106,6 +106,40 @@ The `/platform`, `/admin/orgs`, `/admin/billing`, bundle-gating and operator-con
 you intend to sell this to other surveying firms. As built, onboarding a second firm means every
 firm sees every job, every employee, and every drawing. See §Q1 — this is the decision that most
 changes what "launch" means.
+
+> **✅ RESOLVED 2026-08-01 — the column, per D1.** `seeds/513_org_scoping.sql` puts a nullable
+> `org_id uuid REFERENCES organizations(id)` (plus an index) on **73 business tables**; 53 → 126 of
+> 188 now carry one, and the rest are deliberate. `scripts/audit-org-scoping.mjs` holds the
+> classification and `__tests__/schema/org-scoping.test.ts` pins it, because the *classification* is
+> the work and the column is the easy part:
+>
+> - **platform (12)** sit above the org — `organizations` itself, `operator_users`, `releases`,
+>   `impersonation_sessions`. `impersonation_sessions` is the sharpest case: it exists precisely to
+>   cross an org boundary, so scoping it to one org defeats it.
+> - **reference (35)** are shared catalogues — 254 Texas counties, the FS reference library, the
+>   problem-template bank. A per-tenant copy is duplication with extra steps, and the first divergent
+>   copy is a support call about why one firm's county data is stale.
+> - **per-user (22)** follow the person, not the firm. A bookmark is not tenant data.
+> - **derived (51)** are children of an already-scoped table — a `job_equipment` row's tenant *is* its
+>   job's. Denormalising the column onto every child is a second copy of the same fact that can
+>   disagree with the first.
+> - **dnd (40)** are a separate product with its own user table, explicitly out of this audit's scope.
+>
+> Two properties are asserted rather than left to convention. The column is **nullable with no
+> default** — `NOT NULL DEFAULT <starr>` would silently stamp every future row with the Starr org,
+> *including rows a second customer's code inserts*, which is the precise bug multi-tenancy exists to
+> prevent, shipped early and invisibly. And the backfill **refuses to guess**: it counts
+> `organizations` first and skips with a `RAISE NOTICE` if there is more than one, because by then a
+> default is a guess about which customer owns a row — silent, plausible, and discovered by the other
+> customer.
+>
+> An unclassified table defaults to **tenant**, since the cost of being wrong runs one way: a spare
+> nullable column is dead weight, a missing one is a table that leaks between firms on the day the
+> second one arrives.
+>
+> **Still open, and this is only step one.** The column exists and is empty of meaning until queries
+> filter on it. Enforcement — RLS or a scoped query helper — is Phase 3 work; today a second org
+> would still see everything. What D1 bought is that the migration is now a backfill.
 
 ### 1.3 🟠 Two navigation systems, drifted apart
 `AdminSidebar.tsx` (legacy, 11 hand-maintained sections) and `lib/admin/route-registry.ts` (the new
@@ -375,8 +409,8 @@ Anthropic client:
 1. ✅ **DONE 2026-07-29.** Reconstructed the 76 missing table schemas into `seeds/`, verified
    column-for-column against production, guarded by a test. See §1.1.
 2. ⬜ Stand up an actual staging Supabase project from `seeds/` and point a preview deploy at it.
-3. ⬜ Per **D1**, add nullable `org_id` to the business tables now (defaulted to the Starr org) so
-   the eventual SaaS migration is a backfill rather than a rewrite.
+3. ✅ **DONE 2026-08-01.** Per **D1**, nullable `org_id` now sits on the business tables — 53 → 126
+   tables, via `seeds/513_org_scoping.sql`, backfilled to the single Starr org. See §1.2.
 4. ⬜ Resolve the two phantom research tables (§1.1b) — build or delete.
 
 **Phase 1 — Make it one product**
