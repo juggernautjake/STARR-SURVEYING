@@ -1,3 +1,23 @@
+# ⛔ SUPERSEDED — see `in-progress/LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md`
+
+**Moved to `obsolete/` on 2026-08-01.** This plan was written on 2026-07-31 without noticing that a better
+one for the same feature was already sitting in `pending/`. Two live docs planning one feature is the
+duplicate-work failure this repo keeps having, so there is now exactly one.
+
+**Do not build from this file.** It is kept rather than deleted for two reasons:
+
+1. **Its shipped work is real.** G1 (click capture), the double-count fix, seeds 500/501 and the hashing
+   module all exist, are tested and are deployed — they are recorded against A1/A2 of the live doc, along
+   with the three places the implementation deliberately deviated from it.
+2. **One of its decisions was WRONG, and the record of that is the useful part.** It made *Job Secured* and
+   *Final Invoice Paid* both primary conversions. Google's click-conversion window maxes out at 90 days,
+   and a boundary survey routinely runs quote → delivery → payment past that — so a payment-keyed primary
+   conversion would silently under-report the slowest jobs, which are usually the biggest. The live doc's
+   Finding 5 has it right: **primary is `Job Created (quote accepted)` valued at `quote_amount`**, with the
+   later milestones handled as conversion *adjustments* where the window allows.
+
+---
+
 # Google, integrated into the surveying backend — 2026-07-31
 
 **Status:** IN PROGRESS · opened 2026-07-31 · owner-directed

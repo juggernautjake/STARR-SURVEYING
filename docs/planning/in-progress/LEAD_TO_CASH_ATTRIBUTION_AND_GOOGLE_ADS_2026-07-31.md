@@ -1,6 +1,47 @@
 # Lead-to-cash attribution & Google Ads offline conversions — 2026-07-31
 
-**Status:** pending. Move to `docs/planning/in-progress/` to activate the build.
+**Status:** IN PROGRESS · activated 2026-08-01 · **this is the live Google doc** — stop-hook driven.
+
+> ## ⚖ RECONCILED 2026-08-01 — this doc absorbs `GOOGLE_INTEGRATION_2026-07-31.md`, not the other way round
+>
+> On 2026-07-31 a second Google plan was written (`GOOGLE_INTEGRATION_2026-07-31.md`) without noticing this
+> one sitting in `pending/`. **That was the duplicate-work failure this repo keeps having**, and it is worth
+> saying plainly rather than quietly deleting one of them.
+>
+> **This doc wins, because it is better.** Its A0 audit found six things; the other found three, and all
+> three of those are in here too (the missing `gclid`, the double-firing conversion, the existing OAuth
+> pattern). The three it found that the other missed are each load-bearing:
+>
+> - **Finding 4 — there is no `customers` table.** Client identity is free text copied onto every row, so
+>   *"track recurring customers"* is currently unanswerable. That is a prerequisite, not polish.
+> - **Finding 5 — the 90-day window decides the bid target, and the other plan got this WRONG.** It made
+>   *Job Secured* **and** *Final Invoice Paid* both primary conversions. A boundary survey routinely runs
+>   quote → delivery → payment past 90 days, and Google rejects uploads outside the window — so a
+>   payment-keyed primary conversion would silently under-report the best jobs, which are usually the
+>   slowest. **Primary is `Job Created (quote accepted)` at `quote_amount`;** later milestones are
+>   conversion *adjustments* where the window allows, and internal analytics where it does not.
+> - **Finding 6 — the phone is the biggest hole after `gclid`.** `leads.source` defaults to `'Phone'`; a
+>   phone lead has no click to key on. Scoped as A13 and deliberately off the critical path, but nobody
+>   should read the funnel dashboard as full coverage.
+>
+> `GOOGLE_INTEGRATION_2026-07-31.md` has moved to `obsolete/` with a pointer here. **What it SHIPPED is
+> real and is recorded against A1/A2 below** — the code exists, is tested, and is deployed.
+
+### What is already built, and where it deviates from this plan
+
+**A1 and A2 shipped on 2026-07-31** under the other doc's numbering. Three deliberate deviations, each
+recorded here rather than left for someone to discover as a discrepancy:
+
+| This plan said | What shipped | Why |
+| --- | --- | --- |
+| Cookie `ss_attr`, 90 days | **`localStorage`**, 90 days (`lib/leads/attribution.ts`) | A client-set cookie is capped at **7 days by Safari's ITP**, which would silently lose most of a 90-day window on iPhones. A cookie also rides on every request — including images and API calls — for something only the form reads. |
+| Seed **469** | Seed **500** (`500_lead_attribution.sql`, applied live) | 469 was not free by the time the slice ran. **A2's claimed seed numbers below are stale — check before use.** |
+| `email_sha256` / `phone_sha256` stored on the lead at insert | **Not stored.** Hashing lives in `lib/integrations/google/hash.ts` and runs at enqueue time | Open question, not a decided deviation — see the note under A3. Storing at insert keeps the ability to hash after an email is edited or erased; computing at upload guarantees the normalisation is current. **The plan's version is probably right and this should be revisited in A3.** |
+| Three intake forms | **Four** (`/contact`, home, `ContactForm`, `SurveyCalculator`) | "The three intake forms" was already an undercount when this plan was written. |
+
+Also shipped beyond A1/A2: `seeds/501_google_conversions.sql` (the outbox — A7/A8's queue, applied live),
+`lib/integrations/google/hash.ts` with 16 tests, and — from `SURVEYING_BACKEND_ANALYSIS_2026-08-01` — a
+rate limiter and honeypot in front of the same intake forms.
 
 **Owner ask, verbatim:**
 
@@ -191,7 +232,11 @@ attribute.
 **Acceptance:** submit the contact form from a URL carrying `?gclid=TEST123&utm_source=google`, then read the
 `leads` row back and see `TEST123`. That single check is the slice.
 
-### A2 — One conversion path, no DOM polling
+### A2 — One conversion path, no DOM polling ✅ SHIPPED 2026-07-31
+
+> **Done.** The polling script is deleted and `trackConversion(transactionId)` carries the submission
+> reference as `transaction_id`, so a retry or a bfcache restore cannot double-count either. **GA4 remains
+> the open owner decision** — there is still no `G-` measurement ID, so nothing is receiving GA4 events.
 - Delete the polling script from `GoogleAdsScript.tsx` (Finding 3). The React call sites are the only path.
 - `trackConversion()` gains an optional `{ value, transactionId }` so the browser-side lead event carries the
   dedupe key that A7's offline upload will reuse (G3).
