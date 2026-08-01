@@ -7,9 +7,14 @@ import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
  * Scripts injected (visible in browser DevTools → Sources / Network):
  *   1. id="google-ads-gtag-loader"    – loads gtag.js for AW-17921491739
  *   2. id="google-ads-gtag-config"    – initialises window.dataLayer / gtag
- *   3. id="google-ads-contact-form-conversion" – polls the /contact page for
- *      the success message and fires the conversion event to
- *      AW-17921491739/-sTrCMb9xP8bEJuG0eFC  (Google support ticket 5-2885000040495)
+ *
+ * There is no third script. One used to poll /contact for the success text and fire the conversion; it
+ * double-counted every lead and was removed on 2026-07-31 — see the long note below, which is kept
+ * because the removal is the fix and someone will otherwise "restore" it from the Google support ticket.
+ *
+ * **This tag is Ads only (`AW-…`).** No GA4 property (`G-…`) is configured on this site — see A10 in
+ * docs/planning/.../LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md for why the GA4 mirror is
+ * deferred rather than built.
  */
 export default function GoogleAdsScript(): React.ReactElement {
   return (

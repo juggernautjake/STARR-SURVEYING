@@ -561,11 +561,59 @@ attribute.
 - Both are window-bound (Finding 5); outside the window we record `adjustment_skipped_window` on the event and
   keep the internal number correct. G4: our books never bend to fit Google's window.
 
-### A10 — GA4 offline events *(optional, decide in A2)*
-- If a GA4 property exists, mirror the same stream through the Measurement Protocol keyed on the stored
-  `client_id`. Same source table, different sink — no second source of truth.
+### A10 — GA4 offline events ⏸ DEFERRED 2026-08-01 — its own precondition is not met
+> **Decided, not skipped.** The item is written as *"**If** a GA4 property exists"*, and it does not.
+> `app/components/GoogleAdsScript.tsx` configures `AW-17921491739` and nothing else — there is no `G-…`
+> measurement id anywhere in the codebase or the environment, and `lib/leads/attribution.ts` does not
+> capture a GA4 `client_id`, so the Measurement Protocol has neither a destination nor a key.
+>
+> Building it would mean creating a GA4 property, adding a second client-side tag, capturing `client_id`
+> on every intake surface, and then sending a stream **nobody would read** — the funnel questions the
+> owner actually asked (true cost per stage, repeat customers, per-lead timeline) are answered by A12 off
+> our own tables, not by GA4.
+>
+> **The cost is not the code, it is the second source of truth.** GA4 would report its own conversion
+> counts, sessionised differently from ours, and the first time the two disagreed someone would have to
+> decide which to believe. That is a real ongoing cost for no new answer.
+>
+> **What to do if this is ever wanted:** create the property, add its `G-…` id to the existing `gtag`
+> config, store `client_id` alongside `gclid` in `attribution.ts` (the storage already exists — it is one
+> more field on the same object), and add a Measurement Protocol sink beside the Ads sink in the nightly
+> cron. The source table does not change; A4's `lead_lifecycle_events` already carries everything GA4
+> would need. Note in the component header points here.
 
-### A11 — Ad spend import, so "true lead cost" is a real number
+### A11 — Ad spend import, so "true lead cost" is a real number ✅ SHIPPED 2026-08-01
+> **Done.** **Seed 509** (applied live, not 474 — stale numbering), `lib/integrations/google-ads/spend.ts`
+> (22 tests), `runReportQuery` in `client.ts`, `/api/cron/google-ads-spend` (nightly 07:30 UTC),
+> `/api/admin/marketing/spend` + `/admin/marketing/spend`, registered in the route registry.
+>
+> **Three Ads API behaviours are pinned with tests, because each fails as a PLAUSIBLE WRONG NUMBER rather
+> than an exception** — read off the reporting docs and the proto3 JSON mapping on 2026-08-01:
+> `searchStream` returns an **array of chunks** (reading `body[0].results` silently drops everything after
+> the first chunk, which reads as "we spent less last month"); **int64 arrives as a JSON string**, so `+`
+> on `costMicros` concatenates and a month of spend becomes a 200-character number; and **`costMicros` is
+> micros while `conversionsValue` is a plain double**, so mixing them makes cost-per-conversion a million
+> times too big.
+>
+> **`costPer` returns `null` when the count is zero, and that is the whole reason it exists.** Spend with
+> no leads is not a cost-per-lead of zero and it is not infinity — it is a question with no answer.
+> Printing "$0.00 per lead" beside real money spent is the single most misleading thing this page could do.
+>
+> ⚠ **A design bug was caught before it shipped, and it would have failed only at runtime:** the first cut
+> of seed 509 enforced the grain with a `COALESCE(campaign_id,'')` **expression index**, and the nightly
+> import upserts through PostgREST — whose `on_conflict` can only name real columns. It would have read as
+> correct in review and thrown on the first import. Fixed to `campaign_id`/`ad_group_id` **NOT NULL
+> DEFAULT ''** with a plain unique constraint, and **verified against the live database** by inserting the
+> same day twice: one row, API value replacing the manual one.
+>
+> **Manual entry is a first-class source, not a hack.** It writes at the SAME grain as the import, so the
+> API overwrites an estimate rather than adding to it — a side table would double the month. The manual
+> share of every total is displayed: a figure you know is approximate is usable, one you believe is exact
+> and is not is worse than nothing.
+>
+> `platform` is deliberately not a CHECK constraint — Facebook/Instagram spend lands in this table the day
+> anyone runs an ad there, and a CHECK would make that a migration.
+
 *The owner asked for true lead costs. Without spend, we have conversions and no denominator.*
 
 - **Seed 474** — `ad_spend_daily` (`date`, `platform`, `campaign_id`, `campaign_name`, `ad_group_id`,

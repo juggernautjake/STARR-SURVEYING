@@ -84,6 +84,10 @@
     {
       "path": "/api/cron/google-ads-upload",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/google-ads-spend",
+      "schedule": "30 7 * * *"
     }
   ]
 }

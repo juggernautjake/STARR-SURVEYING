@@ -365,6 +365,48 @@ export async function uploadConversionAdjustments(adjustments: ConversionAdjustm
   }
 }
 
+// ── REPORTING (A11) ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Run a GAQL query and return the RAW body for `spend.ts` to parse.
+ *
+ * Raw on purpose: `searchStream` answers with an **array of chunks**, and the parser's job includes
+ * knowing that. Flattening here would put that knowledge in two places, and the version that forgets is
+ * the one that silently returns only the first few hundred rows.
+ */
+export async function runReportQuery(query: string): Promise<{ body: unknown } | { error: string }> {
+  const problem = credentialProblem();
+  if (problem) return { error: CREDENTIAL_HELP[problem] };
+
+  const auth = await getAccessToken();
+  if ('error' in auth) return { error: CREDENTIAL_HELP[auth.error] };
+
+  const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
+  const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${auth.token}`,
+        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
+        ...(process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+          ? { 'login-customer-id': process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/\D/g, '') }
+          : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      return { error: (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}` };
+    }
+    return { body };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Report query failed' };
+  }
+}
+
 /**
  * The 4–6 hour rule, read off Google's documentation on 2026-08-01: *"After creating a new conversion
  * action, wait 4-6 hours before uploading conversions for that conversion action."*
