@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
+import { recordMilestone, toCents } from '@/lib/pipeline/events';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -100,7 +101,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     acreage, client_name, client_email, client_phone, client_company, client_address,
     lead_rpls_email, deadline, quote_amount, notes, tags, is_legacy, is_priority,
     lot_number, subdivision, abstract_number, latitude, longitude,
-    date_received, date_quoted, date_accepted, date_started, stage } = body;
+    date_received, date_quoted, date_accepted, date_started, stage,
+    // A6 — where this job came from. All optional: a job typed straight into the office has no lead,
+    // no customer and no quote behind it, and that is an ordinary job, not an incomplete one.
+    origin_lead_id, customer_id, accepted_quote_id } = body;
 
   if (!name) return NextResponse.json({ error: 'Job name is required' }, { status: 400 });
 
@@ -164,6 +168,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       date_received, date_quoted, date_accepted, date_started,
       stage: stage || 'quote',
       created_by: session.user.email,
+      // A6 — the forward links. `origin_lead_id` turns "where did this job come from" into a key lookup
+      // instead of the unindexed reverse scan over `leads.converted_job_id` that origin-lead was doing.
+      origin_lead_id: origin_lead_id || null,
+      customer_id: customer_id || null,
+      accepted_quote_id: accepted_quote_id || null,
     })
     .select()
     .single();
@@ -172,6 +181,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // dbErrorResponse turns the raw Postgres code into a specific message.
   if (error) return dbErrorResponse(error, 'create the job');
   if (!job) return NextResponse.json({ error: 'Job insert returned no row.' }, { status: 500 });
+
+  // A6 — MILESTONE 5, and it is the primary bidding conversion.
+  //
+  // This is the event Google is told about and the one Smart Bidding optimises toward, so it is recorded
+  // the moment the job exists rather than being derived later from a date column. `recordMilestone` is
+  // idempotent on its dedupe key, so a retried request appends nothing — which matters more here than
+  // anywhere else in the stream: a duplicated `job_created` is a job counted twice in the revenue signal.
+  //
+  // Valued at the quote, because that is what the customer agreed to. The final invoice may differ and is
+  // handled as an adjustment (A9), not by restating this.
+  await recordMilestone({
+    milestone: 'job_created',
+    jobId: (job as { id: string }).id,
+    leadId: origin_lead_id || null,
+    customerId: customer_id || null,
+    // `date_accepted` is preferred over "now" for the same reason the backfill prefers it: the event
+    // worth attributing is when the customer said yes, not when someone got round to typing it in.
+    occurredAt: date_accepted || undefined,
+    valueCents: toCents(typeof quote_amount === 'number' ? quote_amount : Number(quote_amount)),
+    actor: session.user.email,
+    sourceTable: 'jobs',
+    sourceId: (job as { id: string }).id,
+  });
 
   // Secondary writes. The job already exists, so a failure here must
   // NOT 500 the whole request — collect warnings and return them with

@@ -41,11 +41,27 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const jobId = jobIdFromPath(req);
   if (!jobId) return NextResponse.json({ error: 'Missing job id' }, { status: 400 });
 
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .select('id, name, status, notes')
-    .eq('converted_job_id', jobId)
+  // A6 — FORWARD LINK FIRST. `jobs.origin_lead_id` makes this a key lookup; the reverse scan below is
+  // the fallback for jobs converted before seed 506 backfilled them (and for any future path that
+  // stamps only the lead side).
+  //
+  // Both paths are kept on purpose. Deleting the fallback would make this correct only for rows the
+  // backfill happened to reach, and "works for new data" is the failure mode nobody notices until an
+  // old job's origin card is mysteriously empty.
+  const { data: jobRow } = await supabaseAdmin
+    .from('jobs')
+    .select('origin_lead_id')
+    .eq('id', jobId)
     .maybeSingle();
+
+  const originLeadId = (jobRow as { origin_lead_id?: string | null } | null)?.origin_lead_id ?? null;
+
+  const query = supabaseAdmin.from('leads').select('id, name, status, notes');
+  const { data, error } = originLeadId
+    ? await query.eq('id', originLeadId).maybeSingle()
+    // The reverse lookup is no longer a sequential scan either — seed 506 added the index that column
+    // never had, so even the fallback is cheap.
+    : await query.eq('converted_job_id', jobId).maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ lead: null });

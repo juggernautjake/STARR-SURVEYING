@@ -367,7 +367,36 @@ attribute.
   nothing existing breaks.
 - Emits milestones 3 and 4 into A4's stream. Decline reasons become the "why we lose" report.
 
-### A6 — Lead → job conversion carries everything
+### A6 — Lead → job conversion carries everything ✅ SHIPPED 2026-08-01
+
+> **Done.** `seeds/506_job_origin_links.sql` (applied live), the conversion page carries the links, the
+> jobs API stores them and emits **milestone 5 — the primary bidding conversion**, and `origin-lead` uses
+> the fast path.
+>
+> **The missing index was real and was measured, not assumed.** Before writing the seed, `pg_indexes`
+> returned *nothing* for `leads.converted_job_id` — so every render of a job page sequentially scanned
+> the leads table. With four leads that is invisible; it stays invisible right up until it isn't, and by
+> then it is a page that "feels slow" for reasons nobody connects to a missing index. **Both directions
+> are fixed**: `jobs.origin_lead_id` makes the common question a key lookup, and the reverse column is
+> indexed too so every existing caller gets the fix without being rewritten.
+>
+> **The forward link is backfilled from the reverse one**, so the fast path applies to jobs converted
+> before today rather than only to new ones. Verified: 0 disagreements between the two directions.
+>
+> **The reverse scan is KEPT as a fallback**, and the test asserts it as hard as the fast path. Deleting
+> it would make the route correct only for rows the backfill reached — "works for new data" is the failure
+> nobody notices until an old job's origin card is mysteriously empty.
+>
+> **What this deliberately does NOT do is copy the attribution onto the job.** The plan says "carry the
+> attribution stamp onto the job"; `origin_lead_id` makes it reachable in one join, so copying thirteen
+> columns would duplicate a fact that can drift — and the copy is the one nobody updates. What genuinely
+> must be frozen at the moment it happens is the *conversion event*, and that is already handled:
+> `lead_lifecycle_events` and `google_conversion_events` are ledgers and copy the click identifiers at
+> emit time on purpose.
+>
+> `accepted_quote_id` is new beyond the plan: without it, a job priced from a revision cannot say which
+> version it was built from — only A5's mirrored number survives, and a number with no version behind it
+> is exactly what A5 existed to fix.
 - `app/admin/jobs/new/page.tsx` currently copies contact fields and stamps `converted_job_id`. Extend it to
   carry `customer_id`, the accepted quote, and the attribution stamp onto the job.
 - Make the FK bidirectional and indexed; today `converted_job_id` is looked up by reverse scan

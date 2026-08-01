@@ -23,6 +23,9 @@ export interface LeadForConversion {
   estimated_acreage?: number | null;
   quote_amount?: number | null;
   notes?: string | null;
+  /** A6 — carried onto the job so "how many jobs has this landowner had" is answerable from the job side
+   *  too. Optional: a lead with no matchable email or phone has no customer, which is ordinary. */
+  customer_id?: string | null;
 }
 
 /** Shape the new-job form expects. Mirrors the form's `useState`

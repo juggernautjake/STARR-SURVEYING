@@ -107,6 +107,12 @@ export default function NewJobPage() {
         quote_amount: form.quote_amount ? parseFloat(form.quote_amount) : undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         deadline: form.deadline || undefined,
+        // A6 — the conversion carries its origin FORWARD, so the job knows where it came from without
+        // anyone scanning the leads table to find out. `customer_id` rides along too, which is what makes
+        // "how many jobs has this landowner had" answerable from the job side as well as the lead side.
+        ...(prefilledLead
+          ? { origin_lead_id: prefilledLead.id, customer_id: prefilledLead.customer_id ?? undefined }
+          : {}),
       };
 
       const res = await fetch('/api/admin/jobs', {

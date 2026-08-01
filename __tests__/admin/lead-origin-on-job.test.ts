@@ -20,8 +20,18 @@ describe('origin-lead API route', () => {
     expect(SRC).toMatch(/'Forbidden'/);
   });
 
-  it("looks up the lead by converted_job_id", () => {
-    expect(SRC).toMatch(/\.from\('leads'\)[\s\S]{0,200}\.eq\('converted_job_id', jobId\)[\s\S]{0,200}\.maybeSingle\(\)/);
+  it("looks the lead up by the FORWARD key first, and keeps converted_job_id as a fallback", () => {
+    // Widened by A6 (2026-08-01). This used to pin one contiguous chain on `converted_job_id` — a column
+    // that, measured against the live database, had NO INDEX, so every job page sequentially scanned
+    // leads. `jobs.origin_lead_id` makes the common case a key lookup.
+    //
+    // The fallback is asserted as hard as the fast path: deleting it would leave the route correct only
+    // for rows seed 506's backfill reached, and "works for new data" is the failure nobody notices until
+    // an old job's origin card is mysteriously empty.
+    expect(SRC).toMatch(/\.from\('jobs'\)[\s\S]{0,160}origin_lead_id/);
+    expect(SRC).toMatch(/\.eq\('id', originLeadId\)/);
+    expect(SRC).toMatch(/\.eq\('converted_job_id', jobId\)/);
+    expect(SRC).toMatch(/\.from\('leads'\)/);
   });
 
   it("returns { lead: null } when no lead converted to this job", () => {
