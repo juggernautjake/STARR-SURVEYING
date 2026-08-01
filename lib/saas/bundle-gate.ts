@@ -78,10 +78,19 @@ export const ROUTE_BUNDLE_OVERRIDES: Record<string, BundleId | null> = {
  *  bundle gate applies (always-available routes, operator-only routes,
  *  unknown routes). */
 export function bundleForRoute(pathname: string): BundleId | null {
-  // Explicit override wins (this is the per-route control).
-  if (pathname in ROUTE_BUNDLE_OVERRIDES) {
-    return ROUTE_BUNDLE_OVERRIDES[pathname];
-  }
+  // Explicit override wins (this is the per-route control), and it applies to the SUBTREE.
+  //
+  // This was exact-match only until 2026-08-01, and that was a live packaging leak rather than a
+  // tidiness point. `/admin/research` is overridden to `recon`, but `/admin/research/<projectId>` —
+  // the page that actually shows a customer's property research — matched no override, was not in
+  // the registry as a literal, and fell through to the `research-cad` workspace default, which is
+  // deliberately `null` because that workspace splits across Recon and Draft. Net effect: the
+  // research INDEX was gated and every individual research project was not. Same for `/admin/cad/*`.
+  //
+  // Matching is segment-aware, so `/admin/work` (the always-available landing) cannot swallow
+  // `/admin/work-mode/*`, which is a different feature with a different gate.
+  const override = longestOverride(pathname);
+  if (override !== undefined) return override;
 
   // Check the AdminRoute.requiredBundle field if set in the registry.
   const route = findRoute(pathname);
@@ -101,6 +110,20 @@ export function bundleForRoute(pathname: string): BundleId | null {
   if (ws) return WORKSPACE_DEFAULT_BUNDLE[ws];
 
   return null;
+}
+
+/** The most specific override covering `pathname`, or `undefined` if none does.
+ *
+ *  `undefined` and `null` are meaningfully different here: `null` is an override that says "no bundle
+ *  gate applies", `undefined` means no override spoke at all and resolution should continue. */
+function longestOverride(pathname: string): BundleId | null | undefined {
+  let bestKey: string | undefined;
+  for (const key of Object.keys(ROUTE_BUNDLE_OVERRIDES)) {
+    if (pathname === key || pathname.startsWith(key + '/')) {
+      if (bestKey === undefined || key.length > bestKey.length) bestKey = key;
+    }
+  }
+  return bestKey === undefined ? undefined : ROUTE_BUNDLE_OVERRIDES[bestKey];
 }
 
 /** Convenience: does this org's expanded-bundle set grant access to

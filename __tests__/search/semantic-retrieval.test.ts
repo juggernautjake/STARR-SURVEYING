@@ -32,7 +32,7 @@ import {
 import { CORPORA, CORPUS_BY_ID, corporaFor } from '@/lib/search/corpora';
 
 /** A `.from(table).select(cols).in('id', ids)` chain that resolves to `rows`. */
-const selectReturning = (rows: unknown[], error: unknown = null) => ({
+const selectReturning = (rows: unknown[] | null, error: unknown = null) => ({
   select: () => ({ in: () => Promise.resolve({ data: rows, error }) }),
 });
 

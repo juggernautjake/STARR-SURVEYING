@@ -2,7 +2,9 @@ import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import type { UserRole } from '@/lib/auth';
 import { canAccessRoute, upgradePromptUrl, bundleForRoute } from '@/lib/saas/bundle-gate';
+import { apiGateFor } from '@/lib/saas/api-bundle-gate';
 import type { BundleId } from '@/lib/saas/bundles';
+import { hasBundle } from '@/lib/saas/bundles';
 // consolidation Slice 2 (2026-05-30) — legacy `my-*` + `/admin/profile`
 // pages were 4-line `redirect()` calls per the 2024 hub redesign Phase
 // 2 slice 2c. The page files are now deleted; these middleware-level
@@ -142,12 +144,79 @@ function dndGate(req: Parameters<Parameters<typeof auth>[0]>[0]): NextResponse |
   return NextResponse.next();
 }
 
+/** Bundle enforcement for `/api/admin/*` (§3c.1, item 8f).
+ *
+ *  Three properties, each deliberate:
+ *
+ *  · **It never touches authentication.** An unauthenticated request falls straight through to the
+ *    handler, which returns its own 401. Making middleware answer that too would give the same
+ *    question two answers, and the handler's is the one that has been right for 351 routes.
+ *  · **It is inert for a session with no org memberships** — which is every Starr session today.
+ *    Single-tenant behaviour is unchanged by construction, not by testing every route.
+ *  · **It answers in JSON.** The page gate redirects to an upgrade prompt; doing that to a `fetch`
+ *    yields an HTML login page parsed as JSON, and the caller reports a parse error instead of
+ *    "you do not have this bundle". A 402 says what is wrong and what would fix it. */
+function apiBundleGate(
+  req: Parameters<Parameters<typeof auth>[0]>[0],
+  pathname: string,
+): NextResponse {
+  const user = req.auth?.user as unknown as {
+    isOperator?: boolean;
+    memberships?: Array<{ orgId: string; bundles: BundleId[] }>;
+    activeOrgId?: string | null;
+  } | undefined;
+
+  // No session, no operator bypass needed, no memberships → not a tenant request. Let the handler
+  // do its own auth exactly as it does today.
+  if (!user || user.isOperator) return NextResponse.next();
+  const memberships = user.memberships;
+  if (!memberships || memberships.length === 0) return NextResponse.next();
+
+  const active = memberships.find((m) => m.orgId === user.activeOrgId) ?? memberships[0];
+  const bundles = active?.bundles ?? [];
+  const decision = apiGateFor(pathname);
+
+  if (decision.kind === 'open') return NextResponse.next();
+
+  if (decision.kind === 'unclassified') {
+    // Refused rather than guessed. A route wrongly blocked is a support call in minutes; a route
+    // wrongly open is a paid feature given away silently and forever. The message names the file to
+    // fix, because the person who sees this is the person who can fix it.
+    return NextResponse.json(
+      {
+        error: 'This endpoint has no bundle classification, so access was refused.',
+        detail: `Classify ${pathname} in lib/saas/api-bundle-gate.ts (API_GROUP_GATES) or register its page.`,
+      },
+      { status: 403 },
+    );
+  }
+
+  if (!hasBundle(bundles, decision.bundle)) {
+    return NextResponse.json(
+      {
+        error: 'Your plan does not include this feature.',
+        requiredBundle: decision.bundle,
+        upgradeUrl: upgradePromptUrl(pathname, decision.bundle),
+      },
+      { status: 402 }, // Payment Required — literally true, and distinguishable from 401/403.
+    );
+  }
+
+  return NextResponse.next();
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   // /dnd runs its own auth; handle it before the staff /admin logic.
   const dnd = dndGate(req);
   if (dnd) return dnd;
+
+  // ── SaaS bundle gate for the API (8f) ──
+  // The page gate below has always worked; the matcher simply never included `/api`, so all 351
+  // admin API handlers were reachable by a firm that had not bought them. Auth is enforced inside
+  // each handler and stays there — this asks the other question, "did you buy this".
+  if (pathname.startsWith('/api/admin/')) return apiBundleGate(req, pathname);
 
   if (!pathname.startsWith('/admin')) return NextResponse.next();
 
@@ -227,4 +296,7 @@ export default auth((req) => {
   return NextResponse.next();
 });
 
-export const config = { matcher: ['/admin/:path*', '/dnd/:path*'] };
+// '/api/admin/:path*' added 2026-08-01 (audit 8f). Its absence was the entire reason 351 admin API
+// handlers had never been bundle-gated: '/api/...' does not start with '/admin', so the gate below
+// — which has worked correctly for pages since M-9b — was never consulted for the data path.
+export const config = { matcher: ['/admin/:path*', '/api/admin/:path*', '/dnd/:path*'] };

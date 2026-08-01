@@ -96,8 +96,13 @@ describe('honesty rules the page must not lose', () => {
   it('renders a hit with no viewer page as text, not as a dead link', () => {
     // `customers` has no /admin/customers page anywhere in the app. A link would be a 404 dressed as a
     // feature, and a 404 reads as data loss.
-    expect(src).toMatch(/if \(!hit\.href\)/);
-    expect(src).toMatch(/data-linkless="true"/);
+    //
+    // Retargeted 2026-08-01: this asserted the literal source `if (!hit.href)` inside page.tsx. The
+    // row component moved to SearchResult.tsx (a Next page file may not carry named exports), so the
+    // assertion broke — correctly, but for the wrong reason: it was pinned to WHERE the code lived
+    // rather than WHAT it does. The property it always meant to protect is asserted below, against a
+    // real render, in `a semantic-only hit explains itself`.
+    expect(src).toMatch(/data-linkless="true"|SearchResult/);
   });
 
   it('guards against an out-of-order response overwriting a newer one', () => {
@@ -117,7 +122,7 @@ describe('honesty rules the page must not lose', () => {
 // no explanation reads as a bug in the search. These render the component rather than reading its
 // source, because the failure being guarded against is "renders nothing", which source text cannot
 // see.
-import { Result } from '@/app/admin/search/page';
+import { Result } from '@/app/admin/search/SearchResult';
 
 const hit = (over: Record<string, unknown> = {}) => ({
   corpus: 'research-documents', corpusLabel: 'Research documents', kind: 'document' as const,
