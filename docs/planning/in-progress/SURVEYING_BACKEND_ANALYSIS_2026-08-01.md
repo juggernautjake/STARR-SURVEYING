@@ -138,12 +138,36 @@ mounted, which it was, invisibly, behind the site logo.
       `invoice_number`, which the same handler also accepts because it is what is printed on the paper
       invoice the customer is holding. *(Equal-time responses for hit and miss remain open — see A1-4b.)*
 
-- [ ] **A1-4b — Make a hit and a miss take the same time.** Split from A1-4. A 404 currently returns after
-      one query while a hit does two more; the difference is measurable and confirms a guess even when the
-      throttle stops the guessing being fast.
+- [x] **A1-4b — Make a hit and a miss take the same time. SHIPPED 2026-08-01.** Two mechanisms, and the
+      first is the real one.
+      **The same round trips either way.** A miss that skipped the payments query is structurally faster,
+      and a difference that scales with how busy the database is cannot be padded away — so that query
+      now runs on both paths, looking up an id that exists nowhere when there is no invoice.
+      **And a floor** (`lib/http/constant-time.ts`), applied to *every* terminal path rather than the
+      404 alone: one unpadded `return` reinstates the leak, and the next one added would be an early
+      refusal, which is the shape that returns fastest. A test asserts there are none.
+      *Measured on the running app, and it corrected this file's own first draft:* hit and miss came back
+      at a **median of 515 ms and 522 ms** — seven apart on five hundred. **The equal-work change did
+      that; the floor never fired**, because the real work already exceeded it. The floor earns its place
+      in the other regime, where both paths are tens of milliseconds and a residual 15 ms is 60% rather
+      than 1% — proportion is what an attacker averages, not absolute time. The comment now says so
+      instead of claiming the floor sits above the slow path.
 
-- [ ] **A1-5 — Cap the storage a single IP can consume** through quote attachments. `UPLOAD_LIMITS.MEDIA`
-      caps ONE file; nothing caps a hundred submissions.
+- [x] **A1-5 — Cap the storage a single IP can consume. SHIPPED 2026-08-01.** `UPLOAD_LIMITS` caps one
+      file and `QUOTE_ATTACHMENT_MAX_TOTAL_BYTES` caps one submission at 25 MB. Nothing capped a DAY, and
+      A1-2 allows 20 submissions per address — so the real uncapped figure was **500 MB from one
+      connection**, discoverable only via a storage bill or a quota wall.
+      **Counted in MEGABYTES, which is why the limiter gained a `cost`.** A per-submission limit cannot
+      express "a lot of small ones", and a per-request limit set low enough to bound the bytes would
+      refuse the customer who legitimately sends one big site plan. 60 MB/day is far above a real enquiry
+      — a survey request is a few photographs and a PDF — and far below what makes filling the bucket
+      worth anyone's time.
+      The charge is `Math.max(1, Math.ceil(mb))`: the counter stores integers, so a thousand 0.4 MB
+      uploads would otherwise cost nothing, and a zero cost would make the check free to bypass. The
+      default stays 1, so the seven buckets that were counting requests before `cost` existed still do.
+      *Necessarily after `parseRequest`*, unlike A1-2's burst limit — the sizes are the thing being
+      limited and they do not exist until the body is read. Acceptable precisely because the burst limit
+      sits above it: an abuser gets five parses per ten minutes to reach this wall.
 
 ## Phase B — sweep the business routes the way the D&D routes were swept
 

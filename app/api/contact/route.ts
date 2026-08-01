@@ -1230,6 +1230,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           { status: 400 }
         );
       }
+
+      // ── A1-5 · the storage this address has consumed today ──────────────────────────────────────
+      //
+      // `validateQuoteAttachments` caps ONE submission at 25 MB. A1-2 allows 20 submissions per address
+      // per day, so the uncapped total was **500 MB from one connection** — and the only thing that would
+      // have noticed is a storage bill or a quota wall.
+      //
+      // Charged in MEGABYTES, rounded up: the counter stores integers, so a thousand 0.4 MB uploads would
+      // otherwise cost nothing at all.
+      //
+      // NECESSARILY AFTER `parseRequest`, unlike the burst limit above — the sizes are the thing being
+      // limited and they do not exist until the body is read. That is acceptable precisely because the
+      // burst limit is already above it: an abuser gets five parses per ten minutes to reach this wall.
+      const megabytes = fileSummaries.reduce((sum, f) => sum + (f.size || 0), 0) / (1024 * 1024);
+      const overStorage = await enforceRateLimit('contact-storage-daily', null, { ip, cost: megabytes });
+      if (overStorage) return overStorage;
     }
 
     // Normalize field names
