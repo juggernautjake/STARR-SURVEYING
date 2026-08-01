@@ -2306,6 +2306,46 @@ details[open] > .disclosure::before {
   align-items: center;
 }
 
+/* ── There is deliberately NO culling here, and the measurement is why (M3-3 · G6) ─────────────────────
+   M3-3 asks for *"objects outside the viewport not rendered at all, which is what makes a 400-token city
+   viable"*. Two things were measured before building it, and both say not to.
+
+   1. `content-visibility: auto` — the browser's own culling, and the only version that would not have
+      cost anything — DOES NOT ENGAGE inside the transformed world layer. Driven live at 26x zoom with 40
+      pins: 28 of them geometrically off screen, `checkVisibility({contentVisibilityAuto: true})` reported
+      **zero skipped**. It was in the stylesheet, computed as `auto`, and did nothing. Shipping it with a
+      comment claiming it culled would have been worse than not shipping it.
+
+   2. Culling is not needed at this scale anyway. 200 tokens on one node, dragged across the map with
+      real pointer events: **median 17.5ms per frame on desktop and 18.2ms at 360px** — vsync-bound in
+      both, i.e. already at the 60fps the acceptance criterion asks for, at twice its object count. That
+      is what `transform`-based panning buys: the compositor moves ONE layer and the 200 children never
+      re-layout.
+
+   The remaining option was a JavaScript culler, and G6 forbids the version of it that would work: a
+   React culler that unmounts off-screen tokens also removes them from the accessibility tree and from
+   find-in-page, so a DM searching a large map for "Ogre" is told it is not there. That is exactly the
+   silent truncation the ground rule is about.
+
+   The numbers are written down so the next author re-measures instead of re-deciding. */
+
+/* `.tokenStatus` deliberately has NO level-of-detail rule.
+   The first draft hid the condition pips at `dots`, which reads sensibly and is wrong: a DM plays a
+   battle map at the zoom where the whole room fits, and that view is `dots` on a crowded board. Hiding
+   "poisoned" and "prone" at exactly the zoom the fight is run at would make the map disagree with the
+   sheet on the one screen where it matters. The class stays because it is a useful handle; the rule that
+   used it does not. */
+
+/* At tactical zoom there is room for more than a name — how many places are inside this one is the
+   question a DM asks next, and it is the only thing that distinguishes `full` from `labels`. */
+.mapPinMeta {
+  display: none;
+  color: var(--hx-muted);
+}
+[data-lod='full'] .mapPinMeta {
+  display: inline;
+}
+
 /* ── The condition trigger, and the map's void ────────────────────────────────────────────────────────
    Both were inline `style={{ color: '#…' }}` and both tripped the inline-hex ratchet (2026-07-30). The
    ratchet is right: a hex written into a style object cannot be reached by a theme token, a media query,

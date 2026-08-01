@@ -14,10 +14,11 @@
 // element per frame instead of relaying out every child. `will-change` is set only while a gesture is
 // active — leaving it on permanently keeps a layer promoted forever and costs memory on exactly the
 // low-end phones G5 is about.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  MAX_SCALE, MIN_SCALE, clamp, clampViewport, fitViewport, lodFor, panBy, transformOf, zoomAt,
-  type Bounds, type Lod, type Viewport,
+  clamp, clampViewport, fitScale, fitViewport, isVisible, lodFor, minSpacing, panBy, scaleLimits,
+  transformOf, visibleNearest, zoomAt, type Bounds, type Lod, type Viewport,
 } from '@/lib/dnd/maps/viewport';
 
 interface MapViewportProps {
@@ -33,11 +34,41 @@ interface MapViewportProps {
   style?: React.CSSProperties;
   /** Accessible name — a viewport with no label is an unlabelled application region to a screen reader. */
   label?: string;
+  /**
+   * The map's drill-down markers, in world coordinates. Feeds BOTH M3-3's level of detail and M3-4's
+   * prefetch, which is why it is one prop rather than two: the tier is decided by how close together
+   * these are on screen, and the warming by which of them the reader has centred. Two lists could
+   * disagree about where a pin is, and the symptom would be a label hidden for a pin that is nowhere
+   * near the one it supposedly collides with.
+   *
+   * PLAIN DATA, not a callback, and that is what makes the feature possible at all: the surface that
+   * knows where the pins are is a SERVER component, so it can hand over `{href, x, y}` but cannot hand
+   * over a function. The viewport is the only piece that knows where the reader is looking, so both
+   * decisions have to live here.
+   *
+   * `href` is optional — a pin marked but not yet built has nowhere to go, and it still takes up the
+   * space that decides whether its neighbours can be labelled.
+   */
+  markers?: readonly { href?: string; x: number; y: number }[];
 }
 
 const DEFAULT_BOUNDS: Bounds = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
 /** One wheel notch. Small enough that a trackpad's many small deltas feel continuous. */
 const WHEEL_STEP = 1.0015;
+
+/**
+ * M3-4's "small cache", and both halves of it are load-bearing.
+ *
+ * `PREFETCH_NEAREST` is how many destinations one settled view warms — the reader is going to open ONE
+ * of them, so warming the three nearest the centre covers the realistic choice without spending a
+ * phone's bandwidth on a whole city. `PREFETCH_MAX` is the lifetime ceiling for the mount: panning
+ * across forty pins would otherwise walk the cache up to forty entries three at a time, which is the
+ * unbounded prefetch this constant exists to prevent, arrived at slowly instead of all at once.
+ */
+const PREFETCH_NEAREST = 3;
+const PREFETCH_MAX = 24;
+/** Warm what the reader STOPPED on. Prefetching mid-drag warms everything the map slid past. */
+const PREFETCH_SETTLE_MS = 300;
 
 export default function MapViewport({
   bounds = DEFAULT_BOUNDS,
@@ -46,8 +77,10 @@ export default function MapViewport({
   className,
   style,
   label = 'Map',
+  markers,
 }: MapViewportProps) {
   const frameRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const [frame, setFrame] = useState({ width: 0, height: 0 });
   const [vp, setVp] = useState<Viewport>({ x: 50, y: 50, scale: 1 });
   const [gesturing, setGesturing] = useState(false);
@@ -79,10 +112,57 @@ export default function MapViewport({
     setVp(fitViewport(bounds, frame));
   }, [frame, bounds]);
 
+  // How far in and out this node may go, in THIS frame. Derived rather than constant — see `MIN_ZOOM`
+  // in the maths module for what the constant version actually did: capped a battle map at 1.3× because
+  // "8" meant eight pixels per world unit and the whole map already fit at six.
+  //
+  // Memoised on the NUMBERS, not on `bounds`: the caller writes `bounds={{...}}` inline, so the object
+  // is new on every render and a dependency on it would re-register the wheel listener every frame.
+  const limits = useMemo(
+    () => scaleLimits(bounds, frame),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bounds.minX, bounds.minY, bounds.maxX, bounds.maxY, frame.width, frame.height],
+  );
+
   // Derived, not stored: one source for the attribute below and the callback, so the two cannot disagree
   // about what zoom the reader is at.
-  const lod = lodFor(vp.scale);
+  // M3-3 — measured against what is ON SCREEN, not against the whole map: panning a dense quarter of a
+  // city out of view is exactly when its neighbours have room for their names again.
+  const onScreen = markers?.length
+    ? markers.filter((m) => isVisible(vp, frame, { x: m.x, y: m.y, w: 0, h: 0 }))
+    : [];
+  const lod = lodFor({
+    scale: vp.scale,
+    fitScale: fitScale(bounds, frame),
+    minSpacingPx: minSpacing(onScreen, vp.scale),
+  });
   useEffect(() => { onLodChange?.(lod); }, [lod, onLodChange]);
+
+  // ── M3-4 · warm the level the reader is about to open ─────────────────────────────────────────────
+  //
+  // The plan says "on pin hover/focus", and hover is exactly the signal a tablet does not have — G5 says
+  // mobile is a first-class target, so a prefetch that only fires for a mouse is a prefetch that misses
+  // half the table. **Where the reader has centred the map is the touch equivalent of hover**, and it is
+  // available on every device.
+  //
+  // Deliberately NOT `<Link prefetch>` on the pins themselves. This route is dynamic (`?node=`), so an
+  // eager Link prefetches the full RSC payload the moment it scrolls into view — forty pins, forty
+  // requests, to make one of them fast.
+  const warmed = useRef(new Set<string>());
+  useEffect(() => {
+    if (!markers?.length || !frame.width) return;
+    const t = setTimeout(() => {
+      // Only the ones that GO somewhere. A pin marked but not built has nothing to warm, and it must
+      // not consume one of the three slots the reader's real choices are competing for.
+      const destinations = markers.filter((m): m is { href: string; x: number; y: number } => Boolean(m.href));
+      for (const p of visibleNearest(destinations, vp, frame, PREFETCH_NEAREST)) {
+        if (warmed.current.size >= PREFETCH_MAX || warmed.current.has(p.href)) continue;
+        warmed.current.add(p.href);
+        router.prefetch(p.href);
+      }
+    }, PREFETCH_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [markers, vp, frame, router]);
 
   const apply = useCallback(
     (next: Viewport) => setVp(frame.width ? clampViewport(next, bounds, frame) : next),
@@ -100,11 +180,11 @@ export default function MapViewport({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      apply(zoomAt(vp, frame, Math.pow(WHEEL_STEP, -e.deltaY), e.clientX - r.left, e.clientY - r.top));
+      apply(zoomAt(vp, frame, Math.pow(WHEEL_STEP, -e.deltaY), e.clientX - r.left, e.clientY - r.top, limits));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [vp, frame, apply]);
+  }, [vp, frame, apply, limits]);
 
   // ── pointers ──────────────────────────────────────────────────────────────────────────────────
   const dist = () => {
@@ -134,7 +214,7 @@ export default function MapViewport({
       // Zoom about the midpoint between the fingers — the same "hold the focal point still" rule as the
       // wheel, which is what makes a pinch feel like it is pulling the map rather than sliding it.
       const factor = clamp(dist() / pinchStart.current.dist, 0.02, 50) * (pinchStart.current.scale / vp.scale);
-      apply(zoomAt(vp, frame, factor, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top));
+      apply(zoomAt(vp, frame, factor, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, limits));
       return;
     }
 
@@ -159,9 +239,9 @@ export default function MapViewport({
       ArrowRight: () => apply(panBy(vp, -step, 0)),
       ArrowUp:    () => apply(panBy(vp, 0, step)),
       ArrowDown:  () => apply(panBy(vp, 0, -step)),
-      '+':        () => apply(zoomAt(vp, frame, 1.25, mid.sx, mid.sy)),
-      '=':        () => apply(zoomAt(vp, frame, 1.25, mid.sx, mid.sy)),
-      '-':        () => apply(zoomAt(vp, frame, 0.8, mid.sx, mid.sy)),
+      '+':        () => apply(zoomAt(vp, frame, 1.25, mid.sx, mid.sy, limits)),
+      '=':        () => apply(zoomAt(vp, frame, 1.25, mid.sx, mid.sy, limits)),
+      '-':        () => apply(zoomAt(vp, frame, 0.8, mid.sx, mid.sy, limits)),
       '0':        fit,
     };
     const fn = moves[e.key];
@@ -230,8 +310,8 @@ export default function MapViewport({
             type="button"
             title={title}
             aria-label={title}
-            onClick={() => apply(zoomAt(vp, frame, factor, frame.width / 2, frame.height / 2))}
-            disabled={factor > 1 ? vp.scale >= MAX_SCALE : vp.scale <= MIN_SCALE}
+            onClick={() => apply(zoomAt(vp, frame, factor, frame.width / 2, frame.height / 2, limits))}
+            disabled={factor > 1 ? vp.scale >= limits.max : vp.scale <= limits.min}
             // 44px, the G5 touch minimum, rather than a dainty 24px chevron.
             style={{
               width: 44, height: 44, borderRadius: 8, cursor: 'pointer', fontSize: 18,

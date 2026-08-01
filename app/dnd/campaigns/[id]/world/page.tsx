@@ -202,6 +202,9 @@ export default async function WorldPage({
   // page depends on it.
   const turn = await loadLiveTurn(campaignId);
   const href = (nid: string) => `/dnd/campaigns/${campaignId}/world?node=${encodeURIComponent(nid)}`;
+  // How many places are inside a pin's destination — counted from the tree the viewer can actually see,
+  // so a player is never told there are six locations in a district when four of them are unpublished.
+  const childCount = (nid: string) => nodes.filter((n) => n.parent_id === nid).length;
 
   // M5-2 — the selected token's reach. Resolved for ONE token, not all of them: this runs the effect
   // ledger over a character sheet, which is far too much work to repeat for every figure on a crowded
@@ -355,6 +358,20 @@ export default async function WorldPage({
                   label={current.name}
                   bounds={{ minX: 0, minY: 0, maxX: 100, maxY: 100 }}
                   style={{ width: '100%', aspectRatio: '16 / 9', background: 'var(--hx-map-void)' }}
+                  // M3-3 / M3-4 — the pins, as plain data. The viewport is the only piece that knows
+                  // where the reader is looking, and this page is a server component that cannot hand it
+                  // a callback; `{href, x, y}` crosses that line and a function does not.
+                  //
+                  // EVERY pin, not only the ones that go somewhere: an unbuilt pin still occupies the
+                  // space that decides whether its neighbours have room for their names. The prefetcher
+                  // filters for `href` itself.
+                  markers={nodePins.map((p) => ({
+                    href: p.child_node_id && nodes.some((n) => n.id === p.child_node_id)
+                      ? href(p.child_node_id)
+                      : undefined,
+                    x: p.x,
+                    y: p.y,
+                  }))}
                 >
                   {current.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -422,7 +439,17 @@ export default async function WorldPage({
                         >
                           {p.icon || '◈'}
                         </span>
-                        <span className={styles.mapPinLabel}>{label}</span>
+                        <span className={styles.mapPinLabel}>
+                          {label}
+                          {/* M3-3 — the extra detail that makes `full` a tier rather than a synonym for
+                              `labels`. Always in the markup so a screen reader hears it at every zoom;
+                              only the drawing changes, like the label itself. */}
+                          {target && childCount(target.id) > 0 && (
+                            <span className={styles.mapPinMeta}>
+                              {' · '}{childCount(target.id)} inside
+                            </span>
+                          )}
+                        </span>
                       </span>
                     );
                     return (
@@ -449,7 +476,12 @@ export default async function WorldPage({
                         {/* A pin with no child is a place the DM has MARKED but not built. It must render
                             and must not be a dead link — the plan calls that a normal authoring state. */}
                         {target ? (
-                          <Link href={href(target.id)} aria-label={`Open ${label}`}>{dot}</Link>
+                          // M3-4 — Next's automatic prefetch is turned OFF here on purpose. This route is
+                          // dynamic, so an eager Link fetches the whole RSC payload the moment it scrolls
+                          // into view: forty pins, forty requests, to make one of them fast. The viewport
+                          // warms the three nearest the centre instead, which is the one the reader is
+                          // actually about to open.
+                          <Link href={href(target.id)} prefetch={false} aria-label={`Open ${label}`}>{dot}</Link>
                         ) : (
                           <span aria-label={`${label} (not yet mapped)`} style={{ opacity: 0.55 }}>{dot}</span>
                         )}
@@ -530,6 +562,9 @@ export default async function WorldPage({
                         key={o.id}
                         href={tokenHref(isSelected ? null : o.id)}
                         scroll={false}
+                        // Selecting a token is a same-node URL change, so there is no other level to warm
+                        // — and a crowded board would otherwise fire one RSC request per figure on it.
+                        prefetch={false}
                         title={`${label}${status}${isSelected ? ' — selected; click to clear' : ' — click to show its movement'}`}
                         aria-label={`${label}${status}${isTurn ? ', current turn' : ''}${isSelected ? ', selected. Clear selection' : '. Show movement range'}`}
                         aria-current={isSelected ? 'true' : undefined}

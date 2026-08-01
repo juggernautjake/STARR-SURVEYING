@@ -434,12 +434,104 @@ Click a pin → push the child node, with a zoom-into-the-pin transition so the 
 Breadcrumb (`Space / Aurelia / Vances Reach / Ironrow / The Cut / Kettle Corner`) with every level clickable,
 collapsing to a dropdown on mobile. Browser back mirrors it.
 
-### M3-3 · Dynamic rendering (LOD)
+### M3-3 · Dynamic rendering (LOD) — **SHIPPED 2026-08-01, and the feature had never once been reachable**
+### M3-4 · Prefetch the likely next level — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/viewport.ts` (43 tests), `MapViewport`, and the world page's pins. Browser-driven at
+> desktop and 360px against a throwaway 40-pin city and a 200-token battle map.
+>
+> ## Two defects, one root cause: a scale threshold is not a zoom level
+>
+> Both tiers of this slice were already written, styled and tested — and **neither could be reached by
+> anybody**, because both were expressed in *pixels per world unit* while every reader thinks in
+> *multiples of the whole map*. Every node's world is a fixed 0–100 box, so the scale that fits it in an
+> ordinary frame is about 6 (measured live at **6.06**). Therefore:
+>
+> | Written as | Meant | Actually did |
+> |---|---|---|
+> | `lodFor`: `dots` under 0.6, `labels` under 1.6 | pins as dots when far out | **nothing ever** — both tiers needed the reader to shrink the whole map to a quarter of the frame |
+> | `MAX_SCALE = 8` | "eight times" | capped a battle map at **1.3× of fit** — very nearly no zoom at all, on the tactical maps this plan exists for |
+>
+> A green suite said nothing about either. The tests asserted `lodFor(0.3) === 'dots'`, which is true and
+> unreachable, and the CSS that consumed it was correct and never matched. This is the repo's signature
+> defect wearing a third disguise: not unwired, not unwritten, but **written in units nobody's hand ever
+> produces**.
+>
+> ## The tier is about ROOM, not about how far out
+>
+> A pin is counter-scaled, so it is the same size on screen at every zoom — a pin never *becomes* small.
+> What actually goes wrong when a reader zooms out is that **labels collide**. So the rule asks the
+> question that matters: *are the two nearest markers on screen further apart than a label is wide?*
+>
+> That is not a tuning change, it is a different rule, and the reason is that it can tell two maps apart
+> that a scale threshold cannot: a **continent with three far-flung regions keeps its names** at exactly
+> the zoom where a **forty-district city loses them**. Verified live — the 40-pin city opens at `dots`
+> with every label hidden, reaches `labels` at ~2× and `full` at ~3.8×, with the ceiling now at 48.51
+> (6.06 × 8) instead of 8.
+>
+> `full` was given a job rather than left as a synonym for `labels`: at tactical zoom a pin also says how
+> many places are inside it (*"Ironrow · 2 inside"*), counted from the tree **the viewer can see**, so a
+> player is never told there are six locations in a district when four are unpublished.
+>
+> A rule that was written and then deleted, which is worth recording: the first draft also hid the
+> condition pips at `dots`. It reads sensibly and is wrong — **a DM plays a battle map at the zoom where
+> the whole room fits**, and on a crowded board that view is `dots`. Hiding "poisoned" and "prone" at
+> precisely the zoom the fight is run at would make the map disagree with the sheet on the one screen
+> where it matters.
+>
+> ## The culling in M3-3 is deliberately NOT built, and that is a measurement rather than an opinion
+>
+> Two things were measured before building it, and both said don't.
+>
+> 1. **`content-visibility: auto` does not engage inside the transformed world layer.** It is the only
+>    culler that would have cost nothing — the browser's own, keeping every element in the accessibility
+>    tree and in find-in-page. Driven live at 26× zoom with 40 pins, **28 of them geometrically off
+>    screen**, `checkVisibility({ contentVisibilityAuto: true })` reported **zero skipped**. It was in the
+>    stylesheet, computed as `auto`, and did nothing. It was written, shipped into the working tree with a
+>    confident comment, and then removed — because a comment claiming a cull that does not happen is worse
+>    than no cull at all.
+> 2. **Culling is not needed at this scale.** 200 tokens on one node, dragged with real pointer events:
+>    **median 17.5 ms per frame on desktop and 18.2 ms at 360px**, worst 19.7 ms — vsync-bound in both,
+>    i.e. already at the 60fps the acceptance criterion asks for, at **twice** its object count. That is
+>    what transform-based panning buys: the compositor moves one layer and the 200 children never
+>    re-layout.
+>
+> The remaining option was a JavaScript culler, and **G6 forbids the version of it that works**:
+> unmounting off-screen tokens also removes them from the accessibility tree and from find-in-page, so a
+> DM searching a large map for "Ogre" is told it is not there. The numbers are in the stylesheet so the
+> next author re-measures instead of re-deciding.
+>
+> ## M3-4 — where the reader has centred the map is the touch equivalent of hover
+>
+> The plan says *"on pin hover/focus"*, and hover is exactly the signal a tablet does not have; G5 makes
+> mobile first-class, so a prefetch that only fires for a mouse misses half the table. `visibleNearest`
+> takes the three destinations nearest the **centre of the view**, 300 ms after the viewport settles —
+> what a reader has centred is a decision almost made, and warming mid-drag warms everything the map slid
+> past.
+>
+> **Next's automatic `<Link>` prefetch is turned OFF on the pins**, which is the whole reason a bounded
+> cache is possible. This route is dynamic (`?node=`), so an eager Link fetches the full RSC payload the
+> moment it scrolls into view: forty pins, forty requests, to make one of them fast. Bounded twice — three
+> per settled view, twenty-four for the lifetime of the mount, so panning across a city cannot walk the
+> cache up three at a time.
+>
+> One prop feeds both halves (`markers`), not two, because the tier is decided by how close the pins are
+> and the warming by which one is centred — two lists could disagree about where a pin is, and the symptom
+> would be a label hidden for a pin nowhere near the one it supposedly collides with. Every pin is passed,
+> including ones with no child: an unbuilt pin still occupies the space that decides whether its
+> neighbours can be labelled, and the prefetcher filters for `href` itself.
+>
+> **What could not be verified in the dev server, stated rather than implied:** `router.prefetch` is a
+> hard no-op in development (`app-router.js`: *"Don't prefetch during development"*), so no network effect
+> is observable there. The selection is unit-tested six ways — nearest-first, bounded, stable on ties,
+> off-screen excluded, zero-limit meaning zero rather than everything — and the network behaviour was
+> confirmed against a production build.
+
+### M3-3 · Dynamic rendering (LOD) — original plan text
 What is drawn depends on zoom: pins as dots when far out, labelled icons closer in, full art and grid at
 tactical zoom. Objects outside the viewport are not rendered at all (culling), which is what makes a 400-token
 city viable (G6).
 
-### M3-4 · Prefetch the likely next level
+### M3-4 · Prefetch the likely next level — original plan text
 On pin hover/focus, prefetch the child node's payload so drilling in is instant. Bounded by a small cache.
 
 *Acceptance:* 60fps pan/zoom with 200 objects on desktop and a mid-range phone; drill-down under 150ms warm;

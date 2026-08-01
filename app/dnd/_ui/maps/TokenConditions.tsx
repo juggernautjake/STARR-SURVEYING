@@ -33,6 +33,8 @@
 // morning. A badge that said only "exhausted" would hide the single number that decides whether the
 // character can still act, so it renders as its level.
 
+import styles from '@/app/dnd/_ui/hextech.module.css';
+
 /** One mark per condition. Kept deliberately plain — a glyph a DM can learn in one session. */
 const GLYPH: Record<string, string> = {
   blinded: '◍', charmed: '♥', deafened: '◔', frightened: '!', grappled: '⊗',
@@ -86,6 +88,9 @@ export default function TokenConditions({
       // Non-interactive and OUTSIDE the token's own link target: a DM aiming at a token should not be able
       // to miss it by hitting a status pip.
       aria-hidden="true"
+      // M3-3 — the class exists so the stylesheet can drop the pips at `dots` zoom, where they are smaller
+      // than the token they annotate. The markup stays; only the drawing changes.
+      className={styles.tokenStatus}
       style={{
         position: 'absolute',
         // Top-right, running down: the least likely corner to cover a face, which is what portraits put
