@@ -25,6 +25,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMany } from '@/lib/notifications';
 import { hasAttribution, type Attribution } from './attribution';
 import { upsertCustomer } from '@/lib/customers/identity';
+import { recordMilestone } from '@/lib/pipeline/events';
 
 /** Roles that get an in-app notification when a public query arrives.
  *  Centralized so future role additions stay in lockstep. */
@@ -320,6 +321,24 @@ export async function insertLeadFromForm(
       console.error('[leads.intake] INSERT failed:', error);
       return null;
     }
+
+    // A4 — milestone 1. The front of the stream, and the only one written at INSERT rather than derived
+    // from a status change (which is why `milestoneForLeadStatus('new')` deliberately returns null — it
+    // would otherwise record this a second time every time someone reverted a lead to new).
+    await recordMilestone({
+      milestone: 'inquiry_received',
+      leadId: data.id as string,
+      customerId: customer?.id ?? null,
+      actor: 'website-form',
+      sourceTable: 'leads',
+      sourceId: data.id as string,
+      // The campaign travels WITH the milestone, so the funnel can group by campaign without joining
+      // back to the lead — and so it stays true even if the lead row is later edited.
+      metadata: input.attribution
+        ? { utm_campaign: input.attribution.utm_campaign ?? null, utm_source: input.attribution.utm_source ?? null }
+        : {},
+    });
+
     return { id: data.id as string };
   } catch (err) {
     // Never throw to the caller — the customer's form post must succeed

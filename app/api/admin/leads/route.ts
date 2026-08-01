@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { milestoneForLeadStatus, recordMilestone, toCents } from '@/lib/pipeline/events';
 
 const SELECT_COLS =
   'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, customer_id';
@@ -121,6 +122,31 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+  // A4 — append the milestone this status change represents.
+  //
+  // Derived from the status the office already sets, per the plan's rule that no one has to remember to
+  // do anything extra for Google. `milestoneForLeadStatus` is shared with the backfill so both agree on
+  // what "quoted" means, and `recordMilestone` is idempotent on its dedupe key — so re-saving a lead that
+  // is already `quoted` appends nothing.
+  //
+  // Best-effort and unawaited-of-consequence: an analytics derivative must never fail a status change.
+  {
+    const row = data as unknown as Record<string, unknown>;
+    const milestone = typeof patch.status === 'string' ? milestoneForLeadStatus(patch.status) : null;
+    if (milestone) {
+      await recordMilestone({
+        milestone,
+        leadId: String(row.id),
+        customerId: (row.customer_id as string | null) ?? null,
+        // `quoted` carries the money; the others have none, and null is an absence rather than $0.00.
+        valueCents: milestone === 'quoted' ? toCents(row.quote_amount as number | null) : null,
+        actor: gate.email ?? 'admin',
+        sourceTable: 'leads',
+        sourceId: String(row.id),
+      });
+    }
+  }
 
   // mobile-and-customer-query-gap Slice Q3b — once the lead leaves
   // `'new'`, the "new query" bell-icon notification no longer reflects

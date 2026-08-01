@@ -286,7 +286,36 @@ attribute.
 > it → badge conditional on `is_repeat` → the class has styling behind it — but **someone should look at
 > it** the next time they are signed in as staff.
 
-### A4 — The lifecycle event stream
+### A4 — The lifecycle event stream ✅ SHIPPED 2026-08-01
+
+> **Done.** `seeds/504_lead_lifecycle_events.sql` (applied live), `lib/pipeline/events.ts` with 14 tests,
+> writers on the intake path and the leads PATCH route, and `scripts/backfill-lifecycle.mjs`.
+>
+> **Nothing here is a new fact about the business** — the lifecycle was already recorded across eight
+> `jobs.date_*` columns, `job_stages_history`, six `leads.status` values and `customer_invoices.paid_at`.
+> What did not exist was one place to ASK about it. The value of the table is not the data; it is that
+> there is now exactly one definition of "quoted" instead of one per consumer.
+>
+> **The backfill's flag is the part that matters.** All 10 derived milestones carry
+> `metadata.pre_attribution = true`, because Finding 2 is real: not one lead before 2026-07-31 has a
+> `gclid`, a UTM or a referrer. Without the flag the funnel would average them into cost-per-lead and
+> report a number that is arithmetically clean and completely false — real conversions divided by ad spend
+> that never bought them. **The dashboard (A12) must exclude them, which means it has to be able to see
+> them.**
+>
+> **Idempotency was proved, not assumed:** first run inserted 10, second inserted 0 and found 10 present.
+> The keys come from `dedupeKeyFor`, the same function the live writers use — if the backfill built keys
+> its own way, a re-run would duplicate every historical milestone, and a duplicated `job_created` is a
+> job counted twice in the revenue signal Smart Bidding trains on.
+>
+> **Two judgements worth recording:**
+> - `payment_received` is keyed on the **invoice**, not the job. A job can be invoiced more than once, and
+>   keying on the job would silently drop every payment after the first.
+> - `job_created` uses `date_accepted` in preference to `created_at` — the event Google should attribute is
+>   when the customer said yes, not when someone got round to typing it in.
+>
+> Statuses whose exact instant is not recorded anywhere are backfilled at `updated_at` and flagged
+> `approximate_time`, rather than being given a timestamp that looks precise and is not.
 - **Seed 471** — `lead_lifecycle_events` (`id`, `lead_id`, `job_id`, `customer_id`, `milestone`, `occurred_at`,
   `value_cents`, `actor`, `source_table`, `source_id`, `metadata jsonb`, `dedupe_key UNIQUE`).
 - `lib/pipeline/events.ts` — one `recordMilestone()` writer. Called from: the leads PATCH route, the job-create
