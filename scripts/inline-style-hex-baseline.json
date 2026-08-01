@@ -247,7 +247,6 @@
   "app/dnd/hextech-demo/page.tsx": 4,
   "app/dnd/library/[key]/page.tsx": 2,
   "app/dnd/suggestions/page.tsx": 1,
-  "app/pay/PayGate.tsx": 2,
   "app/platform/audit/page.tsx": 1,
   "app/platform/components/PlatformLayoutClient.tsx": 8,
   "app/platform/customers/[orgId]/page.tsx": 7,

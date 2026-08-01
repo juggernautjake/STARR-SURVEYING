@@ -17,6 +17,7 @@ import {
 } from './surveyCalculatorTypes';
 import { trackConversion } from '../utils/gtag';
 import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
+import { honeypotValuesFrom, honeypotInputProps, HONEYPOT_TIME_FIELD } from '@/lib/leads/honeypot';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -119,6 +120,9 @@ export default function SurveyCalculator() {
   } | null>(null);
 
   const resultRef = useRef<HTMLDivElement>(null);
+  // The calculator submits from a BUTTON, not a form, so there is no `e.currentTarget` to read the
+  // honeypot from. A ref on the block that renders it is the equivalent.
+  const contactBlockRef = useRef<HTMLDivElement>(null);
   const currentSurveyType = SURVEY_TYPES.find((s: SurveyTypeConfig) => s.id === selectedSurveyType);
 
   useEffect(() => {
@@ -307,6 +311,7 @@ export default function SurveyCalculator() {
           // G1-2 — the calculator is an intake surface like any other, and it is the one most likely to
           // be reached straight from an ad.
           ...attributionFormFields(readAttribution()),
+          ...honeypotValuesFrom(contactBlockRef.current),
         }),
       });
 
@@ -691,14 +696,18 @@ export default function SurveyCalculator() {
                     </a>
                   </div>
                 ) : (
-                  <div style={{
+                  <div ref={contactBlockRef} style={{
                     marginTop: '1.5rem',
                     padding: '1.5rem',
                     background: '#F8F9FA',
                     borderRadius: '10px',
                     border: '2px solid #1D3095'
                   }}>
-                    <h4 style={{ 
+                    {/* A1-3 — the bot trap. Rendered inline rather than via <HoneypotFields /> because
+                        this block is not a <form> and needs the ref above to be readable at submit. */}
+                    <input {...honeypotInputProps()} defaultValue="" />
+                    <input type="hidden" name={HONEYPOT_TIME_FIELD} defaultValue={String(Date.now())} readOnly />
+                    <h4 style={{
                       fontFamily: 'Sora, sans-serif', 
                       fontSize: '1.1rem', 
                       fontWeight: 600, 

@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import {
   PUBLIC_BLOCKED_STATUSES,
   describePaymentForReceipt,
@@ -60,6 +61,24 @@ interface PublicInvoice {
 }
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
+  // ── A1-4: THROTTLE, because this is an ENUMERATION surface as much as a cost one ────────────────
+  //
+  // Invoice numbers are `SS-<yymmdd>-<hhmmss>-<3 chars>`, which is guessable in a way a random slug is
+  // not — the date and time of a working day are a small space, and the suffix is three characters. A hit
+  // returns a customer's NAME and their outstanding BALANCE.
+  //
+  // The header above notes that the slug "prevents enumeration", and that is true of the slug. It is not
+  // true of `invoice_number`, which this same handler also accepts, because it has to: the number is what
+  // is printed on the paper invoice the customer is holding.
+  //
+  // 30 per 5 minutes lets someone fumble their invoice number over and over without ever noticing, and
+  // makes walking the space impractical.
+  const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim()
+    || req.headers.get('x-real-ip')
+    || '';
+  const limited = await enforceRateLimit('public-lookup', null, { ip });
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const segments = url.pathname.split('/').filter(Boolean);
   const rawKey = decodeURIComponent(segments[segments.length - 1] ?? '').trim();

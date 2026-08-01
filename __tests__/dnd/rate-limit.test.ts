@@ -108,14 +108,14 @@ describe('headers', () => {
 
 describe('it fails OPEN, and says why', () => {
   it('a counter error allows the request', () => {
-    const src = read('lib/dnd/rate-limit.ts');
+    const src = read('lib/rate-limit.ts');
     expect(src).toMatch(/catch \{[\s\S]{0,220}allowed: true/);
     // The judgement call is argued in the file rather than being a silent swallow.
     expect(src).toMatch(/FAIL OPEN/);
   });
 
   it('and the file is explicit that this is not an authorization gate', () => {
-    expect(read('lib/dnd/rate-limit.ts')).toMatch(/not an authorization gate/i);
+    expect(read('lib/rate-limit.ts')).toMatch(/not an authorization gate/i);
   });
 });
 
@@ -146,7 +146,7 @@ describe('the routes that cost money are actually limited', () => {
     for (const r of AI_ROUTES) {
       expect(read(r), `${r} must return the limiter's refusal`).toContain('if (aiLimited) return aiLimited;');
     }
-    expect(read('lib/dnd/rate-limit.ts'), 'the wrapper must answer 429').toContain('status: 429');
+    expect(read('lib/rate-limit.ts'), 'the wrapper must answer 429').toContain('status: 429');
   });
 
   it('login is limited on BOTH the address and the name being attempted', () => {

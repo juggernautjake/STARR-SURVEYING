@@ -55,8 +55,8 @@ describe('the sweep can never delete a live window', () => {
 
   it('and is derived, so a longer bucket cannot outgrow it', () => {
     // The invariant has to survive someone adding a weekly bucket without reading this file.
-    expect(read('lib/dnd/rate-limit.ts')).toMatch(/SWEEP_RETAIN_SEC = 2 \* Math\.max\(/);
-    expect(read('lib/dnd/rate-limit.ts')).not.toMatch(/cutoff = new Date\(atMs - 24 \* 3600 \* 1000\)/);
+    expect(read('lib/rate-limit.ts')).toMatch(/SWEEP_RETAIN_SEC = 2 \* Math\.max\(/);
+    expect(read('lib/rate-limit.ts')).not.toMatch(/cutoff = new Date\(atMs - 24 \* 3600 \* 1000\)/);
   });
 });
 
@@ -139,7 +139,7 @@ describe('every AI route enforces BOTH windows', () => {
 
   it('checked hourly-first, so the actionable message wins', () => {
     // Telling someone to wait 24 hours when they merely burst for a minute is true and useless.
-    expect(read('lib/dnd/rate-limit.ts')).toMatch(/enforceRateLimit\('ai', userId, opts\)\) \?\? \(await enforceRateLimit\('ai-daily'/);
+    expect(read('lib/rate-limit.ts')).toMatch(/enforceRateLimit\('ai', userId, opts\)\) \?\? \(await enforceRateLimit\('ai-daily'/);
   });
 });
 

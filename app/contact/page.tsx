@@ -6,6 +6,8 @@ import PayInvoiceCTA from '../components/PayInvoiceCTA';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
 import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
+import { honeypotValuesFrom } from '@/lib/leads/honeypot';
+import HoneypotFields from '@/app/components/HoneypotFields';
 import {
   QUOTE_ATTACHMENT_ACCEPT,
   QUOTE_ATTACHMENT_MAX_FILES,
@@ -179,7 +181,7 @@ export default function ContactPage(): React.ReactElement {
     try {
       // G1-2 — where this visitor came from, captured on the FIRST page they landed on (see
       // `AttributionCapture`). Read at submit time because by now they are usually on a clean URL.
-      const attribution = attributionFormFields(readAttribution());
+      const attribution = { ...attributionFormFields(readAttribution()), ...honeypotValuesFrom(e.currentTarget) };
       let response: Response;
       if (attachments.length > 0) {
         const body = new FormData();
@@ -348,6 +350,8 @@ export default function ContactPage(): React.ReactElement {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="contact-form">
+              {/* A1-3 — invisible bot trap. Read at submit by honeypotValuesFrom(). */}
+              <HoneypotFields />
               {formState.error && (
                 <div className="contact-form__error">{formState.error}</div>
               )}

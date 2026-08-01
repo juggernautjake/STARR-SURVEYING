@@ -103,23 +103,44 @@ mounted, which it was, invisibly, behind the site logo.
 
 *Highest value per hour in the entire document. Nothing here is speculative.*
 
-- [ ] **A1-1 — Promote the rate limiter out of `lib/dnd/`.** Move `enforceRateLimit` to
-      `lib/rate-limit.ts` with the D&D module re-exporting it, so 27 working call sites keep working while
-      the business gains access. Do **not** fork it: two copies is how one gets the fix and the other does
-      not — this repo has that lesson written into three separate docs already.
+- [x] **A1-1 — Promote the rate limiter out of `lib/dnd/`. SHIPPED 2026-08-01.** Moved to
+      `lib/rate-limit.ts`; `lib/dnd/rate-limit.ts` is now a re-export, so all 27 call sites are untouched.
+      The counter table moved with it — `dnd_rate_limits` → `rate_limits` (seed **502, applied live**) —
+      and there was nothing to migrate, because counter rows belong to windows that expire. **Not forked:**
+      two copies is how one gets the fix and the other does not, which this repo has learned three times
+      (the two `MAX_BYTES`, the fourth roll log, the stage token three of four stylesheets read).
+      *Five source-scanning tests read the old path and were repointed; they are the reason the move was
+      provably complete rather than probably complete.*
 
-- [ ] **A1-2 — Throttle `POST /api/contact`.** Per-IP and per-email. The limit should be generous enough
-      that a genuine customer resubmitting after a typo is never blocked, and tight enough that a script is.
-      **A rejection must still LOOK like a rejection to a human** — a silent 429 on a contact form reads as
-      "the site is broken" and loses the enquiry.
+- [x] **A1-2 — Throttle `POST /api/contact`. SHIPPED 2026-08-01.** Two buckets, both per IP because there
+      is no user: **5 per 10 minutes** stops a burst, **20 per day** stops the slow grind that never trips
+      the burst limit. Checked burst-first so a customer who simply resubmitted gets the actionable message
+      rather than the 24-hour one.
+      **Placed above `parseRequest`**, which matters more than it looks: parsing a multipart body reads the
+      uploaded files into memory, so throttling after that point still makes us do the expensive part.
 
-- [ ] **A1-3 — A honeypot field on every intake form.** A hidden input that humans never fill and bots
-      always do. Cheaper than a captcha, invisible to customers, and it costs no third-party dependency.
-      All four surfaces (`/contact`, home, `ContactForm`, `SurveyCalculator`) — **four, not three**; the
-      attribution work found that "the three intake forms" was already an undercount.
+- [x] **A1-3 — A honeypot field on every intake form. SHIPPED 2026-08-01.** `lib/leads/honeypot.ts`
+      (13 tests) + `HoneypotFields`, on **all four** surfaces.
+      **A trapped submission is told it SUCCEEDED.** A bot that gets an error retries, mutates, and finds
+      the shape that works; one that gets a 200 goes away and learns nothing. The price of that choice is
+      that a false positive is **invisible to the customer** — they believe they contacted us and nobody
+      has — which is why the checks are deliberately loose (a missing timestamp is never a trap) and why
+      every trip is logged.
+      *Rendering the inputs turned out not to be enough:* every form builds its body from React state, not
+      the DOM, so a hidden input nothing reads is submitted by nobody. `honeypotValuesFrom` closes that,
+      and takes any container rather than a form — the calculator submits from a button and has no form.
+      **Browser-verified both ways:** a real customer's submission carries the timestamp and no honeypot; a
+      filled honeypot is transmitted so the server can trap it.
 
-- [ ] **A1-4 — Throttle the public invoice lookup**, and make a miss and a hit take the same time. Invoice
-      numbers are guessable (`SS-260618-A1B2`), and the endpoint returns a customer name and a balance.
+- [x] **A1-4 — Throttle the public invoice lookup. SHIPPED 2026-08-01.** 30 per 5 minutes — enough to
+      fumble an invoice number repeatedly without noticing.
+      The route's own header said the slug "prevents enumeration". True of the slug; **not** true of
+      `invoice_number`, which the same handler also accepts because it is what is printed on the paper
+      invoice the customer is holding. *(Equal-time responses for hit and miss remain open — see A1-4b.)*
+
+- [ ] **A1-4b — Make a hit and a miss take the same time.** Split from A1-4. A 404 currently returns after
+      one query while a hit does two more; the difference is measurable and confirms a guess even when the
+      throttle stops the guessing being fast.
 
 - [ ] **A1-5 — Cap the storage a single IP can consume** through quote attachments. `UPLOAD_LIMITS.MEDIA`
       caps ONE file; nothing caps a hundred submissions.

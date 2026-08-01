@@ -14,6 +14,8 @@ import {
   type LeadIntakeInput,
 } from '@/lib/leads/intake';
 import { supabaseAdmin } from '@/lib/supabase';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { checkHoneypot } from '@/lib/leads/honeypot';
 import crypto from 'node:crypto';
 import { CLICK_ID_FIELDS, hasAttribution, type Attribution } from '@/lib/leads/attribution';
 
@@ -38,6 +40,14 @@ function attributionFromBody(body: object): Attribution | null {
   return hasAttribution(attribution) ? attribution : null;
 }
 
+/** The caller's address, as the proxy reports it. Shared by the throttle and the (hashed) audit trail so
+ *  the two can never disagree about who a request came from. */
+function clientIpOf(request: NextRequest): string {
+  return (request.headers.get('x-forwarded-for') || '').split(',')[0].trim()
+    || request.headers.get('x-real-ip')
+    || '';
+}
+
 /**
  * A salted hash of the submitting IP — never the address itself.
  *
@@ -47,9 +57,7 @@ function attributionFromBody(body: object): Attribution | null {
  * IPv4 address is decorative — the whole space is enumerable in seconds.
  */
 function hashClientIp(request: NextRequest): string | null {
-  const raw = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim()
-    || request.headers.get('x-real-ip')
-    || '';
+  const raw = clientIpOf(request);
   if (!raw) return null;
   const salt = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
   if (!salt) return null; // no salt, no pretence of anonymity — record nothing
@@ -1175,8 +1183,42 @@ async function parseRequest(
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // ── A1-2: THE THROTTLE, and it goes FIRST ───────────────────────────────────────────────────────
+    //
+    // Before this, one submission cost three outbound emails, an attachment upload, and a database write,
+    // with nothing limiting how many a single caller could make. The dangerous part is not the volume —
+    // it is that exhausting the Resend quota stops REAL customer enquiries being emailed to anyone, and
+    // that failure is silent. It looks precisely like a quiet week.
+    //
+    // Two buckets, both per IP because there is no user here. `contact-form` (5 / 10 min) stops a burst;
+    // `contact-form-daily` (20 / day) stops the slow grind that never trips the burst limit. Checked in
+    // that order so a person who simply resubmitted gets the actionable message, not the 24-hour one.
+    //
+    // Placed above `parseRequest` deliberately: parsing a multipart body means READING THE UPLOADED FILES
+    // into memory. Throttling after that point would still let an abuser make us do the expensive part.
+    const ip = clientIpOf(request);
+    const limited = (await enforceRateLimit('contact-form', null, { ip }))
+      ?? (await enforceRateLimit('contact-form-daily', null, { ip }));
+    if (limited) return limited;
+
     const { body, files, fileSummaries, uploadable } = await parseRequest(request);
     const referenceNumber = generateReferenceNumber();
+
+    // ── A1-3: THE HONEYPOT ──────────────────────────────────────────────────────────────────────────
+    //
+    // A trapped submission is told it SUCCEEDED and nothing is sent, stored or emailed. That is
+    // deliberate: a bot that gets an error retries, mutates, and eventually finds the shape that works —
+    // and reports the form as protected. A bot that gets a 200 goes away satisfied and learns nothing.
+    //
+    // The cost of that choice is that a FALSE POSITIVE IS INVISIBLE to the customer: they believe they
+    // have contacted us and nobody has. So the checks are loose by design (see `lib/leads/honeypot.ts`),
+    // and every trip is logged — a false positive should be findable in the log rather than in a customer
+    // who never heard back.
+    const verdict = checkHoneypot(body as Record<string, unknown>);
+    if (verdict.trapped) {
+      console.warn(`[${referenceNumber}] Intake rejected by honeypot: ${verdict.reason}`);
+      return NextResponse.json({ success: true, reference: referenceNumber });
+    }
 
     // Server-side re-validation of attachments (client already checked,
     // but treat the client as untrusted).
