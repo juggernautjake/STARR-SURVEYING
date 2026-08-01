@@ -1112,7 +1112,17 @@ function renderScreen(html){scrInner.innerHTML=html;scrInner.querySelectorAll("[
   scrInner.querySelectorAll('a[href^="/dnd/campaigns/"]').forEach(a=>{a.target="_top";});
   const fb=scrInner.querySelector("[data-focus]");if(fb)fb.onclick=()=>{focusCurrent();beep(720,0.06);};}
 function portrait(svg){return `<div class="scr-portrait"><div class="holo-glow"></div><div class="holo-screen"><div class="holo-art">${svg}</div><div class="holo-tint"></div><div class="holo-scan"></div><div class="holo-sweep"></div></div><div class="holo-base"></div></div>`;}
-function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>`<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}</div></div>`).join("")}</div>`;}
+// A POI is a marker inside a body's blob — a city on a planet. When a map NODE shares its name (or names
+// it via `console_ref`), the POI gets a way to walk into it, which is the whole point of the bridge: the
+// blob says a city is there, and the node is the city.
+//
+// Deliberately only a LINK, not a whole node record: a body's readout already carries one, and a second
+// full block per POI would bury the body's own description under its landmarks.
+function poiBlock(pois){if(!pois||!pois.length)return "";return `<div style="margin-top:6px">${pois.map(p=>{
+    const n=nodeFor({id:p.id,name:p.title});
+    const link=n?`<div style="margin-top:3px"><a class="scr-chip" href="${worldHref(n.id)}" style="text-decoration:none;color:var(--scan);border-color:var(--scan)">▶ ENTER ${esc((n.name||"").toUpperCase())}</a></div>`:"";
+    return `<div class="scr-poi" data-body=""><div class="pic">${poiIconSVG(p.type,22)}</div><div><div class="pn">${esc(p.title)}</div><div class="pt">${poiType(p.type).label}</div>${p.desc?`<div class="pd">${esc(p.desc)}</div>`:""}${link}</div></div>`;
+  }).join("")}</div>`;}
 // The FOCUS control shown in the readout — a single click only locks on (info), this flies the camera to it.
 function focusBtnHTML(label){return `<button class="scr-focus" data-focus="1" title="Fly the camera to this — double-clicking it on the map does the same">◎ FOCUS ${esc((label||"target").toString().toUpperCase())}</button>`;}
 // ── THE WORLD TREE, PLUGGED INTO THE CONSOLE ────────────────────────────────────────────────────────
@@ -1199,7 +1209,7 @@ function sectorScreen(s){const members=MAP.instances.filter(b=>b.sector===s.id);
   let chips="";if(s.meta&&subs.length)chips=`<div class="scr-chips">${subs.map(x=>`<span class="scr-chip" data-sec="${x.id}"><span class="cd" style="background:${x.color}"></span>${esc(x.name)}</span>`).join("")}</div>`;
   else if(members.length)chips=`<div class="scr-chips">${members.map(m=>`<span class="scr-chip" data-body="${m.id}"><span class="cd" style="background:${s.color}"></span>${esc(m.name)}${m.role==="capital"?" ★":""}</span>`).join("")}</div>`;
   return `<div class="scr-head">${portrait(swatch)}<div class="scr-titles"><div class="scr-kicker">${s.meta?"META-REGION":s.parent?"SUB-SYSTEM"+(s.theme?" · "+s.theme.toUpperCase():""):(s.region||"SYSTEM").toUpperCase()}</div><div class="scr-name">${esc(s.name)}</div><div class="scr-creed">${esc(s.creed||"")}</div></div>${focusBtnHTML(s.meta?"region":s.parent?"sub-system":"system")}</div>
-    <div class="scr-cols"><div class="scr-desc">${s.desc?esc(s.desc):(chips?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${chips}</div>
+    <div class="scr-cols"><div class="scr-desc">${s.desc?esc(s.desc):(chips||nodeFor(s)?"":`<div class="scr-nodata">▏ NO FURTHER DATA ON RECORD</div>`)}${chips}${nodeBlock(nodeFor(s))}</div>
     <div class="scr-stats">${s.region?`<div class="scr-stat"><span class="k">REGION</span><span class="v">${s.region.toUpperCase()}</span></div>`:""}${s.theme?`<div class="scr-stat"><span class="k">THEME</span><span class="v">${s.theme.toUpperCase()}</span></div>`:""}<div class="scr-stat"><span class="k">BODIES</span><span class="v">${members.length||(subs.length?subs.length+" SUBS":"—")}</span></div>${subs.length&&!s.meta?`<div class="scr-stat"><span class="k">SUB-SYSTEMS</span><span class="v">${subs.length}</span></div>`:""}<div class="scr-stat"><span class="k">ALLEGIANCE</span><span class="v" style="color:${s.color}">████</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">SURVEYED</span></div></div></div>`;}
 function coreScreen(i){return `<div class="scr-head">${portrait(`<div style="width:66px;height:66px">${art(i.look,true)}</div>`)}<div class="scr-titles"><div class="scr-kicker" style="color:var(--gold)">GALACTIC CORE</div><div class="scr-name">${esc(i.name)}</div><div class="scr-creed">The song at the center of everything</div></div>${focusBtnHTML("core")}</div>
   <div class="scr-cols"><div class="scr-desc">${esc(i.desc)}</div><div class="scr-stats"><div class="scr-stat"><span class="k">TYPE</span><span class="v">AETHER SOURCE</span></div><div class="scr-stat"><span class="k">POSITION</span><span class="v">GALACTIC CENTER</span></div><div class="scr-stat"><span class="k">OUTPUT</span><span class="v" style="color:var(--gold)">∞</span></div><div class="scr-stat"><span class="k">STATUS</span><span class="v" style="color:var(--scan)">RADIANT</span></div></div></div>`;}

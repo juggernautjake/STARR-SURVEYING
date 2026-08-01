@@ -131,8 +131,16 @@ export default function MapObjectTools({
           ⟲ {undoLabel ? `Undo ${undoLabel.toLowerCase()}` : 'Nothing to undo'}
         </button>
 
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12.5, color: 'var(--hx-muted)' }}>
-          <input type="checkbox" checked={freehand} onChange={(e) => setFreehand(e.target.checked)} />
+        {/* The whole LABEL is the target, and it is 44px tall (G5). A bare checkbox renders at 13px, so
+            the row a DM taps on a tablet was three times smaller than every control beside it — measured
+            at a 360px column, where it was the only thing under the minimum. */}
+        <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: 'var(--hx-muted)', minHeight: 44, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={freehand}
+            onChange={(e) => setFreehand(e.target.checked)}
+            style={{ width: 18, height: 18 }}
+          />
           {/* The override, stated as what it is FOR. A grid is a convenience, not a law — a rug across a
               doorway belongs between two cells. */}
           Ignore the grid (place freehand)

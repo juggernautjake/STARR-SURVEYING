@@ -369,8 +369,31 @@ surfaced as a defect; it just silently burned half the RNG sequence.
 **Not yet mounted on a page** — there is no node-browsing surface until M3-2, which is the next slice.
 `GeneratedMap` is the component that surface will use; it is complete, typechecked and lint-clean.
 
-### M2-3 · Mobile and desktop parity for the existing map surfaces
-The current map pages audited and fixed at 360px and desktop before new surfaces are added on top.
+### M2-3 · Mobile and desktop parity — **DONE, and it was continuous rather than a slice**
+
+The plan puts this before the new surfaces, which turned out to be the wrong shape for it: every slice
+after M4-1 added controls to the same page, so a one-time audit would have been true for about a day.
+What actually happened is that G5 was checked at each slice and the findings landed with the code —
+recorded here so the pass is visible in one place rather than scattered:
+
+| Slice | Found at 360px | Fixed |
+|---|---|---|
+| M4-1 | nudge arrows below the touch minimum; a near-black label on a near-black panel | 44px arrows; `--hx-muted` |
+| M4-2 | selection chips inherited the shared `hexBtn`'s **38px** | raised locally — every other /dnd surface uses that class at its own size |
+| M4-2b | the snap-override **checkbox rendered at 13px**, a third of everything beside it | the whole label is the target, 44px tall |
+| M3-3 | 200 tokens dragged at a **median 18.2 ms per frame** at 360px — vsync-bound | no culling needed; the numbers are in the stylesheet |
+| M7 | — | fog, terrain and asset controls built at 44px from the start |
+
+**The final sweep**, with every control this document has added on one map: **no horizontal overflow at a
+360px column**, 46 interactive controls, and **one** below the touch minimum — the checkbox above, now
+fixed.
+
+**One thing measured and deliberately not "fixed":** at fit zoom on a 360px screen a Medium token is
+about 16 screen pixels, because M5-1 decided a token occupies SQUARES and is not counter-scaled like a
+pin. That is correct and it is also un-tappable — and the answer is the zoom fix from M3-3, which raised
+the ceiling from 1.3× of fit to 8×. A DM on a phone zooms in to interact, and now they can. Counter-scaling
+the token instead would make it slide off the space it stands in, which is the thing M5-1 refused for good
+reason.
 
 ---
 
@@ -1618,9 +1641,20 @@ Decisions worth recording:
 explaining the G2 gate. Legal HTML, but it breaks naive parsers — including the syntax check used while
 editing the file, which reported a false error. Reworded, with a note saying why.
 
-**Still open for MC:** the DM has no UI to *set* `console_ref` (today it is a column with no editor — the
-name fallback covers the common case); sectors/systems are not yet linked, only bodies; and POIs could map
-to child nodes rather than being blob-only.
+**MC-2 · the rest of the bridge — DONE 2026-08-01.** All three of the items this section listed as open
+are closed, and the first was already closed when it was written:
+
+- **`console_ref` has an editor**, and had one before this note was read again. `WorldAuthor` carries it,
+  the world route whitelists it, and the page passes it — end to end. **The note was stale, and re-reading
+  the code before building the "missing" feature is the only reason a second editor was not written
+  beside the first.** That is this repo's signature defect arriving from a third direction: not unwired
+  code, but a plan describing the app as it was.
+- **Sectors and systems are linked**, not only bodies. `nodeFor` already took `{id, name}` and a sector
+  is one, so the whole change was passing it — the two-index design (explicit `console_ref` first,
+  lowercased name second) did the rest.
+- **POIs link to their node**, when one shares their name. Deliberately a LINK and not a whole node
+  record: the body's readout already carries one, and a full block per POI would bury the body's own
+  description under its landmarks.
 
 ---
 
