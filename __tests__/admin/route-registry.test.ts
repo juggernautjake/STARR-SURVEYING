@@ -21,7 +21,7 @@ import {
   scoreRoute,
   workspaceOf,
 } from '@/lib/admin/route-registry';
-import type { Workspace } from '@/lib/admin/route-registry';
+import type { AdminRoute, Workspace } from '@/lib/admin/route-registry';
 
 describe('route-registry — shape + uniqueness', () => {
   it('every WORKSPACE_ORDER entry has a WORKSPACES metadata entry', () => {
@@ -143,7 +143,11 @@ describe('route-registry — breadcrumb trail (F1)', () => {
   it('routeLabel derives readable labels for unregistered leaves', () => {
     expect(routeLabel('/admin/jobs/9f8e7d6c5b4a3210')).toBe('Job Detail'); // id leaf
     expect(routeLabel('/admin/some/plan-history')).toBe('Plan History'); // title-cased segment
-    expect(routeLabel('/admin/equipment/templates/new')).toBe('New'); // unregistered word segment
+    // A SYNTHETIC path, deliberately. This used `/admin/equipment/templates/new`, which was genuinely
+    // unregistered when the test was written and is now a real registry entry (§1.4, 2026-08-01) — so
+    // the test failed for the best possible reason and was testing the wrong thing either way. A route
+    // that exists cannot demonstrate the fallback for routes that do not.
+    expect(routeLabel('/admin/some/new')).toBe('New'); // unregistered word segment
   });
 });
 
@@ -224,14 +228,39 @@ describe('route-registry — Cmd+K ranker', () => {
   });
 
   it('recentRoutes boosts a matching route over an equally-scoring fresh one (§8 Phase 6)', () => {
-    // "all" matches "All Jobs" and a few descriptions roughly equally;
-    // boosting the recent visit should bump it above the rest. Use a
-    // distinctive query that hits multiple routes.
-    const baseline = rankRoutes(ADMIN_ROUTES, 'admin');
-    expect(baseline.length).toBeGreaterThan(0);
-    const target = baseline[baseline.length - 1].href;
-    const boosted = rankRoutes(ADMIN_ROUTES, 'admin', { recentRoutes: [target] });
-    expect(boosted[0]?.href).toBe(target);
+    // Rewritten 2026-08-01. It used to boost the WORST match for "admin" and expect it to reach the
+    // top, which held only while the corpus was small enough for the worst match to sit within the
+    // boost of the best. Registering 35 orphan routes (§1.4) widened that range and it stopped — for a
+    // reason that says nothing about recency: the boost is +25 and the gap had simply grown past it.
+    //
+    // The property in the test's own title is "over an EQUALLY-SCORING one", and the only honest way to
+    // test that is to construct the tie. Even the runner-up in the real registry does not work: the gap
+    // between an exact-label match and the next hit is larger than the +25 boost, which is CORRECT — a
+    // route you visited yesterday should not outrank the thing you literally just typed the name of.
+    //
+    // So this uses two synthetic routes that score identically, which is the only configuration where
+    // recency is the deciding factor. It also makes the test independent of how many routes exist,
+    // which is what broke it twice.
+    const twins: AdminRoute[] = [
+      { href: '/admin/twin-a', label: 'Twin', workspace: 'office', iconName: 'Circle', description: 'A twin.' },
+      { href: '/admin/twin-b', label: 'Twin', workspace: 'office', iconName: 'Circle', description: 'A twin.' },
+    ];
+    // Ties break on registry order, so A leads with no recency.
+    expect(rankRoutes(twins, 'Twin')[0].href).toBe('/admin/twin-a');
+    // …and B leads once it is the recent one.
+    expect(rankRoutes(twins, 'Twin', { recentRoutes: ['/admin/twin-b'] })[0].href).toBe('/admin/twin-b');
+  });
+
+  it('but recency does NOT outrank a much better match', () => {
+    // The other half of the same rule, and the reason the boost is small: typing an exact label must
+    // win over something you happened to open yesterday. Without this, the palette would start
+    // second-guessing what you just typed.
+    const routes: AdminRoute[] = [
+      { href: '/admin/exact', label: 'Reconcile', workspace: 'office', iconName: 'Circle', description: 'Exact.' },
+      { href: '/admin/loose', label: 'Something else', workspace: 'office', iconName: 'Circle', description: 'Mentions reconcile in passing.' },
+    ];
+    const ranked = rankRoutes(routes, 'Reconcile', { recentRoutes: ['/admin/loose'] });
+    expect(ranked[0].href).toBe('/admin/exact');
   });
 
   it('recencyBoost never surfaces a non-matching route', () => {

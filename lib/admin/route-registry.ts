@@ -239,6 +239,86 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
   { href: '/admin/reports',               label: 'Reports',          workspace: 'office', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
   { href: '/admin/support',               label: 'Support',          workspace: 'office', iconName: 'LifeBuoy',     description: 'Open support tickets + manage existing ones.', keywords: ['tickets', 'help', 'issues'] },
+
+  // ── §1.4 · the pages that existed and could not be reached (2026-08-01) ──────────────────────
+  //
+  // PLATFORM_AUDIT_AND_LAUNCH_QUESTIONS_2026-07-29 §1.4: *"36 built pages are unreachable from
+  // navigation — not on the rail, not in ⌘K, no breadcrumb, no help."* Measured again before fixing:
+  // 35 of 127 admin pages. **Three of them were built specifically to close go-live gaps G2/G3/G5**,
+  // which is the sharpest possible version of this repo's signature defect — work that shipped, works,
+  // and cannot be found.
+  //
+  // THE `showInRail` DECISION IS THE WHOLE DESIGN HERE. Registering all 35 on the rail would trade one
+  // problem for a worse one: a rail with 127 items is a rail nobody scans, and the go-live dashboards
+  // would be just as lost in it as they were outside it. So:
+  //
+  //   · `showInRail: true`  — destinations somebody navigates TO. The go-live money dashboards, the
+  //                           work-mode door, notifications, weather.
+  //   · `showInRail: false` — pages reached FROM something else: "new X" forms, sub-tabs, the
+  //                           per-role work-mode shells. Still ⌘K-searchable, still breadcrumbed,
+  //                           still help-drawer addressable — which is three of the four things
+  //                           §1.4 says they were missing.
+  //
+  // `/admin/login` is deliberately NOT registered: it is the door, not a room, and a menu item that
+  // signs you out of the app you are using is a bug rather than a feature.
+
+  // Money — the three built for G2/G3/G5, on the rail because being unfindable was the entire finding.
+  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'office', iconName: 'PieChart',     description: 'Money in and out at a glance (G2).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2'] },
+  // Labelled "Bank Reconciliation", not "Reconcile", for two reasons that point the same way. The
+  // Cmd+K acceptance criterion is that typing "rec" surfaces RECEIPTS — the far more common
+  // destination — and a bare "Reconcile" beat it, which the ranker test caught immediately. And §2.2 of
+  // the audit is specifically about colliding money vocabulary: "reconcile" alone could mean the bank,
+  // the subscription, or a payout run.
+  { href: '/admin/finances/reconcile',    label: 'Bank Reconciliation', workspace: 'office', iconName: 'Scale',     description: 'Match recorded payments against the bank statement (G3).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['bank', 'reconcile', 'reconciliation', 'statement', 'g3'] },
+  { href: '/admin/payouts/tax-report',    label: 'Payout Tax Report', workspace: 'office', iconName: 'FileSpreadsheet', description: 'Year-end payout totals per person (G5).', roles: ['admin'], internalOnly: true, keywords: ['1099', 'tax', 'year end', 'g5'] },
+
+  // Money — reached from their parent list, so searchable rather than on the rail.
+  { href: '/admin/payments/inbox',        label: 'Payments Inbox',   workspace: 'office', iconName: 'Inbox',        description: 'Customer pledges and "I sent it" claims waiting on the office.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['pledge', 'venmo', 'claim', 'confirm'] },
+  { href: '/admin/payouts/runs',          label: 'Payout Runs',      workspace: 'office', iconName: 'ListChecks',   description: 'Batched payout runs.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['batch', 'run'] },
+  { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'office', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
+  { href: '/admin/invoices/new',          label: 'New Invoice',      workspace: 'office', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['create', 'bill', 'customer'] },
+  { href: '/admin/invoicing/categories',  label: 'Invoice Categories', workspace: 'office', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },
+  { href: '/admin/billing/invoices',      label: 'Subscription Invoices', workspace: 'office', iconName: 'ReceiptText', description: 'Invoices for THIS app’s subscription — not customer invoices.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'saas', 'plan'] },
+  { href: '/admin/billing/plan-history',  label: 'Plan History',     workspace: 'office', iconName: 'History',      description: 'Subscription plan changes over time.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'upgrade', 'downgrade'] },
+  { href: '/admin/billing/upgrade',       label: 'Upgrade Plan',     workspace: 'office', iconName: 'ArrowUpCircle', description: 'Change the subscription bundle.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'bundle', 'plan'] },
+
+  // Communication.
+  { href: '/admin/notifications',         label: 'Notifications',    workspace: 'office', iconName: 'Bell',         description: 'Everything the app has told you.', keywords: ['alerts', 'bell', 'inbox'] },
+  { href: '/admin/email/new',             label: 'Compose Email',    workspace: 'office', iconName: 'MailPlus',     description: 'Send an email to a customer or lead.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['send', 'customer', 'reply'] },
+  { href: '/admin/email/sent',            label: 'Sent Email',       workspace: 'office', iconName: 'MailCheck',    description: 'Outbound email history.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['outbox', 'history'] },
+  { href: '/admin/support/new',           label: 'New Support Ticket', workspace: 'office', iconName: 'MessageSquarePlus', description: 'Raise a support ticket.', showInRail: false, keywords: ['help', 'issue', 'report'] },
+  { href: '/admin/me/privacy',            label: 'Privacy Settings', workspace: 'hub', iconName: 'EyeOff',          description: 'What colleagues can see about you.', showInRail: false, keywords: ['visibility', 'hidden', 'personal'] },
+
+  // Field. `/admin/weather` was called "orphaned" by the audit — for a field business, weather is a
+  // scheduling input, so it goes on the rail rather than staying a page nobody can find.
+  { href: '/admin/weather',               label: 'Weather',          workspace: 'work', iconName: 'CloudSun',      description: 'Forecast for the crew’s working area.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['rain', 'forecast', 'conditions'] },
+
+  // Work Mode. The DOOR is on the rail; the per-role shells are entered through it, never chosen from
+  // a menu — which is also the honest answer to the audit’s "is it a mode or a view?" until the
+  // owner decides (Q44): it is a mode, and a mode has one entrance.
+  { href: '/admin/work-mode/start',       label: 'Work Mode',        workspace: 'work', iconName: 'HardHat',       description: 'Enter the focused field shell for your role.', roles: [...WORK_ROLES, 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, keywords: ['field', 'crew', 'mobile', 'focus'] },
+  { href: '/admin/work-mode',             label: 'Work Mode Home',   workspace: 'work', iconName: 'HardHat',       description: 'Work Mode landing.', roles: [...WORK_ROLES, 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/field_crew',  label: 'Work Mode — Field Crew',   workspace: 'work', iconName: 'HardHat', description: 'Field crew shell.', roles: ['admin', 'developer', 'field_crew'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/drawer',      label: 'Work Mode — Drafting',     workspace: 'work', iconName: 'PenTool', description: 'Drafting shell.', roles: ['admin', 'developer', 'drawer'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/researcher',  label: 'Work Mode — Research',     workspace: 'work', iconName: 'Search',  description: 'Research shell.', roles: ['admin', 'developer', 'researcher'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/equipment_manager', label: 'Work Mode — Equipment', workspace: 'work', iconName: 'Truck', description: 'Equipment manager shell.', roles: ['admin', 'developer', 'equipment_manager'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/tech_support', label: 'Work Mode — Support',     workspace: 'work', iconName: 'LifeBuoy', description: 'Tech support shell.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/admin',       label: 'Work Mode — Admin',       workspace: 'work', iconName: 'ShieldCheck', description: 'Admin shell.', roles: ['admin'], internalOnly: true, showInRail: false },
+  { href: '/admin/work-mode/developer',   label: 'Work Mode — Developer',   workspace: 'work', iconName: 'Code',    description: 'Developer shell.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false },
+
+  // Equipment.
+  { href: '/admin/equipment/templates/new', label: 'New Equipment Template', workspace: 'equipment', iconName: 'FilePlus', description: 'Define a new equipment template.', roles: EQUIPMENT_ROLES, internalOnly: true, showInRail: false, keywords: ['create', 'template'] },
+
+  // Knowledge. The exam-prep tracks are destinations a student picks; the authoring tools are reached
+  // from Manage Content.
+  { href: '/admin/learn/exam-prep/sit',   label: 'SIT Exam Prep',    workspace: 'knowledge', iconName: 'FileCheck',  description: 'Surveyor-in-Training exam preparation.', keywords: ['fs', 'sit', 'fundamentals', 'license'] },
+  { href: '/admin/learn/exam-prep/sit/mock-exam', label: 'SIT Mock Exam', workspace: 'knowledge', iconName: 'Timer',  description: 'Full-length timed SIT practice exam.', showInRail: false, keywords: ['practice', 'timed', 'simulator'] },
+  { href: '/admin/learn/exam-prep/rpls',  label: 'RPLS Exam Prep',   workspace: 'knowledge', iconName: 'FileCheck',  description: 'Registered Professional Land Surveyor exam preparation.', keywords: ['rpls', 'license', 'professional'] },
+  { href: '/admin/learn/references',      label: 'References',       workspace: 'knowledge', iconName: 'Library',    description: 'Reference tables, formulas and constants.', keywords: ['formula', 'table', 'lookup', 'constants'] },
+  { href: '/admin/learn/flashcards/create', label: 'New Flashcard Deck', workspace: 'knowledge', iconName: 'Plus',   description: 'Build a flashcard deck.', showInRail: false, keywords: ['create', 'deck'] },
+  { href: '/admin/learn/manage/media',    label: 'Learning Media',   workspace: 'knowledge', iconName: 'Image',      description: 'Images and files used in lessons.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['images', 'upload', 'assets'] },
+  { href: '/admin/learn/manage/question-builder', label: 'Question Builder', workspace: 'knowledge', iconName: 'HelpCircle', description: 'Author quiz and exam questions.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['quiz', 'exam', 'author'] },
+
 ];
 
 // ── Lookup helpers ──────────────────────────────────────────────────

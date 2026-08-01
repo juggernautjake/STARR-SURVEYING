@@ -119,30 +119,59 @@ Announcements. Three routes are in the sidebar and missing from the registry (`/
 
 **Fix:** delete `AdminSidebar.tsx` and the `adminNavV2Enabled` flag. One source of truth.
 
-### 1.4 🟠 36 built pages are unreachable from navigation
-Pages that exist, work, and are not in the route registry (so: not on the rail, not in ⌘K, no
-breadcrumb, no help):
+### 1.4 ✅ RESOLVED 2026-08-01 — 36 built pages were unreachable from navigation
 
-```
-/admin/finances/overview        ← the money-in/out dashboard you built for go-live (G2)
-/admin/finances/reconcile       ← bank reconciliation (G3)
-/admin/payments/inbox           /admin/payouts/runs      /admin/payouts/ad-hoc
-/admin/payouts/tax-report       /admin/invoices/new      /admin/invoicing/categories
-/admin/billing/invoices         /admin/billing/plan-history   /admin/billing/upgrade
-/admin/email/new                /admin/email/sent        /admin/notifications
-/admin/weather                  /admin/me/privacy        /admin/support/new
-/admin/learn/references         /admin/learn/manage/media
-/admin/learn/manage/question-builder   /admin/learn/flashcards/create
-/admin/learn/exam-prep/sit      /admin/learn/exam-prep/sit/mock-exam
-/admin/learn/exam-prep/rpls     /admin/equipment/templates/new
-/admin/work-mode/*  (9 routes)  /admin/login  /admin
-```
+Pages that existed, worked, and were not in the route registry — so: not on the rail, not in ⌘K, no
+breadcrumb, no help. **Re-measured before fixing: 35 of 127 admin pages.** Three of them
+(`finances/overview`, `finances/reconcile`, `payouts/tax-report`) had been built *specifically* to
+close go-live gaps G2/G3/G5, which is the sharpest possible version of this repo's signature defect:
+work that shipped, works, and cannot be found — so it reads as missing, and gets built again.
 
-Three of these (`finances/overview`, `finances/reconcile`, `payouts/tax-report`) were built
-*specifically* to close go-live gaps G2/G3/G5 — and nothing links to them from the nav.
+**FIXED.** All 35 registered. `/admin/login` is deliberately excluded, with the reason in the audit
+script: it is the door, not a room, and a menu item that signs you out of the app you are using is a
+bug rather than a feature. **Orphans: 35 → 0.**
 
-This is the repo's most common defect class, already noted in memory: **"authored but not wired."**
+| Artifact | What it does |
+|---|---|
+| `scripts/audit-orphan-routes.mjs` | Walks `app/admin/**/page.tsx`, diffs against `ADMIN_ROUTES`, reports orphans **and** dangling entries. Exits non-zero on either. |
+| `__tests__/admin/orphan-routes.test.ts` | The ratchet. Adding a page without a registry entry now fails, naming the file. |
 
+**The `showInRail` split is the design, not a detail.** Registering all 35 on the rail would have
+traded one problem for a worse one — a rail with 126 items is a rail nobody scans, and the go-live
+dashboards would have been as lost inside it as they were outside it. So destinations somebody
+navigates *to* are on the rail (the three money dashboards, Weather, Notifications, the Work Mode
+door, the exam-prep tracks); pages reached *from* something else are palette-searchable, breadcrumbed
+and help-addressable but not rail clutter — which is three of the four things §1.4 said they lacked.
+A test asserts the three go-live dashboards are on the rail specifically, because registering them
+hidden would satisfy the letter of this finding and none of it.
+
+**Two answers this slice gave to open questions, by making them concrete rather than by deciding them:**
+
+- **Q44 (is Work Mode a mode or a view?)** — registered as a **mode**: one door (`work-mode/start`) on
+  the rail, the seven per-role shells reachable only through it. A mode has one entrance. The owner can
+  still overrule this; it is now a one-line change rather than nine unregistered routes.
+- **§2.2 (colliding money vocabulary)** — `/admin/finances/reconcile` is labelled **"Bank
+  Reconciliation"**, not "Reconcile". The ⌘K ranker test caught the collision immediately: a bare
+  "Reconcile" outranked **Receipts** for the query `rec`, which is a far more common destination and an
+  explicit §12 acceptance criterion. "Reconcile" alone could mean the bank, the subscription, or a
+  payout run — exactly the ambiguity §2.2 is about.
+
+**Three existing tests failed on this change, and all three were worth the noise:**
+
+1. The `rec` → Receipts acceptance criterion — a **real regression**, fixed by the relabel above.
+2. `routeLabel` "derives readable labels for unregistered leaves" used
+   `/admin/equipment/templates/new` as its example, which is now registered. It failed for the best
+   possible reason; the fixture is synthetic now, because a route that exists cannot demonstrate the
+   fallback for routes that do not.
+3. The recency-boost test boosted the **worst** match for `"admin"` and expected it to reach the top —
+   which held only while the corpus was small enough for the worst match to sit within the +25 boost.
+   Registering 35 routes widened the range. Rewritten to construct the tie it claims to test, plus a
+   new companion asserting the other half of the rule: **recency must NOT outrank a much better
+   match**, or the palette starts second-guessing what you just typed.
+
+Also pinned while in here: every route has a description (⌘K and the help drawer need one), and every
+`iconName` is a real lucide export — it is a plain string so nothing type-checks it, and a blank icon
+in a rail is indistinguishable from a broken build.
 ### 1.5 🟠 Deploy-time secrets & flags not yet set
 From `BLOCKERS.md` §D and `GO_LIVE_GUIDE.md`: `PAYMENTS_LIVE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`,
 `CRON_SECRET`, `NEXTAUTH_SECRET`, the mobile install URLs, storage buckets, and the owner-account
