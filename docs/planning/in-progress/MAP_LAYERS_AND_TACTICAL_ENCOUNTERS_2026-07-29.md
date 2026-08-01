@@ -651,8 +651,99 @@ landing at **(29.96, 69.96)**, then moving to (80,20) and landing at **(79.93, 1
 start"* while the tier select defaulted to `site` — so following the instruction took an extra step that
 looked like correcting a mistake. `childTier` now returns `space` when there is no parent node.
 
-**Still open in M4-2:** resize, rotate, duplicate, z-order controls, multi-select/box-select, a
-snap-override modifier, and G7 undo integration. The z column is written and read; nothing edits it yet.
+**Still open in M4-2 (at the time that was written):** resize, rotate, duplicate, z-order controls,
+multi-select/box-select, a snap-override modifier, and G7 undo integration. The z column is written and
+read; nothing edits it yet.
+
+### M4-2b · The rest of it — **SHIPPED 2026-08-01**, including G7's undo
+> `seeds/511_dnd_map_edits.sql` (applied live, idempotent), `lib/dnd/maps/object-edits.ts` (24 tests) +
+> `journal.ts`, the route's bulk verbs and `map-objects/undo`, `MapObjectTools.tsx`, and
+> `MapObjectView.tsx`. Every verb driven against a live server; the UI driven in a browser.
+>
+> ## G7 could not literally join the sheet's undo, and the reason is the interesting part
+>
+> "Joins the existing edit-history machinery" reads as *write map edits into `dnd_sheet_edits`*. It
+> cannot: that table's `character_id` is NOT NULL and references `dnd_characters`, and a grid, a pin or a
+> secret door is not a character. Forcing one in means either a fake character id or dropping the
+> constraint for everybody — and the second is how the sheet's own undo stops being able to trust its
+> rows.
+>
+> What DOES join is the **model**, which is what G7 is actually about: a batch id groups one user action,
+> undo walks it backwards, and a DM who has used "⟲ Undo" on a character sheet already knows how this
+> behaves. What differs is the granularity, and deliberately: a sheet edit is deep and narrow
+> (`hp.current: 12 → 7`), a map edit is shallow and wide — a resize changes w and h, a delete changes
+> everything. So the journal stores **whole rows**, which makes undo one upsert instead of four replays
+> that must happen in the right order.
+>
+> **One request is one undo.** Removing four tokens is one press to get all four back. That is why the
+> bulk verbs take `ids` rather than being called in a loop — four requests would be four batches that
+> happened to arrive together.
+>
+> ## The three defects the live pass found, and the third is the one that matters
+>
+> 1. **A silent half-undo reported as a whole one.** Deleting a hidden object cascades its
+>    `dnd_map_discoveries` rows away, so the journal records them too. Every entry in a batch is written
+>    by one INSERT and therefore shares a `created_at` to the microsecond — so ordering by timestamp
+>    alone was a **tie**, and the discovery was sometimes restored before the object that its foreign key
+>    requires. Measured: the object came back, the discovery did not, and the response still said
+>    `restored: 2`. Now `seq` orders within a batch, and a refusal is **named in the response** rather
+>    than counted as a success. A batch with any failure is left undoable instead of marked done.
+> 2. **The undo control had nothing to say.** It read the head entry's summary, which for that same
+>    delete is a discovery row with none — so the button read "⟲ Undo" and the toast read "Undone." at
+>    exactly the moment a DM needs to know what came back. It reads the batch's first meaningful summary
+>    now: *"⟲ Undo removed a rune"*.
+> 3. **Box-select selected nothing on a quick drag.** `start` was React state, so the `pointermove` that
+>    arrives in the same tick as `pointerdown` still closed over `null` — the move was ignored, the box
+>    stayed a dot, and the "that was a tap, cancel" rule then fired because it never grew. A slow drag
+>    recovers on the next render and looks perfect, which is why this only shows when a DM flicks a box
+>    over three tokens mid-session. A ref, for the same reason `MapViewport` keeps its pointers in one.
+>
+> ## And the gap the screenshot found: five of the seven kinds were never drawn
+>
+> `dnd_map_objects` has carried `image | prop | token | light | area | note | hidden` since M1-3, and the
+> world page rendered **two of them**. Survivable while nothing could create one — and this slice is
+> exactly what changes that, because it offers resize, rotate and layer controls for kinds the map is
+> silent about. That is the repo's signature defect in its worst form: not an unwired feature, but a
+> control that appears to work and produces something invisible. `MapObjectView` draws the other five,
+> one component discriminated by kind for the same reason there is one table, **under** the tokens
+> (a prop over a creature hides the one thing a battle map exists to show), with a DM-only object
+> outlined as such **on the map** — "I thought they could see the brazier" is a mistake you otherwise
+> find out about mid-session.
+>
+> ## Decisions worth recording
+>
+> - **A token is not resizeable, and the control is ABSENT rather than disabled.** Its footprint comes
+>   from the creature's size category through the node's grid (M5-1b); a width typed onto one would be
+>   the map holding a second opinion about how big an Ogre is. Refused server-side too (400), because a
+>   control that is merely hidden is a control the next client forgets to hide.
+> - **The snap override is a checkbox, not a held modifier.** A grid is a convenience, not a law — a rug
+>   across a doorway belongs between two cells — and a keyboard modifier is a gesture half the table (G5)
+>   does not have. The CLAMP is not optional in the same way: it is what keeps an object inside the map,
+>   where the viewport can reach it.
+> - **Bulk move is a DELTA, single move is absolute.** Moving five tokens to the same x,y would stack
+>   them on one square; a delta keeps the shape of the group, which is the only thing "move these" can
+>   sensibly mean. Same for z: `dz` keeps their order among themselves.
+> - **Undo restores the ORIGINAL ID.** A re-insert under a fresh id would put the object back and orphan
+>   every discovery, trigger reference and shared `?token=` link that pointed at it.
+> - **Rotation wraps rather than clamping**, because `-90` is how a "rotate left" button counts and a
+>   clamp at zero would make it stop working the moment a prop was at 0° — where every prop starts.
+> - **A bulk verb has a ceiling (100) and refuses rather than truncating** (G6), and a selection spanning
+>   two maps is refused rather than gated on whichever one came first.
+> - **Selection is client state, unlike `?token=`.** "Look at this token's reach" is worth sharing;
+>   "these five props are highlighted" is not, and in the URL it would push a history entry per checkbox
+>   and make the back button undo selections instead of navigation.
+>
+> **Verified live:** 401 anonymous · 403 player · snap to the cell centre (12.3 → 12.5) · freehand
+> keeping 12.3 · resize/rotate/layer landing as `w/h 10, rotation 270, z 1` · a token's resize refused
+> 400 · a duplicate one cell away carrying its label, size and rotation · a two-object move as ONE
+> journal batch · undo restoring both positions · **a deleted found secret coming back with its
+> discovery and its roll of 17** · an empty history answering `200 {ok:false}` rather than an error ·
+> 101 ids refused. In the browser: the tools render, `Size` is absent for a token and present for a
+> prop, a nudge moves one square and the undo button then reads *"⟲ Undo changed iron brazier"*, undo
+> restores it and the button returns to *"Nothing to undo"*, and a box drag over world (5,5)–(40,40)
+> selects the two objects inside and not the note at (52.5, 52.5). No horizontal overflow at 360px and
+> every tool at the 44px touch minimum — the selection chips inherited the shared `hexBtn`'s 38px and
+> were raised locally, since every other /dnd surface uses that class at its own size.
 
 ### M4-3 · Asset library
 Reuse the existing File Explorer / media plumbing rather than a new uploader. Campaign-scoped asset tray with

@@ -47,9 +47,30 @@ describe('map-objects route — the gate', () => {
 
   it('PATCH and DELETE find the node through the object row rather than trusting a nodeId in the body', () => {
     // Otherwise a DM of their own campaign could patch someone else's object by naming their own node.
+    //
+    // Asserted as the PROPERTY rather than as one spelling of it: this test first pinned the exact
+    // `.select('id, map_node_id')` call, and went red when M4-2's bulk verbs replaced it with
+    // `readObjects(ids)` — a rewrite that kept the rule intact. A guard that fails on a refactor it
+    // approves of gets weakened by whoever is holding the refactor.
+    //
+    // The property has two halves, and the second is the one with teeth: the node comes from the ROWS,
+    // and the request body's `nodeId` is never consulted by either verb.
+    for (const verb of ['PATCH', 'DELETE']) {
+      const from = src.indexOf(`export async function ${verb}`);
+      const rest = src.slice(from);
+      const end = rest.indexOf('\nexport async function', 1);
+      const fn = end === -1 ? rest : rest.slice(0, end);
+      expect(fn, `${verb} must gate on the node the OBJECT belongs to`)
+        .toMatch(/nodeGate\((before\[0\]\.map_node_id|\(row as \{ map_node_id: string \}\)\.map_node_id)\)/);
+      expect(fn, `${verb} must not take the node from the request body`).not.toMatch(/body\.nodeId/);
+    }
+  });
+
+  it('refuses a bulk change that spans two maps rather than gating on one of them', () => {
+    // A selection is made on the map the DM is looking at, so a mixed set is not a real interaction —
+    // but a route that accepted one would gate on `before[0]`'s campaign and write to all of them.
     const after = src.slice(src.indexOf('export async function PATCH'));
-    expect(after).toMatch(/from\('dnd_map_objects'\)\.select\('id, map_node_id'\)/);
-    expect(after).toMatch(/nodeGate\(\(row as \{ map_node_id: string \}\)\.map_node_id\)/);
+    expect(after).toMatch(/different maps/);
   });
 });
 

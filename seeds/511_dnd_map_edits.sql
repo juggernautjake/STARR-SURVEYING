@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS dnd_map_edits (
   -- Whole rows. `before` is null for a create, `after` null for a delete; both present for an update.
   before         jsonb,
   after          jsonb,
+  -- Position within the batch, and it is load-bearing rather than cosmetic.
+  --
+  -- The first version ordered an undo by `created_at DESC` alone. Every entry in one batch is written by
+  -- a single INSERT, so they share a timestamp to the microsecond and the sort is a tie — meaning the
+  -- order was whatever Postgres felt like. That is fine until a batch contains rows that depend on each
+  -- other: deleting a hidden object journals the object AND the discoveries that cascaded with it, and
+  -- restoring a discovery before its object is refused by the foreign key.
+  --
+  -- Measured live: the object came back, the discovery did not, and the response still said
+  -- `restored: 2`. A silent half-undo that reports success is the worst outcome available here, because
+  -- the DM has no reason to look.
+  seq            integer NOT NULL DEFAULT 0,
   -- What a DM reads in the undo control: "Moved Ogre", "Removed a scratched rune".
   summary        text,
   -- Set when this batch has itself been undone, so an undo cannot be applied twice and the control can
@@ -56,6 +68,10 @@ CREATE TABLE IF NOT EXISTS dnd_map_edits (
   undone_at      timestamptz,
   created_at     timestamptz NOT NULL DEFAULT now()
 );
+
+-- Added after the table first shipped; kept as an ALTER so a database that already has it is untouched
+-- and one that does not gets it. (See `450` for what happens when a seed assumes it is the first run.)
+ALTER TABLE dnd_map_edits ADD COLUMN IF NOT EXISTS seq integer NOT NULL DEFAULT 0;
 
 ALTER TABLE dnd_map_edits ENABLE ROW LEVEL SECURITY;
 
@@ -65,6 +81,6 @@ CREATE INDEX IF NOT EXISTS idx_dnd_map_edits_node
 -- And the one the undo itself makes: every entry in a batch, newest first, because a batch that created
 -- a thing and then moved it must be walked backwards or the move is re-applied to a row that is gone.
 CREATE INDEX IF NOT EXISTS idx_dnd_map_edits_batch
-  ON dnd_map_edits (batch_id, created_at DESC);
+  ON dnd_map_edits (batch_id, created_at DESC, seq DESC);
 
 COMMIT;

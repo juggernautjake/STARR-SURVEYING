@@ -43,6 +43,11 @@ import { scanPassive } from '@/lib/dnd/maps/passive-scan';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
+// M4-2 — the rest of the DM's object tools, and G7's undo behind them.
+import MapObjectTools from '@/app/dnd/_ui/maps/MapObjectTools';
+import MapObjectView, { DRAWN_KINDS } from '@/app/dnd/_ui/maps/MapObjectView';
+import { pendingUndo } from '@/lib/dnd/maps/journal';
+import { readGrid } from '@/lib/dnd/maps/grid';
 
 export const metadata: Metadata = { title: 'World | Starr Tabletop' };
 export const dynamic = 'force-dynamic';
@@ -155,6 +160,15 @@ export default async function WorldPage({
   // carrying a copy would keep the old face for as long as it existed, with nothing saying the two
   // disagree. Same rule that keeps HP off a token.
   const subjects = await loadTokenSubjects(nodeTokens.map(({ t }) => t.subject));
+  /** A token's displayed name, resolved once so the board and the DM's tools cannot disagree. */
+  const tokenLabel = (objectId: string): string | null => {
+    const hit = nodeTokens.find(({ o }) => o.id === objectId);
+    if (!hit) return null;
+    return hit.t.nickname || subjects.get(subjectKey(hit.t.subject))?.name || null;
+  };
+  // M4-2 / G7 — what the undo control will say it takes back. DM-only: a player has nothing to undo, and
+  // the query would be work nobody reads.
+  const undoLabel = isDm && current ? await pendingUndo(current.id) : null;
 
   // M6-2 — passive detection. The plan says "when a token moves within range"; nothing moves tokens yet
   // (drag-to-move is still open), so this asks the same question at the only moment available: the party
@@ -418,6 +432,30 @@ export default async function WorldPage({
                       label={tplChoice ? `${tplChoice.label} area` : 'Spell area'}
                     />
                   )}
+
+                  {/* M4-2 — the props, images, lights, areas and notes. UNDER the pins and the tokens,
+                      because they are the room rather than what is standing in it: a prop drawn over a
+                      creature would hide the one thing a battle map exists to show.
+
+                      These had never been drawn. `dnd_map_objects` has carried all seven kinds since
+                      M1-3 and the page rendered two of them, which was survivable only while nothing
+                      could create one — M4-2's tools can, so without this a DM would place a brazier,
+                      see nothing, and still be offered controls to resize it. */}
+                  {objects
+                    .filter((o) => o.map_node_id === current.id && DRAWN_KINDS.has(o.kind))
+                    .map((o) => (
+                      <MapObjectView
+                        key={o.id}
+                        isDm={isDm}
+                        o={{
+                          id: o.id, kind: o.kind, x: Number(o.x), y: Number(o.y),
+                          w: o.w == null ? null : Number(o.w),
+                          h: o.h == null ? null : Number(o.h),
+                          rotation: Number(o.rotation ?? 0), z: Number(o.z ?? 0),
+                          asset_url: o.asset_url ?? null, label: o.label, visibility: o.visibility,
+                        }}
+                      />
+                    ))}
 
                   {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
                       map under pan and zoom rather than floating over it. */}
@@ -824,6 +862,35 @@ export default async function WorldPage({
                       id: o.id,
                       label: t.nickname || subjects.get(subjectKey(t.subject))?.name || o.label || 'Token',
                     }))}
+                  />
+                  {/* M4-2's remainder — resize, rotate, layer, duplicate, multi-select, the snap
+                      override and G7's undo. Separate from `PlaceToken` because it answers a different
+                      question: that one is "what goes on the board", this is "what do I do with what is
+                      already there", and one control that did both would be a wall of buttons whose
+                      meaning depended on a mode. */}
+                  <MapObjectTools
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    // EVERY object on this node, not only the tokens: the whole point of this control is
+                    // to reach the props, lights and secrets that nothing else can select, and a list
+                    // that quietly showed one kind would make the others uneditable with no sign why.
+                    objects={objects
+                      .filter((o) => o.map_node_id === current.id)
+                      .map((o) => ({
+                        id: o.id,
+                        kind: o.kind,
+                        // Tokens read their name the same way the board does, so the two cannot call the
+                        // same piece different things.
+                        label: tokenLabel(o.id) ?? o.label,
+                        x: Number(o.x), y: Number(o.y),
+                        w: o.w == null ? null : Number(o.w),
+                        h: o.h == null ? null : Number(o.h),
+                        rotation: Number(o.rotation ?? 0),
+                        z: Number(o.z ?? 0),
+                        visibility: o.visibility,
+                      }))}
+                    cell={readGrid(current.grid)?.size ?? null}
+                    undoLabel={undoLabel}
                   />
                 </section>
               )}
