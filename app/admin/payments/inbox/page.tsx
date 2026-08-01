@@ -13,6 +13,8 @@
 // transaction id / check number before clearing.
 
 import { useEffect, useState } from 'react';
+// C1-2 — the claims that have been waiting too long, on the page the office already opens.
+import UnreconciledClaims from './UnreconciledClaims';
 import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
 import '../../payments-admin.css';
@@ -189,7 +191,11 @@ export default function PaymentsInboxPage(): React.ReactElement {
       )}
 
       <style jsx>{styles}</style>
-    </main>
+          {/* C1-2 — silent when there is nothing to say, so it costs no attention on the days it has no
+          news, which is most days. */}
+      <UnreconciledClaims />
+
+</main>
   );
 }
 

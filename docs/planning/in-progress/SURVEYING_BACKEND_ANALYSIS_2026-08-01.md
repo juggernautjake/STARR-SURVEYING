@@ -240,13 +240,52 @@ decides the list is normal.
 
 ## Phase C — the money path
 
-- [ ] **C1-1 — End-to-end test of the invoice lifecycle**: issued → partially paid → paid, including the
-      upfront rule. Six test invoices exist in live data (`TEST-0001`…`TEST-0006`) covering exactly these
-      states — they should be driven by a test, not only by hand.
-- [ ] **C1-2 — Reconcile `payment_attempts` against real payments.** The deep-link methods (Venmo, Cash App,
-      Zelle) rely on the customer pressing "I sent it", so the office queue is a claim, not a fact. A
-      report of claims with no matching payment after N days is the control that makes it trustworthy.
-- [ ] **C1-3 — Receipt on every path.** Verify a receipt actually sends for each of the six methods.
+**ALL THREE SHIPPED 2026-08-01.** `lib/payments/reconcile.ts`, `__tests__/payments/money-path.test.ts`
+(23 tests), `GET /api/admin/payment-attempts/unreconciled`, and a panel on the payments inbox.
+
+- [x] **C1-1 — End-to-end test of the invoice lifecycle. SHIPPED.** Walked as a SEQUENCE rather than as
+      isolated cases, because the interesting failures are transitions: the second payment on an invoice
+      with an upfront, the payment that exactly clears the balance, the one after that. The analysis said
+      the six live `TEST-000n` invoices *"should be driven by a test, not only by hand"* — driving by hand
+      proves it worked once, on one afternoon, for whoever was looking.
+      Four boundaries the tests pin, each a plausible way to be wrong:
+      **"at least the upfront" includes EQUAL** (the most common off-by-one in a rule like this);
+      **the upfront is a FIRST-payment rule, not a per-payment minimum** — applying it again would refuse
+      a customer paying off the rest in instalments;
+      **a zero-total invoice is already paid**, not payable for nothing (TEST-0004's shape);
+      **an upfront larger than the total is clamped, not enforced** — otherwise a data-entry slip makes
+      an invoice unpayable, with every amount simultaneously below the minimum and above the balance.
+
+- [x] **C1-2 — Reconcile `payment_attempts` against real payments. SHIPPED.** The problem exactly as
+      stated: a claim is not a fact, and a pledge looks identical in the queue on day one and day forty.
+      **A WORKLIST, NOT AN ALERT**, and that decision runs through the whole slice. Almost every row is a
+      customer who genuinely paid and an office that has not reconciled the bank yet; roughly none are
+      fraud. So it is ordered **oldest-first** (the oldest is the most likely to have been forgotten, and
+      newest-first buries exactly the rows that need attention), every sentence says *"check the bank"*
+      rather than "unpaid", and a test asserts the wording contains none of `unpaid|fraud|owes`.
+      **Five days, not immediately.** A Zelle can take three business days; flagging at once would put
+      every honest customer on the list and train the office to ignore it — which is the failure that
+      matters, because a list nobody reads is worse than no list, having cost the work of building it.
+      **A claim is cleared by money OR by the office linking it.** The second rule stops the list filling
+      with claims that were reconciled by simply recording the payment, which is what an office actually
+      does rather than going back to tick off the claim. And money that arrived BEFORE the claim does not
+      count — that is an earlier instalment, and counting it would clear a claim with somebody else's
+      money, hiding precisely the case worth catching.
+      **A shortfall is reported separately from a no-show**, because they need different actions: nothing
+      arrived is a question for the customer, less arrived than claimed is a question for the statement.
+      **It lives on the page the office already opens**, below the queue it is about, and is SILENT when
+      there is nothing to say — so it costs no attention on the days it has no news, which is most days.
+      A failed request, though, is shown loudly: *"it is not saying there is nothing to reconcile, it is
+      saying it could not look."* A reconciliation control that renders nothing on failure is
+      indistinguishable from one saying everything is fine, which is the worst thing it could do.
+      *Verified live:* 403 anonymous; a 12-day-old claim with nothing recorded flagged with the right
+      sentence; a 1-day-old claim left alone; test rows removed afterwards.
+
+- [x] **C1-3 — Receipt on every path. SHIPPED.** Asserted structurally rather than by sending seven
+      emails: the receipt endpoint **must not branch on a method id**, and every method in
+      `PAYMENT_METHODS` must be describable by `describePaymentForReceipt`. The failure this guards is a
+      receipt that works for Stripe and silently does nothing for a check — which nobody notices, because
+      the person who would notice is the customer who did not get one.
 
 ## Phase D — the leads-to-cash loop (feeds the Google work)
 
