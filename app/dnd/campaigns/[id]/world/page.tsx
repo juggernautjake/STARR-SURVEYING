@@ -36,6 +36,8 @@ import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
 import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenConditions';
 // M5-5 — whose turn it is, read from the initiative tracker that already exists.
 import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
+// M6-4 / M6-5 — the trigger engine, and the DM-side preview of what each one will do.
+import { describePlan, preview, readTrigger } from '@/lib/dnd/maps/triggers';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
 import WorldAuthor from '@/app/dnd/_ui/maps/WorldAuthor';
 import PlaceToken, { type PlaceableSubject } from '@/app/dnd/_ui/maps/PlaceToken';
@@ -117,6 +119,22 @@ export default async function WorldPage({
   const nodeTokens = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'token') : [])
     .map((o) => ({ o, t: readToken(o.data) }))
     .filter((x): x is { o: typeof x.o; t: NonNullable<typeof x.t> } => x.t !== null);
+
+  // M6-4 / M6-5 — the DM's trigger board. Loaded ONLY for the DM: a trigger is the machinery behind a
+  // puzzle, and handing a player the `when`/`then` is handing them the answer.
+  //
+  // Every trigger is PREVIEWED here rather than on demand, so a cycle or a dangling reference is visible
+  // the moment the DM opens the map instead of the moment the table walks into it. The plan's own
+  // standard: "an untestable trigger is a trap for its author".
+  let triggerBoard: Array<{ trigger: ReturnType<typeof readTrigger>; plan: ReturnType<typeof preview> }> = [];
+  if (isDm && current) {
+    const { data: rows } = await supabaseAdmin
+      .from('dnd_map_triggers')
+      .select('id, name, fires_when, fires_then, once, armed, fired_at')
+      .eq('map_node_id', current.id);
+    const all = ((rows ?? []) as Array<Parameters<typeof readTrigger>[0]>).map(readTrigger);
+    triggerBoard = all.map((t) => ({ trigger: t, plan: preview(t, all) }));
+  }
 
   // M6-1 — hidden objects the viewer is entitled to see. For a DM that is all of them (they authored the
   // secrets); for a player it is only what `dnd_map_discoveries` says their characters have found, which
@@ -638,6 +656,51 @@ export default async function WorldPage({
                         {isDm && o.dm_notes && (
                           <div style={{ color: 'var(--hx-gold-2)', fontSize: 11.5 }}>DM: {o.dm_notes}</div>
                         )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* M6-4 / M6-5 — the DM's trigger board. A dry run of every trigger on this node: what it
+                  would do, and what is wrong with it. Nothing here fires anything — `preview` returns a
+                  PLAN, and the same resolver builds it that the live path uses, so what the DM reads is
+                  what will actually happen rather than a parallel description of it. */}
+              {isDm && triggerBoard.length > 0 && (
+                <section className={styles.framedPanel} style={{ padding: '10px 14px', display: 'grid', gap: 8 }} data-testid="trigger-board">
+                  <div className={styles.framedPanelTop} />
+                  <h2 style={{ fontSize: 13, margin: 0, fontWeight: 700 }}>Triggers on this map</h2>
+                  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+                    {triggerBoard.map(({ trigger, plan }) => (
+                      <li key={trigger.id} style={{ fontSize: 12.5 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <strong>{trigger.name ?? 'Unnamed trigger'}</strong>
+                          <span style={{ color: 'var(--hx-muted)', fontSize: 11.5 }}>
+                            when {trigger.firesWhen.kind ?? '(nothing set)'}
+                            {trigger.firesWhen.targetId ? ` · ${trigger.firesWhen.targetId}` : ''}
+                          </span>
+                          {!trigger.armed && <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}>· disarmed</span>}
+                          {trigger.once && trigger.firedAt && <span style={{ color: 'var(--hx-muted)', fontSize: 11 }}>· already fired</span>}
+                          <span style={{ marginLeft: 'auto', fontSize: 11.5, color: plan.problems.length ? 'var(--hx-danger)' : 'var(--hx-muted)' }}>
+                            {describePlan(plan)}
+                          </span>
+                        </div>
+                        {/* The problems, in full. A cycle prints the path that closed it — "A → B → A"
+                            says WHERE the loop is; "cycle detected" says only that there is one. */}
+                        {plan.problems.map((p, i) => (
+                          <div key={i} style={{ color: 'var(--hx-danger)', fontSize: 11.5, marginTop: 2 }}>
+                            ⚠ {p.detail}
+                            {/* NAMES, not ids. The path is the whole value of a cycle report — "Alarm
+                                bell → Guard summons → Alarm bell" is a sentence a DM can act on, and a
+                                chain of three UUIDs is one they have to decode first. Found in the
+                                browser: the first cut printed the raw ids. */}
+                            {p.path.length > 1 && (
+                              <span style={{ color: 'var(--hx-muted)' }}>
+                                {' '}({p.path.map((id) => triggerBoard.find((b) => b.trigger.id === id)?.trigger.name ?? id).join(' → ')})
+                              </span>
+                            )}
+                          </div>
+                        ))}
                       </li>
                     ))}
                   </ul>

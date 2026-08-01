@@ -1036,7 +1036,63 @@ comparison when a token moves within range.
 Any object or region can carry read-aloud text and DM-only notes. Players see the former on discovery; the DM
 sees both, always.
 
-### M6-4 · Triggers
+### M6-4 · Triggers — **SHIPPED 2026-08-01 (engine + DM preview board); executor still open**
+### M6-5 · Trigger safety — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/triggers.ts` (32 tests) and a DM-only trigger board on the world page.
+> `dnd_map_triggers` shipped with M1-5 and **had no reader until now**.
+>
+> ## The engine is pure, and that is what makes the preview honest
+>
+> Nothing in it reads a database or performs an effect. `resolve()` takes an event and a set of triggers
+> and returns **a plan** — an ordered list of actions plus the chain that produced them. The caller
+> executes it, or shows it to a DM without executing it, and **both use the same code**.
+>
+> That is the whole answer to *"an untestable trigger is a trap for its author"*. A preview built from a
+> second, parallel code path is a preview of something else: the DM tests the puzzle, it works, and the
+> real firing does something different. A test asserts `preview()` and `resolve()` produce the same
+> actions for the same trigger.
+>
+> `preview` bypasses `armed` and `once` **on the chosen trigger only** — testing a disarmed or
+> already-fired trigger is the point — while everything it chains to is walked under the ordinary rules.
+>
+> ## M6-5: a puzzle that eats itself fails loudly
+>
+> - **Cycles are reported with the PATH, not just detected.** "Cycle detected" says there is one; *"Alarm
+>   bell → Guard summons → Alarm bell"* says where it is. Checked against the path rather than a global
+>   visited set, so a **diamond** — two branches firing the same trigger — is allowed, because refusing it
+>   would break the composability triggers exist for.
+> - **The chain still returns what it safely resolved.** Failing loudly is not failing entirely; the DM
+>   sees the effects that do work *and* the link that does not.
+> - **Depth cap (8) and a total-action cap (200).** A chain of 20 distinct triggers has no cycle and is
+>   still a runaway, and a fan-out bomb is as bad as a cycle while the depth cap catches neither.
+> - **A dangling `fire_trigger` is named**, not skipped — a DM who deleted a trigger another one calls
+>   learns it here rather than at the table.
+> - **An unknown action stays in the plan AND is reported.** Dropping it would make a typo silently do
+>   nothing.
+>
+> ## Verified in a browser, with a real cycle in the database
+>
+> Three triggers on a live node — one healthy pit trap, plus `Alarm bell → Guard summons → Alarm bell`
+> with a dangling reference. The DM's board showed all three, the cycle warning naming its path, and the
+> broken reference. **A player saw none of it**: no board, no trigger names, no action kinds — a trigger is
+> the machinery behind a puzzle, and handing a player the `when`/`then` is handing them the answer.
+>
+> Two things the browser caught that the tests had not:
+> 1. **"across 4 triggers" on a three-trigger map.** `fired` records each WALK and a diamond legitimately
+>    walks one twice — a small lie in the one place a DM checks whether their puzzle is sane. Deduplicated,
+>    with a test.
+> 2. **The cycle path printed raw UUIDs.** The path is the entire value of a cycle report; three UUIDs is
+>    something to decode before it is something to act on. Now names.
+>
+> ⏸ **Still open, and it is the larger half: the EXECUTOR.** The engine says what should happen; nothing
+> performs it yet, and nothing emits the events (`token_enters`, `door_opened`, …) that would drive it.
+> That needs a per-action implementation — `apply_damage` writes to a sheet, `spawn_creature` writes a map
+> object, `post_feed` writes to the campaign feed — each of which touches a subsystem with its own rules.
+> Deliberately not rushed into this slice: a half-implemented executor that silently no-ops three of its
+> eleven actions is worse than an engine that plainly has no executor, because the DM's preview would
+> promise things that never happen.
+
+### M6-4 · Triggers (original plan text)
 `when` → `then`, both data:
 - **when**: token enters/leaves a region · object discovered · check passed/failed · turn starts/ends · door
   opened · DM fires manually.
