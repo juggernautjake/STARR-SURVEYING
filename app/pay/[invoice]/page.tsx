@@ -28,7 +28,6 @@ import {
 import { decideUpfrontAcceptance } from '@/lib/payments/upfront-rule';
 import { cardPaymentConfigured } from '@/lib/payments/stripe-elements';
 import StripeCardForm from './StripeCardForm';
-import PayHeader from '../PayHeader';
 import PaySkeleton from '../PaySkeleton';
 import '../../styles/Pay.css';
 
@@ -122,7 +121,6 @@ export default function PayInvoicePage(): React.ReactElement {
   if (loading) {
     return (
       <main className="pay-shell" data-testid="pay-detail-loading">
-        <PayHeader />
         <PaySkeleton />
       </main>
     );
@@ -131,7 +129,6 @@ export default function PayInvoicePage(): React.ReactElement {
   if (error || !invoice) {
     return (
       <main className="pay-shell">
-        <PayHeader />
         <section className="pay-hero">
           <div className="pay-hero__card">
             <h1 className="pay-hero__title">Invoice not found</h1>
@@ -256,7 +253,6 @@ export default function PayInvoicePage(): React.ReactElement {
 
   return (
     <main className="pay-shell" data-testid="pay-detail">
-      <PayHeader />
       <section className="pay-hero pay-hero--compact">
         <div className="pay-hero__card">
           <div className="pay-hero__eyebrow">Invoice {invoice.invoice_number}</div>

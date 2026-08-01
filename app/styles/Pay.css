@@ -206,6 +206,33 @@
   max-width: 540px;
 }
 
+/* THE CALL AFFORDANCE, which is the one thing the retired `PayHeader` had that the site header does not.
+   It matters most on the gate — a page whose entire message is "you cannot pay online yet" must not be a
+   dead end — and on the invoice page, where somebody stuck halfway through paying a bill needs a human.
+   44px min-height is the mobile touch minimum; secondary styling (outline, not fill) so it never competes
+   with the primary action above it. */
+.pay-hero__call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-top: 1.25rem;
+  padding: 0.6rem 1.25rem;
+  border: 2px solid var(--brand-blue, #1D3095);
+  border-radius: 10px;
+  color: var(--brand-blue, #1D3095);
+  background: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pay-hero__call:hover,
+.pay-hero__call:focus-visible {
+  background: var(--brand-blue, #1D3095);
+  color: #fff;
+}
+
 /* -------------------------------------------------------------------------
    Lookup form
    ------------------------------------------------------------------------- */
@@ -233,6 +260,13 @@
   background: #fff;
   color: var(--brand-dark, #152050);
   letter-spacing: 0.04em;
+}
+/* UPPERCASE BELONGS TO THE INVOICE NUMBER, NOT TO EVERY FIELD THAT SHARES THESE CLASSES. Invoice numbers
+   are printed uppercase on the paper, so echoing that helps someone check they typed it correctly. The
+   gate's password field reuses this styling and inherited the transform with it, which shouted its
+   placeholder ("ACCESS PASSWORD") and, more importantly, would mislead anyone typing a case-sensitive
+   password into thinking their input had been changed. */
+.pay-lookup__input[type='text'] {
   text-transform: uppercase;
 }
 .pay-lookup__input:focus {

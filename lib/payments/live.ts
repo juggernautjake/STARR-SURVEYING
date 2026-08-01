@@ -74,9 +74,17 @@ export const PAYMENT_METHODS: ReadonlyArray<PaymentMethodConfig> = [
     handle: STARR_ZELLE_EMAIL,
   },
   {
+    // NEVER INVITE A CUSTOMER TO MAIL CASH. Corrected 2026-07-31 after the owner asked whether that was
+    // normal — it is not. Cash in the post is uninsured and untraceable: USPS will not cover it, there is
+    // no proof it was sent, and no way to tell a lost envelope from a customer who says they sent one.
+    // Every possible outcome is bad, and the worst of them lands on the business, because we are the ones
+    // who suggested it.
+    //
+    // The mailed option is a CHECK, which is the next entry: it can be stopped, it leaves a record on both
+    // sides, and a lost one costs nobody the money.
     id: 'cash',
-    label: 'Cash (in person or by mail)',
-    blurb: 'Drop it by the office or mail it. We mark you paid the moment it arrives.',
+    label: 'Cash (in person)',
+    blurb: 'Drop it by the office and we\'ll mark you paid on the spot. Please don\'t mail cash — post a check instead.',
     glyph: '💸',
     action: 'pledge',
   },

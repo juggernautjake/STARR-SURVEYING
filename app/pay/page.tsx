@@ -11,7 +11,6 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import PayHeader from './PayHeader';
 import '../styles/Pay.css';
 
 export default function PayLandingPage(): React.ReactElement {
@@ -50,7 +49,6 @@ export default function PayLandingPage(): React.ReactElement {
 
   return (
     <main className="pay-shell" data-testid="pay-landing">
-      <PayHeader />
       <section className="pay-hero">
         <div className="pay-hero__card">
           <div className="pay-hero__eyebrow">Pay your invoice</div>

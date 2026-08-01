@@ -69,9 +69,26 @@ describe('PaySkeleton component — source-lock', () => {
 describe('/pay landing — header + accessibility', () => {
   const SRC = read('app/pay/page.tsx');
 
-  it("imports + renders PayHeader at the top of the shell", () => {
-    expect(SRC).toMatch(/import PayHeader from '\.\/PayHeader'/);
-    expect(SRC).toMatch(/<main className="pay-shell"[^>]*>\s*<PayHeader \/>/);
+  it("does NOT render a second header — the site header is the header (2026-07-31)", () => {
+    // THIS ASSERTION IS THE INVERSE OF THE ONE IT REPLACES, and the flip was the fix.
+    //
+    // P20 built `PayHeader` for a standalone portal, which was reasonable in the abstract. In practice
+    // `/pay` renders inside the site's own layout, so the page had TWO headers — and the second landed
+    // exactly in the band that the site's absolutely-positioned `.logo-container` (z-index 10) and
+    // `.navbar` (z-index 100) overhang by ~69px. The owner's screenshot shows "…Surveying · Payments"
+    // disappearing behind the star logo.
+    //
+    // The old test passed throughout, because it asked whether the component was mounted, not whether
+    // anyone could see it. That is the failure mode of a source-lock, and it is worth leaving the note.
+    expect(SRC).not.toMatch(/<PayHeader \/>/);
+    expect(SRC).not.toMatch(/import PayHeader/);
+  });
+
+  it("keeps a 44px call route inside the card, which is what PayHeader was actually for", () => {
+    // The one thing the retired header had that the site header does not. Removing the duplicate must
+    // not quietly remove the affordance with it.
+    const CSS = read('app/styles/Pay.css');
+    expect(CSS).toMatch(/\.pay-hero__call \{[\s\S]*min-height: 44px/);
   });
 
   it("keeps the existing form accessibility (label, error role, autocomplete)", () => {
@@ -83,11 +100,11 @@ describe('/pay landing — header + accessibility', () => {
 describe('/pay/[invoice] detail — skeleton loader + a11y', () => {
   const SRC = read('app/pay/[invoice]/page.tsx');
 
-  it("renders PayHeader on loading + error + success branches", () => {
-    expect(SRC).toMatch(/import PayHeader from '\.\.\/PayHeader'/);
-    // 3 mounts: loading, error/!invoice, success branch
-    const matches = SRC.match(/<PayHeader \/>/g);
-    expect(matches?.length ?? 0).toBeGreaterThanOrEqual(3);
+  it("does NOT render a second header on any branch (2026-07-31)", () => {
+    // Was: "renders PayHeader on loading + error + success branches", counting three mounts. All three
+    // were invisible behind the site chrome — see the landing-page note above.
+    expect(SRC).not.toMatch(/<PayHeader \/>/);
+    expect(SRC).not.toMatch(/import PayHeader/);
   });
 
   it("uses PaySkeleton instead of a plain text 'Loading…'", () => {

@@ -31,6 +31,22 @@ describe('lib/payments/live — PAYMENT_METHODS catalog', () => {
     expect(ids).toEqual(['stripe', 'venmo', 'cashapp', 'zelle', 'cash', 'check']);
   });
 
+  it("NEVER invites a customer to mail cash", () => {
+    // Added 2026-07-31 after the owner asked whether mailing cash was normal. It is not: cash in the post
+    // is uninsured and untraceable, USPS will not cover it, and a lost envelope is indistinguishable from
+    // a customer who says they sent one. Every outcome is bad and the worst lands on the business,
+    // because the business is what suggested it. The mailed option is a CHECK — stoppable, recorded on
+    // both sides, and a lost one costs nobody the money.
+    const cash = PAYMENT_METHODS.find((m) => m.id === 'cash')!;
+    expect(cash.label).not.toMatch(/mail/i);
+    expect(cash.blurb).not.toMatch(/\bmail it\b|or mail\b/i);
+    // And it should say so plainly rather than leaving the customer to guess.
+    expect(`${cash.label} ${cash.blurb}`).toMatch(/in person/i);
+
+    const check = PAYMENT_METHODS.find((m) => m.id === 'check')!;
+    expect(check.label, 'check is the method that travels by post').toMatch(/mail/i);
+  });
+
   it("each method ids match the P1 enum (no drift)", () => {
     const allowed = new Set(['stripe', 'venmo', 'cashapp', 'zelle', 'ach', 'cash', 'check']);
     for (const m of PAYMENT_METHODS) {
