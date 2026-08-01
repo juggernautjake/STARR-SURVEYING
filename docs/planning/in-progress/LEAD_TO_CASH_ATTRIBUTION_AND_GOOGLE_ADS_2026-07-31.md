@@ -621,7 +621,48 @@ attribute.
 - Pull via the Ads API reporting query (same client as A8), nightly.
 - Manual-entry fallback in the admin UI for any month the API isn't connected — a rough denominator beats none.
 
-### A12 — The dashboard: `/admin/marketing`
+### A12 — The dashboard: `/admin/marketing` ✅ SHIPPED 2026-08-01
+> **Done.** `lib/pipeline/funnel.ts` (29 tests), `/api/admin/marketing/dashboard`, `/admin/marketing`,
+> and `LifecycleTimeline` + `/api/admin/leads/[id]/timeline` on the lead detail page. Registered in the
+> route registry, covered by the existing `/admin/marketing` middleware gate.
+>
+> **Every test here is a way to produce a BELIEVABLE wrong number.** A dashboard that is obviously broken
+> gets fixed; one that is quietly wrong gets acted on. The four judgements the arithmetic encodes:
+>
+> 1. **The funnel counts "reached", not "is at".** A lead that has been paid still inquired. Counting by
+>    current status makes the graph come out roughly flat — which reads as *"we convert almost everyone"*,
+>    the exact opposite of what the funnel is for. Counts come from A4's event stream, so a subject is
+>    counted at every stage it ever reached. `funnelIsMonotonic` is returned to the page, which says so
+>    rather than drawing a confident graph when the invariant breaks.
+> 2. **First-reached, never last.** A lead re-quoted three times reached "quoted" once — on the first
+>    occasion. Taking the latest stretches every downstream stage time by however long the haggling ran.
+> 3. **Median, not mean, and the sample size is printed.** One boundary dispute that sat in legal for 400
+>    days must not become "the typical job takes 80 days". A median of one job is labelled `n=1`.
+> 4. **A rate with no denominator renders "—", never 0%.** Zero leads is not a 0% conversion rate; a
+>    rendered 0% invites "something is broken" when the answer is "nothing has happened yet". Same for
+>    ROAS with no spend: that means these jobs were not bought with ads, not that the return was infinite.
+>
+> **The coverage meter is the FIRST panel, deliberately.** Every other number is only as good as it, and
+> Finding 6 guarantees it is not 100%. Below the fold, or behind a tab, someone reads a cost-per-lead
+> figure as if it covered the whole business. Three buckets, because they are genuinely different things:
+> a click is a match, an email is a *chance* of a match, and neither is a hole that never closes.
+>
+> **Repeat business is credited to the campaign that bought the customer the FIRST time.** A second job
+> arriving direct was still bought by the original ad; crediting the later source shows repeat revenue
+> appearing from nowhere and makes every campaign look worse than it is. Jobs are sorted by date before
+> deciding which was first — trusting query order would credit whichever row came back first.
+>
+> **The funnel's subject is `lead_id ?? job_id`.** Legacy and walk-in jobs have no lead row; keying purely
+> on the lead would drop them and shrink the won-job count, which *flatters* cost-per-job.
+>
+> **Per-lead timeline:** the first click is an ENTRY, not a field above the list — "clicked a Boundary
+> Survey ad on the 3rd, called on the 5th, quoted on the 9th" is one sentence and should read as one. It
+> is only synthesised when there is a real click or campaign to describe; inventing one for a phone lead
+> would put an ad at the top of a story that had nothing to do with an ad. **Gaps are computed
+> server-side** so the number on screen cannot drift from an export, and A9's
+> `adjustment_skipped_window` is surfaced here — this is the only screen where that discrepancy is
+> inspectable per lead.
+
 Everything above exists to make this page honest.
 
 - **Funnel** — inquiry → contacted → quoted → accepted → job → delivered → paid, with conversion rate and

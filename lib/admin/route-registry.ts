@@ -130,6 +130,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Create a job.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   { href: '/admin/leads',           label: 'Leads',           workspace: 'work', iconName: 'Inbox',         description: 'Inbound contact + lead queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['contacts', 'prospects'] },
+  // A12 — the page the other three exist to make honest. Listed first of the four so the dashboard is
+  // what someone lands on, not the export tool.
+  { href: '/admin/marketing',       label: 'Marketing',       workspace: 'work', iconName: 'TrendingUp',    description: 'Funnel, cost per stage, repeat customers, attribution coverage.', roles: ['admin'], internalOnly: true, keywords: ['funnel', 'ads', 'google', 'cost per lead', 'roas', 'attribution', 'conversion'] },
   // A7 — registered here rather than left as a URL only I know about. This repo's most common defect is
   // finishing something nobody can click, and an export page nobody can find is an export nobody runs.
   { href: '/admin/marketing/exports', label: 'Ad conversions',  workspace: 'work', iconName: 'TrendingUp',    description: 'Download offline conversions for Google Ads.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'conversions', 'marketing', 'export', 'attribution'] },

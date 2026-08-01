@@ -31,6 +31,8 @@ import RepliesList from './RepliesList';
 // public.lead_notes table (seed 320) + /api/admin/leads/[id]/notes.
 import LeadNotesCard from './LeadNotesCard';
 import QuotesCard from './QuotesCard';
+// A12 — the "track exactly what is happening with each lead" screen.
+import LifecycleTimeline from './LifecycleTimeline';
 
 interface LeadAttachment {
   name: string;
@@ -448,6 +450,11 @@ export default function LeadDetailPage() {
         {/* A5 — the official quote, versioned. Above the notes because it is the step the owner named
             and the one that decides whether this lead becomes a job. */}
         <QuotesCard leadId={lead.id} />
+
+        {/* A12 — first click → every milestone → dollars, on one line. Placed directly under the quote
+            because the two answer the same question from opposite ends: what we asked for, and what
+            actually happened. */}
+        <LifecycleTimeline leadId={lead.id} />
 
         <LeadNotesCard leadId={lead.id} />
 
