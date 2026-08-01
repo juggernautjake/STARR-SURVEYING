@@ -3,6 +3,7 @@
 import type { ContactFormData, ContactFormState } from '../../types';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { trackConversion } from '../utils/gtag';
+import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 
 const ContactForm = (): React.ReactElement => {
   const [formData, setFormData] = useState<ContactFormData>({
@@ -70,7 +71,7 @@ const ContactForm = (): React.ReactElement => {
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, ...attributionFormFields(readAttribution()) }),
       });
 
       if (response.ok) {

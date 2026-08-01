@@ -37,44 +37,30 @@ export default function GoogleAdsScript(): React.ReactElement {
         `}
       </Script>
 
-      {/* Step 3: Contact-form conversion snippet
-          Fires gtag conversion event to ${CONVERSION_LABEL}
-          when the contact form success message appears on /contact.
-          NOTE: The success message text below must match the text rendered by
-          ContactForm inside .contact-form-section__success-text exactly. */}
-      <Script id="google-ads-contact-form-conversion" strategy="afterInteractive">
-        {`
-          /* ============================================================
-             GOOGLE ADS – Contact Form Conversion Tracking
-             Conversion action : ${CONVERSION_LABEL}
-             Fires when        : .contact-form-section__success-text
-                                 contains the success message on /contact
-             Source            : Google support ticket 5-2885000040495
-             ============================================================ */
-          window.addEventListener('load', function() {
-            if (window.location.href.indexOf('/contact') !== -1) {
-              var _convFired = 0;
-              var _convAttempts = 0;
-              var _convMaxAttempts = 30; /* stop polling after 30 seconds */
-              var _convTimer = setInterval(function() {
-                _convAttempts++;
-                if (_convAttempts >= _convMaxAttempts) {
-                  clearInterval(_convTimer);
-                  return;
-                }
-                if (_convFired === 0) {
-                  var el = document.querySelector('.contact-form-section__success-text');
-                  if (el && el.innerText.includes('Your request has been received. We will contact you within 24 business hours.')) {
-                    gtag('event', 'conversion', {'send_to': '${CONVERSION_LABEL}'});
-                    clearInterval(_convTimer);
-                    _convFired = 1;
-                  }
-                }
-              }, 1000);
-            }
-          });
-        `}
-      </Script>
+      {/* ================================================================
+          STEP 3 — REMOVED 2026-07-31, AND THE REMOVAL IS THE FIX.
+
+          There used to be a third script here that polled `/contact` once a second for up to 30 seconds,
+          looking for the literal text "Your request has been received. We will contact you within 24
+          business hours." inside `.contact-form-section__success-text`, and fired the conversion when it
+          found it. It was supplied with the account setup (Google support ticket 5-2885000040495) and it
+          was doing real damage on two counts:
+
+          1. **IT DOUBLE-COUNTED.** `app/contact/page.tsx` ALSO calls `trackConversion()` the moment the
+             POST succeeds. Both sent to the same conversion action with no `transaction_id`, so one
+             submitted form produced two conversions. Every lead on /contact was counted twice — and
+             Smart Bidding was being trained toward a lead count that was not true, which is worse than
+             the reporting being wrong.
+
+          2. **IT WAS ONE COPY EDIT FROM SILENCE.** Matching a sentence of user-facing prose means the day
+             someone rewords the thank-you message, conversion tracking stops, nothing errors, and the
+             account simply goes quiet.
+
+          The explicit `trackConversion(referenceNumber)` call is strictly better: it fires when the
+          submission actually succeeded rather than when a DOM node looks a certain way, it works on EVERY
+          intake surface rather than only `/contact`, and it now carries the submission's reference number
+          as a dedupe key so a retry or a back/forward-cache restore cannot count twice either.
+          ================================================================ */}
     </>
   );
 }

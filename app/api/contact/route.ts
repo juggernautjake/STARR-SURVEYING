@@ -14,6 +14,47 @@ import {
   type LeadIntakeInput,
 } from '@/lib/leads/intake';
 import { supabaseAdmin } from '@/lib/supabase';
+import crypto from 'node:crypto';
+import { CLICK_ID_FIELDS, hasAttribution, type Attribution } from '@/lib/leads/attribution';
+
+/** The attribution fields the client posts, pulled straight off the raw body.
+ *
+ *  Listed explicitly rather than copied wholesale, because this is a PUBLIC endpoint: spreading whatever
+ *  the client sent into a database row is how an unexpected key ends up in an insert. */
+const ATTRIBUTION_FIELDS = [
+  ...CLICK_ID_FIELDS,
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'landing_page', 'referrer', 'first_seen_at',
+] as const;
+
+function attributionFromBody(body: object): Attribution | null {
+  const bag = body as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of ATTRIBUTION_FIELDS) {
+    const v = bag[key];
+    if (typeof v === 'string' && v.trim()) out[key] = v.trim().slice(0, 1024);
+  }
+  const attribution = out as Attribution;
+  return hasAttribution(attribution) ? attribution : null;
+}
+
+/**
+ * A salted hash of the submitting IP — never the address itself.
+ *
+ * An IP is personal data under GDPR/CCPA and Enhanced Conversions has no use for it; the only thing we
+ * would ever ask is "is this the same submitter as that one", which a hash answers. The salt is the
+ * session secret because it already exists and is already required to be set; without one, hashing an
+ * IPv4 address is decorative — the whole space is enumerable in seconds.
+ */
+function hashClientIp(request: NextRequest): string | null {
+  const raw = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim()
+    || request.headers.get('x-real-ip')
+    || '';
+  if (!raw) return null;
+  const salt = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
+  if (!salt) return null; // no salt, no pretence of anonymity — record nothing
+  return crypto.createHmac('sha256', salt).update(raw).digest('hex').slice(0, 32);
+}
 
 interface ResendAttachment {
   filename: string;
@@ -1233,6 +1274,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // Byte storage in Supabase is a follow-up; for now we keep the
         // names + sizes alongside the Resend email path.
         attachments: data.attachments.map((a) => ({ name: a.name, size: a.size })),
+        // G1-2 — attribution rides along with the form. Read from the raw body rather than from
+        // `NormalizedData`, because these are pass-through values with no normalization to do and adding
+        // thirteen fields to that interface would imply they are part of the email path, which they are
+        // not: nothing about the customer's email changes because they arrived from an ad.
+        attribution: attributionFromBody(body),
+        clientIpHash: hashClientIp(request),
+        clientUserAgent: (request.headers.get('user-agent') || '').slice(0, 512) || null,
       };
     }
 

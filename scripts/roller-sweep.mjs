@@ -177,7 +177,15 @@ async function setTemplate(page, characterId, label) {
     return { status: r.status, body: await r.text() };
   }, { cid: characterId, roller: id });
   if (res.status !== 200) return false;
-  await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+  // A RELOAD THAT THROWS SKIPS ONE CELL; IT DOES NOT END THE RUN. `net::ERR_ABORTED; maybe frame was
+  // detached` killed a 40-minute sweep at cell 100 because the dev server happened to be recompiling —
+  // and the run had already produced 100 useful measurements, all of them lost with it. A sweep is a
+  // measuring instrument: one unreadable cell is a gap in the data, not a reason to discard the data.
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+  } catch {
+    return false;
+  }
   if (!(await ensureRollerOpen(page))) return false;
   // Confirm the page is actually SHOWING that template before anything is measured or photographed.
   return isSelected(page, label, 'Roller style');

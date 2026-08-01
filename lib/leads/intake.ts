@@ -23,6 +23,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMany } from '@/lib/notifications';
+import { hasAttribution, type Attribution } from './attribution';
 
 /** Roles that get an in-app notification when a public query arrives.
  *  Centralized so future role additions stay in lockstep. */
@@ -63,6 +64,14 @@ export interface LeadIntakeInput {
    *  Today: `'Website'` for the contact form, `'Pricing Calculator'`
    *  for the calculator path. */
   source: string;
+  /** G1-2 — where the visitor came from, captured on their FIRST page and
+   *  posted along with the form. Absent for phone/referral/walk-in leads,
+   *  which is the majority: never treat its absence as an error. */
+  attribution?: Attribution | null;
+  /** Salted hash of the submitting IP, computed by the route (which is the
+   *  only layer that can see it). Never the raw address. */
+  clientIpHash?: string | null;
+  clientUserAgent?: string | null;
   /** When true, the calculator's rush flag — surfaces as escalation in
    *  the notification (Q2 reads this). Pure-data side, no behavior. */
   isRush?: boolean;
@@ -95,6 +104,22 @@ export interface LeadRow {
    *  attached no files. Always non-null so the JSONB column's NOT
    *  NULL constraint holds. */
   attachments: ReadonlyArray<{ name: string; size: number; storage_path?: string }>;
+  /** G1-3 attribution columns. Every one nullable, and NULL is the normal case — a phone lead, a
+   *  referral and a walk-in have none of them. Written as `null` rather than omitted so the mapper's
+   *  output is the full row shape and a missing column is a type error rather than a silent gap. */
+  gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+  landing_page: string | null;
+  referrer: string | null;
+  first_seen_at: string | null;
+  client_user_agent: string | null;
+  client_ip_hash: string | null;
 }
 
 /** Pure mapper — takes the route's normalized payload, produces a
@@ -140,7 +165,49 @@ export function buildLeadRowFromForm(input: LeadIntakeInput): LeadRow {
       size: a.size,
       ...(a.storage_path ? { storage_path: a.storage_path } : {}),
     })),
+    // G1-2 — attribution, carried through untouched.
+    //
+    // `hasAttribution` guards the whole block rather than each field, and that is the point: a payload
+    // with nothing identifying in it writes THIRTEEN nulls, not thirteen empty strings. An empty string
+    // is a value — "did this lead come from an ad" would answer yes for every walk-in the moment one
+    // query used `IS NOT NULL`.
+    ...emptyAttributionColumns(),
+    ...(hasAttribution(input.attribution)
+      ? {
+        gclid: cleanString(input.attribution!.gclid),
+        gbraid: cleanString(input.attribution!.gbraid),
+        wbraid: cleanString(input.attribution!.wbraid),
+        utm_source: cleanString(input.attribution!.utm_source),
+        utm_medium: cleanString(input.attribution!.utm_medium),
+        utm_campaign: cleanString(input.attribution!.utm_campaign),
+        utm_term: cleanString(input.attribution!.utm_term),
+        utm_content: cleanString(input.attribution!.utm_content),
+        landing_page: cleanString(input.attribution!.landing_page),
+        referrer: cleanString(input.attribution!.referrer),
+        first_seen_at: cleanString(input.attribution!.first_seen_at),
+      }
+      : {}),
+    // These two come from the REQUEST, not the form, so they are recorded even for a lead with no
+    // click identifiers — they are how a duplicate submission is spotted later.
+    client_user_agent: cleanString(input.clientUserAgent ?? undefined),
+    client_ip_hash: cleanString(input.clientIpHash ?? undefined),
   };
+}
+
+/** All thirteen attribution columns as null. Spread FIRST so the block above overwrites only what it
+ *  actually has — which is what makes "no attribution" write nulls instead of leaving columns missing
+ *  from the insert object entirely. */
+function emptyAttributionColumns() {
+  return {
+    gclid: null, gbraid: null, wbraid: null,
+    utm_source: null, utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
+    landing_page: null, referrer: null, first_seen_at: null,
+    client_user_agent: null, client_ip_hash: null,
+  } satisfies Pick<
+    LeadRow,
+    'gclid' | 'gbraid' | 'wbraid' | 'utm_source' | 'utm_medium' | 'utm_campaign' | 'utm_term'
+    | 'utm_content' | 'landing_page' | 'referrer' | 'first_seen_at' | 'client_user_agent' | 'client_ip_hash'
+  >;
 }
 
 // ────────────────────────────────────────────────────────────────────

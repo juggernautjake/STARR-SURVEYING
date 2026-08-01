@@ -16,6 +16,7 @@ import {
   isAdditionalResidence
 } from './surveyCalculatorTypes';
 import { trackConversion } from '../utils/gtag';
+import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -303,11 +304,15 @@ export default function SurveyCalculator() {
           subject: `Survey Estimate Request - ${currentSurveyType.name}`,
           message: emailBody,
           source: 'pricing-calculator',
+          // G1-2 — the calculator is an intake surface like any other, and it is the one most likely to
+          // be reached straight from an ad.
+          ...attributionFormFields(readAttribution()),
         }),
       });
 
       if (response.ok) {
-        trackConversion();
+        const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
+        trackConversion(ref);
         setSubmitSuccess(true);
       } else {
         throw new Error('Failed');

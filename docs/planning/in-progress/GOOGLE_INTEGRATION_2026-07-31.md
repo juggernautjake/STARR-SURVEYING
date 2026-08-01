@@ -56,7 +56,7 @@ exists one directory over.
 | **Lead intake** | **Working**: public forms → `leads` row + Resend mail + in-app notification | `app/api/contact/route.ts` → `lib/leads/intake.ts` |
 | **`leads` table** | **Working**, with the full pipeline | `seeds/292_leads.sql` |
 | **Jobs, invoices, payments** | **Working**; customer billing lives on `customer_invoices` | not the Stripe `invoices` table — see the memory note |
-| **Google Ads** | **Nothing** | — |
+| **Google Ads** | **LIVE — and the audit found it wrong.** Account `AW-17921491739`, one conversion action, firing client-side | `app/utils/gtag.ts`, `app/components/GoogleAdsScript.tsx` (mounted in the Footer, so every page) |
 | **GA4 / Tag Manager** | **Nothing** | — |
 | **Google Business Profile** | **Nothing** | — |
 
@@ -64,6 +64,38 @@ exists one directory over.
 an established pattern, not a new auth system. Second, `lib/integrations/` currently holds exactly one file,
 so this work is also the moment that directory becomes a real integrations layer rather than a place one
 thing happens to live.
+
+> ### ⚠ The audit's most valuable finding: `/contact` was counting every lead TWICE
+>
+> This section was drafted as *"Google Ads: nothing"*, which was wrong, and the difference matters. Ads is
+> live and has been for months — which means the plan is not "start tracking conversions", it is **"the
+> Lead Form Submitted conversion already exists; add the offline half and fix what is there."**
+>
+> Two defects, both fixed 2026-07-31:
+>
+> **1. Double-counted conversions.** `app/contact/page.tsx` calls `trackConversion()` when the POST
+> succeeds, AND a third script in `GoogleAdsScript` polled `/contact` once a second for the literal text
+> *"Your request has been received. We will contact you within 24 business hours."* and fired the same
+> conversion action when it appeared. Same action, no `transaction_id`, so **one submitted form produced
+> two conversions.** The reporting being wrong is the smaller half: Smart Bidding has been optimising
+> toward a lead count that is not true, and the account's cost-per-conversion has looked roughly half of
+> what it really is.
+>
+> **2. One copy edit from silence.** Matching a sentence of user-facing prose means that the day someone
+> rewords the thank-you message, conversion tracking stops dead, nothing errors, and the account simply
+> goes quiet. Nobody would find that for a quarter.
+>
+> **The fix keeps the explicit call and deletes the poller.** The explicit call fires when the submission
+> actually succeeded rather than when a DOM node looks a certain way, it covers **all four** intake
+> surfaces rather than only `/contact`, and it now passes the submission's reference number as
+> `transaction_id` — so a double-submit, a retry, or a page restored from the back/forward cache cannot
+> count twice either.
+>
+> **What this changes downstream:** the existing conversion action becomes the *secondary* "Lead Form
+> Submitted" of the funnel described below, exactly as the owner's brief lays out. It does not need to be
+> recreated. And because the tag is already installed sitewide, **Enhanced Conversions can be switched on
+> for it** with hashed data from the same forms — G2-2's hashing has a client-side use as well as a
+> server-side one.
 
 ---
 
@@ -88,19 +120,42 @@ thing happens to live.
 
 *Without this nothing else works: a conversion Google cannot match to a click is a conversion Google ignores.*
 
-- [ ] **G1-1 — Capture the click identifiers on landing.** A small client module stores `gclid`, and also
+- [x] **G1-1 — Capture the click identifiers on landing. SHIPPED 2026-07-31.**
+      `lib/leads/attribution.ts` (pure rules, 18 tests) + `app/components/AttributionCapture.tsx`, mounted
+      once in the root layout inside `Suspense`. **`localStorage`, not a cookie** — a cookie rides on every
+      request including images and API calls for something only the form reads, and a client-set cookie is
+      capped at 7 days by Safari's ITP, which would silently lose most of a 90-day window on iPhones.
+      **First write wins:** an ad click is not overwritten by a later organic visit, because the ad is what
+      bought that customer; a click DOES replace a UTM-only record, because it is strictly better
+      information. Ninety days, matching Google's own click lookback — longer would only produce uploads
+      Google rejects.
+
+- [x] **G1-2 — Carry them through every intake form. SHIPPED 2026-07-31.**
+      All **four** surfaces, not the three the plan named: `app/contact/page.tsx`, `app/page.tsx`,
+      `app/components/ContactForm.tsx`, `app/components/SurveyCalculator.tsx` — and both payload shapes,
+      since two of them switch to `FormData` when the customer attaches files. The route reads an explicit
+      allowlist of fields rather than spreading whatever the client sent, because this is a public endpoint
+      and spreading arbitrary keys into a database row is how an unexpected column gets written.
+
+- [x] **G1-3 — `seeds/500_lead_attribution.sql`. WRITTEN 2026-07-31** (not yet applied to live).
+      Thirteen nullable columns. `client_ip_hash` is a salted HMAC, never the address: an IP is personal
+      data and Enhanced Conversions has no use for it. Partial indexes on `gclid` and `utm_campaign`,
+      because "leads that came from an ad" is a small minority of rows and a full index would be mostly
+      NULLs.
+
+- [ ] ~~**G1-1 — Capture the click identifiers on landing.**~~ A small client module stores `gclid`, and also
       `gbraid` / `wbraid` (the iOS/app-campaign identifiers that exist precisely because `gclid` is often
       absent now), plus `utm_source/medium/campaign/term/content`, in a first-party cookie with a 90-day
       life. **Capture on the first page of the session and read at submit** — a visitor commonly lands on
       `/services` from an ad and converts from `/contact`, and a naive "read the current URL" version
       records nothing for exactly the journeys that matter most.
 
-- [ ] **G1-2 — Carry them through every intake form.** `/contact`, the home-page form, and the pricing
+- [ ] ~~**G1-2 — Carry them through every intake form.**~~ `/contact`, the home-page form, and the pricing
       calculator all post to `app/api/contact/route.ts`. The fields ride along as hidden inputs, and
       `buildLeadRowFromForm` maps them onto the lead. **All three surfaces, verified individually** — the
       intake module's own history is that one form was email-only long after the others were not.
 
-- [ ] **G1-3 — `seeds/500_lead_attribution.sql`.** Columns on `leads`: `gclid`, `gbraid`, `wbraid`,
+- [ ] ~~**G1-3 — `seeds/500_lead_attribution.sql`.**~~ Columns on `leads`: `gclid`, `gbraid`, `wbraid`,
       `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `landing_page`,
       `first_seen_at`, `client_user_agent`, `client_ip_hash`. All nullable — a phone lead has none of them
       and that is not an error, it is the majority of leads at a surveying firm.

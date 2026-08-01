@@ -35,12 +35,16 @@ declare global {
  * Fires a Google Ads conversion event.
  * Call this after a successful form submission (contact form, calculator estimate, etc.)
  */
-export function trackConversion(): void {
+export function trackConversion(transactionId?: string): void {
   if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
     window.gtag('event', 'conversion', {
       send_to: CONVERSION_LABEL,
+      // DEDUPE KEY. Pass the submission's reference number (`SS-…`) and Google will count a repeated
+      // send of the same id ONCE, however it arrives — a double-submit, a retry, a page restored from
+      // the back/forward cache. Without it, every duplicate is a real extra conversion in the account,
+      // and Smart Bidding is then optimising toward a lead count that is not true.
+      ...(transactionId ? { transaction_id: transactionId } : {}),
     });
-    console.log('[gtag] Conversion tracked:', CONVERSION_LABEL);
   } else {
     console.warn('[gtag] gtag not available — conversion not tracked');
   }

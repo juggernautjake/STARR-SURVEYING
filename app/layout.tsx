@@ -5,6 +5,8 @@ import './styles/themes.css';
 import './styles/density.css';
 import './styles/forms.css';
 import LayoutShell from './components/LayoutShell';
+import { Suspense } from 'react';
+import AttributionCapture from './components/AttributionCapture';
 
 // ============================================================================
 // SITE METADATA - Controls social sharing previews and SEO
@@ -155,6 +157,14 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body>
+        {/* G1-1 — records the ad click on the FIRST page of the session, wherever that is. It lives in the
+            root layout rather than on the forms because almost nobody converts on the page they landed on;
+            a capture that lives on the form sees a clean URL and credits the booking to nothing.
+            Renders no markup. Wrapped in Suspense because it reads `useSearchParams`, which would
+            otherwise opt every page into client rendering. */}
+        <Suspense fallback={null}>
+          <AttributionCapture />
+        </Suspense>
         <LayoutShell>
           {children}
         </LayoutShell>

@@ -6,6 +6,7 @@ import { useState, FormEvent, ChangeEvent } from 'react';
 import PayInvoiceCTA from './components/PayInvoiceCTA';
 import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
 import { trackConversion } from './utils/gtag';
+import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 import {
   QUOTE_ATTACHMENT_ACCEPT,
   QUOTE_ATTACHMENT_MAX_FILES,
@@ -208,10 +209,15 @@ export default function HomePage(): React.ReactElement {
     }
 
     try {
+      // G1-2 — attribution captured on the visitor's first page, sent with the form.
+      const attribution = attributionFormFields(readAttribution());
       let response: Response;
       if (attachments.length > 0) {
         const body = new FormData();
         for (const [key, value] of Object.entries(formData)) {
+          body.append(key, value);
+        }
+        for (const [key, value] of Object.entries(attribution)) {
           body.append(key, value);
         }
         for (const file of attachments) {
@@ -222,13 +228,14 @@ export default function HomePage(): React.ReactElement {
         response = await fetch('/api/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, ...attribution }),
         });
       }
 
       if (response.ok) {
-        // Track Google Ads conversion on successful form submission
-        trackConversion();
+        // Keyed by the server's reference number so a retry cannot count the same lead twice.
+        const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
+        trackConversion(ref);
 
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({

@@ -5,6 +5,7 @@ import { useState, FormEvent, ChangeEvent } from 'react';
 import PayInvoiceCTA from '../components/PayInvoiceCTA';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
+import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 import {
   QUOTE_ATTACHMENT_ACCEPT,
   QUOTE_ATTACHMENT_MAX_FILES,
@@ -176,10 +177,16 @@ export default function ContactPage(): React.ReactElement {
     }
 
     try {
+      // G1-2 — where this visitor came from, captured on the FIRST page they landed on (see
+      // `AttributionCapture`). Read at submit time because by now they are usually on a clean URL.
+      const attribution = attributionFormFields(readAttribution());
       let response: Response;
       if (attachments.length > 0) {
         const body = new FormData();
         for (const [key, value] of Object.entries(formData)) {
+          body.append(key, value);
+        }
+        for (const [key, value] of Object.entries(attribution)) {
           body.append(key, value);
         }
         for (const file of attachments) {
@@ -190,13 +197,15 @@ export default function ContactPage(): React.ReactElement {
         response = await fetch('/api/contact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, ...attribution }),
         });
       }
 
       if (response.ok) {
-        // Track Google Ads conversion on successful form submission
-        trackConversion();
+        // Track the Google Ads conversion, keyed by the server's reference number so a retry or a
+        // back/forward-cache restore cannot count the same lead twice.
+        const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
+        trackConversion(ref);
 
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({
