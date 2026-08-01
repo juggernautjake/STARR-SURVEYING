@@ -367,7 +367,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   steps.push('[Step 6] Cross-checking identified lot against existing extracted data...');
 
-  // Pull any already-extracted data points for this project
+  // Pull any already-extracted data points for this project.
+  //
+  // The table is `extracted_data_points`, NOT `research_extracted_data_points` — the latter has never
+  // existed in any database or seed (platform audit §1.1b/§8.4). Because this block discarded `error`
+  // and treated the empty result as "nothing extracted yet", cross-validation reported
+  // *"No previously extracted data points found"* on every run since it was written, while 208 real
+  // rows sat in the actual table. The column names differ too: `raw_value`/`display_value` rather than
+  // `extracted_value`, `document_id` rather than `source_document_id`, and `extraction_confidence`
+  // rather than `confidence` — so a rename alone would have kept it silently empty.
   let existingDataPoints: Array<{
     data_category: string;
     extracted_value: string;
@@ -376,13 +384,26 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }> = [];
 
   try {
-    const { data: points } = await supabaseAdmin
-      .from('research_extracted_data_points')
-      .select('data_category, extracted_value, source_document_id, confidence')
+    const { data: rows, error: pointsError } = await supabaseAdmin
+      .from('extracted_data_points')
+      .select('data_category, display_value, raw_value, document_id, extraction_confidence')
       .eq('research_project_id', projectId)
       .limit(200);
 
-    if (points && points.length > 0) {
+    // Surface the failure instead of degrading to "none found" — the two are not the same answer, and
+    // conflating them is what hid this bug for its whole lifetime.
+    if (pointsError) throw new Error(pointsError.message);
+
+    // `display_value` is the human-facing rendering (units applied, normalised); `raw_value` is what
+    // was literally read off the document. Prefer the former, fall back to the latter.
+    const points = ((rows ?? []) as Array<{ data_category: string; display_value: string | null; raw_value: string | null; document_id: string | null; extraction_confidence: number | string | null }>).map((r) => ({
+      data_category: r.data_category as string,
+      extracted_value: (r.display_value || r.raw_value) as string,
+      source_document_id: (r.document_id ?? null) as string | null,
+      confidence: Number(r.extraction_confidence ?? 70),
+    }));
+
+    if (points.length > 0) {
       existingDataPoints = points;
       steps.push(`[Step 6] Found ${points.length} previously extracted data points to cross-check`);
 

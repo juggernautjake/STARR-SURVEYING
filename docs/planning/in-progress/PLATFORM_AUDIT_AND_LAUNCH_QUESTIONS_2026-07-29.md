@@ -96,6 +96,33 @@ All three destructure `{ data }` and **discard `error`**, so they degrade silent
 failing. Tracked in `KNOWN_PHANTOM_TABLES` in the guard test so they stay visible. **Decide:** were
 these features ever finished (create the tables), or are they dead code (delete the call sites)?
 
+> **✅ RESOLVED 2026-08-01 — neither. The features were finished; the queries were misaddressed.**
+> The real data was one identifier away the whole time, so creating the tables would have duplicated
+> live data and deleting the call sites would have thrown working features away.
+>
+> - `research_extracted_data_points` → **`extracted_data_points`**, which holds **208 rows** today.
+>   The column names differ too — `display_value`/`raw_value` not `extracted_value`, `document_id`
+>   not `source_document_id`, `extraction_confidence` not `confidence` — so a rename alone would have
+>   compiled, run, and stayed silently empty. Measured against the live project with the most data:
+>   **69 points selected, 24 becoming cross-validation atoms** where zero flowed before.
+> - `research_artifacts` → artifacts are **`research_documents` rows filed under an `/artifacts/…`
+>   storage path**, with `category` *derived*, not stored. The working `artifacts/route.ts` already
+>   did this correctly; `full-extract` had reached for a table instead. The derivation now lives once
+>   in `lib/research/artifact-category.ts` and both call it.
+>
+> While rewiring `full-extract`, its two queries collapsed into one — the same table twice would have
+> analysed every document as text *and* as an image, doubling the vision spend and producing two atoms
+> per fact to de-conflict. It now **partitions**: text where there is text, vision where there is only
+> an image. On live data that is **601 text, 14 visual (10 deeds, 4 plats)** — again, up from zero.
+>
+> **The wrong table name was not the defect; it was how the defect got in.** All three routes now
+> surface their query `error` instead of degrading to an empty result, because *"the query failed"*
+> and *"there is nothing to cross-check"* were being reported identically, and that is the only reason
+> this survived to be found by a census rather than by a user. `KNOWN_PHANTOM_TABLES` is now empty and
+> the guard test keeps it that way. `__tests__/research/artifact-category.test.ts` pins the derivation
+> — in particular that `screenshots-misc` is tested *before* `screenshots`, since inverting those two
+> feeds every captured 404 and auth wall to a vision model.
+
 ### 1.2 🔴 Multi-tenancy is skin-deep
 `org_id` exists on 28 tables — and they are all the *SaaS wrapper* tables (billing, subscriptions,
 support tickets, invites, audit log, payments). The tables that hold the actual business — `jobs`,
@@ -411,7 +438,8 @@ Anthropic client:
 2. ⬜ Stand up an actual staging Supabase project from `seeds/` and point a preview deploy at it.
 3. ✅ **DONE 2026-08-01.** Per **D1**, nullable `org_id` now sits on the business tables — 53 → 126
    tables, via `seeds/513_org_scoping.sql`, backfilled to the single Starr org. See §1.2.
-4. ⬜ Resolve the two phantom research tables (§1.1b) — build or delete.
+4. ✅ **DONE 2026-08-01.** Resolved the two phantom research tables (§1.1b) — neither built nor
+   deleted: the real tables were `extracted_data_points` and `research_documents` all along.
 
 **Phase 1 — Make it one product**
 5. Delete `AdminSidebar.tsx` + the v2 flag. Register all 36 orphan routes.

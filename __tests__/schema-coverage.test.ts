@@ -26,11 +26,23 @@ const CODE_DIRS = ['app', 'lib', 'worker', 'server'];
  *  callers silently swallow the error and degrade to an empty result. Listed here so the guard
  *  stays green while the reality stays visible. Delete an entry when the table is created or the
  *  dead call site is removed; do NOT add to this list to make a failure go away. */
-const KNOWN_PHANTOM_TABLES = new Set([
-  // app/api/admin/research/[projectId]/full-extract/route.ts:104 — artifacts always load as []
-  'research_artifacts',
-  // deep-lot-analysis/route.ts:463 + verify-lot/route.ts:380 — Phase 4 cross-validation never runs
-  'research_extracted_data_points',
+const KNOWN_PHANTOM_TABLES = new Set<string>([
+  // EMPTY, and worth keeping that way.
+  //
+  // Both original entries were resolved on 2026-08-01 (platform audit §8.4), and the answer to the
+  // doc's question — *"were these features ever finished, or are they dead code?"* — turned out to be
+  // neither. The features were finished; the queries named tables that never existed while the real
+  // data sat one identifier away:
+  //
+  //   · `research_artifacts` → artifacts are `research_documents` rows filed under an `/artifacts/…`
+  //     storage path, with `category` DERIVED (lib/research/artifact-category.ts), not stored.
+  //   · `research_extracted_data_points` → `extracted_data_points`, which held 208 real rows the
+  //     whole time. Its columns differ too (`display_value`/`raw_value`, `document_id`,
+  //     `extraction_confidence`), so a rename alone would have kept it silently empty.
+  //
+  // All three call sites now surface their `error` instead of degrading to an empty result, which is
+  // what let this hide: "the query failed" and "there is nothing to cross-check" are different
+  // answers, and one of them was being reported as the other on every single run.
 ]);
 
 /** `.from('x')` inside a test fixture is a Buffer, not a table. Two-char names aren't tables. */

@@ -16,6 +16,12 @@ import {
   type AnalysisResult,
 } from '@/lib/research/resource-analyzer';
 import { type ResourceType } from '@/lib/research/extraction-objectives';
+import {
+  categorizeDocument,
+  isImageFileType,
+  visualResourceTypeFor,
+  type ArtifactCategory,
+} from '@/lib/research/artifact-category';
 import { synthesizeResearch, formatSynthesisForDisplay } from '@/lib/research/research-synthesizer';
 import {
   createValidationGraph,
@@ -87,33 +93,63 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const steps: Array<{ step: string; status: string; count?: number; duration_ms?: number }> = [];
   const startTime = Date.now();
 
-  // ── Step 1: Load all documents ──────────────────────────────────
+  // ── Step 1: Load everything the project has gathered ────────────
+  //
+  // ONE query, because there is one table. This used to be two: documents from `research_documents`,
+  // then screenshots from `research_artifacts` — a table that has never existed in any database or
+  // seed (platform audit §1.1b/§8.4). The query discarded its error, so `allArtifacts` was always `[]`
+  // and the visual half of this pipeline analysed nothing, on every run, without saying so.
+  //
+  // Artifacts are `research_documents` rows filed under an `/artifacts/…` storage path; `category` is
+  // derived rather than stored. See lib/research/artifact-category.ts.
   const stepStart1 = Date.now();
-  const { data: documents } = await supabaseAdmin
+  const { data: documents, error: docsError } = await supabaseAdmin
     .from('research_documents')
     .select('id, document_type, document_label, extracted_text, source_type, source_url, file_type, storage_path, storage_url, original_filename')
     .eq('research_project_id', projectId)
     .order('created_at', { ascending: true });
 
+  // Fail loudly. Treating a broken query as "this project has no documents" is precisely how the
+  // missing table stayed invisible for the lifetime of this route.
+  if (docsError) {
+    return NextResponse.json({ error: `Failed to load documents: ${docsError.message}` }, { status: 500 });
+  }
+
   const allDocs = documents || [];
   steps.push({ step: 'Load documents', status: 'done', count: allDocs.length, duration_ms: Date.now() - stepStart1 });
 
-  // ── Step 2: Load all artifacts (screenshots) ────────────────────
+  // ── Step 2: Split them into text work and vision work ───────────
+  //
+  // Each document is analysed ONCE, in whichever mode can actually read it. A row with extracted text
+  // goes to the text analyser; an image with no text goes to the vision analyser. Sending both would
+  // double the API spend and produce two atoms per fact that then have to be de-conflicted.
   const stepStart2 = Date.now();
-  const { data: artifacts } = await supabaseAdmin
-    .from('research_artifacts')
-    .select('id, category, description, storage_url, file_type, metadata')
-    .eq('research_project_id', projectId)
-    .neq('category', 'screenshots-misc'); // Skip useless screenshots
+  const textDocs: typeof allDocs = [];
+  const visualDocs: Array<{ doc: (typeof allDocs)[number]; category: ArtifactCategory }> = [];
+  let miscSkipped = 0;
 
-  const allArtifacts = artifacts || [];
-  steps.push({ step: 'Load artifacts', status: 'done', count: allArtifacts.length, duration_ms: Date.now() - stepStart2 });
+  for (const doc of allDocs) {
+    if (doc.extracted_text) { textDocs.push(doc); continue; }
+
+    const category = categorizeDocument(doc.document_type, doc.storage_path, doc.document_label);
+    // Error pages, empty result sets and auth walls the crawler captured on the way past. Paying a
+    // vision model to read a 404 is the one outcome worse than not looking.
+    if (category === 'screenshots-misc') { miscSkipped++; continue; }
+    if (isImageFileType(doc.file_type) && doc.storage_url) visualDocs.push({ doc, category });
+  }
+
+  steps.push({
+    step: `Split text vs visual — ${textDocs.length} text, ${visualDocs.length} visual, ${miscSkipped} misc skipped`,
+    status: 'done',
+    count: visualDocs.length,
+    duration_ms: Date.now() - stepStart2,
+  });
 
   // ── Step 3: Build analysis inputs ───────────────────────────────
   const inputs: AnalysisInput[] = [];
 
   // 3a. Documents
-  for (const doc of allDocs) {
+  for (const doc of textDocs) {
     const resourceType = docTypeToResourceType(doc.document_type);
     inputs.push({
       resource_id: doc.id,
@@ -125,32 +161,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  // 3b. Screenshot artifacts (for visual analysis)
-  for (const artifact of allArtifacts) {
-    const category = artifact.category || '';
-    let resourceType: ResourceType = 'aerial_imagery';
-    if (category.includes('gis') || category.includes('map') || category.includes('parcel')) {
-      resourceType = 'gis_map';
-    } else if (category.includes('plat')) {
-      resourceType = 'plat_document';
-    } else if (category.includes('street') || category.includes('google')) {
-      resourceType = 'street_map';
-    } else if (category.includes('flood')) {
-      resourceType = 'flood_map';
-    }
-
-    // For artifacts, we send the image URL for analysis
-    if (artifact.storage_url) {
-      inputs.push({
-        resource_id: artifact.id,
-        resource_label: artifact.description || `Artifact ${artifact.id}`,
-        resource_type: resourceType,
-        image_data: artifact.storage_url, // URL-based image
-        source_url: artifact.storage_url,
-        structured_data: artifact.metadata as Record<string, unknown> || undefined,
-        pipeline_step: `full-extract:artifact:${category}`,
-      });
-    }
+  // 3b. Images with no text of their own — plats, screenshots, aerials — go to the vision analyser.
+  for (const { doc, category } of visualDocs) {
+    inputs.push({
+      resource_id: doc.id,
+      resource_label: doc.document_label || doc.original_filename || `Artifact ${doc.id}`,
+      resource_type: visualResourceTypeFor(category),
+      image_data: doc.storage_url!, // URL-based image; the partition above guarantees it is set
+      source_url: doc.source_url || doc.storage_url!,
+      pipeline_step: `full-extract:artifact:${category}`,
+    });
   }
 
   steps.push({ step: 'Build analysis inputs', status: 'done', count: inputs.length });

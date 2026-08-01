@@ -6,6 +6,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+// Shared with full-extract, which needs the same answer about the same rows. It had its own copy of
+// this logic pointed at a `research_artifacts` table that never existed (platform audit §8.4).
+import { categorizeDocument, isImageFileType } from '@/lib/research/artifact-category';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
@@ -87,49 +90,3 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     grouped,
   });
 }, { routeName: 'research/artifacts' });
-
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function isImageFileType(fileType: string | null): boolean {
-  if (!fileType) return false;
-  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'tif', 'svg'].includes(
-    fileType.toLowerCase(),
-  );
-}
-
-function categorizeDocument(
-  docType: string | null,
-  storagePath: string | null,
-  label: string | null,
-): string {
-  // Check storage path for artifacts subfolder
-  // IMPORTANT: check screenshots-misc BEFORE screenshots (more specific match first)
-  if (storagePath?.includes('/artifacts/screenshots-misc/')) return 'screenshots-misc';
-  if (storagePath?.includes('/artifacts/screenshots/')) return 'screenshots';
-  if (storagePath?.includes('/artifacts/deed/')) return 'deeds';
-  if (storagePath?.includes('/artifacts/plat/')) return 'plats';
-  if (storagePath?.includes('/artifacts/easement/')) return 'easements';
-  if (storagePath?.includes('/artifacts/fema/')) return 'fema';
-  if (storagePath?.includes('/artifacts/txdot/')) return 'txdot';
-  if (storagePath?.includes('/artifacts/tax/')) return 'tax';
-
-  // Fall back to document type
-  if (docType === 'deed' || docType === 'deed_screenshot') return 'deeds';
-  if (docType === 'plat' || docType === 'subdivision_plat' || docType === 'plat_screenshot') return 'plats';
-  if (docType === 'survey' || docType === 'field_notes' || docType === 'metes_and_bounds') return 'surveys';
-  if (docType === 'easement') return 'easements';
-  if (docType === 'aerial_photo') return 'aerial';
-  if (docType === 'topo_map') return 'topo';
-  if (docType === 'appraisal_record' || docType === 'property_report') return 'tax';
-  if (docType === 'flood_map') return 'fema';
-  if (docType === 'road_map' || docType === 'utility_map') return 'txdot';
-  if (docType === 'gis_map' || docType === 'map_screenshot') return 'screenshots';
-  if (docType === 'county_record' || docType === 'legal_description') return 'other';
-
-  // Check label
-  if (label?.toLowerCase().includes('misc screenshot')) return 'screenshots-misc';
-  if (label?.toLowerCase().includes('screenshot')) return 'screenshots';
-
-  return 'other';
-}

@@ -76,9 +76,30 @@ describe('A1-5 — the storage one address can consume', () => {
   it('charges only when there are files', () => {
     // An enquiry with no attachments consumes no storage, and spending someone's daily budget on one
     // would refuse the customer who then tries to send a photograph.
-    const block = CONTACT.slice(CONTACT.indexOf('if (fileSummaries.length > 0)'));
-    expect(block.indexOf('contact-storage-daily')).toBeGreaterThan(0);
-    expect(block.indexOf('contact-storage-daily')).toBeLessThan(block.indexOf('\n    }\n\n    // Normalize'));
+    //
+    // Found by brace-matching, not by pinning the text that closes the block. The first version of this
+    // test searched for the literal `'\n    }\n\n    // Normalize'` — which stopped matching the day
+    // git's autocrlf rewrote the file to CRLF, and failed complaining about the CHARGE rather than
+    // about its own whitespace assumption. Counting braces asserts the actual property (the charge is
+    // inside the attachments branch) and does not care about line endings or the comment underneath.
+    const open = CONTACT.indexOf('if (fileSummaries.length > 0) {');
+    expect(open, 'the attachments branch must exist').toBeGreaterThan(0);
+
+    let depth = 0;
+    let end = -1;
+    for (let i = CONTACT.indexOf('{', open); i < CONTACT.length; i++) {
+      if (CONTACT[i] === '{') depth++;
+      else if (CONTACT[i] === '}' && --depth === 0) { end = i; break; }
+    }
+    expect(end, 'the attachments branch must be closed').toBeGreaterThan(open);
+
+    const inside = CONTACT.slice(open, end);
+    expect(inside, 'the storage charge belongs inside the attachments branch')
+      .toContain("enforceRateLimit('contact-storage-daily'");
+
+    // And nowhere else — one charge outside the branch bills every enquiry for storage it never used.
+    const total = CONTACT.split("enforceRateLimit('contact-storage-daily'").length - 1;
+    expect(total, 'exactly one storage charge, and it is the one inside the branch').toBe(1);
   });
 
   it('rounds the charge UP and floors it at one', () => {

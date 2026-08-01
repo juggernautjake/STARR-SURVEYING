@@ -459,13 +459,26 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   logger.startPhase('cross_validate', 'Phase 4: Cross-validating with previously extracted data');
 
   try {
-    const { data: existingPoints } = await supabaseAdmin
-      .from('research_extracted_data_points')
-      .select('data_category, extracted_value, source_document_id, confidence')
+    // `extracted_data_points`, NOT `research_extracted_data_points` — see the note on the identical
+    // query in `verify-lot/route.ts`. The phantom name plus a discarded `error` meant this phase logged
+    // nothing and contributed zero atoms on every run, indistinguishably from a project with no
+    // extractions yet (platform audit §1.1b/§8.4).
+    const { data: rows, error: pointsError } = await supabaseAdmin
+      .from('extracted_data_points')
+      .select('data_category, display_value, raw_value, document_id, extraction_confidence')
       .eq('research_project_id', projectId)
       .limit(200);
 
-    if (existingPoints && existingPoints.length > 0) {
+    if (pointsError) throw new Error(pointsError.message);
+
+    const existingPoints = ((rows ?? []) as Array<{ data_category: string; display_value: string | null; raw_value: string | null; document_id: string | null; extraction_confidence: number | string | null }>).map((r) => ({
+      data_category: r.data_category as string,
+      extracted_value: (r.display_value || r.raw_value) as string,
+      source_document_id: (r.document_id ?? null) as string | null,
+      confidence: Number(r.extraction_confidence ?? 70),
+    }));
+
+    if (existingPoints.length > 0) {
       logger.info('cross_validate', `Found ${existingPoints.length} previously extracted data points`);
 
       const categoryMap = new Map<string, string>([
