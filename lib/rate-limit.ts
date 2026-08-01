@@ -41,7 +41,7 @@ export type RateBucket =
   // These are counted per IP, because by definition there is no user. That makes them blunter than the
   // buckets above — an office behind one NAT shares a counter — so their limits are set with that in
   // mind: high enough that a shared address never notices, low enough that a script does.
-  | 'contact-form' | 'contact-form-daily' | 'public-lookup'
+  | 'contact-form' | 'contact-form-daily' | 'public-lookup' | 'public-payment'
   // A1-5 — counted in MEGABYTES rather than requests. See `contact-storage-daily` below.
   | 'contact-storage-daily';
 
@@ -123,6 +123,28 @@ export const RATE_LIMIT_BUCKETS: Record<RateBucket, BucketPolicy> = {
     limit: 30,
     windowSec: 300,
     message: 'Too many lookups just now. Wait a moment and try again, or call (936) 662-0077.',
+  },
+
+  // ── B1-1 · the public payment surface ────────────────────────────────────────────────────────────
+  //
+  // Found by the route sweep, not by reading the payment plan: A1-4 throttled the invoice LOOKUP and the
+  // four routes beside it were never given one. They are the worse half.
+  //
+  //   · `POST …/intent`   creates a Stripe PaymentIntent — a paid external call per request.
+  //   · `POST …/attempt`  records an "I sent it" claim **and emails the office**.
+  //   · `POST …/receipt`  emails a receipt.
+  //   · `GET  …/receipt/pdf` renders one.
+  //
+  // Two of those send mail, which is F1's finding arriving on a different endpoint: an exhausted Resend
+  // quota does not merely stop receipts, it stops **real customer enquiries** being emailed at all.
+  //
+  // Tighter than `public-lookup` because these have side effects rather than being a read: a customer
+  // paying an invoice makes one intent, one attempt and a receipt request or two, so ten in a quarter of
+  // an hour is invisible to them and a wall to anything else.
+  'public-payment': {
+    limit: 10,
+    windowSec: 900,
+    message: 'Too many payment requests just now. Wait a few minutes and try again, or call (936) 662-0077.',
   },
 
   // ── A1-5 · the storage a single address can consume ──────────────────────────────────────────────

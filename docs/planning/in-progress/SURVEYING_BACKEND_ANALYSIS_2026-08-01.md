@@ -171,20 +171,72 @@ mounted, which it was, invisibly, behind the site logo.
 
 ## Phase B — sweep the business routes the way the D&D routes were swept
 
-- [ ] **B1-1 — Authorization sweep over all 380 business routes**, in the style of
-      `__tests__/dnd/delete-route-authorization.test.ts`: classify each handler by its gate, then pin the
-      result with a source-scanning test so a route added in a hurry cannot skip it. The admin routes are
-      already clean (340/340) — this is about `/api/app`, `/api/platform`, `/api/webhooks` and `/api/public`.
+**ALL FOUR SHIPPED 2026-08-01.** `scripts/audit-route-auth.mjs` + `__tests__/security/route-authorization.test.ts`.
 
-- [ ] **B1-2 — Every destructive handler, specifically.** "Signed in" is never sufficient for a DELETE: the
-      question is always *whose* it is.
+### ⚠ The near-miss this document opens with happened AGAIN, to someone who had read the warning
 
-- [ ] **B1-3 — Webhook signature verification.** `/api/webhooks` accepts money-adjacent events from Stripe.
-      Verify the sweep covers replay protection, not just signature validity.
+The first sweep in this repo reported 328 of 340 admin routes as unauthenticated because it grepped for
+`getServerSession` and the code uses `auth()`. Building the sweep above, the second version of the
+predicate was `/(auth()|…)/` — and **a `` after `)` cannot match**, because the next character is
+`;` or a newline and neither is a word character. It reported **246 of 613 admin handlers as ungated.**
 
-- [ ] **B1-4 — Service-role audit.** `supabaseAdmin` bypasses RLS entirely. Enumerate every route that uses
-      it with a user-supplied id and confirm ownership is checked in the handler, because the database will
-      not check it for them.
+Same class of error, different mechanism, one document away from the warning. So the script now **prints
+its predicates with every run**, and a test asserts they still recognise the gates this codebase actually
+uses. A predicate that stops matching does not fail loudly — it quietly grows the hole list until someone
+decides the list is normal.
+
+### What the sweep actually does differently
+
+- **Per HANDLER, not per file.** A file whose `GET` is public and whose `DELETE` is ungated is not a
+  "gated route", and per-file counting is exactly how a hole hides inside a mostly-safe file. 867
+  handlers across 533 route files.
+- **A route with no gate needs a written REASON.** `INTENTIONALLY_PUBLIC` maps each to why, and the
+  script exits non-zero for anything ungated and unexplained. That is the ratchet: "nobody got round to
+  it" cannot be written down.
+
+### The result
+
+| Area | Handlers | Gated | Public by design | Ungated |
+| --- | --- | --- | --- | --- |
+| admin | 613 | 613 | 0 | **0** |
+| business | 23 | 18 | 5 | **0** |
+| cron | 16 | 16 | 0 | **0** |
+| dnd | 206 | 198 | 8 | **0** |
+| public | 7 | 2 | 5 | **0** |
+| webhooks | 2 | 2 | 0 | **0** |
+
+**The admin surface really is 613/613**, which confirms the analysis's own re-measurement.
+
+- [x] **B1-1 — Authorization sweep over every business route. SHIPPED.** And it found something the
+      payment plan did not: **the four public `…/invoice/[number]/*` payment routes had no rate limit at
+      all.** A1-4 threw one around the LOOKUP and these were never given one — and they are the worse
+      half: `POST …/intent` makes a paid Stripe call per request, `POST …/attempt` **emails the office**,
+      `POST …/receipt` **emails a receipt**. Two of them send mail, which is **F1's finding arriving on a
+      different endpoint**: an exhausted Resend quota does not merely stop receipts, it stops real
+      customer enquiries being emailed at all. All four now use a `public-payment` bucket (10 per 15
+      minutes per IP), checked FIRST so a script cannot make us do the expensive part before being
+      refused.
+
+- [x] **B1-2 — Every destructive handler, specifically. SHIPPED.** 117 destructive handlers, **0
+      ungated**, pinned by the sweep. The one flagged as destructive-and-public is
+      `POST /api/signup/complete`, and its `DELETE` is a **rollback of the organisation it created two
+      statements earlier** — read before being excused, not assumed.
+
+- [x] **B1-3 — Webhook signature verification, and replay. SHIPPED.** The Stripe webhook was already
+      right on all three counts: a constant-time signature comparison, a **five-minute timestamp
+      tolerance** (a valid signature is otherwise valid forever, so a captured request can be resent
+      tomorrow), and a `processed_webhook_events` dedup ledger for Stripe's own legitimate retries —
+      which is a different problem from replay, and a money bug rather than a security one.
+      **The inbound-email webhook was not.** It compared its shared secret with `!==`, which
+      short-circuits at the first differing character and leaks how much of the secret a caller has
+      right — only worth exploiting against an endpoint anyone may call as often as they like, which is
+      exactly what a webhook is. It now compares in constant time, like the Stripe route beside it. The
+      difference between the two was not a decision anyone made.
+
+- [x] **B1-4 — Service-role audit. SHIPPED.** `supabaseAdmin` bypasses RLS entirely, so on an ungated
+      route it is not "a missing login" — it is direct table access for anyone who finds the URL. **808
+      handlers use it; 0 are ungated.** The count is printed with every run, so it cannot drift
+      unnoticed.
 
 ## Phase C — the money path
 

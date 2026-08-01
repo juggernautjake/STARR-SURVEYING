@@ -20,6 +20,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+// B1-1 — the public payment surface was never throttled; A1-4 covered only the lookup beside it, and
+// two of these four send email, which is F1's Resend-quota finding arriving on a different endpoint.
+import { enforceRateLimit } from '@/lib/rate-limit';
 import {
   PUBLIC_BLOCKED_STATUSES,
   describePaymentForReceipt,
@@ -33,6 +36,14 @@ import {
 } from '@/lib/payments/invoice-email';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
+  // B1-1 — per IP, because a customer paying an invoice is not signed in. Placed FIRST so a script
+  // cannot make us do the expensive part — a Stripe call, an email, a PDF render — before being refused.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip')
+    || '';
+  const limited = await enforceRateLimit('public-payment', null, { ip });
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const parts = url.pathname.split('/').filter(Boolean);
   // …/invoice/<number>/receipt — number is the second-to-last segment.
