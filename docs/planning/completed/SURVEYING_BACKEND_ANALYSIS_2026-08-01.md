@@ -1,6 +1,6 @@
 # The surveying backend — full analysis, and what to do about it
 
-**Status:** IN PROGRESS · opened 2026-08-01 · owner-directed · **stop-hook doc — work it slice by slice**
+**Status:** COMPLETE · opened and finished 2026-08-01 — every slice in Phases A–E shipped · owner-directed · **stop-hook doc — work it slice by slice**
 **Owner ask:** *"I want you to do a full and complete analysis of everything on it and see if you can find any
 ways it can be improved for future use."*
 
@@ -337,11 +337,56 @@ decides the list is normal.
 
 ## Phase E — durability
 
-- [ ] **E1-1 — Where are the backups?** 277 tables of a real business. Confirm PITR is on and, more
-      importantly, that a **restore has actually been rehearsed**. An unrehearsed backup is a belief.
-- [ ] **E1-2 — What happens when Resend is down?** Today a customer enquiry emails three people and writes
-      a row. If the email fails, is the lead still captured — and does anyone know the email did not send?
-- [ ] **E1-3 — Error budget.** `/admin/error-log` exists; is anyone looking at it, and does anything alert?
+**ALL THREE SHIPPED 2026-08-01.** `scripts/verify-backup-posture.mjs`, `lib/errors/budget.ts` (14 tests),
+`GET /api/admin/errors/budget`, a banner on `/admin/error-log`, and the contact route stamping a failed
+send onto the lead.
+
+- [x] **E1-1 — Where are the backups? PART VERIFIED, part named as uncheckable — and the split is the
+      point.** *"An unrehearsed backup is a belief."* A script that printed "backups: OK" from the three
+      settings it CAN read would turn that belief into a green tick, which is worse than no script.
+      **Verified against the live database:** `wal_level = logical` and `archive_mode = on` (so
+      point-in-time recovery is *possible* — WAL carries enough to replay and is being archived), the
+      database generating WAL, **291 public tables, 125 MB**, and the oldest business row dating to
+      **2026-06-17** — which is how far back a restore has to reach to lose nothing.
+      **Named as not checkable from a database connection**, with where to look and what for: the PITR
+      retention window, the snapshot schedule and the age of the newest one, whether a restore of the
+      ROWS has ever been performed, and — the one most likely to be forgotten — **Supabase Storage is
+      not covered by the database backup at all.** A restored database with no files is a lead whose
+      site plan is a broken link.
+      **And the half that IS rehearsable has been rehearsed.** A restore has two parts, the schema and
+      the rows. The schema part is rebuildable from this repo and now runs clean end to end **twice** —
+      after two seeds were fixed that had never been run a second time (see the top of Phase A's commit
+      history). That is the part that used to be quietly broken.
+
+- [x] **E1-2 — What happens when Resend is down? SHIPPED.** The analysis asks two things and the answers
+      were different. *Is the lead still captured?* — **already yes**, Slice Q1 writes the row regardless
+      of the email outcome. *Does anyone know the email did not send?* — **no**: a `console.error`, which
+      on a serverless host is a line in a log nobody reads, about a customer nobody replied to.
+      So a failed send is now stamped **on the lead**, and the lead is given a follow-up date of TODAY —
+      which drops it straight into the queue D1-2 built one phase earlier. **A failure that becomes a
+      task in a list somebody already works is worth more than an alert to an inbox nobody configured.**
+      The warning goes at the HEAD of the notes, because a note appended below a long enquiry is a note
+      nobody scrolls to. The existing notes are READ rather than reconstructed from the intake input,
+      which would have silently dropped the reference-number line — the one thing that lets the office
+      match an inbox email to a row. And the whole update is fire-and-forget: the customer has already
+      been told their enquiry was received, and it HAS been, so failing this must not turn a captured
+      lead into a 500 for someone who did nothing wrong.
+
+- [x] **E1-3 — Error budget. SHIPPED.** `/admin/error-log` was real, `apiErrorHandler` records to
+      `error_reports` faithfully, and the answer to both halves of the question was no: nothing alerted,
+      and the page showed you every error while leaving you to work out whether that was a lot.
+      **A BUDGET, NOT A THRESHOLD**, because "alert when errors > N" is the shape that gets muted. A
+      small app throws a handful of errors a week from bots hitting dead URLs; an alarm that fires on
+      those is one somebody turns off in month two, after which nothing works and everything looks fine.
+      **The signal is the CHANGE.** Forty a week steady is a known quantity; forty against six is a
+      deploy that broke something. A spike is relative AND has a floor — without the floor, going from
+      one error to two is an infinite proportional increase and the quietest possible week produces the
+      loudest possible alarm.
+      Grouped by ROUTE rather than by message, because ten stack traces from one broken endpoint are one
+      problem and a message-keyed list shows them as ten. The sentence is built server-side so the API
+      and the banner cannot word the same numbers two different ways — the same rule C1-2 and D1-2
+      follow. And the quiet case says *"No errors recorded in the last 7 days"* rather than rendering
+      nothing, because "no news" and "nothing was checked" look identical unless one of them says so.
 
 ---
 

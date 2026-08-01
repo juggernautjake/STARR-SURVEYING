@@ -5,6 +5,9 @@ import '../styles/AdminErrors.css';
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Check, Copy } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+// E1-3 — "is this normal?", answered before the list. A raw list cannot answer the only question
+// worth asking on arrival, which is whether today looks like last week.
+import ErrorBudgetBanner from './ErrorBudgetBanner';
 
 interface ErrorReportRow {
   id: string;
@@ -325,6 +328,10 @@ export default function ErrorLogPage() {
 
   return (
     <>
+      {/* E1-3 — the CHANGE, first. Forty errors a week steady is a known quantity; forty against six
+          is a deploy that broke something, and only one of those is worth anyone's afternoon. */}
+      <ErrorBudgetBanner />
+
       {/* Summary stats */}
       <div className="err-log__stats">
         <div className={`err-log__stat ${total > 0 ? 'err-log__stat--new' : ''}`}>
