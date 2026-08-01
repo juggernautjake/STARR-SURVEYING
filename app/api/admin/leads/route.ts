@@ -17,7 +17,10 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { milestoneForLeadStatus, recordMilestone, toCents } from '@/lib/pipeline/events';
 
 const SELECT_COLS =
-  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, customer_id';
+  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, customer_id, '
+  // D1-3 — where the lead came from. A board showing only `source` reports every paid click as
+  // "Website", which is precisely how a business concludes its advertising does nothing.
+  + 'gclid, utm_source, utm_medium, utm_campaign, how_heard, referrer';
 const VALID_STATUS = new Set(['new', 'contacted', 'quoted', 'accepted', 'declined', 'lost']);
 
 // Fields a client may set on create/update (besides status, handled separately).

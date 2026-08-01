@@ -289,12 +289,51 @@ decides the list is normal.
 
 ## Phase D — the leads-to-cash loop (feeds the Google work)
 
-- [ ] **D1-1 — Lead → job conversion is one action.** `converted_job_id` exists; confirm the office can do
-      it in one click and that the lead's attribution travels with it, since that is what `job_secured`
-      uploads depend on.
-- [ ] **D1-2 — Stale-lead surfacing.** `follow_up_date` exists and nothing appears to chase it. A lead that
-      nobody rings is the cheapest lost revenue in the business.
-- [ ] **D1-3 — Source attribution on the leads board** (also G1-4 in the Google doc — do it once).
+**ALL THREE SHIPPED 2026-08-01.** `lib/leads/follow-up.ts` (18 tests),
+`GET /api/admin/leads/follow-ups`, a queue and an attribution chip on `/admin/leads`.
+
+- [x] **D1-1 — Lead → job conversion is one action. CONFIRMED, already built.** The lead detail page has
+      a **→ Convert to job** button that opens `/admin/jobs/new?fromLead=…`; the job stamps
+      `origin_lead_id`; `recordMilestone` carries the `leadId` on `job_created`, which is what the
+      `job_secured` upload depends on; and `origin-lead` reads the forward link with the reverse scan
+      kept as a fallback for rows the seed-506 backfill did not reach. **Read before being rebuilt** —
+      the alternative was a second conversion path beside the first.
+
+- [x] **D1-2 — Stale-lead surfacing. SHIPPED.** This is the only item in this document that finds money
+      already on the floor rather than preventing a loss: the lead has been paid for, and then sits with
+      a date in the past because the column was shown on one detail page and asked about nowhere.
+      **Overdue and due-today are separated, deliberately.** Yesterday's call is a mistake and today's is
+      a plan; merged, the list is red every morning before anyone has done anything wrong — and the
+      honest response to a list that is always red is to stop reading it. That failure mode has already
+      shaped one control in this document (C1-2's wording) and it shapes this one too.
+      **A converted or closed lead outranks its date.** Nobody clears a follow-up when they convert —
+      they create the job and move on, which is correct — so a chaser that ignored the conversion would
+      fill with customers who are already being surveyed.
+      **A date is not an instant**, and the test that proves it runs at four hours of the day. A bare
+      `YYYY-MM-DD` parses as UTC midnight, which is the previous evening in every American timezone: a
+      call due today would have read as overdue from 6pm the night before, so every one of tomorrow's
+      calls was red before anyone went home.
+      Sorted most-overdue first, **then by value** — two calls equally late are not equally urgent, and a
+      $12,000 boundary survey outranks a $400 lot stake when the office has ten minutes before lunch. The
+      phone number is IN the row, because a queue that makes you open a detail page to find it is a queue
+      that gets worked when there is time, which is never.
+      *Verified against the live database:* 403 anonymous; three real leads given dates produced exactly
+      `{overdue: 1, today: 1, upcoming: 1}` with the right sentences; original values restored afterwards.
+
+- [x] **D1-3 — Source attribution on the leads board. SHIPPED, once.** *"Also G1-4 in the Google doc — do
+      it once."* So it is one function that both the board and the follow-up queue call: two
+      implementations would disagree about where a lead came from on two screens, and the one the office
+      believed would be whichever they opened second.
+      **Ordered by how much each field is worth believing**, which is the whole design: `gclid` (Google
+      handed it to us — `utm_medium: cpc` is a claim, a gclid is a receipt), then `utm_*`, then what the
+      **customer** said, then the referrer host, and **the office dropdown LAST** because it is accurate
+      about intent and useless for spend. A board showing only `source` reports every paid click as
+      "Website", which is precisely how a business concludes its advertising does nothing.
+      **Nothing at all is "Unattributed", never "Direct".** Calling a lead we failed to attribute direct
+      traffic is the same mistake wearing a friendlier word.
+      *And it immediately said something true:* all four live leads currently resolve to the office
+      dropdown. There is no ad attribution on any lead in the database yet — which is the fact the
+      Google work needs to know, and which a `source`-only board would have hidden behind "Website".
 
 ## Phase E — durability
 
