@@ -16,7 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const SELECT_COLS =
-  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at';
+  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, customer_id';
 const VALID_STATUS = new Set(['new', 'contacted', 'quoted', 'accepted', 'declined', 'lost']);
 
 // Fields a client may set on create/update (besides status, handled separately).

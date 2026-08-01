@@ -245,7 +245,7 @@ attribute.
   Open questions.)*
 - Test: one submit → exactly one `gtag('event','conversion')`.
 
-### A3 — A customer is a row
+### A3 — A customer is a row ✅ SHIPPED 2026-08-01
 - **Seed 470** — `customers` (`id`, `display_name`, `primary_email`, `primary_phone`, `company`,
   `email_sha256`, `phone_sha256`, `first_lead_at`, `job_count`, `lifetime_value_cents`, `is_repeat`) plus
   `customer_id` FKs on `leads` and `jobs`.
@@ -254,6 +254,37 @@ attribute.
   fuzzy merging of two landowners is worse than a duplicate.
 - Backfill from existing leads and jobs; report the match rate rather than asserting it.
 - Intake shows "⟳ Returning customer — 2 previous jobs" on the lead detail page.
+
+> **Done.** `seeds/503_customers.sql` (applied live — the doc's claimed 470 was taken; **its seed numbers
+> are stale, check `ls seeds/` before claiming one**), `lib/customers/identity.ts` with 14 tests, the
+> backfill script, and the badge on the lead detail page.
+>
+> **The auto-merge rule is the whole slice, and the tests are weighted to it.** Same normalised email or
+> phone → merge. Same *name*, same *company*, same *address* → a row in `customer_merge_suggestions` and a
+> human decision. There are more tests pinning what must NOT merge than what must, because a duplicate row
+> is untidy and reversible while a wrong merge puts one landowner's invoices and balance under another
+> person's name — and nobody finds out until somebody is billed for a survey they never ordered.
+>
+> **Email beats phone** where both could match: a phone is far likelier to be shared (a household, a
+> switchboard, a spouse) than an address.
+>
+> **It hashes with the Ads module** (`lib/integrations/google/hash.ts`), not a local normaliser, so a
+> customer's match key and their conversion key can never be computed two different ways — the Gmail rule
+> is exactly the detail that would end up subtly right in one file and subtly wrong in the other. That also
+> **settles the open deviation flagged at the top of this doc**: the hashes ARE stored on the row, as the
+> plan wanted, because they do double duty and because computing them at upload would make a customer who
+> later corrects or erases their email retroactively unattributable.
+>
+> **Backfill reported rather than asserted, exactly as this slice asked:** 4 of 4 leads matched and linked
+> (100%); **0 of 2 jobs**, because both carry no usable email or phone and are therefore *permanently*
+> unlinkable by identity. That is a fact about the historical data, not a failure — and it is the kind of
+> number a backfill that just printed "done" would have hidden. Re-running scans 0 rows, so it is idempotent.
+>
+> ⚠ **Not browser-verified.** `/admin` needs a Starr staff session this environment does not have, so the
+> badge was never rendered on screen. `__tests__/customers/lead-repeat-badge.test.ts` locks the chain that
+> the "authored but not shipped" defect actually breaks — column selected → API returns it → client reads
+> it → badge conditional on `is_repeat` → the class has styling behind it — but **someone should look at
+> it** the next time they are signed in as staff.
 
 ### A4 — The lifecycle event stream
 - **Seed 471** — `lead_lifecycle_events` (`id`, `lead_id`, `job_id`, `customer_id`, `milestone`, `occurred_at`,

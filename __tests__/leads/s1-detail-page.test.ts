@@ -28,11 +28,13 @@ describe('/api/admin/leads/[id] — single-lead GET endpoint', () => {
   it('returns 400 when id is missing, 404 when not found, 200 with the row otherwise', () => {
     expect(SRC).toMatch(/return NextResponse\.json\(\{ error: 'Missing lead id' \}, \{ status: 400 \}\)/);
     expect(SRC).toMatch(/return NextResponse\.json\(\{ error: 'Lead not found' \}, \{ status: 404 \}\)/);
-    // lead-attachments-storage-2026-06-18 — successful return now sends
-    // a `{ lead }` shape (attachments signed via the bucket before
-    // serialising), not the raw `{ lead: data }` shape from the
-    // original Slice S1 implementation.
-    expect(SRC).toMatch(/return NextResponse\.json\(\{ lead \}\);/);
+    // lead-attachments-storage-2026-06-18 — successful return sends a `{ lead }` shape (attachments
+    // signed via the bucket before serialising), not the raw `{ lead: data }` of the original Slice S1.
+    //
+    // A3 (2026-08-01) widened it to `{ lead, customer }`: the lead's own fields answer "what is this
+    // enquiry", and the customer answers "who is this person across all their work". `customer` is
+    // nullable — a walk-in with no email or phone has no identity to match on, and that is ordinary.
+    expect(SRC).toMatch(/return NextResponse\.json\(\{ lead, customer \}\);/);
   });
 
   it('fetches via .eq(id).maybeSingle() so a missing row returns null rather than throwing', () => {

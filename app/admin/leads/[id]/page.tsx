@@ -63,6 +63,16 @@ interface Lead {
   attachments?: LeadAttachment[];
 }
 
+/** A3 — who this person is across ALL their work, not just this enquiry. Null for a lead with no
+ *  matchable identifier (a walk-in with no email or phone), which is ordinary and must still render. */
+interface CustomerSummary {
+  id: string;
+  display_name: string;
+  job_count: number;
+  lifetime_value_cents: number;
+  is_repeat: boolean;
+}
+
 /** Pure helper — pretty-print bytes for the attachment chip strip. */
 function fmtBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '0 B';
@@ -116,6 +126,7 @@ export default function LeadDetailPage() {
   const { safeFetch, safeAction } = usePageError('LeadDetailPage');
   const router = useRouter();
   const [lead, setLead] = useState<Lead | null>(null);
+  const [customer, setCustomer] = useState<CustomerSummary | null>(null);
   const [loading, setLoading] = useState(true);
   // lead-reply-2026-06-18 — Reply modal open / closed.
   const [replyOpen, setReplyOpen] = useState(false);
@@ -128,10 +139,11 @@ export default function LeadDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await safeFetch<{ lead: Lead }>(
+      const res = await safeFetch<{ lead: Lead; customer: CustomerSummary | null }>(
         `/api/admin/leads/${encodeURIComponent(id)}`,
       );
       setLead(res?.lead ?? null);
+      setCustomer(res?.customer ?? null);
     } finally {
       setLoading(false);
     }
@@ -229,6 +241,25 @@ export default function LeadDetailPage() {
           >
             {statusOption?.label ?? lead.status}
           </span>
+          {/* A3 — RETURNING CUSTOMER, beside the name rather than buried in a panel below.
+              The whole value of the customers table is answering "have we worked for this person
+              before?" in the two seconds before someone picks up the phone. A badge that requires
+              scrolling to find would be a fact nobody acts on.
+              Shown only when there IS previous work — a first-time enquiry needs no badge, and
+              labelling everyone would make the signal worthless. */}
+          {customer?.is_repeat && (
+            <span
+              className="lead-detail__repeat-pill"
+              data-testid="lead-repeat-customer"
+              title={`${customer.display_name} — ${customer.job_count} previous job${customer.job_count === 1 ? '' : 's'}`}
+            >
+              <span aria-hidden>⟳</span> Returning customer — {customer.job_count} previous job
+              {customer.job_count === 1 ? '' : 's'}
+              {customer.lifetime_value_cents > 0 && (
+                <> · ${(customer.lifetime_value_cents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} to date</>
+              )}
+            </span>
+          )}
         </div>
         <div className="lead-detail__actions">
           {/* lead-reply-2026-06-18 — primary reply button. Opens the
@@ -544,6 +575,20 @@ export default function LeadDetailPage() {
           text-transform: uppercase;
           letter-spacing: 0.04em;
           white-space: nowrap;
+        }
+        /* A3 — the returning-customer badge. Green rather than the status pill's palette, because it
+           answers a different question: the status pill says where this ENQUIRY is, this says who the
+           PERSON is. Deliberately not uppercase — it carries a sentence, and shouting a sentence is
+           harder to read than the two words the status pill carries. */
+        .lead-detail__repeat-pill {
+          padding: 4px 10px;
+          border-radius: 999px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          white-space: nowrap;
+          background: #ecfdf5;
+          color: #065f46;
+          border: 1px solid #a7f3d0;
         }
         .lead-detail__actions {
           display: flex;

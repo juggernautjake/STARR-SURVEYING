@@ -24,6 +24,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyMany } from '@/lib/notifications';
 import { hasAttribution, type Attribution } from './attribution';
+import { upsertCustomer } from '@/lib/customers/identity';
 
 /** Roles that get an in-app notification when a public query arrives.
  *  Centralized so future role additions stay in lockstep. */
@@ -295,9 +296,24 @@ export async function insertLeadFromForm(
 ): Promise<{ id: string } | null> {
   const row = buildLeadRowFromForm(input);
   try {
+    // A3 — give the enquiry a CUSTOMER before the lead row is written, so a returning landowner is
+    // recognisable the moment their enquiry lands rather than after someone notices the name.
+    //
+    // `upsertCustomer` never throws and returns null on any failure, which is the behaviour this function
+    // already relies on for its own insert: the email send is the legal record, everything else is
+    // enrichment, and a customer-matching problem must never turn a successful form submit into a 500 the
+    // customer sees. A lead with a null `customer_id` is a lead the backfill can pick up later.
+    const customer = await upsertCustomer({
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      company: input.company,
+      address: input.propertyAddress,
+    });
+
     const { data, error } = await client
       .from('leads')
-      .insert(row)
+      .insert({ ...row, customer_id: customer?.id ?? null })
       .select('id')
       .single();
     if (error || !data) {

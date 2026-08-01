@@ -20,7 +20,7 @@ import { signLeadAttachmentUrls } from '@/lib/leads/intake';
 
 // lead-attachments-2026-06-18 — `attachments` column added in seed 317.
 const SELECT_COLS =
-  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, attachments';
+  'id, name, email, phone, company, source, status, notes, property_address, city, state, survey_type, estimated_acreage, quote_amount, assigned_to, follow_up_date, converted_job_id, created_by, created_at, updated_at, attachments, customer_id';
 
 async function requireAdmin() {
   const session = await auth();
@@ -68,8 +68,26 @@ export const GET = withErrorHandler(
       supabaseAdmin.storage,
       rawAttachments as Array<{ name: string; size: number; storage_path?: string }>,
     );
+    // A3 — the returning-customer summary, so the office knows who they are talking to BEFORE they
+    // pick up the phone. Fetched here rather than joined into `SELECT_COLS` because it is a different
+    // question ("who is this person across all their work") from the lead's own fields, and because a
+    // lead with no `customer_id` — a walk-in with no email or phone — must still render.
+    let customer: {
+      id: string; display_name: string; job_count: number;
+      lifetime_value_cents: number; is_repeat: boolean;
+    } | null = null;
+    const customerId = raw.customer_id;
+    if (typeof customerId === 'string' && customerId) {
+      const { data: c } = await supabaseAdmin
+        .from('customers')
+        .select('id, display_name, job_count, lifetime_value_cents, is_repeat')
+        .eq('id', customerId)
+        .maybeSingle();
+      if (c) customer = c as typeof customer;
+    }
+
     const lead = { ...raw, attachments: signed };
-    return NextResponse.json({ lead });
+    return NextResponse.json({ lead, customer });
   },
   { routeName: 'admin/leads/[id]' },
 );
