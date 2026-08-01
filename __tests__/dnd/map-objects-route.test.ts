@@ -40,8 +40,18 @@ describe('map-objects route — the gate', () => {
       const end = body.indexOf('\nexport async function', 1);
       const fn = end === -1 ? body : body.slice(0, end);
       expect(fn, `${verb} must call nodeGate`).toMatch(/await nodeGate\(/);
-      expect(fn, `${verb} must return the gate's refusal`).toMatch(/if \('error' in gate\) return gate\.error/);
       expect(fn, `${verb} must require a session`).toMatch(/getDndSession\(\)/);
+      // POST and DELETE return the DM gate's refusal outright. PATCH has ONE narrow exception — M7-1's
+      // "own-token movable" — so it must still return `gate.error` on the path where that exception does
+      // not apply, and the exception itself must be checked against the CHARACTER's owner rather than
+      // against anything the client said.
+      if (verb === 'PATCH') {
+        expect(fn, 'PATCH must still refuse when the player exception does not apply').toMatch(/if \(!mine\) return gate\.error/);
+        expect(fn, 'the exception must be gated on owning the token').toMatch(/await ownsToken\(user\.id, before\[0\]\)/);
+        expect(fn, 'and on the request changing nothing but position').toMatch(/onlyMoves/);
+      } else {
+        expect(fn, `${verb} must return the gate's refusal`).toMatch(/if \('error' in gate\) return gate\.error/);
+      }
     }
   });
 
@@ -189,5 +199,31 @@ describe('M4-2 is wired, not just written', () => {
 
   it('the control posts to the route that exists', () => {
     expect(ui).toMatch(/\/api\/dnd\/campaigns\/\$\{encodeURIComponent\(campaignId\)\}\/map-objects/);
+  });
+});
+
+describe('M7-1 — a player may move their own token, and only move it', () => {
+  it('checks ownership against the CHARACTER row, not against anything the client sent', () => {
+    // A token's `data.characterId` is the DM's claim about what the piece stands for.
+    // `dnd_characters.owner_user_id` is the database's claim about whose it is, and only the second one
+    // is a permission.
+    expect(src).toMatch(/from\('dnd_characters'\)[\s\S]{0,120}eq\('owner_user_id', userId\)/);
+  });
+
+  it('allows position fields only — a body carrying `visibility` is a reveal wearing a move\'s clothes', () => {
+    const list = src.match(/PLAYER_MOVE_FIELDS = new Set\(\[([^\]]*)\]/)![1];
+    for (const allowed of ['x', 'y', 'dx', 'dy']) expect(list).toContain(`'${allowed}'`);
+    for (const forbidden of ['visibility', 'label', 'z', 'data', 'dmNotes', 'assetUrl']) {
+      expect(list, `${forbidden} must not be player-writable`).not.toContain(`'${forbidden}'`);
+    }
+  });
+
+  it('refuses a bulk move, so the exception cannot be widened by passing an array', () => {
+    expect(src).toMatch(/before\.length === 1/);
+  });
+
+  it('still requires campaign membership — owning a character is not being at the table', () => {
+    // A character can outlive the campaign it was made in.
+    expect(src).toMatch(/Not a member of this campaign/);
   });
 });

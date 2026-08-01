@@ -1624,6 +1624,116 @@ to child nodes rather than being blob-only.
 
 ---
 
+## Phase M7 — live play — **SHIPPED 2026-08-01**
+
+> `seeds/512_dnd_map_fog.sql` (applied live, idempotent), `lib/dnd/maps/fog.ts` (13 tests),
+> `FogOverlay` / `FogTools` / `LiveMap`, the player-move exception on `map-objects`, and the search's
+> feed line. Driven live with a DM and two players on one fogged map.
+
+### M7-1 · Player view — read-only, fog-limited, **own-token movable**
+
+The first two clauses were already true: G3 has made the player's view a different QUERY since M3-2, so
+there is nothing on their page to make read-only. The third was the hole, and it is deliberately the
+narrowest possible exception to the DM-only rule.
+
+**A player may change the POSITION of a token bound to a character they own, and nothing else.** Not its
+visibility (which would reveal an ambusher), not its label, not its layer, not another player's piece,
+and not several at once. `PLAYER_MOVE_FIELDS` is a whitelist and a body carrying `visibility` beside `x`
+is **not a move with an extra field — it is a reveal wearing a move's clothes**, so the whole request is
+refused rather than filtered.
+
+**Ownership is checked against the CHARACTER row.** A token's `data.characterId` is the DM's claim about
+what the piece stands for; `dnd_characters.owner_user_id` is the database's claim about whose it is, and
+only the second one is a permission. Campaign membership is still required on top — owning a character is
+not being at the table, and a character can outlive the campaign it was made in.
+
+### M7-2 · Fog of war — it HIDES, it does not darken
+
+The whole slice turns on one decision. **A player's fog is opaque and the things under it are not sent at
+all**: tokens, scenery, pins, discovered secrets and persisted spell areas are each filtered out of the
+render, not covered up. A token drawn beneath a translucent overlay is a token anybody can find by
+turning up their screen brightness — the same class of mistake as filtering a secret in React instead of
+in the query (G3). The DM's fog is a wash, because their job is to read the map AND know what the party
+cannot see.
+
+**Fog is one masked rectangle, not a grid of dark cells.** A per-cell fog is 1,600 elements on a 40×40
+map to draw a shape that is mostly one colour, and it looks blocky in a way nothing else here does. One
+`<rect>` with an SVG mask, holes punched by the revealed patches and the vision circles, at any zoom.
+
+**`fog` is a column, not an inference.** The tempting version — "fog is on when a revealed patch exists"
+— needs no schema change and is wrong exactly when fog matters most: a DM who has darkened a corridor and
+revealed nothing yet would have no fog at all, because there is nothing to infer it from. And not on
+`grid`, which `readGrid` sanitises to a fixed shape and which M4-1 already found two names for.
+
+**Revealed regions are ordinary `area` objects** (`data.fog = 'revealed'`), so every M4-2 tool reaches
+them — including the one that matters at a table: a DM who reveals the wrong room presses **⟲ Undo**.
+
+**Vision is read from the sheet.** `speciesView(...).senses` already says "Darkvision 60 ft" on the
+player's own sheet; `visionFt` takes the LARGEST stated sense rather than the first, because taking the
+first makes the answer depend on the order a species file was written in. Feet are converted through the
+node's own grid, so 60 ft of darkvision is 60 feet of *this* map. A character whose senses say nothing
+gets `DEFAULT_SIGHT_FT` — a **stated** default rather than an invented rule, because with fog on a party
+of humans would otherwise be blind and a DM would have to hand out darkvision to run a dark corridor.
+
+### M7-3 · Sync — refresh the server render, do not mirror it
+
+Everything on this page is computed on the server: the G3 split, the fog holes, the terrain costs, the
+portraits. A client-side mirror would be a second implementation of all of it, and **the first thing to
+drift would be the one that decides what a player may see.** So `LiveMap` calls `router.refresh()`, which
+re-runs the same render for this viewer — which means a late joiner and a reconnect need no special case,
+because their next refresh IS full state, produced by the code that owns the rules. That is P7-4's
+"late-joiner full state" satisfied by construction rather than by a second payload.
+
+Three rules make polling behave, and each is a defect avoided:
+
+1. **Nothing polls a hidden tab** — a DM with twelve tabs open is not re-rendering twelve maps. This is
+   also the reconnect-after-sleep fix: a waking laptop fires `visibilitychange` and refreshes at once
+   rather than at the next tick.
+2. **Nothing refreshes while an input is focused.** `router.refresh()` swaps the server-rendered tree
+   under a control and can drop a keystroke — and the DM authoring a description is the one person
+   guaranteed to be typing on this page.
+3. **A refresh in flight is not started again**, so a slow connection does not stack requests and make
+   the page worse the worse the network is.
+
+And a **Pause while I set up** button, because a DM staging a scene needs the board to hold still — the
+small version of the plan's "stage privately and publish".
+
+### M7-4 · The roll feed connection — and the care it needs
+
+A map search now posts to `dnd_roll_log`, which is where the plan says it belongs (*"the feed work
+already shipped is the right home, not a second log"*).
+
+**And it says nothing about whether anything was found.** A line reading "found something" on a hit would
+announce to the whole table that there WAS something to find — the same leak M6-1 closed by refusing to
+return the miss counts. The feed carries what a table actually sees when someone searches a room: who
+searched, with what, where, and the number on the die. Verified: a roll of 4 and a roll of 19 produce
+identical lines apart from the number.
+
+### Verified live — one fogged crypt, one DM, two players
+
+| | |
+|---|---|
+| Player's own token | visible |
+| A token 100 ft away in the dark | **not in their HTML at all** |
+| Scenery beside it | **not in their HTML at all** |
+| Fog holes for the player | 1 — their own dwarf's vision |
+| DM | sees all three |
+| After the DM brushes that corner | the player sees both, immediately |
+| Player moves own token to (22, 22) | **200**, snapped to (22.5, 22.5) |
+| Player moves another player's token | **403** |
+| Player sends `{x, y, visibility: 'dm'}` | **403** — the whole request, not the visibility field |
+| A third player moving the first one's token | **403** |
+| Feed after a miss (4) and a hit (19) | two identical lines, differing only in the number |
+
+Test data removed afterwards — 0 nodes.
+
+**Still open, and named:** drag-to-move (the write path exists; the gesture does not), and nothing emits
+`token_enters` automatically, so M6-4's executor is reachable from the DM's button and an explicit event
+POST but not yet from a token crossing a region.
+
+
+### The original M7 plan text
+
 ## Phase M7 — live play
 
 ### M7-1 · Player view

@@ -30,6 +30,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getDndSession, getCampaignRole } from '@/lib/dnd/auth';
 import { enforceRateLimit } from '@/lib/dnd/rate-limit';
 import { clampToMap, readToken, snapToGrid } from '@/lib/dnd/maps/tokens';
+import { getDndUser } from '@/lib/dnd/auth';
 import { readGrid } from '@/lib/dnd/maps/grid';
 import {
   SIZEABLE_KINDS, clampSize, clampZ, duplicateOffset, normalizeRotation, summarizeEdit,
@@ -44,6 +45,30 @@ const VISIBILITIES = new Set(['dm', 'players', 'discovered']);
 /** One request may not touch more than this. A selection is a handful of pieces; a thousand ids is a
  *  script, and a bulk verb with no ceiling is the cheapest way to make a route expensive to call. */
 const MAX_BULK = 100;
+
+/**
+ * M7-1 — may this player move THIS token?
+ *
+ * The plan's player view is *"read-only, fog-limited, own-token movable"*, and the last clause is the
+ * only hole in the DM-only rule — deliberately narrow. A player may change the POSITION of a token bound
+ * to a character they own, and nothing else: not its visibility (which would reveal an ambusher), not
+ * its label, not its layer, and not another player's piece.
+ *
+ * The ownership is checked against the CHARACTER row, not against anything the client said. A token's
+ * `data.characterId` is the DM's claim about what it stands for; `dnd_characters.owner_user_id` is the
+ * database's claim about whose it is, and only the second one is a permission.
+ */
+async function ownsToken(userId: string, row: MapObjectRow): Promise<boolean> {
+  if (row.kind !== 'token') return false;
+  const token = readToken(row.data);
+  if (!token || !('characterId' in token.subject)) return false;
+  const { data } = await supabaseAdmin
+    .from('dnd_characters').select('id').eq('id', token.subject.characterId).eq('owner_user_id', userId).maybeSingle();
+  return Boolean(data);
+}
+
+/** The fields a player is allowed to change on their own token — position, and only position. */
+const PLAYER_MOVE_FIELDS = new Set(['id', 'ids', 'x', 'y', 'dx', 'dy', 'freehand']);
 
 /** The node, and whether this caller is the DM of the campaign that actually owns it. */
 async function nodeGate(nodeId: unknown) {
@@ -229,8 +254,25 @@ export async function PATCH(req: NextRequest) {
   if (nodeIds.size > 1) {
     return NextResponse.json({ error: 'Those objects are on different maps.' }, { status: 400 });
   }
-  const gate = await nodeGate(before[0].map_node_id);
-  if ('error' in gate) return gate.error;
+  let gate = await nodeGate(before[0].map_node_id);
+  if ('error' in gate) {
+    // M7-1 — a player moving their OWN token. Only reached when the DM gate refused, and only for a
+    // request that changes nothing but position: a body carrying `visibility` alongside `x` is not a
+    // move with an extra field, it is a reveal wearing a move's clothes.
+    const user = await getDndUser();
+    const onlyMoves = Object.keys(body).every((k) => PLAYER_MOVE_FIELDS.has(k));
+    const mine = user && onlyMoves && before.length === 1 && (await ownsToken(user.id, before[0]));
+    if (!mine) return gate.error;
+    const { data: node } = await supabaseAdmin
+      .from('dnd_map_nodes').select('id, campaign_id, grid, bounds').eq('id', before[0].map_node_id).maybeSingle();
+    if (!node) return NextResponse.json({ error: 'No such map node.' }, { status: 404 });
+    // Still a member of the campaign the node belongs to — owning a character is not membership, and a
+    // character can outlive the campaign it was made in.
+    if ((await getCampaignRole((node as { campaign_id: string }).campaign_id)) === null) {
+      return NextResponse.json({ error: 'Not a member of this campaign.' }, { status: 403 });
+    }
+    gate = { node: node as { id: string; campaign_id: string; grid: Record<string, unknown>; bounds: Record<string, unknown> } };
+  }
 
   const bulk = Array.isArray(body.ids);
   const freehand = body.freehand === true;

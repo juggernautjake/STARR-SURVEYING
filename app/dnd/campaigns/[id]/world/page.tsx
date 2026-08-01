@@ -45,6 +45,13 @@ import { isCurrentToken, loadLiveTurn, turnSummary } from '@/lib/dnd/maps/turn';
 import { describePlan, preview, readTrigger } from '@/lib/dnd/maps/triggers';
 // M6-4's executor, reachable from the board that previews it.
 import FireTrigger from '@/app/dnd/_ui/maps/FireTrigger';
+// M7-2 — fog of war: the dark, the DM's brush, and what a player's own tokens can see through it.
+// M7-3 — everyone at the table sees the same board.
+import LiveMap from '@/app/dnd/_ui/maps/LiveMap';
+import FogOverlay from '@/app/dnd/_ui/maps/FogOverlay';
+import FogTools from '@/app/dnd/_ui/maps/FogTools';
+import { fogHoles, isVisible as visibleThroughFog, readFog, visionFt } from '@/lib/dnd/maps/fog';
+import { feetToWorld } from '@/lib/dnd/maps/grid';
 // M6-2 — what the party notices by standing there, no roll required.
 import { scanPassive } from '@/lib/dnd/maps/passive-scan';
 import MapViewport from '@/app/dnd/_ui/maps/MapViewport';
@@ -179,6 +186,43 @@ export default async function WorldPage({
     if (!hit) return null;
     return hit.t.nickname || subjects.get(subjectKey(hit.t.subject))?.name || null;
   };
+  // ── M7-2 · fog of war ────────────────────────────────────────────────────────────────────────────
+  //
+  // The holes are the DM's revealed patches plus what the VIEWER's own tokens can see. A DM passes no
+  // tokens and gets only the patches: their fog is a wash reminding them what the party cannot see, not
+  // a limit on themselves.
+  const fogOn = Boolean(current?.fog);
+  const revealedPatches = fogOn && current
+    ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'area' && readFog(o.data))
+      .map((o) => ({ x: Number(o.x), y: Number(o.y), w: o.w == null ? null : Number(o.w), h: o.h == null ? null : Number(o.h) }))
+    : [];
+  const fogGrid = readGrid(current?.grid);
+  const seeingTokens = fogOn && !isDm && current
+    ? nodeTokens
+      .filter(({ t }) => 'characterId' in t.subject && discoveredBy.includes(t.subject.characterId))
+      .map(({ o, t }) => {
+        const view = subjects.get(subjectKey(t.subject));
+        const ft = visionFt(view?.senses);
+        return {
+          x: Number(o.x), y: Number(o.y),
+          // Feet → world units through the node's OWN grid, so 60 ft of darkvision is 60 feet of THIS
+          // map rather than a number that means something different on every one. A map with no grid
+          // has no feet, so vision falls back to a fixed slice of the world box.
+          radiusWorld: fogGrid ? feetToWorld(ft, fogGrid) : 8,
+        };
+      })
+    : [];
+  const holes = fogOn ? fogHoles(revealedPatches, seeingTokens) : [];
+  /**
+   * What fog HIDES rather than darkens.
+   *
+   * A player's fog is opaque, and the things under it are not rendered at all — a token drawn beneath a
+   * translucent overlay is a token anybody can find by turning up their screen brightness, which is the
+   * same class of mistake as filtering a secret in React instead of in the query (G3). The DM is exempt,
+   * because their fog is a wash over a map they are supposed to be able to read.
+   */
+  const throughFog = (x: number, y: number) => !fogOn || isDm || visibleThroughFog(holes, x, y);
+
   // M4-2 / G7 — what the undo control will say it takes back. DM-only: a player has nothing to undo, and
   // the query would be work nobody reads.
   const undoLabel = isDm && current ? await pendingUndo(current.id) : null;
@@ -481,7 +525,7 @@ export default async function WorldPage({
                       context, what you are aiming is the decision. An EXPIRED area is drawn faded rather
                       than removed — a wall of fire that silently vanished would look like a bug or like
                       something a player dispelled, and taking it off is one press in the object tools. */}
-                  {keptAreas.map((a) => (
+                  {keptAreas.filter((a) => throughFog(Number(a.o.x), Number(a.o.y))).map((a) => (
                     readGrid(current.grid) && (
                       <ReachOverlay
                         key={a.o.id}
@@ -534,6 +578,10 @@ export default async function WorldPage({
                       see nothing, and still be offered controls to resize it. */}
                   {objects
                     .filter((o) => o.map_node_id === current.id && DRAWN_KINDS.has(o.kind))
+                    // A fog patch is the HOLE, not a thing on the map — drawing it as a translucent
+                    // rectangle would put a visible box around every revealed room.
+                    .filter((o) => !readFog(o.data))
+                    .filter((o) => throughFog(Number(o.x), Number(o.y)))
                     .map((o) => (
                       <MapObjectView
                         key={o.id}
@@ -551,7 +599,7 @@ export default async function WorldPage({
 
                   {/* Pins sit in the map's own 0-100 world space, inside the transform — so they track the
                       map under pan and zoom rather than floating over it. */}
-                  {nodePins.map((p) => {
+                  {nodePins.filter((p) => throughFog(Number(p.x), Number(p.y))).map((p) => {
                     const target = p.child_node_id && nodes.find((n) => n.id === p.child_node_id);
                     const label = p.label || (target ? target.name : 'Unmapped location');
                     // M3-3 — what a pin DRAWS follows the zoom. The label is always in the markup and only
@@ -620,7 +668,7 @@ export default async function WorldPage({
                   })}
                   {/* M6-1 — a hidden thing that has been found (or, for the DM, one they placed). Drawn
                       UNDER the tokens, like the pins: a discovery is part of the room, not a piece on it. */}
-                  {nodeReveals.map((o) => (
+                  {nodeReveals.filter((o) => throughFog(Number(o.x), Number(o.y))).map((o) => (
                     <div
                       key={o.id}
                       title={[o.label, o.description].filter(Boolean).join(' — ') || 'Something hidden'}
@@ -658,7 +706,7 @@ export default async function WorldPage({
                       every zoom, but a token occupies squares, and a token that kept its screen size while
                       the map grew would slide off the space it is standing in. Its footprint comes from the
                       node's own grid (tokenFootprint), so a Large creature covers 2×2 and looks it. */}
-                  {nodeTokens.map(({ o, t }) => {
+                  {nodeTokens.filter(({ o }) => throughFog(Number(o.x), Number(o.y))).map(({ o, t }) => {
                     const subject = subjects.get(subjectKey(t.subject));
                     // The DM's explicit override, else the creature's own size, else medium. "Not stated"
                     // now means ASK rather than "medium", which is why an Ogre stops standing on one square.
@@ -753,7 +801,20 @@ export default async function WorldPage({
                       </Link>
                     );
                   })}
+                  {/* M7-2 — the dark. Last in the DOM so it lies over the map and its scenery; its own
+                      z-index puts it UNDER the tokens, because a piece the party CAN see must not be
+                      dimmed by the fog around it. */}
+                  {fogOn && <FogOverlay holes={holes} isDm={isDm} id={current.id} />}
                 </MapViewport>
+                <div style={{ padding: '6px 12px 10px' }}>
+                  {/* M7-3 — said out loud. A board that silently updates is one a DM distrusts the moment
+                      something moves that they did not move. */}
+                  <LiveMap
+                    label={isDm
+                      ? 'This map updates for everyone at the table.'
+                      : 'This map updates as your DM changes it.'}
+                  />
+                </div>
               </section>
 
               {/* M5-2 — the numbers behind the wash. The overlay answers "can I get there"; this answers
@@ -1026,6 +1087,15 @@ export default async function WorldPage({
                     campaignId={campaignId}
                     nodeId={current.id}
                     assets={mapAssets}
+                    cell={readGrid(current.grid)?.size ?? null}
+                  />
+                  {/* M7-2 — fog sits with the dressing tools for the same reason: it is part of
+                      preparing a room, and it is the one control a DM reaches for the moment the party
+                      opens a door. */}
+                  <FogTools
+                    campaignId={campaignId}
+                    nodeId={current.id}
+                    fog={Boolean(current.fog)}
                     cell={readGrid(current.grid)?.size ?? null}
                   />
                   {/* M5-2 — terrain sits with the asset tray because it is the same job: dressing the

@@ -41,6 +41,15 @@ export interface TokenSubjectView {
   /** The subject's OWN size. Null when nothing states one — the renderer then falls back to medium. */
   size: TokenSize | null;
   /**
+   * M7-2 — what this creature can see, in the sheet's own words ("Darkvision 60 ft").
+   *
+   * Read here rather than parsed here, and read from `speciesView` for the same reason `size` is: a PF2
+   * ancestry's senses are PF2's business. `fog.visionFt` turns the strings into a radius, so the map
+   * holds no opinion about how far a dwarf sees — it asks, exactly as it asks for speed and for a
+   * spell's area.
+   */
+  senses: string[];
+  /**
    * M5-4 — the conditions the SHEET is tracking right now, read at the same moment as the portrait and
    * for the same reason: a condition copied onto the token is a condition that stays after it ends. The
    * DM would clear "poisoned" on the sheet and the board would keep showing it, with nothing saying the
@@ -113,6 +122,7 @@ async function loadCharacters(ids: Set<string>, views: SubjectViews): Promise<vo
       // Through `speciesView`, which is the system-keyed dispatcher for lineage data — so a PF2 ancestry's
       // size is read by PF2's rules and a 2014 race's by 2014's, rather than by a table living here.
       size: parseTokenSize(speciesView(row.system, species)?.size),
+      senses: speciesView(row.system, species)?.senses ?? [],
       // Filtered to non-empty strings: a sheet with a stray '' in the array would otherwise render a
       // badge with no word in it, which reads as a rendering bug rather than as empty data.
       conditions: Array.isArray(row.combat?.conditions)
@@ -150,6 +160,9 @@ async function loadCreatures(ids: Set<string>, views: SubjectViews): Promise<voi
       name: row.name,
       portrait: row.image_url ?? null,
       size: parseTokenSize(row.size),
+      // A bestiary row states senses in its own shape and nothing parses them yet. Empty is the honest
+      // answer: a creature then gets the default sight radius rather than an invented darkvision.
+      senses: [],
       // A bestiary row is a TEMPLATE, not a thing standing on the board — there is nowhere per-instance
       // for a condition to live, and inventing one would poison every copy of that monster at once.
       conditions: [],
@@ -190,6 +203,7 @@ async function loadVariants(ids: Set<string>, views: SubjectViews): Promise<void
       name: row.name || parent?.name || 'Creature',
       portrait: parent?.image_url ?? null,
       size: parseTokenSize(parent?.size),
+      senses: [],
       // Same as the base creature: a variant is still a template. See above.
       conditions: [],
       exhaustion: 0,

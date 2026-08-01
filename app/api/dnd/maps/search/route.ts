@@ -53,20 +53,27 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   // The node decides the campaign, and the campaign decides whether this user may search at all.
   const { data: node } = await supabaseAdmin
-    .from('dnd_map_nodes').select('id, campaign_id').eq('id', nodeId).maybeSingle();
+    .from('dnd_map_nodes').select('id, campaign_id, name').eq('id', nodeId).maybeSingle();
   const campaignId = (node as { campaign_id?: string } | null)?.campaign_id;
   if (!campaignId) return NextResponse.json({ error: 'Map not found.' }, { status: 404 });
 
   const role = await getCampaignRole(campaignId);
   if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  // Names for the feed line (M7-4). Read here, where the rows are already in hand — a second query later
+  // would be work for something the request has already fetched.
+  const nodeName = (node as { name?: string } | null)?.name ?? 'this place';
+  // Title-cased so the feed reads "Perception — searching Kettle Corner" rather than "perception —".
+  const skillLabel = skill.charAt(0).toUpperCase() + skill.slice(1);
+
   // The character must belong to this campaign. Without this a member could search using another
   // campaign's character id and quietly write discoveries onto it.
   const { data: character } = await supabaseAdmin
-    .from('dnd_characters').select('id, campaign_id').eq('id', characterId).maybeSingle();
+    .from('dnd_characters').select('id, campaign_id, name').eq('id', characterId).maybeSingle();
   if ((character as { campaign_id?: string } | null)?.campaign_id !== campaignId) {
     return NextResponse.json({ error: 'That character is not in this campaign.' }, { status: 403 });
   }
+  const characterName = (character as { name?: string } | null)?.name ?? null;
 
   // Hidden objects on this node. Read with the admin client on purpose — this is the server doing the
   // comparison the client is not allowed to do.
@@ -102,6 +109,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       { onConflict: 'map_object_id,character_id', ignoreDuplicates: true },
     );
   }
+
+  // ── M7-4 · the roll goes on the table's own feed ─────────────────────────────────────────────────
+  //
+  // *"Map-driven checks appear in the existing recent-rolls feed with their reason — the feed work
+  // already shipped is the right home, not a second log."*
+  //
+  // AND IT SAYS NOTHING ABOUT WHETHER ANYTHING WAS FOUND. That is the whole care needed here: a feed
+  // line reading "found something" on a hit and "found nothing" on a miss would announce, to everyone at
+  // the table, that there WAS something to find — the same leak M6-1 closed by refusing to return the
+  // miss counts. What the feed carries is exactly what a table sees when someone searches a room: who
+  // searched, with what, where, and the number on the die.
+  //
+  // Fire-and-forget on the failure path, deliberately: a search must not fail because the feed did.
+  // Same rule as `publishRoll` and the Discord mirror.
+  void supabaseAdmin.from('dnd_roll_log').insert({
+    campaign_id: campaignId,
+    character_id: characterId,
+    actor_name: characterName,
+    label: `${skillLabel} — searching ${nodeName}`,
+    result: Math.round(total),
+    crit: false,
+    fumble: false,
+  }).then(() => {}, () => {});
 
   // ONLY the finds. `misses` is deliberately not returned: telling a player "3 things here you failed to
   // find" is the map pointing at the secrets it just refused to show them.

@@ -31,6 +31,8 @@ export interface MapNode extends MapNodeLike {
   /** The stardust `instances[].id` this node represents in the player console (seed 466). Null = unlinked;
    *  the console then falls back to a case-insensitive name match. */
   console_ref: string | null;
+  /** M7-2 — when true, a player sees only what the DM revealed plus what their own tokens can see. */
+  fog: boolean;
 }
 
 export interface MapPin {
@@ -45,7 +47,7 @@ export interface MapPin {
 }
 
 const NODE_COLS =
-  'id, campaign_id, parent_id, tier, depth, name, blurb, image_url, render_kind, grid, bounds, published, sort_order, console_ref';
+  'id, campaign_id, parent_id, tier, depth, name, blurb, image_url, render_kind, grid, bounds, published, sort_order, console_ref, fog';
 const PIN_COLS = 'id, map_node_id, child_node_id, x, y, icon, label, visibility';
 
 /**
