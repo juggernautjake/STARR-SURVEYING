@@ -30,6 +30,7 @@ import RepliesList from './RepliesList';
 // LR3 — office-side conversation notes card. Backed by the new
 // public.lead_notes table (seed 320) + /api/admin/leads/[id]/notes.
 import LeadNotesCard from './LeadNotesCard';
+import QuotesCard from './QuotesCard';
 
 interface LeadAttachment {
   name: string;
@@ -444,6 +445,10 @@ export default function LeadDetailPage() {
             conversation notes. Lives between the customer's original
             message and the outbound reply history so the page reads
             top-to-bottom as a single thread. */}
+        {/* A5 — the official quote, versioned. Above the notes because it is the step the owner named
+            and the one that decides whether this lead becomes a job. */}
+        <QuotesCard leadId={lead.id} />
+
         <LeadNotesCard leadId={lead.id} />
 
         {/* LR1 of lead-reply-expansion-2026-06-18.md — outbound reply

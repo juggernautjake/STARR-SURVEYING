@@ -325,8 +325,40 @@ attribute.
   attribution — that's Finding 2, and the dashboard must label them "pre-attribution" rather than folding them
   into cost-per-lead maths.
 
-### A5 — The official quote, recorded as an object
+### A5 — The official quote, recorded as an object ✅ SHIPPED 2026-08-01
 *The owner names this step explicitly; today it's one nullable number that a revision overwrites.*
+
+> **Done.** `seeds/505_lead_quotes.sql` (applied live), `lib/leads/quotes.ts` with 17 tests,
+> `/api/admin/leads/[id]/quotes` (GET/POST/PATCH), and `QuotesCard` on the lead detail page.
+>
+> **What this recovers is INFORMATION, not arithmetic.** With one overwritable number, the moment a
+> customer said "can you do it for less?" we lost what we first asked for — and with it the discount rate,
+> every decline reason, and the question of which figure a won job should report to Google.
+>
+> **A revision is a new row, never an edit**, and `(lead_id, version)` is UNIQUE at the database level so
+> history cannot be quietly rewritten. Verified against the live database: v1 $1,500 → superseded, v2
+> $1,200 → sent, and a duplicate v2 refused with a unique violation. (Test rows removed afterwards.)
+>
+> **A decline must carry a reason, and the module refuses one without it.** That is the only moment the
+> reason is knowable — nobody reconstructs "why did we lose that one" a month later — and accepting a
+> blank would produce a "why we lose" report full of empty strings, which reads as data and is not. The
+> form asks for it in the same breath rather than letting someone press Decline and be rejected.
+>
+> **Zero is a valid quote.** A no-charge survey — a favour, a warranty revisit, a goodwill callback — is a
+> real thing this business does, and rejecting it would push the office into typing a fake number.
+>
+> **`leads.quote_amount` survives as a derived mirror**, because the leads board, the detail page, the
+> conversion flow and at least one report read it. A mirror can drift, which is a real cost accepted
+> knowingly: the alternative was touching every reader. It is written in the same function that writes the
+> quote and nowhere else. It goes NULL when the only quote was declined — leaving the declined figure
+> would show a number nobody is offering.
+>
+> Milestones 3 and 4 land in A4's stream, and a decline records `lost` — the funnel is as interested in
+> where leads stop as where they finish.
+>
+> ⚠ **Not browser-verified** (same reason as A3: `/admin` needs a staff session). The lifecycle was
+> exercised directly against the live database instead, which covers the versioning and the constraint;
+> what has NOT been seen is the card rendering.
 
 - **Seed 472** — `lead_quotes` (`lead_id`, `version`, `amount_cents`, `scope_notes`, `quoted_by`, `quoted_at`,
   `status ∈ draft/sent/accepted/declined/expired`, `expires_at`, `decline_reason`).
