@@ -198,6 +198,8 @@ changes what "launch" means.
 > **Still open, and this is only step one.** The column exists and is empty of meaning until queries
 > filter on it. Enforcement — RLS or a scoped query helper — is Phase 3 work; today a second org
 > would still see everything. What D1 bought is that the migration is now a backfill.
+>
+> **✅ CLOSED 2026-08-01 by item 8g** — the column now filters. See §3c.1 below.
 
 ### 1.3 🟠 Two navigation systems, drifted apart
 `AdminSidebar.tsx` (legacy, 11 hand-maintained sections) and `lib/admin/route-registry.ts` (the new
@@ -477,8 +479,20 @@ knowing which page to open first.
 > the app; a link would be a 404 dressed as a feature. The result carries the contact details instead,
 > and a test pins both halves so building the page later is a prompt rather than a silent divergence.
 >
-> **Still open:** **8d** (AI/embedding retrieval for questions keywords cannot express) — the
-> `fs_reference_chunks` pattern is proven in this repo and is the next slice.
+> **✅ 8d SHIPPED 2026-08-01 — AI retrieval that admits when it did not run.**
+> `seeds/516_document_embeddings.sql` + `lib/search/semantic.ts` mirror the `fs_reference_chunks`
+> pattern: chunk `extracted_text`, embed, retrieve by cosine distance, and **hydrate every hit from its
+> source row** — so a chunk that outlived a deleted or out-of-tenant document cannot surface through
+> it. Hydration is the permission gate, not a formatting step. Keyword and semantic run concurrently
+> and the keyword answer never waits on the AI one: an upgrade must not be able to slow down the thing
+> that already works.
+>
+> Owner-gated remainder: `VOYAGE_API_KEY` is set nowhere, so the index is empty and `npm run db:embed`
+> has never run (measured backfill: 601 documents → 849 chunks). The page **says the index is empty**
+> rather than returning nothing — an unrun retriever and an archive with no match are different answers,
+> and conflating them is the §1.1b failure mode wearing a search box.
+>
+> Tenancy on this path was `orgId: null` at ship time and is the real org as of 8g (§3c.1).
 
 ### Deliberately NOT in scope for the first pass
 
@@ -529,6 +543,105 @@ are six products; the software ships one.
 4. **Onboarding a firm from zero.** Today the app assumes Starr's data exists. A new firm needs empty
    states, a first-run setup, and defaults that are not ours (§Phase 4 item 19 names this; it becomes
    load-bearing here).
+
+> **✅ 8f SHIPPED 2026-08-01 — the packaging hole was on the data path, not in the catalogue.**
+>
+> Measured rather than assumed, the headline above was wrong: `bundleForRoute()` already resolved a
+> bundle for every admin **page** via workspace defaults, and middleware already redirected on it.
+> "1 of 131 routes carries a `requiredBundle`" counted explicit overrides, not coverage.
+>
+> The actual hole was one line — the middleware matcher was `['/admin/:path*', '/dnd/:path*']`, and
+> `/api/…` does not start with `/admin`. **Not one of the 351 admin API handlers had ever been
+> bundle-gated.** A firm without Recon could not open `/admin/research` in a browser and could read
+> every byte of it from `/api/admin/research/*` with a `fetch`. Auth was checked there and still is —
+> auth answers *"are you a user"*, packaging asks *"did you buy this"*, and nothing was asking the
+> second question.
+>
+> Worse, found while fixing it: `ROUTE_BUNDLE_OVERRIDES` was matched with `pathname in map`, so an
+> override applied to a literal path and not its subtree. `/admin/research` resolved to `recon`;
+> `/admin/research/<projectId>` — the page showing a customer's actual property research — matched no
+> override and fell through to the `research-cad` workspace default, which is deliberately `null`.
+> **The research index was gated and every project behind it was open.** Same for `/admin/cad/*`.
+> Override matching is now longest-prefix and segment-aware, so `/admin/work` cannot swallow
+> `/admin/work-mode`.
+>
+> The API mapping is **derived from the page registry**, not a second list of 351 paths — §1.3 already
+> paid for two hand-maintained lists of the same thing drifting 32 routes apart. Unclassified fails
+> **closed**: a route wrongly blocked is a support call in minutes; a route wrongly open is a paid
+> feature given away silently and forever. It answers in JSON with **402**, not a redirect — sending a
+> `fetch` to an HTML upgrade page makes the caller report a JSON parse error instead of *"your plan
+> does not include this"*.
+>
+> **One claim in that work was wrong and is corrected here**, because 8g rests on the same fact: the
+> gate was described as *"inert for a session with no org memberships — which is every Starr session
+> today"*. `organization_members` has **6 rows**, all six Starr staff, in the single Starr org. Every
+> Starr session resolves an `activeOrgId` and **is** gated; it passes only because Starr's subscription
+> lists all six bundles. The gate is live, not inert. Safe, but for a different reason than recorded.
+
+> **✅ 8g SHIPPED 2026-08-01 — `org_id` is a filter now, and the enforcement point is one file.**
+>
+> §1.2 shipped the column and said plainly it was inert until queries used it. This is the queries.
+>
+> **The shape was decided by a measurement, not a preference.** RLS is the textbook answer and is not
+> available here: **466 of 517 routes use the service role**, which bypasses every policy by design.
+> Converting them to a user-scoped client is a rewrite touching every data path in the app. But the
+> whole application talks to Postgres through exactly **two `createClient()` calls, both in
+> `lib/supabase.ts`**, and 485 API files import the admin one. So the filter goes there — once —
+> instead of in 485 places that each have to remember.
+>
+> `lib/saas/org-scope.ts` wraps that client: `select` / `update` / `delete` on a tenant table get
+> `.eq('org_id', <session's org>)` appended **before** the caller's own filters (so an `.eq('id', …)`
+> narrows within the tenant instead of replacing the bound — otherwise guessing another firm's job id
+> is a cross-tenant write). `insert` / `upsert` get the org **stamped on**. The stamp matters as much
+> as the filter: a filter alone would make every row written from today onward invisible to the
+> session that wrote it, which reads as data loss.
+>
+> **Four things are deliberately not scoped**, each because scoping it is the bug: requests with no
+> session (webhooks, cron, the pay portal — a system process has no tenant, and inventing one is a
+> guess); operators (the console exists to look *across* firms); `.rpc()` (a function's tenancy is its
+> own — `search_everything` takes `p_org`, and this slice starts passing it the real org instead of the
+> `null` 8a shipped); and three named tables — `organization_members`, `org_invitations`,
+> `subscriptions` — where the request must cross the boundary to work at all. You accept an invitation
+> to a firm you are not yet a member of; scoped to your current org, that invite is invisible forever.
+>
+> **The mechanism is the part worth reading.** There is no place to wrap a Next.js route handler, and
+> middleware runs in a different runtime whose async context is gone by the time the handler runs. The
+> one thing all 517 routes do is `await auth()`. But setting the scope when that promise *resolves*
+> does not work, and this was measured rather than reasoned about:
+>
+> ```js
+> function auth() { return getSession().then(s => { als.enterWith(s.org); return s }) }
+> const s = await auth();  als.getStore()   // → undefined
+> ```
+>
+> A continuation after `await` resumes in the context captured when the await *started*. So the store
+> is entered **synchronously, at the call**, holding an object that is empty at that instant and filled
+> a few microtasks later — same reference, later contents. The handler awaits the session before it
+> queries anything, so the org is there by the first `.from()`.
+>
+> `enterWith` mutates the current async resource, which raises a fair question: does a webhook that
+> never authenticates inherit the last request's org? **Asserted, not reassured** — against a simulated
+> dispatch where each request arrives on its own async resource, the way an HTTP server invokes a
+> handler. It resolves null. That test is the one that must never be deleted.
+>
+> **Why it is safe to ship into a live business today** is duller and checkable: every row in every
+> scoped table already carries the Starr org, so `WHERE org_id = <starr>` selects exactly what no
+> `WHERE` selected. Zero behaviour change today, total change the day a second firm exists.
+>
+> **Turning the filter on found rows that were already invisible-in-waiting.** Seed 513's backfill
+> iterated only the 73 tables it had just added the column to; the ~54 that already carried `org_id`
+> from the earlier SaaS work were never backfilled, and nothing filtered on it, so nobody could see.
+> `customers` (4 rows) and `file_nodes` (**6 rows — every row the File Explorer has**, §3b) would have
+> vanished from their own pages the moment this shipped.
+>
+> `seeds/517_org_default.sql` closes both halves of that under **one guard, the same one 513 used**: a
+> column `DEFAULT` and a backfill are applied *only while exactly one organisation exists*. With one
+> firm, "who owns this row" has an answer; with two it is a guess, and a guess about which customer
+> owns a row is silent, plausible, and discovered by the other customer. The seed **undoes itself** —
+> re-run with two orgs, it drops every default it set — so onboarding day is "run the seeds", not
+> "someone must remember". `scripts/verify-org-scoped-tables.mjs` (`npm run verify:org-scope`) fails if
+> the list, the schema, the default and the org count ever disagree, and reports any unowned row by
+> table and count. Currently: 127 tables scoped, 127 listed, 1 org, 127 defaults, **0 unowned rows**.
 
 ### 3c.2 Instruments — the part that decides whether a firm can actually switch
 
@@ -784,7 +897,9 @@ need to be found. Building it after them means retro-fitting search onto three m
 
 8f. Bundle sweep — assign a `requiredBundle` to every admin route, API handler and mobile tab, gated
     **server-side**, with a ratchet so a new page cannot ship unassigned. (Today: 1 of 131 routes.)
-8g. Make `org_id` load-bearing — scope every tenant query to it, not merely store it.
+8g. ✅ **DONE 2026-08-01.** `org_id` is load-bearing — the service-role client itself is scoped, so all
+    485 API files that import it filter and stamp without being edited. Seed 517 backfills the ~54
+    tables seed 513 missed and guards the default. See §3c.1.
 8h. Catalogue every hard-coded Starr assumption (`@starr-surveying.com`, branding, Bell-County-only
     lot verification) and turn each into a per-tenant setting.
 8i. First-run onboarding for a firm with no data: empty states, setup wizard, non-Starr defaults.

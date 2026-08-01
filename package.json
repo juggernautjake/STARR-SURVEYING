@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:inline-style-hex": "tsx scripts/scan-inline-style-hex.ts",
+    "verify:org-scope": "node scripts/verify-org-scoped-tables.mjs",
     "scan:untranslated": "tsx scripts/scan-untranslated.ts",
     "audit:mobile": "node scripts/audit-mobile.mjs",
     "migrate:dnd-content": "tsx scripts/migrate-dnd-content.ts",

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+import { orgScoped } from './saas/org-scope';
+
 // Use || fallbacks so createClient doesn't throw during Next.js build-time
 // module evaluation when env vars are absent. At runtime the real env vars
 // are always required — any Supabase call with placeholder credentials will
@@ -15,11 +17,28 @@ export const supabase = createClient(
 // register a second GoTrueClient/auth-storage listener — that's what triggers
 // the "Multiple GoTrueClient instances detected" browser warning when this
 // module is pulled into a client bundle. persistSession:false makes it stateless.
-export const supabaseAdmin = createClient(
+//
+// ── UNSCOPED: crosses every tenant boundary ────────────────────────────────
+// Reaches every row of every firm. Correct for sign-in (which must read a
+// user's memberships BEFORE knowing their org), for the operator console, and
+// for schema/maintenance scripts. Wrong for anything serving one firm's
+// screens — use `supabaseAdmin` there, which is this client with the tenant
+// filter applied. The two names differ by one word on purpose: `Unscoped` is
+// a claim the author has to make out loud.
+export const supabaseUnscoped = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-key',
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
+
+/** The service-role client every API route already imports — now scoped to the
+ *  requesting session's organization (audit §3c.1 item 8g).
+ *
+ *  Identical behaviour when no session has established a scope, which is every
+ *  webhook, cron and public route, and every call made outside a request.
+ *  See `lib/saas/org-scope.ts` for what "scoped" does and why the enforcement
+ *  point is this module rather than 485 call sites. */
+export const supabaseAdmin = orgScoped(supabaseUnscoped);
 
 // ── Storage Bucket Utilities ─────────────────────────────────────────────────
 

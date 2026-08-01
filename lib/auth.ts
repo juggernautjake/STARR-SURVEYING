@@ -3,7 +3,14 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import type { NextAuthConfig } from 'next-auth';
 import bcrypt from 'bcryptjs';
-import { supabaseAdmin } from '@/lib/supabase';
+// Sign-in reads ACROSS tenants by necessity: it has to find which orgs a person
+// belongs to before it can know which org they are acting for. Using the scoped
+// client here would be circular. Every table it touches is either tenant-free
+// (`registered_users`, `operator_users`, `user_active_org`) or on the
+// CROSS_ORG_TABLES exemption list — this import states that rather than relying
+// on the exemption list to imply it. See lib/saas/org-scope.ts.
+import { supabaseUnscoped } from '@/lib/supabase';
+import { beginOrgScope, orgIdForSession } from '@/lib/saas/org-scope-context';
 
 // =============================================================================
 // ROLE SYSTEM
@@ -93,7 +100,7 @@ export function getUserRoles(email: string): UserRole[] {
 /** Get roles for any user, checking DB first then falling back to email lists */
 export async function getUserRolesFromDB(email: string): Promise<UserRole[]> {
   const lower = email.toLowerCase();
-  const { data } = await supabaseAdmin
+  const { data } = await supabaseUnscoped
     .from('registered_users')
     .select('roles')
     .eq('email', lower)
@@ -121,7 +128,7 @@ export async function ensureRegisteredUser(
   const lower = email.toLowerCase();
 
   try {
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await supabaseUnscoped
       .from('registered_users')
       .select('id')
       .eq('email', lower)
@@ -139,7 +146,7 @@ export async function ensureRegisteredUser(
         if (image) updateFields.avatar_url = image;
       } catch { /* ignore if columns missing */ }
 
-      const { error: updateErr } = await supabaseAdmin
+      const { error: updateErr } = await supabaseUnscoped
         .from('registered_users')
         .update(updateFields)
         .eq('email', lower);
@@ -147,7 +154,7 @@ export async function ensureRegisteredUser(
       if (updateErr) {
         // If update fails (e.g., new columns don't exist), try minimal update
         console.warn('ensureRegisteredUser update failed, trying minimal:', updateErr.message);
-        await supabaseAdmin
+        await supabaseUnscoped
           .from('registered_users')
           .update({ updated_at: new Date().toISOString(), ...(name ? { name } : {}) })
           .eq('email', lower);
@@ -162,7 +169,7 @@ export async function ensureRegisteredUser(
     if (TEACHER_EMAILS.includes(lower)) defaultRoles.push('teacher');
 
     // Insert with all columns — if new columns don't exist, fall back to core fields
-    const { error: insertErr } = await supabaseAdmin
+    const { error: insertErr } = await supabaseUnscoped
       .from('registered_users')
       .insert({
         email: lower,
@@ -179,7 +186,7 @@ export async function ensureRegisteredUser(
     if (insertErr) {
       // Fallback: insert without new columns (migration not run yet)
       console.warn('ensureRegisteredUser insert failed, trying without new columns:', insertErr.message);
-      const { error: fallbackErr } = await supabaseAdmin
+      const { error: fallbackErr } = await supabaseUnscoped
         .from('registered_users')
         .insert({
           email: lower,
@@ -207,7 +214,7 @@ export async function ensureRegisteredUser(
 export async function isUserBlocked(email: string): Promise<boolean> {
   const lower = email.toLowerCase();
   if (ADMIN_EMAILS.includes(lower)) return false;
-  const { data } = await supabaseAdmin
+  const { data } = await supabaseUnscoped
     .from('registered_users')
     .select('is_banned, is_approved')
     .eq('email', lower)
@@ -319,7 +326,7 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
 
   try {
     // Operator status
-    const { data: operator } = await supabaseAdmin
+    const { data: operator } = await supabaseUnscoped
       .from('operator_users')
       .select('email, role, status')
       .eq('email', email)
@@ -332,12 +339,12 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
     // most once per ROLES_REFRESH_INTERVAL_SECONDS, so the cost is
     // negligible.
     const [{ data: memberships }, { data: activeRow }] = await Promise.all([
-      supabaseAdmin
+      supabaseUnscoped
         .from('organization_members')
         .select('org_id, role, organizations(id, slug, name)')
         .eq('user_email', email)
         .eq('status', 'active'),
-      supabaseAdmin
+      supabaseUnscoped
         .from('user_active_org')
         .select('active_org_id')
         .eq('user_email', email)
@@ -352,7 +359,7 @@ async function populateSaasContext(token: Record<string, unknown> & JwtSaasField
     if (rows.length > 0) {
       // Get subscription bundles for every org the user belongs to
       const orgIds = rows.map((m) => m.org_id);
-      const { data: subs } = await supabaseAdmin
+      const { data: subs } = await supabaseUnscoped
         .from('subscriptions')
         .select('org_id, bundles, status')
         .in('org_id', orgIds);
@@ -412,7 +419,7 @@ const authConfig: NextAuthConfig = {
         const email = (credentials.email as string).toLowerCase();
         const password = credentials.password as string;
 
-        const { data: user, error } = await supabaseAdmin
+        const { data: user, error } = await supabaseUnscoped
           .from('registered_users')
           .select('id, email, name, password_hash, roles, is_approved, is_banned')
           .eq('email', email)
@@ -428,7 +435,7 @@ const authConfig: NextAuthConfig = {
         const roles = (user.roles as UserRole[]) || ['employee'];
 
         // Update last_sign_in
-        await supabaseAdmin
+        await supabaseUnscoped
           .from('registered_users')
           .update({ last_sign_in: new Date().toISOString() })
           .eq('email', email);
@@ -505,4 +512,31 @@ const authConfig: NextAuthConfig = {
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+const nextAuth = NextAuth(authConfig);
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+/** NextAuth's `auth`, plus the one thing it is uniquely placed to do: tell the rest of the request
+ *  which firm it is acting for (audit §3c.1 item 8g).
+ *
+ *  Every API route in the app starts with `await auth()`. That makes this the only place a tenant
+ *  scope can be opened for all 517 of them without editing all 517 of them — and the scope has to be
+ *  opened HERE, synchronously, rather than when the session resolves: a continuation after `await`
+ *  runs in the context captured when the await started, so a store entered inside the promise
+ *  callback is invisible to the caller. The holder is entered empty and filled a few microtasks
+ *  later, before the handler has awaited its way to a single query. See lib/saas/org-scope-context.ts.
+ *
+ *  `auth` is overloaded: called with a handler it wraps middleware (Edge — different runtime, its own
+ *  context, and nothing there queries Postgres), called with `(req, res)` it guards a pages-router
+ *  route. Only the zero-argument form is a server-side session read, so only that form opens a scope;
+ *  the others pass through byte-for-byte. */
+export const auth = ((...args: unknown[]) => {
+  const call = nextAuth.auth as unknown as (...a: unknown[]) => unknown;
+  if (args.length > 0) return call(...args);
+
+  const holder = beginOrgScope();
+  return Promise.resolve(call() as Promise<unknown>).then((session) => {
+    holder.orgId = orgIdForSession(session as Parameters<typeof orgIdForSession>[0]);
+    return session;
+  });
+}) as typeof nextAuth.auth;

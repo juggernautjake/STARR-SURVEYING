@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { orgIdForSession } from '@/lib/saas/org-scope-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { CORPUS_BY_ID, corporaFor } from '@/lib/search/corpora';
@@ -56,6 +57,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Roles come from the session and are passed to the function as data. They are never inferred
   // inside the SQL, and there is no "no roles means everything" fallback — see the seed 515 header.
   const roles = session.user.roles ?? [];
+
+  // The tenant, passed explicitly (audit item 8g). `search_everything` is an RPC, so the scoped
+  // client cannot filter it the way it filters a table read — the function takes `p_org` and applies
+  // the bound itself. Search is the one surface that reads TEN corpora in a single query, so a
+  // missing tenant bound here leaks further in one request than anywhere else in the app.
+  const orgId = orgIdForSession(session);
 
   const sp = new URL(req.url).searchParams;
   const parsed = parseQuery(sp.get('q') ?? '');
@@ -121,10 +128,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       p_date_role: filters.dateRole,
       p_from: filters.from ?? null,
       p_to: filters.to ?? null,
-      p_org: null,
+      p_org: orgId,
       p_limit: filters.limit,
     }),
-    retrieveSemantic(parsed.raw, { corpora: semanticIds, orgId: null }),
+    retrieveSemantic(parsed.raw, { corpora: semanticIds, orgId }),
   ]);
 
   const { data, error } = keyword;
@@ -163,7 +170,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Hydration is the permission gate for semantic hits, not a formatting step — it re-reads the
   // source row, so a deleted, soft-deleted or out-of-tenant document cannot surface through a chunk
   // that outlived it. See the `hydrateSemantic` header.
-  const hydrated = semantic.hits.length ? await hydrateSemantic(semantic.hits, { orgId: null }) : [];
+  const hydrated = semantic.hits.length ? await hydrateSemantic(semantic.hits, { orgId }) : [];
   const withSemantic = mergeSemantic(results, hydrated);
 
   // Date filters are applied by `search_everything`; semantic-only hits never passed through it, so
