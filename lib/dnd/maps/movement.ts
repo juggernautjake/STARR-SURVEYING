@@ -4,16 +4,18 @@
 // the character's **actual speed** through the per-system derivation … Difficult terrain and blockers
 // reduce it. Dragging beyond the allowance warns rather than forbids — the DM is in charge (G7)."*
 //
-// ── WHAT THIS DOES NOT KNOW, SAID OUT LOUD ─────────────────────────────────────────────────────────
+// ── TERRAIN IS A PARAMETER, AND THAT IS WHY IT COST NOTHING TO ARRIVE ──────────────────────────────
 //
-// **Nothing authors difficult terrain or blockers yet.** `dnd_map_objects` can carry them; no writer
-// exists. M5-2's own note is explicit that building the reader without the writer would repeat a defect
-// this plan already caught twice, so the honest shape is the one taken here: terrain is a **parameter**
-// (`cost`), not a lookup this module invents. The default is open ground, and the overlay says so on
-// screen rather than implying it consulted a map layer that does not exist.
+// This header used to say nothing authored difficult terrain or blockers, and that the honest shape was
+// to take terrain as a **parameter** (`cost`) rather than a lookup this module invents — so that when
+// the writer landed, nothing in here would change.
 //
-// When the authoring surface lands it supplies a `cost` function and nothing in here changes. That is the
-// difference between "not built yet" and "built wrong".
+// `lib/dnd/maps/terrain.ts` landed on 2026-08-01 and nothing in here changed. The same argument now
+// covers `bounds`, added at the same time for the same reason: the search takes what it needs as an
+// argument, and the caller — which knows what a map is — supplies it.
+//
+// The defaults are still an unbounded plane of open ground, because a default that quietly assumed a
+// 0–100 box would make this file's geometry untestable on its own terms.
 //
 // ── THE DIAGONAL IS A RULES DECISION, NOT AN IMPLEMENTATION DETAIL ─────────────────────────────────
 //
@@ -32,7 +34,32 @@
 //
 // Pure and total: no I/O, no clock, no randomness.
 
-import { hexDistance, type Cell, type MapGrid } from './grid';
+import { WORLD, hexCentre, hexDistance, squareCentre, type Cell, type MapGrid } from './grid';
+
+/** Cell centre as a tuple, so the bounds check reads as one line at each call site. */
+const centreOf = (c: Cell, g: MapGrid): [number, number] => { const p = squareCentre(c, g); return [p.x, p.y]; };
+const hexCentreOf = (c: { q: number; r: number }, g: MapGrid): [number, number] => { const p = hexCentre(c.q, c.r, g); return [p.x, p.y]; };
+
+/**
+ * THE EDGE OF THE MAP IS A PARAMETER, for the same reason terrain is.
+ *
+ * Found while writing M5-2's terrain tests: nothing bounded the flood, so a token standing near an edge
+ * got reachable squares drawn OUTSIDE the picture — off the 0–100 box every node draws itself into, where
+ * the viewport's own pan clamp means the reader can never even scroll to look. A DM reads that as "I can
+ * walk out there", and on a map with a wall along the edge it is worse: the route goes round the wall by
+ * leaving the map.
+ *
+ * The fix could have been a hardcoded `0 <= x <= WORLD`, and this module's own header argues against it
+ * in the paragraph about terrain: the search takes what it needs as an argument rather than inventing a
+ * lookup. So the caller says where the map ends, `loadReach` passes the node's own box, and the geometry
+ * here stays geometry — which also keeps every existing test's unbounded plane meaningful.
+ */
+export const MAP_BOUNDS: MapBounds = { minX: 0, minY: 0, maxX: WORLD, maxY: WORLD };
+
+export interface MapBounds { minX: number; minY: number; maxX: number; maxY: number }
+
+const inside = (b: MapBounds | undefined, x: number, y: number): boolean =>
+  !b || (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY);
 
 /** How a square grid prices a diagonal step. */
 export type DiagonalRule = 'free' | 'alternating' | 'orthogonal';
@@ -67,6 +94,12 @@ export interface ReachOptions<C> {
    * yet (see the header).
    */
   cost?: (cell: C) => number | null;
+  /**
+   * Where the map ends. Omitted means an unbounded plane, which is the right default for a pure geometry
+   * test and the WRONG one for a real map — `loadReach` passes the node's own box, so a token in a
+   * corner is not offered squares outside the picture.
+   */
+  bounds?: MapBounds;
   /** Square grids only. Ignored for hexes, which have no diagonals. */
   diagonals?: DiagonalRule;
   /**
@@ -108,7 +141,7 @@ const HEX_STEPS: Array<[number, number]> = [
  * an odd rather than an even number of diagonals is a genuinely different position to continue from.
  */
 export function reachableSquares(origin: Cell, opts: ReachOptions<Cell>): ReachResult<Cell> {
-  const { budgetFt, grid, cost, diagonals = 'free', maxCells = DEFAULT_MAX_CELLS } = opts;
+  const { budgetFt, grid, cost, bounds, diagonals = 'free', maxCells = DEFAULT_MAX_CELLS } = opts;
   const step = grid.unitFt;
   const best = new Map<string, number>();      // "col,row" → cheapest cost to stand there
   const seen = new Map<string, number>();      // "col,row,parity" → cheapest cost in that state
@@ -136,6 +169,9 @@ export function reachableSquares(origin: Cell, opts: ReachOptions<Cell>): ReachR
       if (isDiagonal && diagonals === 'orthogonal') continue;
 
       const next: Cell = { col: cur.cell.col + dc, row: cur.cell.row + dr };
+      // A cell whose CENTRE lies off the map is not on the map. Centre rather than any-overlap, so the
+      // rule matches how every other part of this system decides which cell a point is in.
+      if (!inside(bounds, ...centreOf(next, grid))) continue;
       const multiplier = cost ? cost(next) : 1;
       if (multiplier === null) continue; // impassable
 
@@ -181,7 +217,7 @@ export function reachableSquares(origin: Cell, opts: ReachOptions<Cell>): ReachR
  * to get wrong — which is most of the reason hex grids exist.
  */
 export function reachableHexes(origin: HexCell, opts: ReachOptions<HexCell>): ReachResult<HexCell> {
-  const { budgetFt, grid, cost, maxCells = DEFAULT_MAX_CELLS } = opts;
+  const { budgetFt, grid, cost, bounds, maxCells = DEFAULT_MAX_CELLS } = opts;
   const step = grid.unitFt;
   const key = (c: HexCell) => `${c.q},${c.r}`;
 
@@ -200,6 +236,7 @@ export function reachableHexes(origin: HexCell, opts: ReachOptions<HexCell>): Re
 
     for (const [dq, dr] of HEX_STEPS) {
       const next: HexCell = { q: cur.cell.q + dq, r: cur.cell.r + dr };
+      if (!inside(bounds, ...hexCentreOf(next, grid))) continue;
       const multiplier = cost ? cost(next) : 1;
       if (multiplier === null) continue;
 

@@ -32,6 +32,11 @@ import ReachOverlay from '@/app/dnd/_ui/maps/ReachOverlay';
 import { loadReach, reachSummary } from '@/lib/dnd/maps/reach';
 // M5-3 — spell areas, read off the character's own spell list rather than restated here.
 import { coneAngleFor, templateCells } from '@/lib/dnd/maps/templates';
+// M5-3's other half — weapon reach, measured the same way movement is so the two overlays agree.
+import { reachCells } from '@/lib/dnd/maps/attacks';
+// M5-4's other half — an area that stays on the map and runs out, counted against the encounter's round.
+import KeepArea from '@/app/dnd/_ui/maps/KeepArea';
+import { describeDuration, isExpired, readDuration } from '@/lib/dnd/maps/durations';
 // M5-4 — the conditions the sheet is already tracking, shown on the piece.
 import TokenConditions, { conditionSuffix } from '@/app/dnd/_ui/maps/TokenConditions';
 // M5-5 — whose turn it is, read from the initiative tracker that already exists.
@@ -48,6 +53,9 @@ import MapObjectTools from '@/app/dnd/_ui/maps/MapObjectTools';
 import MapObjectView, { DRAWN_KINDS } from '@/app/dnd/_ui/maps/MapObjectView';
 // M4-3 — the campaign's existing media, offered as map assets. No new uploader, no new table.
 import AssetTray from '@/app/dnd/_ui/maps/AssetTray';
+// M5-2's other half — the DM paints difficult ground and blockers, and the movement overlay counts them.
+import TerrainBrush from '@/app/dnd/_ui/maps/TerrainBrush';
+import { patchesFrom, readTerrain } from '@/lib/dnd/maps/terrain';
 import { loadMapAssets, type MapAsset } from '@/lib/dnd/maps/assets';
 import { pendingUndo } from '@/lib/dnd/maps/journal';
 import { readGrid } from '@/lib/dnd/maps/grid';
@@ -237,6 +245,10 @@ export default async function WorldPage({
         x: selected.o.x,
         y: selected.o.y,
         rawGrid: current.grid,
+        // M5-2 — the node's own difficult ground and blockers. Read from the objects THIS VIEWER can
+        // see, deliberately: a player's overlay must not route around a wall the DM has not revealed,
+        // because a path that mysteriously bends is a wall announced.
+        terrain: patchesFrom(objects.filter((o) => o.map_node_id === current.id && readTerrain(o.data))),
         // No system passed: a map node has no ruleset, and the diagonal rule belongs to the CHARACTER's
         // system anyway (a PF2 character alternates diagonals on any battle map). `loadReach` reads it
         // off the character row.
@@ -255,6 +267,13 @@ export default async function WorldPage({
   // geometry never reaches the browser.
   const dirDeg = Number(searchParams.dir ?? 0);
   const tplChoice = reach?.templates.find((t) => t.param === searchParams.tpl) ?? null;
+  // M5-3 — a weapon reach uses the SAME `?tpl=` slot as a spell area (`atk:10` vs `cone:15`), because
+  // from the reader's side they are one question — "show me what this can touch from here" — and two
+  // parameters would let a DM aim a cone and a reach at once and see them overlap into one shape.
+  const atkChoice = reach?.attacks.find((a) => a.param === searchParams.tpl) ?? null;
+  const attackReach = atkChoice && selected && reach?.grid
+    ? reachCells(selected.o.x, selected.o.y, atkChoice.reachFt, reach.grid, reach.diagonals)
+    : null;
   const template = tplChoice && selected && reach?.grid
     ? templateCells({
         shape: tplChoice.shape,
@@ -267,6 +286,35 @@ export default async function WorldPage({
         coneAngleDeg: coneAngleFor(reach.system),
       })
     : null;
+  // M5-4 — the areas a DM has LEFT on this map. Their cells are recomputed from the stored shape at read
+  // time, exactly as the live template is: saving the cell list would be a copy that silently disagrees
+  // with the grid the moment a DM changes the squares-across.
+  const keptAreas = (current ? objects.filter((o) => o.map_node_id === current.id && o.kind === 'area') : [])
+    .map((o) => {
+      const tpl = (o.data as { template?: { shape?: string; sizeFt?: number; directionDeg?: number } } | null)?.template;
+      const grid = readGrid(current?.grid);
+      if (!tpl?.shape || !Number.isFinite(Number(tpl.sizeFt)) || !grid) return null;
+      const duration = readDuration(o.data);
+      return {
+        o,
+        duration,
+        expired: isExpired(duration, turn?.round ?? null),
+        note: describeDuration(duration, turn?.round ?? null),
+        cells: templateCells({
+          shape: tpl.shape as Parameters<typeof templateCells>[0]['shape'],
+          sizeFt: Number(tpl.sizeFt),
+          x: Number(o.x), y: Number(o.y), grid,
+          directionDeg: Number(tpl.directionDeg) || 0,
+          // The system that CAST it, not the viewer's — an area left by a PF2 caster keeps its
+          // quarter-circle cone even when a 5e character is the one selected.
+          coneAngleDeg: coneAngleFor(
+            (o.data as { template?: { system?: string | null } } | null)?.template?.system ?? null,
+          ),
+        }).cells,
+      };
+    })
+    .filter((a): a is NonNullable<typeof a> => a !== null);
+
   const tplHref = (param: string | null, dir = dirDeg) => {
     const p = new URLSearchParams();
     if (current) p.set('node', current.id);
@@ -427,6 +475,25 @@ export default async function WorldPage({
                     />
                   )}
 
+                  {/* M5-4 — the areas already ON the map, under the one being aimed: what is there is
+                      context, what you are aiming is the decision. An EXPIRED area is drawn faded rather
+                      than removed — a wall of fire that silently vanished would look like a bug or like
+                      something a player dispelled, and taking it off is one press in the object tools. */}
+                  {keptAreas.map((a) => (
+                    readGrid(current.grid) && (
+                      <ReachOverlay
+                        key={a.o.id}
+                        grid={readGrid(current.grid)!}
+                        squares={a.cells.map((cell) => ({ cell, costFt: 0 }))}
+                        hexes={[]}
+                        origin={null}
+                        tone="template"
+                        faded={a.expired}
+                        label={`${a.o.label ?? 'Area'}${a.note ? ` — ${a.note}` : ''}`}
+                      />
+                    )
+                  ))}
+
                   {/* M5-3 — the spell area, over the movement wash: a template is what you are about to
                       do, the reach is where you could stand, and the one you are aiming reads on top. */}
                   {template && reach?.grid && (
@@ -437,6 +504,21 @@ export default async function WorldPage({
                       origin={null}
                       tone="template"
                       label={tplChoice ? `${tplChoice.label} area` : 'Spell area'}
+                    />
+                  )}
+
+                  {/* M5-3 — what a weapon can touch from here. Same colour as a spell area, because it
+                      answers the same question and a third colour on a busy board is a third thing to
+                      learn. Its SHAPE is what distinguishes it, and that shape comes from the system's
+                      own distance rule rather than from a circle — see `attacks.ts`. */}
+                  {attackReach && reach?.grid && (
+                    <ReachOverlay
+                      grid={reach.grid}
+                      squares={attackReach.squares.map((cell) => ({ cell, costFt: 0 }))}
+                      hexes={attackReach.hexes.map((cell) => ({ cell, costFt: 0 }))}
+                      origin={null}
+                      tone="template"
+                      label={atkChoice ? `${atkChoice.name} reach` : 'Weapon reach'}
                     />
                   )}
 
@@ -460,6 +542,7 @@ export default async function WorldPage({
                           h: o.h == null ? null : Number(o.h),
                           rotation: Number(o.rotation ?? 0), z: Number(o.z ?? 0),
                           asset_url: o.asset_url ?? null, label: o.label, visibility: o.visibility,
+                          terrain: readTerrain(o.data),
                         }}
                       />
                     ))}
@@ -697,11 +780,22 @@ export default async function WorldPage({
                     </Link>
                   </div>
                   <p style={{ margin: 0, fontSize: 11.5, color: 'var(--hx-muted)' }}>
-                    {reach.squares.length + reach.hexes.length} cells reachable on open ground.{' '}
-                    {/* The honest caveat, not a disclaimer: it names what is missing and why the number is
-                        still useful. */}
-                    <strong>Difficult terrain and blockers are not counted</strong> — nothing on this map
-                    authors them yet, so this is the distance across clear ground.
+                    {reach.squares.length + reach.hexes.length} cells reachable
+                    {reach.terrainApplied ? '' : ' on open ground'}.{' '}
+                    {/* Two different claims, and the readout makes exactly one of them. "Counted terrain
+                        and found none" is not "did not look", and a caveat that stayed on a map with mud
+                        painted across it would be a lie in the other direction. */}
+                    {reach.terrainApplied ? (
+                      <>
+                        <strong>Difficult ground and blockers are counted</strong> — the route goes around
+                        a blocker and pays double to cross difficult ground.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Difficult terrain and blockers are not counted</strong> — nothing on this
+                        map authors them, so this is the distance across clear ground.
+                      </>
+                    )}
                     {reach.truncated && ' The search stopped early on this grid; the shape shown is incomplete.'}
                   </p>
 
@@ -710,6 +804,35 @@ export default async function WorldPage({
                       disagree with the sheet about a spell's size, and a menu of generic shapes would be
                       exactly that disagreement waiting to happen. A caster with no area spells gets no
                       controls, which is the correct amount. */}
+                  {/* M5-3's other half — the reach of this character's own weapons, in the same picker
+                      and for the same reason: the map must not hold an opinion about how far a glaive
+                      goes. A character whose attacks state no parseable range gets no buttons, which is
+                      the correct amount. */}
+                  {reach.attacks.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }} data-testid="attack-picker">
+                      <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Reach:</span>
+                      {reach.attacks.map((a) => (
+                        <Link
+                          key={a.param}
+                          className={styles.hexBtn}
+                          href={tplHref(atkChoice?.param === a.param ? null : a.param)}
+                          scroll={false}
+                          style={{ fontSize: 11.5, padding: '3px 8px' }}
+                          aria-current={atkChoice?.param === a.param ? 'true' : undefined}
+                          title={a.label}
+                        >
+                          {a.name} · {a.reachFt} ft
+                        </Link>
+                      ))}
+                      {atkChoice && (
+                        <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>
+                          {(attackReach?.squares.length ?? 0) + (attackReach?.hexes.length ?? 0)} squares in
+                          reach, measured the way this character moves.
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {reach.templates.length > 0 && (
                     <div style={{ display: 'grid', gap: 6, marginTop: 2 }} data-testid="template-picker">
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -731,6 +854,21 @@ export default async function WorldPage({
                       {/* Aiming. Eight compass points rather than a drag: this page renders on the server,
                           and a link per direction costs no JavaScript while still letting a DM point a
                           cone anywhere that matters on a square grid. */}
+                      {/* M5-4 — persist what is currently aimed. Only when something IS aimed: a button
+                          that saves nothing is a button that has to explain itself. */}
+                      {tplChoice && selected && isDm && (
+                        <KeepArea
+                          campaignId={campaignId}
+                          nodeId={current.id}
+                          label={`${tplChoice.spell} (${tplChoice.sizeFt} ft ${tplChoice.shape})`}
+                          shape={tplChoice.shape}
+                          sizeFt={tplChoice.sizeFt}
+                          directionDeg={Number.isFinite(dirDeg) ? dirDeg : 0}
+                          x={selected.o.x}
+                          y={selected.o.y}
+                          currentRound={turn?.round ?? null}
+                        />
+                      )}
                       {tplChoice && (tplChoice.shape === 'cone' || tplChoice.shape === 'line' || tplChoice.shape === 'cube') && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ fontSize: 11.5, color: 'var(--hx-muted)' }}>Aim:</span>
@@ -877,6 +1015,13 @@ export default async function WorldPage({
                     campaignId={campaignId}
                     nodeId={current.id}
                     assets={mapAssets}
+                    cell={readGrid(current.grid)?.size ?? null}
+                  />
+                  {/* M5-2 — terrain sits with the asset tray because it is the same job: dressing the
+                      room before anyone stands in it. */}
+                  <TerrainBrush
+                    campaignId={campaignId}
+                    nodeId={current.id}
                     cell={readGrid(current.grid)?.size ?? null}
                   />
                   {/* M4-2's remainder — resize, rotate, layer, duplicate, multi-select, the snap

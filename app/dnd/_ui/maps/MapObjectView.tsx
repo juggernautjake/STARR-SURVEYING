@@ -18,6 +18,7 @@
 // footprint, rotation and layer are shared, and only the fill differs. Seven components would be seven
 // places to forget the rotation transform.
 import styles from '../hextech.module.css';
+import { TERRAIN_LABEL, type TerrainKind } from '@/lib/dnd/maps/terrain';
 
 export interface DrawableObject {
   id: string;
@@ -31,6 +32,12 @@ export interface DrawableObject {
   asset_url: string | null;
   label: string | null;
   visibility: string;
+  /**
+   * M5-2 — difficult ground and blockers are `area` objects, and they must not look like every other
+   * area. A DM cannot plan an encounter around terrain they have to hover over to identify, and a player
+   * who cannot see the mud walks into it and is told afterwards they are out of movement.
+   */
+  terrain?: TerrainKind | null;
 }
 
 /** Kinds this draws. Tokens and found secrets have their own renderers on the page. */
@@ -44,7 +51,7 @@ export default function MapObjectView({ o, isDm }: { o: DrawableObject; isDm: bo
 
   const w = Number(o.w) > 0 ? Number(o.w) : DEFAULT_SIZE;
   const h = Number(o.h) > 0 ? Number(o.h) : w;
-  const name = o.label?.trim() || o.kind;
+  const name = o.label?.trim() || (o.terrain ? TERRAIN_LABEL[o.terrain] : o.kind);
   // A DM-only object is marked as such ON THE MAP, not merely in a list. Without it a DM cannot tell,
   // while looking at their own board, which of these the party can see — and "I thought they could see
   // the brazier" is a mistake you only find out about mid-session.
@@ -72,7 +79,8 @@ export default function MapObjectView({ o, isDm }: { o: DrawableObject; isDm: bo
         // The DM's own layer order. Tokens sit above all of this on the page, deliberately: a prop that
         // covered a creature would hide the one thing a battle map exists to show.
         zIndex: Math.max(0, Number(o.z) + 100),
-        ...FILL[o.kind],
+        // Terrain outranks the kind's own fill: an `area` carrying `data.terrain` is terrain first.
+        ...(o.terrain ? TERRAIN_FILL[o.terrain] : FILL[o.kind]),
         ...(secret ? { outline: '1px dashed var(--hx-gold-2)', outlineOffset: 1 } : {}),
       }}
     >
@@ -95,6 +103,25 @@ export default function MapObjectView({ o, isDm }: { o: DrawableObject; isDm: bo
     </div>
   );
 }
+
+/**
+ * Terrain reads at a glance, and the two kinds are deliberately not variations of one another.
+ *
+ * Difficult ground is a WASH you can see the map through — you may cross it, it just costs. A blocker is
+ * OPAQUE with a hard edge, because the one thing it must never look like is somewhere you could walk.
+ * Colour alone would not carry that: on a dark map at play zoom, two translucent tints are the same
+ * thing, so the difference is opacity and edge rather than hue.
+ */
+const TERRAIN_FILL: Record<TerrainKind, React.CSSProperties> = {
+  difficult: {
+    background: 'repeating-linear-gradient(45deg, rgba(214,178,105,0.30) 0 0.6px, rgba(214,178,105,0.06) 0.6px 1.4px)',
+    border: '0.15px dashed var(--hx-gold-2)',
+  },
+  blocked: {
+    background: 'rgba(1,10,19,0.92)',
+    border: '0.25px solid var(--hx-gold-1)',
+  },
+};
 
 /**
  * What each kind looks like when it has no art.

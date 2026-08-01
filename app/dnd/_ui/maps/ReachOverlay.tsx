@@ -40,7 +40,7 @@ const TONE: Record<OverlayTone, { fill: string; fillOpacity: number; strokeOpaci
 };
 
 export default function ReachOverlay({
-  grid, squares, hexes, origin, label, tone = 'reach',
+  grid, squares, hexes, origin, label, tone = 'reach', faded = false,
 }: {
   grid: MapGrid | null;
   squares: Array<Reachable<Cell>>;
@@ -48,6 +48,12 @@ export default function ReachOverlay({
   origin: Cell | HexCell | null;
   label?: string;
   tone?: OverlayTone;
+  /**
+   * M5-4 — an area whose duration has run out. Drawn faded rather than removed: a wall of fire that
+   * silently vanished would look like a bug, or like something a player dispelled. Taking it off is a
+   * decision, and one press in the object tools.
+   */
+  faded?: boolean;
 }) {
   if (!grid) return null;
   if (!squares.length && !hexes.length) return null;
@@ -66,6 +72,7 @@ export default function ReachOverlay({
       aria-hidden="true"
       data-testid={tone === 'template' ? 'template-overlay' : 'reach-overlay'}
       data-reach-cells={squares.length + hexes.length}
+      data-faded={faded ? 'true' : undefined}
       style={{
         position: 'absolute', left: 0, top: 0, width: WORLD, height: WORLD,
         pointerEvents: 'none',
@@ -76,9 +83,9 @@ export default function ReachOverlay({
       <title>{label ?? 'Reachable squares'}</title>
       <g
         fill={TONE[tone].fill}
-        fillOpacity={TONE[tone].fillOpacity}
+        fillOpacity={faded ? TONE[tone].fillOpacity * 0.3 : TONE[tone].fillOpacity}
         stroke={TONE[tone].fill}
-        strokeOpacity={TONE[tone].strokeOpacity}
+        strokeOpacity={faded ? TONE[tone].strokeOpacity * 0.35 : TONE[tone].strokeOpacity}
         strokeWidth={`calc(${TONE[tone].stroke} / var(--map-scale, 1))`}
       >
         {grid.kind === 'square'

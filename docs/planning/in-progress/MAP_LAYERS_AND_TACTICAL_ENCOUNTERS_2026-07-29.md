@@ -1062,6 +1062,100 @@ found twice.
 > drag-to-aim — direction is eight compass links today, which costs no client JavaScript and points a cone
 > anywhere that matters on a square grid.
 
+
+### M5-2b / M5-3b / M5-4b · the three named remainders — **SHIPPED 2026-08-01**
+> `lib/dnd/maps/terrain.ts` (16 tests), `attacks.ts` + `durations.ts` (18 tests), `TerrainBrush`,
+> `KeepArea`, and `MapObjectView`'s terrain rendering. Browser-verified on one battle map carrying all
+> three.
+>
+> Each of these was named as open by the slice that shipped its other half, and each closed the same way:
+> **the reader already took what it needed as a parameter, so the writer cost an argument.**
+>
+> ## M5-2b · terrain, and the parameter that paid off
+>
+> M5-2's own note demanded it: *"M5-2 must either add an authoring surface or state plainly that the
+> overlay ignores terrain. Building the reader without the writer would be the same defect this slice
+> just found twice."* It stated it plainly; this is the writer.
+>
+> **Terrain is an `area` object with `data.terrain`, not a new table or a new kind.** Not a shortcut —
+> the same argument M1-3 makes for one object table: a patch of mud needs placing, moving, resizing,
+> rotating, layering, hiding from players, deleting and **undoing**, and all nine already work for an
+> area. A `dnd_map_terrain` table would be a second set of all nine.
+>
+> **Difficult is a multiplier; blocked is an absence.** `2` and `null` are not two flavours of one
+> thing: difficult ground costs double and the search routes around it when that is cheaper, while a
+> blocker cannot be entered at all — the case that makes Dijkstra necessary rather than a flood, and the
+> one where being wrong is most visible ("I can see the wall and the map says I can walk through it").
+> A blocker under a mud patch is still a wall: **the strictest patch wins**, because layer order decides
+> what is drawn on top and must not decide whether a wall is a wall. Overlapping mud does not compound —
+> two patches on one square is a mapping accident, not 20 feet of movement a DM cannot account for.
+>
+> **And the readout now makes one of two claims rather than always the pessimistic one.** "Counted
+> terrain and found none" and "did not look" are different statements; `terrainApplied` still comes back
+> false on a map that authors none.
+>
+> ### The defect found while testing it: the search had no edge
+>
+> Nothing bounded the flood, so a token near a border was offered squares **outside** the 0–100 box every
+> node draws itself into — where the viewport's own pan clamp means a reader can never even scroll to
+> look. On a map with a wall along the edge it is worse: the route went round the wall **by leaving the
+> map**. Fixed as a `bounds` PARAMETER rather than a hardcoded box, because `movement.ts`'s own header
+> argues exactly that about terrain — the search takes what it needs as an argument, and the caller that
+> knows what a map is supplies it. That also keeps every existing test's unbounded plane meaningful.
+>
+> ## M5-3b · weapon reach, measured the way movement is measured
+>
+> The decision that matters, and the one a plausible implementation gets wrong: **"within 10 feet" on a
+> square grid is not a circle.** It is whatever the system's own distance rule says — 5e's free diagonal
+> makes it a 5×5 SQUARE, PF2's alternating diagonals make it an octagon. A Euclidean circle would
+> disagree with the movement overlay drawn a moment earlier **on the same token**: two overlays, one map,
+> two answers to "how far is that". So reach borrows `cellDistanceFt` and the two cannot drift.
+>
+> Parsed from `Attack.range`, never restated. `"150/600 ft"` yields **150** — the second number is long
+> range, which imposes disadvantage rather than describing where the weapon reaches, and drawing 600
+> would tell a player they can shoot cleanly across the map. A bare `"Melee"` gets the system's melee
+> default, which is a rule (5 ft in 5e and PF2) and **null for a system that has no such default** rather
+> than an invented number. Anything unparseable is simply not offered: a shape drawn from a range nobody
+> can read is worse than no shape.
+>
+> It shares the `?tpl=` slot with spell areas (`atk:10` beside `cone:15`), because from the reader's
+> side they are one question — *show me what this can touch from here* — and two parameters would let a
+> DM aim both and watch them overlap into one shape.
+>
+> ## M5-4b · an area that stays, and runs out
+>
+> **Nothing ticks. The round is read.** The obvious implementation is a decrementing `roundsLeft` that
+> some next-turn handler counts down, and it is wrong in three quiet ways at once: a DM who rewinds the
+> round (they do — *"wait, we forgot Ana's turn"*) leaves every area stale; an area created while nobody
+> has the map open never ticks; two browsers tick it twice. So an area stores the round it BEGAN on, and
+> what is left is arithmetic against `dnd_encounters.round` — the counter M5-5 already connected.
+>
+> The object saves the **shape**, not the cells, and the map recomputes them at read time exactly as the
+> live template does. Saving the cell list would be a copy that silently disagrees with the grid the
+> moment a DM changes the squares-across.
+>
+> **An expired area is faded, not removed.** A wall of fire that silently vanished would look like a bug,
+> or like something a player dispelled; taking it off is one press in the object tools. And outside a
+> fight an area shows its full duration rather than expiring — a spell placed during exploration has not
+> started counting down, and an area that disappeared the moment initiative ended would take the DM's
+> prepared battlefield with it.
+>
+> ## Verified on one map carrying all three
+>
+> A halberdier on a bog with a three-square wall to the west and a 2×2 mud patch to the east:
+>
+> | | |
+> |---|---|
+> | The readout | *"162 cells reachable · **Difficult ground and blockers are counted** — the route goes around a blocker and pays double to cross difficult ground"* |
+> | Glaive (`Reach 10 ft.`) | **24 squares** — 5×5 minus the token, exactly as the unit test predicts |
+> | Dagger (`5 ft`) | **8 squares** |
+> | Longbow (`150/600 ft`) | offered as **150 ft**, not 600 |
+> | Burning Hands | 6 squares, unchanged from M5-3's own recorded figure |
+> | A persisted Spirit Guardians | survives navigation, 29 cells, titled *"— 3 rounds left"* |
+>
+> The screenshot shows the movement wash stopping at the wall and going around it, the glaive's reach as
+> a red square over it, and the mud hatched. Test data removed afterwards — 0 nodes, 0 objects.
+
 ### M5-3 · Reach, radius and templates (original plan text)
 Attack reach from the weapon; spell areas as the system defines them (5e cone/sphere/line/cube, PF2 emanation/
 burst/cone/line). Placed by drag from the sheet's own attack/spell entries, so the map and the sheet cannot
