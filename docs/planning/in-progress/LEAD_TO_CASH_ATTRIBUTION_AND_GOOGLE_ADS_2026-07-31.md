@@ -451,7 +451,53 @@ attribute.
   each one's click-through window to the maximum, and accept the customer-data terms for the
   enhanced-conversions path.
 
-### A8 — Automate it via the Google Ads API
+### A8 — Automate it via the Google Ads API ✅ SHIPPED 2026-08-01
+> **Done, and deliberately inert.** Owner: *"make google integration prepared and we will track our ad
+> campaign tokens when we get them."* Every piece exists; nothing fires until a developer token and a
+> connected account are present, and when they are absent the code says **which specific piece is
+> missing** rather than throwing.
+>
+> **Seed 507**, not 473 — the doc's seed numbers are stale and 473 was taken. Applied live:
+> `google_ads_connections` + `conversion_upload_log`.
+>
+> `lib/integrations/google-ads/client.ts` (15 tests) — OAuth refresh copied from
+> `lib/integrations/google-calendar.ts` as instructed, `ADS_API_VERSION` **pinned** to `v18`,
+> `uploadClickConversions` with `partialFailure: true`.
+>
+> **`parseUploadResponse` is exported and pure, and that is the point of the slice.** A partial failure
+> arrives **inside an HTTP 200**: a caller that checks the status code sees success and has uploaded
+> nothing. Two non-obvious facts are encoded in the parser and its tests — rejected rows come back as
+> **empty objects in `results`** (so counting the array is not counting successes), and a failure with no
+> `fieldPathElements` reports index **-1**, never 0, because defaulting to 0 blames the first conversion
+> for someone else's failure.
+>
+> `lib/integrations/google-ads/select.ts` (14 tests) — WHICH events become an upload, split out of the
+> route because it is the half that can be wrong without producing an error. **Every skip is counted
+> separately** (`noAction` / `noClick` / `outOfWindow` / `alreadyUploaded`): only the first is a mistake to
+> fix, and collapsing them into one number is how a misconfiguration passes for normal attribution loss for
+> a month.
+>
+> **"Already uploaded" is keyed per-PAYLOAD (`event_id:payload_hash`), not per-event.** A flag on the event
+> could not tell a pointless re-run from a quote that became a final amount — which is precisely the
+> distinction A9's adjustments need. Value goes on the wire in **dollars**; an absent value is omitted
+> rather than sent as 0, because a reported $0 tells Smart Bidding the job was worth nothing.
+>
+> `app/api/cron/google-ads-upload/route.ts` — nightly at 07:00 UTC in `vercel.json`, `Bearer CRON_SECRET`
+> like the other 14. **Returns 200 with a `skipped` reason when unconfigured**, because a cron that 500s
+> every night for a feature nobody turned on is a cron whose alerts get muted — and then its real failures
+> are muted too.
+>
+> `/admin/marketing/uploads` + `/api/admin/marketing/uploads`, registered in the route registry and covered
+> by the existing `/admin/marketing` middleware gate. Shows **Google's own error text verbatim** — a
+> paraphrase is a support ticket, since the operator cannot search for it and the help pages are written
+> against Google's strings. "Never uploaded" and "uploaded then started failing" are rendered as different
+> states, not one date field.
+>
+> ⚠ **Not verified against the live API, and cannot be until a token exists**: the request/response shapes
+> come from Google's documentation, not from a successful call. `ADS_API_VERSION` will likely need a bump
+> by the time credentials arrive — it is pinned so that is a review, not a surprise. A14's browser pass is
+> where this gets confirmed end to end.
+
 - **Seed 473** — `google_ads_connections` (mirrors `google_calendar_connections`) and
   `conversion_upload_log` (`event_id`, `conversion_action`, `payload_hash`, `uploaded_at`, `status`,
   `error_code`, `error_detail`, `attempts`).

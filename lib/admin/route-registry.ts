@@ -133,6 +133,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // A7 — registered here rather than left as a URL only I know about. This repo's most common defect is
   // finishing something nobody can click, and an export page nobody can find is an export nobody runs.
   { href: '/admin/marketing/exports', label: 'Ad conversions',  workspace: 'work', iconName: 'TrendingUp',    description: 'Download offline conversions for Google Ads.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'conversions', 'marketing', 'export', 'attribution'] },
+  // A8 — the only place a partial_failure rejection is visible. Google returns HTTP 200 while rejecting
+  // rows, so an unfindable log is the same as no log.
+  { href: '/admin/marketing/uploads', label: 'Ad upload log',   workspace: 'work', iconName: 'UploadCloud',   description: 'What the nightly Google Ads upload sent, and what Google rejected.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'upload', 'conversions', 'errors', 'marketing'] },
   { href: '/admin/hours-approval',  label: 'Hours Approval',  workspace: 'work', iconName: 'CheckSquare',   description: 'Approve submitted timesheets.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['timesheet', 'approve'] },
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
