@@ -110,8 +110,11 @@ export default function LiveFieldFeed({ jobId }: { jobId?: string }) {
         <>
           {/* The promise sentence comes from the server, where §3d's "do not promise instant, any
               brand" lives. Composing it here from parts is how a UI eventually claims 'live' about a
-              path that syncs. */}
-          {data ? <p className="field-live__promise">{data.promise}</p> : null}
+              path that syncs.
+              Suppressed when the feed is empty: the empty state below already says the same thing in
+              more detail, and browser QA found the two stacked on top of each other saying "nothing
+              has arrived yet" twice. */}
+          {data && items.length > 0 ? <p className="field-live__promise">{data.promise}</p> : null}
 
           {data?.degraded?.length ? (
             <p className="field-live__degraded">

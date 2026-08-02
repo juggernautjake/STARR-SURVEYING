@@ -156,18 +156,25 @@ async function getChromiumLaunchOptions(): Promise<{
   headless: boolean;
 }> {
   const baseArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
-  try {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    return {
-      executablePath: await chromium.executablePath(),
-      args: [...chromium.args, ...baseArgs],
-      headless: true,
-    };
-  } catch {
-    // @sparticuz/chromium not available or not on a serverless platform —
-    // let Playwright use its own bundled browser (local dev, self-hosted servers).
-    return { args: baseArgs, headless: true };
+  // 2026-08-01: the catch below never fired off Lambda, and the fallback it describes never ran.
+  // `executablePath()` does not throw on a developer machine — it EXTRACTS the 180 MB Linux binary
+  // into the OS temp directory and returns that path. The file is then really there and really
+  // unrunnable on Windows or macOS, so Chromium fails to spawn with ENOENT on a path that looks
+  // correct. Every local browser scrape has been failing at launch and reporting it as a portal
+  // problem. The condition that matters is the platform the binary is built for.
+  if (process.platform === 'linux') {
+    try {
+      const chromium = (await import('@sparticuz/chromium')).default;
+      const executablePath = await chromium.executablePath();
+      if (executablePath) {
+        return { executablePath, args: [...chromium.args, ...baseArgs], headless: true };
+      }
+    } catch {
+      // @sparticuz/chromium not installed — fall through.
+    }
   }
+  // Let Playwright use its own bundled browser (local dev, self-hosted servers).
+  return { args: baseArgs, headless: true };
 }
 
 // ── Screenshot storage ────────────────────────────────────────────────────────

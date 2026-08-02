@@ -17,6 +17,7 @@ import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
+import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import { useCadReturnPathTracker } from '@/lib/admin/cad-return-path';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
@@ -156,6 +157,14 @@ export const PAGE_TITLES: Record<string, string> = {
 
 function getTitle(p: string): string {
   if (PAGE_TITLES[p]) return PAGE_TITLES[p];
+  // The registry, before the pattern heuristics below (audit §1.3 — one source of truth). This map
+  // is hand-maintained, so every page added since somebody last remembered it has been falling
+  // through: /admin/availability read "Admin", and /admin/research/sites read "Research Project",
+  // because the `/admin/research/` prefix rule below catches anything the map missed. A registered
+  // route already carries a label that the rail, the palette and the breadcrumb all use; taking it
+  // from there means a new page is titled correctly by being registered, which it must be anyway.
+  const registered = ADMIN_ROUTES.find((r) => r.href === p);
+  if (registered) return registered.label;
   if (p.includes('/exam-prep/sit/module/')) return 'FS Module Study';
   if (p.includes('/lesson-builder/')) return 'Lesson Builder';
   if (p.includes('/quiz')) return 'Quiz';

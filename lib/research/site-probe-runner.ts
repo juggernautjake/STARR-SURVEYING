@@ -42,22 +42,42 @@ async function getPlaywright() {
   }
 }
 
+/** Chromium, wherever this is running.
+ *
+ *  `@sparticuz/chromium` ships a Lambda-compatible build for serverless, where Playwright's own
+ *  browser binary does not exist. The trap — hit while testing this, and present in
+ *  `browser-scrape.service.ts` since it shipped — is that `executablePath()` neither throws nor
+ *  returns nothing off Lambda: it EXTRACTS a 180 MB Linux binary into the OS temp directory and
+ *  hands back that path. On Windows the file is then genuinely there, and genuinely unrunnable, so
+ *  an existence check passes and the spawn fails with ENOENT on a path that looks perfectly fine.
+ *
+ *  The condition that actually matters is the platform the binary is built for. Linux only; every
+ *  other host uses Playwright's bundled browser, which is what is installed there anyway. */
 async function getLaunchOptions(): Promise<{ executablePath?: string; args: string[]; headless: boolean }> {
   const baseArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
-  try {
-    const chromium = (await import('@sparticuz/chromium')).default;
-    return { executablePath: await chromium.executablePath(), args: [...chromium.args, ...baseArgs], headless: true };
-  } catch {
-    return { args: baseArgs, headless: true };
+  if (process.platform === 'linux') {
+    try {
+      const chromium = (await import('@sparticuz/chromium')).default;
+      const executablePath = await chromium.executablePath();
+      if (executablePath) return { executablePath, args: [...chromium.args, ...baseArgs], headless: true };
+    } catch {
+      // Not installed — fall through to the bundled browser.
+    }
   }
+  return { args: baseArgs, headless: true };
 }
 
 /** Runs INSIDE the page. Returns a plain structural description — no data, no records.
  *
- *  Written as one function string rather than several because everything it touches lives in the
- *  page's own realm; passing DOM nodes back across the bridge is not possible, so the flattening has
- *  to happen here. */
-const CAPTURE_FN = `() => {
+ *  One function rather than several because everything it touches lives in the page's own realm: DOM
+ *  nodes cannot cross the bridge, so the flattening has to happen on that side.
+ *
+ *  It is INVOKED where it is passed — `(${'…'})()`, not `${'…'}`. Playwright evaluates a string as an
+ *  EXPRESSION, and the expression `() => ({…})` is the arrow function itself: not serialisable, so it
+ *  crosses back as `undefined`, silently, with nothing thrown to catch. The first version of this
+ *  file did exactly that, and the probe answered "the portal could not be read" for every website in
+ *  existence — including, when tested, a page served by this app. */
+const CAPTURE_FN_SOURCE = `() => {
   const cssPath = (el) => {
     if (!el) return '';
     if (el.id) return '#' + CSS.escape(el.id);
@@ -171,7 +191,12 @@ export async function captureSite(url: string): Promise<ProbeRunResult> {
     });
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
-    const capture = (await page.evaluate(CAPTURE_FN)) as PageCapture;
+    const capture = (await page.evaluate(`(${CAPTURE_FN_SOURCE})()`)) as PageCapture | undefined;
+    if (!capture) {
+      // Belt and braces for the failure mode above: an evaluate that comes back empty is a bug on
+      // OUR side, and saying so beats implying the county's site is broken.
+      return { available: false, reason: 'The page loaded but could not be described — this is a fault in the probe, not in the portal.', elapsedMs: Date.now() - started };
+    }
     return { available: true, capture, elapsedMs: Date.now() - started };
   } catch (err) {
     return {
