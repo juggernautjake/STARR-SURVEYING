@@ -24,7 +24,7 @@ const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8')
 const VERIFIED_KOFILE: Array<[string, string]> = [
   ['48027', 'Bell'],
   ['48453', 'Travis'],
-  ['48491', 'Williamson'],
+  // Williamson removed: its Kofile portal has no land records at all — deeds are on Tyler Eagle (R39).
   ['48331', 'Milam'],
   ['48471', 'Walker'],
   ['48289', 'Leon'],

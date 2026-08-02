@@ -22,6 +22,8 @@ import { IDocketClerkAdapter, IDOCKET_FIPS_SET } from '../adapters/idocket-clerk
 import { FidlarClerkAdapter, FIDLAR_FIPS_SET } from '../adapters/fidlar-clerk-adapter.js';
 import { TexasFileAdapter } from '../adapters/texasfile-adapter.js';
 import { EdocTecClerkAdapter } from '../adapters/edoctec-clerk-adapter.js';
+import { TylerEagleAdapter } from '../adapters/tyler-eagle-adapter.js';
+import { TYLER_EAGLE_PORTALS } from '../adapters/tyler-eagle-discovery.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
@@ -67,7 +69,10 @@ export const KOFILE_FIPS_SET = new Set<string>([
   '48439',  // Tarrant
   '48453',  // Travis
   '48471',  // Walker
-  '48491',  // Williamson
+  // Williamson (48491) is deliberately ABSENT (plan R38/R39). Its Kofile portal answers 200 but
+  // exposes ONLY Commissioners Court — no land records at all — so every deed search there returned
+  // an empty page, which reads as "this property has no deeds". Its land records are on Tyler Eagle
+  // and it routes there instead. A reachable portal for the WRONG index is worse than no portal.
 ]);
 
 
@@ -91,7 +96,17 @@ export const KOFILE_FIPS_SET = new Set<string>([
 //
 // Move a vendor into this set only after probing its base URLs — the same rule the Kofile list now
 // carries, and for the same reason.
-const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec']);
+const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec', 'tyler']);
+
+/** Tyler Eagle Self-Service portals, driven end to end on 2026-08-02 (plan R39).
+ *
+ *  Derived from TYLER_EAGLE_PORTALS so the routing table and the URL table cannot drift apart —
+ *  the Kofile registry and the paid-platform registry each kept their own copy of a county list
+ *  once, and they disagreed.
+ *
+ *  NOTE this is deliberately NOT the old `TYLER_FIPS_SET`. That set belongs to TylerClerkAdapter,
+ *  whose base URLs were all probed dead; marking `tyler` proven must not resurrect it. */
+export const TYLER_EAGLE_FIPS_SET = new Set<string>(Object.values(TYLER_EAGLE_PORTALS).map((p) => p.fips));
 
 /** eDocTec — found 2026-08-02, and the only vendor here whose every listed county was driven end to
  *  end before it was listed (plan R39).
@@ -149,9 +164,14 @@ export function getClerkAdapter(
     return new CountyFusionAdapter(countyFIPS, countyName);
   }
 
-  // Priority 3: Tyler Technologies / Odyssey (~30+ counties)
-  if (TYLER_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) {
-    return new TylerClerkAdapter(countyFIPS, countyName);
+  // Priority 3: Tyler Eagle Self-Service — the NINE counties whose portals were driven (R39).
+  //
+  // This supersedes TylerClerkAdapter, whose base URLs were all probed dead in R38. Routing by the
+  // old adapter's FIPS set would send these counties to hosts that do not resolve, so that set is
+  // deliberately NOT consulted here: `tyler` being proven means the Eagle portals work, not that
+  // the old Odyssey URLs came back.
+  if (TYLER_EAGLE_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) {
+    return new TylerEagleAdapter(countyFIPS, countyName);
   }
 
   // Priority 4: Henschen & Associates (~40 Hill Country / Central TX counties)
@@ -180,7 +200,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (KOFILE_FIPS_SET.has(countyFIPS))       return 'kofile';
   if (EDOCTEC_FIPS_SET.has(countyFIPS) && isVendorProven('edoctec')) return 'edoctec';
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) return 'countyfusion';
-  if (TYLER_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
+  if (TYLER_EAGLE_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
   if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) return 'henschen';
   if (IDOCKET_FIPS_SET.has(countyFIPS) && isVendorProven('idocket')) return 'idocket';
   if (FIDLAR_FIPS_SET.has(countyFIPS) && isVendorProven('fidlar')) return 'fidlar';
@@ -207,14 +227,14 @@ export function registrySummary(): Record<ClerkSystem, number> {
     kofile:       KOFILE_FIPS_SET.size,
     edoctec:      EDOCTEC_FIPS_SET.size,
     countyfusion: COUNTYFUSION_FIPS_SET.size,
-    tyler:        TYLER_FIPS_SET.size,
+    tyler:        TYLER_EAGLE_FIPS_SET.size,
     henschen:     HENSCHEN_FIPS_SET.size,
     idocket:      IDOCKET_FIPS_SET.size,
     fidlar:       FIDLAR_FIPS_SET.size,
     // TexasFile covers all 254; show the remainder not covered by named systems
     texasfile: Math.max(
       0,
-      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_FIPS_SET.size
+      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
         - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
     ),
   };

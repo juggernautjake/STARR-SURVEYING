@@ -21,7 +21,10 @@ const src = raw.replace(/^\s*(\/\*\*|\*|\/\/)\s?/gm, '').replace(/\s+/g, ' ');
 /** Verified live on 2026-08-02: each returned 200 on `https://<county>.tx.publicsearch.us/`. */
 const VERIFIED = [
   '48027', '48029', '48041', '48083', '48085', '48121', '48185', '48251', '48259', '48289',
-  '48313', '48325', '48331', '48339', '48347', '48355', '48375', '48439', '48453', '48471', '48491',
+  '48313', '48325', '48331', '48339', '48347', '48355', '48375', '48439', '48453', '48471',
+  // Williamson (48491) answered 200 but serves ONLY Commissioners Court — no land records. It now
+  // routes to Tyler Eagle, where its deeds actually live (plan R39). A reachable portal for the
+  // WRONG index is worse than no portal: it returns an empty page that reads as "no deeds".
 ];
 
 /** Probed and unreachable ON KOFILE. These must NOT be routed to Kofile.
@@ -60,7 +63,14 @@ describe('what an unreachable county routes to instead', () => {
     for (const [fips, name] of Object.entries(UNREACHABLE)) {
       expect(getClerkSystem(fips), name).not.toBe('kofile');
     }
-    expect(getClerkSystem('48309')).toBe('texasfile');   // McLennan — Waco, portal still not found
+  });
+
+  it('routes McLennan, Burnet and Erath to Tyler Eagle once their portals were driven', () => {
+    // All three were "unreachable on Kofile", which R38 recorded and R39 showed to be a fact about
+    // the Kofile URL rather than about the county. Their real portals are Tyler Eagle deployments.
+    expect(getClerkSystem('48309')).toBe('tyler');   // McLennan — Waco
+    expect(getClerkSystem('48053')).toBe('tyler');   // Burnet
+    expect(getClerkSystem('48143')).toBe('tyler');   // Erath
   });
 
   it('routes Coryell and Lampasas to eDocTec, not to the paywall', () => {

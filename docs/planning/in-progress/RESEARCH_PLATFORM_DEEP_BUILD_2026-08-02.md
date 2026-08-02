@@ -33,7 +33,7 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
-| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | In progress; eDocTec found this way, taking Coryell and Lampasas off the paywall |
+| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | eDocTec found (Coryell, Lampasas); nine Tyler Eagle portals found and driven incl. McLennan/Waco; verified counties 7 → 18 |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -1705,16 +1705,56 @@ HTML.** `POST /web/searchPost/<SEARCH_ID>` answers
 `{"validationMessages":{},"totalPages":N,"currentPage":1}`. Scraping the DOM for a results table
 finds nothing because there is no table.
 
-**Not proven, and why none of the nine is routed:** that POST returns `totalPages: 0` for SMITH,
-with no validation messages, on a county holding 169 years of records whose own autocomplete had
-just listed Smiths. The search was accepted and answered "nothing", which contradicts the index.
-The likely cause is that deep-linking to `/search/<ID>` skips a session step the disclaimer sets —
-but that is a hypothesis, and a hypothesis is not a county's records. `tyler` stays out of
-`PROVEN_VENDORS`, no county routes there, and `readSearchOutcome()` reports every such zero as
-**unread**, never as empty.
+#### R39, third finding — `totalPages: 0` meant TOO MANY, and I read it backwards
 
-Nine counties therefore moved from *"URL unknown"* to *"portal located, form mapped, response
-contract known, one unresolved blocker"* — recorded in seed 549.
+Seed 549 recorded that zero as an unresolved contradiction: the search returned nothing for a name
+the county's own autocomplete had just listed. Screenshotting the page settled it in one look:
+
+> **"We found more documents than the maximum allowed. It may be necessary to refine your search."**
+
+`totalPages: 0` is an **over-limit** signal. It means the search matched *more* than the portal will
+return. Reading it as "no records" inverts the truth completely — it turns the largest result set
+the portal can produce into *"this property has nothing recorded"*.
+
+This is the sharpest instance of the defect this document exists to close, because **the wrong
+reading is the one a careful person arrives at**: the field is called `totalPages`, and it says
+zero. The JSON alone cannot distinguish "too many" from "none"; only the rendered page can. So
+`readSearchOutcome()` now *requires* the page text and refuses to decide from the JSON.
+
+Proven by narrowing the same search:
+
+| Search | `totalPages` | Meaning |
+|---|---|---|
+| SMITH, no date range | 0 | over limit |
+| SMITH, one month | 1 | real results |
+| SMITH JAMES, 2025 | 1 | 14 documents |
+
+Seed 549 was wrong on a second count too: results are `li.ss-search-row` **cards**, not table rows.
+Every probe reporting "0 rows" was querying `<tr>` on a page showing fourteen documents. Seed 550
+supersedes 549 and says so.
+
+**Driven end to end.** McLennan, grantor `SMITH JAMES`, 2025, through the compiled
+`TylerEagleAdapter`: 8 documents, 8 of 8 parsed, banner agreeing. The legal descriptions are why
+this matters to a surveyor:
+
+```
+Subdivision: INDIAN TRAILS ADDITION Lot: 10 Block: 2 Acres: .241  408 NAVAJO TRAIL, MCGREGOR
+Survey Name: T J CHAMBERS  Acres: 0.995
+```
+
+Subdivision, lot, block, survey name and acreage, straight off the index.
+
+**Over-limit is handled, not reported as failure.** `narrowByYear()` slices the range into
+contiguous windows and re-searches each. The windows tile with no gaps — a gap is a deed nobody
+sees, which is the same wrong answer as an empty result, only harder to notice. A window that is
+*still* over-limit is logged as incomplete rather than silently returned as the answer.
+
+**Williamson moved off Kofile.** It sat in the Kofile set because its portal answered 200 — but that
+portal serves *only* Commissioners Court, with no land records. Kofile is checked first, so it won
+the routing and every Williamson deed search returned an empty page. A guard test caught this the
+moment Tyler was wired up. **A reachable portal for the wrong index is worse than no portal.**
+
+The nine counties are now routed and proven, taking the verified total from 7 to **18**.
 
 #### Survey results, 2026-08-02 (seed 541)
 

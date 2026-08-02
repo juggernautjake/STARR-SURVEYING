@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getClerkSystem, isVendorProven } from '../services/clerk-registry.js';
+import { TYLER_EAGLE_FIPS_SET, getClerkSystem, isVendorProven } from '../services/clerk-registry.js';
 // From their own modules: the registry imports these rather than re-exporting them.
 import { HENSCHEN_FIPS_SET } from '../adapters/henschen-clerk-adapter.js';
 import { IDOCKET_FIPS_SET } from '../adapters/idocket-clerk-adapter.js';
@@ -36,10 +36,24 @@ describe('only proven vendors are routed to', () => {
     expect(isVendorProven('texasfile')).toBe(true);
   });
 
-  it('does not trust the four whose every URL was dead', () => {
-    for (const v of ['tyler', 'henschen', 'idocket', 'fidlar', 'countyfusion'] as const) {
+  it('does not trust the ones whose every URL was dead', () => {
+    for (const v of ['henschen', 'idocket', 'fidlar', 'countyfusion'] as const) {
       expect(isVendorProven(v), v).toBe(false);
     }
+  });
+
+  it('trusts Tyler only through the Eagle portals that were driven', () => {
+    // Tyler moved into the proven set on 2026-08-02, but NOT because the old TylerClerkAdapter's
+    // URLs came back — they are still dead. Nine Tyler Eagle Self-Service deployments were found on
+    // a corrected host pattern and driven end to end (plan R39).
+    //
+    // The distinction matters: routing by the OLD TYLER_FIPS_SET would send counties to hosts that
+    // do not resolve, so the registry consults TYLER_EAGLE_FIPS_SET instead.
+    expect(isVendorProven('tyler')).toBe(true);
+    expect(TYLER_EAGLE_FIPS_SET.has('48309')).toBe(true);   // McLennan — driven
+    // A county in the old set but NOT in the Eagle set must not route to Tyler.
+    const oldOnly = [...TYLER_FIPS_SET].filter((f) => !TYLER_EAGLE_FIPS_SET.has(f));
+    for (const fips of oldOnly) expect(getClerkSystem(fips), fips).not.toBe('tyler');
   });
 });
 

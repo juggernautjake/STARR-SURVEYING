@@ -27,20 +27,32 @@
 //      {"validationMessages":{},"totalPages":N,"currentPage":1}. This is why scraping the DOM for a
 //      results table finds nothing — there is no table to find.
 //
-// ── WHAT IS NOT PROVEN, AND WHY NOTHING HERE IS ROUTED ──────────────────────────────────────────
+// ── `totalPages: 0` MEANS TOO MANY, NOT NONE ────────────────────────────────────────────────────
 //
-// That POST returns `totalPages: 0` for SMITH — a name the autocomplete proves is in the index, on
-// a county with 169 years of records. No validation messages, so the server accepted the query and
-// answered "nothing".
+// This file first recorded that zero as an unexplained contradiction, because SMITH returned
+// `totalPages: 0` on a county whose own autocomplete had just listed Smiths. Screenshotting the
+// page settled it. Tyler renders:
 //
-// An empty answer that contradicts the index is exactly the failure this whole document exists to
-// close. The most likely cause is that deep-linking to /search/<ID> skips a session step the
-// disclaimer sets, so the backend answers without permission to return rows — but that is a
-// HYPOTHESIS, and a hypothesis is not a county's records.
+//     "We found more documents than the maximum allowed. It may be necessary to refine your search."
 //
-// So: these URLs are recorded as LOCATED. `tyler` stays out of PROVEN_VENDORS, no county routes
-// here, and none of the nine is claimed as covered. Listing them as working on the strength of a
-// 200 and a well-formed form is the precise mistake that produced 53 fictional Kofile counties.
+// The zero is an OVER-LIMIT signal. Reading it as "no records" inverts the truth completely — it
+// turns the single largest result set the portal can produce into "this property has nothing".
+// Proven by narrowing the same search:
+//
+//     SMITH, no date range        totalPages 0   over limit
+//     SMITH, one month            totalPages 1   real results
+//     SMITH JAMES, one year       totalPages 1   14 documents, listed below
+//
+// This is the sharpest instance of the defect this whole document exists to close, because the
+// wrong reading is the one a careful person arrives at: the field is called totalPages, and it
+// says zero.
+//
+// ── RESULTS ARE CARDS, NOT TABLE ROWS ───────────────────────────────────────────────────────────
+//
+// `li.ss-search-row`, each with an `h1` of "<instrument> • <document type>", label/value pairs in
+// `div.searchResultFourColumn`, and a link to `/web/document/<DOCID>?search=<SEARCHID>`. Scraping
+// for `<tr>` finds nothing, which is why every earlier probe reported zero rows on a page that was
+// showing fourteen documents.
 
 /** Counties whose Tyler Host deployment resolves, with the app path each one uses.
  *
@@ -96,19 +108,18 @@ export interface TylerSearchResponse {
 
 export type TylerOutcome =
   | { state: 'rejected'; statement: string }
-  | { state: 'empty_but_suspect'; statement: string }
+  | { state: 'over_limit'; statement: string }
+  | { state: 'empty'; statement: string }
   | { state: 'has_results'; totalPages: number; statement: string };
 
-/** Read the search response WITHOUT converting an unexplained zero into "no records".
+/** The banner Tyler renders when a search matched more than it will return. */
+export const OVER_LIMIT_TEXT = /more documents than the maximum allowed/i;
+
+/** Read the search response.
  *
- *  `indexKnowsTerm` is what the autocomplete said. When the index contains the name and the search
- *  returns nothing, those two facts contradict each other, and the contradiction — not the zero —
- *  is the finding. */
-export function readSearchOutcome(
-  res: TylerSearchResponse,
-  county: string,
-  indexKnowsTerm: boolean,
-): TylerOutcome {
+ *  `pageText` is the rendered page. It is required, not optional, because the JSON alone CANNOT
+ *  distinguish "too many" from "none" — both are `totalPages: 0`. Only the page says which. */
+export function readSearchOutcome(res: TylerSearchResponse, county: string, pageText: string): TylerOutcome {
   const messages = Object.keys(res.validationMessages ?? {});
   if (messages.length > 0) {
     return {
@@ -118,29 +129,39 @@ export function readSearchOutcome(
   }
 
   if (res.totalPages > 0) {
-    return {
-      state: 'has_results',
-      totalPages: res.totalPages,
-      statement: `${county}: ${res.totalPages} page(s) of results.`,
-    };
+    return { state: 'has_results', totalPages: res.totalPages, statement: `${county}: ${res.totalPages} page(s) of results.` };
   }
 
-  if (indexKnowsTerm) {
+  if (OVER_LIMIT_TEXT.test(pageText)) {
     return {
-      state: 'empty_but_suspect',
+      state: 'over_limit',
       statement:
-        `${county}: search returned totalPages=0, but the portal's own autocomplete knows this name. ` +
-        `Those two facts contradict each other, so this is UNREAD, not empty. Do not record "no records found".`,
+        `${county}: the search matched MORE documents than the portal will return — narrow it (date range, ` +
+        `document type, fuller name). This is the OPPOSITE of an empty result and must never be recorded as "no records found".`,
     };
   }
 
   return {
-    state: 'empty_but_suspect',
-    statement:
-      `${county}: search returned totalPages=0 and the index was not independently confirmed to know the term. ` +
-      `Tyler results have never been driven successfully — treat as unread until one search is proven to return rows.`,
+    state: 'empty',
+    statement: `${county}: no documents matched, and the portal did not report an over-limit. Genuinely empty for this query.`,
   };
 }
 
-/** Is any Tyler county safe to route to yet? */
-export const TYLER_RESULTS_PROVEN = false;
+/** Narrow an over-limit search by slicing its date range.
+ *
+ *  Returned windows cover the original range with no gaps — a gap is a deed nobody sees, which is
+ *  the same wrong answer as an empty result, only harder to notice. */
+export function narrowByYear(from: Date, to: Date, years = 5): Array<{ from: Date; to: Date }> {
+  if (to < from) return [];
+  const out: Array<{ from: Date; to: Date }> = [];
+  let cursor = new Date(from);
+  while (cursor <= to) {
+    const end = new Date(cursor.getFullYear() + years, 0, 0);
+    out.push({ from: new Date(cursor), to: end > to ? new Date(to) : end });
+    cursor = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+  }
+  return out;
+}
+
+/** Results were driven end to end on 2026-08-02: SMITH JAMES, 2025, McLennan → 14 documents. */
+export const TYLER_RESULTS_PROVEN = true;
