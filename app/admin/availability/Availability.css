@@ -1,0 +1,158 @@
+/* app/admin/availability/Availability.css — the dispatcher's day (audit §2.4). Tokens only. */
+
+.avail {
+  padding: 1.25rem 1.5rem 2.5rem;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--color-text-primary);
+}
+
+.avail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.avail__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.avail__sub {
+  margin: 0.35rem 0 0;
+  max-width: 62ch;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.avail__datebar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.avail__datebar button,
+.avail__datebar input {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: inherit;
+  cursor: pointer;
+}
+.avail__today { font-weight: 600; }
+
+.avail__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1rem 0 0.2rem;
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.avail__window {
+  margin: 0.5rem 0 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.avail__note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+}
+.avail__note--bad { color: var(--color-error-text); }
+
+.avail__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.avail__col {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  padding: 0.85rem 0.95rem;
+}
+
+.avail__col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.avail__col-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.avail__col-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.avail__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+
+.avail__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: var(--color-bg-app);
+  font-size: 0.83rem;
+}
+/* Blocked rows are dimmed, not tinted red. Being booked is the normal state of a working crew, and
+ * colouring it as a problem makes a busy Thursday look like an incident. */
+.avail__row--blocked { opacity: 0.72; }
+
+.avail__row-head { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-weight: 600; }
+.avail__row-head a { color: inherit; }
+.avail__row-head em { font-style: normal; font-weight: 400; color: var(--color-text-tertiary); }
+.avail__row--blocked .avail__row-head svg { color: var(--color-warning-text); }
+.avail__row:not(.avail__row--blocked) .avail__row-head svg { color: var(--color-success-text); }
+
+.avail__why { color: var(--color-text-secondary); font-size: 0.78rem; }
+.avail__warn { color: var(--color-warning-text); font-size: 0.78rem; }
+
+.avail__empty { margin: 0.2rem 0; font-size: 0.83rem; color: var(--color-text-tertiary); }
+
+.avail__caveat {
+  margin: 1rem 0 0;
+  max-width: 78ch;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.avail__links {
+  margin: 0.8rem 0 0;
+  font-size: 0.83rem;
+  color: var(--color-text-secondary);
+}
+.avail__links a { color: var(--color-info-text); }

@@ -80,6 +80,20 @@ export default function CustomerAuditPage() {
       <header>
         <h1>Audit log</h1>
         <p>Every operator + system action on your organization.</p>
+        {/* Platform audit §2.6: five surfaces answer "what happened and who did it", and nothing
+            told anyone which. Rather than merge four working logs into one — they read different
+            tables, keep different retention and answer to different people — each is named here
+            with the question it is the RIGHT one for. This page is the compliance answer, so it is
+            where somebody who opened the wrong log ends up first. */}
+        <nav className="audit-elsewhere" aria-label="Other history surfaces">
+          <span>Not what you are after?</span>
+          <Link href="/admin/timeline">Activity timeline</Link>
+          <em>what the crew did today — a working feed, not a record</em>
+          <Link href="/admin/error-log">Error log</Link>
+          <em>failures inside the software itself</em>
+          <Link href="/admin/equipment/overrides">Equipment overrides</Link>
+          <em>who forced a checkout past a warning</em>
+        </nav>
       </header>
 
       <div className="audit-filters">

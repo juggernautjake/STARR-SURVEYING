@@ -124,3 +124,27 @@
   text-decoration: none;
 }
 .audit-page footer a:hover { text-decoration: underline; }
+
+/* Platform audit §2.6 — the other four "what happened" surfaces, each labelled with the question it
+ * is the right one for. A row of links with no explanation would just be a fifth thing to guess at. */
+.audit-elsewhere {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+.audit-elsewhere a {
+  font-weight: 600;
+  color: var(--color-info-text);
+  text-decoration: none;
+}
+.audit-elsewhere a:hover { text-decoration: underline; }
+.audit-elsewhere em {
+  font-style: normal;
+  color: var(--color-text-tertiary);
+}
+.audit-elsewhere em::after { content: ' ·'; }
+.audit-elsewhere em:last-child::after { content: ''; }
