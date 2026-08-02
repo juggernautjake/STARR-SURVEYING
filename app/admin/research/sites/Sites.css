@@ -1,0 +1,209 @@
+/* app/admin/research/sites/Sites.css — the data-source registry screen (§8.1).
+ * Tokens only; audit item 17 is clearing inline hexes and a new page must not add to the pile. */
+
+.sites {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--color-text-primary);
+}
+
+.sites__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+
+.sites__title {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.sites__sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+  color: var(--color-text-tertiary);
+  max-width: 60ch;
+}
+
+.sites__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0.95rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sites__result {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+}
+.sites__result ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.sites__result--ok {
+  background: var(--color-success-surface);
+  border: 1px solid var(--color-success-text);
+  color: var(--color-success-text);
+}
+.sites__result--bad {
+  background: var(--color-error-surface);
+  border: 1px solid var(--color-error-text);
+  color: var(--color-error-text);
+}
+
+.sites__wizard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.9rem;
+  padding: 1.1rem;
+  margin-bottom: 1.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.sites__field { display: flex; flex-direction: column; gap: 0.3rem; }
+.sites__field--wide { grid-column: 1 / -1; }
+.sites__field label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+}
+.sites__field input,
+.sites__field select {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+.sites__optional {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+.sites__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.sites__detect {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border);
+  font-size: 0.83rem;
+}
+.sites__detect-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.sites__detect-line--ok { color: var(--color-success-text); }
+.sites__detect-line--warn { color: var(--color-warning-text); }
+.sites__detect-line code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.sites__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+}
+.sites__actions button {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  cursor: pointer;
+}
+.sites__actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.sites__cancel {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+.sites__note {
+  padding: 1.6rem 1rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.sites__note p { margin: 0.3rem 0; }
+.sites__note--bad {
+  color: var(--color-error-text);
+  background: var(--color-error-surface);
+  border-color: var(--color-error-text);
+}
+
+.sites__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.sites__table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.sites__table td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sites__status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.sites__status--ok    { color: var(--color-success-text); background: var(--color-success-surface); }
+.sites__status--warn  { color: var(--color-warning-text); background: var(--color-warning-surface); }
+.sites__status--bad   { color: var(--color-error-text);   background: var(--color-error-surface); }
+.sites__status--muted { color: var(--color-text-tertiary); background: var(--color-bg-subtle); }

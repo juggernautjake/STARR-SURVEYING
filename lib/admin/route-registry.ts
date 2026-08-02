@@ -197,6 +197,14 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research projects.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records'] },
   { href: '/admin/research/testing',     label: 'Testing Lab',      workspace: 'research-cad', iconName: 'FlaskConical', description: 'Test research pipelines + adapters.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['lab', 'experiments'] },
   { href: '/admin/research/self-heal',   label: 'Site Health',      workspace: 'research-cad', iconName: 'ShieldCheck',  description: 'Run a one-time check across every county portal and toggle automatic self-healing.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['self-heal', 'monitoring', 'sweep', 'adapters', 'health'] },
+  // Roadmap §8.1 (Pillar A). Sits beside Site Health deliberately: that page answers "is a county
+  // portal still working", this one answers "which county portals do we have at all", and the two
+  // read the same registry. Same roles as Site Health — registering a data source decides what the
+  // coverage dashboard promises customers, which is not a general-staff action.
+  // Palette-only, like Coverage and Pipeline beside it: registering a portal is a rare setup action,
+  // and the rail is a place you go daily. It is reached from the coverage page's health panel, which
+  // is where the question "why can't we search this county" actually gets asked.
+  { href: '/admin/research/sites',       label: 'Data Sources',     workspace: 'research-cad', iconName: 'Globe',       description: 'Register a county portal — CAD, clerk, plat or GIS — and see which ones this firm can read.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['county', 'portal', 'adapter', 'vendor', 'register', 'source'] },
   // Slice W4 (hub-cad-roles-polish-2026-06-18) — user spec: "If
   // a user does not have the drawing role and clicks the cad
   // button … they are still routed to the cad software. We might

@@ -9,6 +9,8 @@
 // network. The registry isn't large enough to warrant pagination.
 
 import Link from 'next/link';
+import AdapterHealthPanel from './AdapterHealthPanel';
+import './AdapterHealth.css';
 import {
   CLERK_REGISTRY,
   getAdapterCoverage,
@@ -77,6 +79,12 @@ export default function CoveragePage() {
           pending.
         </p>
       </header>
+
+      {/* Roadmap §9.8 — the runtime counterpart to the compile-time map below. That registry says
+          which counties we INTEND to cover; this says which registered portals are actually
+          returning data. A county can be green on one and broken on the other, and only showing the
+          first is how a firm promises a customer a county it can no longer search. */}
+      <AdapterHealthPanel />
 
       <section
         style={{
