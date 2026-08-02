@@ -265,8 +265,19 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 24 | Invoice pay page `/invoice/[token]` — document view, payment methods, "I've sent it", card via Stripe | ✅ 2026-08-02 |
 | 25 | Payment settings + client-declared payment confirmation in the studio | ✅ 2026-08-02 |
 | 26 | Vitest for `lib/voice` — 107 tests across money, payments, widgets, contracts, expenses | ✅ 2026-08-02 |
+| 27 | Contrast audit run — **941 text nodes across 7 routes × 2 viewports, every one clears WCAG AA** | ✅ 2026-08-02 |
+| 28 | 390px sweep of all 13 studio pages — **13/13 fit with no undersized controls** (`scripts/audit-voice-mobile.mjs`, new) | ✅ 2026-08-02 |
 | — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
-| — | Contrast audit + 390px sweep of the **studio** pages | ⛔ NOT RUN (script exists: `scripts/audit-voice-contrast.mjs`) |
+
+### Verifying it again
+
+```
+npm run build && npx next start -p 3225          # audits need a built server
+node scripts/audit-voice-contrast.mjs  --base http://localhost:3225
+node scripts/audit-voice-mobile.mjs    --base http://localhost:3225 --user juggernautjake --pass '…'
+node scripts/audit-route-auth.mjs                # no server needed
+npx vitest run __tests__/voice/                  # 107 cases
+```
 
 ### How payment works (read this before touching it)
 
@@ -292,15 +303,21 @@ and a retry would otherwise double-credit the invoice.
 
 ### Next session starts here
 
-Everything the user asked for is built. What is left is verification, not construction:
+Everything the user asked for is built, and every audit has been run and is green.
 
-1. **390px sweep of the studio pages.** The public site and the two new client pages are verified at
-   390px; the thirteen studio pages are not.
-2. **Run `scripts/audit-voice-contrast.mjs`.** It has never been executed.
-3. **Web-push subscribe UI.** The service worker and manifest exist and `notifyStudio` already writes
-   notifications; nothing yet asks the browser for permission.
-4. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
+1. **Web-push subscribe UI** — the only unbuilt item. The service worker and manifest exist and
+   `notifyStudio` already writes notifications; nothing yet asks the browser for permission, so
+   notifications appear in the studio but never reach a locked phone.
+2. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
    deploy costs money.
+3. Andrew's own account. He picks his username, email and password at the studio login.
+
+### What is waiting on a person, not on code
+
+Section 12's open questions — the real credits, the telephony client's name, whether the testimonials
+can be un-flagged — plus his contact details and coaching rates. And the payment handles: Studio →
+Settings → Getting paid starts empty on purpose, so until Andrew fills it in, an invoice tells the
+client to reply to his email.
 
 ### Defects found and fixed during the build
 
@@ -344,6 +361,21 @@ Everything the user asked for is built. What is left is verification, not constr
     looking.*
 13. **A white band under short pages.** The host `<body>` is white and the pages with no site footer
     (invoice, portal, signing) end before the viewport does. `.vaRoot` now has `min-height: 100vh`.
+14. **The whole studio scrolled sideways on a phone, because of an email address.**
+    `jacobmaddux96@gmail.com` is one unbreakable 175px token in a flex table cell that could not
+    shrink. It widened its row, its table, the `.vaStudio` grid, and finally the fixed bottom nav —
+    which is `100%` of a parent that was now 445px. **The sweep named the NAV and listed the cell
+    last**: an overflow propagates outward, so the thing that looks broken is never the cause. The
+    audit now sorts offenders narrowest-first for that reason.
+15. **`.vaGuideSources` had no CSS at all.** The citation block under every pricing figure in the
+    business guide — the thing that makes "charge $650 for a regional spot" credible — was rendering
+    as a bare paragraph with default browser links. Nobody saw it because it sits at the bottom of a
+    long section. The mobile sweep found it by measuring a 21px link.
+16. **The contrast audit passed without measuring anything.** Its first-ever run hit a server on the
+    wrong port, loaded zero routes, found zero failures, and printed
+    "✓ Every measurable text node clears WCAG AA." A green tick for an audit that never ran is worse
+    than a red one. Zero measurements is now an explicit failure. *(Then the real run: 941 nodes, all
+    passing.)*
 
 ## 11. Sources
 

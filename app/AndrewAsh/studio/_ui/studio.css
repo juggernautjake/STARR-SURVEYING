@@ -410,6 +410,19 @@ a.vaTile:hover {
     justify-content: space-between;
     gap: 16px;
     align-items: baseline;
+    /* An email, a filename and a URL are each one unbreakable token, and this studio's tables are
+       made of them. Without this, `jacobmaddux96@gmail.com` was 175px that could not shrink and would
+       not break: it widened its row, its table, the whole `.vaStudio` grid, and finally the fixed
+       bottom nav — which is 100% of a parent that was now 445px. The sweep reported the NAV as the
+       overflowing element and the cell last, because the symptom is always further out than the
+       cause. */
+    overflow-wrap: anywhere;
+  }
+  /* Flex items default to min-width:auto and refuse to shrink below their content. The cell above can
+     only do its job if what is inside it is allowed to give. */
+  .vaDataTable td > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   /* The header text is repeated per cell via a data attribute, so a stacked row still says what each
      value IS. Without it the card is a column of unlabelled strings. */
@@ -958,5 +971,67 @@ a.vaTile:hover {
   .vaPayRow {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+}
+
+/* The reference links under a guide task, and the "view this page" links on Pages. Unstyled anchors
+   inherit their line box and land at 21px tall — under the 24px WCAG 2.5.8 asks for and well under
+   what a thumb wants. They are STANDALONE links in a list rather than links inside a sentence, so
+   unlike prose links they can take vertical room without pulling the paragraph apart. */
+/* `.vaGuideSources` had NO styling whatsoever — the citation block under every pricing figure was
+   rendering as a bare paragraph and a column of default links. It was never noticed because the
+   guide is long and the block sits at the bottom of a section somebody has already read. The mobile
+   sweep found it by measuring, which is the point of measuring. */
+.vaGuideSources {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--va-line);
+}
+.vaGuideSources > p {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  margin: 0 0 6px;
+}
+
+.vaTaskLinks,
+.vaGuideSources {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.vaTaskLinks a,
+.vaGuideSources a {
+  display: inline-block;
+  padding: 6px 0;
+  color: var(--va-accent);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.vaTaskLinks a:hover,
+.vaTaskLinks a:focus-visible,
+.vaGuideSources a:hover,
+.vaGuideSources a:focus-visible {
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  /* Not 44px: a list of eight rate guides padded to 44 each becomes a 350px wall of whitespace, and
+     the guidance for a text link is 24. Buttons and inputs still get the full 44 — those are the
+     things being aimed at rather than read. */
+  .vaTaskLinks a,
+  .vaGuideSources a {
+    padding: 8px 0;
+  }
+  /* A link that IS the cell's value — a page address, a client's website — rather than a word inside
+     a sentence. The stacked row already gives it its own line, so the padding costs no layout. */
+  .vaDataTable td > a {
+    display: inline-block;
+    padding: 4px 0;
   }
 }

@@ -2431,3 +2431,33 @@ a.vaCard:hover,
     content: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   TOUCH TARGETS
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   Added 2026-08-02 after `scripts/audit-voice-mobile.mjs` measured the studio at 390px. `.vaBtnSm`
+   is 34px tall, which is right for a dense desktop table and under the floor for a finger — and it
+   is what "New invoice", "Add a client" and "New agreement" are, so on a phone the primary action on
+   the page was the hardest thing to hit.
+
+   Keyed on `pointer: coarse` rather than a width breakpoint, because the question is what is doing
+   the pointing, not how wide the screen is. A touchscreen laptop at 1400px gets the bigger targets;
+   a narrow desktop window does not, and keeps its density.
+
+   `min-height` rather than more padding: padding would also push the label off-centre in the icon-
+   only buttons, and this leaves the text where it was. */
+@media (pointer: coarse) {
+  .vaRoot .vaBtn,
+  .vaRoot .vaBtnSm {
+    min-height: 44px;
+  }
+  /* Native colour swatches ignore padding — the box is the control — so they are sized directly. */
+  .vaRoot input[type='color'] {
+    min-height: 44px;
+  }
+  .vaRoot .vaInput,
+  .vaRoot .vaSelect {
+    min-height: 44px;
+  }
+}
