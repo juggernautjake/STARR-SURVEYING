@@ -54,6 +54,8 @@ import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } f
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
 import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health.js';
 import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js';
+import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
+import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
@@ -4436,6 +4438,20 @@ app.listen(PORT, () => {
   });
 
   console.log(`[startup] capacity — ${describeCapacity(CAPACITY)}`);
+
+  // Publish the compiled county knowledge into research_site_adapters (plan R8). Until this ran,
+  // the self-healing subsystem monitored an EMPTY table while the scrapers that actually break were
+  // compiled into this service — so "self-healing adapters" was true of nothing. Idempotent and
+  // non-destructive: an existing row may carry a repair somebody accepted, and a restart must not
+  // undo it.
+  void publishCompiledAdapters(clerkEntriesToCompiled(CLERK_REGISTRY)).then((r) => {
+    if (r.errors.length > 0) {
+      console.warn(`[startup] adapter registry sync: ${r.errors.join('; ')}`);
+    } else {
+      const skipped = r.skippedNoCounty.length > 0 ? ` (${r.skippedNoCounty.length} county name(s) not in research_counties)` : '';
+      console.log(`[startup] adapter registry — published ${r.published} compiled adapter(s)${skipped}`);
+    }
+  });
 
   console.log('[Server] Endpoints:');
   console.log('  GET    /healthz                         ← liveness (what the container probes)');

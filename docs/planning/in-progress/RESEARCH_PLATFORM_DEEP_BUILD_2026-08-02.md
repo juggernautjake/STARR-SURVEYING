@@ -297,11 +297,33 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase B — One brain: the registry becomes the source of truth
 
-- **R8. Worker reads the adapter registry.**
-  The 17 hard-coded adapters get registered as `research_site_adapters` rows (vendor template +
-  county + config), and the worker resolves its adapter from the registry, falling back to code only
-  when the registry has nothing. This is what makes §2.2 stop being true.
-  *Acceptance:* changing a selector in the registry changes worker behaviour with no deploy.
+- **R8. ⚠ HALF DONE 2026-08-02 — the registry is no longer empty, and the resolver exists.**
+  *Owner emphasis 2026-08-02: "the system needs to be able to check and sense when a website has
+  changed or been updated, then adjust and self heal to be able to use the new or updated website."
+  This slice is the precondition for all of it — sensing needs a subject, and adjusting needs
+  somewhere to put a fix that is not a deploy.*
+
+  `worker/src/infra/adapter-registry.ts` does two things:
+
+  **Publishes** the worker's compiled county knowledge into `research_site_adapters` on boot.
+  Verified against production: **0 rows → 21**, and honest about what they are — 2 `active`
+  (Bell, Bexar) and 19 `draft`, because a stub advertised as active is how a surveyor picks this
+  firm for a county it cannot actually search. Idempotent and **non-destructive**
+  (`ignoreDuplicates`): a restart must not undo a repair somebody accepted last week.
+
+  **Resolves** registry-first, compiled-fallback, with a 60-second cache and an explicit
+  `invalidateAdapterCache()` so an applied repair lands immediately. A stored `base_url` wins over
+  the compiled one — a county moving its portal is the most common break there is, and fixing it in
+  a row rather than in a release is the whole point. Every answer records whether it came from the
+  registry or from code, because the two behave identically right up until one is wrong.
+
+  Why publish-then-read rather than registry-only: a fresh or wiped database would otherwise leave
+  the worker unable to research a county it has perfectly good code for. Compiled is the floor;
+  corrections sit on top.
+
+  **Still to do (R8b):** the adapters themselves must *call* `resolveAdapter()` instead of reading
+  their module constants. That is a per-adapter change and belongs with R9's canaries, so a change
+  can be proven against a known property rather than assumed.
 
 - **R9. Golden set + canaries on real counties.**
   Ten known properties across counties/vendors with hand-verified expected extractions. Canaries
