@@ -31,7 +31,8 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | Slice | What remains | Why it was not done in the slice |
 |---|---|---|
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
-| ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
+| ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
+| R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -1565,7 +1566,50 @@ for each of these, which is what "fully built" means here.
   *Acceptance:* every county above has a recorded site survey, and each adapter's `config` carries a
   real base URL and search path rather than a guess.
 
-- **R38. Build and prove each adapter.**
+#### R37/R38 findings — the coverage was largely fictional
+
+Driving the live sites turned up more than adapter bugs. **The platform's claimed county coverage was
+mostly untested assertion**, and measuring it changed the picture completely.
+
+**1. The Kofile registry was 60% wrong.** Its list of 53 counties came from a vendor marketing page
+in 2024, with a header saying unlisted counties "follow the default subdomain pattern
+automatically". Probing every entry found **32 have no reachable portal** — including Coryell (31
+miles), McLennan, Falls, Lampasas, Burnet and Bosque. Trimmed to the 21 that answered.
+
+**2. Four of the six clerk adapters cannot reach any site.** Every base URL in Tyler, Henschen,
+iDocket and Fidlar is dead — all 54. Henschen uses `<county>.co.texas.us`, a domain pattern that
+does not exist; iDocket 404s on every county; Fidlar's hosts do not resolve. Routing is now gated on
+`isVendorProven`, so their counties fall through to TexasFile instead of a dead host. The county
+lists are kept — knowing Hays is a Henschen county is real knowledge; the claim we can reach it is
+not.
+
+**3. TexasFile — now the fallback for 233 counties — is a paywall.** Its search runs and states the
+count ("5,000 records matching your search in Bell County"), then redirects to `/register/`. Its URL
+shape and form fields in our adapter were both wrong. A paywall now reports as a paywall **with the
+count**, because "5,000 records exist and we cannot open them" is a purchasing decision while "no
+records found" is a wrong answer.
+
+**4. The Kofile adapter had two independent bugs** that each returned an empty index as an answer:
+the search parameters were ignored by the site (zero rows, no error — worse than a 404, which a
+health check would catch), and the parser required `\d{10,13}` instrument numbers when the real ones
+are `2019-3389` and `DEPU-000021`, so it dropped every row it was given.
+
+**5. Nothing about one county is safe to assume about another.** Department codes differ (Milam
+`RP`="Property Records", Travis `RP`="Land Records", Williamson has no land-records department at
+all). Column sets differ (7 named columns on Milam, 17 in a different order on Montgomery). Date
+ranges differ (Bell indexed from **1600**, Burleson from 1939) and a range outside a county's own is
+an error, not a wider search. Even the Tyler Host URL that works for Williamson does not resolve for
+Hays, Bastrop or Coryell.
+
+**6. Fixed waits produced wrong facts.** A `waitForTimeout(3000)` read Bell and Milam as having no
+departments — an answer that looked like a finding. Every wait is now a condition with a deadline,
+and a timeout is reported as *unread*, never as *empty*.
+
+The through-line is the one this document has been closing since R1: **an unknown rendered as an
+answer.** At county-coverage scale it meant the platform would have told a surveyor "no records
+found" for most of Texas.
+
+- **R38. Build and prove each adapter.** PARTLY DONE 2026-08-02 — 7 counties proven end-to-end, 4 adapters found unreachable and gated, TexasFile paywall surfaced
   Turn each survey into a working adapter, exercised against a real search, and let R9's health
   checks and R11's coverage report it as *proven* rather than merely registered.
   *Acceptance:* the coverage headline stops saying "none has been proven to work yet".
