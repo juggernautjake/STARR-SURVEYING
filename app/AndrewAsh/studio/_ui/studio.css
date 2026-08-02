@@ -559,3 +559,127 @@ a.vaTile:hover {
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   }
 }
+
+/* ── INVOICE LINE EDITOR ──────────────────────────────────────────────────────────────────────────
+ *
+ * Description / quantity / unit price / remove. Collapses to a stack on a phone with the description
+ * full-width and the two numbers side by side — a 4-column grid at 390px gives each number about 60px,
+ * which is not enough to see "1,250.00" while typing it.
+ */
+.vaLineRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: start;
+}
+.vaLineRow > input:nth-child(2),
+.vaLineRow > input:nth-child(3) {
+  grid-column: span 1;
+}
+@media (min-width: 560px) {
+  .vaLineRow {
+    grid-template-columns: minmax(0, 1fr) 78px 104px 34px;
+    gap: 8px;
+  }
+}
+@media (max-width: 559px) {
+  /* Two numbers share a row beneath the description; the remove button tucks in beside them. */
+  .vaLineRow {
+    grid-template-columns: 1fr 1fr 34px;
+  }
+  .vaLineRow > input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+.vaLineRemove {
+  background: none;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  height: 40px;
+}
+.vaLineRemove:hover {
+  color: #ff9c7e;
+  border-color: #ff8a6a;
+}
+
+.vaInvoiceTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--va-line);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+}
+.vaInvoiceTotal strong {
+  font-family: var(--va-font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--va-accent);
+  font-weight: 600;
+}
+
+/* ── INVOICE DOCUMENT ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Styled like an invoice, not like a form. Andrew should be able to check it by READING it rather
+ * than reconstructing it from input fields — which is also why the line items are a table here and
+ * editable only while the invoice is still a draft.
+ */
+.vaInvoiceDoc {
+  background: var(--va-surface);
+}
+.vaInvoiceHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaInvoiceParty {
+  color: var(--va-text);
+  font-size: 0.9375rem;
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.vaInvoiceHead .vaMuted {
+  font-size: 0.8125rem;
+  margin: 2px 0 0;
+}
+.vaInvoiceTotals {
+  margin-top: 20px;
+  max-width: 340px;
+  margin-left: auto;
+}
+.vaInvoiceTotals .vaSpecValue {
+  min-width: 0;
+}
+
+/* A read-only URL beside its copy button. `min-width: 0` on the input is what stops a long URL
+   pushing the button off the panel — flex items default to min-content width, and a URL has none. */
+.vaCopyRow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.vaCopyRow input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.vaCopyRow .vaBtn {
+  flex: none;
+}

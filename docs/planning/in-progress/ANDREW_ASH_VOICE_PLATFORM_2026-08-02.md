@@ -251,7 +251,9 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 12 | API — auth, team, inquiries, uploads, pages, checklist | ✅ |
 | 13 | Inquiry form + script upload | ✅ built, **upload not yet exercised end to end** |
 | 14 | `npm run build` green | ✅ |
-| — | **Studio: inquiries, invoices, contracts, clients, expenses, documents, coaching, demos, media, settings** | ⛔ **NOT BUILT** — nav links 404 |
+| 15 | Studio → Inquiries — list, tabs, detail, signed attachments, lead→client | ✅ 2026-08-02 |
+| 16 | Studio → Invoices — list, money tiles, builder, document view, payment ledger | ✅ 2026-08-02 |
+| — | **Studio: contracts, clients, expenses, documents, coaching, demos, media, settings** | ⛔ **NOT BUILT** — nav links 404 |
 | — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
 | — | Stripe payment flow | ⛔ NOT BUILT |
 | — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
