@@ -543,6 +543,101 @@ function WidgetBody({ widget, context }: { widget: Widget; context: PageContext 
       );
     }
 
+    case 'mediaText': {
+      // ── WHY THIS WIDGET EXISTS ──────────────────────────────────────────────────────────────
+      //
+      // Reported by the owner with a screenshot of the home page's About section: a narrow column of
+      // text, then a full-bleed photograph nearly three times its width, then a lone button floating
+      // under the image. Each block was individually fine and the composition was wrong.
+      //
+      // The cause was structural. Converting the site to blocks turned a two-column layout into a
+      // vertical stack, because a stack was the only thing the widget set could express. Fixing it by
+      // hand-tuning that page's widths would have left the next two-column section to rediscover the
+      // same problem — and left Andrew with no way to build one himself.
+      //
+      // So the fix is the missing primitive. Text and media share a row, the media side and split are
+      // controls, and the call-to-action belongs to the block instead of drifting below it.
+      const mediaSide = str(p.mediaSide, 'right') === 'left' ? 'left' : 'right';
+      const mediaPct = Math.max(25, Math.min(65, num(p.mediaWidth, 48)));
+      const photoId = str(p.photoId);
+      const url = str(p.url);
+      const hasMedia = Boolean(photoId || url);
+
+      const media = hasMedia ? (
+        <figure className="vaFigure vaMediaTextMedia">
+          {photoId ? (
+            <Photo
+              id={photoId}
+              alt={str(p.alt)}
+              sizes="(max-width: 700px) 100vw, 560px"
+              style={{ width: '100%', borderRadius: 4, border: '1px solid var(--va-line)' }}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt={str(p.alt)}
+              loading="lazy"
+              style={{ width: '100%', borderRadius: 4, border: '1px solid var(--va-line)' }}
+            />
+          )}
+          {str(p.caption) && <figcaption className="vaFigcaption">{str(p.caption)}</figcaption>}
+        </figure>
+      ) : null;
+
+      const words = (
+        <div className="vaMediaTextWords">
+          {str(p.eyebrow) && <span className="vaEyebrow">{str(p.eyebrow)}</span>}
+          {str(p.heading) && (
+            <h2 className="vaDisplay vaH2" style={{ marginBottom: 18 }}>
+              {str(p.heading)}
+            </h2>
+          )}
+          <div className="vaProse vaMuted" dangerouslySetInnerHTML={{ __html: str(p.html, '') }} />
+          {str(p.buttonLabel) && (
+            // Inside the block, so it sits under the paragraph it belongs to instead of orphaned
+            // beneath a full-width image — which is exactly what the screenshot showed.
+            <div className="vaBtnRow" style={{ marginTop: 26 }}>
+              <ButtonLink
+                label={str(p.buttonLabel)}
+                href={str(p.buttonHref, '#')}
+                variant={str(p.buttonVariant, 'outline')}
+              />
+            </div>
+          )}
+        </div>
+      );
+
+      return (
+        <div
+          className="vaMediaText"
+          style={
+            {
+              // The grid template names the columns in DOM order, so flipping the side is one value
+              // rather than reordering the markup — which would put the image before the heading for
+              // a screen reader on a left-media layout.
+              '--va-media-pct': `${mediaPct}%`,
+              gridTemplateColumns:
+                mediaSide === 'left' ? `${mediaPct}% 1fr` : `1fr ${mediaPct}%`,
+            } as React.CSSProperties
+          }
+          data-media-side={mediaSide}
+        >
+          {mediaSide === 'left' ? (
+            <>
+              {media}
+              {words}
+            </>
+          ) : (
+            <>
+              {words}
+              {media}
+            </>
+          )}
+        </div>
+      );
+    }
+
     case 'steps': {
       const items = arr<{ step: string; title: string; body: string }>(p.items);
       return (

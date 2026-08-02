@@ -1640,6 +1640,42 @@ a.vaCard:hover,
   }
 }
 
+/* ── TEXT BESIDE A PHOTO ─────────────────────────────────────────────────────────────────────────
+ *
+ * The columns are set inline by the renderer (the split is a widget control). This provides the gap,
+ * the vertical centring, and — the part that matters — the stack below 760px.
+ *
+ * `align-items: center` rather than `start`: with a tall photograph and three lines of text, aligning
+ * to the top leaves the text hanging at the top of a 600px-tall row with an ocean of space beneath
+ * it. Centred, the two columns read as a pair.
+ */
+.vaMediaText {
+  display: grid;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+@media (max-width: 760px) {
+  /* One column, and the media goes SECOND regardless of which side it was on. On a phone the heading
+     has to come first — an image above the heading is a phone screen that opens on a photograph with
+     no idea what it is about. `order` does this without changing the DOM, so the reading order for a
+     screen reader stays heading-then-image on both layouts. */
+  .vaMediaText {
+    grid-template-columns: 1fr !important;
+  }
+  .vaMediaText .vaMediaTextWords {
+    order: 1;
+  }
+  .vaMediaText .vaMediaTextMedia {
+    order: 2;
+  }
+}
+.vaMediaTextWords .vaProse p:last-child {
+  margin-bottom: 0;
+}
+.vaMediaTextMedia {
+  min-width: 0;
+}
+
 .vaStepNumber {
   font-family: var(--va-font-display);
   font-size: 2rem;

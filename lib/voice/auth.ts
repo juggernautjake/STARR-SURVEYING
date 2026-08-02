@@ -56,18 +56,10 @@ export function verifyPassword(pw: string, hash: string): Promise<boolean> {
   return bcrypt.compare(pw, hash);
 }
 
-/** Password rules, enforced at signup and at change-password.
- *
- *  Length only. Composition rules (a number! a symbol!) push people toward `Password1!` and are worse
- *  than a longer minimum — this is NIST's current guidance and it is the rule that actually helps a
- *  single-user studio account. */
-export function passwordProblem(pw: string): string | null {
-  if (typeof pw !== 'string' || pw.length < 10) {
-    return 'Use at least 10 characters. A short phrase you can remember beats a short scramble you cannot.';
-  }
-  if (pw.length > 200) return 'That password is too long.';
-  return null;
-}
+// The rules themselves live in `./auth-rules`, which imports nothing — the login form is a client
+// component and needs them for inline feedback, and this module imports bcryptjs, node:crypto and
+// next/headers. Re-exported so server callers keep one import site and there is one definition.
+export { passwordProblem, emailProblem } from './auth-rules';
 
 // ── signed token ─────────────────────────────────────────────────────────────────────────────────
 

@@ -162,27 +162,22 @@ const HOME: DefaultPage = {
 
     w('home-process', 'steps', { items: PROCESS_STEPS.map((s) => ({ ...s })) }, { spaceAbove: 2 }),
 
-    w('home-about-head', 'heading', {
+    // ONE block, not four. This was a heading + a paragraph + a full-bleed image + a lone button
+    // stacked vertically, and it looked exactly like what it was: a two-column design flattened into
+    // a list. The photograph rendered nearly three times the width of the text above it and the
+    // button floated underneath, attached to nothing. Text and image belong in one row.
+    w('home-about', 'mediaText', {
       eyebrow: 'About',
-      text: 'Four years of training, and a stage before that.',
-      level: 2,
-    }, { spaceAbove: 8, spaceBelow: 3, background: 'surface' }),
-
-    w('home-about-text', 'text', {
+      heading: 'Four years of training, and a stage before that.',
       html: `<p>${SHORT_BIO}</p><p>His first professional contract was telephony — greetings, menus and on-hold copy. It is not the glamorous end of the business and it is the end that teaches you the most: hundreds of short reads that have to be warm without being saccharine and identical in tone across hours. There is nowhere to hide in eleven words.</p>`,
-    }, { spaceAbove: 0, spaceBelow: 4, background: 'surface', textColor: 'textMuted' }),
-
-    w('home-about-photo', 'image', {
       photoId: 'graduation-presser-hall',
       alt: 'Andrew Ash in cap and gown outside Presser Hall, the music building at the University of Mary Hardin-Baylor',
-      caption: 'Outside Presser Hall — the music building at the University of Mary Hardin-Baylor.',
-    }, { width: 'wide', spaceAbove: 0, spaceBelow: 4, background: 'surface', mediaScale: 100 }),
-
-    w('home-about-btn', 'button', {
-      label: 'Read the full story',
-      href: '/AndrewAsh/about',
-      variant: 'outline',
-    }, { spaceAbove: 0, spaceBelow: 8, background: 'surface' }),
+      caption: 'Outside Presser Hall — the music building at UMHB.',
+      mediaSide: 'right',
+      mediaWidth: 46,
+      buttonLabel: 'Read the full story',
+      buttonHref: '/AndrewAsh/about',
+    }, { spaceAbove: 8, spaceBelow: 8, background: 'surface' }),
 
     w('home-testimonials', 'testimonials', { context: 'all', limit: 4, columns: 2 }, { spaceAbove: 8 }),
 

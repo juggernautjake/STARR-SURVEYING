@@ -56,6 +56,7 @@ export const WIDGET_TYPES = [
   'stats',
   'cards',
   'featureCards',
+  'mediaText',
   'steps',
   'specList',
   'faq',
@@ -255,6 +256,7 @@ const TYPE_DEFAULTS: Partial<Record<WidgetType, Partial<WidgetStyle>>> = {
   // The hero owns the top of a page: no vertical rhythm above it, full bleed, its own scrim.
   hero: { width: 'full', spaceAbove: 0, spaceBelow: 0, radius: 0, align: 'left', backgroundOverlay: 55 },
   featureCards: { width: 'wide', spaceAbove: 7, spaceBelow: 7, radius: 4 },
+  mediaText: { width: 'wide', spaceAbove: 8, spaceBelow: 8, radius: 4, size: 4, leading: 17 },
   steps: { width: 'wide', spaceAbove: 7, spaceBelow: 7 },
   specList: { spaceAbove: 5, spaceBelow: 5 },
   faq: { spaceAbove: 6, spaceBelow: 6 },
@@ -365,6 +367,26 @@ export function defaultProps(type: WidgetType): Record<string, unknown> {
           { title: 'Third', body: 'A sentence about it.', photoId: '', icon: '', href: '', bullets: [] },
         ],
       };
+    case 'mediaText':
+      return {
+        eyebrow: '',
+        heading: 'A heading beside a photo',
+        html: '<p>Two or three sentences that sit next to the image rather than under it.</p>',
+        photoId: '',
+        url: '',
+        alt: '',
+        caption: '',
+        // The image goes RIGHT by default. In a left-to-right reading order the eye lands on the
+        // heading first and the photograph second, which is the order that reads as designed rather
+        // than as an image with a caption stuck beside it.
+        mediaSide: 'right',
+        // Percentage of the row the media takes. 48 is a near-even split — deliberately not 50, so
+        // the text column is a touch wider and its line length stays comfortable.
+        mediaWidth: 48,
+        buttonLabel: '',
+        buttonHref: '',
+      };
+
     case 'steps':
       return {
         items: [
@@ -684,6 +706,7 @@ export const WIDGET_CATALOG: readonly WidgetMeta[] = [
 
   { type: 'cards', label: 'Card grid', hint: 'Two to four linked cards side by side.', group: 'Layout', icon: 'LayoutGrid' },
   { type: 'featureCards', label: 'Feature cards', hint: 'Cards with a photo, an icon and a bullet list — the "what I do" row.', group: 'Layout', icon: 'Columns3' },
+  { type: 'mediaText', label: 'Text beside a photo', hint: 'Two columns: writing on one side, an image on the other. Stacks on a phone.', group: 'Layout', icon: 'PanelsTopLeft' },
   { type: 'steps', label: 'Numbered steps', hint: 'A process, 01 → 04.', group: 'Layout', icon: 'ListOrdered' },
   { type: 'specList', label: 'Spec list', hint: 'Label-and-value rows. Studio specs, delivery details, terms.', group: 'Words', icon: 'Table2' },
   { type: 'faq', label: 'Questions', hint: 'Question-and-answer pairs.', group: 'Words', icon: 'MessagesSquare' },
@@ -730,9 +753,9 @@ export function relevantControls(type: WidgetType): {
   return {
     typography: [
       'heading', 'text', 'quote', 'button', 'buttonRow', 'stats', 'cards', 'featureCards',
-      'credits', 'cta', 'hero', 'steps', 'specList', 'faq', 'creditsList',
+      'credits', 'cta', 'hero', 'steps', 'specList', 'faq', 'creditsList', 'mediaText',
     ].includes(type),
-    media: ['image', 'gallery', 'video', 'embed', 'audio', 'audioList', 'hero'].includes(type),
+    media: ['image', 'gallery', 'video', 'embed', 'audio', 'audioList', 'hero', 'mediaText'].includes(type),
     surface: !['spacer', 'divider'].includes(type),
     columns: ['gallery', 'cards', 'featureCards', 'stats', 'demoReels', 'projectGrid', 'testimonials', 'packages'].includes(type),
   };
