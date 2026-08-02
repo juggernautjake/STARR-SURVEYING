@@ -793,3 +793,20 @@ a.vaTile:hover {
   text-decoration: underline;
   flex: none;
 }
+
+/* Click-to-edit value in a table cell. Looks like text until hovered, so a table of prices reads as a
+   table rather than as a form — but it is a real button, so it is reachable by keyboard. */
+.vaInlineEdit {
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  color: var(--va-text);
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.vaInlineEdit:hover,
+.vaInlineEdit:focus-visible {
+  color: var(--va-accent);
+  border-bottom-color: var(--va-accent);
+}
