@@ -12,6 +12,8 @@
 // and every conclusion after it is about the wrong tract.
 
 import { describe, it, expect, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   AMBIGUITY_MARGIN,
   DEFAULT_MAX_LINKS,
@@ -243,5 +245,54 @@ describe('the walk stops, and says which stop it was', () => {
 
   it('has a default depth that will not eat a run', async () => {
     expect(DEFAULT_MAX_LINKS).toBeLessThanOrEqual(20);
+  });
+});
+
+// ── Wired into the builder ──────────────────────────────────────────────────────────────────────
+//
+// Authoring the walk and not calling it would be the exact defect R14 exists to close: a chain that
+// reports `grantor_deed_not_found` while a search that could have closed it sits unused.
+
+describe('the builder uses it, and only when it can help', () => {
+  const src = fs.readFileSync(
+    path.join(process.cwd(), 'src/chain-of-title/chain-builder.ts'), 'utf8',
+  );
+
+  it('walks only when the chain ran out of HARVESTED documents', () => {
+    // Hitting our own depth limit or the index horizon are not problems a search can solve, and
+    // searching anyway spends a run's budget re-proving what we already know.
+    expect(src).toContain("reason === 'grantor_deed_not_found' && this.searchAsGrantee");
+  });
+
+  it('behaves exactly as before when no search is available', () => {
+    // The standalone endpoint and the existing tests construct it with two arguments.
+    expect(src).toContain('opts: {');
+    expect(src).toContain('searchAsGrantee?:');
+  });
+
+  it('lets the run budget stop the walk', () => {
+    expect(src).toContain('mayContinue: this.mayContinue');
+  });
+
+  it('marks a searched link as a search result, not a document somebody read', () => {
+    // It is a name-and-date match until the instrument itself is fetched.
+    expect(src).toContain("source: 'clerk-search (chain walk)'");
+  });
+
+  it('re-derives the termination and gaps from the extended chain', () => {
+    // Otherwise the chain would report the ending it had before the walk ran.
+    expect(src).toContain('termination = describeTermination(walkStopToTermination(walk.stop)');
+    expect(src).toContain('gaps = findGaps(chain)');
+  });
+
+  it('keeps one termination vocabulary', () => {
+    // The packet should never have to explain why a chain extended by a search reports its ending
+    // differently from one that was not.
+    expect(src).toContain('function walkStopToTermination');
+  });
+
+  it('surfaces the searches that found nothing', () => {
+    expect(src).toContain('chainWalk:');
+    expect(src).toContain('searchesMade');
   });
 });

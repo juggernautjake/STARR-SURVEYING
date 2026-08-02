@@ -15,16 +15,56 @@ import {
   type IndexHorizon,
   type TerminationReason,
 } from './chain-gaps.js';
+// Going back to the clerk for the deeds the gap list names (research plan R14, second half).
+import { walkBack, type WalkCandidate, type WalkResult, type WalkStop } from './chain-walker.js';
 
 // ── Chain of Title Builder ──────────────────────────────────────────────────
+
+/** Map the walker's stop onto the chain's own termination vocabulary (plan R14).
+ *
+ *  The two describe the same thing from different ends, and keeping one vocabulary means the packet
+ *  never has to explain why a chain that was extended by a search reports its ending differently
+ *  from one that was not. */
+function walkStopToTermination(stop: WalkStop): TerminationReason {
+  switch (stop) {
+    case 'index_horizon':
+    case 'reached_earliest_available':
+      return 'reached_earliest_available';
+    case 'circular_instrument':
+      return 'circular_reference';
+    case 'max_links':
+    case 'budget_exhausted':
+      return 'max_depth';
+    case 'no_match_found':
+    case 'ambiguous_match':
+    default:
+      // Both mean the same thing to a reader of the packet: the next deed was not obtained. The
+      // walker's own `steps` carry which it was and what to do about it.
+      return 'grantor_deed_not_found';
+  }
+}
 
 export class ChainOfTitleBuilder {
   private maxDepth: number;
   private outputDir: string;
+  /** Optional. Without it the builder behaves exactly as before — walks only harvested documents —
+   *  which is what the standalone endpoint and the tests want. */
+  private searchAsGrantee?: (grantee: string, before: string) => Promise<WalkCandidate[]>;
+  /** Lets the run budget (R5) stop a walk mid-chain. */
+  private mayContinue?: () => boolean;
 
-  constructor(maxDepth: number = 5, outputDir: string = '/tmp/analysis') {
+  constructor(
+    maxDepth: number = 5,
+    outputDir: string = '/tmp/analysis',
+    opts: {
+      searchAsGrantee?: (grantee: string, before: string) => Promise<WalkCandidate[]>;
+      mayContinue?: () => boolean;
+    } = {},
+  ) {
     this.maxDepth = maxDepth;
     this.outputDir = outputDir;
+    this.searchAsGrantee = opts.searchAsGrantee;
+    this.mayContinue = opts.mayContinue;
   }
 
   /**
@@ -63,8 +103,49 @@ export class ChainOfTitleBuilder {
     const { chain, reason } = this.traceChain(currentOwner, allLinks);
 
     // Step 3b: Say why the walk ended, and list what the chain cites but does not contain (R14).
-    const termination = describeTermination(reason, chain, horizon);
-    const gaps = findGaps(chain);
+    let termination = describeTermination(reason, chain, horizon);
+    let gaps = findGaps(chain);
+
+    // Step 3c: If the chain ran out of HARVESTED documents rather than out of record, go back to the
+    // clerk for the rest (plan R14, second half). Only for that one ending: hitting our own depth
+    // limit or reaching the index horizon are not problems a search can solve, and searching anyway
+    // would spend a run's budget re-proving what we already know.
+    let walk: WalkResult | null = null;
+    if (reason === 'grantor_deed_not_found' && this.searchAsGrantee && chain.length > 0) {
+      const oldest = chain[chain.length - 1]!;
+      walk = await walkBack(
+        { grantor: oldest.grantor, recordingDate: oldest.recordingDate },
+        { searchAsGrantee: this.searchAsGrantee, log: (m) => console.log(m) },
+        { indexBeginsYear: horizon.indexBeginsYear, maxLinks: this.maxDepth, mayContinue: this.mayContinue },
+      );
+
+      for (const link of walk.links) {
+        chain.push({
+          instrument: link.instrument,
+          type: link.documentType ?? 'deed',
+          grantor: link.grantor,
+          grantee: link.grantee,
+          recordingDate: link.recordingDate,
+          considerationAmount: null,
+          legalDescription: '',
+          acreage: null,
+          boundaryCallsExtracted: false,
+          boundaryChangesDetected: [],
+          measurementSystem: 'unknown',
+          datumDetected: null,
+          // Recorded so the packet can say this link came from a search rather than from a document
+          // somebody read — it is a name-and-date match until the instrument itself is fetched.
+          source: 'clerk-search (chain walk)',
+          imagePaths: [],
+        } as unknown as ChainLink);
+      }
+
+      // Re-derive both from the extended chain: the walk's own stop is now the reason the chain
+      // ends, and its gaps are whatever the longer chain still cites and lacks.
+      termination = describeTermination(walkStopToTermination(walk.stop), chain, horizon);
+      gaps = findGaps(chain);
+    }
+
     const completeness = summariseChain(chain, termination, gaps);
 
     // Step 4: Analyze boundary evolution
@@ -97,6 +178,12 @@ export class ChainOfTitleBuilder {
       termination,
       gaps,
       completeness,
+      // Every search the walk made, including the ones that found nothing. A walk that reports only
+      // its successes cannot be diagnosed, and links it added are name-and-date matches until the
+      // instruments themselves are fetched — the packet needs to be able to say so.
+      chainWalk: walk
+        ? { stop: walk.stop, statement: walk.statement, nextStep: walk.nextStep, steps: walk.steps, searchesMade: walk.searchesMade }
+        : undefined,
     };
 
     // Save result

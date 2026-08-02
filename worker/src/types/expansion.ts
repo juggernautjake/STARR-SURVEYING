@@ -283,6 +283,18 @@ export interface ChainOfTitle {
   gaps?: import('../chain-of-title/chain-gaps.js').ChainGap[];
   /** The one sentence a surveyor reads first. */
   completeness?: import('../chain-of-title/chain-gaps.js').ChainCompleteness;
+
+  /** The backward search that extended this chain, when one ran (plan R14). Present only when the
+   *  chain ran out of HARVESTED documents and a clerk search was available — its `steps` include the
+   *  searches that found nothing, because a walk that reports only its successes cannot be
+   *  diagnosed. */
+  chainWalk?: {
+    stop: import('../chain-of-title/chain-walker.js').WalkStop;
+    statement: string;
+    nextStep: string;
+    steps: import('../chain-of-title/chain-walker.js').WalkStep[];
+    searchesMade: number;
+  };
 }
 
 // ── Batch Processing Types (Module I) ───────────────────────────────────────
