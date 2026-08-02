@@ -42,8 +42,43 @@ const ACTIONS: AdminRoute[] = [
 ];
 
 interface PaletteRow {
-  section: 'Recent' | 'Pages' | 'Actions';
+  section: 'Recent' | 'Pages' | 'Actions' | 'Records';
   route: AdminRoute;
+}
+
+/** Platform audit §4: *"Only knows routes. Add actions … and records (job #, person, equipment)."*
+ *
+ *  Actions arrived with the palette. Records arrive here, and they are NOT a second search: the
+ *  request goes to `/api/admin/search`, the same ranked, permission-filtered, typo-tolerant backbone
+ *  the §3b search page uses. A palette with its own matching rules would answer differently from the
+ *  page it links to, and the first time those disagree the palette is the one nobody trusts again.
+ *
+ *  A record hit is shaped into the registry's row type so the ranking, keyboard nav and rendering
+ *  below stay one code path. That is a deliberate re-use of a data shape, not a claim that a job is
+ *  a route. */
+const RECORD_LIMIT = 5;
+const RECORD_DEBOUNCE_MS = 220;
+
+interface SearchHit {
+  corpus: string;
+  corpusLabel: string;
+  title: string;
+  snippet: string;
+  href: string | null;
+}
+
+function hitToRoute(hit: SearchHit): AdminRoute | null {
+  // A corpus with no viewer page (customers today) returns a null href. The full search page renders
+  // those with their details in the snippet; the palette cannot, because every row here navigates.
+  // Dropping them beats rendering a 404 dressed as a result.
+  if (!hit.href) return null;
+  return {
+    href: hit.href,
+    label: hit.title,
+    workspace: 'hub',
+    iconName: 'Search',
+    description: hit.snippet ? `${hit.corpusLabel} · ${hit.snippet.slice(0, 90)}` : hit.corpusLabel,
+  };
 }
 
 const EMPTY_QUERY_PAGE_LIMIT = 8;
@@ -58,6 +93,8 @@ export default function CommandPalette() {
 
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
+  const [recordHits, setRecordHits] = useState<SearchHit[]>([]);
+  const [recordsState, setRecordsState] = useState<'idle' | 'loading' | 'ok' | 'failed'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +118,29 @@ export default function CommandPalette() {
     });
   }, [roles, isCompanyUser]);
 
+  // Records, from the search backbone. Debounced, and cancelled on every keystroke: the palette is
+  // typed into fast, and an un-cancelled response arriving late would repaint the list under
+  // somebody's cursor with results for a prefix they have already moved past.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setRecordHits([]); setRecordsState('idle'); return; }
+    let cancelled = false;
+    setRecordsState('loading');
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/search?q=${encodeURIComponent(q)}&limit=${RECORD_LIMIT}`);
+        if (!res.ok) { if (!cancelled) setRecordsState('failed'); return; }
+        const d = (await res.json()) as { results?: SearchHit[] };
+        if (cancelled) return;
+        setRecordHits(d.results ?? []);
+        setRecordsState('ok');
+      } catch {
+        if (!cancelled) setRecordsState('failed');
+      }
+    }, RECORD_DEBOUNCE_MS);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query]);
+
   const rows: PaletteRow[] = useMemo(() => {
     const q = query.trim();
     if (!q) {
@@ -102,8 +162,29 @@ export default function CommandPalette() {
       if (route.isAction) actionRows.push({ section: 'Actions', route });
       else pageRows.push({ section: 'Pages', route });
     }
-    return [...pageRows, ...actionRows];
-  }, [query, recentRoutes, visiblePages, visibleActions]);
+    // Records last. A page match is what somebody typing two letters into a launcher almost always
+    // wants; a record match is what they want when the page list is empty, and it should not push
+    // "Jobs" below a job.
+    const recordRows: PaletteRow[] = recordHits
+      .map(hitToRoute)
+      .filter((r): r is AdminRoute => !!r)
+      .map((route) => ({ section: 'Records' as const, route }));
+    // Always offered once records could exist, whether any came back or not: the palette shows five,
+    // and "nothing here" from a launcher should not read as "nothing anywhere".
+    const seeAll: PaletteRow[] = q.length >= 2
+      ? [{
+          section: 'Records',
+          route: {
+            href: `/admin/search?q=${encodeURIComponent(q)}`,
+            label: `Search everything for “${q}”`,
+            workspace: 'hub',
+            iconName: 'Search',
+            description: 'Documents, jobs, customers, contacts, leads and invoices — with filters.',
+          },
+        }]
+      : [];
+    return [...pageRows, ...actionRows, ...recordRows, ...seeAll];
+  }, [query, recentRoutes, visiblePages, visibleActions, recordHits]);
 
   useEffect(() => {
     setSelected(0);
@@ -187,7 +268,7 @@ export default function CommandPalette() {
             ref={inputRef}
             className="cmdk-search__input"
             type="text"
-            placeholder="Search for a page or action…"
+            placeholder="Search pages, actions, jobs, customers, documents…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Command palette search"
@@ -199,7 +280,7 @@ export default function CommandPalette() {
         <div ref={resultsRef} className="cmdk-results" role="listbox">
           {rows.length === 0 ? (
             <div className="cmdk-empty">
-              No matches. Try typing a page name, a keyword, or an action.
+              No matches. Try a page name, an action, or a job number.
             </div>
           ) : (
             sections.map((section) => (
@@ -227,6 +308,11 @@ export default function CommandPalette() {
             ))
           )}
         </div>
+        {recordsState === 'failed' ? (
+          <div className="cmdk-note">Pages and actions only — the record search could not be reached.</div>
+        ) : recordsState === 'loading' ? (
+          <div className="cmdk-note">Looking through records…</div>
+        ) : null}
         <div className="cmdk-footer">
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>Enter</kbd> open</span>

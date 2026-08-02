@@ -156,10 +156,15 @@ describe('acceptance creates the job', () => {
 });
 
 describe('the shape of the build', () => {
-  const seed = fs.readFileSync(path.join(ROOT, 'seeds/523_proposals_deliverables_ar.sql'), 'utf8');
-  const publicApi = fs.readFileSync(path.join(ROOT, 'app/api/public/proposal/[token]/route.ts'), 'utf8');
-  const adminApi = fs.readFileSync(path.join(ROOT, 'app/api/admin/proposals/route.ts'), 'utf8');
-  const deliverables = fs.readFileSync(path.join(ROOT, 'app/api/admin/deliverables/route.ts'), 'utf8');
+  /** Line endings normalised. Several assertions below search for multi-line snippets, and this
+   *  repo's working tree is CRLF on Windows — so a `\n` in a search string matched on the machine
+   *  the test was written on and stopped matching the moment the file was checked out anywhere
+   *  else. The test was asserting the checkout, not the code. */
+  const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
+  const seed = read('seeds/523_proposals_deliverables_ar.sql');
+  const publicApi = read('app/api/public/proposal/[token]/route.ts');
+  const adminApi = read('app/api/admin/proposals/route.ts');
+  const deliverables = read('app/api/admin/deliverables/route.ts');
 
   it('extends lead_quotes instead of adding a second answer to "what did we offer"', () => {
     // A parallel `proposals` table would disagree with lead_quotes the first time somebody revised

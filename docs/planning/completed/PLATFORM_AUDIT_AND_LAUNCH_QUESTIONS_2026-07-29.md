@@ -785,7 +785,7 @@ Data extension material, Topcon MAGNET/Topcon Enterprise and Integration Service
 | **Hub widget canvas** | Real, good, saved layouts, role-seeded | Widgets for the money/equipment/compliance surfaces; it's the answer to "one home page" if it's finished |
 | **Workspace landings** | 3 of 6 are literal placeholders | Widgets, or delete and jump straight to the busiest page |
 | **Help drawer (`?`)** | Fully built; **8 of 158 pages** have content | This is the single best AI opportunity in the app (see §5) |
-| **Command palette (⌘K)** | Built, ranked, recency-boosted | Only knows *routes*. Add actions ("clock in", "new job", "log mileage"), and records (job #, person, equipment) |
+| **Command palette (⌘K)** | ✅ **DONE 2026-08-01.** Actions shipped with it; records now come from `/api/admin/search` — the same ranked, permission-filtered backbone the §3b page uses, so the launcher and the page cannot disagree about what exists | — |
 | **Personas / role override** | Built | Undiscoverable, and its relationship to Work Mode is unclear |
 | **Research self-healing adapters** | Spec is ready in `RESEARCH_SOFTWARE_OPTIMIZATION_2026-06-21.md` Part II, still `pending/` | The county-portal scrapers *will* break; this is the thing that keeps research working unattended |
 | **Rewards / XP / pay progression** | Substantial build (2,578-line page) | Zero schema in repo; unclear if it's actually your comp policy or an experiment |
@@ -1220,3 +1220,38 @@ What was built after the sequencing above was last updated, and what is honestly
 4. **The D4 follow-up questions** (Q-D4a…f) are still unanswered, and Q-D4a in particular —
    *how is a suggested quote computed* — is a prerequisite for agentic intake, not a detail. Nothing
    in the code computes a quote, and I will not invent a firm's pricing.
+
+### Final slice — ⌘K reaches records (2026-08-01)
+
+§4's last open row. The palette knew routes and actions; it now also returns jobs, customers,
+contacts, documents, leads and invoices, ranked BELOW pages (two letters into a launcher is almost
+always a page), debounced and cancelled per keystroke, with a permanent "Search everything for …"
+row so five results never read as *nothing anywhere*. A failed lookup says so rather than rendering
+an empty list — §1.1b's defect in the place it would cost the most trust.
+
+It calls the search API rather than matching records itself. A palette with its own rules answers
+differently from the page it links to, and the first time those disagree the palette is the one
+nobody trusts again.
+
+---
+
+## 11. Closeout — 2026-08-01
+
+Every action item in this document is shipped or explicitly deferred with its reason recorded
+inline. Moved to `docs/planning/completed/` per the rubric in `docs/planning/README.md`.
+
+**Deferred, with reasons stated where the item lives:**
+
+| Item | Why not built |
+|---|---|
+| Phase 0 #2 — staging Supabase project | Needs an account on the owner's Supabase organisation and its billing. The tooling is done: `npm run db:bootstrap:staging`, plus a production-reset guard. |
+| §1.5 — deploy-time secrets and flags | Owner's to set. |
+| 8q — Topcon / Leica partnership conversations | Owner-gated, and slow; worth opening early. |
+| 18 — `research/[projectId]` | Measured, not assumed: extracting its smallest stage section needs a 95-prop interface. It needs a state store, which is a redesign, not a split. |
+| §9's 75-question bank + Q-D4a…f | Questions FOR the owner, not work items. Q-D4a (how a quote is computed) is a prerequisite for agentic intake and must not be invented. |
+
+**What this doc leaves behind that outlives it:** eight ratchet tests — orphan routes, icon
+resolution, route-label collisions, Office sectioning, bundle assignment, org scoping, seed
+`ON CONFLICT` targets, and the two build-only rules (`client → @/lib/auth`, route-file exports).
+Each of them exists because the corresponding defect shipped once and was invisible to everything
+except a browser or a build.

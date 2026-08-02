@@ -166,3 +166,12 @@
   border-radius: 4px;
   margin-right: 0.2rem;
 }
+
+/* Platform audit §4 — the record-search line. Says which of three things is true (looking, failed,
+ * or nothing to say) rather than leaving an empty list to mean all three. */
+.cmdk-note {
+  padding: 0.4rem 0.9rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.76rem;
+  color: var(--color-text-tertiary);
+}
