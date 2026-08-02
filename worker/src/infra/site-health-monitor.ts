@@ -14,6 +14,7 @@
 import type { Browser, Page } from 'playwright';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import { getCADConfig, listRegisteredCounties, type CADConfig } from '../services/cad-registry.js';
+import { withPoliteness } from './politeness.js';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -362,11 +363,17 @@ export class SiteHealthMonitor {
     try {
       page = await this.browser!.newPage();
 
-      // Navigate with timeout
-      const response = await page.goto(check.url, {
+      // Navigate with timeout, paced per host (plan R12).
+      //
+      // This monitor opens EVERY registered portal on a timer, and several counties share one
+      // vendor's infrastructure — five `*.tx.publicsearch.us` hosts are five requests to Tyler.
+      // Politeness is keyed on the host for exactly that reason, and it is what keeps the rest of
+      // the self-healing machinery able to work: an adapter whose IP is blocked is not a broken
+      // adapter, it is an unfixable one.
+      const response = await withPoliteness(check.url, () => page!.goto(check.url, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
-      });
+      }));
 
       // Check for Cloudflare challenge
       const pageContent = await page.content();

@@ -504,11 +504,36 @@ polish — nothing else in this plan can be trusted while the engine is down and
   Also distinguishes an unreachable portal from a changed page in the per-site note, because they
   need different repairs, and reports a failed registry read as a failure rather than as zero
   coverage.
-- **R12. Politeness and legality budget.**
+- **R12. Politeness and legality budget.** ✅ DONE 2026-08-02
   Central per-host rate limiter, robots/ToS posture recorded per adapter, honest user agent (the
   probe already does this), and a hard rule that captcha solving is only used where the site's terms
   permit. Record every solve attempt with cost.
   *Acceptance:* two concurrent runs against one county cannot exceed the configured request rate.
+
+  **Shipped.** `worker/src/infra/politeness.ts` — `withPoliteness(url, fn)` serialises every request
+  to a host onto one chain and holds a minimum gap (`CLERK_RATE_LIMIT_MS`, default 1.5s) plus jitter,
+  so concurrent runs against one county queue instead of colliding. Keyed on **host, not county or
+  adapter**: five counties on `*.tx.publicsearch.us` are one Tyler, and pacing each separately would
+  still deliver five times the traffic to the same servers. A throw inside `fn` still releases the
+  host — otherwise one error wedges every later request to that county and looks exactly like the
+  county having gone down. Wired into the health monitor, which is the thing that opens every
+  registered portal on a timer.
+
+  Legality is enforced at **one** point: `getCaptchaSolver()` now returns
+  `withAutomationPolicy(solver)`, so no call site can forget it. `unknown` posture is a **refusal**,
+  not a shrug — defaulting to "go ahead unless somebody said no" means the first time anyone reads a
+  county's terms is after a complaint. A refusal is recorded as an attempt (`policy:` reason) because
+  a silently skipped county is indistinguishable from one with no captcha, and `isPolicyRefusal`
+  keeps "we could not" apart from "we would not".
+
+  One design bug the tests caught: a never-contacted host was waiting a full interval before its
+  first request, because the `lastStartedAt` zero sentinel read as "just used". Half a minute of
+  delay across a 21-county sweep, protecting nobody. First contact is now `null` and goes straight
+  through.
+
+  Still owner input, not code: which counties are marked `automation_posture: 'permitted'` (§4.3).
+  Until somebody reads those terms, every captcha is refused — which is the intended failure mode.
+  Worker suite 302/302; both roots typecheck clean.
 
 ### Phase C — Find everything there is to find
 

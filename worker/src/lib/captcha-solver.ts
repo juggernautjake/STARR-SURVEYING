@@ -34,6 +34,7 @@
 //    `browser-factory`.
 
 import { createHash } from 'node:crypto';
+import { maySolveCaptcha, type AutomationPosture } from '../infra/politeness.js';
 import {
   CapSolverHttpClient,
   type CapSolverGetTaskResultResponse,
@@ -92,6 +93,14 @@ export interface SolveRequest {
     countyFips?: string;
     adapterId?: string;
     jobId?: string;
+    /** Whether this portal's terms permit automated access (plan R12).
+     *
+     *  Resolved by the caller from the adapter's `config.automation_posture`. Omitted means
+     *  `unknown`, and unknown is a REFUSAL — see `getCaptchaSolver`. Defaulting to "go ahead
+     *  unless somebody said no" would mean the first time anybody reads a county's terms is after
+     *  a complaint. */
+    automationPosture?: AutomationPosture;
+    countyName?: string;
   };
 }
 
@@ -332,9 +341,52 @@ export type CaptchaProvider = 'capsolver' | 'stub' | 'auto';
 export function getCaptchaSolver(provider: CaptchaProvider = 'auto'): CaptchaSolver {
   const resolved = resolveProvider(provider);
   console.log(`[captcha-solver] factory selected provider=${resolved} (requested=${provider})`);
-  switch (resolved) {
-    case 'capsolver': return new CapSolverProvider();
-    case 'stub':      return new StubCaptchaSolver();
+  const solver = resolved === 'capsolver' ? new CapSolverProvider() : new StubCaptchaSolver();
+  return withAutomationPolicy(solver);
+}
+
+/** Refuse to solve a captcha on a portal whose terms we have not confirmed permit automation
+ *  (plan R12).
+ *
+ *  A captcha is the site saying "prove you are a person". Answering it with a paid solving service
+ *  on a portal that prohibits automation is not a grey area, and `unknown` is treated as a refusal
+ *  rather than a shrug: defaulting to "go ahead unless somebody said no" would mean the first time
+ *  anybody reads a county's terms is after a complaint.
+ *
+ *  Wrapped around the provider rather than checked at each call site, because a policy with
+ *  eleven enforcement points has eleven chances to be forgotten. */
+export function withAutomationPolicy(inner: CaptchaSolver): CaptchaSolver {
+  return {
+    providerName: inner.providerName,
+    async solve(req: SolveRequest): Promise<SolveResult> {
+      const decision = maySolveCaptcha(req.context?.automationPosture ?? 'unknown', req.context?.countyName);
+      if (!decision.allowed) {
+        console.warn(`[captcha-solver] REFUSED — ${decision.reason}`);
+        // Recorded like any other attempt so a refusal is visible in the same place as a failure.
+        // A silently skipped county looks identical to one that has no captcha.
+        await recordSolveAttempt({
+          provider: 'stub',
+          challengeType: req.type,
+          success: false,
+          durationMs: 0,
+          adapterId: req.context?.adapterId,
+          jobId: req.context?.jobId,
+          errorMessage: `policy: ${decision.reason}`,
+        });
+        throw new CaptchaPolicyError(decision.reason);
+      }
+      return inner.solve(req);
+    },
+  };
+}
+
+/** Thrown when policy — not the provider — refuses a solve. Distinct from a solve FAILURE so a
+ *  caller can tell "we could not" from "we would not". */
+export class CaptchaPolicyError extends Error {
+  readonly isPolicyRefusal = true;
+  constructor(reason: string) {
+    super(`Captcha not solved: ${reason}`);
+    this.name = 'CaptchaPolicyError';
   }
 }
 
