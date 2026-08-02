@@ -1419,6 +1419,50 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ---
 
+### Phase G — The neighbours (added 2026-08-02, owner request)
+
+**Owner ask, verbatim intent:** quickly find adjoiner property information, and any ROW or easement
+information pertaining to the property. The initial run should already fetch the documents and pages
+for the adjoiners. Then, once a reviewer has looked at everything, there must be a **clear, easy,
+surfaced path** to giving the go-ahead to fully research any or all of the nearby properties —
+optional, not automatic. So: a list of nearby properties, brief descriptions, and **how recently each
+was surveyed** where that is known, because a neighbour with a recent survey on file is likely to
+yield better and more current information.
+
+**What already exists:** `AdjacentResearchOrchestrator` runs inside the pipeline (worker
+`index.ts:2588`) and writes a cross-validation report to `/tmp`. `gis-adjacency.ts` finds neighbours
+by polygon adjacency; `adjoiner-extraction.ts` pulls adjoiner names out of deed calls. **What is
+missing** is everything that makes it usable: nothing persists a per-neighbour record, nothing shows
+the reviewer a list, nothing records survey recency, and the depth is all-or-nothing inside one run
+rather than shallow-then-deepen-on-request.
+
+- **R31. The adjoiner register.**
+  Persist every neighbour the initial run identifies: parcel id, owner, situs, acreage, **how it was
+  identified** (deed call / GIS adjacency / plat lot — they carry different confidence), what the
+  shallow pass found for it, and the date of the most recent survey or plat on record for it.
+  *Acceptance:* after a run, every neighbour is a row a reviewer can list, with its identification
+  basis and its most recent survey date or an explicit "not known".
+
+- **R32. The nearby-properties surface.**
+  A list in the review UI: brief description per neighbour, how it was identified, what documents
+  exist for it, and survey recency — sorted so the ones most likely to help come first.
+  *Acceptance:* a reviewer can see at a glance which neighbours have recent surveys on file.
+
+- **R33. Deepen on demand.**
+  A per-neighbour "research this fully" action that queues an R28 request for that parcel, linked
+  back to the subject property, with progress and results visible from the subject's page.
+  *Acceptance:* a reviewer clicks one neighbour, a full run is queued for it, and the subject
+  property's page shows that it was requested, by whom, and where it got to.
+
+- **R34. ROW and easement rollup.**
+  One place answering "what encumbers this property" — easements and rights-of-way from the subject's
+  own documents *and* from the adjoiners', since an easement is usually recorded against one of the
+  two tracts it crosses.
+  *Acceptance:* an easement recorded only in a neighbour's deed but crossing the subject property
+  appears in the subject's rollup, with the document it came from.
+
+---
+
 ## 4. Decisions that are the owner's, not mine
 
 These block specific slices and must not be guessed:

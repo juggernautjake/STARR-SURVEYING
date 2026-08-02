@@ -11760,3 +11760,98 @@
 
 .packet-builder__create:disabled { background: #9CA3AF; cursor: default; }
 .packet-builder__note { color: #6B7280; font-style: italic; }
+
+/* ── Neighbours (plan R31–R33) ────────────────────────────────────────────── */
+
+.adjoiners { font-size: 0.82rem; }
+
+.adjoiners--bad {
+  padding: 0.6rem 0.8rem;
+  background: #FEF2F2;
+  color: #991B1B;
+  border-left: 4px solid #DC2626;
+  border-radius: 5px;
+}
+
+.adjoiners__headline { margin: 0 0 0.6rem; font-weight: 650; color: #111827; }
+.adjoiners__error {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+  background: #FEE2E2;
+  color: #991B1B;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.adjoiners__note { color: #6B7280; font-style: italic; }
+
+.adjoiners__list { list-style: none; margin: 0; padding: 0; }
+
+.adjoiner {
+  border: 1px solid #E5E7EB;
+  border-left: 3px solid #9CA3AF;
+  border-radius: 5px;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 0.4rem;
+  background: #fff;
+}
+
+.adjoiner--requested  { border-left-color: #2563EB; background: #EFF6FF; }
+.adjoiner--researched { border-left-color: #059669; background: #ECFDF5; }
+/* Declined stays visible: "we looked and decided not to" is a judgement somebody made, and hiding
+   it makes the next reviewer redo the thinking. */
+.adjoiner--declined   { border-left-color: #D1D5DB; opacity: 0.65; }
+
+.adjoiner__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+
+.adjoiner__desc { font-weight: 600; color: #111827; }
+
+.adjoiner__recency {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 650;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* A recent survey is the strongest signal on this screen — it is why the owner asked for the field.
+   "Unknown" is deliberately NOT green: no survey found is not the same as none existing. */
+.adjoiner__recency--recent  { color: #065F46; background: #D1FAE5; }
+.adjoiner__recency--dated   { color: #92400E; background: #FEF3C7; }
+.adjoiner__recency--old     { color: #4B5563; background: #F3F4F6; }
+.adjoiner__recency--unknown { color: #6B7280; background: #F9FAFB; border: 1px dashed #D1D5DB; }
+
+.adjoiner__basis {
+  margin: 0 0 0.2rem;
+  font-size: 0.73rem;
+  color: #6B7280;
+}
+
+.adjoiner__worth { margin: 0 0 0.35rem; font-size: 0.78rem; color: #374151; }
+
+.adjoiner__actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.adjoiner__deepen,
+.adjoiner__decline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.adjoiner__deepen  { border: 1px solid #2563EB; background: #fff; color: #1D4ED8; font-weight: 650; }
+.adjoiner__decline { border: 1px solid #D1D5DB; background: #fff; color: #6B7280; }
+.adjoiner__deepen:disabled, .adjoiner__decline:disabled { opacity: 0.55; cursor: default; }
+
+.adjoiner__status { margin: 0.25rem 0 0; font-size: 0.76rem; color: #1D4ED8; }
+.adjoiner__status--link { text-decoration: underline; }
+.adjoiner__status--muted { color: #9CA3AF; }

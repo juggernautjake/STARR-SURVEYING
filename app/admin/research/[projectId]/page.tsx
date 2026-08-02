@@ -45,6 +45,8 @@ import RunDiffPanel from '../components/RunDiffPanel';
 import ReportCardPanel from '../components/ReportCardPanel';
 // Choosing what goes to the crew (research plan R25).
 import PacketBuilderPanel from '../components/PacketBuilderPanel';
+// The neighbours, and the opt-in path to researching one properly (research plan R31-R33).
+import AdjoinersPanel from '../components/AdjoinersPanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -102,7 +104,7 @@ export default function ResearchProjectPage() {
   const [showRerunConfirm, setShowRerunConfirm] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
+  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'neighbours' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
   // Scroll target for the Quick-stats actionable tiles (Slice C4).
   // Tapping Data Points / Discrepancies / Resolved jumps to the
   // review summary panel and switches to the relevant tab so the
@@ -1946,7 +1948,7 @@ export default function ResearchProjectPage() {
           <div className="review-summary-panel" ref={reviewPanelRef}>
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
-              {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts', 'packet'] as const).map(tab => (
+              {(['summary', 'property', 'survey', 'easements', 'neighbours', 'discrepancies', 'artifacts', 'packet'] as const).map(tab => (
                 <button
                   key={tab}
                   className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
@@ -1960,6 +1962,7 @@ export default function ResearchProjectPage() {
                     <>Discrepancies{stats.discrepancy_count > 0 && <span className="review-summary-panel__tab-badge">{stats.discrepancy_count}</span>}</>
                   )}
                   {tab === 'artifacts'     && <><Camera size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Artifacts</>}
+                  {tab === 'neighbours'    && <><MapPin size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Neighbours</>}
                   {tab === 'packet'        && <><PackageCheck size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Packet</>}
                 </button>
               ))}
@@ -1972,6 +1975,11 @@ export default function ResearchProjectPage() {
                   R25 built the packet and R26 put it on the job, but nothing let anybody CHOOSE
                   what goes in one — so the whole deliverable path was unreachable in practice. */}
               {reviewTab === 'packet' && <PacketBuilderPanel projectId={projectId} />}
+
+              {/* ── Tab: Neighbours ──
+                  The adjoiners the run identified, ranked by what is on file for them, with the
+                  opt-in path to researching one properly (plan R31–R33). */}
+              {reviewTab === 'neighbours' && <AdjoinersPanel projectId={projectId} />}
 
               {/* ── Tab: Summary ── */}
               {reviewTab === 'summary' && (() => {
