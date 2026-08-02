@@ -1192,3 +1192,81 @@ Smallest-meaningful-first, each independently shippable + testable:
 > Build 1–6 freely; **7 is the only part that touches the outside world on a
 > schedule / mutates scrapers automatically** — keep it flagged off until we
 > deliberately turn it on per the guardrails.
+
+---
+
+## 12. Closeout — Phase II shipped 2026-08-01
+
+The Phase I note at the top of this doc said Phase II (route handlers, Playwright, AI calls) was
+"explicitly deferred to deliberate human-sequenced work". That work happened. What follows is what
+shipped, and — more usefully — what the deferral had been hiding.
+
+### 12.1 The deferred half was mostly already built and simply had no caller
+
+`detectVendor()` (slice 6), `prefillAdapterFromTemplate()` (slice 10) and `rollupAdapterDashboard()`
+(slice 17) were all tested, correct, and imported by **nothing outside their own test files**. The
+roadmap's acceptance criterion (a) — *"registering a known-vendor county = pick county + paste URL +
+1–2 params + confirm, < 5 min, NO CODE CHANGE"* — was therefore false: registering a county still
+meant editing TypeScript.
+
+- **§8.1 / §8.2 / §8.5 — `/admin/research/sites` + `/api/admin/research/sites`.** Detection is a
+  regex against seeded `url_fingerprints`; the wizard pre-fills from the vendor template and names
+  the county-specific params still missing. Verified against production: pasting
+  `https://bell.esearch.us/property` detects *eSearch CAD (Pritchard & Abbott)* from the seeded
+  fingerprints, with no request leaving for the county's server.
+- **§9.8 — the health panel** on `/admin/research/coverage`, which refuses to collapse "nothing
+  registered", "registered but never checked" and "all healthy" into one blank list. The middle one
+  is the whole point of Pillar B and reads as good news if it is not said out loud.
+
+Two bugs were in the handoff itself, both invisible to the unit tests: the route read
+`detection.best.vendor.id`, but `VendorMatch` carries a **vendor key** and deliberately no FK (a
+fingerprint identifies a key; the row id is the caller's business), and `rollupAdapterDashboard`
+takes `now` as an explicit parameter — that is what makes its "hours since last check" testable —
+and was being passed the options object in its place.
+
+### 12.2 §8.3 / §8.4 / §8.6 — the probe, and why it was buildable after all
+
+The defer rationale was sound: a probe written as one function calling Playwright and Claude can only
+be tested against a live government website. Split, it is two things:
+
+- `lib/research/site-probe.ts` — **pure**. Given a structural description of a page (forms, inputs,
+  tables, headers) it proposes which form is the search, which input takes the query, which table is
+  the results list, and what each column means canonically. Tested against fixtures.
+- `lib/research/site-probe-runner.ts` — a sixty-line browser shell with every §9.9 guard in one
+  readable place: off by default (seed 528, on the same singleton as the sweep and auto-apply),
+  **one page load**, twenty-second timeout, one attempt, browser always closed, honest user agent,
+  and it **never submits the search form** — so enabling it does not put queries into a county's
+  system. It saves nothing; §8.4's confirm is a person reading the evidence and the warnings.
+
+Two heuristics worth recording because a first draft gets them wrong: the query field is the
+**highest-signal** text input rather than the first (county portals put a tax-year select in front of
+the address box), and a form containing a password field scores −100 — probing a sign-in means
+posting a query into somebody's authentication endpoint.
+
+§8.6 falls out of it: an accepted proposal becomes a bespoke `browser_playwright` adapter whose
+config records the flow as **ordered steps**, because the order is what a later §9 repair has to
+reason about, with the probe's warnings stored on the adapter so they travel with it.
+
+### 12.3 Two launch bugs found by running it rather than testing it
+
+- `page.evaluate("() => ({…})")` evaluates the string as an **expression**; the expression is the
+  arrow function, which is not serialisable, so the capture came back `undefined` — silently. The
+  probe would have answered "the portal could not be read" for every website in existence.
+- `@sparticuz/chromium`'s `executablePath()` does not throw off Lambda: it extracts a 180 MB Linux
+  binary into the OS temp directory and returns that path. On Windows the file is really there and
+  really unrunnable, so the launch failed with ENOENT on a plausible path and the bundled-browser
+  fallback never ran. **`browser-scrape.service.ts` has had this since it shipped**, which means
+  every local browser scrape has been failing at launch and reporting it as a portal problem. Both
+  now gate on `process.platform === 'linux'`.
+
+### 12.4 What remains
+
+- **§9.5–9.7 auto-apply and scheduled polling** stay flagged off, as the guardrails require. The
+  mechanism shipped in the self-heal slices; turning it on is a decision, not a build.
+- **§8.4's side-by-side test-property confirm** (screenshot beside parsed values) is partial: the
+  probe reports what it found and the person confirms, but there is no live-page screenshot pane.
+  It needs the probe enabled to be worth building, which is the owner's switch to throw.
+
+> A duplicate of this document had been re-activated into `in-progress/` on 2026-08-01 by a planning
+> sweep that did not notice this copy already existed here, annotated. The duplicate was the original
+> unannotated spec; it has been removed rather than merged, since everything in it is above.

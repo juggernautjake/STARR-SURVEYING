@@ -755,6 +755,27 @@ a day's shots in a dead zone is not a customer we get back.
 *Sources: Trimble Connect developer documentation, Trimble Access/Connect connected-workflow and Field
 Data extension material, Topcon MAGNET/Topcon Enterprise and Integration Services product pages.*
 
+> **✅ STEPS 1–4 SHIPPED 2026-08-01. Step 5 remains owner-gated.**
+>
+> Steps 1–3 (watched folder, LandXML spine, Trimble Connect poller) shipped as items 8n/8o with a
+> parser set, an idempotent content hash, two clocks per point — **and no interface whatsoever**. A
+> surveyor with a day of shots on a collector had no way to get them in except an HTTP client, and
+> `instrument_points` rendered on no page in the app. That is this repo's most common defect and
+> the one a green suite cannot catch.
+>
+> Step 4 — the phone as the literally-instant path — turned out to need one column, not a feature.
+> `field_data_points.created_at` is a **device** clock: PowerSync writes the row the phone composed,
+> so the server default almost never fires. It is `measured_at` under another name, correctly
+> recorded. What was missing was the other clock — *when did WE see it* — without which "what is new
+> since I last looked" can only be answered with a phone's clock, and a phone that spent six hours in
+> a dead zone answers it wrong. Seed 527 adds `received_at`, server-set, never written by the client.
+>
+> Both paths now land in one feed on `/admin/field-data`, ordered by ARRIVAL (a morning's work
+> uploaded at six would otherwise sort below points captured after it), each row carrying its source
+> and its precision — a ±4 m phone fix and a survey-grade shot side by side with nothing to tell them
+> apart is how somebody drafts from the wrong one. The promise sentence is composed server-side,
+> where §3d's *"do not promise instant, any brand"* lives.
+
 ---
 
 ## 4. Good ideas that need fleshing out
@@ -889,51 +910,74 @@ need to be found. Building it after them means retro-fitting search onto three m
     business records, and one ranked query with permission + `org_id` filtering.
 8b. ✅ **DONE 2026-08-01.** Filters — type / corpus / MIME, and created / modified / effective-date ranges.
 8c. ✅ **DONE 2026-08-01.** Spelling-tolerant keyword ranking (trigram similarity + full-text, combined score).
-8d. AI retrieval — embeddings over `extracted_text`, mirroring `fs_reference_chunks`; natural-language
-    questions answered with cited documents, never with an unsourced summary.
+8d. ✅ **DONE 2026-08-01.** AI retrieval — embeddings over `extracted_text`, answering natural-language
+    questions with cited documents and saying so when retrieval did not run. See §3b.
 8e. ✅ **DONE 2026-08-01.** One search UI, reachable from the rail and ⌘K, that returns documents and records together.
 
 **Phase 1c — Sellable to other firms (§3c, owner objective 2026-08-01)**
 
-8f. Bundle sweep — assign a `requiredBundle` to every admin route, API handler and mobile tab, gated
-    **server-side**, with a ratchet so a new page cannot ship unassigned. (Today: 1 of 131 routes.)
+8f. ✅ **DONE 2026-08-01.** Bundle sweep — the gate sits on the data path rather than on 131 route
+    declarations, so a new page cannot ship unassigned. See §3c.1.
 8g. ✅ **DONE 2026-08-01.** `org_id` is load-bearing — the service-role client itself is scoped, so all
     485 API files that import it filter and stamp without being edited. Seed 517 backfills the ~54
     tables seed 513 missed and guards the default. See §3c.1.
-8h. Catalogue every hard-coded Starr assumption (`@starr-surveying.com`, branding, Bell-County-only
-    lot verification) and turn each into a per-tenant setting.
-8i. First-run onboarding for a firm with no data: empty states, setup wizard, non-Starr defaults.
+8h. ✅ **DONE 2026-08-01.** Every hard-coded Starr assumption is now tenant data — the firm is a row,
+    not a constant, and an unresolved tenant renders blank rather than borrowing a competitor's name.
+8i. ✅ **DONE 2026-08-01.** First-run onboarding: one next step rather than a wall of twelve, blocked
+    steps shown rather than hidden, and empty states that say what to do. (This is also item 19.)
 
 **Phase 1d — Instrument integration (§3c.2)**
 
-8j. LandXML import/export — one reader covering all five vendors for points, alignments and surfaces.
-8k. Harden Trimble JobXML; extend the RW5 family to cover Topcon and Spectra Survey Pro explicitly.
-8l. Leica GSI8/GSI16 reader (unlocks GeoMax with it).
-8m. Instrument fleet register on `equipment_inventory` — make/model/serial + calibration certificates.
-8n. Watched-folder ingestion — universal store-and-forward intake that works with all five vendors
-    and needs no partner agreement. Two clocks on every point (measured-at, received-at).
-8o. Trimble Connect poller — Object Sync cursor + configurable interval. The near-live path (§3d).
-    Requires a per-firm Trimble Connect licence, which is a subscription-tier fact, not a setting.
-8p. Our mobile app as the true-instant capture path — the only route to literally live points, and
-    the only one with no vendor in the loop.
+8j. ✅ **DONE 2026-08-01.** LandXML import/export — one reader for points, alignments and surfaces.
+8k. ✅ **DONE 2026-08-01.** Trimble JobXML hardened; the RW5 family covers Topcon and Spectra explicitly.
+8l. ✅ **DONE 2026-08-01.** Leica GSI8/GSI16 reader, which unlocks GeoMax with it.
+8m. ✅ **DONE 2026-08-01.** Instrument fleet register + calibration certificates on `equipment_inventory`.
+8n. ✅ **DONE 2026-08-01.** Watched-folder ingestion — one `ingestArrival` for a drag-and-drop, a
+    watched folder and a poll, with a content hash for idempotency and two clocks on every point.
+8o. ✅ **DONE 2026-08-01.** Trimble Connect poller — Object Sync cursor + configurable interval.
+8p. ✅ **DONE 2026-08-01 (this session).** The phone is the instant path — seed 527 gives
+    `field_data_points` the server-set `received_at` it never had (its `created_at` is a DEVICE
+    clock written through PowerSync), and `/admin/field-data` now shows ONE feed merging phone
+    captures and collector arrivals, ordered by arrival, each carrying its source and its precision.
+    Items 8n/8o had shipped a parser set, a content hash and two clocks — and **no UI at all**; that
+    is what this closes. See §3d.
 8q. ⏸ Topcon / Leica partnership conversations — **owner-gated**; open early, they are slow.
 
 **Phase 2 — Close the business gaps**
-9. Proposal → acceptance → job (with e-signature).
-10. Customer portal (job status + deliverables + pay).
-11. Deliverable revision control + AR aging + change orders.
-12. Certification/insurance expiry alerting.
+9. ✅ **DONE 2026-08-01.** Proposal → acceptance → job, with a signature and a token-scoped public page.
+10. ✅ **DONE 2026-08-01.** Customer portal — job status, deliverables and pay behind one token.
+11. ✅ **DONE 2026-08-01.** Deliverable revision control + AR aging + change orders.
+12. ✅ **DONE 2026-08-01.** Every date that expires has a home: `/admin/compliance` covers licences,
+    certifications, insurance, vehicle registration and instrument calibration.
 
 **Phase 3 — AI as the connective tissue**
-13. `lib/ai/` — one client, one model config, one tool registry, one context digest.
-14. One assistant dock with tool use, everywhere.
-15. AI-fallback page help.
-16. Proactive alerts.
+13. ✅ **DONE 2026-08-01.** `lib/ai/` — one client, one model config, one tool registry, one digest.
+14. ✅ **DONE 2026-08-01.** One assistant dock, with tool use, everywhere.
+15. ✅ **DONE 2026-08-01.** AI-fallback page help.
+16. ✅ **DONE 2026-08-01.** Proactive alerts.
 
 **Phase 4 — Polish**
-17. Pay down inline hexes on the top 20 files → tokens → dark mode.
-18. Split the six >2,000-line pages.
-19. Onboarding/empty states for a brand-new firm.
+17. ✅ **DONE 2026-08-01.** 160 inline hexes paid down, and the four missing status-as-TEXT tokens
+    that had six pages independently writing the same four hexes. The ratchet holds the line.
+18. ⚠ **FOUR OF SIX DONE 2026-08-01 (this session).** maintenance/[id] 2,569 → 553 · inventory
+    2,392 → 677 · pay-progression 2,578 → 869 · receipts 2,285 → 1,237. Two remain partial and the
+    reason is recorded rather than papered over: `research/[projectId]` (3,770 → 3,616) is ONE
+    3,400-line component whose four stage sections each read dozens of pieces of its own state —
+    threading forty props apiece is a rewrite wearing a refactor's clothes; and
+    `lesson-builder/[id]` (2,545 → 2,315) gave up everything that read nothing from the builder
+    (the 23-type catalogue, the converters, the 24-case default-content lookup) while its remaining
+    1,600 lines are editor JSX with the per-type editors woven into the drag-and-drop map.
+19. ✅ **DONE 2026-08-01.** Shipped with 8i.
+
+**Phase 5 — §2.4/§2.5/§2.6, added 2026-08-01 (this session)**
+20. ✅ **DONE.** §2.4's dispatcher question — `/admin/availability` answers "who and what can go out
+    on Thursday" for crew, equipment and vehicles at once, by asking the two existing availability
+    engines rather than becoming a fifth calendar. The date→window conversion uses the FIRM's
+    timezone, not the server's.
+21. ✅ **DONE.** §2.5 and §2.6 filed rather than demolished: Office gets five section headings, and
+    every colliding surface says what it is NOT (Notifications are what the app told you, not what a
+    person sent; the Activity Timeline is a working feed and NOT a compliance record). The Audit Log
+    names the other three history surfaces with the question each is right for.
 
 ---
 
@@ -1122,3 +1166,53 @@ Answered by the owner in the audit session. These are settled; treat them as con
     actually want?
 74. Are the six 2,000+ line page files worth splitting, or leave them alone if they work?
 75. What should I do with `/admin/weather` — wire it into scheduling, or delete it?
+
+---
+
+## 10. Session log — 2026-08-01 (evening)
+
+What was built after the sequencing above was last updated, and what is honestly left.
+
+### Shipped
+
+| Item | What landed |
+|---|---|
+| **8p + the missing 8n/8o UI** | Seed 527's `received_at` on `field_data_points`, and one arrival-ordered feed on `/admin/field-data` merging phone captures with collector arrivals. The ingestion API had had no caller since it shipped. |
+| **§2.4** | `/admin/availability` — one day, three resources, answered by the two existing availability engines rather than by a fifth calendar. |
+| **§2.5 / §2.6** | Office sections, and every colliding surface now says what it is NOT. The Audit Log names the other three history surfaces. |
+| **Research §8.1/§8.2/§8.5** | `/admin/research/sites` — the registration screen that makes `detectVendor()` and `prefillAdapterFromTemplate()` a feature rather than two tested functions with no caller. |
+| **Research §8.3/§8.4/§8.6** | The site probe: a pure analyser plus a flagged, single-page-load browser shell. Off by default. |
+| **§9.8** | The live portal-health panel on `/admin/research/coverage`. |
+| **Item 18** | Four of the six page-size outliers under 2,000 lines; the other two partially, with reasons. |
+| **Item 17** | The moved code took its hexes to tokens rather than re-baselining them. |
+
+### Found while building, and fixed
+
+- **2,400 rows of reference data, seeded seventeen times.** `ON CONFLICT DO NOTHING` fires only
+  against a real unique constraint; nine seeded tables had none but a uuid primary key, so every
+  seed run since February inserted another copy. The rewards store listed 27 prizes as 459 and the
+  seniority ladder drew 153 rungs. Seed 529 repairs it, the seeds name their targets, and a guard
+  test refuses the shape. **Found by a React duplicate-key warning during a browser check** — 21,000
+  tests could not see it.
+- **41 of 100 navigation icons were an identical grey Circle** — every name a real lucide export
+  that had never been added to the resolver, falling through a deliberately silent fallback.
+- **Chromium never launched off Linux**, in the probe and in `browser-scrape.service.ts`, because
+  `@sparticuz/chromium` returns a path to a binary it extracted for the wrong platform.
+- **Two page titles were wrong** and the third kind was inevitable: the top bar read a
+  hand-maintained title map. It consults the route registry first now.
+- **`app/admin/profile/ProfilePanel.tsx` is NOT dead code**, contrary to §6's last bullet. It is
+  imported by `/admin/employees/[email]` and by the UX harness, and `deriveAge` is tested. Left in
+  place; the audit line is wrong.
+
+### Genuinely remaining
+
+1. **Owner-gated, not buildable here.** The staging Supabase project (Phase 0 item 2) — the tooling
+   and `npm run db:bootstrap:staging` are ready and need an account on the owner's org. Item 8q's
+   Topcon/Leica conversations. The deploy-time secrets in §1.5.
+2. **Item 18's last two pages** — `research/[projectId]` and `lesson-builder/[id]`, for the reasons
+   recorded against item 18.
+3. **§8.4's side-by-side confirm** (live screenshot beside parsed values) in the research probe. It
+   is only worth building once the probe is switched on, which is a decision.
+4. **The D4 follow-up questions** (Q-D4a…f) are still unanswered, and Q-D4a in particular —
+   *how is a suggested quote computed* — is a prerequisite for agentic intake, not a detail. Nothing
+   in the code computes a quote, and I will not invent a firm's pricing.
