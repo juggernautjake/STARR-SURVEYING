@@ -256,7 +256,8 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 17 | Studio → Expenses — deduction-first tiles, category breakdown, fast entry, Schedule C mapping | ✅ 2026-08-02 |
 | 18 | Studio → Clients — activity-sorted list, lifetime value, portal token control | ✅ 2026-08-02 |
 | 19 | Studio → Contracts + public signing page — draft, send, e-sign with evidence, countersign | ✅ 2026-08-02 |
-| — | **Studio: documents, coaching, demos, media, settings** | ⛔ **NOT BUILT** — nav links 404 |
+| 20 | Studio → Settings — identity, theme picker with live contrast warnings, paperwork defaults, team accounts | ✅ 2026-08-02 |
+| — | **Studio: coaching, media, demos, documents** | ⛔ **NOT BUILT** — nav links 404 |
 | — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
 | — | Stripe payment flow | ⛔ NOT BUILT |
 | — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |

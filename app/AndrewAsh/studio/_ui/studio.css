@@ -702,3 +702,94 @@ a.vaTile:hover {
   height: 100%;
   background: var(--va-accent);
 }
+
+/* ── THEME PICKER ─────────────────────────────────────────────────────────────────────────────────
+ *
+ * Four swatches per card, in the order they appear on a page: ground, surface, accent, text. Showing
+ * the actual colours beats naming them — "Hallownest" means nothing until you can see it.
+ */
+.vaThemeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px;
+}
+.vaThemeCard {
+  text-align: left;
+  padding: 14px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+}
+.vaThemeCard:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+.vaThemeCardActive {
+  border-color: var(--va-accent);
+  box-shadow: 0 0 0 1px var(--va-accent);
+}
+.vaThemeSwatches {
+  display: flex;
+  gap: 4px;
+  height: 26px;
+}
+.vaThemeSwatches span {
+  flex: 1;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.vaThemeName {
+  color: var(--va-text);
+  font-family: var(--va-font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.vaThemeBlurb {
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.vaColorRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaColorRow:last-child {
+  border-bottom: 0;
+}
+.vaColorRow label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+}
+.vaColorRow input[type='color'] {
+  width: 40px;
+  height: 28px;
+  flex: none;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  padding: 2px;
+}
+.vaColorRow code {
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+  min-width: 62px;
+  flex: none;
+}
+.vaColorRow button {
+  background: none;
+  border: 0;
+  color: var(--va-accent);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  text-decoration: underline;
+  flex: none;
+}
