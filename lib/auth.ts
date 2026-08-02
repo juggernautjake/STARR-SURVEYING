@@ -12,6 +12,19 @@ import bcrypt from 'bcryptjs';
 import { supabaseUnscoped } from '@/lib/supabase';
 import { beginOrgScope, orgIdForSession } from '@/lib/saas/org-scope-context';
 import { resolveIsCompanyUser } from '@/lib/saas/internal-user';
+// The role vocabulary lives in a file with no imports, so a client component can read a label
+// without dragging NextAuth — and node:async_hooks — into the browser bundle. Re-exported here so
+// every existing server-side `from '@/lib/auth'` keeps working. See lib/auth-roles.ts.
+import {
+  ALL_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_PRIORITY, ROLES_REFRESH_INTERVAL_SECONDS,
+  getPrimaryRole, isAdminRoles, isDeveloperRoles, type UserRole,
+} from '@/lib/auth-roles';
+
+export {
+  ALL_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_PRIORITY, ROLES_REFRESH_INTERVAL_SECONDS,
+  getPrimaryRole, isAdminRoles, isDeveloperRoles,
+};
+export type { UserRole };
 
 // =============================================================================
 // ROLE SYSTEM
@@ -20,53 +33,15 @@ import { resolveIsCompanyUser } from '@/lib/saas/internal-user';
 // Users can hold MULTIPLE roles (e.g. admin + teacher + researcher)
 // =============================================================================
 
-export const ALL_ROLES = [
-  'admin', 'developer', 'teacher', 'student', 'researcher',
-  'drawer', 'field_crew', 'employee', 'guest', 'tech_support',
-  // Phase F10 (§4.6 + §5.12) — equipment_manager owns the digital
-  // inventory ledger: receives, labels, calibrates, retires gear;
-  // approves dispatcher loadout assignments; nags crews on
-  // unreturned gear at end of day. Stored in registered_users.roles
-  // alongside other roles. Often a hat worn by an existing
-  // admin / dev user at Starr's current size; modeled cleanly so a
-  // future dedicated hire is a permission flip, not a refactor.
-  'equipment_manager',
-] as const;
 
-export type UserRole = (typeof ALL_ROLES)[number];
 
-// Human-readable labels for each role
-export const ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Admin',
-  developer: 'Developer',
-  teacher: 'Teacher',
-  student: 'Student',
-  researcher: 'Researcher',
-  drawer: 'Drawer',
-  field_crew: 'Field Crew',
-  employee: 'Employee',
-  guest: 'Guest',
-  tech_support: 'Tech Support',
-  equipment_manager: 'Equipment Manager',
-};
 
-// Role descriptions for admin UI
-export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  admin: 'Full access to everything. Can manage users, roles, payroll, and settings.',
-  developer: 'Full access for testing. Cannot update user roles or site settings.',
-  teacher: 'Create/edit learning content. Manage student progress.',
-  student: 'Access to all learning features: modules, flashcards, exam prep.',
-  researcher: 'Access to Property Research and Analysis tools.',
-  drawer: 'Access to CAD Editor and Research tools.',
-  field_crew: 'Field work tools: jobs, hours, fieldbook, assignments, schedule.',
-  employee: 'Base role. Dashboard, profile, learning hub basics.',
-  guest: 'External user. Limited to dashboard, profile, and basic learning.',
-  tech_support: 'Error logs, view-only access to most pages for troubleshooting.',
-  equipment_manager: 'Owns the equipment + supplies inventory: morning checkout, end-of-day reconcile, maintenance schedules, low-stock restock, and damaged/lost triage. Cannot approve receipts or hours.',
-};
 
-// How often (in seconds) to re-fetch roles from DB for an active session.
-export const ROLES_REFRESH_INTERVAL_SECONDS = 30;
+
+
+
+
+
 
 const ADMIN_EMAILS: string[] = [
   'hankmaddux@starr-surveying.com',
@@ -76,16 +51,7 @@ const ADMIN_EMAILS: string[] = [
 
 const TEACHER_EMAILS: string[] = [];
 
-/** Role priority for determining the "primary" display role (highest first) */
-const ROLE_PRIORITY: UserRole[] = [
-  'admin', 'developer', 'teacher', 'tech_support',
-  // equipment_manager sits above researcher/drawer/field_crew —
-  // cage-keeper accountability outranks generic field roles for
-  // dashboard "primary role" display purposes but stays below
-  // admin / dev / teacher / tech_support.
-  'equipment_manager',
-  'researcher', 'drawer', 'field_crew', 'student', 'guest', 'employee',
-];
+
 
 /** Get roles for a user from hardcoded email lists (synchronous fallback) */
 export function getUserRoles(email: string): UserRole[] {
@@ -226,12 +192,7 @@ export async function isUserBlocked(email: string): Promise<boolean> {
 }
 
 /** Get primary role from a roles array */
-export function getPrimaryRole(roles: UserRole[]): UserRole {
-  for (const r of ROLE_PRIORITY) {
-    if (roles.includes(r)) return r;
-  }
-  return 'employee';
-}
+
 
 /** Get the primary (highest) role for display purposes */
 export function getUserRole(email: string): UserRole {
@@ -240,14 +201,14 @@ export function getUserRole(email: string): UserRole {
 
 export function isAdmin(emailOrRoles: string | UserRole[] | null | undefined): boolean {
   if (!emailOrRoles) return false;
-  if (Array.isArray(emailOrRoles)) return emailOrRoles.includes('admin');
+  if (Array.isArray(emailOrRoles)) return isAdminRoles(emailOrRoles);
   return getUserRoles(emailOrRoles).includes('admin');
 }
 
 /** Admin or developer — both have broad access */
 export function isDeveloper(emailOrRoles: string | UserRole[] | null | undefined): boolean {
   if (!emailOrRoles) return false;
-  if (Array.isArray(emailOrRoles)) return emailOrRoles.includes('admin') || emailOrRoles.includes('developer');
+  if (Array.isArray(emailOrRoles)) return isDeveloperRoles(emailOrRoles);
   const roles = getUserRoles(emailOrRoles);
   return roles.includes('admin') || roles.includes('developer');
 }

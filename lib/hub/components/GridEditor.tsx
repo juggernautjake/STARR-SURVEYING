@@ -13,7 +13,7 @@
 // Slice 222 of hub-grid-editor-and-banner-green-2026-05-29.md.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import {
   allWidgets,

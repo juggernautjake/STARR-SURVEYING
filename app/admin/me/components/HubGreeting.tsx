@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/work-mode/clock-session';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import RolePills from './RolePills';
 import WorkModePrompt from './WorkModePrompt';
 // hub-widget-excellence-01 Slice 5 — the pure greeting helpers moved to

@@ -30,7 +30,7 @@ import {
   type Workspace,
 } from '@/lib/admin/route-registry';
 import { isInternalUser } from '@/lib/saas/internal-user';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 
 import './WorkspaceLanding.css';
 

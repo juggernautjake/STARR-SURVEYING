@@ -18,7 +18,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ROLE_LABELS, type UserRole } from '@/lib/auth';
+import { ROLE_LABELS, type UserRole } from '@/lib/auth-roles';
 import { eligibleWorkModeRoles } from '@/lib/hub/work-mode-eligibility';
 import { ClockInModal } from '@/lib/work-mode/clock-modals';
 import {

@@ -8,8 +8,8 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { UserRole } from '@/lib/auth';
-import { ROLE_LABELS } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
+import { ROLE_LABELS } from '@/lib/auth-roles';
 import { useWorkModeStore } from '@/lib/work-mode/work-mode-store';
 
 const ROLE_DESCRIPTIONS: Partial<Record<UserRole, string>> = {

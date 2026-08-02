@@ -24,7 +24,7 @@ import {
 } from '@/lib/admin/route-registry';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 
 const SHOW_DELAY_MS = 200;
 // Grace period before the fly-out closes after the pointer leaves the

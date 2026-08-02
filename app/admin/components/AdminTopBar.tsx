@@ -9,7 +9,7 @@ import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
 import InitialAvatar from './InitialAvatar';
 
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import { RouteIcon } from '@/lib/admin/route-icons';
 import { Menu, Star } from 'lucide-react';
 

@@ -37,7 +37,7 @@ import {
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import { railOrderFor } from '@/lib/admin/personas';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 
 import WorkspaceFlyout from './WorkspaceFlyout';
 import './IconRail.css';

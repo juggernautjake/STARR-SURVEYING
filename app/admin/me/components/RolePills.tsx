@@ -10,7 +10,7 @@
 // display of the user's actual roles).
 
 import React from 'react';
-import { ROLE_LABELS, type UserRole } from '@/lib/auth';
+import { ROLE_LABELS, type UserRole } from '@/lib/auth-roles';
 import { rolePillColors } from '@/lib/admin/role-colors';
 
 interface RolePillsProps {

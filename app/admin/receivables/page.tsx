@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Banknote, TriangleAlert } from 'lucide-react';
-import type { AgingBucket, AgingRow } from '@/app/api/admin/ar-aging/route';
+import type { AgingBucket, AgingRow } from '@/lib/finance/ar-aging';
 
 const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 

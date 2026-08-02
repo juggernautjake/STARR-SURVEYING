@@ -9,7 +9,7 @@
 // Slice 100 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import { allWidgets, type WidgetCategory, type WidgetDefinition } from '@/lib/hub/widget-registry';
 import { filterCatalog, groupByCategory } from '@/lib/hub/widget-catalog-filter';

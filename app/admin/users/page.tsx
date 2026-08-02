@@ -5,7 +5,7 @@ import '../styles/AdminUsers.css';
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Lock, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import InitialAvatar from '../components/InitialAvatar';
 import { useTenantProfile } from '@/lib/saas/use-tenant-profile';
 

@@ -29,7 +29,7 @@ import {
   type ClockSession,
 } from '@/lib/work-mode/clock-session';
 import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 
 /** "4h 30m" / "45m" from a number of hours. */
 function formatHoursLabel(hours: number): string {

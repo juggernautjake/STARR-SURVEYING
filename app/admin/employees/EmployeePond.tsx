@@ -10,7 +10,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import { matchesPersonPrefix } from '@/lib/admin/employee-search';
 import { useEmployeePondPhysics } from './useEmployeePondPhysics';
 import {

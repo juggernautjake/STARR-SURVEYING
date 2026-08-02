@@ -11,7 +11,7 @@
 // Slice 187 of customizable-hub-and-work-mode-2026-05-28.md.
 
 import React, { useEffect } from 'react';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import type { HubLayoutRow } from '@/lib/hub/types';
 

@@ -23,7 +23,7 @@ import {
   type AdminRoute,
 } from '@/lib/admin/route-registry';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import { isInternalUser } from '@/lib/saas/internal-user';
 
 import '../../styles/AdminCommandPalette.css';

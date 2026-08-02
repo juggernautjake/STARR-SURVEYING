@@ -9,38 +9,11 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export type AgingBucket = 'current' | '1_30' | '31_60' | '61_90' | '90_plus' | 'no_terms';
-
-export interface AgingRow {
-  id: string;
-  invoice_number: string;
-  job_id: string | null;
-  customer_name: string | null;
-  customer_email: string | null;
-  total_cents: number;
-  paid_cents: number;
-  balance_cents: number;
-  issued_at: string | null;
-  due_at: string | null;
-  status: string;
-  days_overdue: number | null;
-  bucket: AgingBucket;
-}
-
-/** Order matters: an accountant reads left to right, worst on the right. */
-export const BUCKETS: AgingBucket[] = ['current', '1_30', '31_60', '61_90', '90_plus', 'no_terms'];
-
-export const BUCKET_LABEL: Record<AgingBucket, string> = {
-  current: 'Current',
-  '1_30': '1–30 days',
-  '31_60': '31–60 days',
-  '61_90': '61–90 days',
-  '90_plus': '90+ days',
-  // Not a bucket so much as a warning: an invoice with no due date can never be overdue, so it will
-  // never appear in a collections list and never be chased. Surfaced rather than hidden among
-  // "current", which is where it would otherwise sit forever.
-  no_terms: 'No due date set',
-};
+// The row shape, the bucket order and the labels live in lib/finance/ar-aging.ts. A route file may
+// export ONLY its handlers and a fixed set of config keys — anything else fails the production build
+// with "Property 'BUCKETS' is incompatible with index signature", which is what `npm run build` said
+// about this file. tsc never sees it: the constraint is Next's, applied to generated route types.
+import { BUCKETS, BUCKET_LABEL, type AgingBucket, type AgingRow } from '@/lib/finance/ar-aging';
 
 export const GET = withErrorHandler(async () => {
   const session = await auth();

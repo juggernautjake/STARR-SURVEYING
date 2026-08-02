@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Search, Users } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
-import type { UserRole } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
 import { matchesPersonPrefix } from '@/lib/admin/employee-search';
 // employee-pond Slice E1 — alternative viewer behind a view toggle.
 import EmployeePond from './EmployeePond';
