@@ -4,6 +4,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SurveyPlan, SurveyPlanItem } from '@/lib/research/survey-plan.service';
+import type { PlanDiff } from '@/lib/research/survey-plan-versions';
+
+/** Version metadata the route attaches alongside the plan (plan R21). */
+interface PlanVersionMeta {
+  version: number;
+  total: number;
+  generatedAt?: string;
+  editedAt?: string | null;
+  editedBy?: string | null;
+  editsAtRisk?: { lostFrom: number[]; message: string };
+  diff?: PlanDiff | null;
+}
 
 interface SurveyPlanPanelProps {
   projectId: string;
@@ -149,6 +161,9 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [checklistState, setChecklistState] = useState<Record<string, boolean>>({});
   const [activeSection, setActiveSection] = useState<string>('summary');
+  // Which version this is, and whether anybody's edits were left behind on an older one (plan R21).
+  const [versionMeta, setVersionMeta] = useState<PlanVersionMeta | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -159,8 +174,9 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
         const err = await res.json() as { error?: string };
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      const data = await res.json() as SurveyPlan;
+      const data = await res.json() as SurveyPlan & { _version?: PlanVersionMeta };
       setPlan(data);
+      setVersionMeta(data._version ?? null);
       // Initialize checklist state (all unchecked unless persisted)
       const initial: Record<string, boolean> = {};
       data.pre_field_research?.items?.forEach((item, i) => {
@@ -176,6 +192,29 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
   }, [projectId]);
 
   useEffect(() => { void loadPlan(); }, [loadPlan]);
+
+  /** Regeneration is an explicit action, not a side effect of viewing the page — it rewrites the
+   *  document a crew may already be working from, so it creates a new version rather than replacing
+   *  the current one. */
+  const regenerate = useCallback(async () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/survey-plan`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json() as SurveyPlan & { _version?: PlanVersionMeta };
+      setPlan(data);
+      setVersionMeta(data._version ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to regenerate the survey plan');
+    } finally {
+      setRegenerating(false);
+    }
+  }, [projectId, regenerating]);
 
   function toggleItem(id: string) {
     setChecklistState(prev => ({ ...prev, [id]: !prev[id] }));
@@ -228,7 +267,44 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
   const totalPre = plan.pre_field_research?.items?.length || 0;
 
   return (
-    <div style={{ display: 'flex', gap: '1rem', height: '100%', minHeight: 600 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', height: '100%', minHeight: 600 }}>
+      {/* Which plan is this? (plan R21) The plan used to be regenerated on every page load, so the
+          document a crew was working from changed underneath them with nothing recording what it
+          had said. */}
+      {versionMeta && (
+        <div className="survey-plan__version">
+          <span className="survey-plan__version-label">
+            Version {versionMeta.version} of {versionMeta.total}
+            {versionMeta.generatedAt ? ` — generated ${versionMeta.generatedAt.slice(0, 10)}` : ''}
+            {versionMeta.editedBy ? `, edited by ${versionMeta.editedBy}` : ''}
+          </span>
+          <button
+            className="survey-plan__regenerate"
+            onClick={() => void regenerate()}
+            disabled={regenerating}
+          >
+            {regenerating ? 'Regenerating…' : 'Regenerate as a new version'}
+          </button>
+          {versionMeta.editsAtRisk?.message && (
+            // Silently showing a clean plan is how somebody's field notes disappear.
+            <p className="survey-plan__edits-warn">{versionMeta.editsAtRisk.message}</p>
+          )}
+          {versionMeta.diff && versionMeta.diff.entries.length > 0 && (
+            <details className="survey-plan__diff">
+              <summary>{versionMeta.diff.headline}</summary>
+              <ul>
+                {versionMeta.diff.entries.map((e, i) => (
+                  <li key={i}>
+                    <strong>{e.section}</strong> — {e.kind}: {e.detail}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+    <div style={{ display: 'flex', gap: '1rem', flex: 1, minHeight: 0 }}>
       {/* Sidebar nav */}
       <div style={{ width: 180, flexShrink: 0 }}>
         <div style={{ position: 'sticky', top: 0 }}>
@@ -543,6 +619,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

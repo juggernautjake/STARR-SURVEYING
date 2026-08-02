@@ -914,7 +914,42 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* a known-conflicting property produces the conflict, both citations, and a recommended
   field check.
 
-- **R21. The survey gameplan, persisted and versioned.**
+- **R21. The survey gameplan, persisted and versioned.** ✅ DONE 2026-08-02
+
+  **Shipped** (seed 533 + `lib/research/survey-plan-versions.ts`, wired into the route and panel).
+
+  `generateSurveyPlan()` said it in its own docstring: *"The plan is generated fresh each time (no DB
+  caching) because the underlying data changes as analysis progresses."* So regenerating discarded
+  the previous plan along with anything a person had added, nothing recorded what the plan **said**
+  when the crew went to the field — the version that matters if the survey is ever questioned — and
+  "what changed since last time" had no answer because there was nothing to compare against.
+
+  Worse, the route called it on **every GET**. A page refresh burned AI tokens *and* produced a
+  different plan, so the document a crew was working from changed underneath them. Regeneration is
+  now an explicit `POST`, because rewriting the field plan is an action, not a read.
+
+  **The AI original is immutable.** `ai_plan` is written once and never updated; human changes live
+  in a separate `edits` overlay, merged only for display. This is the same contract the owner asked
+  for on drawings — *edits saved apart from the original* — and it exists for the same reason: merge
+  the two at write time and "what did the machine actually say" stops being answerable. A guard test
+  asserts `saveEdits` never touches `ai_plan`.
+
+  Previous versions are **demoted, not deleted** — a plan a crew has already worked from is evidence
+  of what they were told, and tidying the table away destroys it. A partial unique index allows
+  exactly one current plan per project, since two "current" plans is precisely the ambiguity the
+  table exists to remove. Each version records **why** it exists, without which a version list is a
+  list of timestamps.
+
+  `diffPlans()` reports changes **by name** — "the plan no longer asks you to look for the 1/2 inch
+  iron rod at the NE corner" — because "the plan changed" is useless to a crew that already read the
+  old one. Items are identified by content rather than array position, or inserting one step at the
+  top would report every later step as changed. And `editsAtRisk()` answers the question R21 exists
+  for: a crew that annotated version 2 and finds version 3 current is told their notes are on the
+  older version rather than being silently shown a clean plan.
+
+  Root suite 21,524 passing; typecheck clean. Seed 533 applied to production.
+
+  Original item:
   `generateSurveyPlan()` output becomes a stored, versioned artifact: what to look for, where, in what
   order; monuments to search with search radii; access notes; expected obstacles; equipment; estimated
   field hours; and the open questions from R20. Regenerating creates a new version; the old one stays.

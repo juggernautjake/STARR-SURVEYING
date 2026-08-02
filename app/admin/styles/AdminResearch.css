@@ -2221,6 +2221,52 @@
   margin-bottom: 0.65rem;
 }
 
+/* ── Survey plan versions (plan R21) ──────────────────────────────────────── */
+
+.survey-plan__version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: #4B5563;
+}
+
+.survey-plan__version-label { font-weight: 600; }
+
+.survey-plan__regenerate {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 5px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.survey-plan__regenerate:disabled { opacity: 0.6; cursor: default; }
+
+/* Somebody's field notes going missing is the failure this whole table exists to prevent, so it
+   gets a warning tone rather than sitting quietly in the metadata line. */
+.survey-plan__edits-warn {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  background: #FEF3C7;
+  color: #92400E;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.survey-plan__diff { flex-basis: 100%; }
+.survey-plan__diff summary { cursor: pointer; font-weight: 600; color: #1D4ED8; }
+.survey-plan__diff ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+.survey-plan__diff li { margin-bottom: 0.15rem; }
+
 /* ── The conflict as a question, with both sides (plan R20) ───────────────── */
 
 /* Given more weight than the AI's prose description, because the question is the thing a surveyor
