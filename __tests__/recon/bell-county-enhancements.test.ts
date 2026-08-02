@@ -995,17 +995,30 @@ describe('Fallback method robustness', () => {
   });
 
   it('E-16. buildUsageFromTokens computes correct cost and sets totalCalls=1', async () => {
-    const { buildUsageFromTokens, COST_PER_INPUT_TOKEN, COST_PER_OUTPUT_TOKEN } =
+    // Research plan R4: this file's own COST_PER_*_TOKEN constants are gone. They were one flat
+    // pair applied to every call regardless of model — a Haiku classification and an Opus synthesis
+    // priced identically — so the number the owner asked to minimise could not tell the cheap path
+    // from the expensive one. Pricing now comes from infra/usage.ts, keyed on the model id.
+    const { buildUsageFromTokens } =
       await import('../../worker/src/counties/bell/analyzers/ai-cost-helpers.js');
+    const { priceCall } = await import('../../worker/src/infra/usage.js');
 
-    const usage = buildUsageFromTokens(2000, 400);
+    const usage = buildUsageFromTokens(2000, 400, 'claude-sonnet-5');
     expect(usage.totalCalls).toBe(1);
     expect(usage.totalInputTokens).toBe(2000);
     expect(usage.totalOutputTokens).toBe(400);
     expect(usage.estimatedCostUsd).toBeCloseTo(
-      2000 * COST_PER_INPUT_TOKEN + 400 * COST_PER_OUTPUT_TOKEN,
+      priceCall('claude-sonnet-5', { input: 2000, output: 400 }),
       9,
     );
+  });
+
+  it('E-16b. the model decides the price, which is the whole point of the change', async () => {
+    const { buildUsageFromTokens } =
+      await import('../../worker/src/counties/bell/analyzers/ai-cost-helpers.js');
+    const cheap = buildUsageFromTokens(2000, 400, 'claude-haiku-4-5');
+    const dear  = buildUsageFromTokens(2000, 400, 'claude-opus-5');
+    expect(cheap.estimatedCostUsd!).toBeLessThan(dear.estimatedCostUsd!);
   });
 
   it('E-17. accumulateUsage adds delta correctly into accumulator', async () => {
