@@ -58,7 +58,6 @@
   "app/admin/employees/page.tsx": 2,
   "app/admin/equipment/[id]/page.tsx": 6,
   "app/admin/equipment/checked-out/page.tsx": 1,
-  "app/admin/equipment/inventory/page.tsx": 3,
   "app/admin/equipment/timeline/page.tsx": 2,
   "app/admin/error-log/page.tsx": 3,
   "app/admin/field-data/[id]/page.tsx": 26,

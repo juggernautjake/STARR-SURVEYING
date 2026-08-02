@@ -1,0 +1,1728 @@
+'use client';
+// app/admin/equipment/maintenance/[id]/EventDialogs.tsx — everything that changes a maintenance event.
+//
+// Lifted out of page.tsx for platform audit item 18 (2,569 lines). The state-transition bar and its
+// confirmation modal, the inline edit form, the document uploader and the receipt picker, moved
+// verbatim. Together because they are the page's four write paths and they share the badge and
+// modal styling below; the page itself is now the read view plus the wiring.
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Check, Pencil, Save, X } from 'lucide-react';
+import { usePageError } from '../../../hooks/usePageError';
+import type { MaintenanceEvent, TerminalKind } from './maintenance-types';
+import { styles } from './maintenance-styles';
+import { ADJACENCY, TERMINAL_STATES, formatCurrency, formatDateTime, localToIso, toLocalInput } from './maintenance-types';
+
+export function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={styles.detailRow}>
+      <div style={styles.rowLabel}>{label}</div>
+      <div style={styles.rowValue}>{children}</div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-β — state-transition controls
+// ────────────────────────────────────────────────────────────
+
+export function TransitionBar({
+  state,
+  onTransition,
+}: {
+  state: string;
+  onTransition: (targetState: string, isReopen: boolean) => void;
+}) {
+  const allowed = ADJACENCY[state] ?? [];
+  const isComplete = state === 'complete';
+  const isCancelled = state === 'cancelled';
+
+  if (isCancelled) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          Cancelled. Terminal — no transitions available.
+        </span>
+      </div>
+    );
+  }
+
+  if (isComplete) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          Complete. Re-open to transition again:
+        </span>
+        <button
+          type="button"
+          style={transitionStyles.reopenBtn}
+          onClick={() => onTransition('in_progress', true)}
+        >
+          ↺ Re-open
+        </button>
+      </div>
+    );
+  }
+
+  if (allowed.length === 0) {
+    return (
+      <div style={transitionStyles.bar}>
+        <span style={transitionStyles.muted}>
+          State {state.replace(/_/g, ' ')} has no transitions
+          configured.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={transitionStyles.bar}>
+      <span style={transitionStyles.muted}>Move to:</span>
+      {allowed.map((target) => (
+        <button
+          key={target}
+          type="button"
+          style={transitionButtonStyle(target)}
+          onClick={() => onTransition(target, false)}
+        >
+          {target.replace(/_/g, ' ')}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function TransitionModal({
+  eventId,
+  eventKind,
+  existingVendorName,
+  existingPerformedBy,
+  existingQaPassed,
+  target,
+  onClose,
+  onTransitioned,
+}: {
+  eventId: string;
+  eventKind: string;
+  existingVendorName: string | null;
+  existingPerformedBy: string | null;
+  existingQaPassed: boolean | null;
+  target: { state: string; isReopen: boolean };
+  onClose: () => void;
+  onTransitioned: (newState: string) => void;
+}) {
+  const { safeFetch } = usePageError('TransitionModal');
+
+  const requiresVendor =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    !existingVendorName;
+  const performedByConflict =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    !!existingPerformedBy;
+  // F10.7-j-i — calibration completion requires a fresh QA
+  // decision unless the row already carries one (e.g. a multi-
+  // PATCH workflow set qa_passed before this state transition).
+  const requiresQaDecision =
+    target.state === 'complete' &&
+    eventKind === 'calibration' &&
+    existingQaPassed === null;
+
+  const [vendorName, setVendorName] = useState('');
+  const [clearPerformedBy, setClearPerformedBy] = useState(true);
+  const [decline_or_failed_reason, setReason] = useState('');
+  const [qaDecision, setQaDecision] = useState<
+    'unset' | 'passed' | 'failed'
+  >('unset');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isTerminal = TERMINAL_STATES.has(target.state as TerminalKind);
+
+  const handleConfirm = useCallback(async () => {
+    setError(null);
+    const body: Record<string, unknown> = {
+      state: target.state,
+    };
+    if (target.isReopen) body.reopen = true;
+
+    if (requiresVendor) {
+      const trimmed = vendorName.trim();
+      if (!trimmed) {
+        setError(
+          'Calibration events require vendor_name on completion ' +
+            '(NIST traceability).'
+        );
+        return;
+      }
+      body.vendor_name = trimmed;
+    }
+    if (performedByConflict && clearPerformedBy) {
+      body.performed_by_user_id = null;
+    }
+    if (requiresQaDecision) {
+      if (qaDecision === 'unset') {
+        setError(
+          'Pick a QA decision (passed or failed) before completing ' +
+            'a calibration event.'
+        );
+        return;
+      }
+      // qa_passed=false auto-routes to failed_qa server-side per
+      // F10.7-c-ii so the EM&apos;s "Failed" choice still goes
+      // through the same complete-state PATCH.
+      body.qa_passed = qaDecision === 'passed';
+    }
+    // Notes for cancelled/failed_qa (terminal context).
+    if (
+      (target.state === 'cancelled' || target.state === 'failed_qa') &&
+      decline_or_failed_reason.trim().length > 0
+    ) {
+      body.notes = decline_or_failed_reason.trim();
+    }
+
+    setSubmitting(true);
+    const res = await safeFetch<{
+      event?: { state: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSubmitting(false);
+    if (res?.event?.state) {
+      onTransitioned(res.event.state);
+    } else {
+      setError(
+        res?.error ??
+          'Transition failed. Check the error log; the form is unchanged.'
+      );
+    }
+  }, [
+    target,
+    requiresVendor,
+    performedByConflict,
+    requiresQaDecision,
+    qaDecision,
+    vendorName,
+    clearPerformedBy,
+    decline_or_failed_reason,
+    safeFetch,
+    eventId,
+    onTransitioned,
+  ]);
+
+  const targetLabel = target.state.replace(/_/g, ' ');
+  const title = target.isReopen ? 'Re-open this event?' : `Move to ${targetLabel}?`;
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={transitionStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>{title}</h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          {target.isReopen ? (
+            <p style={transitionStyles.copy}>
+              Re-opening clears <code style={transitionStyles.code}>completed_at</code>{' '}
+              and <code style={transitionStyles.code}>qa_passed</code> for
+              a fresh service-history entry on re-completion. Existing
+              vendor + cost fields are preserved.
+            </p>
+          ) : isTerminal ? (
+            <p style={transitionStyles.copy}>
+              {target.state === 'complete'
+                ? 'Marking complete stamps completed_at = now() and locks the row terminal. Re-open via the dedicated re-open flow if needed.'
+                : target.state === 'cancelled'
+                ? 'Cancelling locks the row terminal — no further transitions. Drop a note explaining why.'
+                : 'Marking as failed QA flags the row on the Equipment Today dashboard so the equipment manager can re-open and fix it.'}
+            </p>
+          ) : (
+            <p style={transitionStyles.copy}>
+              Move state from <strong>current</strong> to{' '}
+              <strong>{targetLabel}</strong>.{' '}
+              {target.state === 'in_progress'
+                ? 'Auto-stamps started_at = now() if not already set.'
+                : null}
+            </p>
+          )}
+
+          {requiresVendor ? (
+            <label style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Vendor name (required for calibration completion) *
+              </span>
+              <input
+                type="text"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+                placeholder="e.g. Trimble Service Houston"
+                style={transitionStyles.input}
+                required
+                autoFocus
+              />
+              <span style={transitionStyles.hint}>
+                ▸ NIST cert traceability requires a third-party vendor.
+                The PATCH route enforces this server-side via the
+                <code style={transitionStyles.code}>
+                  calibration_requires_vendor
+                </code>{' '}
+                gate.
+              </span>
+            </label>
+          ) : null}
+
+          {performedByConflict ? (
+            <label style={transitionStyles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={clearPerformedBy}
+                onChange={(e) => setClearPerformedBy(e.target.checked)}
+              />
+              <span>
+                <strong>Clear performed_by_user_id</strong>
+                <span style={transitionStyles.hint}>
+                  {' '}
+                  · Calibration completion requires this field be null
+                  (NIST cert is third-party only). Untick at your own
+                  risk; the PATCH route will refuse with{' '}
+                  <code style={transitionStyles.code}>
+                    calibration_excludes_performed_by
+                  </code>
+                  .
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          {requiresQaDecision ? (
+            <div style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Post-cal QA decision (required) *
+              </span>
+              <div style={qaStyles.decisionRow}>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'passed'
+                      ? qaStyles.passSelected
+                      : qaStyles.passUnselected
+                  }
+                  onClick={() => setQaDecision('passed')}
+                  disabled={submitting}
+                >
+                  <Check size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> QA passed
+                </button>
+                <button
+                  type="button"
+                  style={
+                    qaDecision === 'failed'
+                      ? qaStyles.failSelected
+                      : qaStyles.failUnselected
+                  }
+                  onClick={() => setQaDecision('failed')}
+                  disabled={submitting}
+                >
+                  <X size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> QA failed
+                </button>
+              </div>
+              <span style={transitionStyles.hint}>
+                ▸ A QA decision is required after every calibration —
+                picking &ldquo;Failed&rdquo; sends the event back to
+                the queue for re-work and flags it on the dashboard.
+              </span>
+            </div>
+          ) : null}
+
+          {(target.state === 'cancelled' ||
+            target.state === 'failed_qa') ? (
+            <label style={transitionStyles.field}>
+              <span style={transitionStyles.label}>
+                Notes ({target.state === 'cancelled' ? 'why cancel' : 'QA failure detail'})
+              </span>
+              <textarea
+                value={decline_or_failed_reason}
+                onChange={(e) => setReason(e.target.value)}
+                style={{ ...transitionStyles.input, minHeight: 60 }}
+                placeholder="Optional but encouraged — the audit log keeps this forever."
+              />
+            </label>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={
+              (isTerminal && target.state === 'cancelled') ||
+              (isTerminal && target.state === 'failed_qa') ||
+              (requiresQaDecision && qaDecision === 'failed')
+                ? transitionStyles.dangerBtn
+                : transitionStyles.primaryBtn
+            }
+            onClick={handleConfirm}
+            disabled={
+              submitting ||
+              (requiresQaDecision && qaDecision === 'unset')
+            }
+          >
+            {submitting
+              ? 'Working…'
+              : target.isReopen
+              ? 'Re-open'
+              : requiresQaDecision && qaDecision === 'failed'
+              ? 'Move to failed_qa'
+              : `Move to ${targetLabel}`}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-γ — editable-fields form
+// ────────────────────────────────────────────────────────────
+//
+// Single-toggle edit mode: parent flips `editMode = true`, this
+// component pre-fills from the event row, the user edits, on
+// Save we diff against the original snapshot and PATCH only the
+// changed fields. The Maybe<T> shape on the PATCH route means
+// omitted fields are left untouched, so over-shipping the entire
+// form would silently overwrite any concurrent edits — the diff
+// check is the cheap insurance.
+
+export function EditForm({
+  event,
+  submitting,
+  error,
+  onCancel,
+  onSave,
+}: {
+  event: MaintenanceEvent;
+  submitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSave: (patch: Record<string, unknown>) => void;
+}) {
+  const [summary, setSummary] = useState(event.summary);
+  const [scheduledFor, setScheduledFor] = useState(
+    toLocalInput(event.scheduled_for)
+  );
+  const [startedAt, setStartedAt] = useState(
+    toLocalInput(event.started_at)
+  );
+  const [completedAt, setCompletedAt] = useState(
+    toLocalInput(event.completed_at)
+  );
+  const [expectedBackAt, setExpectedBackAt] = useState(
+    toLocalInput(event.expected_back_at)
+  );
+  const [nextDueAt, setNextDueAt] = useState(
+    toLocalInput(event.next_due_at)
+  );
+  const [vendorName, setVendorName] = useState(event.vendor_name ?? '');
+  const [vendorContact, setVendorContact] = useState(
+    event.vendor_contact ?? ''
+  );
+  const [vendorWorkOrder, setVendorWorkOrder] = useState(
+    event.vendor_work_order ?? ''
+  );
+  const [costDollars, setCostDollars] = useState(
+    event.cost_cents !== null ? (event.cost_cents / 100).toFixed(2) : ''
+  );
+  const [linkedReceiptId, setLinkedReceiptId] = useState(
+    event.linked_receipt_id ?? ''
+  );
+  const [notes, setNotes] = useState(event.notes ?? '');
+  const [qaPassed, setQaPassed] = useState<'unset' | 'true' | 'false'>(
+    event.qa_passed === null
+      ? 'unset'
+      : event.qa_passed
+      ? 'true'
+      : 'false'
+  );
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  function diffDate(
+    field: string,
+    localStr: string,
+    originalIso: string | null,
+    patch: Record<string, unknown>
+  ) {
+    if (localStr === toLocalInput(originalIso)) return;
+    patch[field] = localToIso(localStr);
+  }
+
+  function diffString(
+    field: string,
+    value: string,
+    original: string | null,
+    patch: Record<string, unknown>
+  ) {
+    const trimmed = value.trim();
+    const normalized = trimmed.length > 0 ? trimmed : null;
+    if (normalized !== (original ?? null)) {
+      patch[field] = normalized;
+    }
+  }
+
+  function handleSave() {
+    setLocalError(null);
+    const patch: Record<string, unknown> = {};
+
+    // Summary — required, non-empty, ≤ 200 chars (server enforces too).
+    const trimmedSummary = summary.trim();
+    if (trimmedSummary.length === 0) {
+      setLocalError('Summary is required and cannot be empty.');
+      return;
+    }
+    if (trimmedSummary.length > 200) {
+      setLocalError(
+        `Summary must be ≤ 200 characters (currently ${trimmedSummary.length}).`
+      );
+      return;
+    }
+    if (trimmedSummary !== event.summary) {
+      patch.summary = trimmedSummary;
+    }
+
+    diffDate('scheduled_for', scheduledFor, event.scheduled_for, patch);
+    diffDate('started_at', startedAt, event.started_at, patch);
+    diffDate('completed_at', completedAt, event.completed_at, patch);
+    diffDate(
+      'expected_back_at',
+      expectedBackAt,
+      event.expected_back_at,
+      patch
+    );
+    diffDate('next_due_at', nextDueAt, event.next_due_at, patch);
+
+    diffString('vendor_name', vendorName, event.vendor_name, patch);
+    diffString('vendor_contact', vendorContact, event.vendor_contact, patch);
+    diffString(
+      'vendor_work_order',
+      vendorWorkOrder,
+      event.vendor_work_order,
+      patch
+    );
+    diffString('notes', notes, event.notes, patch);
+
+    // Linked receipt: UUID or empty (server validates UUID).
+    const trimmedReceipt = linkedReceiptId.trim();
+    const normalizedReceipt =
+      trimmedReceipt.length > 0 ? trimmedReceipt : null;
+    if (normalizedReceipt !== (event.linked_receipt_id ?? null)) {
+      patch.linked_receipt_id = normalizedReceipt;
+    }
+
+    // Cost: dollars input → cents integer (or null to clear).
+    const trimmedCost = costDollars.trim();
+    if (trimmedCost === '') {
+      if (event.cost_cents !== null) patch.cost_cents = null;
+    } else {
+      const dollars = Number.parseFloat(trimmedCost);
+      if (!Number.isFinite(dollars) || dollars < 0) {
+        setLocalError(
+          'Cost must be a non-negative dollar amount (e.g. 125.00).'
+        );
+        return;
+      }
+      const cents = Math.round(dollars * 100);
+      if (cents !== event.cost_cents) patch.cost_cents = cents;
+    }
+
+    // qa_passed tristate.
+    const qaValue =
+      qaPassed === 'unset' ? null : qaPassed === 'true' ? true : false;
+    if (qaValue !== event.qa_passed) patch.qa_passed = qaValue;
+
+    if (Object.keys(patch).length === 0) {
+      onCancel();
+      return;
+    }
+
+    onSave(patch);
+  }
+
+  return (
+    <section style={styles.section}>
+      <header style={editStyles.header}>
+        <h2 style={styles.h2}>Edit fields</h2>
+        <span style={editStyles.hint}>
+          Only changed fields are sent on save.
+        </span>
+      </header>
+
+      <label style={editStyles.field}>
+        <span style={editStyles.label}>Summary *</span>
+        <input
+          type="text"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          maxLength={200}
+          style={editStyles.input}
+          disabled={submitting}
+        />
+        <span style={editStyles.hint}>
+          {summary.trim().length}/200 chars · required.
+        </span>
+      </label>
+
+      <div style={editStyles.gridTwo}>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Scheduled for</span>
+          <input
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Expected back at</span>
+          <input
+            type="datetime-local"
+            value={expectedBackAt}
+            onChange={(e) => setExpectedBackAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Started at</span>
+          <input
+            type="datetime-local"
+            value={startedAt}
+            onChange={(e) => setStartedAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Auto-stamped on transition to in_progress; override only
+            when correcting backlog data.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Completed at</span>
+          <input
+            type="datetime-local"
+            value={completedAt}
+            onChange={(e) => setCompletedAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Auto-stamped on transition to complete.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Next due at</span>
+          <input
+            type="datetime-local"
+            value={nextDueAt}
+            onChange={(e) => setNextDueAt(e.target.value)}
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Used to project when the next recurring service is due.
+          </span>
+        </label>
+      </div>
+
+      <h3 style={editStyles.subhead}>Vendor</h3>
+      <div style={editStyles.gridTwo}>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Vendor name</span>
+          <input
+            type="text"
+            value={vendorName}
+            onChange={(e) => setVendorName(e.target.value)}
+            placeholder="e.g. Trimble Service Houston"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          {event.kind === 'calibration' ? (
+            <span style={editStyles.hint}>
+              ▸ Required on calibration completion (NIST traceability).
+            </span>
+          ) : null}
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Vendor contact</span>
+          <input
+            type="text"
+            value={vendorContact}
+            onChange={(e) => setVendorContact(e.target.value)}
+            placeholder="phone or email"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Work order #</span>
+          <input
+            type="text"
+            value={vendorWorkOrder}
+            onChange={(e) => setVendorWorkOrder(e.target.value)}
+            placeholder="e.g. WO-2026-1234"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Cost (USD)</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={costDollars}
+            onChange={(e) => setCostDollars(e.target.value)}
+            placeholder="0.00"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+          <span style={editStyles.hint}>
+            Stored as integer cents. Leave blank to clear.
+          </span>
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>Linked receipt id (UUID)</span>
+          <input
+            type="text"
+            value={linkedReceiptId}
+            onChange={(e) => setLinkedReceiptId(e.target.value)}
+            placeholder="optional — e.g. 9c7d…"
+            style={editStyles.input}
+            disabled={submitting}
+          />
+        </label>
+        <label style={editStyles.field}>
+          <span style={editStyles.label}>QA passed</span>
+          <select
+            value={qaPassed}
+            onChange={(e) =>
+              setQaPassed(e.target.value as 'unset' | 'true' | 'false')
+            }
+            style={editStyles.input}
+            disabled={submitting}
+          >
+            <option value="unset">— not yet checked —</option>
+            <option value="true">Yes — QA passed</option>
+            <option value="false">No — QA failed</option>
+          </select>
+          <span style={editStyles.hint}>
+            Setting this to &ldquo;No&rdquo; on a completed event
+            automatically flags it as failed QA so it goes back into
+            the maintenance queue.
+          </span>
+        </label>
+      </div>
+
+      <h3 style={editStyles.subhead}>Notes</h3>
+      <label style={editStyles.field}>
+        <span style={editStyles.label}>Notes</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          style={{ ...editStyles.input, minHeight: 90, resize: 'vertical' }}
+          placeholder="Free-form notes — preserved in the audit log."
+          disabled={submitting}
+        />
+      </label>
+
+      {localError ? (
+        <div style={editStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {localError}</div>
+      ) : null}
+      {error ? <div style={editStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
+
+      <footer style={editStyles.footer}>
+        <button
+          type="button"
+          style={transitionStyles.secondaryBtn}
+          onClick={onCancel}
+          disabled={submitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          style={transitionStyles.primaryBtn}
+          onClick={handleSave}
+          disabled={submitting}
+        >
+          {submitting ? 'Saving…' : 'Save changes'}
+        </button>
+      </footer>
+    </section>
+  );
+}
+
+export const editStyles: Record<string, React.CSSProperties> = {
+  header: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  hint: {
+    fontSize: 11,
+    color: 'var(--color-text-tertiary)',
+    fontStyle: 'italic' as const,
+  },
+  subhead: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--color-text-tertiary)',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    margin: '20px 0 10px',
+  },
+  field: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#374151',
+  },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+    background: 'var(--color-bg-card)',
+  },
+  gridTwo: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gap: 14,
+  },
+  error: {
+    background: 'var(--color-error-bg)',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+    margin: '12px 0',
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTop: '1px solid #E2E5EB',
+  },
+};
+
+// ────────────────────────────────────────────────────────────
+// F10.7-g-ii-δ — documents upload modal
+// ────────────────────────────────────────────────────────────
+//
+// Two-step upload-then-record flow that mirrors the research
+// document upload pattern:
+//
+//   1. POST /upload-url → server returns { signedUrl, publicUrl }.
+//   2. PUT bytes directly to signedUrl (bypasses Vercel body
+//      limits — calibration PDFs can be 50 MB).
+//   3. POST /documents → metadata row inserted with
+//      storage_url = publicUrl.
+//
+// Splitting upload from metadata-record means a network failure
+// on PUT leaves no orphan DB row; a stranded storage object is
+// the only risk (cheap to GC).
+
+export const DOC_KINDS: Array<{ value: string; label: string }> = [
+  { value: 'calibration_cert', label: 'Calibration cert' },
+  { value: 'work_order', label: 'Work order' },
+  { value: 'parts_invoice', label: 'Parts invoice' },
+  { value: 'before_photo', label: 'Before photo' },
+  { value: 'after_photo', label: 'After photo' },
+  { value: 'qa_report', label: 'QA report' },
+  { value: 'other', label: 'Other' },
+];
+
+export function UploadModal({
+  eventId,
+  onClose,
+  onUploaded,
+}: {
+  eventId: string;
+  onClose: () => void;
+  onUploaded: (filename: string) => void;
+}) {
+  const { safeFetch } = usePageError('UploadModal');
+
+  const [file, setFile] = useState<File | null>(null);
+  const [kind, setKind] = useState<string>('calibration_cert');
+  const [description, setDescription] = useState('');
+  const [progress, setProgress] = useState<
+    'idle' | 'signing' | 'uploading' | 'recording'
+  >('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const submitting = progress !== 'idle';
+
+  async function handleUpload() {
+    setError(null);
+    if (!file) {
+      setError('Pick a file before uploading.');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setError(
+        `File too large: ${(file.size / 1024 / 1024).toFixed(1)} MB ` +
+          `exceeds the 50 MB cap. Compress or split before re-uploading.`
+      );
+      return;
+    }
+
+    // ── Step 1: signed URL ────────────────────────────────────
+    setProgress('signing');
+    const urlRes = await safeFetch<{
+      signedUrl?: string;
+      storagePath?: string;
+      publicUrl?: string;
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}/documents/upload-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      }),
+    });
+    if (!urlRes?.signedUrl || !urlRes?.publicUrl) {
+      setProgress('idle');
+      setError(urlRes?.error ?? 'Failed to issue upload URL.');
+      return;
+    }
+
+    // ── Step 2: PUT bytes directly to Supabase ───────────────
+    setProgress('uploading');
+    try {
+      const putRes = await fetch(urlRes.signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+      });
+      if (!putRes.ok) {
+        setProgress('idle');
+        setError(
+          `Upload failed (${putRes.status}). The file was not stored — ` +
+            `try again or check your connection.`
+        );
+        return;
+      }
+    } catch {
+      setProgress('idle');
+      setError(
+        'Upload failed mid-stream. Check your connection and retry.'
+      );
+      return;
+    }
+
+    // ── Step 3: record metadata ──────────────────────────────
+    setProgress('recording');
+    const trimmedDesc = description.trim();
+    const metaRes = await safeFetch<{
+      document?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}/documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind,
+        storage_url: urlRes.publicUrl,
+        filename: file.name,
+        size_bytes: file.size,
+        description: trimmedDesc.length > 0 ? trimmedDesc : null,
+      }),
+    });
+    setProgress('idle');
+    if (metaRes?.document?.id) {
+      onUploaded(file.name);
+    } else {
+      setError(
+        (metaRes?.error ??
+          'Metadata insert failed. The file is in storage but the ' +
+            'document row was not recorded.') +
+          ' Contact admin if this persists.'
+      );
+    }
+  }
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={transitionStyles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>Upload document</h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting}
+          >
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          <p style={transitionStyles.copy}>
+            Files upload directly to Supabase Storage; only the metadata
+            row hits this server. Max 50 MB per file.
+          </p>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>Document kind *</span>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              style={transitionStyles.input}
+              disabled={submitting}
+            >
+              {DOC_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>File *</span>
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              style={transitionStyles.input}
+              disabled={submitting}
+              autoFocus
+            />
+            {file ? (
+              <span style={transitionStyles.hint}>
+                ▸ {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+              </span>
+            ) : null}
+          </label>
+
+          <label style={transitionStyles.field}>
+            <span style={transitionStyles.label}>Description (optional)</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short caption — e.g. NIST cert valid through 2027-04."
+              style={{ ...transitionStyles.input, minHeight: 60 }}
+              disabled={submitting}
+            />
+          </label>
+
+          {progress === 'signing' ? (
+            <div style={transitionStyles.copy}>
+              ⤴ Requesting upload URL…
+            </div>
+          ) : progress === 'uploading' ? (
+            <div style={transitionStyles.copy}>
+              ⇡ Streaming bytes to storage…
+            </div>
+          ) : progress === 'recording' ? (
+            <div style={transitionStyles.copy}>
+              <Save size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> Recording metadata…
+            </div>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            style={transitionStyles.primaryBtn}
+            onClick={handleUpload}
+            disabled={submitting || !file}
+          >
+            {submitting ? 'Working…' : 'Upload'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// F10.7 tail — attach-receipt picker modal
+// ────────────────────────────────────────────────────────────
+//
+// Lists approved receipts (most-recent first) so the EM can link
+// a vendor invoice to a maintenance event without copy-pasting
+// UUIDs. Wires the selected receipt id into the existing F10.7-c-ii
+// PATCH route via { linked_receipt_id }. Pending receipts are
+// excluded by default — the maintenance ledger should reference
+// dollars that the bookkeeper has already signed off on.
+
+export interface PickerReceipt {
+  id: string;
+  vendor_name: string | null;
+  transaction_at: string | null;
+  total_cents: number | null;
+  status: string;
+  category: string | null;
+  submitted_by_email: string | null;
+  job_number: string | null;
+  job_name: string | null;
+}
+
+export function AttachReceiptModal({
+  eventId,
+  currentReceiptId,
+  onClose,
+  onAttached,
+}: {
+  eventId: string;
+  currentReceiptId: string | null;
+  onClose: () => void;
+  onAttached: (receiptId: string) => void;
+}) {
+  const { safeFetch } = usePageError('AttachReceiptModal');
+
+  const [statusFilter, setStatusFilter] = useState<
+    'approved' | 'pending' | 'all'
+  >('approved');
+  const [search, setSearch] = useState('');
+  const [receipts, setReceipts] = useState<PickerReceipt[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReceipts = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    const res = await safeFetch<{
+      receipts?: PickerReceipt[];
+      error?: string;
+    }>(`/api/admin/receipts?${params.toString()}`);
+    setLoading(false);
+    if (res?.receipts) {
+      setReceipts(res.receipts);
+    } else {
+      setReceipts([]);
+      setError(res?.error ?? 'Receipt lookup failed.');
+    }
+  }, [statusFilter, safeFetch]);
+
+  useEffect(() => {
+    void fetchReceipts();
+  }, [fetchReceipts]);
+
+  const filtered = filterReceipts(receipts, search);
+
+  async function handleAttach(receiptId: string) {
+    setSubmitting(receiptId);
+    setError(null);
+    const res = await safeFetch<{
+      event?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linked_receipt_id: receiptId }),
+    });
+    setSubmitting(null);
+    if (res?.event?.id) {
+      onAttached(receiptId);
+    } else {
+      setError(res?.error ?? 'PATCH failed — link not saved.');
+    }
+  }
+
+  async function handleDetach() {
+    setSubmitting('__detach__');
+    setError(null);
+    const res = await safeFetch<{
+      event?: { id: string };
+      error?: string;
+    }>(`/api/admin/maintenance/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linked_receipt_id: null }),
+    });
+    setSubmitting(null);
+    if (res?.event?.id) {
+      onAttached('');
+    } else {
+      setError(res?.error ?? 'PATCH failed — receipt not detached.');
+    }
+  }
+
+  return (
+    <div style={transitionStyles.backdrop} onClick={onClose}>
+      <div
+        style={{ ...transitionStyles.modal, maxWidth: 720 }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header style={transitionStyles.header}>
+          <h2 style={transitionStyles.title}>
+            {currentReceiptId ? 'Change linked receipt' : 'Attach receipt'}
+          </h2>
+          <button
+            type="button"
+            style={transitionStyles.close}
+            onClick={onClose}
+            aria-label="Close"
+            disabled={submitting !== null}
+          >
+            <X size={15} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        </header>
+        <div style={transitionStyles.body}>
+          <p style={transitionStyles.copy}>
+            Links a vendor invoice / parts receipt to this maintenance
+            event. The maintenance ledger and the receipt ledger stay
+            separate — this just records the cross-reference for audit.
+          </p>
+
+          <div style={attachStyles.toolbar}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search vendor / category / submitter…"
+              style={{ ...transitionStyles.input, flex: 1 }}
+              disabled={loading || submitting !== null}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(
+                  e.target.value as 'approved' | 'pending' | 'all'
+                )
+              }
+              style={transitionStyles.input}
+              disabled={loading || submitting !== null}
+            >
+              <option value="approved">Approved only</option>
+              <option value="pending">Pending only</option>
+              <option value="all">All statuses</option>
+            </select>
+          </div>
+
+          {currentReceiptId ? (
+            <div style={attachStyles.currentRow}>
+              <span style={transitionStyles.hint}>
+                Currently linked:{' '}
+                <code style={transitionStyles.code}>
+                  {currentReceiptId.slice(0, 8)}
+                </code>
+              </span>
+              <button
+                type="button"
+                onClick={handleDetach}
+                disabled={submitting !== null}
+                style={transitionStyles.dangerBtn}
+              >
+                {submitting === '__detach__'
+                  ? 'Working…'
+                  : 'Detach receipt'}
+              </button>
+            </div>
+          ) : null}
+
+          {error ? <div style={transitionStyles.error}><AlertTriangle size={14} style={{ verticalAlign: "text-bottom", marginRight: "0.25rem" }} /> {error}</div> : null}
+
+          {loading ? (
+            <div style={attachStyles.loadingHint}>Loading receipts…</div>
+          ) : filtered.length === 0 ? (
+            <div style={attachStyles.loadingHint}>
+              No receipts match. Adjust the status filter or search
+              term.
+            </div>
+          ) : (
+            <ul style={attachStyles.list}>
+              {filtered.slice(0, 50).map((r) => (
+                <li key={r.id} style={attachStyles.item}>
+                  <button
+                    type="button"
+                    onClick={() => handleAttach(r.id)}
+                    disabled={
+                      submitting !== null || r.id === currentReceiptId
+                    }
+                    style={{
+                      ...attachStyles.itemBtn,
+                      ...(r.id === currentReceiptId
+                        ? attachStyles.itemCurrent
+                        : {}),
+                    }}
+                  >
+                    <div style={attachStyles.itemTopRow}>
+                      <strong style={attachStyles.itemVendor}>
+                        {r.vendor_name ?? '(no vendor)'}
+                      </strong>
+                      <span style={attachStyles.itemAmount}>
+                        {r.total_cents !== null
+                          ? `$${(r.total_cents / 100).toFixed(2)}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div style={attachStyles.itemMetaRow}>
+                      <span style={attachStyles.itemDate}>
+                        {r.transaction_at
+                          ? r.transaction_at.slice(0, 10)
+                          : 'no date'}
+                      </span>
+                      <span style={statusPillStyle(r.status)}>
+                        {r.status}
+                      </span>
+                      {r.category ? (
+                        <span style={attachStyles.itemCategory}>
+                          {r.category}
+                        </span>
+                      ) : null}
+                      {r.job_number ? (
+                        <span style={attachStyles.itemJob}>
+                          job {r.job_number}
+                        </span>
+                      ) : null}
+                      {r.submitted_by_email ? (
+                        <span style={attachStyles.itemMeta}>
+                          {r.submitted_by_email}
+                        </span>
+                      ) : null}
+                      {r.id === currentReceiptId ? (
+                        <span style={attachStyles.itemCurrentBadge}>
+                          current link
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {filtered.length > 50 ? (
+            <div style={attachStyles.loadingHint}>
+              Showing 50 of {filtered.length}. Refine the search to
+              narrow down.
+            </div>
+          ) : null}
+        </div>
+        <footer style={transitionStyles.footer}>
+          <button
+            type="button"
+            style={transitionStyles.secondaryBtn}
+            onClick={onClose}
+            disabled={submitting !== null}
+          >
+            Cancel
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+export function filterReceipts(
+  receipts: PickerReceipt[] | null,
+  search: string
+): PickerReceipt[] {
+  if (!receipts) return [];
+  const trimmed = search.trim().toLowerCase();
+  if (!trimmed) return receipts;
+  return receipts.filter((r) => {
+    const haystack = [
+      r.vendor_name,
+      r.category,
+      r.submitted_by_email,
+      r.job_number,
+      r.job_name,
+    ]
+      .filter((v): v is string => !!v)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(trimmed);
+  });
+}
+
+export function statusPillStyle(status: string): React.CSSProperties {
+  const map: Record<string, React.CSSProperties> = {
+    approved: { background: '#DCFCE7', color: '#166534' },
+    pending: { background: '#FEF3C7', color: '#78350F' },
+    rejected: { background: '#FEE2E2', color: '#7F1D1D' },
+    exported: { background: '#E0E7FF', color: '#3730A3' },
+  };
+  return {
+    padding: '1px 8px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    ...(map[status] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
+  };
+}
+
+export const attachStyles: Record<string, React.CSSProperties> = {
+  toolbar: { display: 'flex', gap: 8, alignItems: 'center' },
+  currentRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '10px 12px',
+    background: '#FAFBFC',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+  },
+  loadingHint: {
+    padding: '14px 4px',
+    fontSize: 12,
+    color: 'var(--color-text-tertiary)',
+    fontStyle: 'italic' as const,
+    textAlign: 'center' as const,
+  },
+  list: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 6,
+    maxHeight: 360,
+    overflowY: 'auto' as const,
+  },
+  item: { width: '100%' },
+  itemBtn: {
+    width: '100%',
+    textAlign: 'left' as const,
+    padding: '10px 12px',
+    background: 'var(--color-bg-card)',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 12,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  itemCurrent: {
+    background: '#F0F9FF',
+    borderColor: 'var(--color-brand-navy)',
+    cursor: 'default' as const,
+  },
+  itemTopRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  itemVendor: {
+    color: '#111827',
+    fontSize: 13,
+  },
+  itemAmount: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 12,
+    color: '#374151',
+  },
+  itemMetaRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+    alignItems: 'center',
+    fontSize: 11,
+    color: 'var(--color-text-tertiary)',
+  },
+  itemDate: {
+    fontFamily: 'Menlo, monospace',
+    color: 'var(--color-text-tertiary)',
+  },
+  itemCategory: {
+    background: '#EEF2FF',
+    color: '#3730A3',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
+  itemJob: {
+    background: 'var(--color-bg-subtle)',
+    color: '#374151',
+    padding: '1px 6px',
+    borderRadius: 4,
+  },
+  itemMeta: {
+    color: 'var(--color-text-tertiary)',
+  },
+  itemCurrentBadge: {
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+  },
+};
+
+export function transitionButtonStyle(target: string): React.CSSProperties {
+  const base: React.CSSProperties = {
+    padding: '6px 12px',
+    border: '1px solid var(--color-brand-navy)',
+    background: 'var(--color-bg-card)',
+    color: 'var(--color-brand-navy)',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+    textTransform: 'capitalize' as const,
+  };
+  if (target === 'cancelled' || target === 'failed_qa') {
+    base.borderColor = '#B91C1C';
+    base.color = '#B91C1C';
+  } else if (target === 'complete') {
+    base.borderColor = '#15803D';
+    base.color = '#15803D';
+  }
+  return base;
+}
+
+export const qaStyles: Record<string, React.CSSProperties> = {
+  decisionRow: { display: 'flex', gap: 8 },
+  passUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: 'var(--color-bg-card)',
+    color: '#15803D',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  passSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #15803D',
+    background: '#15803D',
+    color: 'var(--color-text-on-brand)',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(21, 128, 61, 0.2)',
+  },
+  failUnselected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: 'var(--color-bg-card)',
+    color: '#B91C1C',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  failSelected: {
+    flex: 1,
+    padding: '10px 14px',
+    border: '1px solid #B91C1C',
+    background: '#B91C1C',
+    color: 'var(--color-text-on-brand)',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 0 0 3px rgba(185, 28, 28, 0.2)',
+  },
+};
+
+export const transitionStyles: Record<string, React.CSSProperties> = {
+  bar: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: 8,
+  },
+  muted: { color: 'var(--color-text-tertiary)', fontSize: 12, marginRight: 4 },
+  reopenBtn: {
+    padding: '6px 12px',
+    border: '1px solid var(--color-brand-navy)',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  backdrop: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15, 23, 42, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: 60,
+    zIndex: 1000,
+  },
+  modal: {
+    background: 'var(--color-bg-card)',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: 'calc(100vh - 120px)',
+    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid #E2E5EB',
+  },
+  title: { fontSize: 16, fontWeight: 600, margin: 0 },
+  close: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 18,
+    color: 'var(--color-text-tertiary)',
+    cursor: 'pointer',
+    padding: 4,
+    lineHeight: 1,
+  },
+  body: {
+    padding: 20,
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 14,
+  },
+  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  field: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
+  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  input: {
+    padding: '8px 10px',
+    border: '1px solid #E2E5EB',
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: 'inherit',
+  },
+  hint: { fontSize: 11, color: 'var(--color-text-tertiary)', fontStyle: 'italic' as const },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    fontSize: 13,
+  },
+  code: {
+    fontFamily: 'Menlo, monospace',
+    fontSize: 11,
+    background: 'var(--color-bg-subtle)',
+    padding: '1px 6px',
+    borderRadius: 4,
+    margin: '0 2px',
+  },
+  error: {
+    background: 'var(--color-error-bg)',
+    border: '1px solid #FCA5A5',
+    color: '#B91C1C',
+    padding: 10,
+    borderRadius: 6,
+    fontSize: 12,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: '12px 20px',
+    borderTop: '1px solid #E2E5EB',
+    background: '#FAFBFC',
+    borderRadius: '0 0 12px 12px',
+  },
+  primaryBtn: {
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  dangerBtn: {
+    background: '#B91C1C',
+    color: 'var(--color-text-on-brand)',
+    border: 'none',
+    borderRadius: 8,
+    padding: '8px 16px',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: 'transparent',
+    border: '1px solid #E2E5EB',
+    borderRadius: 8,
+    padding: '8px 14px',
+    cursor: 'pointer',
+    fontSize: 13,
+    color: '#374151',
+  },
+};
