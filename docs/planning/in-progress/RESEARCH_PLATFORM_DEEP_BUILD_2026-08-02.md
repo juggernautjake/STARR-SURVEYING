@@ -1664,6 +1664,58 @@ not re-walked.
 Same through-line as R37/R38: **an unknown rendered as an answer.** Here it was two counties'
 worth of "no records found" that actually meant "we were pointed at a paywall".
 
+#### R39, second finding — R38's Tyler conclusion was wrong, and the guess was why
+
+R38 probed `<county>tx-web.tylerhost.net`, found only Williamson, and concluded the Tyler Host
+pattern *"does not generalise"*. It does. The guess omitted one word:
+
+```
+WRONG   mclennantx-web.tylerhost.net          no such host
+RIGHT   mclennancountytx-web.tylerhost.net    live
+```
+
+Re-sweeping 40 counties with the corrected pattern found **nine** live deployments — including
+**McLennan (Waco)**, which R38 had recorded as a dead end. The lesson generalises past Tyler: *a
+negative result from a guessed URL is evidence about the guess, not about the county.* R38's own
+"the pattern does not generalise" note has been superseded rather than deleted, because the wrong
+conclusion is the instructive part.
+
+| County | Miles from Bell | App path |
+|---|---|---|
+| Williamson | 28 | `/williamsonweb/` |
+| McLennan | 35 | `/web/` |
+| Hamilton | 50 | `/web/` |
+| Hill | 55 | `/web/` |
+| Burnet | 60 | `/web/` |
+| Mills | 70 | `/web/` |
+| Erath | 80 | `/web/` |
+| Somervell | 80 | `/web/` |
+| Navarro | 85 | `/web/` |
+
+**Proven:** the disclaimer gate; the menu, which loads *asynchronously* (a fixed wait reads a working
+portal as having no search); per-deployment search IDs (McLennan's OPR search is `DOCSEARCH402S1`) —
+the same discovery problem as Kofile's department codes; the complete form field map; the submit
+control is exactly `a#searchButton`, and a looser id match opens a help dialog that is
+indistinguishable from an empty result; McLennan's stated coverage of **Jan 1 1857 → Jul 30 2026**;
+and that the index answers, since typing SMITH returned real indexed parties from the county's own
+autocomplete.
+
+**Also proven, and the most useful thing for whoever writes the adapter: results are JSON, not
+HTML.** `POST /web/searchPost/<SEARCH_ID>` answers
+`{"validationMessages":{},"totalPages":N,"currentPage":1}`. Scraping the DOM for a results table
+finds nothing because there is no table.
+
+**Not proven, and why none of the nine is routed:** that POST returns `totalPages: 0` for SMITH,
+with no validation messages, on a county holding 169 years of records whose own autocomplete had
+just listed Smiths. The search was accepted and answered "nothing", which contradicts the index.
+The likely cause is that deep-linking to `/search/<ID>` skips a session step the disclaimer sets —
+but that is a hypothesis, and a hypothesis is not a county's records. `tyler` stays out of
+`PROVEN_VENDORS`, no county routes there, and `readSearchOutcome()` reports every such zero as
+**unread**, never as empty.
+
+Nine counties therefore moved from *"URL unknown"* to *"portal located, form mapped, response
+contract known, one unresolved blocker"* — recorded in seed 549.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
