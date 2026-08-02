@@ -1,0 +1,1838 @@
+/* app/AndrewAsh/_ui/voice.css — the design system for Andrew Ash's site.
+ *
+ * ── THE LOOK, AND WHY ───────────────────────────────────────────────────────────────────────────
+ *
+ * Andrew's taste is League of Legends, Hollow Knight, Skyrim, Lord of the Rings, Rogue Legacy. What
+ * those share is not dragons; it is a contrast structure — a very dark ground, one metal that carries
+ * every emphasis, and inscriptional serif type. That is also, independently, what a performer's
+ * portfolio wants: a dark stage, so that the photographs and the play button are the brightest things
+ * on the page. The brief asked for "totally professional" AND for those games to inform it, and this
+ * is the shape where those two are the same decision rather than a compromise.
+ *
+ * Cinzel is the display face — Roman inscriptional capitals. It reads as Rivendell to one visitor and
+ * as a concert programme to another, which is precisely the range needed by someone selling both
+ * character work and classical training. Inter carries every word that has to be read rather than
+ * admired: navigation, body copy, forms, prices.
+ *
+ * ── EVERY COLOUR IS A VARIABLE ──────────────────────────────────────────────────────────────────
+ *
+ * There is not one hard-coded colour in this file outside the shadow rgba()s. Every value comes from
+ * a --va-* custom property set by the layout from the saved theme, because the owner's requirement
+ * was that Andrew can restyle the site himself. A stylesheet with literal hexes in it is a stylesheet
+ * that quietly overrides his theme picker on whichever elements the author forgot.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   ROOT
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaRoot {
+  /* Fallbacks so the site renders correctly even if the layout fails to inject a theme — a portfolio
+     that loses its database should lose its custom colours, not its legibility. */
+  --va-ink: #0a0d14;
+  --va-surface: #141a26;
+  --va-surface-raised: #1c2433;
+  --va-line: #2c3648;
+  --va-text: #ece6da;
+  --va-text-muted: #9aa4b8;
+  --va-accent: #d9b65b;
+  --va-accent-bright: #f0d68a;
+  --va-accent-contrast: #0a0d14;
+  --va-glow: #6fd3d6;
+  --va-font-display: 'Cinzel', Georgia, serif;
+  --va-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --va-measure: 780px;
+  --va-measure-wide: 1160px;
+  --va-gutter: clamp(20px, 5vw, 56px);
+  --va-header-h: 68px;
+
+  background: var(--va-ink);
+  color: var(--va-text);
+  font-family: var(--va-font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.vaRoot *,
+.vaRoot *::before,
+.vaRoot *::after {
+  box-sizing: border-box;
+}
+
+/* ── DEFENSIVE RESET — reclaiming the bare elements from the host site ──────────────────────────
+ *
+ * Found by driving the page in a browser, not by reading it: every <h2> on Andrew's site rendered in
+ * a dark navy that was effectively invisible on the ink background.
+ *
+ * The cause is that this site is a tenant. `app/styles/globals.css` is imported by the ROOT layout —
+ * the one that also wraps a land-surveying business — and it styles bare elements site-wide:
+ *
+ *     h1, h2, h3, h4, h5, h6 { font-family: 'Sora'; font-weight: 700; color: var(--brand-dark) }
+ *     p  { color: var(--text-secondary); font-size: 1rem; line-height: 1.8; margin-bottom: 1rem }
+ *     a  { color: var(--brand-red); font-weight: 600 }
+ *     body { background: white; color: var(--brand-dark) }
+ *
+ * Suppressing the marketing header and footer for /AndrewAsh (LayoutShell) removes the CHROME but not
+ * the STYLESHEET. And a class like `.vaDisplay` does not win by specificity here — it wins only for
+ * the properties it declares. `.vaDisplay` sets font-family and weight, so those looked right; it
+ * never set `color`, so `h2 { color: … }` (specificity 0,0,1, but more specific than an inherited
+ * value, which has no specificity at all) beat the `color` inherited from `.vaRoot`. The heading was
+ * the right typeface, the right size, and the wrong colour — which is exactly why reading the CSS
+ * would not have caught it and rendering the page did.
+ *
+ * So this block re-establishes inheritance for every property the host sets on a bare element. It is
+ * scoped under `.vaRoot`, so it changes nothing outside Andrew's pages, and it is the reason this
+ * site can be lifted to its own domain and look identical: on a clean host these rules are no-ops.
+ *
+ * ── WHY `:where()` ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `:where()` contributes zero specificity, so every selector below weighs exactly as much as the one
+ * class `.vaRoot` — (0,1,0). That is the precise weight this reset needs:
+ *
+ *   · MORE than a bare element selector (0,0,1), so it beats the host's `h2 { color: … }`.
+ *   · NO MORE than a single class, so every `.vaCardTitle`, `.vaNavLink`, `.vaBtn` and `.vaSelect`
+ *     defined later in this file still wins on source order, exactly as if the reset were not here.
+ *
+ * Written as `.vaRoot h1, .vaRoot h2, …` instead, the reset would be (0,1,1) and would silently
+ * out-rank every component class in this stylesheet — turning one visible bug into a dozen invisible
+ * ones, which is the usual result of fixing a specificity problem with more specificity.
+ */
+.vaRoot :where(h1, h2, h3, h4, h5, h6) {
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+.vaRoot :where(p) {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+.vaRoot :where(a) {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+}
+
+.vaRoot :where(ul, ol) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vaRoot :where(button, input, textarea, select) {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+.vaRoot :where(figure, blockquote, fieldset) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* The host paints a chevron via background-image on every native <select> site-wide. Andrew's selects
+   draw their own, so without this there are two arrows stacked on every dropdown. */
+.vaRoot :where(select) {
+  background-image: none;
+}
+
+.vaRoot img,
+.vaRoot video {
+  max-width: 100%;
+  display: block;
+}
+
+/* A visible focus ring everywhere, in the accent so it matches rather than fights the design.
+   Removing outlines is the single most common accessibility regression in a custom-styled site. */
+.vaRoot :focus-visible {
+  outline: 2px solid var(--va-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.vaSkipLink {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+  padding: 12px 20px;
+  font-weight: 600;
+}
+.vaSkipLink:focus {
+  left: 12px;
+  top: 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   TYPE
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* `color` is declared here even though `.vaRoot` already sets it, and that redundancy is deliberate.
+ * This class lands on <h1>/<h2> elements, and on a shared host a bare `h2 { color: … }` rule beats an
+ * inherited value. Stating the colour on the component makes the heading's appearance a property of
+ * the component rather than of whatever stylesheet happens to be loaded alongside it. */
+.vaDisplay {
+  font-family: var(--va-font-display);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  color: var(--va-text);
+  margin: 0;
+}
+
+/* A proper scale rather than three arbitrary sizes: each step is roughly 1.4× the one below, which is
+ * wide enough that two adjacent levels are never mistaken for each other. Cinzel is an inscriptional
+ * face whose lowercase are small capitals, so it gains authority as it grows and loses legibility
+ * below about 1.2rem — which is why nothing under vaH4 uses the display face at all. */
+.vaH1 {
+  font-size: clamp(2.5rem, 7vw, 4.75rem);
+  line-height: 1.05;
+}
+.vaH2 {
+  font-size: clamp(1.9rem, 4.2vw, 3rem);
+  line-height: 1.1;
+}
+.vaH3 {
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  line-height: 1.2;
+}
+.vaH4 {
+  font-size: clamp(1.15rem, 1.8vw, 1.3rem);
+  line-height: 1.25;
+}
+
+/* The small uppercase label above a heading. Tracking is doing all the work — uppercase at this size
+   without it collapses into a smudge. */
+.vaEyebrow {
+  font-family: var(--va-font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 0 0 14px;
+  display: block;
+}
+
+.vaLead {
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.65;
+  color: var(--va-text);
+  max-width: 62ch;
+}
+
+.vaMuted {
+  color: var(--va-text-muted);
+}
+
+.vaProse {
+  max-width: 68ch;
+}
+.vaProse p {
+  margin: 0 0 1.15em;
+}
+.vaProse p:last-child {
+  margin-bottom: 0;
+}
+.vaProse a {
+  color: var(--va-accent);
+  text-underline-offset: 3px;
+}
+.vaProse a:hover {
+  color: var(--va-accent-bright);
+}
+.vaProse strong {
+  color: var(--va-text);
+  font-weight: 600;
+}
+.vaProse ul,
+.vaProse ol {
+  margin: 0 0 1.15em;
+  padding-left: 1.3em;
+}
+.vaProse li {
+  margin-bottom: 0.4em;
+}
+.vaProse h2,
+.vaProse h3 {
+  font-family: var(--va-font-display);
+  margin: 1.8em 0 0.6em;
+  line-height: 1.2;
+}
+.vaProse blockquote {
+  margin: 1.5em 0;
+  padding-left: 1.2em;
+  border-left: 2px solid var(--va-accent);
+  font-family: var(--va-font-display);
+  font-size: 1.15em;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   LAYOUT
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaContainer {
+  width: 100%;
+  max-width: var(--va-measure-wide);
+  margin: 0 auto;
+  padding-left: var(--va-gutter);
+  padding-right: var(--va-gutter);
+}
+
+.vaContainerNarrow {
+  max-width: var(--va-measure);
+}
+
+.vaSection {
+  padding-top: clamp(56px, 9vw, 112px);
+  padding-bottom: clamp(56px, 9vw, 112px);
+}
+
+.vaSectionTight {
+  padding-top: clamp(36px, 6vw, 72px);
+  padding-bottom: clamp(36px, 6vw, 72px);
+}
+
+.vaSectionAlt {
+  background: var(--va-surface);
+  border-top: 1px solid var(--va-line);
+  border-bottom: 1px solid var(--va-line);
+}
+
+/* The gap between a section's heading and its content is the main thing that makes a long page read
+   as composed rather than as a list. It scales with the viewport so a phone does not spend a third of
+   its screen on whitespace, and the heading itself gets breathing room beneath it. */
+.vaSectionHead {
+  margin-bottom: clamp(32px, 4.5vw, 56px);
+  max-width: 68ch;
+}
+.vaSectionHead .vaDisplay + .vaLead,
+.vaSectionHead .vaDisplay + p {
+  margin-top: 18px;
+}
+
+.vaGrid {
+  display: grid;
+  gap: clamp(18px, 2.5vw, 32px);
+}
+/* `auto-fit` + `minmax` is chosen over media queries so the grids reflow on CONTENT width, which is
+ * what makes them work unchanged inside the studio's narrower preview pane.
+ *
+ * The minimums are set from what the content needs, not from a round number. `vaGrid2`'s 440px is the
+ * width at which an audio player's title, subtitle and duration stop competing for the same line —
+ * at the 320px it started at, a 1440px viewport fitted three of them per row and every reel title
+ * truncated to "COMME…". A grid named "2" that silently renders 3 is the bug; naming the breakpoint
+ * after the widget that has to fit inside it is the fix. */
+.vaGrid2 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+}
+.vaGrid3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+.vaGrid4 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+/* Hard two-up above the breakpoint, for rows where auto-fit's third column would be wrong even if it
+   fits — paired media, before/after, a player beside its description. */
+.vaGridPair {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 940px) {
+  .vaGridPair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.vaSplit {
+  display: grid;
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 900px) {
+  .vaSplit {
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+  .vaSplitNarrowFirst {
+    grid-template-columns: 0.8fr 1.2fr;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   ORNAMENT — the small piece of jewellery that carries the fantasy register without costume
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaOrnament {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--va-accent);
+  margin: 0;
+}
+.vaOrnament::before,
+.vaOrnament::after {
+  content: '';
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, var(--va-line), transparent);
+}
+.vaOrnamentMark {
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: var(--va-accent);
+  flex: none;
+  box-shadow: 0 0 12px -1px var(--va-accent);
+}
+.vaOrnamentLeft::before {
+  display: none;
+}
+.vaOrnamentLeft {
+  justify-content: flex-start;
+}
+.vaOrnamentLeft::after {
+  max-width: 120px;
+}
+
+.vaRule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--va-line) 15%, var(--va-line) 85%, transparent);
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   BUTTONS
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: 3px;
+  font-family: var(--va-font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease,
+    box-shadow 160ms ease;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.vaBtnSolid {
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+  border-color: var(--va-accent);
+}
+.vaBtnSolid:hover {
+  background: var(--va-accent-bright);
+  border-color: var(--va-accent-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px -10px var(--va-accent);
+}
+
+.vaBtnOutline {
+  background: transparent;
+  color: var(--va-accent);
+  border-color: var(--va-line);
+}
+.vaBtnOutline:hover {
+  border-color: var(--va-accent);
+  color: var(--va-accent-bright);
+  transform: translateY(-1px);
+}
+
+.vaBtnGhost {
+  background: transparent;
+  color: var(--va-text);
+  border-color: transparent;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.vaBtnGhost:hover {
+  color: var(--va-accent);
+}
+
+.vaBtnSm {
+  padding: 9px 16px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+}
+.vaBtnLg {
+  padding: 17px 34px;
+  font-size: 0.875rem;
+}
+
+.vaBtn:disabled,
+.vaBtn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.vaBtnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   SURFACES
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaCard {
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  padding: clamp(20px, 3vw, 30px);
+  position: relative;
+  transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+}
+
+/* Only interactive cards lift. A static card that moves under the cursor promises a click that never
+   arrives. */
+a.vaCard,
+.vaCardInteractive {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+a.vaCard:hover,
+.vaCardInteractive:hover {
+  border-color: var(--va-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.9);
+}
+
+.vaCardTitle {
+  font-family: var(--va-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--va-text);
+  line-height: 1.25;
+}
+
+.vaCardBody {
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+  margin: 0;
+}
+
+.vaCardIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  background: var(--va-surface-raised);
+  border: 1px solid var(--va-line);
+  color: var(--va-accent);
+  margin-bottom: 16px;
+}
+
+.vaTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 2px;
+  background: var(--va-surface-raised);
+  border: 1px solid var(--va-line);
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.vaTagAccent {
+  color: var(--va-accent);
+  border-color: color-mix(in srgb, var(--va-accent) 45%, transparent);
+}
+.vaTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A loud, unmissable marker on example content. It has to be ugly on purpose — the whole job of this
+   badge is to be impossible to publish by accident. */
+.vaPlaceholderBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 2px;
+  background: #ff6b3510;
+  border: 1px dashed #ff8a5c;
+  color: #ff9c72;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   HEADER
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaHeader {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--va-ink) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--va-line);
+}
+
+.vaHeaderInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: var(--va-header-h);
+}
+
+.vaWordmark {
+  font-family: var(--va-font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--va-text);
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  white-space: nowrap;
+}
+.vaWordmark span {
+  color: var(--va-accent);
+}
+.vaWordmarkRole {
+  font-family: var(--va-font-body);
+  font-size: 0.5625rem;
+  letter-spacing: 0.24em;
+  color: var(--va-text-muted);
+  font-weight: 500;
+}
+
+.vaNav {
+  display: none;
+  align-items: center;
+  gap: 4px;
+}
+@media (min-width: 940px) {
+  .vaNav {
+    display: flex;
+  }
+}
+
+.vaNavLink {
+  position: relative;
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+.vaNavLink:hover {
+  color: var(--va-text);
+}
+.vaNavLink[aria-current='page'] {
+  color: var(--va-accent);
+}
+.vaNavLink[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 1px;
+  background: var(--va-accent);
+}
+
+.vaHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vaMenuBtn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  background: transparent;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text);
+  cursor: pointer;
+}
+@media (min-width: 940px) {
+  .vaMenuBtn {
+    display: none;
+  }
+}
+
+.vaMobileNav {
+  border-top: 1px solid var(--va-line);
+  background: var(--va-surface);
+  padding: 12px var(--va-gutter) 24px;
+}
+.vaMobileNav a {
+  display: block;
+  padding: 14px 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--va-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaMobileNav a:last-of-type {
+  border-bottom: 0;
+}
+.vaMobileNav a[aria-current='page'] {
+  color: var(--va-accent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   HERO
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaHero {
+  position: relative;
+  min-height: min(88vh, 780px);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.vaHeroMedia {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+}
+.vaHeroMedia img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 32%;
+}
+
+/* Two scrims, not one. A single flat overlay either eats the photograph or fails to make the text
+   readable; a vertical gradient for the copy plus a slight overall tint for the top-of-page contrast
+   does both. */
+.vaHeroScrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(to top, var(--va-ink) 2%, color-mix(in srgb, var(--va-ink) 72%, transparent) 42%, color-mix(in srgb, var(--va-ink) 30%, transparent) 100%),
+    linear-gradient(105deg, color-mix(in srgb, var(--va-ink) 78%, transparent) 0%, transparent 62%);
+}
+
+.vaHeroBody {
+  padding-top: clamp(90px, 18vh, 180px);
+  padding-bottom: clamp(48px, 9vh, 88px);
+  width: 100%;
+}
+
+.vaHeroTitle {
+  font-family: var(--va-font-display);
+  font-size: clamp(2.75rem, 8.5vw, 5.5rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0.005em;
+  margin: 0 0 8px;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.65);
+}
+
+.vaHeroRole {
+  font-family: var(--va-font-body);
+  font-size: clamp(0.75rem, 1.6vw, 0.9375rem);
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 0 0 26px;
+}
+
+.vaHeroLine {
+  font-size: clamp(1rem, 1.9vw, 1.25rem);
+  line-height: 1.6;
+  max-width: 46ch;
+  color: var(--va-text);
+  margin: 0 0 32px;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* The framed portrait that floats over the hero on wide screens. Kept small deliberately: the source
+   photograph is 640px square, and shown larger it would soften. */
+.vaHeroPortrait {
+  display: none;
+  position: relative;
+  width: 300px;
+  flex: none;
+  align-self: flex-end;
+  margin-bottom: 8px;
+}
+@media (min-width: 1080px) {
+  .vaHeroPortrait {
+    display: block;
+  }
+}
+.vaHeroPortrait img {
+  width: 100%;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--va-accent) 40%, transparent);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95);
+}
+.vaHeroPortraitCaption {
+  position: absolute;
+  bottom: -1px;
+  left: -1px;
+  right: -1px;
+  background: color-mix(in srgb, var(--va-ink) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--va-accent) 40%, transparent);
+  padding: 10px 14px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  text-align: center;
+}
+
+.vaHeroLayout {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 48px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   AUDIO PLAYER
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaPlayer {
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  transition: border-color 200ms ease;
+}
+.vaPlayer:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+.vaPlayerActive {
+  border-color: var(--va-accent);
+}
+
+.vaPlayBtn {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 12%, transparent);
+  color: var(--va-accent);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.vaPlayBtn:hover:not(:disabled) {
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+  transform: scale(1.05);
+}
+.vaPlayBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--va-line);
+  color: var(--va-text-muted);
+}
+
+.vaPlayerMain {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Wraps rather than truncates. A reel is called "Commercial reel" or "Telephony & on-hold"; clipping
+   that to "COMME…" hides the one word that tells a casting director whether to press play. Two lines
+   are allowed, and past that it clamps — so a pathological title cannot push the waveform off-card. */
+.vaPlayerTitle {
+  font-family: var(--va-font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--va-text);
+  margin: 0 0 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.vaPlayerMeta {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--va-text-muted);
+  margin: 0 0 12px;
+}
+
+/* A bar-graph "waveform". Real waveform rendering needs the decoded audio, which means downloading
+   every reel on page load just to draw a picture. These bars are generated from a hash of the title
+   so each reel looks distinct and stable, and they scrub exactly like a real one. */
+.vaWave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  cursor: pointer;
+  position: relative;
+}
+.vaWaveBar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--va-line);
+  transition: background 90ms linear;
+}
+.vaWaveBarPlayed {
+  background: var(--va-accent);
+}
+.vaWaveDisabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.vaPlayerTime {
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  min-width: 76px;
+  text-align: right;
+}
+
+.vaPlayerSoon {
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  border: 1px dashed var(--va-line);
+  padding: 4px 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   FORMS
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaField {
+  display: block;
+  margin-bottom: 20px;
+}
+
+.vaLabel {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  margin-bottom: 8px;
+}
+
+.vaInput,
+.vaTextarea,
+.vaSelect {
+  width: 100%;
+  padding: 13px 15px;
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text);
+  font-family: var(--va-font-body);
+  /* 16px minimum, because anything smaller makes iOS Safari zoom the viewport on focus — which on a
+     contact form reads to the user as the page breaking. */
+  font-size: 1rem;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.vaInput:focus,
+.vaTextarea:focus,
+.vaSelect:focus {
+  border-color: var(--va-accent);
+  background: var(--va-surface-raised);
+  outline: none;
+}
+.vaInput::placeholder,
+.vaTextarea::placeholder {
+  color: color-mix(in srgb, var(--va-text-muted) 70%, transparent);
+}
+.vaTextarea {
+  min-height: 130px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.vaSelect {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--va-text-muted) 50%),
+    linear-gradient(135deg, var(--va-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(50% + 1px), calc(100% - 15px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 40px;
+}
+
+.vaHint {
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+  margin: 6px 0 0;
+}
+
+.vaError {
+  font-size: 0.8125rem;
+  color: #ff8a6a;
+  margin: 6px 0 0;
+}
+.vaInputError {
+  border-color: #ff8a6a;
+}
+
+.vaCheckRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+  cursor: pointer;
+}
+.vaCheckRow input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--va-accent);
+  flex: none;
+}
+.vaCheckRow span {
+  font-size: 0.9375rem;
+  color: var(--va-text-muted);
+}
+
+/* The honeypot. Off-screen rather than display:none, because some bots skip hidden inputs but almost
+   none skip positioned ones — and `aria-hidden` + `tabindex=-1` keep it away from real users and
+   screen readers. */
+.vaHoneypot {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.vaFieldRow {
+  display: grid;
+  gap: 0 20px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 620px) {
+  .vaFieldRow2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .vaFieldRow3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Segmented radio group — used for "what are you getting in touch about", which is the most important
+   answer on the form and deserves to be one tap rather than a dropdown. */
+.vaSegmented {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  margin-bottom: 24px;
+}
+.vaSegment {
+  position: relative;
+}
+.vaSegment input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  margin: 0;
+}
+.vaSegment span {
+  display: block;
+  padding: 14px 16px;
+  text-align: center;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: var(--va-surface);
+  color: var(--va-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all 160ms ease;
+}
+.vaSegment input:checked + span {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 10%, var(--va-surface));
+}
+.vaSegment input:focus-visible + span {
+  outline: 2px solid var(--va-accent);
+  outline-offset: 2px;
+}
+
+.vaNotice {
+  padding: 16px 18px;
+  border-radius: 3px;
+  border: 1px solid var(--va-line);
+  background: var(--va-surface);
+  font-size: 0.9375rem;
+  margin-bottom: 22px;
+}
+.vaNoticeGood {
+  border-color: color-mix(in srgb, var(--va-glow) 55%, transparent);
+  color: var(--va-text);
+}
+.vaNoticeBad {
+  border-color: #ff8a6a;
+  color: #ffb49c;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   STATS / LISTS / TABLES
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaStat {
+  text-align: center;
+}
+.vaStatValue {
+  font-family: var(--va-font-display);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  color: var(--va-accent);
+  line-height: 1;
+  display: block;
+  margin-bottom: 8px;
+}
+.vaStatLabel {
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+}
+
+.vaSpecList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--va-line);
+}
+.vaSpecList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  justify-content: space-between;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--va-line);
+  font-size: 0.9375rem;
+}
+.vaSpecKey {
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.vaSpecValue {
+  color: var(--va-text);
+  text-align: right;
+  flex: 1;
+  min-width: 200px;
+}
+
+.vaCheckList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vaCheckList li {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 11px;
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+}
+.vaCheckList li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: var(--va-accent);
+}
+
+.vaTableWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.vaTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  min-width: 480px;
+}
+.vaTable th {
+  text-align: left;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  font-weight: 600;
+  padding: 0 16px 12px 0;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaTable td {
+  padding: 14px 16px 14px 0;
+  border-bottom: 1px solid var(--va-line);
+  vertical-align: top;
+}
+.vaTable tr:last-child td {
+  border-bottom: 0;
+}
+.vaTable td:last-child,
+.vaTable th:last-child {
+  padding-right: 0;
+}
+.vaNum {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   PROJECT CARDS
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaProject {
+  display: flex;
+  flex-direction: column;
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
+  height: 100%;
+}
+.vaProject:hover {
+  border-color: var(--va-accent);
+  transform: translateY(-4px);
+  box-shadow: 0 22px 46px -26px rgba(0, 0, 0, 0.95);
+}
+/* 4:3, not 16:10. Andrew's photographs are mostly portrait or square — stage shots, a full-length
+   recital portrait, a square costume photo. Every pixel of height this window gives back is a pixel
+   less of a person that has to be cropped away, and 4:3 is the widest ratio that still keeps a
+   standing figure's head and shoulders in frame across all of them. */
+.vaProjectMedia {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--va-surface-raised);
+  overflow: hidden;
+}
+.vaProjectMedia img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 500ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.vaProject:hover .vaProjectMedia img {
+  transform: scale(1.045);
+}
+.vaProjectBadge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+}
+.vaProjectBody {
+  padding: 22px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vaProjectMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--va-text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.vaProjectFoot {
+  margin-top: auto;
+  padding-top: 14px;
+  color: var(--va-accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Empty-state panel. Shown instead of a blank grid — the difference between "nothing here yet" and
+   "this is broken". */
+.vaEmpty {
+  text-align: center;
+  padding: clamp(40px, 8vw, 80px) 24px;
+  border: 1px dashed var(--va-line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--va-surface) 60%, transparent);
+}
+.vaEmptyIcon {
+  color: var(--va-text-muted);
+  margin-bottom: 16px;
+  display: inline-block;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   GALLERY
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaGallery {
+  display: grid;
+  gap: 14px;
+}
+.vaGalleryItem {
+  position: relative;
+  overflow: hidden;
+  border-radius: 3px;
+  border: 1px solid var(--va-line);
+  background: var(--va-surface);
+}
+.vaGalleryItem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.vaGalleryItem:hover img {
+  transform: scale(1.05);
+}
+.vaGalleryCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 14px 12px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  font-size: 0.8125rem;
+  color: #fff;
+}
+
+.vaFigure {
+  margin: 0;
+}
+.vaFigcaption {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+  font-style: italic;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   CTA PANEL
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaCta {
+  position: relative;
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  padding: clamp(34px, 6vw, 68px) clamp(24px, 5vw, 56px);
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--va-accent) 10%, transparent), transparent 62%),
+    var(--va-surface);
+  overflow: hidden;
+}
+.vaCtaTitle {
+  font-family: var(--va-font-display);
+  font-size: clamp(1.65rem, 4vw, 2.6rem);
+  font-weight: 600;
+  margin: 0 0 14px;
+  line-height: 1.15;
+}
+.vaCtaBody {
+  color: var(--va-text-muted);
+  max-width: 54ch;
+  margin: 0 auto 30px;
+  font-size: 1.0625rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   FOOTER
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaFooter {
+  border-top: 1px solid var(--va-line);
+  background: color-mix(in srgb, var(--va-surface) 55%, var(--va-ink));
+  padding-top: clamp(44px, 6vw, 72px);
+  padding-bottom: 34px;
+  margin-top: auto;
+}
+.vaFooterGrid {
+  display: grid;
+  gap: 36px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  margin-bottom: 44px;
+}
+.vaFooterHead {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 0 0 16px;
+}
+.vaFooterLinks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vaFooterLinks li {
+  margin-bottom: 10px;
+}
+.vaFooterLinks a {
+  color: var(--va-text-muted);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  transition: color 140ms ease;
+}
+.vaFooterLinks a:hover {
+  color: var(--va-accent);
+}
+.vaFooterBottom {
+  border-top: 1px solid var(--va-line);
+  padding-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 28px;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+}
+.vaFooterBottom a {
+  color: var(--va-text-muted);
+  text-decoration: none;
+}
+.vaFooterBottom a:hover {
+  color: var(--va-accent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   MOTION
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes vaFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vaRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vaSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Applied to a lucide icon rendered by AudioPlayer / studio forms. Global rather than scoped
+   because the element it lands on is created by another component. */
+.vaSpin {
+  animation: vaSpin 900ms linear infinite;
+}
+
+.vaAnimFade {
+  animation: vaFadeIn 620ms ease both;
+}
+.vaAnimRise {
+  animation: vaRiseIn 680ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* Reveal-on-scroll. The initial hidden state is applied by the SCRIPT, not by CSS, so that a visitor
+   with JavaScript disabled — or one whose IntersectionObserver never fires because the element was
+   already on screen at load — sees the content rather than an empty page. Hiding first in CSS and
+   revealing in JS is the version of this that ships blank pages. */
+.vaRevealReady {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.3, 1), transform 700ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  will-change: opacity, transform;
+}
+.vaRevealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vaRoot *,
+  .vaRoot *::before,
+  .vaRoot *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .vaRevealReady {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   WIDGET RENDERER
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaWidget {
+  position: relative;
+}
+.vaWidgetInner {
+  position: relative;
+}
+.vaWidgetHeading {
+  font-family: var(--va-font-display);
+  margin: 0;
+  line-height: 1.15;
+}
+.vaWidgetQuote {
+  margin: 0;
+  position: relative;
+}
+.vaWidgetQuote cite {
+  display: block;
+  margin-top: 20px;
+  font-family: var(--va-font-body);
+  font-style: normal;
+  font-size: 0.8125rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+}
+.vaEmbed {
+  position: relative;
+  width: 100%;
+  border: 0;
+  display: block;
+  border-radius: inherit;
+}
+.vaEmbedAudio {
+  height: 166px;
+}
+.vaEmbedFallback {
+  padding: 24px;
+  border: 1px dashed var(--va-line);
+  border-radius: 3px;
+  text-align: center;
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+}
+
+/* Bottom-anchored so the widget's own vertical padding does not push it away from the block it
+   labels, and only opaque on hover so it never competes with the content Andrew is judging. */
+.vaWidgetEdit {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--va-ink) 88%, transparent);
+  border: 1px solid var(--va-accent);
+  color: var(--va-accent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 140ms ease, background 140ms ease;
+  backdrop-filter: blur(6px);
+}
+.vaWidget:hover > .vaWidgetEdit,
+.vaWidgetEdit:focus-visible {
+  opacity: 1;
+}
+.vaWidgetEdit:hover {
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+}
+/* Touch devices have no hover, so an opacity-0 control is an invisible one. Always show it there. */
+@media (hover: none) {
+  .vaWidgetEdit {
+    opacity: 0.85;
+  }
+}
+
+.vaStepNumber {
+  font-family: var(--va-font-display);
+  font-size: 2rem;
+  color: var(--va-accent);
+  display: block;
+  margin-bottom: 12px;
+  opacity: 0.85;
+  line-height: 1;
+}
+
+.vaPackagePrice {
+  font-family: var(--va-font-display);
+  font-size: 2.1rem;
+  color: var(--va-accent);
+  line-height: 1;
+  margin: 0 0 12px;
+}
+
+.vaCardHighlight {
+  border-color: var(--va-accent);
+  box-shadow: 0 0 0 1px var(--va-accent), 0 20px 44px -28px rgba(0, 0, 0, 0.9);
+}
+
+.vaCite {
+  font-style: normal;
+  font-size: 0.8125rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+}
+
+.vaHeroShort {
+  min-height: min(62vh, 520px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   FAQ
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaFaq {
+  border-top: 1px solid var(--va-line);
+}
+.vaFaqItem,
+.vaFaqStatic {
+  border-bottom: 1px solid var(--va-line);
+  padding: 4px 0;
+}
+.vaFaqQ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  font-family: var(--va-font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--va-text);
+  cursor: pointer;
+  list-style: none;
+  margin: 0;
+  line-height: 1.35;
+}
+/* Safari renders a disclosure triangle via this pseudo-element regardless of `list-style: none`. */
+.vaFaqQ::-webkit-details-marker {
+  display: none;
+}
+.vaFaqQ:hover {
+  color: var(--va-accent);
+}
+.vaFaqChevron {
+  flex: none;
+  color: var(--va-accent);
+  transition: transform 200ms ease;
+}
+.vaFaqItem[open] .vaFaqChevron {
+  transform: rotate(180deg);
+}
+.vaFaqA {
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  margin: 0;
+  padding: 0 0 22px;
+  max-width: 66ch;
+}
+.vaFaqStatic .vaFaqQ {
+  cursor: default;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   OWNER BAR — visible only when Andrew is signed in
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaOwnerBar {
+  position: sticky;
+  top: var(--va-header-h);
+  z-index: 45;
+  background: color-mix(in srgb, var(--va-accent) 14%, var(--va-ink));
+  border-bottom: 1px solid var(--va-accent);
+  padding: 9px var(--va-gutter);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+}
+.vaOwnerBarLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--va-accent);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.vaOwnerBarSpacer {
+  flex: 1;
+}
+.vaOwnerBar a,
+.vaOwnerBar button {
+  color: var(--va-text);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 6px 12px;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--va-ink) 70%, transparent);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.vaOwnerBar a:hover,
+.vaOwnerBar button:hover {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+}
+/* Client-view mode: the bar shrinks to a single "you are previewing" chip so Andrew is looking at
+   almost exactly what a visitor sees. Hiding it entirely would leave no way back. */
+.vaOwnerBarPreview {
+  background: color-mix(in srgb, var(--va-ink) 92%, transparent);
+  border-bottom-color: var(--va-line);
+}
+
+/* The very-bottom footer login. Deliberately small and low-contrast-but-legible: it is a door for one
+   person on a page written for clients. */
+.vaFooterOwner {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--va-line) 60%, transparent);
+  text-align: center;
+  font-size: 0.75rem;
+}
+.vaFooterOwner a {
+  color: var(--va-text-muted);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 3px;
+}
+.vaFooterOwner a:hover {
+  color: var(--va-accent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   PRINT — contracts and invoices are read on paper more often than anyone expects
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  .vaHeader,
+  .vaFooter,
+  .vaNoPrint {
+    display: none !important;
+  }
+  .vaRoot {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .vaCard,
+  .vaTable td,
+  .vaTable th {
+    border-color: #999 !important;
+  }
+  .vaRoot * {
+    box-shadow: none !important;
+  }
+}
