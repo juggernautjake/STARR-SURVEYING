@@ -3019,6 +3019,25 @@
   flex-shrink: 0;
 }
 
+/* ── Markup persistence (plan R24) ────────────────────────────────────────── */
+
+.research-viewer__markup-note {
+  font-size: 0.7rem;
+  color: #9CA3AF;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Silence after a failed save reads as "it saved" — the assumption that loses the work. */
+.research-viewer__markup-error {
+  font-size: 0.72rem;
+  color: #fff;
+  background: #DC2626;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 .research-viewer__img-caption {
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;

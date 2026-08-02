@@ -1043,7 +1043,52 @@ polish — nothing else in this plan can be trusted while the engine is down and
   accept/reject/correct. Corrections feed R9's golden set.
   *Acceptance:* a reviewer can accept or correct 50 facts without leaving the screen or losing place.
 
-- **R24. Annotation layers on every document and image.**
+- **R24. Annotation layers on every document and image.** ✅ DONE 2026-08-02 — *the owner's explicit
+  ask: "digital drawing on saved docs/images with edits saved apart from the original"*
+
+  **Shipped** (seed 535 + `lib/research/document-annotations.ts` + the annotations route, wired into
+  `SourceDocumentViewer`).
+
+  `SourceDocumentViewer` has had a **full drawing canvas since it was written** — colours, widths,
+  freehand strokes, per page. `drawPaths` was React state and nothing else. Close the viewer and
+  every mark a surveyor made was gone. A feature that looks complete and keeps nothing is worse than
+  one that is missing: somebody marks up a plat, closes the tab, and only then finds out.
+
+  **The original file is never modified.** Annotations are rows in `document_annotations` keyed to
+  the document; nothing re-encodes the image or writes `storage_path`, so the download stays
+  byte-identical to what was fetched from the county — a recorded instrument that has been drawn on
+  is no longer the recorded instrument. A guard test asserts `research_documents` is touched exactly
+  once and only with `.select()`. This is the fourth place the contract now holds, after
+  `research_survey_plans.ai_plan` (R21), `extracted_data_points.corrected_value` (R23) and
+  `rendered_drawings.user_annotations`.
+
+  **Coordinates are fractions of the page, never pixels.** The canvas is sized to
+  `img.naturalWidth`, so storing those pixels would pin every stroke to one rendering of one scan —
+  and a page re-uploaded at a different resolution (which the re-run path does) would move the markup
+  silently. Same rule R17 set for fact bounding boxes. Stroke width is normalised too, so a 3px line
+  on a 2000px scan does not become a hairline at 600px, with a 1px floor because a stroke that
+  renders as zero looks exactly like markup being lost again. The API **rejects** out-of-range
+  coordinates rather than clamping: silently squashing 1400 → 1 would put the markup in the corner of
+  the page and read as a rendering bug for weeks.
+
+  Layers are named, ordered and toggleable, saved as an upsert per (document, page, layer, author) so
+  re-saving after two more strokes replaces the layer instead of accumulating rows. `flattenLayers()`
+  drops hidden layers rather than drawing them faintly — `visible: false` is a decision the author
+  made, and an export that quietly includes it hands somebody markup they turned off. Markup is
+  attributable, because "who drew this" is the first question anybody asks about a mark on a survey
+  document.
+
+  Three failure modes closed while wiring it: closing with unsaved strokes now asks first; a failed
+  *load* says "it has not been lost, this view failed to fetch it" rather than rendering an empty
+  canvas; and a failed *save* is shown, because silence there reads as "it saved". `annotationError`
+  was being set and never rendered — the repo's most common defect, caught in its own slice.
+
+  Root suite 21,592 passing; typecheck clean. Seed 535 applied to production.
+
+  **Note:** flattened export is available as a function (`flattenLayers`) but is not yet wired into a
+  download — that belongs with R25's packet renderer, which is the thing that produces files.
+
+  Original item:
   Persist `SourceDocumentViewer`'s markup: `document_annotations` (project, document, page, layer,
   strokes/shapes/text, author, created_at). **The original file is never modified** — the same
   contract `rendered_drawings.user_annotations` already honours. Layers can be toggled, named, and

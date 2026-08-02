@@ -6,6 +6,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ResearchDocument } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+// Markup that survives closing the viewer, kept apart from the original (research plan R24).
+import {
+  normaliseWidth,
+  toNormalised,
+  toPixels,
+  widthInPixels,
+  type AnnotationLayer,
+  type Stroke,
+} from '@/lib/research/document-annotations';
 
 interface SourceDocumentViewerProps {
   document: ResearchDocument;
@@ -13,6 +22,9 @@ interface SourceDocumentViewerProps {
   pagesPdfUrl?: string | null;
   highlightText?: string;
   onClose: () => void;
+  /** Needed to address the annotations route (plan R24). Without it the viewer still draws but
+   *  cannot save — so the toolbar says so rather than pretending. */
+  projectId?: string;
 }
 
 type ViewTab = 'images' | 'text';
@@ -69,6 +81,7 @@ export default function SourceDocumentViewer({
   pagesPdfUrl,
   highlightText,
   onClose,
+  projectId,
 }: SourceDocumentViewerProps) {
   const pdfUrl = getPdfUrl(doc, pagesPdfUrl);
   const pageImageUrls = getPageImageUrls(doc);
@@ -97,6 +110,13 @@ export default function SourceDocumentViewer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  // Markup persistence (plan R24).
+  const [savingMarkup, setSavingMarkup] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
+  /** Unsaved strokes exist. Drives the warning on close — losing markup silently is the failure
+   *  this whole slice exists to end. */
+  const [dirty, setDirty] = useState(false);
 
   const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
   const text = doc.extracted_text || '';
@@ -151,6 +171,84 @@ export default function SourceDocumentViewer({
     redrawCanvas();
   }, [redrawCanvas]);
 
+  // ── Persisting the markup (plan R24) ──────────────────────────────────────
+  //
+  // The canvas above has existed since this component was written, and `drawPaths` was React state
+  // and nothing else — close the viewer and every mark a surveyor made was gone. A feature that
+  // looks complete and keeps nothing is worse than one that is missing.
+  //
+  // Strokes are stored as FRACTIONS of the page, not the canvas pixels used here: the canvas is
+  // sized to `img.naturalWidth`, so pixel coordinates pin the markup to one rendering of one scan,
+  // and a page re-uploaded at another resolution moves it silently.
+
+  const loadAnnotations = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/documents/${doc.id}/annotations`);
+      if (!res.ok) { setAnnotationError('Saved markup could not be loaded — it has not been lost, this view failed to fetch it.'); return; }
+      const { layers } = await res.json() as { layers: AnnotationLayer[] };
+      const canvas = canvasRef.current;
+      const w = canvas?.width || imgRef.current?.naturalWidth || 0;
+      const h = canvas?.height || imgRef.current?.naturalHeight || 0;
+      if (!w || !h) return;
+
+      const byPage = new Map<number, Array<{ points: { x: number; y: number }[]; color: string; width: number }>>();
+      for (const layer of layers.filter(l => l.visible)) {
+        const existing = byPage.get(layer.page) ?? [];
+        byPage.set(layer.page, [
+          ...existing,
+          ...layer.strokes.map(s => ({
+            points: toPixels(s.points, w, h),
+            color: s.color,
+            width: widthInPixels(s.width, w),
+          })),
+        ]);
+      }
+      setDrawPaths(byPage);
+      setAnnotationError(null);
+      setDirty(false);
+    } catch {
+      setAnnotationError('Saved markup could not be loaded — it has not been lost, this view failed to fetch it.');
+    }
+  }, [projectId, doc.id]);
+
+  const saveAnnotations = useCallback(async () => {
+    if (!projectId) return;
+    const canvas = canvasRef.current;
+    const w = canvas?.width || 0;
+    const h = canvas?.height || 0;
+    if (!w || !h) return;
+
+    setSavingMarkup(true);
+    try {
+      const paths = drawPaths.get(currentPage) ?? [];
+      const strokes: Stroke[] = paths.map(p => ({
+        kind: 'freehand' as const,
+        points: toNormalised(p.points, w, h),
+        color: p.color,
+        width: normaliseWidth(p.width, w),
+      }));
+      const res = await fetch(`/api/admin/research/${projectId}/documents/${doc.id}/annotations`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page: currentPage, layerName: 'Markup', strokes, visible: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        setAnnotationError(err.error ?? 'The markup could not be saved.');
+        return;
+      }
+      setAnnotationError(null);
+      setDirty(false);
+    } catch {
+      setAnnotationError('The markup could not be saved — check your connection.');
+    } finally {
+      setSavingMarkup(false);
+    }
+  }, [projectId, doc.id, drawPaths, currentPage]);
+
+  useEffect(() => { void loadAnnotations(); }, [loadAnnotations]);
+
   function handleCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
     if (!drawMode) return;
     setIsDrawing(true);
@@ -166,6 +264,7 @@ export default function SourceDocumentViewer({
       next.set(currentPage, [...existing, { points: [{ x, y }], color: drawColor, width: drawWidth }]);
       return next;
     });
+    setDirty(true);
   }
 
   function handleCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -422,6 +521,32 @@ export default function SourceDocumentViewer({
                 </button>
               )}
 
+              {/* Saving the markup (plan R24). Without this the canvas draws and keeps nothing —
+                  which is how somebody marks up a plat, closes the tab, and finds out too late. */}
+              {projectId ? (
+                <button
+                  onClick={() => void saveAnnotations()}
+                  disabled={savingMarkup || !dirty}
+                  title={dirty
+                    ? 'Save this markup. The original document is not modified.'
+                    : 'Nothing new to save — the markup on this page is already stored.'}
+                  data-active={dirty ? 'true' : undefined}
+                >
+                  {savingMarkup ? '⏳ Saving…' : dirty ? '💾 Save markup' : '✓ Markup saved'}
+                </button>
+              ) : (
+                // Honest about the limitation rather than offering a button that cannot work.
+                <span className="research-viewer__markup-note" title="This viewer was opened without a project, so markup cannot be saved.">
+                  markup not saveable here
+                </span>
+              )}
+
+              {/* A save or load failure has to be visible: silence here reads as "it saved", which
+                  is the assumption that loses the work. */}
+              {annotationError && (
+                <span className="research-viewer__markup-error" role="alert">{annotationError}</span>
+              )}
+
               {/* Expand toggle */}
               <span className="research-viewer__img-divider" />
               <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Shrink modal' : 'Expand modal'}>
@@ -541,6 +666,13 @@ export default function SourceDocumentViewer({
     );
   }
 
+  /** Closing with unsaved strokes is the precise loss this slice exists to end, so it asks once
+   *  rather than discarding silently. */
+  const requestClose = useCallback(() => {
+    if (dirty && !window.confirm('This page has unsaved markup. Close without saving it?')) return;
+    onClose();
+  }, [dirty, onClose]);
+
   // ── Keyboard ───────────────────────────────────────────────────────────
 
   const handleKeyDown = useCallback(
@@ -549,7 +681,7 @@ export default function SourceDocumentViewer({
         if (drawMode) {
           setDrawMode(false);
         } else {
-          onClose();
+          requestClose();
         }
       }
       if (activeTab === 'images' && pageImageUrls.length > 1) {
@@ -557,7 +689,7 @@ export default function SourceDocumentViewer({
         if (e.key === 'ArrowRight') setCurrentPage(p => Math.min(pageImageUrls.length - 1, p + 1));
       }
     },
-    [onClose, drawMode, activeTab, pageImageUrls.length],
+    [requestClose, drawMode, activeTab, pageImageUrls.length],
   );
 
   useEffect(() => {
@@ -578,7 +710,7 @@ export default function SourceDocumentViewer({
     <div
       ref={overlayRef}
       className="research-viewer-overlay"
-      onClick={onClose}
+      onClick={requestClose}
       role="dialog"
       aria-modal="true"
       aria-label={doc.document_label || doc.original_filename || 'Document Viewer'}
@@ -618,7 +750,7 @@ export default function SourceDocumentViewer({
               </div>
             </div>
           </div>
-          <button className="research-viewer__close" onClick={onClose} aria-label="Close viewer">
+          <button className="research-viewer__close" onClick={requestClose} aria-label="Close viewer">
             &times;
           </button>
         </div>

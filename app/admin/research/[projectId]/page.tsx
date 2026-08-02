@@ -3513,6 +3513,7 @@ export default function ResearchProjectPage() {
       {viewerDoc && (
         <SourceDocumentViewer
           document={viewerDoc}
+          projectId={projectId}
           pagesPdfUrl={viewerPdfUrl}
           highlightText={viewerHighlight}
           onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); setViewerPdfUrl(null); }}

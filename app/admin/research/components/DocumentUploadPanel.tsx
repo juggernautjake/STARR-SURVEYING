@@ -587,6 +587,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
       {viewingDoc && (
         <SourceDocumentViewer
           document={viewingDoc}
+          projectId={projectId}
           onClose={() => setViewingDoc(null)}
         />
       )}
