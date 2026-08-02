@@ -267,7 +267,7 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 26 | Vitest for `lib/voice` — 107 tests across money, payments, widgets, contracts, expenses | ✅ 2026-08-02 |
 | 27 | Contrast audit run — **941 text nodes across 7 routes × 2 viewports, every one clears WCAG AA** | ✅ 2026-08-02 |
 | 28 | 390px sweep of all 13 studio pages — **13/13 fit with no undersized controls** (`scripts/audit-voice-mobile.mjs`, new) | ✅ 2026-08-02 |
-| — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
+| 29 | Web push — subscribe/unsubscribe panel + `/api/voice/push`; the granted path needs VAPID keys to exercise | ✅ built 2026-08-02 |
 
 ### Verifying it again
 
@@ -305,9 +305,13 @@ and a retry would otherwise double-credit the invoice.
 
 Everything the user asked for is built, and every audit has been run and is green.
 
-1. **Web-push subscribe UI** — the only unbuilt item. The service worker and manifest exist and
-   `notifyStudio` already writes notifications; nothing yet asks the browser for permission, so
-   notifications appear in the studio but never reach a locked phone.
+1. **Switch web push on** — needs a person, not code. `npx web-push generate-vapid-keys`, then set
+   `NEXT_PUBLIC_VOICE_VAPID_KEY`, `VOICE_VAPID_PUBLIC_KEY` and `VOICE_VAPID_PRIVATE_KEY` on the host,
+   plus `npm i web-push`. Studio → Settings → Notifications says exactly this until they exist.
+
+   The subscribe flow is written and its *unconfigured*, *denied* and *unsupported* states were
+   checked in a browser. **The granted path cannot be exercised without real keys and is the one
+   thing on this platform not yet seen working end to end.**
 2. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
    deploy costs money.
 3. Andrew's own account. He picks his username, email and password at the studio login.

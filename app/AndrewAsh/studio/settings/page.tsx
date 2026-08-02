@@ -8,8 +8,10 @@ import type { Metadata } from 'next';
 
 import SettingsForm from './SettingsForm';
 import PaymentPanel from './PaymentPanel';
+import NotificationPanel from './NotificationPanel';
 import TeamPanel from './TeamPanel';
 import { cardPaymentEnabled, voiceStripePublishableKey, voiceStripeSecretKey } from '@/lib/voice/payments';
+import { pushConfigured, vapidPublicKey } from '@/lib/voice/notifications';
 import { getSiteSettings } from '@/lib/voice/settings';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
@@ -70,6 +72,12 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         cardLive={cardPaymentEnabled()}
         cardMissing={cardMissing}
       />
+
+      {/* The public key is safe in a browser — it is the half of the VAPID pair that identifies the
+          sender to the push service. `pushConfigured()` additionally requires the PRIVATE key, which
+          never leaves the server: without it nothing can actually be delivered, so handing the client
+          a public key alone would produce a switch that subscribes successfully and stays silent. */}
+      <NotificationPanel vapidKey={pushConfigured() ? vapidPublicKey() : null} />
 
       <TeamPanel
         users={users.map((u) => ({
