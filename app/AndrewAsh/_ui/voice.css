@@ -1126,6 +1126,124 @@ a.vaCard:hover,
   outline-offset: 2px;
 }
 
+/* ── FILE DROP ───────────────────────────────────────────────────────────────────────────────────
+ *
+ * A <label> wrapping a real <input type="file">. The input is visually hidden but NOT
+ * `display: none` — a display-none input is removed from the accessibility tree and cannot be
+ * activated by the label in some assistive technology, which would make the control unusable for
+ * exactly the people who most need the label association to work.
+ */
+.vaDrop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border: 1px dashed var(--va-line);
+  border-radius: 4px;
+  background: var(--va-surface);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+  position: relative;
+}
+.vaDrop:hover,
+.vaDrop:focus-within {
+  border-color: var(--va-accent);
+  background: var(--va-surface-raised);
+}
+.vaDropActive {
+  border-color: var(--va-accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--va-accent) 10%, var(--va-surface));
+}
+.vaDropBusy {
+  cursor: progress;
+  opacity: 0.75;
+}
+.vaDropInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.vaDropIcon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  background: var(--va-surface-raised);
+  border: 1px solid var(--va-line);
+  color: var(--va-accent);
+}
+.vaDropText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.vaDropText strong {
+  color: var(--va-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.vaDropText span {
+  color: var(--va-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.vaDropList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.vaDropList li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  margin-bottom: 8px;
+  color: var(--va-accent);
+  background: var(--va-surface);
+}
+.vaDropName {
+  flex: 1;
+  min-width: 0;
+  color: var(--va-text);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vaDropSize {
+  flex: none;
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.vaDropList button {
+  flex: none;
+  background: none;
+  border: 0;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+}
+.vaDropList button:hover {
+  color: #ff9c7e;
+}
+
 .vaNotice {
   padding: 16px 18px;
   border-radius: 3px;

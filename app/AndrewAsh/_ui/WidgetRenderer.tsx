@@ -1,4 +1,18 @@
+'use client';
 // app/AndrewAsh/_ui/WidgetRenderer.tsx — one function that turns stored blocks into a page.
+//
+// ── WHY THIS IS A CLIENT COMPONENT ──────────────────────────────────────────────────────────────
+//
+// It renders fine on a server and it is used by server components (every public route). The directive
+// is here for one reason: the studio's live preview is interactive, so it must call this from a
+// client component — and a server component cannot be imported into one.
+//
+// The alternative is a second renderer for the preview. That is the version where, three months in,
+// a widget renders one way in the editor and another way on the site, and Andrew stops trusting the
+// preview. The bundle cost of shipping the markup is real and it is the cheaper of the two.
+//
+// It stays SERVER-RENDERED for visitors: a client component is still rendered to HTML on the server
+// and hydrated after, so the public page's first paint is complete markup, not an empty shell.
 //
 // EVERY page on this site renders through here: the home page, the voice-over page, the coaching
 // page, and any project page Andrew builds. That is deliberate and it is the answer to the owner's

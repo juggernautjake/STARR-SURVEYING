@@ -299,7 +299,21 @@ CREATE TABLE IF NOT EXISTS va_inquiries (
     experience_level TEXT,
     coaching_goals  TEXT,
 
+    -- The catch-all: a pasted script, or just more detail about the job. Generous limit because
+    -- clients paste whole scripts in here and truncating one silently would lose the brief.
     message         TEXT,
+
+    -- ── UPLOADED SCRIPTS ──
+    -- [{name, url, storage_path, size_bytes, mime_type}]. An array on the row rather than a child
+    -- table: attachments are meaningless outside their inquiry, are never queried across inquiries,
+    -- and there are at most a handful. A child table would buy referential tidiness and cost a join
+    -- on the one screen that shows them.
+    --
+    -- The BYTES live in Supabase Storage; this holds only the pointer. Storing a base64 script in a
+    -- TEXT column is how a Postgres row hits the 1GB limit and how every SELECT on this table starts
+    -- dragging megabytes across the wire.
+    attachments     JSONB NOT NULL DEFAULT '[]'::JSONB,
+
     -- Where they came from, for Andrew's own marketing sense.
     referral_source TEXT,
 

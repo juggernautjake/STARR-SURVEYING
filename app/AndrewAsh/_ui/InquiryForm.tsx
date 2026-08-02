@@ -31,6 +31,7 @@ import {
 // which cannot be bundled for a browser — see lib/voice/usage.ts.
 import { USAGE_SCOPES } from '@/lib/voice/usage';
 import { formatCentsCompact } from '@/lib/voice/money';
+import FileDrop, { type UploadedFile } from './FileDrop';
 
 interface Props {
   defaultIntent?: string;
@@ -51,6 +52,10 @@ export default function InquiryForm({ defaultIntent = 'voiceover', heading, comp
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [serverError, setServerError] = useState<string | null>(null);
+  // Uploaded scripts. Held as the STORED records (path + size), not the File objects — the bytes are
+  // already in storage by the time they land here, so the submit only has to send pointers.
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // Captured at first render and posted back, so the server can see how long the form took to fill.
   // A submission that arrives in under a couple of seconds was not typed by a person.
@@ -79,6 +84,7 @@ export default function InquiryForm({ defaultIntent = 'voiceover', heading, comp
       intent,
       renderedAt: renderedAt.current,
       scriptWords: values.scriptWords,
+      attachments: files,
     };
 
     const check = validateInquiry(payload);
@@ -103,6 +109,7 @@ export default function InquiryForm({ defaultIntent = 'voiceover', heading, comp
         throw new Error(body.error || 'Something went wrong sending that.');
       }
       setState('sent');
+      setFiles([]);
     } catch (err) {
       setState('error');
       setServerError(err instanceof Error ? err.message : 'Something went wrong sending that.');
@@ -302,20 +309,42 @@ export default function InquiryForm({ defaultIntent = 'voiceover', heading, comp
 
       <Field
         id="message"
-        label={intent === 'other' ? 'What can I help with?' : 'Anything else?'}
+        label={
+          intent === 'voiceover'
+            ? 'Paste the script, or tell me more'
+            : intent === 'other'
+              ? 'What can I help with?'
+              : 'Anything else?'
+        }
         required={intent === 'other'}
         error={errors.message}
+        hint={
+          intent === 'voiceover'
+            ? 'Paste the script straight in, or just describe the job. Either is fine — and you can attach a file below instead.'
+            : undefined
+        }
       >
         <textarea
           id="va-field-message"
           name="message"
           className={`vaTextarea${errors.message ? ' vaInputError' : ''}`}
-          rows={5}
-          placeholder={intent === 'voiceover' ? 'Paste the script here if you have it.' : ''}
+          // Taller for voice-over, because this is where whole scripts get pasted and a 5-row box
+          // makes a 400-word script look like it did not fit.
+          rows={intent === 'voiceover' ? 9 : 5}
+          placeholder={
+            intent === 'voiceover'
+              ? 'Paste your script here…\n\nOr describe what you need — length, tone, deadline, where it will run.'
+              : ''
+          }
           value={values.message ?? ''}
           onChange={(e) => set('message', e.target.value)}
         />
       </Field>
+
+      {/* Attachments come after the message on purpose: a client with a short script pastes it and
+          never needs this, and a client with a 12-page PDF finds it exactly where they start looking
+          once they realise pasting is impractical. */}
+      <FileDrop files={files} onChange={setFiles} error={fileError} onError={setFileError} />
 
       {/* The honeypot. Positioned off-screen rather than display:none — some bots skip hidden inputs
           but almost none skip positioned ones — and kept away from real users and screen readers by

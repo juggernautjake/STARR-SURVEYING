@@ -48,6 +48,8 @@ export interface InquiryInput {
   coachingGoals?: string;
   message?: string;
   referralSource?: string;
+  /** Scripts already uploaded to storage. Pointers only — the bytes went up separately. */
+  attachments?: { name: string; storage_path: string; size_bytes: number; mime_type: string | null }[];
   /** Hidden field, must stay empty. See below. */
   website?: string;
   /** Client timestamp of when the form was first rendered, ms. */
@@ -163,6 +165,27 @@ export function toInquiryRow(input: InquiryInput, suspectedSpam: boolean): Recor
     coaching_goals: emptyToNull(input.coachingGoals, 2000),
     message: emptyToNull(input.message, 5000),
     referral_source: emptyToNull(input.referralSource, 200),
+    // Re-validated rather than trusted: the client posts these as JSON, so a caller could name any
+    // storage path they liked. Only the shape the upload route actually produces is accepted, paths
+    // are pinned to the `inquiries/` prefix that route writes to, and the list is capped — so a
+    // forged payload cannot attach somebody else's document to its own inquiry.
+    attachments: Array.isArray(input.attachments)
+      ? input.attachments
+          .filter(
+            (f) =>
+              f &&
+              typeof f.storage_path === 'string' &&
+              f.storage_path.startsWith('inquiries/') &&
+              !f.storage_path.includes('..'),
+          )
+          .slice(0, 5)
+          .map((f) => ({
+            name: String(f.name ?? 'file').slice(0, 200),
+            storage_path: f.storage_path,
+            size_bytes: Number.isFinite(f.size_bytes) ? Math.max(0, Math.round(f.size_bytes)) : 0,
+            mime_type: f.mime_type ? String(f.mime_type).slice(0, 120) : null,
+          }))
+      : [],
     status: suspectedSpam ? 'spam' : 'new',
   };
 }
