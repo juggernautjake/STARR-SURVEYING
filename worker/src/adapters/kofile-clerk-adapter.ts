@@ -32,6 +32,13 @@ import {
 import { resolveAdapter } from '../infra/adapter-registry.js';
 // Read the results table by its headers — column sets differ per county (research plan R38).
 import { describeParse, parseResults } from './kofile-results-parser.js';
+// Ask the county which department holds its land records — the code is not a constant (plan R38).
+import {
+  READ_SITE_CONFIG,
+  chooseDepartment,
+  type DepartmentChoice,
+  type KofileSiteConfig,
+} from './kofile-discovery.js';
 
 // ── Per-county Kofile configuration ──────────────────────────────────────────
 
@@ -48,6 +55,9 @@ interface KofileConfig {
   /** Real-property department code for this county. Per county, NOT a constant: Milam uses "RP",
    *  Williamson defaults to "CCM" (court minutes) and returns nothing for a deed search. */
   department?: string;
+  /** The county's own recorded-date span for that department, e.g. "18010101,20260731". The site
+   *  rejects a range outside its own, which is what made Travis look broken. */
+  dateRange?: string;
   /** Some counties expose CountyFusion SUPERSEARCH for OCR full-text queries */
   hasSUPERSEARCH: boolean;
   superSearchUrl?: string;
@@ -119,6 +129,9 @@ const MAX_SESSION_RETRIES = 3;
 export class KofileClerkAdapter extends ClerkAdapter {
   private config: KofileConfig;
   private context: BrowserContext | null = null;
+  /** What discovery found. Surfaced so a caller can tell "no land records here" (a fact about the
+   *  county) from "the search returned nothing" (a fact about the property). */
+  discovery: DepartmentChoice | null = null;
   /** Base directory for saving downloaded page images */
   private downloadDir: string;
 
@@ -218,6 +231,41 @@ export class KofileClerkAdapter extends ClerkAdapter {
     this.page = await this.context.newPage();
 
     fs.mkdirSync(this.downloadDir, { recursive: true });
+
+    await this.discoverSiteConfig();
+  }
+
+  /** Ask the county what it has, instead of guessing (plan R38).
+   *
+   *  Kofile's search needs a `department` code and the code is per county — Milam calls its land
+   *  records "Property Records", Travis calls the same code "Land Records", and Williamson's portal
+   *  has no land-records department at all. Guessing produced three wrong answers in a day, and the
+   *  Williamson case is the dangerous one: searching a court-minutes index for a deed returns
+   *  nothing, which reads as "this property has no deeds".
+   *
+   *  The county publishes the answer at `window.__data.configuration.departments`. Reading it is
+   *  what lets one adapter serve every Kofile county without a table of codes to maintain, and what
+   *  picks up a county that adds or renames a department on the next run.
+   *
+   *  Never throws: a discovery failure leaves whatever the registry or the compiled config already
+   *  said, exactly as `applyRegistryOverrides` does. */
+  private async discoverSiteConfig(): Promise<void> {
+    if (!this.page) return;
+    try {
+      await this.page.goto(this.config.baseUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+      // Invoked, not passed: page.evaluate on a function EXPRESSION returns the function, not
+      // its result — a trap this repo has hit before.
+      const raw = (await this.page.evaluate(`(${READ_SITE_CONFIG})()`)) as KofileSiteConfig | null;
+      const choice = chooseDepartment(raw, this.countyName);
+
+      console.log(`[Kofile/${this.countyName}] ${choice.reason}`);
+      this.discovery = choice;
+
+      if (choice.department) this.config.department = choice.department;
+      if (choice.dateRange) this.config.dateRange = choice.dateRange;
+    } catch (e) {
+      console.warn(`[Kofile/${this.countyName}] Could not read the site configuration — using what was already known:`, e);
+    }
   }
 
   async destroySession(): Promise<void> {
@@ -310,8 +358,11 @@ export class KofileClerkAdapter extends ClerkAdapter {
     term: string,
     opts: { limit?: number; offset?: number; ocr?: boolean; from?: string; to?: string; department?: string } = {},
   ): string {
-    const from = opts.from ?? '18000101';
-    const to = opts.to ?? new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    // Prefer the county's OWN published span. The site rejects a range outside it — sending
+    // 18000101 to Travis, whose index starts 18010101, is what made it look broken.
+    const discovered = this.config.dateRange;
+    const from = opts.from ?? discovered?.split(',')[0] ?? '18010101';
+    const to = opts.to ?? discovered?.split(',')[1] ?? new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
     // These are the site's OWN parameter names, read off the address bar after driving its search
     // form (2026-08-02). `searchValue` + `searchType=quickSearch` is the indexed name search; the
@@ -479,6 +530,14 @@ export class KofileClerkAdapter extends ClerkAdapter {
 
   private async parseSearchResults(): Promise<ClerkDocumentResult[]> {
     if (!this.page) return [];
+
+    // A county whose portal has no land-records department will return an empty results page for
+    // every deed search, and an empty result reads as "this property has no deeds" — the most
+    // misleading answer this platform can give. Say which it is (plan R38).
+    if (this.discovery?.noLandRecords) {
+      console.warn(`[Kofile/${this.countyName}] ${this.discovery.reason}`);
+      return [];
+    }
 
     try {
       // Read the table's own headers and rows. Mapping by header text rather than by position is

@@ -70,14 +70,21 @@ describe('the builder matches what the live site accepts', () => {
   });
 
   it('always sends a date range, because omitting it returns nothing', () => {
-    expect(src).toContain("opts.from ?? '18000101'");
+    expect(src).toContain('recordedDateRange:');
     expect(src).toContain('is required — omitting it returns nothing');
   });
 
-  it('defaults to the whole record, not a recent window', () => {
-    // A chain of title needs the earliest instrument the county holds.
-    expect(src).toContain('18000101');
-    expect(src).toContain('needs the earliest instrument the county holds');
+  it('prefers the county’s OWN published span over a made-up one', () => {
+    // The site rejects a range outside its own index. Sending 18000101 to Travis, whose index starts
+    // 18010101, is what made Travis look broken.
+    expect(src).toContain("discovered?.split(',')[0]");
+    expect(src).toContain('is what made it look broken');
+  });
+
+  it('falls back to a span the site will accept, not to year zero', () => {
+    // A chain of title needs the earliest instrument the county holds, but asking for earlier than
+    // the index begins is an error rather than a wider search.
+    expect(src).toContain("?? '18010101'");
   });
 
   it('uses URLSearchParams rather than hand-built escaping', () => {
