@@ -19,6 +19,10 @@ import { Image as ImageIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
+import LiveFieldFeed from './LiveFieldFeed';
+import CollectorArrivals from './CollectorArrivals';
+import './FieldLive.css';
+
 interface FieldDataRow {
   id: string;
   job_id: string;
@@ -143,13 +147,21 @@ export default function FieldDataPage() {
         <div>
           <h1 style={styles.h1}>Field Data</h1>
           <p style={styles.subtitle}>
-            Data points + photos captured from the Starr Field mobile
-            app. Everything the surveyor records on their phone lands
-            here within seconds of regaining reception. Click a row to
-            see the full photo gallery and metadata.
+            Everything the crew records in the field, from either capture path: points and photos
+            from the Starr Field mobile app, which land here within seconds of regaining reception,
+            and points from a data collector, which arrive when its job syncs or its file is
+            imported. Click a card to see the full photo gallery and metadata.
           </p>
         </div>
       </header>
+
+      {/* Audit §3d items 8n–8p. The gallery below is phone captures only, and was the whole page —
+          so the collector ingestion path (a full parser set, an idempotent hash, two clocks) had no
+          UI whatsoever, and a surveyor with a day of shots on a Trimble had no way to get them in.
+          Both live here rather than on a second page: a competing "Instrument Data" surface is
+          §1.3's defect, and the reviewer's question is "what came in", not "by which route". */}
+      <LiveFieldFeed />
+      <CollectorArrivals />
 
       <div style={styles.controls}>
         <label style={styles.field}>

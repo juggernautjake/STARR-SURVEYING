@@ -96,6 +96,10 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // explicitly rather than derived, because the page it mirrors lives under Work Mode while the
   // capability being sold is Field.
   'field-ingest': { bundle: 'field', reason: 'Collector ingestion is the field product.' },
+  // The reader's side of the same capability (§3d item 8p): one feed merging phone captures and
+  // collector arrivals. Same bundle as the ingestion it reads — a firm that cannot ingest has
+  // nothing for this to show, and gating them differently would sell a window onto an empty room.
+  'field-live': { bundle: 'field', reason: 'The live field feed reads what field ingestion writes.' },
   // The money spine (audit Phase 2 #9/#11). All `office`: proposals, deliverables, change orders and
   // receivables are the back-office product, and a firm that bought only Recon or Draft has no
   // customers of its own to invoice through this. Named rather than derived — proposals hang off a

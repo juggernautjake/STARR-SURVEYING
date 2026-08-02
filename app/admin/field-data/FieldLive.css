@@ -1,0 +1,159 @@
+/* app/admin/field-data/FieldLive.css — the live feed + collector arrivals (audit §3d, 8n/8o/8p).
+ *
+ * Tokens only. The page these sit on is written with inline style objects, which the item-17 ratchet
+ * counts; new surfaces use variables so a theme change reaches them. */
+
+.field-live,
+.arrivals {
+  margin-bottom: 20px;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.field-live__head,
+.arrivals__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.field-live__title,
+.arrivals__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.field-live__new {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+}
+
+.field-live__toggle,
+.arrivals__browse {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-info-text);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.field-live__promise,
+.arrivals__sub {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.field-live__degraded,
+.field-live__note--bad,
+.arrivals__note--bad {
+  color: var(--color-error-text);
+}
+
+.field-live__note,
+.arrivals__note {
+  margin: 0.6rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.field-live__list {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-live__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: var(--color-bg-app);
+  font-size: 0.82rem;
+}
+/* The two sources are told apart by a left edge, not by a background tint: a tinted row reads as a
+ * status ("this one needs attention"), and a phone point is not a warning. */
+.field-live__row--phone { border-left: 3px solid var(--color-info-text); }
+.field-live__row--instrument { border-left: 3px solid var(--color-success-text); }
+
+.field-live__icon { display: inline-flex; color: var(--color-text-tertiary); }
+.field-live__name { font-weight: 600; }
+.field-live__name a { color: inherit; }
+.field-live__name em { font-style: normal; font-weight: 400; color: var(--color-text-tertiary); }
+.field-live__where { flex: 0 1 auto; color: var(--color-text-secondary); }
+.field-live__precision { flex: 1 1 180px; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+.field-live__when { color: var(--color-text-tertiary); white-space: nowrap; }
+.field-live__when em { font-style: normal; }
+
+.arrivals__drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+  padding: 1.1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+.arrivals__drop--over { border-color: var(--color-info-text); background: var(--color-info-surface); }
+.arrivals__drop p { margin: 0; }
+.arrivals__file { display: none; }
+.arrivals__busy { font-weight: 600; }
+
+.arrivals__result {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+}
+.arrivals__result--ok { color: var(--color-success-text); background: var(--color-success-surface); }
+.arrivals__result--bad { color: var(--color-error-text); background: var(--color-error-surface); }
+.arrivals__result ul { margin: 0.2rem 0 0 1rem; flex-basis: 100%; }
+
+.arrivals__table {
+  width: 100%;
+  margin-top: 0.8rem;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.arrivals__table th,
+.arrivals__table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.arrivals__table th { color: var(--color-text-tertiary); font-weight: 600; }
+.arrivals__table td em { font-style: normal; color: var(--color-text-tertiary); }
+.arrivals__row--bad td { color: var(--color-error-text); }
