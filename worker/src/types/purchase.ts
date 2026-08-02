@@ -314,4 +314,12 @@ export interface PurchaseReport {
   };
   aiCalls: number;
   errors: string[];
+
+  /** What the firm-wide document library saved this run (plan R13): documents already owned, so not
+   *  bought again. Optional because reports predating the ledger have no honest value to put here —
+   *  a zero would read as "saved nothing" rather than "not measured". */
+  librarySavings?: {
+    reused: number;
+    savedUsd: number;
+  };
 }

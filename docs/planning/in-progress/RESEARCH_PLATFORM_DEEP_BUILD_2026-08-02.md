@@ -537,13 +537,58 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase C — Find everything there is to find
 
-- **R13. Paid subscription platforms, first-class.**
+- **R13. Paid subscription platforms, first-class.** ◑ PART DONE 2026-08-02 — ledger + policy shipped,
+  new vendors and real credentials remain
   Wire the 8 purchase adapters to real credentials + a per-firm subscription record; add TexasFile,
   TitlePoint/DataTree-class vendors and Regrid parcel data behind the same interface. Every purchase
   writes a receipt row and a usage event (R4), and the cost-ascending order in
   `paid-platform-registry.ts` becomes an enforced policy, not a sort.
   *Acceptance:* a run that needs a $0.50 page records the spend, attaches the PDF, and never
   re-purchases a document already in the library.
+
+  **Shipped — the two halves that needed no credentials.**
+
+  *The library (seed 531 + `worker/src/services/purchase-ledger.ts`).* Purchases were tracked by
+  `BillingTracker` in `/tmp/billing/<project>.json`: a directory the container wipes on restart,
+  invisible to the app, scoped to one project. So nothing could answer the question that saves money
+  — "do we already own this?" — and a second run on the same property re-bought the same deed at
+  $1.00 a page. `research_document_purchases` is now the ledger and the library, and the orchestrator
+  checks it *before* opening a vendor session.
+
+  Identity is the whole problem, and it is keyed on the **county + instrument**, not the vendor (the
+  same deed from Tyler and from TexasFile is one document) and not the project (the library is
+  firm-wide; two jobs in one subdivision need the same governing plat). Instrument numbers are
+  normalised — `2019-12345`, `201912345`, `2019/12345`, `Doc# 2019-12345` are one key — because
+  comparing them literally is a duplicate charge on every run. Label prefixes are stripped from a
+  known list only: a blanket "drop leading letters" would destroy `V123P456`, where the letters *are*
+  the volume-and-page identity.
+
+  The guard is a **partial unique index**, not a code check: two concurrent runs on one county would
+  race past a code check, and this is exactly the workload that runs concurrently. Partial on
+  `status = 'completed'` so a failed attempt is recorded without permanently poisoning an instrument
+  we still need. Proven in production: a second completed insert was rejected by
+  `idx_doc_purchases_owned` (23505), two failed attempts on one instrument both stored, and the
+  instrument stayed buyable afterwards. Probe rows deleted.
+
+  Every purchase now also emits a `document_purchase` usage event, so a $1.00 page appears in the
+  same cost view R4 built for model spend instead of being money nothing could account for. Reuses
+  are totalled onto the report as `librarySavings`, because an invisible saving is one nobody defends
+  when somebody proposes turning the cache off.
+
+  *The policy (`worker/src/services/platform-choice.ts`).* Cost-ascending was a **sort**, and a sorted
+  list is a suggestion — the orchestrator chose a vendor by matching a recommendation's `source`
+  string, so a Tyler county at $0.50/page was routinely billed $1.00 because the recommendation said
+  TexasFile. `choosePlatform()` now makes the choice and states the reason, and `mayPurchaseFrom()`
+  is the enforcement point: a dearer vendor is refused when a cheaper configured one covers the
+  county, while a *cheaper* one is never refused (that would be the policy working against its own
+  purpose). What it skipped and why comes back as `cheaperButUnavailable` — which doubles as the
+  buy-list for whoever decides which subscriptions to pay for.
+
+  Worker suite 323/323; both roots typecheck clean.
+
+  **Remaining (owner-gated or larger):** real credentials for the 8 adapters and a per-firm
+  subscription record; TitlePoint/DataTree-class vendors and Regrid behind the same interface; PDF
+  attachment into `research_documents`. The library and the policy are what those plug into.
 
 - **R14. Full chain of title, to the earliest available instrument.**
   `chain-of-title/chain-builder.ts` exists; drive it to exhaustion — walk grantor/grantee backwards,

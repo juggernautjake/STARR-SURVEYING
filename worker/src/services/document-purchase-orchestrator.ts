@@ -25,6 +25,8 @@ import { TexasFilePurchaseAdapter } from './purchase-adapters/texasfile-purchase
 import { WatermarkComparison, type ExtractedCall } from './watermark-comparison.js';
 import { BillingTracker } from './billing-tracker.js';
 import { PipelineLogger } from '../lib/logger.js';
+// The firm-wide document library: never pay for the same page twice (research plan R13).
+import { findOwned, recordPurchase, summariseSavings, type OwnedDocument } from './purchase-ledger.js';
 import type {
   PurchaseOrchestratorConfig,
   DocumentPurchaseResult,
@@ -102,6 +104,9 @@ export class DocumentPurchaseOrchestrator {
     fs.mkdirSync(outputDir, { recursive: true });
 
     const purchases: DocumentPurchaseResult[] = [];
+    /** Documents this run did NOT have to buy. Reported, because an invisible saving is one nobody
+     *  defends when somebody proposes turning the library off. */
+    const reusedFromLibrary: OwnedDocument[] = [];
     const reanalyses: DocumentReanalysis[] = [];
     const discrepanciesResolved: DiscrepancyResolution[] = [];
     let totalCharged = 0;
@@ -203,6 +208,43 @@ export class DocumentPurchaseOrchestrator {
           continue;
         }
 
+        // ── Do we already own it? (plan R13) ─────────────────────────────
+        // Before any vendor session, before any charge. The library is firm-wide, so this catches a
+        // re-run of the same property AND a different job in the same county needing the same
+        // instrument — the case the old per-project `/tmp` billing file could never see.
+        const { owned, lookupFailed } = await findOwned(countyFIPS, rec.instrument);
+        if (owned) {
+          reusedFromLibrary.push(owned);
+          this.logger.info(
+            'Purchase',
+            `${rec.instrument} is already in the library (bought ${owned.purchasedAt.slice(0, 10)} from ` +
+            `${owned.platformId} for $${owned.costUsd.toFixed(2)}) — not buying it again`,
+          );
+          purchases.push({
+            instrument: rec.instrument,
+            documentType: rec.documentType,
+            source: owned.platformId,
+            status: 'already_owned',
+            pages: owned.pages,
+            costPerPage: 0,
+            totalCost: 0,
+            paymentMethod: 'account_balance',
+            transactionId: null,
+            downloadedImages: owned.storagePaths,
+            imageQuality: { format: 'unknown', hasWatermark: false, qualityScore: 0 },
+          });
+          continue;
+        }
+        if (lookupFailed) {
+          // Said out loud rather than swallowed: the run will proceed and may pay twice. A stalled
+          // 25-minute run is the worse failure, but a silent duplicate charge is how a cache stops
+          // being trusted.
+          this.logger.warn(
+            'Purchase',
+            `Could not read the purchase library before buying ${rec.instrument} — proceeding, which risks paying twice`,
+          );
+        }
+
         // Purchase from appropriate vendor
         let result: DocumentPurchaseResult;
         const sourceLower = rec.source.toLowerCase();
@@ -289,6 +331,31 @@ export class DocumentPurchaseOrchestrator {
           };
           this.billing.recordTransaction(tx);
           totalCharged += result.totalCost ?? 0;
+
+          // The durable half (plan R13). BillingTracker writes JSON under /tmp, which the container
+          // wipes on restart; this row is what still exists tomorrow, and what stops the next run
+          // buying the same page. It also emits the usage event, so a $1.00 page finally shows up in
+          // the same cost view as model spend instead of being money nothing could account for.
+          if (result.status === 'purchased') {
+            const ledger = await recordPurchase({
+              projectId,
+              countyFips: countyFIPS,
+              instrument: rec.instrument,
+              documentType: rec.documentType,
+              platformId: result.vendor ?? rec.source,
+              pages: result.pages,
+              costUsd: result.totalCost ?? 0,
+              transactionId: result.transactionId ?? null,
+              storagePaths: result.downloadedImages ?? result.imagePaths ?? [],
+              receipt: { source: rec.source, reason: rec.reason, roi: rec.roi },
+            });
+            if (!ledger.saved) {
+              this.logger.warn(
+                'Purchase',
+                `${rec.instrument} was bought but not written to the library: ${ledger.error ?? 'unknown'}`,
+              );
+            }
+          }
 
           // ── Step 4: Re-extract from official images ──────────────────
           if (
@@ -443,6 +510,7 @@ export class DocumentPurchaseOrchestrator {
       },
       aiCalls,
       errors,
+      librarySavings: summariseSavings(reusedFromLibrary),
     };
 
     // Persist report
