@@ -1096,7 +1096,52 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* markup survives reload, is attributable to a person, and the original download is
   byte-identical to what was fetched.
 
-- **R25. The packet.**
+- **R25. The packet.** ◑ PART DONE 2026-08-02 — the packet, its PDF, versioning and approval
+  shipped; the selection UI and embedded page images remain
+
+  **Shipped** (seed 536 + `lib/research/packet.ts` + `packet-pdf.ts` + the packets and packet-PDF
+  routes).
+
+  Everything the research produces was scattered — facts in `extracted_data_points`, conflicts in
+  `discrepancies`, the gameplan in `research_survey_plans`, documents and markup elsewhere. Nothing
+  said *"these, in this order, are what we are handing the crew"*, so what the crew received was
+  whatever the screens happened to show that day, and nobody could reproduce it afterwards.
+
+  **Every item carries its provenance line**, which is where the last eight slices land. A fact
+  prints whether a person **checked** it (R23), whether there is a **source** to open (R17), and —
+  when corrected — what the extraction originally said. A document nobody could read prints *"THIS
+  DOCUMENT COULD NOT BE READ — its contents are not reflected anywhere in this packet"* (R18), and a
+  partial one says absent means unconfirmed rather than absent. A conflict prints as a question with
+  its field check, never a verdict (R20). Without those three separate statements a packet flattens a
+  verified reading and an unreviewed guess into the same sentence — which is the one thing the
+  document somebody stakes a boundary from must never do.
+
+  **Contents are references, not copies.** A packet that duplicated its fact text would silently
+  disagree with a corrected value the moment somebody fixed one. The exception is deliberate:
+  approving snapshots the assembled packet into `rendered_json`, and the PDF for an approved packet
+  renders from that snapshot, because what was approved must stay what was approved.
+
+  **Approval is a signature, not a flag.** A database CHECK refuses `approved` without an approver, a
+  time *and* a snapshot; editing an approved packet is rejected with "create a new version"; and the
+  previous approved packet is **superseded, not deleted** — a packet a crew worked from is evidence
+  of what they were given.
+
+  The PDF's contents page is generated **from** the sections, so it cannot describe a packet
+  different from the one printed. Warnings go on the **cover**, because a caveat at the back is a
+  caveat nobody reads, and each unverified item is *also* marked on the item itself, since a reader
+  scanning a packet does not carry a cover caveat down to item 34. Every page of an unapproved packet
+  says DRAFT, so a draft and an approved packet cannot be confused in a truck. A missing reference
+  becomes a warning rather than a silent omission — a packet quietly one item shorter than what was
+  approved is the failure this table exists to prevent.
+
+  Root suite 21,618 passing; typecheck clean. Seed 536 applied to production.
+
+  **Remaining:** the picker UI for choosing and ordering items (the API takes the selection today),
+  and embedded page images and drawings in the PDF — it is text-first on purpose, because a packet's
+  value is in what it *says* and that is what is readable on a phone in a truck. R24's
+  `flattenLayers` is the input when annotated page images are added here.
+
+  Original item:
   A packet builder: choose facts, documents, images, annotations, the gameplan and the conflicts;
   order them; add cover notes; render a single PDF **and** keep the structured version. Versioned,
   with an approver recorded.
