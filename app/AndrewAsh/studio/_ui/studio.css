@@ -493,3 +493,69 @@ a.vaTile:hover {
     bottom: 16px;
   }
 }
+
+/* ── TABS + TWO-COLUMN DETAIL ─────────────────────────────────────────────────────────────────────
+ *
+ * Tabs are LINKS, not buttons: the filter lives in the URL, so a filtered view can be bookmarked,
+ * shared, and survives a browser back — and the page stays a server component with no client state.
+ * Horizontally scrollable on a phone rather than wrapped, because five wrapped tabs eat a third of a
+ * 390px screen before any content appears.
+ */
+.vaTabRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.vaTabRow::-webkit-scrollbar {
+  display: none;
+}
+.vaTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: var(--va-surface);
+  color: var(--va-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  flex: none;
+}
+.vaTab:hover {
+  color: var(--va-text);
+  border-color: color-mix(in srgb, var(--va-accent) 40%, var(--va-line));
+}
+.vaTabActive {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 10%, var(--va-surface));
+}
+.vaTabCount {
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--va-surface-raised);
+  border-radius: 8px;
+  padding: 1px 7px;
+  color: inherit;
+}
+
+/* Detail pages: content left, actions right. One column below 1000px, with the ACTIONS second —
+   on a phone you read the message before you decide what to do about it. */
+.vaSplitPanels {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .vaSplitPanels {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+}
