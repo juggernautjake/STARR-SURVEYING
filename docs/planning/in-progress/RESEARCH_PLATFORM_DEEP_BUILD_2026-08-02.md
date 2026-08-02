@@ -1436,30 +1436,65 @@ missing** is everything that makes it usable: nothing persists a per-neighbour r
 the reviewer a list, nothing records survey recency, and the depth is all-or-nothing inside one run
 rather than shallow-then-deepen-on-request.
 
-- **R31. The adjoiner register.**
+- **R31. The adjoiner register.** DONE 2026-08-02
   Persist every neighbour the initial run identifies: parcel id, owner, situs, acreage, **how it was
   identified** (deed call / GIS adjacency / plat lot — they carry different confidence), what the
   shallow pass found for it, and the date of the most recent survey or plat on record for it.
   *Acceptance:* after a run, every neighbour is a row a reviewer can list, with its identification
   basis and its most recent survey date or an explicit "not known".
 
-- **R32. The nearby-properties surface.**
+- **R32. The nearby-properties surface.** DONE 2026-08-02
   A list in the review UI: brief description per neighbour, how it was identified, what documents
   exist for it, and survey recency — sorted so the ones most likely to help come first.
   *Acceptance:* a reviewer can see at a glance which neighbours have recent surveys on file.
 
-- **R33. Deepen on demand.**
+- **R33. Deepen on demand.** DONE 2026-08-02
   A per-neighbour "research this fully" action that queues an R28 request for that parcel, linked
   back to the subject property, with progress and results visible from the subject's page.
   *Acceptance:* a reviewer clicks one neighbour, a full run is queued for it, and the subject
   property's page shows that it was requested, by whom, and where it got to.
 
-- **R34. ROW and easement rollup.**
+- **R34. ROW and easement rollup.** DONE 2026-08-02
   One place answering "what encumbers this property" — easements and rights-of-way from the subject's
   own documents *and* from the adjoiners', since an easement is usually recorded against one of the
   two tracts it crosses.
   *Acceptance:* an easement recorded only in a neighbour's deed but crossing the subject property
   appears in the subject's rollup, with the document it came from.
+
+**Phase G shipped 2026-08-02 — seed 539, four modules, four surfaces, 68 new tests.**
+
+The pieces that already existed did the hard part and reached nobody: the adjacent phase identified
+neighbours and searched their deeds and plats, then wrote it all to a `/tmp` blob the container
+wipes. Everything below is about making that usable and about not overstating what it means.
+
+- **How a neighbour was identified is part of the fact.** A deed call names who adjoined *on the day
+  that deed was written* — strong evidence of the line, weak evidence of the current owner. GIS
+  adjacency is current, but county parcel polygons are drafting aids routinely off by feet. A plat
+  lot is exact where the plat governs and silent elsewhere. Flattening the three into "adjoiner"
+  loses the basis on which a reviewer decides where to spend a run.
+- **A deed is not a survey.** Dating survey recency from deeds would make every neighbour look
+  recently surveyed and destroy the signal the owner asked for. Only plats, replats and surveys
+  count, and NULL means *we found none*, never *never surveyed* — it is not coloured like a recent
+  one either.
+- **Ranking is by what is on file, not geometry.** The question is where to spend 25 minutes, so a
+  2-acre neighbour with a 2024 survey outranks a 400-acre one with nothing.
+- **Deepening goes through R28's queue**, so it is deduplicated, retried and notified like any other
+  run — two properties adjoining the same neighbour link to one request rather than paying twice. A
+  neighbour with no address and no parcel id is refused up front, because a run with nothing to
+  search on fails slowly and expensively. Declining is *recorded*, because "we looked and decided
+  not to" is a judgement and hiding it makes the next reviewer redo the thinking.
+- **The encumbrance rollup includes the neighbours' records** and refuses to decide whether a
+  neighbour's easement burdens the subject — that depends on the grant's wording and on where the
+  line really falls. Surfaced, attributed, left open, exactly as R20 treats a conflict. The gap it
+  cannot close (neighbours not yet researched) is **sized**, not implied.
+- **The register is written by the pipeline**, and the upsert deliberately does not touch `depth` or
+  `deep_request_id`: a reviewer's decision must survive a re-run of the subject property, or a queued
+  run somebody paid for is silently discarded.
+
+One regex trap worth recording: the encumbrance width parser required its noun immediately after the
+unit, which missed `20 foot utility easement` — the commonest form there is. Allowing intervening
+words meant tightening `right` to `right of way`, or `210.5 feet to the right` in a metes-and-bounds
+recital would parse as a 210-foot easement: a fabricated encumbrance on a drawing.
 
 ---
 
