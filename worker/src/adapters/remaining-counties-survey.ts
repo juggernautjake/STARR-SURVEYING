@@ -68,13 +68,12 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
     status: 'open_partial',
     url: 'http://www.cc.co.bastrop.tx.us/RealEstate/SearchEntry.aspx',
     freeCoverage: '1973–2026 (permanent index; images from 1973)',
-    blocker: 'Search form NOT driven to results — the visible Search control refuses a click. Located, not working.',
+    blocker: 'Pre-1973 is not online at all. Adapter class not yet written — the search itself is driven and proven.',
     note:
       'A FOURTH vendor: Harris Recording Solutions / Aumentum Recorder. Entry is as "Visitor" with NO ' +
-      'login once the disclaimer is acknowledged, and the Real Estate index exposes party, grantor, ' +
-      'grantee, instrument-number range, book, page and document-type filters. The portal states its ' +
-      'own coverage: permanent index 01/01/1973–07/30/2026, temporary index to 08/02/2026, images ' +
-      'from 1973. Pre-1973 is not online at all.',
+      'login once the disclaimer is acknowledged. Driven on 2026-08-02: party search "SMITH" returned ' +
+      '100 records with instrument number, book/page, filing date, document type, [R]/[E] party role ' +
+      'markers and survey names. Two traps had to be cleared first — see BASTROP_TRAPS.',
   },
   Hays: {
     fips: '48209',
@@ -158,6 +157,46 @@ export function bosqueGapWarning(year: number): string | null {
     `deed does not exist. Records for ${BOSQUE_GAP.from}–${BOSQUE_GAP.to} must be obtained from the ` +
     `clerk in Meridian or through a paid iDocMarket subscription.`
   );
+}
+
+// ── THE TWO TRAPS THAT HID BASTROP ──────────────────────────────────────────────────────────────
+//
+// The search looked broken for three attempts. Neither cause was visible from the outside, and both
+// produce the same symptom as a county with no records: a form that submits and returns nothing.
+//
+// 1. THE BUTTON HAS NO BOX. `#cphNoMargin_SearchButtons1_btnSearch` is an <input> with width 0,
+//    height 0 and z-index -1. Playwright refuses to click it — correctly, since it is not a visible
+//    target. Aumentum renders buttons as table composites and the real clickable surface is a <td>
+//    whose id is the input's id plus `__5`. Clicking that works.
+//
+// 2. THE TEXTBOX IS A WATERMARK FIELD. Its value is literally "Lastname Firstname" until a focus
+//    handler clears it. `page.fill()` sets `.value` without triggering that handler, so the
+//    watermark survives, the form posts "Lastname Firstname" as the search term, and the server
+//    answers "Please enter search criteria." — a validation message that never reaches a scraper
+//    reading only the results area.
+//
+//    The fix is to click the field, clear it, and TYPE with real key events.
+//
+// Both belong to the same family as the trusted-click trap on Avenu: a programmatic shortcut that
+// looks like it worked, on a page that then behaves as though nothing was entered.
+
+export const BASTROP_TRAPS = {
+  /** The <input> is 0×0; click this <td> instead. */
+  searchButtonSelector: '#cphNoMargin_SearchButtons1_btnSearch__5',
+  /** The value the field holds before anybody types into it. */
+  partyWatermark: 'Lastname Firstname',
+  partyField: '#cphNoMargin_f_txtParty',
+  /** What the server says when the watermark is submitted as the search term. */
+  watermarkValidation: 'Please enter search criteria.',
+  /** Party role markers in the results grid. */
+  roleMarkers: { grantor: 'R', grantee: 'E' },
+} as const;
+
+/** Is a value actually a search term, or just the watermark the page shipped with? */
+export function isRealSearchTerm(value: string): boolean {
+  const v = (value ?? '').trim();
+  if (!v) return false;
+  return v.toLowerCase() !== BASTROP_TRAPS.partyWatermark.toLowerCase();
 }
 
 /** The CountyFusion host that actually answers. */

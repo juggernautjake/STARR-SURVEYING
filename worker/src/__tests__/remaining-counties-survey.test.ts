@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  BASTROP_TRAPS,
   BOSQUE_GAP,
   BROWSER_CONFIRMED_DEAD,
   COUNTYFUSION_HOST,
@@ -10,6 +11,7 @@ import {
   COUNTYFUSION_WRONG_TLD,
   REMAINING_COUNTY_SURVEY,
   bosqueGapWarning,
+  isRealSearchTerm,
   describeCounty,
   freePathWarning,
   idocMarketSearchUrl,
@@ -154,9 +156,11 @@ describe('the last three counties, hunted', () => {
     expect(b.freeCoverage).toContain('1973');
   });
 
-  it('does not claim Bastrop works, because the search was not driven', () => {
-    // Located is not working — the same line Tyler and Avenu were held to.
-    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('NOT driven to results');
+  it('claims Bastrop is driven, but only as far as it actually is', () => {
+    // The search now runs and returns records. What does NOT exist yet is an adapter class, and the
+    // blocker says so rather than letting "driven" imply "wired into the platform".
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.note).toContain('Driven on 2026-08-02');
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('Adapter class not yet written');
   });
 
   it('distinguishes "no online portal" from "we have not found it"', () => {
@@ -179,5 +183,43 @@ describe('the last three counties, hunted', () => {
     // Pre-1973 Bastrop deeds are not online at all.
     expect(freePathWarning('Bastrop', 1960)).toContain('FREE index covers 1973');
     expect(freePathWarning('Bastrop', 1990)).toBeNull();
+  });
+});
+
+describe('the two traps that hid Bastrop', () => {
+  it('records that the button has no box, and what to click instead', () => {
+    // The <input> is 0x0 with z-index -1. Playwright refuses it, correctly. Aumentum renders
+    // buttons as table composites; the clickable surface is a <td> named <inputId>__5.
+    expect(BASTROP_TRAPS.searchButtonSelector).toBe('#cphNoMargin_SearchButtons1_btnSearch__5');
+    expect(BASTROP_TRAPS.searchButtonSelector).toContain('__5');
+  });
+
+  it('records the watermark that page.fill() cannot clear', () => {
+    // The field's value IS "Lastname Firstname" until a focus handler clears it. Setting .value
+    // programmatically leaves the watermark in place and the form posts it as the search term.
+    expect(BASTROP_TRAPS.partyWatermark).toBe('Lastname Firstname');
+    expect(BASTROP_TRAPS.watermarkValidation).toBe('Please enter search criteria.');
+  });
+
+  it('treats the watermark as an empty search, not a term', () => {
+    // Submitting it looks exactly like a county with no records: a form that posts and returns
+    // nothing.
+    expect(isRealSearchTerm('Lastname Firstname')).toBe(false);
+    expect(isRealSearchTerm('  lastname firstname  ')).toBe(false);
+    expect(isRealSearchTerm('')).toBe(false);
+    expect(isRealSearchTerm('SMITH')).toBe(true);
+  });
+
+  it('records which marker means which side of a conveyance', () => {
+    expect(BASTROP_TRAPS.roleMarkers).toEqual({ grantor: 'R', grantee: 'E' });
+  });
+
+  it('now describes Bastrop as driven rather than merely located', () => {
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.note).toContain('Driven on 2026-08-02');
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.note).toContain('100 records');
+  });
+
+  it('is honest that no adapter class exists yet', () => {
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('Adapter class not yet written');
   });
 });

@@ -2011,6 +2011,41 @@ in a browser), and no replacement portal has been located. Seed 557.
 
 **Every county in the 80-mile ring now has a definite answer.**
 
+#### R39, eleventh finding — Bastrop's search runs; two invisible traps were hiding it
+
+Seed 557 recorded Bastrop as "located, not working" because the Search control refused every click.
+It works. Two separate traps were in the way, neither visible from outside, and **both produce
+exactly the symptom of a county with no records: a form that submits and returns nothing.**
+
+**1. The button has no box.** `#cphNoMargin_SearchButtons1_btnSearch` is an `<input>` with width 0,
+height 0 and `z-index: -1`. Playwright refuses it — correctly, it is not a visible target. Aumentum
+renders buttons as table composites, and the real clickable surface is a `<td>` whose id is the
+input's id plus `__5`.
+
+**2. The textbox is a watermark field.** Its value is literally `"Lastname Firstname"` until a focus
+handler clears it. `page.fill()` sets `.value` without triggering that handler, so the watermark
+survives, the form posts *"Lastname Firstname"* as the search term, and the server answers **"Please
+enter search criteria."** — a validation message that never reaches a scraper reading only the
+results area. The fix is to click the field, clear it, and **type with real key events**.
+
+Both belong to the same family as the trusted-click trap on Avenu: *a programmatic shortcut that
+appears to work, on a page that then behaves as though nothing was entered.*
+
+**Driven** — party search `SMITH` → 100 records:
+
+```
+202607417    05/04/2026  DEED        [E] SMITH AARON THOMAS → SMITH BARBARA AMBE
+                                     JOSE ORTIZ SURVEY
+8577 347-249 10/25/1984  DEED        [R] SMITH A BYRON → MEYERS MCDADE H
+7553 116-487 12/18/1980  ASSIGNMENT  [E] SMITH A C → POOL LLOYD
+```
+
+Instrument number, book/page, filing date, document type, party names with `[R]`/`[E]` role markers
+(R = grantoR, E = grantEe) and survey names.
+
+**Not routed.** No adapter class exists for Harris/Aumentum. *"The search runs"* and *"the platform
+can research this county"* are different claims, and only the first is true. Seed 558.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
