@@ -374,9 +374,38 @@ polish — nothing else in this plan can be trusted while the engine is down and
   Recording also runs after every scheduled sweep, not only the manual `POST
   /admin/health/sites/check`.
 
-  **Still to do:** the golden set itself — ten known properties with hand-verified expected
-  extractions, registered as canaries so the *semantic* layer (did we get the right data) can be
-  checked, not just the structural one (are the selectors there).
+  **The semantic layer ✅ SHIPPED 2026-08-02** — `worker/src/infra/canary.ts`. The structural
+  check catches a redesign; it cannot catch the failures that actually cost a survey, all of which
+  leave every selector in place and the answers wrong:
+
+  · a results grid switched to lazy-load, so the selector matches an empty table;
+  · a portal that starts returning the FIRST result for every query, so every property looks the
+    same;
+  · a vendor migration that silently swaps acreage from acres to square feet;
+  · a session expiry that renders a login page carrying the same container ids.
+
+  Comparison is the whole design problem, because a canary that demands byte-equality fails every
+  time a county reformats a date and an alarm that cries wolf is one nobody reads. Fields are
+  compared **by kind**: identifiers normalised (`R-12345` = `R12345`), names by token set (a county
+  reordering `SMITH, JOHN A` to `JOHN A SMITH` is not a break), measures with a relative tolerance
+  — but **beyond ten times that tolerance it is a mismatch, not drift**, which is how the
+  acres→square-feet swap is caught rather than averaged away — and long text by token similarity.
+
+  Two verdicts kept deliberately apart: **`no_record`** ("the search returned nothing — the search
+  itself is broken") and **`fail`** ("it returned the wrong property"). Different breaks, different
+  repairs; collapsing them sends the repair agent to diagnose the wrong thing.
+
+  The semantic layer can only make a health check **worse**. A page with every selector present that
+  returns the wrong property is `broken`; a passing canary does **not** excuse a missing required
+  element, because the canary exercises one property and that element may matter for every other.
+  The failing sentence names both values — `expected "R-12345", got "R99999"` — because "parcel_id
+  changed" sends somebody to guess.
+
+  **Still to do:** register the actual golden records. The evaluator, the layer and the storage are
+  in place; what remains is choosing ~10 properties across vendors and having a surveyor confirm
+  their expected values. That confirmation is the point — a canary seeded from an unverified
+  extraction would pin today's mistakes as tomorrow's truth — so it is an owner/RPLS task, not a
+  coding one.
 
 - **R10. Self-heal on real data, review-required.**
   With R8+R9 the existing proposal/apply pipeline finally has inputs. Keep auto-apply **off**; the

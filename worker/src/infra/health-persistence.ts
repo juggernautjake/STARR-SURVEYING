@@ -29,6 +29,7 @@
 import type { SelectorCheckResult, SiteHealthResult } from './site-health-monitor.js';
 import { getSupabase } from '../services/pipeline.js';
 import { invalidateAdapterCache, type SiteType } from './adapter-registry.js';
+import { toSemanticLayer, type CanaryEvaluation } from './canary.js';
 
 /** The registry's health vocabulary (seed 371). */
 export type HealthStatus = 'healthy' | 'degraded' | 'broken' | 'no_record' | 'error';
@@ -53,6 +54,9 @@ export function toHealthCheck(
   adapterId: string,
   result: SiteHealthResult,
   triggeredBy = 'scheduled',
+  /** The canary outcome, when one ran (plan R9 semantic layer). Structural alone cannot catch a
+   *  site that keeps every selector and returns the wrong property. */
+  canary?: CanaryEvaluation,
 ): HealthCheckRow {
   const missingRequired = result.selectors.filter((s) => s.required && !s.found);
   const missingOptional = result.selectors.filter((s) => !s.required && !s.found);
@@ -61,11 +65,21 @@ export function toHealthCheck(
   // `broken` is reserved for "we got the page and the thing we depend on is gone" — the signal the
   // repair agent can actually act on, because it has a page to diagnose. An unreachable site gets
   // `error`: there is nothing to diagnose and a proposal built from a timeout would be a guess.
-  const status: HealthStatus =
+  let status: HealthStatus =
     unreachable ? 'error'
     : missingRequired.length > 0 ? 'broken'
     : missingOptional.length > 0 ? 'degraded'
     : 'healthy';
+
+  // The semantic layer can only make the verdict WORSE, never better. A page whose selectors are
+  // all present but which returns the wrong property is broken however healthy it looks, and a
+  // passing canary does not excuse a missing required element — the canary exercises one property,
+  // and the element may matter for every other one.
+  if (canary) {
+    if (canary.verdict === 'no_record' && status !== 'error') status = 'no_record';
+    else if (canary.verdict === 'fail' && status !== 'error') status = 'broken';
+    else if (canary.verdict === 'drift' && status === 'healthy') status = 'degraded';
+  }
 
   return {
     adapter_id: adapterId,
@@ -84,8 +98,13 @@ export function toHealthCheck(
       },
       probe: { vendor: result.vendor, url: result.url, site_id: result.siteId },
       alerts: result.alerts ?? [],
+      ...(canary ? { semantic: toSemanticLayer(canary) } : {}),
     },
-    diff_summary: summarise(status, missingRequired, missingOptional, result),
+    // The canary's sentence wins when it is the thing that failed: "all 4 selectors present" is
+    // true and useless next to "the canary property no longer returns its known values".
+    diff_summary: canary && canary.verdict !== 'pass'
+      ? canary.summary
+      : summarise(status, missingRequired, missingOptional, result),
     http_status: null,
     error_message: unreachable ? (result.alerts?.[0]?.message ?? 'site unreachable') : null,
     duration_ms: Math.round(result.latencyMs),
