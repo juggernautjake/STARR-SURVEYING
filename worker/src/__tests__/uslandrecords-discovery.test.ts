@@ -5,10 +5,12 @@ import {
   USLR_COUNTIES,
   USLR_COVERAGE,
   USLR_FIELDS,
+  USLR_PAGE_SIZE,
   USLR_REQUIRES_TRUSTED_CLICK,
   USLR_RESULTS_IN_POPUP,
   USLR_RESULTS_PROVEN,
   coverageWarning,
+  describeUslrCompleteness,
   indexBegins,
   uslrUrl,
 } from '../adapters/uslandrecords-discovery.js';
@@ -94,5 +96,37 @@ describe('the two counties disagree about their own coverage by 170 years', () =
   it('stays silent about a county it knows nothing about', () => {
     // Silence beats inventing a coverage claim for an unsurveyed county.
     expect(coverageWarning('Bosque', new Date(1900, 0, 1))).toBeNull();
+  });
+});
+
+describe('a paged read states its own completeness', () => {
+  it('says nothing extra when every row was read', () => {
+    // Robertson: 220 documents from all 239 party rows across 3 pages.
+    const s = describeUslrCompleteness('Robertson', 220, 239, 3, 239);
+    expect(s).toContain('220 document(s) from 239 party row(s) across 3 page(s)');
+    expect(s).not.toContain('INCOMPLETE');
+  });
+
+  it('says INCOMPLETE when rows were missed', () => {
+    // This is what the adapter reported before paging worked: 20 of 239.
+    const s = describeUslrCompleteness('Robertson', 20, 20, 1, 239);
+    expect(s).toContain('INCOMPLETE');
+    expect(s).toContain('reported 239 row(s) but only 20 were read');
+  });
+
+  it('always says party lists are partial', () => {
+    // A name search returns only the parties that matched, however many pages are walked.
+    expect(describeUslrCompleteness('Falls', 39, 40, 2, 40)).toContain('PARTIAL');
+  });
+
+  it('refuses to claim completeness when the grid stated no total', () => {
+    // Asserting completeness from silence is how a partial answer starts looking whole.
+    const s = describeUslrCompleteness('Falls', 12, 12, 1, null);
+    expect(s).toContain('completeness is UNKNOWN');
+    expect(s).toContain('do not treat this as the whole result set');
+  });
+
+  it('records the page size the grid defaults to', () => {
+    expect(USLR_PAGE_SIZE).toBe(20);
   });
 });

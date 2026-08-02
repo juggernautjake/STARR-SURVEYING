@@ -76,6 +76,35 @@ export const USLR_REQUIRES_TRUSTED_CLICK = true;
 /** Driven end to end on 2026-08-02 for both counties. */
 export const USLR_RESULTS_PROVEN = true;
 
+/** The grid serves 20 rows per page. */
+export const USLR_PAGE_SIZE = 20;
+
+/** A pager that never runs out would otherwise hang a research run. 239 rows is 12 pages; this is
+ *  far beyond any real search and still bounded. */
+export const USLR_MAX_PAGES = 100;
+
+/** Say plainly whether a paged read got everything.
+ *
+ *  This vendor prints no "page X of Y" — only a "239 rows" counter — so completeness is measured
+ *  against that count. Where the count is absent nothing is claimed, because asserting completeness
+ *  from silence is how a partial answer starts looking like a whole one. */
+export function describeUslrCompleteness(
+  county: string,
+  documents: number,
+  rowsSeen: number,
+  pagesRead: number,
+  reportedRows: number | null,
+): string {
+  const parts = [`${county}: ${documents} document(s) from ${rowsSeen} party row(s) across ${pagesRead} page(s).`];
+  parts.push('Party lists are PARTIAL — a name search returns only the parties that matched.');
+  if (reportedRows === null) {
+    parts.push('The grid did not state a total, so completeness is UNKNOWN — do not treat this as the whole result set.');
+  } else if (rowsSeen < reportedRows) {
+    parts.push(`INCOMPLETE — the grid reported ${reportedRows} row(s) but only ${rowsSeen} were read.`);
+  }
+  return parts.join(' ');
+}
+
 /** What each county's index actually covers, quoted from its own certification banner. */
 export interface Coverage {
   from: string;

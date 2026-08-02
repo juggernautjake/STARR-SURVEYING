@@ -1852,8 +1852,43 @@ carrying legal descriptions, spanning 01/02/2025 to 12/30/2025. The same search 
 whenever the walk stops early, and reports any shortfall against the portal's own total. Bounded at
 200 pages, because a pager that never disables Next would hang a research run. Seed 553.
 
-**This limit still applies to the Avenu 20/20 counties** (Falls, Robertson), which page at 20 and
-read only page one — declared in every result rather than hidden. That is the next slice.
+#### R39, seventh finding — page furniture broke the pager too
+
+Falls and Robertson read 20 rows and stopped; Robertson's own counter said 239. Two things fixed
+it, and the second matters more.
+
+**Ask for more rows before paging.** The grid defaults to 20 and offers 20/50/100 as page-size
+buttons. Raising it first is strictly better than walking a pager — fewer round trips, no postback
+sequencing, no chance of a record shifting page mid-walk. Robertson drops from 12 pages to 3, and
+from 53 seconds to 6.
+
+**Then: the wait was watching a row that never changes.** Paging still stopped after one page even
+though the `Next` control fired correctly. The readiness condition waited for *"the first row
+containing a date"* to change — and that row is the **search-criteria summary** (`Date From:
+1/1/1800 Date Thru: 7/30/2026`), identical on every page. The condition could never be satisfied,
+the wait timed out, and the walk concluded there were no more pages.
+
+That is the **third time in this build** a readiness condition satisfiable by page furniture
+produced a wrong answer, after the Tyler menu and this vendor's own certification banner. The fix is
+the same every time: *wait for the thing you actually need, not for something that resembles it.*
+Here that means a cell which is **exactly** a date — a record's file date — never summary text that
+merely contains one. (The pager control also had to be `#DocList1_LinkButtonNext`; matching the word
+"Next" picks up a plain `<td>` that renders it and is not clickable.)
+
+**Driven:**
+
+| County | Before | After |
+|---|---|---|
+| Falls | 20 of 40 rows | **39 documents from all 40 rows**, 2 pages |
+| Robertson | 20 of 239 rows | **220 documents from all 239 rows**, 3 pages, spanning **1839–2025** |
+
+Zero duplicates in either. Robertson now reaches 1839 — thirty years deeper than page one showed.
+
+The useful proof is that **the INCOMPLETE warning disappeared on its own** once everything was read.
+The completeness reporting is accurate in both directions, not merely pessimistic. Seed 554.
+
+**Every proven vendor now returns complete result sets.** Kofile, eDocTec, Tyler Eagle and Avenu
+20/20 — 20 counties, no page-one-only reads remaining.
 
 #### Survey results, 2026-08-02 (seed 541)
 

@@ -17,8 +17,25 @@ import {
   type DocumentType,
   type PricingInfo,
 } from './clerk-adapter.js';
-import { USLR_COUNTIES, USLR_FIELDS, coverageWarning, indexBegins, uslrUrl } from './uslandrecords-discovery.js';
-import { readResults } from './uslandrecords-results-parser.js';
+import {
+  USLR_COUNTIES,
+  USLR_FIELDS,
+  USLR_MAX_PAGES,
+  coverageWarning,
+  describeUslrCompleteness,
+  indexBegins,
+  uslrUrl,
+} from './uslandrecords-discovery.js';
+import { readResults, type GroupedDocument } from './uslandrecords-results-parser.js';
+
+/** What READ_GRID hands back from the page. */
+interface GridRead {
+  headers: string[];
+  rows: string[][];
+  reportedRows: number | null;
+  headerMatchesExpected?: boolean;
+  liveHeaders?: string[];
+}
 import { resolveAdapter } from '../infra/adapter-registry.js';
 
 /** Read the results grid: the table holding the most dated rows. */
@@ -194,21 +211,118 @@ export class USLandRecordsAdapter extends ClerkAdapter {
       )
       .catch(() => undefined);
 
-    const grid = (await page.evaluate(`(${READ_GRID})()`)) as { headers: string[]; rows: string[][]; reportedRows: number | null };
+    // Ask for 100 rows a page before reading anything.
+    //
+    // The grid defaults to 20 and offers 20/50/100 as page-size buttons. Raising it is strictly
+    // better than walking a pager: fewer round trips, no postback sequencing, and no chance of a
+    // record shifting page mid-walk. Robertson's 239-row search drops from 12 pages to 3.
+    await this.setPageSize100();
+
+    const firstGrid = (await page.evaluate(`(${READ_GRID})()`)) as GridRead;
     const pageText = await page.evaluate(() => document.body.innerText);
 
-    const outcome = readResults({ ...grid, pageText }, this.countyName);
-    this.lastParseSummary = outcome.statement;
-    console.log(`[USLandRecords/${this.countyName}] ${outcome.statement}`);
-
+    const outcome = readResults({ ...firstGrid, pageText }, this.countyName);
     if (outcome.state === 'too_broad') {
       // Throwing beats returning [] — an empty array here would be recorded as "this name owns
       // nothing in this county", which is the opposite of what the portal said.
+      this.lastParseSummary = outcome.statement;
+      console.log(`[USLandRecords/${this.countyName}] ${outcome.statement}`);
       throw new Error(outcome.statement);
     }
-    if (outcome.state === 'empty') return [];
+    if (outcome.state === 'empty') {
+      this.lastParseSummary = outcome.statement;
+      console.log(`[USLandRecords/${this.countyName}] ${outcome.statement}`);
+      return [];
+    }
 
-    return outcome.documents.map((d) => ({
+    return this.readAllPages(firstGrid, outcome.documents);
+  }
+
+  /** Switch the grid to 100 rows per page and wait for it to actually reload.
+   *
+   *  Never throws: if the control is missing the read still happens at 20 a page, and
+   *  `describeUslrCompleteness` reports the shortfall rather than hiding it. */
+  private async setPageSize100(): Promise<void> {
+    const page = this.page!;
+    const before = await page.evaluate(
+      () =>
+        Array.from(document.querySelectorAll('table tr')).filter(
+          (r) => /\d{1,2}\/\d{1,2}\/\d{4}/.test(r.textContent || '') && r.querySelectorAll('td').length >= 5,
+        ).length,
+    );
+    // 20 rows on screen and 20 available is already everything — no reason to reload.
+    if (before === 0) return;
+
+    const clicked = await page
+      .click('#DocList1_PageView100Btn', { timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!clicked) return;
+
+    // Wait for the row count to grow OR settle; a fixed delay here would read the old 20-row grid.
+    await page
+      .waitForFunction(
+        (prev) => {
+          const n = Array.from(document.querySelectorAll('table tr')).filter(
+            (r) => /\d{1,2}\/\d{1,2}\/\d{4}/.test(r.textContent || '') && r.querySelectorAll('td').length >= 5,
+          ).length;
+          const w = window as unknown as { __uslrPS?: number; __uslrPSStable?: number };
+          if (w.__uslrPS === n) w.__uslrPSStable = (w.__uslrPSStable ?? 0) + 1;
+          else { w.__uslrPS = n; w.__uslrPSStable = 0; }
+          return n > prev || (n > 0 && (w.__uslrPSStable ?? 0) >= 4);
+        },
+        before,
+        { timeout: 45_000, polling: 500 },
+      )
+      .catch(() => undefined);
+  }
+
+  /** Walk every page of the grid, not just the first.
+   *
+   *  The grid serves 20 rows a page and states the rest as a "239 rows" counter. Returning page one
+   *  meant answering a 239-row search with 20 documents and nothing marking it short — which reads
+   *  as a complete answer, and is the same defect as an empty result wearing a more convincing
+   *  disguise.
+   *
+   *  There is no page-2 URL: the pager is an ASP.NET postback, so paging means clicking through it. */
+  private async readAllPages(first: GridRead, firstDocs: GroupedDocument[]): Promise<ClerkDocumentResult[]> {
+    const page = this.page!;
+    const reported = first.reportedRows;
+    const byKey = new Map<string, GroupedDocument>();
+    // Key on citation AND date: the citation alone can repeat across series in some counties.
+    const keyOf = (d: GroupedDocument) => `${d.instrumentNumber}::${d.recordingDate}`;
+    for (const d of firstDocs) byKey.set(keyOf(d), d);
+
+    let pagesRead = 1;
+    let rowsSeen = first.rows.length;
+
+    while (pagesRead < USLR_MAX_PAGES) {
+      if (reported !== null && rowsSeen >= reported) break;
+
+      const firstCell = first.rows[0]?.[0] ?? '';
+      const advanced = await this.clickNextPage(firstCell, rowsSeen);
+      if (!advanced) break;
+
+      const grid = (await page.evaluate(`(${READ_GRID})()`)) as GridRead;
+      if (grid.rows.length === 0) break;
+
+      const text = await page.evaluate(() => document.body.innerText);
+      const next = readResults({ ...grid, pageText: text }, this.countyName);
+      pagesRead += 1;
+      rowsSeen += grid.rows.length;
+      if (next.state !== 'has_results') break;
+
+      // Dedupe across pages — a record shifting page mid-walk would otherwise read as two
+      // conveyances of the same land.
+      for (const d of next.documents) if (!byKey.has(keyOf(d))) byKey.set(keyOf(d), d);
+      first.rows = grid.rows;
+    }
+
+    const docs = [...byKey.values()];
+    this.lastParseSummary = describeUslrCompleteness(this.countyName, docs.length, rowsSeen, pagesRead, reported);
+    console.log(`[USLandRecords/${this.countyName}] ${this.lastParseSummary}`);
+
+    return docs.map((d) => ({
       instrumentNumber: d.instrumentNumber,
       volumePage: { volume: d.citation.volume, page: d.citation.page },
       documentType: this.classifyDocumentType(d.documentType) as DocumentType,
@@ -218,6 +332,45 @@ export class USLandRecordsAdapter extends ClerkAdapter {
       pageCount: d.pageCount ?? undefined,
       source: 'uslandrecords (party list PARTIAL — name search returns only matching parties)',
     }));
+  }
+
+  /** Click the pager's Next and wait for the grid's contents to actually change.
+   *
+   *  Waiting on the first row's text rather than a delay: this pager is an ASP.NET postback with no
+   *  page indicator to watch, and reading straight after the click re-reads the page just left —
+   *  which yields the same 20 documents again and stops the walk one page in. */
+  private async clickNextPage(previousFirstCell: string, _rowsSeen: number): Promise<boolean> {
+    const page = this.page!;
+    // The pager's Next is `#DocList1_LinkButtonNext`, an ASP.NET postback link. Matching on the
+    // text "Next" instead picks up a plain <td> that renders the same word and is not clickable —
+    // which fails silently and stops the walk after one page.
+    const clicked = await page
+      .click('#DocList1_LinkButtonNext', { timeout: 10_000 })
+      // A trusted click again — the same synthetic-click trap as the search button itself.
+      .then(() => true)
+      .catch(() => false);
+    if (!clicked) return false;
+
+    // Compare the first genuine DATE CELL in the grid.
+    //
+    // Not "the first row containing a date": that row is the search-criteria summary ("Date From:
+    // 1/1/1800"), which never changes, so the wait could never be satisfied and the walk stopped
+    // after one page even though Next had worked. The record's file date is a cell that is EXACTLY
+    // a date, which the summary text never is.
+    return page
+      .waitForFunction(
+        (prev) => {
+          const cells = Array.from(document.querySelectorAll('td,th'))
+            .filter((c) => c.querySelector('table') === null)
+            .map((c) => (c.textContent || '').trim());
+          const firstDate = cells.find((c) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(c));
+          return !!firstDate && firstDate !== prev;
+        },
+        previousFirstCell,
+        { timeout: 45_000, polling: 400 },
+      )
+      .then(() => true)
+      .catch(() => false);
   }
 
   /** Record when a caller asks for years this county never digitised. */
