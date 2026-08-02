@@ -681,7 +681,45 @@ polish — nothing else in this plan can be trusted while the engine is down and
   document-attachment path R13's library and R17's evidence capture need, and is better built once
   there than three times here.
 
-- **R16. Imagery pack, per parcel.**
+- **R16. Imagery pack, per parcel.** ◑ PART DONE 2026-08-02 — framing + provenance + the plan
+  shipped; the fetchers need provider keys and licensing decisions
+
+  **Shipped** (`worker/src/services/imagery-plan.ts`).
+
+  What existed was a single Google Static Maps call inside `lot-correlator.ts` at **zoom 19, fixed**,
+  base64'd straight into an AI prompt. The first defect is arithmetic: zoom 19 is ~0.26 m/pixel at
+  Texas latitudes, so a 1280 px frame covers about 330 m — fine for a quarter-acre town lot, and
+  about a **third of the width** of a 200-acre tract (~900 m square). The model was being asked to
+  identify a parcel from a picture of a ninth of it, on the rural work this firm mostly does.
+  `frameParcel()` now computes the zoom from acreage and latitude. It reports the square-parcel
+  assumption rather than hiding it — a 10-acre strip 100 ft wide and half a mile long needs a far
+  wider frame than `sqrt(area)` suggests — and errs wide, because a parcel that is small in frame is
+  still identifiable while one cropped in half is not.
+
+  The second defect is provenance: the image carried no capture date, scale, source or licence, so it
+  could illustrate a packet but never support a conclusion in one. "The aerial shows the fence inside
+  the deed line" is worthless without knowing when it was flown, and **Google Static Maps does not
+  return a capture date at all** — so an unknown date is recorded as null and the caption says
+  "capture date not published by the provider" rather than letting the reader assume current. The
+  current aerial is planned from Esri/NAIP first for exactly this reason: a known flight date beats
+  slightly newer tiles. `SOURCE_LICENCE` marks Google as `check_licence` rather than guessing, the
+  same refusal-to-assume as R12's captcha posture.
+
+  `planImagery()` produces the acceptance criterion's own list — current aerial, historical aerial
+  aimed at the **controlling deed year** (±10; a 2024 aerial says nothing about where a fence stood
+  when a 1968 deed was written), and Street View at **each** public frontage, since a corner tract
+  has two and the occupation evidence differs on each. Everything it cannot do comes back as a stated
+  reason: a private drive is why Street View is missing, and no known frontage is *an unanswered
+  question, not a finding that the parcel is landlocked*.
+
+  Worker suite 383/383; both roots typecheck clean.
+
+  **Remaining:** the fetchers themselves. Deliberately not built here — they need provider
+  credentials and the redistribution decisions flagged `check_licence`, which are the owner's (§4.3),
+  and those are easier to make against an explicit list of what the packet needs than against a code
+  path that quietly produces nothing when a key is missing.
+
+  Original item:
   Parcel-framed captures at fixed scales from: high-resolution current aerial (Esri World Imagery /
   NAIP), Google satellite + **Street View** at each road frontage, oblique/bird's-eye where available,
   and **historical aerials** (USGS EarthExplorer / TNRIS) chosen near the deed date. Every image
