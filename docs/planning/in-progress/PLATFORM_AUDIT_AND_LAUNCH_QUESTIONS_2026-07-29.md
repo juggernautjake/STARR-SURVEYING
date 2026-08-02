@@ -959,14 +959,18 @@ need to be found. Building it after them means retro-fitting search onto three m
 **Phase 4 — Polish**
 17. ✅ **DONE 2026-08-01.** 160 inline hexes paid down, and the four missing status-as-TEXT tokens
     that had six pages independently writing the same four hexes. The ratchet holds the line.
-18. ⚠ **FOUR OF SIX DONE 2026-08-01 (this session).** maintenance/[id] 2,569 → 553 · inventory
-    2,392 → 677 · pay-progression 2,578 → 869 · receipts 2,285 → 1,237. Two remain partial and the
-    reason is recorded rather than papered over: `research/[projectId]` (3,770 → 3,616) is ONE
-    3,400-line component whose four stage sections each read dozens of pieces of its own state —
-    threading forty props apiece is a rewrite wearing a refactor's clothes; and
-    `lesson-builder/[id]` (2,545 → 2,315) gave up everything that read nothing from the builder
-    (the 23-type catalogue, the converters, the 24-case default-content lookup) while its remaining
-    1,600 lines are editor JSX with the per-type editors woven into the drag-and-drop map.
+18. ⚠ **FIVE OF SIX DONE 2026-08-01.** maintenance/[id] 2,569 → 553 · inventory 2,392 → 677 ·
+    pay-progression 2,578 → 869 · receipts 2,285 → 1,237 · lesson-builder/[id] 2,545 → **1,978**
+    (the 23-type block catalogue and the converters, then the whole preview renderer as
+    `LessonPreview` with its 21 pieces of interactive state passed explicitly).
+
+    **`research/[projectId]` (3,770 → 3,616) is deferred, and the number is measured rather than
+    asserted.** It is ONE 3,400-line component. Extracting just its smallest stage section — stage 4,
+    Job Prep, 650 lines — was attempted and reverted: `tsc` named **125 identifiers** it reads from
+    the page, of which ~95 are state and handlers, i.e. a 95-prop interface for one of four sections.
+    That trades 650 lines of JSX for ~200 lines of prop boilerplate, three places to edit whenever
+    the page gains a field, and no reduction in coupling — it only makes the coupling verbose. The
+    honest fix is to give this page its own state store, which is a redesign, not item 18.
 19. ✅ **DONE 2026-08-01.** Shipped with 8i.
 
 **Phase 5 — §2.4/§2.5/§2.6, added 2026-08-01 (this session)**
@@ -1183,7 +1187,7 @@ What was built after the sequencing above was last updated, and what is honestly
 | **Research §8.1/§8.2/§8.5** | `/admin/research/sites` — the registration screen that makes `detectVendor()` and `prefillAdapterFromTemplate()` a feature rather than two tested functions with no caller. |
 | **Research §8.3/§8.4/§8.6** | The site probe: a pure analyser plus a flagged, single-page-load browser shell. Off by default. |
 | **§9.8** | The live portal-health panel on `/admin/research/coverage`. |
-| **Item 18** | Four of the six page-size outliers under 2,000 lines; the other two partially, with reasons. |
+| **Item 18** | Five of the six page-size outliers under 2,000 lines. The sixth is deferred with a measured reason (a 95-prop interface for one of four stage sections). |
 | **Item 17** | The moved code took its hexes to tokens rather than re-baselining them. |
 
 ### Found while building, and fixed
@@ -1209,8 +1213,8 @@ What was built after the sequencing above was last updated, and what is honestly
 1. **Owner-gated, not buildable here.** The staging Supabase project (Phase 0 item 2) — the tooling
    and `npm run db:bootstrap:staging` are ready and need an account on the owner's org. Item 8q's
    Topcon/Leica conversations. The deploy-time secrets in §1.5.
-2. **Item 18's last two pages** — `research/[projectId]` and `lesson-builder/[id]`, for the reasons
-   recorded against item 18.
+2. **Item 18's last page** — `research/[projectId]`. Deferred after measuring the alternative:
+   see item 18. It needs a state store, not an extraction.
 3. **§8.4's side-by-side confirm** (live screenshot beside parsed values) in the research probe. It
    is only worth building once the probe is switched on, which is a decision.
 4. **The D4 follow-up questions** (Q-D4a…f) are still unanswered, and Q-D4a in particular —
