@@ -81,7 +81,7 @@
   "app/admin/learn/flashcard-bank/page.tsx": 4,
   "app/admin/learn/flashcards/create/page.tsx": 1,
   "app/admin/learn/flashcards/page.tsx": 6,
-  "app/admin/learn/manage/lesson-builder/[id]/page.tsx": 23,
+  "app/admin/learn/manage/lesson-builder/[id]/page.tsx": 20,
   "app/admin/learn/manage/media/page.tsx": 11,
   "app/admin/learn/manage/page.tsx": 4,
   "app/admin/learn/manage/question-builder/page.tsx": 21,

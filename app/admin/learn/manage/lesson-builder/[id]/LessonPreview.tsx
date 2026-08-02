@@ -204,7 +204,7 @@ export default function LessonPreview({
                         <span className="block-practice__step-num">{si + 1}</span>
                         <div>
                           <strong>{step.label}</strong>
-                          {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: '#374151' }}>{step.content}</p>}
+                          {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: 'var(--color-text-secondary)' }}>{step.content}</p>}
                         </div>
                       </div>
                     ))}
@@ -216,7 +216,7 @@ export default function LessonPreview({
                   )}
                 </div>
               )}
-              {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
+              {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid var(--color-border)', margin: '2rem 0' }} />}
               {block.block_type === 'embed' && block.content.url && (
                 <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: 'var(--border-light)', borderRadius: '8px', margin: '1.5rem 0' }} />
               )}
@@ -273,7 +273,7 @@ export default function LessonPreview({
                 );
               })()}
               {block.block_type === 'file' && block.content.url && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: 'var(--color-bg-app)', borderRadius: '8px', margin: '1.5rem 0', border: 'var(--border-light)' }}>
                   <span style={{ display: "inline-flex" }}><Paperclip size={20} strokeWidth={1.75} /></span>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{block.content.name || 'File'}</div>
