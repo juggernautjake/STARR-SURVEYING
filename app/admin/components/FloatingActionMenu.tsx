@@ -28,7 +28,9 @@ export default function FloatingActionMenu({ children }: FloatingActionMenuProps
   }, []);
 
   const checkOpenPanels = useCallback(() => {
-    const panels = document.querySelectorAll('.fb, .discussion-panel, .messenger-panel');
+    // `.assistant-panel` joins the list (audit §5 item 14): a collapsed pill hides its buttons, and
+    // hiding the button that owns the open panel takes the panel with it mid-conversation.
+    const panels = document.querySelectorAll('.fb, .discussion-panel, .messenger-panel, .assistant-panel');
     const anyOpen = Array.from(panels).some(p => {
       const style = window.getComputedStyle(p);
       return style.display !== 'none' && style.visibility !== 'hidden';

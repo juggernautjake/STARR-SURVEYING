@@ -58,6 +58,10 @@
       "schedule": "0 13 * * 1-5"
     },
     {
+      "path": "/api/cron/proactive-alerts",
+      "schedule": "0 13 * * *"
+    },
+    {
       "path": "/api/cron/drawing-due-reminder",
       "schedule": "0 13 * * *"
     },

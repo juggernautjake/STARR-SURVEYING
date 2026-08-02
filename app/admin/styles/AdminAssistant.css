@@ -1,0 +1,377 @@
+/* app/admin/styles/AdminAssistant.css — the assistant dock (audit §5, item 14).
+ *
+ * Loaded by AdminLayoutClient because the dock is mounted on every admin page, the same reason
+ * AdminMessaging.css and AdminDiscussions.css are loaded there.
+ *
+ * Design tokens throughout rather than literal hexes: audit §6/item 17 is paying that debt down
+ * across the app, and a new file shipping fresh inline hexes would add to the pile it is clearing.
+ */
+
+.assistant-fab-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.assistant-fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.35);
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.assistant-fab:hover {
+  background: var(--color-brand-navy-d);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.45);
+}
+
+/* Matches the other FAB tooltips exactly — a different tooltip style on one button in a row of five
+ * reads as a rendering bug rather than a distinction. */
+.assistant-fab-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  white-space: nowrap;
+  background: #fef3c7;
+  color: #92400e;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.assistant-fab-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #fef3c7;
+  border-bottom: none;
+}
+
+/* Inside the shared green pill the FAB row normalises every button to 48px; the assistant joins the
+ * same rules so it lines up with Messages / Flag / Fieldbook / Calculator. */
+.fab-menu .assistant-fab-wrap {
+  width: 48px !important;
+  height: 48px !important;
+  flex: 0 0 48px !important;
+  position: relative !important;
+  overflow: visible !important;
+}
+.fab-menu .assistant-fab-tooltip {
+  position: absolute !important;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  transform: translate(-50%, 4px) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.fab-menu .assistant-fab-wrap:hover .assistant-fab-tooltip,
+.fab-menu .assistant-fab:focus-visible + .assistant-fab-tooltip,
+.fab-menu .assistant-fab-wrap:focus-within .assistant-fab-tooltip {
+  opacity: 1 !important;
+  transform: translate(-50%, 0) !important;
+}
+/* The pill's expanded max-width was sized for four buttons; a fifth needs room or it is clipped. */
+.fab-menu--expanded .fab-menu__buttons {
+  max-width: 310px;
+}
+
+/* ── The panel ─────────────────────────────────────────────────────────────────────────────────── */
+
+.assistant-panel {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: min(400px, calc(100vw - 2rem));
+  height: min(560px, calc(100vh - 8rem));
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(15, 20, 25, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 210;
+  text-align: left;
+  animation: assistant-panel-in 0.16s ease-out;
+}
+@keyframes assistant-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.assistant-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  flex-shrink: 0;
+}
+.assistant-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-width: 0;
+}
+.assistant-panel__page {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.75;
+  padding-left: 0.4rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.assistant-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+.assistant-panel__actions button {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.85;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+}
+.assistant-panel__actions button:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.assistant-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: var(--color-surface-subtle, #f9fafb);
+}
+
+.assistant-panel__empty {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary, #4b5563);
+}
+.assistant-panel__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+.assistant-panel__suggestions button {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.76rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface, #fff);
+  color: var(--color-text-secondary, #4b5563);
+  cursor: pointer;
+}
+.assistant-panel__suggestions button:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+
+.assistant-turn {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  max-width: 92%;
+}
+.assistant-turn__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant-turn--user {
+  align-self: flex-end;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  border-bottom-right-radius: 3px;
+}
+.assistant-turn--assistant {
+  align-self: flex-start;
+  background: var(--color-surface, #fff);
+  color: var(--color-text-primary, #111827);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-bottom-left-radius: 3px;
+}
+.assistant-turn--busy {
+  color: var(--color-text-tertiary, #6b7280);
+  font-style: italic;
+}
+.assistant-turn--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.assistant-turn__icon {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+/* Which tools ran, under the answer that used them. Small and quiet: it is provenance, not content. */
+.assistant-turn__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--color-border, #e5e7eb);
+  font-size: 0.7rem;
+  color: var(--color-text-tertiary, #6b7280);
+}
+
+.assistant-confirm {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font-family: 'Inter', sans-serif;
+}
+.assistant-confirm__head {
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #92400e;
+  margin-bottom: 0.35rem;
+}
+.assistant-confirm__what {
+  font-size: 0.82rem;
+  color: var(--color-text-primary, #111827);
+  margin-bottom: 0.4rem;
+}
+.assistant-confirm__args {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary, #4b5563);
+}
+.assistant-confirm__args > div {
+  display: flex;
+  gap: 0.4rem;
+}
+.assistant-confirm__args dt {
+  font-weight: 600;
+  text-transform: capitalize;
+  flex: 0 0 auto;
+}
+.assistant-confirm__args dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.assistant-confirm__buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+.assistant-confirm__buttons button {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.32rem 0.8rem;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.assistant-confirm__yes {
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+.assistant-confirm__no {
+  background: var(--color-surface, #fff);
+  border-color: var(--color-border, #e5e7eb);
+  color: var(--color-text-secondary, #4b5563);
+}
+.assistant-confirm__buttons button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.assistant-panel__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface, #fff);
+  flex-shrink: 0;
+}
+.assistant-panel__composer textarea {
+  flex: 1;
+  resize: none;
+  max-height: 110px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 9px;
+  color: var(--color-text-primary, #111827);
+  background: var(--color-surface, #fff);
+}
+.assistant-panel__composer textarea:focus {
+  outline: none;
+  border-color: var(--color-brand-navy);
+}
+.assistant-panel__composer button {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: none;
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.assistant-panel__composer button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* On a phone the panel is anchored to the FAB, which sits bottom-right; a fixed sheet is easier to
+ * read and cannot end up half off-screen when the pill is collapsed. */
+@media (max-width: 640px) {
+  .assistant-panel {
+    position: fixed;
+    inset: auto 0.5rem 5.5rem 0.5rem;
+    width: auto;
+    height: min(70vh, 520px);
+  }
+}

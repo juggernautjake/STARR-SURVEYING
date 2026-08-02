@@ -21,6 +21,8 @@ import { isInternalUser } from '@/lib/saas/internal-user';
 import { useCadReturnPathTracker } from '@/lib/admin/cad-return-path';
 import { CalculatorProvider } from './calculator/CalculatorProvider';
 import CalculatorFab from './calculator/CalculatorFab';
+import { AssistantProvider } from './assistant/AssistantProvider';
+import AssistantDock from './assistant/AssistantDock';
 
 // Layout-global CSS only. Route-specific stylesheets are imported from
 // the corresponding route segment layout (e.g. app/admin/research/layout.tsx)
@@ -43,6 +45,9 @@ import '../styles/AdminFieldWork.css';
 // 2026-06-18.
 import '../styles/AdminMessaging.css';
 import '../styles/AdminDiscussions.css';
+// Same reason again (audit §5 item 14): the assistant dock is mounted by this layout, so its
+// stylesheet has to be loaded on every admin page rather than by any one route.
+import '../styles/AdminAssistant.css';
 
 // Exported so the bug-report page selector (DiscussionThreadButton) can
 // offer the same admin route → label list the nav uses.
@@ -209,6 +214,9 @@ function Inner({ children }: { children: React.ReactNode }) {
       <ToastProvider>
       <CommandPaletteProvider>
       <CalculatorProvider>
+      {/* AssistantProvider wraps the layout rather than the dock so any page — and the help drawer's
+          fallback (item 15) — can call `openAssistant(question)` without owning a transcript. */}
+      <AssistantProvider>
       <div className="admin-layout admin-layout--nav-v2">
         <IconRail />
         {/* AdminSidebar is the MOBILE DRAWER — hidden on desktop via CSS, where the IconRail above
@@ -236,8 +244,10 @@ function Inner({ children }: { children: React.ReactNode }) {
           <DiscussionThreadButton />
           <Fieldbook />
           <CalculatorFab />
+          <AssistantDock />
         </FloatingActionMenu>
       </div>
+      </AssistantProvider>
       </CalculatorProvider>
       </CommandPaletteProvider>
     </ToastProvider>

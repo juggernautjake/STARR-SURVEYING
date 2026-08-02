@@ -22,6 +22,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { assess, type ComplianceRow } from '@/lib/compliance/register';
+import { notifyMany } from '@/lib/notifications';
 
 export type AlertSeverity = 'info' | 'warn' | 'urgent';
 
@@ -223,4 +224,101 @@ export async function markDelivered(alerts: ProactiveAlert[], sentTo: string[]):
     })),
     { onConflict: 'register_key,threshold_days,expires_on', ignoreDuplicates: true },
   );
+}
+
+// ── Delivery ────────────────────────────────────────────────────────────────────────────────────
+//
+// The header above says turning alerts into notifications is "one deliberate wiring step, not a
+// default". This is that step (audit §5 item 16), and it goes into the EXISTING `notifications`
+// table rather than a new proactive-alerts feed.
+//
+// That is the whole design decision. D4b asks which channel an alert must reach — "a channel they
+// actually watch". There is one of those already: the bell in the top bar, polled every 15 seconds,
+// with a toast for high-severity items and a read/unread state people maintain. A parallel feed would
+// be a second inbox, and the failure mode of a second inbox is that neither gets watched.
+
+/** Who hears about a firm-wide alert: everyone who could act on it.
+ *
+ *  `registered_users` is the addressable population — the same table every other cron in this repo
+ *  resolves recipients from. Approved and not banned, because a notification to a revoked account is
+ *  a row nobody will ever read that still counts as "we told them".
+ *
+ *  `admin` and `developer` and nothing else, matching `isAdmin`/`isDeveloper` and the GET route's own
+ *  visibility rule. Inventing an "owner" or "manager" role here would resolve to nobody: the role
+ *  vocabulary is a closed union in `lib/auth`, and a query for a role that does not exist fails by
+ *  returning an empty recipient list — which reads in the logs as "nothing to send". */
+async function adminRecipients(): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from('registered_users')
+    .select('email, roles, is_approved, is_banned')
+    .or('roles.cs.{admin},roles.cs.{developer}');
+  if (error) {
+    console.error('[proactive] could not resolve alert recipients:', error.message);
+    return [];
+  }
+
+  return ((data ?? []) as Array<{ email: string | null; is_approved: boolean | null; is_banned: boolean | null }>)
+    .filter((u) => !!u.email && u.is_approved !== false && u.is_banned !== true)
+    .map((u) => u.email as string);
+}
+
+/** The bell's escalation vocabulary, not ours. Two severity scales on one notification is how a
+ *  screen ends up colouring an urgent alert as normal. */
+const ESCALATION: Record<AlertSeverity, 'low' | 'normal' | 'high' | 'urgent'> = {
+  urgent: 'urgent',
+  warn: 'high',
+  info: 'normal',
+};
+
+export interface DeliveryReport {
+  considered: number;
+  delivered: number;
+  recipients: number;
+  /** Alerts that had an audience nobody could be found for — reported, not swallowed. */
+  undeliverable: string[];
+}
+
+/**
+ * Send every not-yet-announced alert to the people who can act on it, and record that it was sent.
+ *
+ * ORDER MATTERS AND IT IS NOT THE OBVIOUS ONE. The ledger is written AFTER the notifications, so a
+ * crash between the two re-sends rather than silently swallowing. A duplicate is an annoyance; a
+ * swallowed "this licence expired" is the failure the whole module exists to prevent.
+ */
+export async function deliverProactiveAlerts(): Promise<DeliveryReport> {
+  const all = await collectProactiveAlerts();
+  const fresh = await undelivered(all);
+  if (fresh.length === 0) return { considered: all.length, delivered: 0, recipients: 0, undeliverable: [] };
+
+  const admins = await adminRecipients();
+  const undeliverable: string[] = [];
+  const sentTo = new Set<string>();
+  const announced: ProactiveAlert[] = [];
+
+  for (const alert of fresh) {
+    // A named audience is the person the alert is ABOUT ("you have been clocked in for 14 hours").
+    // Everything else is firm business and goes to the people who can act on it — telling the crew
+    // that a job is over estimate is neither actionable nor theirs to know.
+    const recipients = alert.audience?.length ? alert.audience : admins;
+    if (recipients.length === 0) {
+      undeliverable.push(alert.dedupeKey);
+      continue;
+    }
+    await notifyMany(recipients, {
+      type: 'system',
+      title: alert.title,
+      body: alert.detail,
+      link: alert.href,
+      // `source_id` carries the dedupe key so a notification can be traced back to the situation that
+      // produced it — otherwise "why did I get this twice" is unanswerable.
+      source_type: 'proactive_alert',
+      source_id: alert.dedupeKey,
+      escalation_level: ESCALATION[alert.severity],
+    });
+    recipients.forEach((r) => sentTo.add(r));
+    announced.push(alert);
+  }
+
+  await markDelivered(announced, [...sentTo]);
+  return { considered: all.length, delivered: announced.length, recipients: sentTo.size, undeliverable };
 }

@@ -96,3 +96,6 @@ import './learning-stack';
 // team-status + vehicles-status + equipment-out + low-consumables.
 // Legacy widgets stay registered.
 import './field-pulse';
+// Audit §5 item 16 — "Needs attention": the standing view of the proactive
+// alert rules, beside the bell that announces them as they arrive.
+import './proactive-alerts';
