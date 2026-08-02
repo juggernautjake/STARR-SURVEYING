@@ -1601,3 +1601,87 @@
   background: #E5E7EB;
   color: #374151;
 }
+
+/* ── Research packet on the job (plan R26) ────────────────────────────────── */
+/*
+ * The four states must not look alike. A crew that sees an empty panel concludes there is nothing,
+ * drives out, and repeats work somebody already did — or works from a draft nobody finished
+ * checking. So "no research", "research but no packet", "draft only" and "approved" each say what
+ * they are, and only one of them is green.
+ */
+
+.job-packet {
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #9CA3AF;
+  border-radius: 6px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 1rem;
+  background: #F9FAFB;
+  font-size: 0.85rem;
+}
+
+.job-packet--ok     { border-left-color: #059669; }
+.job-packet--warn   { border-left-color: #B45309; background: #FFFBEB; }
+.job-packet--muted  { border-left-color: #9CA3AF; }
+
+.job-packet__head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.35rem;
+}
+
+.job-packet__headline { margin: 0 0 0.25rem; color: #111827; font-weight: 600; }
+
+/* The "what to do about it" line. On the warn states this is the only actionable content, so it is
+   not styled as a footnote. */
+.job-packet__next { margin: 0 0 0.5rem; color: #92400E; }
+
+.job-packet__warnings {
+  margin: 0 0 0.6rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.job-packet__warnings li {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-start;
+  color: #92400E;
+  background: #FEF3C7;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.job-packet__block { margin-bottom: 0.6rem; }
+
+.job-packet__block-title {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0 0 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.job-packet__block ul { margin: 0; padding-left: 1.1rem; }
+.job-packet__block li { margin-bottom: 0.15rem; color: #374151; }
+
+.job-packet__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.job-packet__pdf {
+  font-weight: 650;
+  color: #1D4ED8;
+  text-decoration: underline;
+}
+
+.job-packet__count { font-size: 0.78rem; color: #6B7280; }

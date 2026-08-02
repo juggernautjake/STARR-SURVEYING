@@ -1148,7 +1148,41 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* a packet PDF opens with a table of contents, and every included document carries its
   provenance line.
 
-- **R26. Packet → job → field crew.**
+- **R26. Packet → job → field crew.** ◑ PART DONE 2026-08-02 — job page and Work Mode shipped; the
+  native mobile job view and true offline caching remain
+
+  **Shipped** (`lib/research/job-packet.ts` + the job research-packet route + `JobResearchPacket`,
+  mounted on the job page **and** in Work Mode).
+
+  `research_projects.job_id` has been written on project creation since the table existed and **read
+  by nothing**. So everything R13–R25 produced — the chain, the plats, the conflicts, the gameplan,
+  the packet — lived behind `/admin/research/<uuid>`, a screen a field crew has no reason to open and
+  often no permission to. The acceptance is exactly that: *"a field user opens the job and reads the
+  plan without touching the research UI."*
+
+  **Four states, and a naive version renders three of them as an empty panel:** `no_research`,
+  `research_only` (research exists, nobody assembled a packet), `draft_only`, and `approved`. The
+  middle two are the dangerous ones — a crew that sees nothing concludes there is nothing, drives out
+  and repeats work somebody already did. And a draft is explicitly **not** handed over: *"Do not work
+  from the draft"*, because working from one is how unchecked facts reach the ground. Superseded
+  packets are never offered; they are evidence of what a crew was previously given, not something to
+  work from now.
+
+  The crew view reads the approved **snapshot** rather than the live tables — it is what was
+  approved, and being a single object is what will make it cacheable for a truck with no signal. The
+  cover warnings print first because they change what the crew does, and `fieldHighlights()` lifts
+  the field plan and the open questions out of a packet that may run to fifty facts, since nobody
+  scrolls for them on a phone. In Work Mode the panel sits **above** the captured points: it is what
+  you read before you start, not after.
+
+  Root suite 21,634 passing; typecheck clean.
+
+  **Remaining:** the native mobile app's job view, and genuine offline access to the documents. The
+  snapshot shape was chosen with that in mind — one object per job, no joins — but service-worker
+  caching and the mobile surface are their own work, and the device-runtime items in this repo are
+  owner-tested on hardware rather than here.
+
+  Original item:
   Attach the packet to a job (`research_projects.job_id` finally load-bearing), surface it on the job
   page, in Work Mode, and in the mobile app's job view. The crew sees the gameplan and can open any
   document offline.

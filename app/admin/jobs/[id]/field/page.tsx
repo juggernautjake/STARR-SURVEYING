@@ -35,6 +35,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+// The approved research packet, read in the truck without opening the research UI (plan R26).
+import JobResearchPacket from '../JobResearchPacket';
 
 interface PointSummary {
   id: string;
@@ -376,6 +378,11 @@ export default function JobFieldDataPage() {
       </div>
 
       {error ? <div style={styles.error}>{error}</div> : null}
+
+      {/* Work Mode: the crew reads the plan and the open questions here, without ever opening the
+          research UI — which is the acceptance for plan R26. Placed ABOVE Points because it is what
+          you read before you start, not after. */}
+      {jobId && <JobResearchPacket jobId={jobId} />}
 
       <section style={styles.section}>
         <h2 style={styles.h2}>Points</h2>

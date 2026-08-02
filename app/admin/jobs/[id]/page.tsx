@@ -17,6 +17,7 @@ import JobFileManager from '../../components/jobs/JobFileManager';
 // originating lead so the running conversation isn't lost after
 // conversion.
 import JobOriginatingLead from './JobOriginatingLead';
+import JobResearchPacket from './JobResearchPacket';
 import JobEquipmentList from '../../components/jobs/JobEquipmentList';
 import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobCadPanel from '../../components/jobs/JobCadPanel';
@@ -595,6 +596,10 @@ export default function JobDetailPage() {
                     card silently no-renders when this job wasn't
                     converted from a lead. */}
                 <JobOriginatingLead jobId={jobId} />
+                {/* The approved research packet, on the job (plan R26). research_projects.job_id had
+                    been written since the table existed and read by nothing, so everything the
+                    research produced lived behind a screen a crew has no reason to open. */}
+                <JobResearchPacket jobId={jobId} />
                 {/* Description — click to edit */}
                 <div className="job-detail__section">
                   <h3>Description</h3>
