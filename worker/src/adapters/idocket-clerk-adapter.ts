@@ -16,6 +16,9 @@
 // Spec §2.12 — iDocket Clerk Adapter
 
 import { acquireBrowser } from '../lib/browser-factory.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call reads a clerk document image.
+import { modelFor } from '../infra/model-router.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
@@ -1321,7 +1324,7 @@ export class IDocketClerkAdapter extends ClerkAdapter {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: modelFor('read_scan').model,
         max_tokens: 4_000,
         messages: [
           {
@@ -1500,7 +1503,7 @@ export class IDocketClerkAdapter extends ClerkAdapter {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: modelFor('read_scan').model,
           max_tokens: 50,
           messages: [
             {

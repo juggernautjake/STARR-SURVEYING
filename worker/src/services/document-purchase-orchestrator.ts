@@ -17,6 +17,8 @@
 //        JSON.parse try/catch on intelligence file; projectId validation guard
 
 import * as fs from 'fs';
+// Model chosen by TASK, cheap-first (research plan R6): this call decides whether a document is worth buying.
+import { modelFor } from '../infra/model-router.js';
 import * as path from 'path';
 import { KofilePurchaseAdapter } from './purchase-adapters/kofile-purchase-adapter.js';
 import { TexasFilePurchaseAdapter } from './purchase-adapters/texasfile-purchase-adapter.js';
@@ -511,7 +513,7 @@ export class DocumentPurchaseOrchestrator {
         // 30-second timeout to prevent hanging on slow API responses
         signal: AbortSignal.timeout(30_000),
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: modelFor('classify').model,
           max_tokens: 8000,
           messages: [
             {

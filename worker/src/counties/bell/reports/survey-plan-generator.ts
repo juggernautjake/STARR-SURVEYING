@@ -7,6 +7,8 @@
  */
 
 import type { BellResearchResult, SurveyPlan, FieldStep, PlatLayer } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first (research plan R6): this call writes the survey gameplan — the one output a crew acts on.
+import { modelFor } from '../../../infra/model-router.js';
 import type { SurveyType } from '../types/research-input.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -142,7 +144,7 @@ async function generateFieldSteps(
     const easements = input.research.easementsAndEncumbrances;
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: modelFor('synthesize').model,
       max_tokens: 3000,
       messages: [{
         role: 'user',

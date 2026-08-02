@@ -7,6 +7,9 @@
  */
 
 import type { ScreenshotCapture, SiteIntelligenceNote } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call reads a portal page structure.
+import { modelFor } from '../../../infra/model-router.js';
 
 // ── Main Export ───────────────────────────────────────────────────────
 
@@ -65,7 +68,7 @@ async function analyzeScreenshot(
     const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: modelFor('extract').model,
       max_tokens: 1000,
       messages: [{
         role: 'user',

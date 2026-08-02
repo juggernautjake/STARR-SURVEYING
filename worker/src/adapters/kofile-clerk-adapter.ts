@@ -14,6 +14,9 @@
 // Spec §2.4 — Kofile/PublicSearch Adapter
 
 import type { BrowserContext } from 'playwright';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call reads a clerk document image.
+import { modelFor } from '../infra/model-router.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -545,7 +548,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: modelFor('read_scan').model,
         max_tokens: 4000,
         messages: [{
           role: 'user',
@@ -873,7 +876,7 @@ Return ONLY valid JSON, no explanation. If no results visible, return [].`,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: modelFor('read_scan').model,
         max_tokens: 100,
         messages: [{
           role: 'user',

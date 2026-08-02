@@ -271,12 +271,35 @@ polish — nothing else in this plan can be trusted while the engine is down and
   Deployment defaults: `RUN_MAX_MINUTES`, `RUN_MAX_COST_USD`, `RUN_MAX_PAID_PAGES`, documented in
   `.env.example`.
 
-- **R6. Model routing, cheap-first.**
-  Adopt `lib/ai/models.ts` in the worker. A router picks by task: OCR/classification → cheapest tier;
-  extraction from clean text → mid; handwriting, conflicting calls, gameplan synthesis → top tier.
-  Escalate only on low confidence, and record the escalation.
-  *Acceptance:* a fixture run shows ≥60% of calls on the cheap tier with no drop in extraction
-  accuracy against the golden set (R9).
+- **R6. ✅ DONE 2026-08-02 — model routing, cheap-first.**
+  `worker/src/infra/model-router.ts`. **25 hard-coded model ids** across the worker became a choice
+  by TASK, hand-assigned per call site (a regex guessing from surrounding text would be exactly the
+  per-call-site accident this removes):
+
+  `classify` · `read_text` → **cheap** (Haiku 4.5) — the bulk of a run
+  `read_scan` · `extract` → **mid** (Sonnet 5)
+  `reconcile` · `synthesize` → **top** (Opus 5) — two sources disagreeing, and the gameplan a crew acts on
+
+  Ids are **undated**. A dated pin (`claude-sonnet-4-20250514`) freezes a call site to a generation,
+  which is exactly how this worker ended up two behind while the app had already standardised.
+
+  **Escalation is what makes starting cheap safe**, not a fallback: a low-confidence answer is
+  retried a tier up, one step at a time, and `escalate()` returns null at the ceiling rather than
+  repeating the top tier — a caller looping "escalate until confident" against a model that cannot
+  do better would spend the whole run budget on one unreadable page. A call site that reports **no**
+  confidence does not escalate, because escalating everything that cannot self-assess would put the
+  pipeline on the top tier and quietly undo the saving. Every attempt is reported so a task that
+  escalates *every* time — i.e. one classified into the wrong tier — is visible rather than merely
+  expensive.
+
+  Three pins remain, in `ai/prompt-registry.ts`, and they are **deliberate**: a prompt version
+  records "this wording, on this model, scored this accuracy", and routing it dynamically would
+  compare v1 on Haiku against v2 on Opus and call the difference a prompt improvement. The file says
+  so, and the ratchet test excludes it by name rather than by accident.
+
+  *Acceptance deferred in part:* the ≥60%-on-cheap measurement needs a real run against the golden
+  set (R9's remaining half), which needs the worker deployed and the canaries confirmed. The routing
+  and the ratchet are in place; the number comes when there is a run to measure.
 
 - **R7. ✅ DONE 2026-08-02 — compute plan, priced, and built out.**
   Owner constraint: **≤ $70/month**. Chosen: **netcup RS 4000 G12 — 12 dedicated AMD EPYC 9645

@@ -10,6 +10,8 @@
 // streetName="436". This module recombines them before generating variants.
 
 import { lookupCountyFIPS } from '../lib/county-fips.js';
+// Model chosen by TASK, cheap-first (research plan R6): this call normalises an address string.
+import { modelFor } from '../infra/model-router.js';
 
 // Re-export for consumers that import all address utilities from a single module
 export { lookupCountyFIPS } from '../lib/county-fips.js';
@@ -557,7 +559,7 @@ export async function generateAiAddressVariants(
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: modelFor('read_text').model,
       max_tokens: 1024,
       temperature: 0,
       messages: [{

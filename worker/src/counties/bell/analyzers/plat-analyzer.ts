@@ -12,6 +12,9 @@
  */
 
 import type { PlatRecord, PlatAnalysis, PlatSection, AiUsageSummary, BoundaryCall } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call reads a scanned plat sheet.
+import { modelFor } from '../../../infra/model-router.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
   accumulateUsage,
@@ -357,7 +360,7 @@ async function analyzePlatRegion(
   imageLabel: string,
 ): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('read_scan').model,
     max_tokens: 10000,
     messages: [{
       role: 'user',
@@ -397,7 +400,7 @@ async function reconcilePlatRegionAnalyses(
     .join('\n\n');
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('read_scan').model,
     max_tokens: 16000,
     messages: [{
       role: 'user',

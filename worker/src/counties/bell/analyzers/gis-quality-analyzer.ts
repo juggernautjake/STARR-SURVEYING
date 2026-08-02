@@ -12,6 +12,9 @@
 // screenshot, logged to both worker console and frontend progress logs.
 
 import type { ScreenshotCapture } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call judges GIS geometry quality.
+import { modelFor } from '../../../infra/model-router.js';
 import { buildUsageFromTokens, zeroUsage, accumulateUsage } from './ai-cost-helpers.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
@@ -235,7 +238,7 @@ Target property ID: ${propertyId ?? 'unknown'}`,
   });
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('extract').model,
     max_tokens: 4000,
     messages: [{ role: 'user', content: content as never }],
   });

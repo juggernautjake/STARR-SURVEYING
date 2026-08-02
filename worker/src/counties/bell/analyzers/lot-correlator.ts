@@ -13,6 +13,9 @@
 // coordinates, showing the target parcel highlighted with its neighbors.
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call decides which lot a description matches.
+import { modelFor } from '../../../infra/model-router.js';
 import { buildUsageFromTokens } from './ai-cost-helpers.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
@@ -539,7 +542,7 @@ Respond in JSON:
 }`;
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('reconcile').model,
     max_tokens: 2000,
     messages: [{
       role: 'user',

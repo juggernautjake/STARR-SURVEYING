@@ -199,6 +199,15 @@ export class PromptRegistry {
 
 // ── Built-in Prompt Definitions ─────────────────────────────────────────────
 
+/** Prompt versions pin their model ON PURPOSE (research plan R6).
+ *
+ *  Everywhere else in the worker the model is chosen by task through `infra/model-router.ts`, so a
+ *  classification does not pay Opus prices. These are different: a prompt version records "this
+ *  wording, on this model, scored this accuracy". Routing them dynamically would compare v1 on
+ *  Haiku against v2 on Opus and call the difference a prompt improvement.
+ *
+ *  A new version is how a prompt moves to a new model — which is also the only way the accuracy
+ *  number stays meaningful. */
 export const DEFAULT_PROMPTS: Omit<PromptVersion, 'deployedAt' | 'totalRuns' | 'averageTokens' | 'averageCost'>[] = [
   {
     promptId: 'plat_extraction',

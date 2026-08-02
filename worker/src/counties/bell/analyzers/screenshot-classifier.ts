@@ -13,6 +13,9 @@
 // irrelevant content, etc.
 
 import type { ScreenshotCapture } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call what kind of screenshot is this.
+import { modelFor } from '../../../infra/model-router.js';
 import { buildUsageFromTokens, zeroUsage, accumulateUsage } from './ai-cost-helpers.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
@@ -207,7 +210,7 @@ async function classifyBatch(
   ).join('\n');
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: modelFor('classify').model,
     max_tokens: 400,
     messages: [{
       role: 'user',

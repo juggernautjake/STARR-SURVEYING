@@ -5,6 +5,8 @@
 // Every result is validated against the original search address.
 
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
+// Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
+import { modelFor } from '../infra/model-router.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
@@ -1990,7 +1992,7 @@ async function generateAiAddressVariants(
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: modelFor('extract').model,
       max_tokens: 1024,
       temperature: 0,
       messages: [{

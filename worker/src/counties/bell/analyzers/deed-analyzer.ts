@@ -10,6 +10,9 @@
  */
 
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
+// Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
+// this call reads a scanned deed page region.
+import { modelFor } from '../../../infra/model-router.js';
 import type { ConfidenceRating } from '../types/confidence.js';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
@@ -389,7 +392,7 @@ async function analyzeRegion(
   pageLabel: string,
 ): Promise<{ text: string; usage: Partial<AiUsageSummary> }> {
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('read_scan').model,
     max_tokens: 12000,
     messages: [{
       role: 'user',
@@ -430,7 +433,7 @@ async function reconcileDeedRegionAnalyses(
     .join('\n\n');
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: modelFor('read_scan').model,
     max_tokens: 16000,
     messages: [{
       role: 'user',
@@ -665,7 +668,7 @@ async function generateDeedSummary(
       : '';
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: modelFor('read_scan').model,
       max_tokens: 4000,
       messages: [{
         role: 'user',
