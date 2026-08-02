@@ -321,9 +321,23 @@ polish — nothing else in this plan can be trusted while the engine is down and
   the worker unable to research a county it has perfectly good code for. Compiled is the floor;
   corrections sit on top.
 
-  **Still to do (R8b):** the adapters themselves must *call* `resolveAdapter()` instead of reading
-  their module constants. That is a per-adapter change and belongs with R9's canaries, so a change
-  can be proven against a known property rather than assumed.
+  **R8b ✅ STARTED 2026-08-02 — the Kofile adapter now reads the registry.** Kofile is the vendor
+  behind ~80 Texas counties and the one implemented for Bell, so it is the adapter worth doing
+  first. It resolves at `initSession()` (the constructor is synchronous; the registry is a network
+  read) and overlays a small snake_cased contract a repair can target: the row's own `base_url`,
+  plus `config.search_path`, `config.viewer_path`, `config.super_search_url`,
+  `config.has_supersearch`. Every field is guarded by a presence check, so a **partial** repair is
+  safe — fixing the search path cannot silently blank the viewer path. A registry that is
+  unreachable leaves the compiled config exactly as it was, and a run using a URL that is not in the
+  source tree logs that fact, or the next person to debug it will read the constant and believe it.
+
+  *Proven against production*, which is the only way this claim means anything: the Bell row's
+  `base_url` was edited to `https://bell.tx.example-newvendor.gov` with a `search_path` override,
+  `resolveAdapter()` returned the new values immediately after `invalidateAdapterCache()`, and the
+  row was restored. **A county moving its portal is now a row edit, not a release.**
+
+  **Remaining:** the other 16 adapter families still read their module constants. Each is the same
+  ten-line change; they are being done as each county's canary (R9) exists to prove it.
 
 - **R9. ⚠ HALF DONE 2026-08-02 — sensing is now recorded; the golden set is still to come.**
   *Owner emphasis: sense a changed site, then adjust.* The sensing already existed and was being

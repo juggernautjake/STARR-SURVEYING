@@ -26,6 +26,7 @@ import {
   type DocumentType,
   type ClerkSearchOptions,
 } from './clerk-adapter.js';
+import { resolveAdapter } from '../infra/adapter-registry.js';
 
 // ── Per-county Kofile configuration ──────────────────────────────────────────
 
@@ -131,8 +132,65 @@ export class KofileClerkAdapter extends ClerkAdapter {
 
   // ── Session lifecycle ─────────────────────────────────────────────────────────
 
+  /** Overlay whatever the registry knows on top of the compiled config (plan R8b).
+   *
+   *  This is the half that makes self-healing real. Sensing a changed site (R9) and storing a
+   *  repair (R8) are worth nothing if the scraper still reads a constant compiled into the image:
+   *  the fix would sit in the registry while every run kept using the old URL until somebody cut a
+   *  release.
+   *
+   *  The contract a repair targets is deliberately small and snake_cased to match the column names
+   *  around it:
+   *
+   *    base_url          the row's own column — the most common thing to change when a county
+   *                      moves its portal
+   *    config.search_path        e.g. "/results"
+   *    config.viewer_path        e.g. "/doc/"
+   *    config.super_search_url
+   *    config.has_supersearch
+   *
+   *  Anything absent keeps the compiled value, so a partial repair is safe: fixing the search path
+   *  does not silently blank the viewer path.
+   *
+   *  Never throws. A registry that is unreachable leaves the adapter exactly as it was compiled —
+   *  a database problem must not stop research for a county whose code still works. */
+  private async applyRegistryOverrides(): Promise<void> {
+    try {
+      const resolved = await resolveAdapter(this.countyName, 'clerk_deeds', {
+        county: this.countyName,
+        siteType: 'clerk_deeds',
+        system: 'kofile',
+        baseUrl: this.config.baseUrl,
+        implementation: 'implemented',
+      });
+      if (resolved.source !== 'registry') return;
+
+      const cfg = resolved.config as Record<string, unknown>;
+      const before = this.config.baseUrl;
+
+      if (resolved.baseUrl) this.config.baseUrl = resolved.baseUrl;
+      if (typeof cfg.search_path === 'string') this.config.searchPath = cfg.search_path;
+      if (typeof cfg.viewer_path === 'string') this.config.viewerPath = cfg.viewer_path;
+      if (typeof cfg.super_search_url === 'string') {
+        this.config.superSearchUrl = cfg.super_search_url;
+        this.config.hasSUPERSEARCH = true;
+      }
+      if (typeof cfg.has_supersearch === 'boolean') this.config.hasSUPERSEARCH = cfg.has_supersearch;
+
+      if (before !== this.config.baseUrl) {
+        // Worth a line: a run using a URL that is not in the source tree should say so, or the
+        // next person debugging it will read the constant and believe it.
+        console.log(`[kofile] ${this.countyName}: base URL from registry — ${before} → ${this.config.baseUrl}`);
+      }
+    } catch {
+      // Compiled config stands. See the doc comment.
+    }
+  }
+
   async initSession(): Promise<void> {
     if (this.browser) return;
+
+    await this.applyRegistryOverrides();
 
     this.browser = await acquireBrowser({
       adapterId: 'kofile-clerk',
