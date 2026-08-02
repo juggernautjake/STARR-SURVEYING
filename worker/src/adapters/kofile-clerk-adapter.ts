@@ -30,6 +30,8 @@ import {
   type ClerkSearchOptions,
 } from './clerk-adapter.js';
 import { resolveAdapter } from '../infra/adapter-registry.js';
+// Read the results table by its headers — column sets differ per county (research plan R38).
+import { describeParse, parseResults } from './kofile-results-parser.js';
 
 // ── Per-county Kofile configuration ──────────────────────────────────────────
 
@@ -462,86 +464,54 @@ export class KofileClerkAdapter extends ClerkAdapter {
   private async parseSearchResults(): Promise<ClerkDocumentResult[]> {
     if (!this.page) return [];
 
-    const results: ClerkDocumentResult[] = [];
-
     try {
-      // Kofile results live in a table or list rendered by the SPA
-      const rows = await this.page.$$(
-        '.search-result, .result-row, table tbody tr, .document-result',
-      );
+      // Read the table's own headers and rows. Mapping by header text rather than by position is
+      // what makes one adapter work across counties whose column sets differ — Bell renames them,
+      // Montgomery has seventeen in another order (plan R38).
+      const table = await this.page.evaluate(() => {
+        const headers = Array.from(document.querySelectorAll('table thead th')).map((t) => (t.textContent ?? '').trim());
+        const rows = Array.from(document.querySelectorAll('table tbody tr')).map((tr) =>
+          Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent ?? '').trim()),
+        );
+        return { headers, rows };
+      });
 
-      for (const row of rows) {
-        try {
-          const text = await row.innerText();
-          const cells = text.split('\n').map((s) => s.trim()).filter(Boolean);
+      const report = parseResults(table.headers, table.rows);
+      console.log(describeParse(report, this.countyName));
 
-          // Locate a link to the document detail / viewer
-          const link = await row.$(
-            'a[href*="doc"], a[href*="instrument"], a[href*="detail"]',
-          );
-          const href = link ? (await link.getAttribute('href') ?? '') : '';
+      if (!report.fatal) {
+        const results: ClerkDocumentResult[] = report.rows.map((r) => ({
+          instrumentNumber: r.instrumentNumber,
+          documentType: this.classifyDocumentType(r.documentType) as DocumentType,
+          recordingDate: r.recordingDate,
+          grantors: r.grantors,
+          grantees: r.grantees,
+          legalDescription: r.legalDescription,
+          source: `kofile_${this.countyFIPS}`,
+        }));
 
-          // Extract instrument number from URL or text
-          const instrMatch =
-            href.match(/(\d{10,13})/) ?? text.match(/\b(\d{10,13})\b/);
-          if (!instrMatch) continue;
-
-          const result: ClerkDocumentResult = {
-            instrumentNumber: instrMatch[1],
-            documentType: 'other',
-            recordingDate: '',
-            grantors: [],
-            grantees: [],
-            source: `kofile_${this.countyFIPS}`,
-          };
-
-          // Parse individual cells — typical Kofile column order:
-          //   Recording Date | Instrument# | Document Type | Grantors | Grantees | Legal
-          for (const cell of cells) {
-            const dateMatch = cell.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
-            if (dateMatch && !result.recordingDate) {
-              result.recordingDate = dateMatch[1];
-              continue;
-            }
-
-            const typeKeywords = [
-              'DEED', 'PLAT', 'EASEMENT', 'LIEN', 'RESTRICTION',
-              'COVENANT', 'RIGHT OF WAY', 'AFFIDAVIT', 'RELEASE',
-            ];
-            if (typeKeywords.some((kw) => cell.toUpperCase().includes(kw))) {
-              result.documentType = this.classifyDocumentType(cell) as DocumentType;
-              continue;
-            }
-
-            const volPgMatch = cell.match(
-              /VOL\.?\s*(\d+)\s*[/,]\s*(?:PG\.?|PAGE)\s*(\d+)/i,
-            );
-            if (volPgMatch) {
-              result.volumePage = { volume: volPgMatch[1], page: volPgMatch[2] };
-            }
-          }
-
-          results.push(result);
-        } catch {
-          // Skip un-parseable rows silently
-        }
+        if (results.length > 0) return results;
       }
+
+      // Nothing parsed. The AI fallback below is for a page that rendered differently, NOT for one
+      // that genuinely holds no records — so the reason is logged either way rather than an empty
+      // array being returned as though it were an answer.
+      console.warn(
+        `[Kofile/${this.countyName}] Table parse produced no rows` +
+        `${report.fatal ? ` — ${report.fatal}` : ''}. Trying the vision fallback.`,
+      );
     } catch (e) {
       console.warn(`[Kofile/${this.countyName}] DOM parsing failed:`, e);
     }
 
-    // AI OCR fallback when the SPA rendered nothing we could parse
-    if (results.length === 0) {
-      try {
-        const screenshot = await this.page.screenshot({ fullPage: true });
-        const aiResults = await this.aiParseSearchResults(screenshot);
-        results.push(...aiResults);
-      } catch (e) {
-        console.warn(`[Kofile/${this.countyName}] AI fallback also failed:`, e);
-      }
+    // Vision fallback when the SPA rendered something the table parser could not read.
+    try {
+      const screenshot = await this.page.screenshot({ fullPage: true });
+      return await this.aiParseSearchResults(screenshot);
+    } catch (e) {
+      console.warn(`[Kofile/${this.countyName}] AI fallback also failed:`, e);
+      return [];
     }
-
-    return results;
   }
 
   // ── AI OCR fallback — parses a screenshot of search results via Claude ────────
