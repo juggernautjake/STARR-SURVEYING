@@ -19,6 +19,9 @@ import { DocumentHarvester, type HarvestInput } from './services/document-harves
 import { syncHarvestToSupabase } from './services/harvest-supabase-sync.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
+// The neighbour register the app reads — until this, the adjacent phase's findings lived in a /tmp
+// blob the container wipes (research plan R31).
+import { describePersist, persistAdjoiners, type AdjoinerInput } from './infra/adjoiner-persistence.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { uploadPipelineArtifacts, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
@@ -2586,7 +2589,7 @@ app.post('/research/adjacent', requireAuth, rateLimit(5, 60_000), async (req: Re
 
   // Run in background
   runAdjacentResearch(projectId, resolvedIntelPath, subdivisionPath)
-    .then((report) => {
+    .then(async (report) => {
       activeAdjacentJobs.set(projectId, { status: 'complete', result: report });
       console.log(
         `[Adjacent] ${projectId} complete: ` +
@@ -2594,6 +2597,31 @@ app.post('/research/adjacent', requireAuth, rateLimit(5, 60_000), async (req: Re
         `${report.crossValidationSummary.totalAdjacentProperties} researched, ` +
         `confidence: ${report.crossValidationSummary.overallBoundaryConfidence}%`,
       );
+
+      // Write the neighbour register the app reads (plan R31). Until this, everything the adjacent
+      // phase found lived in a /tmp blob that the container wipes — so nobody could list the
+      // neighbours, see which had a survey on file, or ask for one to be researched properly.
+      //
+      // Wrapped: this is bookkeeping on data already gathered, and a failure here must not turn a
+      // completed adjacent phase into a failed one.
+      try {
+        const supabase = await getSupabase();
+        if (supabase) {
+          const inputs: AdjoinerInput[] = report.adjacentProperties.map((p) => ({
+            owner: p.owner,
+            identifiedBy: 'deed_call',
+            researchStatus: p.researchStatus,
+            documents: [
+              ...p.documentsFound.deeds.map((d) => ({ type: d.type || 'deed', date: d.date, instrumentNumber: d.instrumentNumber })),
+              ...p.documentsFound.plats.map((d) => ({ type: d.type || 'plat', date: d.date, instrumentNumber: d.instrumentNumber })),
+            ],
+          }));
+          const result = await persistAdjoiners(supabase, projectId, inputs);
+          console.log(describePersist(result, inputs));
+        }
+      } catch (e) {
+        console.warn(`[Adjoiners] ${projectId}: register not written —`, e);
+      }
     })
     .catch((err: unknown) => {
       console.error(`[Adjacent] ${projectId} failed:`, err);
