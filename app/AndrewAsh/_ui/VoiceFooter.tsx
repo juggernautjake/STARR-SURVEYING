@@ -8,7 +8,7 @@
 // portfolio makes visitors wonder whether they were supposed to have an account.
 
 import Link from 'next/link';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { Lock, Mail, MapPin, Phone } from 'lucide-react';
 import type { SiteSettings } from '@/lib/voice/settings';
 import { BASE_PATH } from '@/lib/voice/content';
 
@@ -92,8 +92,23 @@ export default function VoiceFooter({ settings }: { settings: SiteSettings }): R
           </span>
           <span style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
             <Link href={`${BASE_PATH}/contact`}>Contact</Link>
-            <Link href={`${BASE_PATH}/studio`}>Studio</Link>
+            <Link href={`${BASE_PATH}/work`}>Work</Link>
           </span>
+        </div>
+
+        {/* ── ANDREW'S DOOR ───────────────────────────────────────────────────────────────────────
+            The very bottom of the page, small and quiet. It is a login for one person on a page
+            written for clients: a prominent "Log in" on a freelancer's portfolio makes visitors
+            wonder whether they were supposed to have an account, and then wonder what they missed.
+
+            Small is not the same as hidden. The link is a real link with real link text, at a size
+            and contrast that still clears WCAG AA, because the person who needs it will be looking
+            for it here and should not have to remember a URL. */}
+        <div className="vaFooterOwner">
+          <Link href={`${BASE_PATH}/login`} rel="nofollow">
+            <Lock size={11} aria-hidden />
+            Studio login
+          </Link>
         </div>
       </div>
     </footer>

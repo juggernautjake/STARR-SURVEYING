@@ -27,7 +27,9 @@ import {
   validateInquiry,
   type InquiryInput,
 } from '@/lib/voice/inquiry';
-import { USAGE_SCOPES } from '@/lib/voice/contracts';
+// Imported from `usage`, NOT from `contracts`. `contracts` reaches node:crypto through `tokens`,
+// which cannot be bundled for a browser — see lib/voice/usage.ts.
+import { USAGE_SCOPES } from '@/lib/voice/usage';
 import { formatCentsCompact } from '@/lib/voice/money';
 
 interface Props {

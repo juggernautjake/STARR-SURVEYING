@@ -70,7 +70,9 @@ export interface CreateNotificationInput {
 export async function notifyStudio(input: CreateNotificationInput): Promise<number> {
   try {
     const { data: users } = await supabaseAdmin.from('va_users').select('id');
-    const targets = input.userId ? [{ id: input.userId }] : (users ?? []);
+    const targets: { id: string }[] = input.userId
+      ? [{ id: input.userId }]
+      : ((users ?? []) as { id: string }[]);
     if (!targets.length) return 0;
 
     const rows = targets.map((u: { id: string }) => ({

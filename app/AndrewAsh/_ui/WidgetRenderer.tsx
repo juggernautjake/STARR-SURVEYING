@@ -34,6 +34,7 @@ import {
   resolveMobileStyle,
   publicWidgets,
   type Widget,
+  type WidgetStyle,
   type WidgetType,
 } from '@/lib/voice/widgets';
 import {
@@ -772,7 +773,7 @@ function ButtonLink({
   );
 }
 
-function HeroBody({ props: p, style: s }: { props: Record<string, unknown>; style: Record<string, unknown> }): React.ReactElement {
+function HeroBody({ props: p, style: s }: { props: Record<string, unknown>; style: WidgetStyle }): React.ReactElement {
   const photoId = str(p.photoId);
   const meta = photoId ? photoById(photoId) : undefined;
   const buttons = arr<{ label: string; href: string; variant?: string }>(p.buttons);

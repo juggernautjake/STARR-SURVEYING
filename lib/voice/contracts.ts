@@ -53,45 +53,14 @@ export function isEditable(status: ContractStatus): boolean {
 // The single most common way a beginning voice actor loses money: quoting a session fee for a spot
 // that then runs nationally for two years. Making usage an explicit, priced, named choice — rather
 // than a sentence someone forgets to write — is the whole point of putting it in the schema.
+//
+// The scopes themselves live in `./usage`, which imports nothing. This module imports `node:crypto`
+// (via ./tokens) for the signature hash, and the contact form — a CLIENT component — needs the scope
+// list for a dropdown. Re-exporting keeps one definition while keeping `node:crypto` out of the
+// browser bundle. See the header of lib/voice/usage.ts for what broke.
 
-export const USAGE_SCOPES = [
-  {
-    id: 'internal',
-    label: 'Internal use only',
-    detail: 'Used inside the client’s organisation — training, internal comms. Not public-facing.',
-  },
-  {
-    id: 'telephony',
-    label: 'Phone system / on-hold',
-    detail: 'IVR menus, on-hold messaging and voicemail for the client’s own lines.',
-  },
-  {
-    id: 'web',
-    label: 'Web & social',
-    detail: 'The client’s website and owned social channels. No paid placement.',
-  },
-  {
-    id: 'regional',
-    label: 'Regional broadcast',
-    detail: 'Paid placement within a defined region — radio, local TV, regional streaming.',
-  },
-  {
-    id: 'national',
-    label: 'National broadcast',
-    detail: 'Paid placement nationally across broadcast and streaming.',
-  },
-  {
-    id: 'buyout',
-    label: 'Full buyout',
-    detail: 'Unlimited use, all media, in perpetuity. Priced accordingly — this gives away every future fee.',
-  },
-] as const;
-
-export type UsageScopeId = (typeof USAGE_SCOPES)[number]['id'];
-
-export function usageScope(id: string | null | undefined) {
-  return USAGE_SCOPES.find((u) => u.id === id) ?? USAGE_SCOPES[2];
-}
+export { USAGE_SCOPES, usageScope, type UsageScopeId } from './usage';
+import { usageScope } from './usage';
 
 // ── Templates ────────────────────────────────────────────────────────────────────────────────────
 
