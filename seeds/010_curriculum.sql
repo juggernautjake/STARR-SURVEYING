@@ -865,7 +865,9 @@ INSERT INTO learning_topics (lesson_id, title, content, order_index, keywords) V
 ('22222222-2222-2222-2222-222222222200', 'Learning Hub Overview', 'The Starr Surveying Learning Hub contains modules, lessons, flashcards, quizzes, and a knowledge base. Each module focuses on a topic area and contains multiple lessons.', 1, ARRAY['learning hub','overview','modules']),
 ('22222222-2222-2222-2222-222222222200', 'Study Tools Available', 'Flashcards use SM-2 spaced repetition to optimize your review schedule. Quizzes test your knowledge. The Field Notebook lets you record observations. The Knowledge Base provides in-depth articles.', 2, ARRAY['flashcards','quizzes','notebook','knowledge base']),
 ('22222222-2222-2222-2222-222222222200', 'Career Paths in Surveying', 'In Texas, the licensing path goes: Surveyor Intern (SIT) then Registered Professional Land Surveyor (RPLS). The SIT exam tests fundamental knowledge, while the RPLS exam covers Texas law and advanced practice.', 3, ARRAY['SIT','RPLS','licensing','career'])
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (coalesce(lesson_id::text, ''), title, md5(coalesce(content, ''))) DO NOTHING;
 
 
 -- ============================================================================
@@ -925,7 +927,9 @@ INSERT INTO flashcards (term, definition, hint_1, hint_2, hint_3, module_id, key
 
 ('Control Point', 'A survey point with precisely known coordinates used as a reference for other measurements.', 'A precisely known location that other measurements are based on', 'Often a brass disk set in concrete', 'C _ _ _ _ _ _ P _ _ _ _ (reference location)', 'c1000001-0000-0000-0000-000000000001', ARRAY['control point','reference','coordinates'], ARRAY['fieldwork','measurement'], 'fieldwork')
 
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (coalesce(module_id::text, ''), term, md5(coalesce(definition, ''))) DO NOTHING;
 
 -- The flashcard INSERT above supplies no `id` (so one is generated) and there is no unique
 -- constraint on (module_id, term) — which means its `ON CONFLICT DO NOTHING` can never fire

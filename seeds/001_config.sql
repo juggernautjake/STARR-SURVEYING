@@ -84,7 +84,10 @@ INSERT INTO rewards_catalog (name, description, category, xp_cost, tier, sort_or
 ('Premium Cooler', 'Yeti Roadie or RTIC 20', 'gear', 25000, 'diamond', 42),
 ('$200 Academy Gift Card', 'Academy Sports', 'gift_cards', 20000, 'diamond', 43),
 ('Custom Embroidered Jacket', 'Your name + STARR logo', 'apparel', 15000, 'diamond', 44)
-ON CONFLICT DO NOTHING;
+-- Named target. A bare ON CONFLICT DO NOTHING fires only when a unique constraint is actually
+-- violated, and this table had none — so seventeen seed runs inserted the catalogue seventeen
+-- times: 459 rows for 27 prizes. Seed 529 deduplicated it and added the index this names.
+ON CONFLICT (name) DO NOTHING;
 
 -- ── Admin Alert Settings ──────────────────────────────────────────────────
 INSERT INTO admin_alert_settings (alert_type, enabled, notify_admins, notify_employee) VALUES
@@ -141,7 +144,9 @@ INSERT INTO seniority_brackets (min_years, max_years, bonus_per_hour, label) VAL
 (10, 14, 7.00, '10-14 years'),
 (15, 19, 9.00, '15-19 years'),
 (20, NULL, 12.00, '20+ years')
-ON CONFLICT DO NOTHING;
+-- See seed 529: this clause never fired. The table's only unique index was its primary key on a
+-- generated uuid, which a fresh INSERT can never collide with, so nine brackets became 153.
+ON CONFLICT (min_years) DO NOTHING;
 
 -- ── Credential Bonuses ────────────────────────────────────────────────────
 INSERT INTO credential_bonuses (credential_key, label, bonus_per_hour, credential_type, description, sort_order) VALUES
@@ -178,7 +183,9 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.d
 INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, difficulty_rating) VALUES
 ('learning_module', NULL, 500, 18, 3),
 ('fs_module', NULL, 500, 24, 4)
-ON CONFLICT DO NOTHING;
+-- Expression index (seed 529) over (module_type, coalesce(module_id::text, '')), because
+-- module_id is nullable here and in a unique index a NULL never conflicts with a NULL.
+ON CONFLICT (module_type, coalesce(module_id::text, '')) DO NOTHING;
 
 COMMIT;
 

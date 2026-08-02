@@ -268,7 +268,8 @@ INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, d
 ('learning_module', 'c100001a-0000-0000-0000-00000000001a', 550, 12, 4),
 ('learning_module', 'c100001b-0000-0000-0000-00000000001b', 600, 12, 5),
 ('learning_module', 'c100001c-0000-0000-0000-00000000001c', 600, 12, 5)
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529): a bare clause fires only against a real unique constraint.
+ON CONFLICT (module_type, coalesce(module_id::text, '')) DO NOTHING;
 
 -- FS module XP config
 INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, difficulty_rating) VALUES
@@ -280,7 +281,8 @@ INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, d
 ('fs_module', 'f5000006-0000-0000-0000-000000000006', 550, 24, 4),
 ('fs_module', 'f5000007-0000-0000-0000-000000000007', 500, 24, 4),
 ('fs_module', 'f5000008-0000-0000-0000-000000000008', 500, 24, 4)
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529): a bare clause fires only against a real unique constraint.
+ON CONFLICT (module_type, coalesce(module_id::text, '')) DO NOTHING;
 
 COMMIT;
 

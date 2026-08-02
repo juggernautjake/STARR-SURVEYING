@@ -534,7 +534,9 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
  'RMSE values for horizontal and vertical measurements',
  'ASPRS Positional Accuracy Standards for Digital Geospatial Data define accuracy classes by specifying maximum allowable RMSE values for horizontal (RMSEx, RMSEy) and vertical (RMSEz) positions. Products are tested against independent checkpoints to determine which accuracy class they meet.',
  'medium', 'da5e0001-0000-0000-0000-000000000001', 'da5e0b0c-0000-0000-0000-000000000001', 'DRONE', ARRAY['drone-surveying','lesson-12','quiz','ASPRS-standards'])
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (coalesce(module_id::text, ''), md5(question_text), md5(coalesce(correct_answer::text, '') || '|' || coalesce(options::text, ''))) DO NOTHING;
 
 
 -- ============================================================================
@@ -681,7 +683,9 @@ INSERT INTO question_bank (question_text, question_type, options, correct_answer
  'Key steps: (1) mission planning with GSD and overlap, (2) GCP placement and measurement, (3) drone flight and data collection, (4) photogrammetric processing, (5) product generation and quality assessment',
  'A complete drone topographic survey workflow includes: (1) Project planning — define scope, calculate required GSD, plan flight altitude, overlap, and pattern; (2) Ground control — design GCP layout, survey GCPs and checkpoints with survey-grade GNSS; (3) Data acquisition — pre-flight inspection, fly the mission, collect imagery; (4) Processing — import images, align photos, assign GCPs, optimize, generate dense point cloud, DSM, DTM, and orthomosaic; (5) Quality control — check GCP residuals and checkpoint RMSE against accuracy requirements; (6) Deliverables — generate contour lines, prepare export files, write accuracy report, deliver to client.',
  'hard', 'da5e0001-0000-0000-0000-000000000001', 'da5e0b0d-0000-0000-0000-000000000001', 'DRONE-FINAL', ARRAY['drone-surveying','final-exam','workflow','essay'])
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (coalesce(module_id::text, ''), md5(question_text), md5(coalesce(correct_answer::text, '') || '|' || coalesce(options::text, ''))) DO NOTHING;
 
 
 COMMIT;

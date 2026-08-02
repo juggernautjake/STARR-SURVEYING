@@ -75,7 +75,9 @@ INSERT INTO block_templates (name, description, category, is_builtin, blocks) VA
    '[{"block_type":"table","content":{"headers":["Category","Description","Example"],"rows":[["Row 1","Description here","Example here"],["Row 2","Description here","Example here"]]}}]'::jsonb),
   ('Popup Deep-Dive', 'Summary with expandable article for extra detail', 'interactive', true,
    '[{"block_type":"popup_article","content":{"summary":"Click to learn more about this topic...","title":"Deep Dive: Topic Name","full_content":"<p>Detailed explanation that students can read if they want to go deeper...</p>"}}]'::jsonb)
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (name) DO NOTHING;
 
 -- ── Problem Templates ─────────────────────────────────────────────────────
 -- Algorithmic generators for dynamic quiz questions. These register the

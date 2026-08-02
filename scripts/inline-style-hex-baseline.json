@@ -102,7 +102,6 @@
   "app/admin/notes/page.tsx": 1,
   "app/admin/org-settings/page.tsx": 6,
   "app/admin/orgs/page.tsx": 6,
-  "app/admin/pay-progression/page.tsx": 2,
   "app/admin/payout-log/page.tsx": 1,
   "app/admin/profile/components/DensityPicker.tsx": 1,
   "app/admin/profile/components/FontScaleSlider.tsx": 1,

@@ -478,7 +478,9 @@ VALUES
         "zoning": false, "flood_zone": false, "utilities": false
     }'
 )
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (name) DO NOTHING;
 
 
 -- ── Seed Data: System Drawing Templates ──────────────────────────────────────
@@ -497,6 +499,8 @@ VALUES
     'Color-coded feature classes with standard survey conventions. Best for client presentations.',
     true, false
 )
-ON CONFLICT DO NOTHING;
+-- Target named (seed 529). A bare ON CONFLICT DO NOTHING fires only against a real unique
+-- constraint; this table had none but its uuid primary key, so every seed run inserted another copy.
+ON CONFLICT (name) DO NOTHING;
 
 COMMIT;
