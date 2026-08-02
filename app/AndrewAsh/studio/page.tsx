@@ -182,7 +182,7 @@ export default async function StudioDashboard(): Promise<React.ReactElement> {
 
         {attention.length === 0 ? (
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', color: 'var(--va-text-muted)' }}>
-            <CheckCircle2 size={20} aria-hidden style={{ color: '#7fd49b', flex: 'none', marginTop: 2 }} />
+            <CheckCircle2 size={20} aria-hidden style={{ color: 'var(--va-positive)', flex: 'none', marginTop: 2 }} />
             <p style={{ margin: 0, fontSize: '0.9375rem' }}>
               Inbox clear, nothing overdue, nothing unsigned, nothing unpublished. The highest-value
               thing you can do with a clear queue is send ten pitches — see{' '}
@@ -210,7 +210,7 @@ export default async function StudioDashboard(): Promise<React.ReactElement> {
                 }}
               >
                 {item.tone === 'warn' ? (
-                  <AlertTriangle size={16} aria-hidden style={{ color: '#ff9c7e', flex: 'none' }} />
+                  <AlertTriangle size={16} aria-hidden style={{ color: 'var(--va-danger)', flex: 'none' }} />
                 ) : (
                   <Inbox size={16} aria-hidden style={{ color: 'var(--va-accent)', flex: 'none' }} />
                 )}

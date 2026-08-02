@@ -141,7 +141,7 @@ export default async function ClientsPage(): Promise<React.ReactElement> {
                 <td data-label="Paid you" className="vaNum">
                   {c.stats.paid > 0 ? formatCents(c.stats.paid) : '—'}
                 </td>
-                <td data-label="Owes" className="vaNum" style={c.stats.owing > 0 ? { color: '#ff9c7e' } : undefined}>
+                <td data-label="Owes" className="vaNum" style={c.stats.owing > 0 ? { color: 'var(--va-danger)' } : undefined}>
                   {c.stats.owing > 0 ? formatCents(c.stats.owing) : '—'}
                 </td>
                 <td data-label="">

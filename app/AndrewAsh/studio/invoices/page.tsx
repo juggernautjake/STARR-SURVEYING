@@ -120,7 +120,7 @@ export default async function InvoicesPage(): Promise<React.ReactElement> {
         </div>
         <div className="vaTile">
           <span className="vaTileLabel">Overdue</span>
-          <span className="vaTileValue" style={overdue > 0 ? { color: '#ff9c7e' } : undefined}>
+          <span className="vaTileValue" style={overdue > 0 ? { color: 'var(--va-danger)' } : undefined}>
             {formatCents(overdue)}
           </span>
           <p className="vaTileNote">
@@ -173,7 +173,7 @@ export default async function InvoicesPage(): Promise<React.ReactElement> {
                     {r.due_date ?? '—'}
                     {days !== null && r.balance > 0 && r.derived !== 'draft' && (
                       <span
-                        style={{ display: 'block', fontSize: '0.75rem', color: days < 0 ? '#ff9c7e' : 'var(--va-text-muted)' }}
+                        style={{ display: 'block', fontSize: '0.75rem', color: days < 0 ? 'var(--va-danger)' : 'var(--va-text-muted)' }}
                       >
                         {days < 0 ? `${Math.abs(days)} days late` : `in ${days} days`}
                       </span>

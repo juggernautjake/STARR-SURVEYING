@@ -37,7 +37,12 @@ const GATES = [
   // character is `;` or a newline, both non-word, so there is no boundary there. It reported **246 of 613
   // admin handlers as ungated** — the exact shape of the near-miss this analysis opens with, reproduced
   // by a different wrong predicate, on the second attempt, by someone who had read the warning.
-  { id: 'session', label: 'signed in', re: /\bauth\(\)|\b(getServerSession|getDndSession|getDndUser|requireUser|getSessionUser|currentUser)\b/ },
+  // `getVoiceSession` added 2026-08-02 with the /AndrewAsh platform. Its absence made the sweep report
+  // 45 gated handlers as ungated — every studio route reads `if (!getVoiceSession()) return 401` as
+  // its first statement. Exactly the near-miss this list warns about, and the reason to check what a
+  // route DOES before believing a number: a new subsystem's session helper is invisible to a predicate
+  // written before it existed, and the failure direction is a false alarm loud enough to be ignored.
+  { id: 'session', label: 'signed in', re: /\bauth\(\)|\b(getServerSession|getDndSession|getDndUser|requireUser|getSessionUser|currentUser|getVoiceSession)\b/ },
   { id: 'campaign', label: 'campaign member', re: /\bgetCampaignRole\b/ },
   // Found the same way as the rest: by opening the routes the sweep called ungated and reading what they
   // actually do. These gate on ownership of the RESOURCE rather than on a session — a stronger check, not
@@ -107,6 +112,20 @@ const INTENTIONALLY_PUBLIC = new Map([
   // any customer identity exists. It reads only what a public page may show — name, phone, address,
   // website — and returns a BLANK profile rather than guessing when the firm is ambiguous.
   ['app/api/public/tenant/route.ts', 'branding for an unauthenticated pay/portal page — public fields only, and blank rather than a guess when the tenant cannot be resolved'],
+
+  // ── /AndrewAsh, added 2026-08-02. Everything else under /api/voice gates on getVoiceSession. ────
+  ['app/api/voice/auth/login/route.ts', 'sign-in'],
+  ['app/api/voice/auth/logout/route.ts', 'sign-out — clears a cookie and nothing else'],
+  ['app/api/voice/auth/setup/route.ts', 'account creation, and the narrowest one here: capped at MAX_SELF_SETUP_ACCOUNTS, 409 forever after, and additionally gated on a setup key'],
+  ['app/api/voice/inquiries/route.ts', 'POST is the public quote form — honeypotted and length-capped. Its GET gates on getVoiceSession independently, which the per-handler sweep confirms'],
+
+  // Same token model as share/[token] and the proposal/portal routes above: 256 bits, addressed BY
+  // the token, and a 404 for both "no such token" and "revoked" so probing learns nothing. A voice
+  // client interacts twice — once to sign, once to pay — and an account for that is a password-reset
+  // flow nobody would complete.
+  ['app/api/voice/uploads/route.ts', 'a stranger attaching a script to a quote request — a short type allow-list checked on BOTH extension and MIME, 15 MB × 5 per request, a private bucket, and throttled per IP on contact-form + contact-storage-daily. This sweep is what found it unthrottled'],
+  ['app/api/voice/sign/[token]/route.ts', 'a client signs their own contract — refuses a second signature rather than overwriting the first, and captures the evidence bundle'],
+  ['app/api/voice/pay/[token]/route.ts', 'a client paying is not signed in — the AMOUNT is read from the invoice server-side and never from the request, and the declare path writes a PENDING payment that moves no money'],
 ]);
 
 function walk(dir) {

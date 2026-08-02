@@ -43,6 +43,10 @@ function getStripe(key: string): Promise<Stripe | null> {
 const APPEARANCE: Appearance = {
   theme: 'night',
   variables: {
+    // Literal hex, NOT var(--va-*), and this is the one place in the tenant where that is correct:
+    // these values are serialised and sent to Stripe, which applies them inside its own cross-origin
+    // iframe. A CSS custom property has nothing to resolve against there — it would silently fall
+    // back to Stripe's defaults and the form would arrive as a white rectangle in a dark page.
     colorPrimary: '#C9A227',
     colorBackground: '#12161F',
     colorText: '#E8E4DB',

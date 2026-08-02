@@ -159,7 +159,7 @@ export default function InquiryActions({ id, status, internalNotes, hasClient, c
         <button
           type="button"
           className="vaBtn vaBtnGhost vaBtnSm"
-          style={{ color: '#ff9c7e' }}
+          style={{ color: 'var(--va-danger)' }}
           disabled={busy === 'delete'}
           onClick={async () => {
             // A confirm is right here and wrong on a widget delete: this one is NOT undoable, and the

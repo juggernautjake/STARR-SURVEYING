@@ -109,7 +109,7 @@ export default function MediaGrid({ uploaded, builtIn }: { uploaded: Item[]; bui
                   <button
                     type="button"
                     className="vaBtn vaBtnGhost vaBtnSm"
-                    style={{ color: '#ff9c7e' }}
+                    style={{ color: 'var(--va-danger)' }}
                     disabled={busy === item.id}
                     onClick={async () => {
                       if (!window.confirm(`Delete "${item.title}"? Any page using it will lose it.`)) return;

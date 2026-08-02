@@ -19,9 +19,19 @@
 // The bucket is private and Andrew's studio fetches signed URLs. A public bucket would mean anyone
 // who guessed a path could read another client's unreleased script — which for an advertising client
 // under embargo is exactly the thing their legal team asked about.
+//
+// ── AND WHY IT IS THROTTLED ─────────────────────────────────────────────────────────────────────
+//
+// Added 2026-08-02 after `scripts/audit-route-auth.mjs` reported this as the one genuinely ungated
+// write on the platform. Type, size and count caps bound a SINGLE request; nothing bounded how many
+// requests. 5 files × 15 MB, repeated, is an unbounded bill on a storage-metered account belonging to
+// someone who has not had his first invoice paid yet. Same two buckets the surveying contact form
+// uses: a burst limit per IP, and a daily ceiling counted in MEGABYTES for the slow grind that never
+// trips the burst one.
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
+import { enforceRateLimit } from '@/lib/rate-limit';
 // The rules live in lib/ because a route file may export only its handlers and segment config —
 // see lib/voice/slug.ts for the build error that taught us.
 import {
@@ -37,7 +47,21 @@ export const maxDuration = 30;
 
 const BUCKET = 'voice-uploads';
 
+function clientIpOf(request: Request): string {
+  return (
+    (request.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
+    request.headers.get('x-real-ip') ||
+    ''
+  );
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
+  // Before the body is read, because reading a multipart body pulls the whole thing into memory —
+  // throttling after that point still lets an abuser make us do the expensive part.
+  const ip = clientIpOf(request);
+  const burst = await enforceRateLimit('contact-form', null, { ip });
+  if (burst) return burst;
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -50,6 +74,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (files.length > MAX_UPLOAD_FILES) {
     return NextResponse.json({ error: `Up to ${MAX_UPLOAD_FILES} files at a time.` }, { status: 400 });
   }
+
+  // Necessarily after the body is read — the sizes are the thing being limited and they do not exist
+  // until then. Acceptable because the burst limit above already bounds how often we get here.
+  const megabytes = files.reduce((sum, f) => sum + (f.size || 0), 0) / (1024 * 1024);
+  const overStorage = await enforceRateLimit('contact-storage-daily', null, { ip, cost: megabytes });
+  if (overStorage) return overStorage;
 
   await ensureStorageBucket(BUCKET, { public: false, fileSizeLimit: MAX_UPLOAD_BYTES });
 

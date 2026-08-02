@@ -154,7 +154,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
                   </li>
                   <li>
                     <span className="vaSpecKey">Still owing</span>
-                    <span className="vaSpecValue vaNum" style={{ color: balance > 0 ? '#ff9c7e' : '#7fd49b' }}>
+                    <span className="vaSpecValue vaNum" style={{ color: balance > 0 ? 'var(--va-danger)' : 'var(--va-positive)' }}>
                       {formatCents(balance)}
                     </span>
                   </li>

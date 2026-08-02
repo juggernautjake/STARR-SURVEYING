@@ -116,7 +116,7 @@ export default async function ExpensesPage({
         {unbilled.length > 0 && (
           <div className="vaTile">
             <span className="vaTileLabel">Billable, not invoiced</span>
-            <span className="vaTileValue" style={{ color: '#ff9c7e' }}>
+            <span className="vaTileValue" style={{ color: 'var(--va-danger)' }}>
               {formatCents(unbilled.reduce((s, r) => s + (r.amount_cents ?? 0), 0))}
             </span>
             <p className="vaTileNote">{unbilled.length} to add to an invoice.</p>

@@ -129,7 +129,7 @@ export default async function ContractDetail({ params }: { params: { id: string 
                 )}
                 <li>
                   <span className="vaSpecKey">Wording fingerprint</span>
-                  <span className="vaSpecValue" style={{ color: intact ? '#7fd49b' : '#ff9c7e', fontSize: '0.8125rem' }}>
+                  <span className="vaSpecValue" style={{ color: intact ? 'var(--va-positive)' : 'var(--va-danger)', fontSize: '0.8125rem' }}>
                     {intact ? 'Matches — unchanged since signing' : 'DOES NOT MATCH'}
                   </span>
                 </li>

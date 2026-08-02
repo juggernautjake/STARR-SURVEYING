@@ -118,14 +118,14 @@ export default function StudentList({
                     </td>
                     <td data-label="Package">{s.packageName ?? '—'}</td>
                     <td data-label="Lessons left">
-                      <span style={{ color: left === 0 ? '#ff9c7e' : 'var(--va-text)', fontWeight: 600 }}>
+                      <span style={{ color: left === 0 ? 'var(--va-danger)' : 'var(--va-text)', fontWeight: 600 }}>
                         {left} of {s.sessionsPurchased}
                       </span>
                       <span className="vaCatBar" style={{ marginLeft: 0, maxWidth: 120 }} aria-hidden>
                         <span style={{ width: `${pct}%` }} />
                       </span>
                       {left === 0 && s.status === 'active' && (
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#ff9c7e', marginTop: 3 }}>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--va-danger)', marginTop: 3 }}>
                           Ask about another block
                         </span>
                       )}

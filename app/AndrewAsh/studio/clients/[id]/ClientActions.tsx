@@ -225,7 +225,7 @@ export default function ClientActions(props: Props): React.ReactElement {
           <button
             type="button"
             className="vaBtn vaBtnGhost vaBtnSm"
-            style={{ color: '#ff9c7e' }}
+            style={{ color: 'var(--va-danger)' }}
             disabled={busy === 'delete'}
             onClick={async () => {
               if (!window.confirm(`Delete ${props.name}? They have no invoices or contracts, so nothing else goes with them.`)) return;

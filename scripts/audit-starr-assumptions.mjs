@@ -96,6 +96,19 @@ const CORRECT_FOREVER = [
   { prefix: 'app/components/GoogleReviewWidget', bucket: 'own-site', why: 'the firm’s own Google reviews' },
   { prefix: 'app/components/SurveyCalculator', bucket: 'own-site', why: 'a public marketing calculator' },
   { prefix: 'app/dnd', bucket: 'vendor', why: 'a separate product, explicitly out of this audit’s scope' },
+
+  // Added 2026-08-02. Andrew Ash's voice-over platform — a different person's business, hosted here
+  // temporarily and scheduled to be lifted into its own repo and domain. It is not a Starr surface
+  // and never becomes one, so "a customer firm would expect this to say THEIR name" does not apply:
+  // the name it should say is Andrew's, and it does.
+  //
+  // Its handful of Starr references are the OPPOSITE of tenant debt — they are the comments marking
+  // where the two applications must not touch, most importantly the one in lib/voice/payments.ts
+  // explaining why Andrew's Stripe keys are read from VOICE_-prefixed variables with no fallback to
+  // this repo's. Counting those as debt would pressure someone into deleting the warning.
+  { prefix: 'app/AndrewAsh', bucket: 'vendor', why: 'a separate tenant’s site, leaving this repo — its Starr references are boundary documentation' },
+  { prefix: 'lib/voice', bucket: 'vendor', why: 'the voice platform’s core, same as app/AndrewAsh' },
+  { prefix: 'app/api/voice', bucket: 'vendor', why: 'the voice platform’s API, same as app/AndrewAsh' },
   { prefix: 'app/api/contact', bucket: 'own-site', why: 'the public site’s contact form' },
   { prefix: '__tests__', bucket: 'fixture', why: 'test fixtures' },
   { prefix: 'e2e', bucket: 'fixture', why: 'test fixtures' },

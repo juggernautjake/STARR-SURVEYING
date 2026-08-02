@@ -74,7 +74,7 @@ export default async function ContractPage({ params }: { params: { token: string
             {/* Only shown when it FAILS. A green "verified" badge on every load trains people to
                 ignore it, and the only moment this matters is the moment it stops being true. */}
             {!intact && (
-              <span style={{ display: 'block', marginTop: 10, color: '#ff9c7e' }}>
+              <span style={{ display: 'block', marginTop: 10, color: 'var(--va-danger)' }}>
                 Warning: the wording of this agreement no longer matches what was signed. Do not rely
                 on this copy — contact us.
               </span>

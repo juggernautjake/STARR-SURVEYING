@@ -213,7 +213,7 @@ export default function PackageEditor({ packages, defaults }: { packages: Pkg[];
                     <button
                       type="button"
                       className="vaBtn vaBtnGhost vaBtnSm"
-                      style={{ color: '#ff9c7e' }}
+                      style={{ color: 'var(--va-danger)' }}
                       disabled={busy === `d-${p.id}`}
                       onClick={() => {
                         if (!window.confirm(`Remove "${p.name}"? If students are on it, it will just be hidden.`)) return;

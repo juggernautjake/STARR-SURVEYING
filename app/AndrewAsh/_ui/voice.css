@@ -46,6 +46,16 @@
   --va-accent-bright: #f0d68a;
   --va-accent-contrast: #0a0d14;
   --va-glow: #6fd3d6;
+
+  /* Status colours. Deliberately NOT part of the editable theme, unlike every other token here.
+     "Overdue" being red is semantics rather than styling, and a theme editor that let Andrew set the
+     overdue colour to the same green as "paid" would be a bug he could build for himself. They are
+     custom properties anyway so a media query, the print stylesheet and the contrast audit can all
+     reach them — which is the whole argument against the inline hexes these replaced. */
+  --va-danger: #ff9c7e;
+  --va-danger-strong: #e2725b;
+  --va-positive: #7fd49b;
+
   --va-font-display: 'Cinzel', Georgia, serif;
   --va-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 

@@ -78,7 +78,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         </div>
         <div className="vaTile">
           <span className="vaTileLabel">Owes right now</span>
-          <span className="vaTileValue" style={owing > 0 ? { color: '#ff9c7e' } : undefined}>{formatCents(owing)}</span>
+          <span className="vaTileValue" style={owing > 0 ? { color: 'var(--va-danger)' } : undefined}>{formatCents(owing)}</span>
         </div>
         <div className="vaTile">
           <span className="vaTileLabel">Invoices</span>

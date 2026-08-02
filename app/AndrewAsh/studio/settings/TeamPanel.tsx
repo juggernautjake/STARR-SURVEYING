@@ -110,7 +110,7 @@ export default function TeamPanel({ users, currentUserId }: { users: User[]; cur
                       <button
                         type="button"
                         className="vaBtn vaBtnGhost vaBtnSm"
-                        style={{ color: '#ff9c7e' }}
+                        style={{ color: 'var(--va-danger)' }}
                         disabled={busy === `del-${u.id}`}
                         onClick={() => {
                           if (!window.confirm(`Remove ${u.displayName}? They will not be able to sign in again.`)) return;

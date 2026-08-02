@@ -142,7 +142,7 @@ export default function DocumentVault({ documents }: { documents: Doc[] }): Reac
                     <button
                       type="button"
                       className="vaBtn vaBtnGhost vaBtnSm"
-                      style={{ color: '#ff9c7e' }}
+                      style={{ color: 'var(--va-danger)' }}
                       disabled={busy === d.id}
                       onClick={async () => {
                         if (!window.confirm(`Delete "${d.title}"? This cannot be undone.`)) return;

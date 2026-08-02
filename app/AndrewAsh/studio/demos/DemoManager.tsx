@@ -176,7 +176,7 @@ export default function DemoManager({
                     <button
                       type="button"
                       className="vaBtn vaBtnGhost vaBtnSm"
-                      style={{ color: '#ff9c7e' }}
+                      style={{ color: 'var(--va-danger)' }}
                       disabled={busy === d.id}
                       onClick={() => {
                         if (!window.confirm(`Remove "${d.title}" from the site?`)) return;

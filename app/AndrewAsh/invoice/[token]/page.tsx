@@ -114,7 +114,7 @@ export default async function InvoicePayPage({ params }: { params: { token: stri
           {days !== null && days < 0 && balance > 0 && (
             <>
               {' · '}
-              <strong style={{ color: '#E2725B', fontWeight: 600 }}>
+              <strong style={{ color: 'var(--va-danger-strong)', fontWeight: 600 }}>
                 {Math.abs(days)} {Math.abs(days) === 1 ? 'day' : 'days'} overdue
               </strong>
             </>

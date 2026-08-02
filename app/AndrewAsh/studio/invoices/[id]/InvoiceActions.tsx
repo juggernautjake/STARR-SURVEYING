@@ -250,7 +250,7 @@ export default function InvoiceActions({
             <button
               type="button"
               className="vaBtn vaBtnGhost vaBtnSm"
-              style={{ color: '#ff9c7e' }}
+              style={{ color: 'var(--va-danger)' }}
               disabled={busy === 'delete'}
               onClick={async () => {
                 if (!window.confirm('Delete this draft?')) return;
