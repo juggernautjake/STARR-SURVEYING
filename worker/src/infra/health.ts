@@ -66,6 +66,10 @@ export interface HealthzPayload {
   queue: {
     activePipelines: number;
     completedResults: number;
+    /** How many this machine will hold at once, and why (plan R7). Reported so a wrong-sized box is
+     *  visible from the app rather than at minute 22 of a run. */
+    maxConcurrentPipelines?: number;
+    limitedBy?: string;
   };
   /** Config gaps. Present so a human reading a probe response can see them; never fatal. */
   warnings: string[];
@@ -140,6 +144,7 @@ export interface HealthzInputs {
   activePipelines: number;
   completedResults: number;
   warnings: string[];
+  capacity?: { maxConcurrentPipelines: number; limitedBy: string };
 }
 
 /** Build the payload and decide the HTTP status.
@@ -167,6 +172,9 @@ export function buildHealthz(input: HealthzInputs): { status: number; body: Heal
     queue: {
       activePipelines: input.activePipelines,
       completedResults: input.completedResults,
+      ...(input.capacity
+        ? { maxConcurrentPipelines: input.capacity.maxConcurrentPipelines, limitedBy: input.capacity.limitedBy }
+        : {}),
     },
     warnings: input.warnings,
   };

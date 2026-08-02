@@ -237,12 +237,43 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* a fixture run shows ≥60% of calls on the cheap tier with no drop in extraction
   accuracy against the golden set (R9).
 
-- **R7. Compute plan, priced.** *(document + config slice, not code)*
-  Compare and record the actual choice for a 20–30 min Playwright+vision run: DigitalOcean droplet
-  (current), Hetzner dedicated (Dockerfile already mentions it), Fly.io machines, and
-  Browserbase-per-session. Include $/run at 1, 10, 100 runs/month. GPU is almost certainly *not*
-  needed — the vision work is API-side; local GPU only matters if we self-host OCR.
-  *Acceptance:* a table in this doc with real prices, and the winner set in deployment config.
+- **R7. ✅ DONE 2026-08-02 — compute plan, priced, and built out.**
+  Owner constraint: **≤ $70/month**. Chosen: **netcup RS 4000 G12 — 12 dedicated AMD EPYC 9645
+  (Zen 5) cores, 32 GB DDR5 ECC, 1 TB NVMe, in Manassas, Virginia — €33.55/mo net ≈ $38.50**, about
+  55% of the cap, leaving ~$31/mo for the variable costs (Claude calls, paid pages, CapSolver,
+  occasional Browserbase). Full comparison table, sizing maths and runbook:
+  `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md`.
+
+  Two facts eliminated most of the field. Hetzner's **June 2026 price increase** (+113–176% on
+  CCX/CPX) took its dedicated-vCPU cloud line out of budget — CCX23 is now ~$98. And the **US IP
+  requirement** took its excellent bare-metal line out with it: the worker scrapes *Texas county*
+  portals, and a German IP invites geo-blocks and extra captchas. Netcup's G12 root servers sit
+  exactly on the intersection — dedicated cores, ECC memory, US datacentre, EU pricing. Contabo is
+  cheaper on paper and shared-CPU, which is the wrong risk for a 25-minute run.
+
+  **No GPU.** Vision and extraction are Claude API calls — the inference is on Anthropic's hardware.
+  A rented GPU would be the largest line on the bill and idle through every run.
+
+  Shipped with it, so the recommendation is a deployment rather than a paragraph:
+  · `worker/docker-compose.yml` — worker + Redis sized for that box: 26 GB limit, `shm_size: 1gb`
+    (Chromium crashes on Docker's default 64 MB with the "Target closed" that looks like a flaky
+    county site), log rotation, appendonly Redis with `noeviction` because silently dropping a
+    queued run is worse than refusing a new one, and the port bound to **127.0.0.1** with Caddy as
+    the TLS edge.
+  · `worker/src/infra/capacity.ts` — concurrency computed from cores and RAM at boot, published on
+    `/healthz`, and **enforced**: a run the box cannot hold gets a `503 … retryable: true` rather
+    than being accepted and OOM-killing a neighbour at minute 22, after the documents have been
+    bought. On the recommended box: `12 cores, 32 GB → max 6; limited by ceiling (cpu→8, memory→11,
+    ceiling→6)`. The binding limit is politeness toward small county servers, not hardware, and it
+    says so.
+  · `worker/.env.example` — the worker read **70** environment variables and documented **23**.
+    The 47 missing included *every* paid-document credential, whose absence is silent and expensive:
+    the run completes, buys nothing, and reports the county as having no records. All documented,
+    with a test that fails when the code starts reading an undocumented one.
+
+  *Verified by running the built worker:* `/healthz` reports capacity and the reason, and the boot
+  line reads `22 cores, 15.4 GB → max 4 concurrent research run(s); limited by memory (cpu→14,
+  memory→4, ceiling→6)` on the dev machine — i.e. the calculation reacts to the real box.
 
 ### Phase B — One brain: the registry becomes the source of truth
 
@@ -414,8 +445,9 @@ These block specific slices and must not be guessed:
    different restrictions. Which do we buy, and may captured tiles be stored in a customer packet?
 3. **Captcha and ToS posture (R12).** Some county portals forbid automated access in their terms.
    Which counties are we willing to automate, and where do we stop and queue a manual step?
-4. **Compute host (R7).** Droplet vs Hetzner vs Fly vs Browserbase-per-session — a cost/ops
-   trade-off, and the current droplet is unreachable regardless.
+4. ~~**Compute host (R7).**~~ **DECIDED 2026-08-02** — netcup RS 4000 G12 in Manassas VA, ~$38.50/mo
+   against a $70 cap. See `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md`. What remains owner-side is
+   ordering it and pointing `WORKER_URL` at it; the current droplet is unreachable regardless.
 5. **Spend ceilings (R5).** Dollars per run and per month, and what a run should do when it hits
    them: stop, or ask.
 

@@ -1,0 +1,95 @@
+# worker/docker-compose.yml — the research worker and its Redis, on one box (research plan R7).
+#
+# Sized for the recommended host: netcup RS 4000 G12 (12 dedicated AMD EPYC cores, 32 GB DDR5 ECC,
+# 1 TB NVMe, Manassas VA). See docs/platform/RESEARCH_WORKER_DEPLOYMENT.md for why that box and what
+# else was priced.
+#
+#   docker compose --env-file .env up -d --build
+#   docker compose logs -f worker
+#   docker compose ps            # STATUS shows (healthy) once /healthz passes
+#
+# ── WHY REDIS IS HERE AND POSTGRES IS NOT ───────────────────────────────────────────────────────
+#
+# Redis is the job queue and the research-event bus: it is chatty, latency-sensitive, and worthless
+# to anybody but this worker, so it belongs on the same box with no network in between. Postgres is
+# Supabase's, shared with the app, and holds the results — the one thing that must survive this
+# machine being rebuilt.
+
+name: starr-research
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Stamped into /healthz so a running container can be matched to a commit.
+        BUILD_SHA: ${BUILD_SHA:-unknown}
+    image: starr-worker:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 3100
+      NODE_ENV: production
+      # Same box, service name resolves on the compose network.
+      REDIS_URL: redis://redis:6379
+      # Chromium runs here, not on a paid remote browser. Browserbase stays available per-adapter
+      # (BROWSERBASE_ENABLED_ADAPTERS) for the handful of portals that need a residential IP.
+      BROWSER_BACKEND: ${BROWSER_BACKEND:-local}
+    ports:
+      # Bound to localhost only. The public edge is Caddy/nginx with TLS — see the runbook. A worker
+      # answering on 0.0.0.0:3100 with a bearer token is one leaked token from being anybody's
+      # scraping fleet.
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Chromium needs more than Docker's default 64 MB of /dev/shm or it crashes on big pages —
+    # the classic "Target closed" that looks like a flaky county site and is not.
+    shm_size: "1gb"
+    deploy:
+      resources:
+        limits:
+          # Leaves ~6 GB for Redis, the OS and page cache on a 32 GB box. Capacity planning inside
+          # the worker (src/infra/capacity.ts) derives concurrency from what it can see, so this
+          # limit and that calculation must be moved together.
+          memory: 26g
+        reservations:
+          memory: 4g
+    logging:
+      driver: json-file
+      options:
+        # A 25-minute run is verbose. Unbounded logs fill the disk, and a full disk stops the
+        # worker in a way that looks like a code fault.
+        max-size: "50m"
+        max-file: "5"
+    volumes:
+      # Scratch for in-flight page images and PDFs. Durable artifacts go to Supabase/R2; anything
+      # here is disposable by design, so a rebuild loses nothing that matters.
+      - worker-scratch:/app/.scratch
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly so a restart does not lose queued jobs. maxmemory-policy noeviction because
+    # silently dropping a queued research run is worse than refusing a new one.
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 1gb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1500m
+
+volumes:
+  worker-scratch:
+  redis-data:

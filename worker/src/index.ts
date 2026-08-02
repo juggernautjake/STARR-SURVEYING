@@ -53,6 +53,7 @@ import { NotificationService } from './services/notification-service.js';
 import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
 import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health.js';
+import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
@@ -63,6 +64,12 @@ const PORT = parseInt(process.env.PORT ?? '3100', 10);
 /** Reported by both health endpoints. Kept in one place because a version string that disagrees
  *  with itself is worse than no version string at all. */
 const WORKER_VERSION = '5.1.0';
+
+/** How many research runs this machine will hold at once (plan R7). Computed from cores and RAM at
+ *  boot, not hardcoded, because the same image runs on a laptop and on a 12-core box — and the
+ *  failure mode of guessing high is an OOM at minute 22 of a 25-minute run, after the paid documents
+ *  have been bought. */
+const CAPACITY = planCapacity(readMachine());
 
 app.use(express.json({ limit: '100mb' })); // Large for file uploads
 
@@ -785,6 +792,7 @@ app.get('/healthz', (_req: Request, res: Response) => {
     activePipelines: activePipelines.size,
     completedResults: completedResults.size,
     warnings: configWarnings(),
+    capacity: CAPACITY,
   });
   res.status(status).json(body);
 });
@@ -960,6 +968,20 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     res.status(409).json({
       error: `Pipeline already running for project ${projectId}`,
       startedAt: activePipelines.get(projectId)!.startedAt,
+    });
+    return;
+  }
+
+  // Admission control (plan R7). Refusing a run the machine cannot hold is far better than
+  // accepting it and OOM-killing a neighbour at minute 22 — the caller gets a 503 it can queue or
+  // retry on, and the runs already in flight survive.
+  if (activePipelines.size >= CAPACITY.maxConcurrentPipelines) {
+    res.status(503).json({
+      error: `This worker is at capacity (${activePipelines.size}/${CAPACITY.maxConcurrentPipelines} research runs).`,
+      hint: describeCapacity(CAPACITY),
+      retryable: true,
+      activePipelines: activePipelines.size,
+      maxConcurrentPipelines: CAPACITY.maxConcurrentPipelines,
     });
     return;
   }
@@ -4412,6 +4434,8 @@ app.listen(PORT, () => {
       ? `[startup] browser probe OK (${r.durationMs}ms, backend=${process.env.BROWSER_BACKEND ?? 'local'})`
       : `[startup] browser probe FAILED — ${r.error ?? 'unknown'} (this worker cannot run research)`);
   });
+
+  console.log(`[startup] capacity — ${describeCapacity(CAPACITY)}`);
 
   console.log('[Server] Endpoints:');
   console.log('  GET    /healthz                         ← liveness (what the container probes)');
