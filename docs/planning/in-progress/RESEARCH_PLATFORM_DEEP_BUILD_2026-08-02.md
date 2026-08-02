@@ -31,8 +31,9 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | Slice | What remains | Why it was not done in the slice |
 |---|---|---|
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
-| ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
+| ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
+| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | In progress; eDocTec found this way, taking Coryell and Lampasas off the paywall |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -1616,6 +1617,52 @@ found" for most of Texas.
 
 **Sequencing note:** R37 must precede R38 — every adapter this repo has shipped against a guessed DOM
 has needed rewriting, and R7/R8/R9 exist because of it.
+
+- **R39. Hunt each remaining county's portal from its own site.** IN PROGRESS 2026-08-02 — eDocTec found, Coryell + Lampasas off the paywall (seed 548, commit `59a0b463f`)
+  R38 established that no vendor URL pattern generalises. The only method left is per-county: read
+  the clerk's own page, find the portal, drive it, read the DOM, then list it.
+  *Acceptance:* every county within 80 miles of Bell either has a driven adapter or a recorded,
+  specific reason it does not.
+
+#### R39 findings — a vendor nobody knew about
+
+Hunting Coryell one county at a time turned up **eDocTec**, for which this platform had no adapter,
+no registry entry and no name. Two counties inside the 80-mile ring are on it, both **fully open** —
+no login, no paywall, current to within two days of the search:
+
+| County | FIPS | Was | Now | Proof |
+|---|---|---|---|---|
+| Coryell | 48099 | TexasFile (paywalled) | eDocTec | 12,705 docs / 20,267 party records; 20 rows → 12 documents through the compiled adapter |
+| Lampasas | 48281 | TexasFile (paywalled) | eDocTec | same schema; 20 rows → 13 documents |
+
+Coryell is worth two entries on the owner's list by itself: **Gatesville and Copperas Cove**.
+
+Neither county was listed because a URL returned 200. Both were driven end to end through
+`EdocTecClerkAdapter` itself — the R37 rule, applied to the vendor that R37's sweep never saw.
+
+**1. One row per PARTY, not per document.** eDocTec's table is
+`Instrument No | Filed Date | Party Type | Full Name | Document Type | Book/Volume | Page/Line`, and
+the same instrument repeats once per party. That is why the site reports 12,705 documents *and*
+20,267 records for one search. Rows group back by instrument number **and filed date** — number
+alone merges a 1994 and a 2011 deed into one instrument with four grantors.
+
+**2. The trap that matters more.** A *party* search returns only the parties that **matched**. A deed
+whose grantee is not a Smith comes back, from a Smith search, with no grantee. That is not a deed
+without a grantee — it is a question we never asked. Recording it as an empty grantee would both
+publish a wrong fact and stop the chain walker dead, since a deed with no grantee has nothing to
+walk to. Everything assembled from a party search carries `partiesComplete: false`.
+
+**3. The hostname is a trap.** Everything is served from `mclennan.edoctec.com`, but McLennan's own
+records are **not** there — `/McLennan` is a Justice of the Peace ticket-payment portal. Taking the
+hostname as coverage would have pointed Waco deed searches at a page that sells traffic fines.
+McLennan's portal is still not found, and the dead ends are recorded in seed 548 so the search is
+not re-walked.
+
+**4. A FIPS code was wrong for as long as the table has existed.** Henschen had Lampasas under
+`48283`, which is **La Salle County**, 250 miles south. Corrected to `48281`.
+
+Same through-line as R37/R38: **an unknown rendered as an answer.** Here it was two counties'
+worth of "no records found" that actually meant "we were pointed at a paywall".
 
 #### Survey results, 2026-08-02 (seed 541)
 
