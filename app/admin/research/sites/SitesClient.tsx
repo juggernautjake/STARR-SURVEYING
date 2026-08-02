@@ -22,6 +22,24 @@ interface Detection {
   best: { vendor: { id: string; key: string; display_name: string }; score: number } | null;
   matches: Array<{ vendor: { id: string; display_name: string }; score: number }>;
 }
+/** §8.3's answer. `available: false` covers three different situations — the switch is off, there is
+ *  no browser in this environment, the portal did not open — and each carries its own `reason`,
+ *  because "the probe didn't work" sends somebody to the wrong place in all three. */
+interface ProbeResponse {
+  available: boolean;
+  reason?: string;
+  settingsHref?: string;
+  elapsedMs?: number;
+  proposal?: {
+    search: { querySelector: string; queryKind: string; submitSelector: string | null } | null;
+    results: { tableSelector: string; columns: Array<{ header: string; canonicalPath: string }> } | null;
+    confidence: 'high' | 'medium' | 'low' | 'none';
+    evidence: string[];
+    warnings: string[];
+  };
+  config?: unknown;
+  page?: { title: string; forms: number; tables: number };
+}
 
 const SITE_TYPE_LABELS: Record<string, string> = {
   appraisal_cad: 'Appraisal district (CAD)',
@@ -54,6 +72,8 @@ export default function SitesClient() {
   const [detection, setDetection] = useState<Detection | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<ProbeResponse | null>(null);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string; warnings?: string[] } | null>(null);
 
@@ -104,6 +124,26 @@ export default function SitesClient() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [url, countyId, siteType, open]);
 
+  // §8.3 — read an unknown portal and propose how to drive it. Nothing is saved by this; the
+  // proposal is shown with its evidence and its warnings, and `save()` carries it only if the
+  // person goes on to register.
+  async function probe() {
+    setProbing(true);
+    setProbeResult(null);
+    try {
+      const res = await fetch('/api/admin/research/sites/probe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      setProbeResult((await res.json()) as ProbeResponse);
+    } catch {
+      setProbeResult({ available: false, reason: 'The probe could not be reached.' });
+    } finally {
+      setProbing(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     setResult(null);
@@ -117,6 +157,9 @@ export default function SitesClient() {
           base_url: url.trim(),
           vendor_id: detection?.best?.vendor.id ?? null,
           canary_query: canary.trim() || undefined,
+          // Exactly the object the probe returned and the person just read — not one this component
+          // re-derived from what it rendered. §8.6's bespoke adapter is this config.
+          config_overrides: probeResult?.available ? (probeResult.config as Record<string, unknown>) : undefined,
         }),
       });
       const d = await res.json();
@@ -215,15 +258,70 @@ export default function SitesClient() {
                   ) : null}
                 </>
               ) : (
-                // Honest about the boundary. This is not a failure — it is the case the roadmap
-                // deferred on purpose, because reading an unknown portal means driving a browser
-                // against a government site and that is a decision, not a side effect of a form.
-                <span className="sites__detect-line sites__detect-line--warn">
-                  <AlertTriangle size={14} aria-hidden /> This portal doesn&apos;t match a vendor we
-                  have a template for. You can still register it, but it will need its configuration
-                  written by hand — the automatic site probe that would work it out is not switched on.
-                </span>
+                <>
+                  <span className="sites__detect-line sites__detect-line--warn">
+                    <AlertTriangle size={14} aria-hidden /> This portal doesn&apos;t match a vendor we
+                    have a template for. You can register it as-is, or read the page and see what the
+                    probe can work out.
+                  </span>
+                  {/* §8.3. Deliberately a BUTTON and not something the form does on its own: this
+                      opens the county's website in a browser on our behalf, and that is a decision
+                      somebody makes, not a side effect of typing a URL. */}
+                  <span className="sites__detect-line">
+                    <button type="button" className="sites__probe" onClick={() => void probe()} disabled={probing}>
+                      {probing ? 'Reading the portal…' : 'Read this portal'}
+                    </button>
+                    <span className="sites__hint">One page load. It never submits the search form.</span>
+                  </span>
+                </>
               )}
+            </div>
+          ) : null}
+
+          {probeResult ? (
+            <div className={`sites__probe-result sites__probe-result--${probeResult.available ? 'ok' : 'bad'}`}>
+              {!probeResult.available ? (
+                <p>
+                  {probeResult.reason}
+                  {probeResult.settingsHref ? (
+                    <> <a href={probeResult.settingsHref}>Open Site Health</a>.</>
+                  ) : null}
+                </p>
+              ) : probeResult.proposal ? (
+                <>
+                  <p>
+                    <strong>Read the page in {Math.round((probeResult.elapsedMs ?? 0) / 100) / 10}s.</strong>{' '}
+                    {/* The grade is about SHAPE, never about "it works" — nothing was submitted. */}
+                    Confidence in the shape it found: {probeResult.proposal.confidence}. This has not been
+                    tested against a real property; registering saves it as a draft either way.
+                  </p>
+                  <ul>
+                    {probeResult.proposal.search ? (
+                      <li>
+                        Search box found, and it looks like it takes{' '}
+                        <strong>{probeResult.proposal.search.queryKind.replace('_', ' ')}</strong>.
+                      </li>
+                    ) : (
+                      <li>No search form was recognised.</li>
+                    )}
+                    {probeResult.proposal.results ? (
+                      <li>
+                        Result table found with these columns:{' '}
+                        {probeResult.proposal.results.columns.map((c) => `${c.header} → ${c.canonicalPath}`).join(', ') || 'none recognised'}.
+                      </li>
+                    ) : (
+                      <li>No result table was recognised.</li>
+                    )}
+                  </ul>
+                  {/* Warnings are not collapsed behind a toggle. Every one of them is a thing that
+                      makes the mapping above wrong in a way that looks right. */}
+                  {probeResult.proposal.warnings.length > 0 ? (
+                    <ul className="sites__probe-warnings">
+                      {probeResult.proposal.warnings.map((w) => <li key={w}>{w}</li>)}
+                    </ul>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           ) : null}
 

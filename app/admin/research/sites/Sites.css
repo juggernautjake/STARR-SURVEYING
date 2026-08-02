@@ -207,3 +207,31 @@
 .sites__status--warn  { color: var(--color-warning-text); background: var(--color-warning-surface); }
 .sites__status--bad   { color: var(--color-error-text);   background: var(--color-error-surface); }
 .sites__status--muted { color: var(--color-text-tertiary); background: var(--color-bg-subtle); }
+
+/* §8.3's probe — the unknown-vendor path. */
+.sites__probe {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-info-text);
+  cursor: pointer;
+}
+.sites__probe:disabled { opacity: 0.6; cursor: default; }
+
+.sites__probe-result {
+  grid-column: 1 / -1;
+  margin-top: 0.2rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+.sites__probe-result--ok  { background: var(--color-info-surface); color: var(--color-info-text); }
+.sites__probe-result--bad { background: var(--color-warning-surface); color: var(--color-warning-text); }
+.sites__probe-result p { margin: 0 0 0.35rem; }
+.sites__probe-result ul { margin: 0 0 0 1.1rem; padding: 0; }
+.sites__probe-warnings { margin-top: 0.35rem; opacity: 0.9; }
