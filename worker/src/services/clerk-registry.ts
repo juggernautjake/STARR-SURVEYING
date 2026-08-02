@@ -69,6 +69,37 @@ export const KOFILE_FIPS_SET = new Set<string>([
   '48491',  // Williamson
 ]);
 
+
+// ── Which adapters have been PROVEN to reach their sites ─────────────────────
+//
+// Every base URL in the Tyler, Henschen, iDocket and Fidlar registries was probed on 2026-08-02.
+// **All 54 of them are unreachable.** Not some — all:
+//
+//   Henschen    <county>.co.texas.us          — a domain pattern that does not exist
+//   iDocket     idocket.com/TX/<County>       — 404 on every county
+//   Fidlar      <county>.fidlar.com           — unreachable
+//   Tyler       deed.dallascounty.org …       — dead, though dallascounty.org itself answers
+//
+// So those four adapters route research to domains that are not there, and the failure surfaces as
+// "no records found" — a statement about the property rather than about our routing.
+//
+// The county LISTS are kept, because knowing that Hays is a Henschen county is real knowledge worth
+// preserving; what is not kept is the pretence that we can reach it. Until an adapter's URLs are
+// rediscovered and proven, its counties fall through to TexasFile, which answered 200 and serves all
+// 254 Texas counties.
+//
+// Move a vendor into this set only after probing its base URLs — the same rule the Kofile list now
+// carries, and for the same reason.
+const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile']);
+
+/** Is this vendor's adapter known to reach its sites?
+ *
+ *  Kept as a function rather than inlined so the reason is in one place and a future probe can flip
+ *  a vendor back on by editing one line. */
+export function isVendorProven(system: ClerkSystem): boolean {
+  return PROVEN_VENDORS.has(system);
+}
+
 // ── ClerkRegistry ─────────────────────────────────────────────────────────────
 
 /**
@@ -95,27 +126,27 @@ export function getClerkAdapter(
   }
 
   // Priority 2: CountyFusion/Cott Systems (~40+ counties, index-only)
-  if (COUNTYFUSION_FIPS_SET.has(countyFIPS)) {
+  if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) {
     return new CountyFusionAdapter(countyFIPS, countyName);
   }
 
   // Priority 3: Tyler Technologies / Odyssey (~30+ counties)
-  if (TYLER_FIPS_SET.has(countyFIPS)) {
+  if (TYLER_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) {
     return new TylerClerkAdapter(countyFIPS, countyName);
   }
 
   // Priority 4: Henschen & Associates (~40 Hill Country / Central TX counties)
-  if (HENSCHEN_FIPS_SET.has(countyFIPS)) {
+  if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) {
     return new HenschenClerkAdapter(countyFIPS, countyName);
   }
 
   // Priority 5: iDocket (~20 counties — React SPA)
-  if (IDOCKET_FIPS_SET.has(countyFIPS)) {
+  if (IDOCKET_FIPS_SET.has(countyFIPS) && isVendorProven('idocket')) {
     return new IDocketClerkAdapter(countyFIPS, countyName);
   }
 
   // Priority 6: Fidlar Technologies / Laredo (~15 East TX + Panhandle counties)
-  if (FIDLAR_FIPS_SET.has(countyFIPS)) {
+  if (FIDLAR_FIPS_SET.has(countyFIPS) && isVendorProven('fidlar')) {
     return new FidlarClerkAdapter(countyFIPS, countyName);
   }
 
@@ -128,11 +159,11 @@ export function getClerkAdapter(
  */
 export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (KOFILE_FIPS_SET.has(countyFIPS))       return 'kofile';
-  if (COUNTYFUSION_FIPS_SET.has(countyFIPS)) return 'countyfusion';
-  if (TYLER_FIPS_SET.has(countyFIPS))        return 'tyler';
-  if (HENSCHEN_FIPS_SET.has(countyFIPS))     return 'henschen';
-  if (IDOCKET_FIPS_SET.has(countyFIPS))      return 'idocket';
-  if (FIDLAR_FIPS_SET.has(countyFIPS))       return 'fidlar';
+  if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) return 'countyfusion';
+  if (TYLER_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
+  if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) return 'henschen';
+  if (IDOCKET_FIPS_SET.has(countyFIPS) && isVendorProven('idocket')) return 'idocket';
+  if (FIDLAR_FIPS_SET.has(countyFIPS) && isVendorProven('fidlar')) return 'fidlar';
   return 'texasfile';
 }
 

@@ -58,10 +58,13 @@ describe('what an unreachable county routes to instead', () => {
     expect(getClerkSystem('48309')).toBe('texasfile');   // McLennan — Waco
   });
 
-  it('still routes the counties another vendor genuinely serves', () => {
-    // Trimming the Kofile list must not swallow a county a different adapter already handles.
-    expect(getClerkSystem('48209')).toBe('henschen');    // Hays
-    expect(getClerkSystem('48293')).toBe('idocket');     // Limestone
+  it('does not silently hand a county to another adapter that cannot reach its site', () => {
+    // Trimming the Kofile list must not swallow a county a different adapter handles — but probing
+    // afterwards found that Henschen's and iDocket's base URLs are ALL dead too, so those counties
+    // now fall through to TexasFile as well (see vendor-reachability.test.ts). Routing to a working
+    // fallback beats routing to a vendor we cannot reach.
+    expect(getClerkSystem('48209')).toBe('texasfile');   // Hays — Henschen county, dead URLs
+    expect(getClerkSystem('48293')).toBe('texasfile');   // Limestone — iDocket county, 404s
   });
 });
 
