@@ -35,6 +35,7 @@ import type {
 } from './captcha-solver.js';
 import { consoleSolveAttemptSink } from './captcha-solver.js';
 import { getLoggerForProject } from './logger.js';
+import { recordUsage } from '../infra/usage.js';
 
 // ── Captcha solver sink ────────────────────────────────────────────────────
 
@@ -62,6 +63,25 @@ export function makePipelineLoggerCaptchaSink(
       // does not cause us to lose the log line.
       try { await delegate.record(a); }
       catch { /* delegate errors are swallowed by the caller's wrapper */ }
+
+      // Money spent (plan R4). A captcha solve is a real charge on a real invoice, and it was
+      // being written to a log line and nowhere else — so it never reached the one table that
+      // answers "what did this run cost". Fire-and-forget: a metrics failure must not turn a
+      // successful solve into a failed one.
+      if (a.jobId && a.costUsd != null && a.costUsd > 0) {
+        void recordUsage({
+          projectId: a.jobId,
+          eventType: 'captcha_solve',
+          costUsd: a.costUsd,
+          metadata: {
+            provider: a.provider,
+            challenge_type: a.challengeType,
+            adapter: a.adapterId ?? null,
+            success: a.success,
+            duration_ms: a.durationMs,
+          },
+        });
+      }
 
       const logger = getLoggerForProject(a.jobId);
       if (!logger) return;

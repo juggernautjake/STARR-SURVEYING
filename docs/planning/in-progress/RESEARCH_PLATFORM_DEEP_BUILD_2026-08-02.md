@@ -218,11 +218,31 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* kill -9 the worker mid-run; on restart the run resumes or is explicitly marked
   `interrupted` with what it had already paid for and saved.
 
-- **R4. Cost telemetry that actually writes.**
-  One `recordUsage()` in the worker and the app, called by every AI call, every paid document, every
-  browser-minute. Pricing constants in one file. Backfill `research_usage_events`.
-  *Acceptance:* a completed run has a non-zero `cost_usd`; the billing page shows $/run, and a test
-  fails if an AI call path exists that cannot record.
+- **R4. ⚠ PARTIALLY DONE 2026-08-02 — the writer exists; the last call sites are still being
+  migrated.**
+  `worker/src/infra/usage.ts` is the one place that prices a call and the one place that writes to
+  `research_usage_events`. Per-model rates (Opus 5 / Sonnet 5 / Haiku 4.5, plus the dated ids still
+  hard-coded across the worker), cache-read and cache-write rates tracked separately because
+  re-sending a 40-page deed to five prompts is the largest saving available and is invisible without
+  them, and dated-id resolution by longest prefix so `claude-sonnet-4-5-20250929` does not price as
+  `claude-sonnet-4`.
+
+  An unknown model prices at the Sonnet fallback and is flagged `unpriced_model` — **never zero**,
+  which would make an unpriced model look like the cheapest thing in the system.
+
+  The Bell analyzers had their own constants — `COST_PER_INPUT_TOKEN = 3/1e6`, "claude-sonnet-4
+  pricing as of March 2026" — applied to **every** call regardless of model, so a Haiku
+  classification and an Opus synthesis cost the same on paper. Deleted; they price through the one
+  module now. Captcha solves, which are real charges on a real invoice, were written to a log line
+  and nowhere else; they now record too.
+
+  Telemetry never fails a run — a failed insert is logged loudly and dropped — and the in-process
+  accumulator increments **before** the write, so a budget ceiling (R5) counts a call whose row was
+  lost. `spendForRun(projectId)` is the enforcement surface R5 will read.
+
+  **Still to migrate:** 21 files construct their own Anthropic client directly and do not report
+  tokens through the helper. Those are the same call sites R6 rewrites for cheap-first routing, so
+  the two passes are being done together rather than touching each file twice.
 
 - **R5. Run budget and timebox, enforced.**
   Per-run ceilings: wall-clock (default 25 min), dollars, AI calls, paid pages. When a ceiling is hit
