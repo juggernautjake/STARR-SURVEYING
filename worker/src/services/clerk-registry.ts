@@ -31,7 +31,9 @@ import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 // Source: https://govos.com/solutions/local-government/clerk/ (2024)
 // Last updated: March 2026
 
-const KOFILE_FIPS_SET = new Set<string>([
+/** Exported so `paid-platform-registry` can share it rather than keep a copy — the two had drifted
+ *  six counties apart while a comment said "keep in sync" (plan R37). */
+export const KOFILE_FIPS_SET = new Set<string>([
   // Central Texas
   '48027',  // Bell
   '48491',  // Williamson
@@ -76,6 +78,12 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48465',  // Val Verde (partial coverage)
   '48105',  // Crockett
   '48451',  // Tom Green
+
+  // Verified live 2026-08-02 by the R37 site survey — `<county>.tx.publicsearch.us` returned 200.
+  // These are counties this firm actually works (the owner's Phase H list) that the registry did
+  // not know about, so the platform could already have served them and did not.
+  '48289',  // Leon (Centerville)
+  '48313',  // Madison (Madisonville)
 
   // Coastal / SE Texas — Montgomery verified on publicsearch.us 2026-03-09
   // Fort Bend (ccweb), Brazoria (TexasFile), Galveston (Fidlar): NOT on publicsearch.us

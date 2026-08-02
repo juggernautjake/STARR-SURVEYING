@@ -46,19 +46,17 @@ export { HENSCHEN_FIPS_SET } from '../adapters/henschen-clerk-adapter.js';
 export { IDOCKET_FIPS_SET }  from '../adapters/idocket-clerk-adapter.js';
 export { FIDLAR_FIPS_SET }   from '../adapters/fidlar-clerk-adapter.js';
 
-// ── Kofile county FIPS (from services/clerk-registry.ts) ─────────────────────
-// These are the counties known to have Kofile/GovOS PublicSearch deployments.
-// Imported directly to avoid circular deps — keep in sync with clerk-registry.ts.
-const KOFILE_FIPS_SET = new Set<string>([
-  '48027','48491','48453','48309','48099','48145','48281','48331',
-  '48029','48019','48091','48187','48259','48325','48013',
-  '48497','48143','48139','48251','48221','48367','48185',
-  '48073','48005','48347','48455','48471','48473',
-  '48137','48465','48105','48451',
-  '48039','48041','48057','48469','48481','48477',
-  '48375','48381',
-  '48053','48055','48035','48049','48083','48093','48095',
-]);
+// ── Kofile county FIPS ───────────────────────────────────────────────────────
+//
+// Re-exported from `clerk-registry.ts` rather than copied. It WAS a copy, with a comment saying
+// "keep in sync" — and by 2026-08-02 the two had drifted six counties apart: Tarrant, Collin,
+// Denton, Montgomery and Nueces were in the clerk registry and missing here, and Brazoria was here
+// and missing there. A county missing from this copy is one the purchase planner will not offer a
+// Kofile route for, so the drift quietly narrowed what the platform would buy.
+//
+// The lesson is the same one R18 learned about the OCR floor: a rule with two homes ends up enforced
+// in one of them.
+import { KOFILE_FIPS_SET } from './clerk-registry.js';
 
 // ── Platform Catalog ──────────────────────────────────────────────────────────
 
