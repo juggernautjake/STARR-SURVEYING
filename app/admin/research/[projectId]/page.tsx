@@ -37,6 +37,8 @@ import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import ResearchRunPanel from '../components/ResearchRunPanel';
+// What the run has spent and how much of its budget is left (research plan R22).
+import RunConsoleBar from '../components/RunConsoleBar';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -1805,6 +1807,10 @@ export default function ResearchProjectPage() {
                 <h2 className="research-step-header__title">Research &amp; Analysis</h2>
               </div>
             </div>
+            {/* Cost and elapsed-vs-budget, above the progress list (plan R22). The run panel showed
+                neither, so an operator watching a 25-minute run could not tell what it had spent or
+                whether it would finish. */}
+            <RunConsoleBar projectId={projectId} />
             <ResearchRunPanel
               projectId={projectId}
               address={pendingSearchParams?.address ?? project.property_address ?? ''}

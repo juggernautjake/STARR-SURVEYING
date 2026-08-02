@@ -2221,6 +2221,67 @@
   margin-bottom: 0.65rem;
 }
 
+/* ── Run console (plan R22) ───────────────────────────────────────────────── */
+
+.run-console {
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #9CA3AF;
+  border-radius: 6px;
+  background: #F9FAFB;
+  font-size: 0.8rem;
+  color: #374151;
+}
+
+.run-console--running     { border-left-color: #2563EB; }
+.run-console--complete    { border-left-color: #059669; }
+.run-console--failed      { border-left-color: #DC2626; }
+.run-console--cancelled   { border-left-color: #6B7280; }
+/* Interrupted is not a kind of failed — the research did not fail, the process holding it stopped. */
+.run-console--interrupted { border-left-color: #B45309; }
+.run-console--bad         { border-left-color: #DC2626; background: #FEF2F2; color: #991B1B; }
+
+.run-console__headline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 650;
+  color: #111827;
+  margin-bottom: 0.35rem;
+}
+
+.run-console__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  font-size: 0.76rem;
+  color: #4B5563;
+}
+
+.run-console__metric { display: inline-flex; align-items: center; gap: 0.2rem; }
+
+/* "No spend recorded" is a different fact from "$0.00", and must not read as a reassuring zero. */
+.run-console__metric--unknown { color: #B45309; font-weight: 600; }
+
+.run-console__bar {
+  height: 4px;
+  margin-top: 0.45rem;
+  background: #E5E7EB;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.run-console__bar-fill { height: 100%; background: #2563EB; transition: width 0.4s ease; }
+.run-console__bar-fill--near { background: #B45309; }
+
+.run-console__note { margin: 0.45rem 0 0; font-size: 0.75rem; color: #6B7280; }
+.run-console__note--warn { color: #B45309; font-weight: 600; }
+
+.run-console__skipped { margin-top: 0.45rem; font-size: 0.76rem; }
+.run-console__skipped summary { cursor: pointer; color: #B45309; font-weight: 600; }
+.run-console__skipped ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+
 /* ── Survey plan versions (plan R21) ──────────────────────────────────────── */
 
 .survey-plan__version {

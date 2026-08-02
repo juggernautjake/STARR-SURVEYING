@@ -958,7 +958,42 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase E — The people using it
 
-- **R22. Run console.**
+- **R22. Run console.** ✅ DONE 2026-08-02
+
+  **Shipped** (`lib/research/run-console.ts` + `run-console` route + `RunConsoleBar`, mounted on the
+  project page).
+
+  The cancel that actually cancels already worked end to end — worker `AbortController`, a DELETE
+  route, and a button. What was missing was everything else, and the data for all of it already
+  existed and reached nobody: R4 writes every model call and paid page to `research_usage_events`,
+  R5 records each run's ceilings and what they made it skip, R3 keeps the phase, heartbeat and spend
+  on `research_runs`. The panel showed a progress list. So an operator watching a 25-minute run could
+  not answer either question that matters — how much has this cost, and is it going to finish.
+
+  **`$0.00` is the dangerous number.** R4 exists because `research_usage_events` had zero rows while
+  everyone assumed spend was tracked; a console rendering "$0.00" cannot tell a genuinely free run
+  from a writer that has broken again. "No spend recorded" is therefore a distinct state with its own
+  colour, and a failed usage read is reported rather than silently becoming a confident zero.
+
+  Time is shown against the ceiling, and where no ceiling is configured it says so instead of drawing
+  a bar at 0% — which reads as "plenty of time left", a claim nobody made. Staleness uses the
+  worker's own `STALE_HEARTBEAT_MS`, because two definitions of "stalled" is how a run shows alive on
+  one screen and dead on another.
+
+  The headline leads with whatever is most wrong, since on a glanced-at screen it is the only part
+  reliably read: a stall outranks everything; an interrupted run says *it did not fail — the process
+  holding it stopped*; and a run that finished having skipped work says **"before treating this as
+  complete"** rather than reporting success. That last one is the part a budget silently eats — a run
+  that completed having dropped the deed chain is not a run that completed.
+
+  Two smaller correctness points: cancel is offered only while `status === 'running'`, because the
+  worker answers anything else with a 404 and a button that cannot work teaches an operator to
+  distrust the console; and polling stops once the run is not running, since a finished run does not
+  change.
+
+  Root suite 21,543 passing; typecheck clean.
+
+  Original item:
   One screen for a live run: phase, elapsed vs budget, what it is doing right now, live artifacts
   appearing, cost so far, and a cancel that actually cancels. Replaces guessing at a spinner.
   *Acceptance:* an operator can watch a 25-minute run and know at any moment what it is doing and
