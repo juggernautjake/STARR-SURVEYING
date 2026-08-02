@@ -26,6 +26,9 @@ import {
   type DocumentType,
 } from './clerk-adapter.js';
 
+// A paywall is not an empty index — TexasFile is the fallback for 233 counties (plan R38).
+import { readAccess, type AccessResult } from './texasfile-access.js';
+
 /** Base URL for TexasFile public search */
 const TEXASFILE_BASE = 'https://www.texasfile.com';
 
@@ -45,6 +48,11 @@ export class TexasFileAdapter extends ClerkAdapter {
 
   /** Whether we've already navigated to the TexasFile search page */
   private sessionReady = false;
+
+  /** What the last search actually hit. Surfaced so a caller can tell a paywall (the records exist,
+   *  we cannot open them) from an empty index (they do not exist) — the distinction that decides
+   *  whether a county needs a subscription or needs a different portal. */
+  lastAccess: AccessResult | null = null;
 
   constructor(countyFIPS: string, countyName: string) {
     super(countyName, countyFIPS);
@@ -331,6 +339,24 @@ export class TexasFileAdapter extends ClerkAdapter {
    */
   private async parseResults(): Promise<ClerkDocumentResult[]> {
     if (!this.page) return [];
+
+    // TexasFile runs the search, tells you how many records matched, and THEN asks for an account.
+    // Without this check that arrives as an empty array — and for the 233 counties that fall back to
+    // TexasFile, "no records found" would be the platform's answer for most of Texas (plan R38).
+    try {
+      const body = await this.page.evaluate(() => document.body.innerText.slice(0, 4000));
+      const access = readAccess(this.page.url(), body, this.countyName);
+      this.lastAccess = access;
+      if (access.state === 'paywalled') {
+        console.warn(`[TexasFile/${this.countyName}] ${access.statement} ${access.nextStep}`);
+        return [];
+      }
+      if (access.state === 'unknown') {
+        console.warn(`[TexasFile/${this.countyName}] ${access.statement}`);
+      }
+    } catch {
+      // A failed read of the page text must not stop the parse below.
+    }
 
     const results: ClerkDocumentResult[] = [];
 
