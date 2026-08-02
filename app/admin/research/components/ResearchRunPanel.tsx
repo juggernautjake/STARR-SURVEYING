@@ -241,6 +241,9 @@ export default function ResearchRunPanel({
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
   const [currentMicroStage, setCurrentMicroStage] = useState<MicroStageId>('compiling');
   const [currentMessage, setCurrentMessage] = useState('Starting research pipeline…');
+  /** Set when the deep worker was unavailable and the run silently became a lite one (R2). Held for
+   *  the life of the run, not shown as a passing status line. */
+  const [liteFallback, setLiteFallback] = useState<string | null>(null);
   const [logs, setLogs] = useState<PipelineLogEntry[]>([]);
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
   const [allCopied, setAllCopied] = useState(false);
@@ -484,6 +487,10 @@ export default function ResearchRunPanel({
         console.warn(
           `[ResearchRunPanel] ${projectId}: worker unavailable (503) — falling back to lite pipeline. error=${errData.error ?? 'none'}`,
         );
+        // R2: state it and KEEP stating it. This message used to be overwritten by the next
+        // progress line, so a run that quietly became a much weaker one announced itself for about
+        // a second. `liteFallback` is rendered for the life of the run.
+        setLiteFallback(typeof errData.error === 'string' ? errData.error : null);
         setCurrentMessage('Full research worker unavailable. Falling back to lite pipeline…');
         const liteRes = await fetch(`/api/admin/research/${projectId}/lite-pipeline`, {
           method: 'POST',
@@ -881,6 +888,16 @@ export default function ResearchRunPanel({
           <span className="rrp__progressbar-pct">{progressPct}%</span>
         </div>
 
+        {/* R2 — held for the life of the run, not shown as a status line that scrolls past. A run
+            that quietly became a much weaker one used to announce itself for about a second. */}
+        {liteFallback ? (
+          <div className="rrp__lite-notice" role="status">
+            <strong>Running the lite pipeline.</strong> The full research worker was unavailable, so
+            this run uses public records, imagery and AI analysis — but no browser-driven county
+            portal scraping. Re-run once the worker is back for the deeper result.
+          </div>
+        ) : null}
+
         {/* Current message with animated ellipsis */}
         {!isDone && (
           <div className="rrp__progress-msg">
@@ -1228,6 +1245,20 @@ export default function ResearchRunPanel({
 .rrp__progress-msg {
   font-size: 0.9rem; color: #475569; max-width: 56ch;
 }
+/* R2 — the lite-fallback notice. Warning-toned rather than error-toned: the run is proceeding
+   and will produce a real result, just a shallower one. Tokens so a theme change reaches it. */
+.rrp__lite-notice {
+  margin: 0.6rem 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-warning-text);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  max-width: 64ch;
+}
+
 .rrp__progress-failure {
   font-size: 0.88rem; color: #dc2626; max-width: 56ch; line-height: 1.5;
 }

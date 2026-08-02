@@ -1,0 +1,65 @@
+/* app/admin/research/components/WorkerStatusBanner.css — research plan R2. Tokens only. */
+
+.worker-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* Three tones for three situations. "No worker configured" is a normal deployment state, not a
+ * fault — colouring it red would teach people to ignore the one that is. */
+.worker-status--ok   { border-color: var(--color-success-text); background: var(--color-success-surface); color: var(--color-success-text); }
+.worker-status--info { border-color: var(--color-info-text);    background: var(--color-info-surface);    color: var(--color-info-text); }
+.worker-status--warn { border-color: var(--color-warning-text); background: var(--color-warning-surface); color: var(--color-warning-text); }
+
+.worker-status__icon { flex-shrink: 0; margin-top: 0.15rem; }
+.worker-status__body { flex: 1 1 auto; min-width: 0; }
+
+.worker-status__headline { margin: 0; font-weight: 600; }
+.worker-status__hint { margin: 0.2rem 0 0; opacity: 0.9; }
+
+.worker-status__warnings {
+  margin: 0.3rem 0 0 1rem;
+  padding: 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.worker-status__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.worker-status__refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.worker-status__refresh:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 720px) {
+  .worker-status { flex-wrap: wrap; }
+  .worker-status__meta { width: 100%; justify-content: flex-end; }
+}

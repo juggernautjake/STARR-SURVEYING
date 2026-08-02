@@ -7,6 +7,7 @@ import { usePageError } from '../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 import Tooltip from './components/Tooltip';
+import WorkerStatusBanner from './components/WorkerStatusBanner';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
@@ -142,6 +143,10 @@ export default function ResearchListPage() {
   return (
     <>
       <div className="research-page">
+        {/* R2 — a dead research worker used to look like a slow page. Quiet when the engine is
+            healthy; one sentence when it is not, plus what that means for a run started now. */}
+        <WorkerStatusBanner />
+
         {/* Header */}
         <div className="research-page__header">
           <h1 className="research-page__title">Property Research</h1>

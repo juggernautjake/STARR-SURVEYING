@@ -186,11 +186,30 @@ polish — nothing else in this plan can be trusted while the engine is down and
   concatenation, so on Windows it emitted `file://C:…a.txt` — backslashes, which is not a URL and
   will not parse. Now `pathToFileURL().href`. The worker suite is green at 152 passing (it was 151/1).
 
-- **R2. The app tells the truth about the worker.**
-  A worker-status probe surfaced in the research UI and on `/admin/research/coverage`: reachable or
-  not, last successful run, current queue depth. Today a dead engine looks like a slow page.
-  *Acceptance:* with `WORKER_URL` pointed at a dead host, the UI says so in one sentence and offers
-  the lite path explicitly rather than failing silently.
+- **R2. ✅ DONE 2026-08-02 — the app tells the truth about the worker.**
+  `lib/research/worker-status.ts` (pure verdict) + `GET /api/admin/research/worker-status` (one
+  bounded 4s probe of `/healthz`, cached 15s and deduplicated so a page left open is not a
+  health-check flood) + a banner on the research list.
+
+  Four situations get four sentences, because two of them are somebody else's job to fix and one is
+  not a fault at all: **not_configured** (no WORKER_URL — a normal deployment state, shown in an
+  informational tone rather than red), **unreachable** (configured and silent — points at the
+  machine, not the app; a credentials mismatch says both sides are fine and disagree), **degraded**
+  (answering, but its own /healthz says it cannot open a browser — the dangerous one, because it
+  looks up and will accept a run and fail it), and **ok** (with the current job count).
+
+  Two things the probe exposed that were worse than the missing banner:
+  · A transport failure in the pipeline route escaped as a **500**, which the run panel reports as
+    "research failed" — a different and wrong claim. It is now a **503 with the reason**, which is
+    the shape the panel's existing lite fallback already knows how to handle.
+  · That fallback was **silent**: it swapped in the much weaker lite pipeline and announced it in a
+    status line that the next progress message overwrote about a second later. The notice is now
+    held for the life of the run and says what the run will and will not do.
+
+  *Verified in a browser against the real, dead droplet:* the banner reads "The research worker is
+  not answering, so deep research cannot run right now / The server did not respond: The operation
+  was aborted due to timeout / A run started now uses the built-in lite pipeline…" with no console
+  errors.
 
 - **R3. Runs survive a restart.**
   Move the primary pipeline onto the existing BullMQ queue with Redis-backed state; `activePipelines`

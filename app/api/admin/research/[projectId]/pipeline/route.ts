@@ -131,13 +131,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     `[pipeline/route] POST ${projectId}: forwarding to worker — county="${payload.county}" address="${payload.address}" workerUrl=${WORKER_URL}`,
   );
 
-  // Forward to worker
-  const workerRes = await fetch(`${WORKER_URL}/research/property-lookup`, {
-    method: 'POST',
-    headers: workerHeaders(),
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(30_000),
-  });
+  // Forward to worker.
+  //
+  // R2: a transport failure here — the droplet stopped, DNS gone, connection refused — used to
+  // escape as a 500, which the run panel treats as an unknown error and reports as "research
+  // failed". It is not a failure of the research; it is the engine not being there, and the panel
+  // already knows how to fall back to the lite pipeline on a 503. So the shape of the answer is
+  // what tells it apart, and the reason travels with it.
+  let workerRes: Response;
+  try {
+    workerRes = await fetch(`${WORKER_URL}/research/property-lookup`, {
+      method: 'POST',
+      headers: workerHeaders(),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[pipeline/route] POST ${projectId}: worker unreachable at ${WORKER_URL} — ${reason}`);
+    return NextResponse.json({
+      error: 'The research worker is not answering, so deep research cannot run right now.',
+      hint: reason,
+      workerUnreachable: true,
+    }, { status: 503 });
+  }
 
   const workerData = await workerRes.json();
 
