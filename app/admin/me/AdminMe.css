@@ -1099,3 +1099,61 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── "My Pay is a widget now" (platform audit follow-up, 2026-08-01) ──────────
+ * Shown once per retired tab to somebody arriving from an old /admin/my-* or
+ * /admin/profile bookmark, which redirected to `?tab=<x>` that nothing read.
+ * See app/admin/me/LegacyTabNotice.tsx. */
+.hub-legacy-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--color-info-text);
+  background: var(--color-info-surface);
+  border-radius: 10px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--color-text-primary);
+}
+
+.hub-legacy-notice__text {
+  flex: 1 1 260px;
+  line-height: 1.5;
+}
+
+.hub-legacy-notice__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hub-legacy-notice__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 0.38rem 0.8rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-info-text);
+  color: var(--color-text-on-brand);
+  cursor: pointer;
+}
+
+.hub-legacy-notice__x {
+  display: inline-flex;
+  padding: 0.3rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.hub-legacy-notice__x:hover {
+  background: rgba(15, 20, 25, 0.06);
+}

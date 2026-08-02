@@ -15,6 +15,7 @@ import type { UserRole } from '@/lib/auth';
 import type { BundleId } from '@/lib/saas/bundles';
 import type { HubLayoutRow } from '@/lib/hub/types';
 
+import LegacyTabNotice from './LegacyTabNotice';
 import HubProviders from '@/lib/hub/components/HubProviders';
 import HubCanvas from '@/lib/hub/components/HubCanvas';
 import { useHubStore } from '@/lib/hub/hub-store';
@@ -81,6 +82,11 @@ export default function HubMeClient({ layout, roles, activeBundles = null, isSee
   }, [enterEditMode]);
 
   return (
+    <>
+    {/* The five retired `?tab=` redirects land here with their parameter dropped (see
+        LegacyTabNotice). Rendered above the canvas so it is the first thing a person following an
+        old bookmark reads, rather than something they scroll to. */}
+    <LegacyTabNotice />
     <HubProviders
       initialTheme={layout.theme}
       initialCustomTheme={layout.customTheme}
@@ -89,5 +95,6 @@ export default function HubMeClient({ layout, roles, activeBundles = null, isSee
     >
       <HubCanvas roles={roles} activeBundles={activeBundles} isSeeded={isSeeded} />
     </HubProviders>
+    </>
   );
 }
