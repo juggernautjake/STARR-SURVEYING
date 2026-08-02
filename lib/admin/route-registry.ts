@@ -27,6 +27,7 @@ export type Workspace =
   | 'equipment'
   | 'research-cad'
   | 'knowledge'
+  | 'money'
   | 'office';
 
 export interface WorkspaceMeta {
@@ -44,11 +45,16 @@ export const WORKSPACES: Record<Workspace, WorkspaceMeta> = {
   equipment:      { id: 'equipment',      label: 'Equipment',       iconName: 'Truck',          href: '/admin/equipment',    shortcut: 'Mod+3', order: 3 },
   'research-cad': { id: 'research-cad',   label: 'Research & CAD',  iconName: 'Compass',        href: '/admin/research-cad', shortcut: 'Mod+4', order: 4 },
   knowledge:      { id: 'knowledge',      label: 'Knowledge',       iconName: 'GraduationCap',  href: '/admin/learn',        shortcut: 'Mod+5', order: 5 },
-  office:         { id: 'office',         label: 'Office',          iconName: 'Building',       href: '/admin/office',       shortcut: 'Mod+6', order: 6 },
+  // Platform audit §2.2 / Phase 1 item 7 (2026-08-01) — thirty money surfaces, split across the Work
+  // and Office workspaces, with no single financial home. Money is a workspace of its own now; the
+  // rail, the palette, the mobile drawer and the landings all read this registry, so moving each
+  // route's `workspace` moves it everywhere at once and no URL changes.
+  money:          { id: 'money',          label: 'Money',           iconName: 'Wallet',         href: '/admin/money',        shortcut: 'Mod+6', order: 6 },
+  office:         { id: 'office',         label: 'Office',          iconName: 'Building',       href: '/admin/office',       shortcut: 'Mod+7', order: 7 },
 };
 
 export const WORKSPACE_ORDER: Workspace[] = [
-  'hub', 'work', 'equipment', 'research-cad', 'knowledge', 'office',
+  'hub', 'work', 'equipment', 'research-cad', 'knowledge', 'money', 'office',
 ];
 
 // ── Role groups (mirrors AdminSidebar.tsx:62-74) ────────────────────
@@ -71,6 +77,16 @@ export interface AdminRoute {
   roles?:        UserRole[];
   internalOnly?: boolean;
   keywords?:     string[];
+  /** Optional grouping WITHIN a workspace landing (platform audit §2.2 / item 7).
+   *
+   *  Most workspaces are small enough that an alphabetical grid of cards is fine. Money is not: it
+   *  has 25 routes, and the audit's finding was not "too many pages" but "no shape" — a bookkeeper
+   *  could not tell which of them were about money coming IN and which about money going OUT, and
+   *  the words on them actively misled ("Billing" is what you pay, "Invoicing" is what they pay).
+   *
+   *  Sections are declared on the route rather than in a separate table so a new page cannot be
+   *  added to a workspace and silently land in an "Other" bucket nobody reads. */
+  section?:      string;
   /** Default true. False hides the route from rail surfaces (workspace
    *  landings, fly-outs, expanded panel) while keeping it searchable in
    *  the Cmd+K palette and resolvable for breadcrumbs. */
@@ -149,8 +165,8 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
   { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'Daily activity stream across the firm.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },
-  { href: '/admin/mileage',         label: 'Mileage',         workspace: 'work', iconName: 'Car',           description: 'Mileage logs + reimbursement.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-  { href: '/admin/finances',        label: 'Finances',        workspace: 'work', iconName: 'Briefcase',     description: 'Job finances + invoicing.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
+  { href: '/admin/mileage',         label: 'Mileage',         workspace: 'money', section: 'Money out', iconName: 'Car',           description: 'Mileage logs + reimbursement.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+  { href: '/admin/finances',        label: 'Job Profitability',        workspace: 'money', section: 'Profitability', iconName: 'Briefcase',     description: 'What each job cost against what it earned. NOT invoicing — this is the answer to "are we pricing right?".', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
   { href: '/admin/vehicles',        label: 'Vehicles',        workspace: 'work', iconName: 'Truck',         description: 'Vehicle fleet roster.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['fleet', 'trucks'] },
   // On the rail, not palette-only. §1.4's split says destinations somebody navigates TO get a rail
   // slot, and "what expires soon" is checked on purpose rather than arrived at from somewhere else —
@@ -159,7 +175,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // "Receivables", not "AR". §2.2 measured what happens when this app invents finance vocabulary —
   // three words that all sound like money and mean different things. AR is jargon only an accountant
   // reads; the keywords carry it so ⌘K still finds it.
-  { href: '/admin/receivables',     label: 'Receivables',     workspace: 'work', iconName: 'Banknote',     description: 'Who owes money and how late — unpaid invoices aged from their due date.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['ar', 'aging', 'ageing', 'collections', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'chase'] },
+  { href: '/admin/receivables',     label: 'Receivables',     workspace: 'money', section: 'Money in', iconName: 'Banknote',     description: 'Who owes money and how late — unpaid invoices aged from their due date.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['ar', 'aging', 'ageing', 'collections', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'chase'] },
 
   // Equipment workspace ───────────────────────────────────────────
   { href: '/admin/equipment',                          label: 'Catalogue',         workspace: 'equipment', iconName: 'Package',       description: 'All firm equipment.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['gear', 'inventory'] },
@@ -209,7 +225,13 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/learn/practice',       label: 'Practice',         workspace: 'knowledge', iconName: 'Play',         description: 'Quick-practice session.', showInRail: false },
 
   // Office workspace ──────────────────────────────────────────────
-  { href: '/admin/office',                label: 'Office',           workspace: 'office', iconName: 'Building',     description: 'HR, payroll, comms, settings.', keywords: ['back-office', 'hr', 'admin'] },
+  { href: '/admin/office',                label: 'Office',           workspace: 'office', iconName: 'Building',     description: 'HR, comms, files, settings.', keywords: ['back-office', 'hr', 'admin'] },
+  // Money workspace landing (platform audit §2.2 / item 7).
+  { href: '/admin/money',                 label: 'Money',            workspace: 'money', iconName: 'Wallet',       description: 'Everything financial in one place — what customers owe you, what you pay out, whether jobs made money, and what this software costs.', roles: ['admin', 'developer', 'field_crew', 'tech_support'], keywords: ['finance', 'financial', 'invoice', 'invoicing', 'billing', 'payroll', 'payouts', 'receipts', 'mileage', 'ar', 'cash'] },
+  // Platform audit §2.3 / item 7 — the one directory. /admin/employees, /admin/team and
+  // /admin/contacts are now filters on it; they keep their own pages (each does something this one
+  // does not) but this is the front door, so nobody has to know which of the ten to open.
+  { href: '/admin/people',                label: 'People',           workspace: 'office', iconName: 'Users',        description: 'Everyone the firm deals with — staff and contacts — in one list.', keywords: ['directory', 'employees', 'staff', 'contacts', 'team', 'phone', 'who'] },
   { href: '/admin/employees',             label: 'Employees',        workspace: 'office', iconName: 'UsersRound',   description: 'Employee directory.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/employees/manage',      label: 'Manage Employee',  workspace: 'office', iconName: 'UserCog',      description: 'Edit an employee record.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/users',                 label: 'Manage Users',     workspace: 'office', iconName: 'KeyRound',     description: 'User accounts + roles.', roles: ['admin', 'tech_support'] },
@@ -217,15 +239,15 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Admin-only; surfaces alongside Manage Users in the Office
   // workspace.
   { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
-  { href: '/admin/payroll',               label: 'Payroll',          workspace: 'office', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
-  { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'office', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raises', 'progression'] },
-  { href: '/admin/payout-log',            label: 'Payout History',   workspace: 'office', iconName: 'ScrollText',   description: 'Historical payout log.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
-  { href: '/admin/receipts',              label: 'Receipts',         workspace: 'office', iconName: 'Receipt',      description: 'Receipt approval queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals'] },
-  { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'office', iconName: 'Camera',       description: 'Upload a receipt photo for approval.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['upload', 'photo', 'expense'] },
-  { href: '/admin/invoicing',             label: 'Invoicing',        workspace: 'office', iconName: 'FileText',     description: 'Create + send customer invoices and track payments.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'pay', 'billing', 'customer', 'deposit'] },
-  { href: '/admin/rewards',               label: 'Rewards & Store',  workspace: 'office', iconName: 'Trophy',       description: 'Rewards portal + company store.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['points', 'store'] },
-  { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'office', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-  { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'office', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+  { href: '/admin/payroll',               label: 'Payroll',          workspace: 'money', section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
+  { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'money', section: 'Money out', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raises', 'progression'] },
+  { href: '/admin/payout-log',            label: 'Payout History',   workspace: 'money', section: 'Money out', iconName: 'ScrollText',   description: 'Historical payout log.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
+  { href: '/admin/receipts',              label: 'Receipts',         workspace: 'money', section: 'Money out', iconName: 'Receipt',      description: 'Receipt approval queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals'] },
+  { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'money', section: 'Money out', iconName: 'Camera',       description: 'Upload a receipt photo for approval.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['upload', 'photo', 'expense'] },
+  { href: '/admin/invoicing',             label: 'Customer Invoices',        workspace: 'money', section: 'Money in', iconName: 'FileText',     description: 'Bill your customers and track what they have paid. NOT the subscription you pay for this software — that is Software Subscription.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'pay', 'billing', 'customer', 'deposit'] },
+  { href: '/admin/rewards',               label: 'Rewards & Store',  workspace: 'money', section: 'Money out', iconName: 'Trophy',       description: 'Rewards portal + company store.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['points', 'store'] },
+  { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'money', section: 'Money out', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+  { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'money', section: 'Money out', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
   { href: '/admin/messages',              label: 'Messages',         workspace: 'office', iconName: 'MessageSquare', description: 'Direct + group messaging.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['chat', 'dm'] },
   // consolidation Slice 6 (2026-05-30) — clarified description so it
   // reads distinctly from the firm-wide `/admin/contacts` CRM. This
@@ -244,9 +266,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', iconName: 'Bug',          description: 'Application error log.', roles: ['admin', 'developer', 'tech_support'] },
   { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', iconName: 'ShieldCheck',  description: 'Customer-org audit trail (user + operator actions).', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
   { href: '/admin/invites',               label: 'Invites',          workspace: 'office', iconName: 'UserPlus',     description: 'Pending + historical org user invites.', roles: ['admin', 'tech_support'], keywords: ['onboard', 'invite'] },
-  { href: '/admin/payouts',               label: 'Payouts',          workspace: 'office', iconName: 'Banknote',     description: 'Record employee payouts (Venmo / Stripe / check / cash).', roles: ['admin'], internalOnly: true, keywords: ['pay', 'venmo', 'stripe'] },
+  { href: '/admin/payouts',               label: 'Payouts',          workspace: 'money', section: 'Money out', iconName: 'Banknote',     description: 'Record employee payouts (Venmo / Stripe / check / cash).', roles: ['admin'], internalOnly: true, keywords: ['pay', 'venmo', 'stripe'] },
   { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', iconName: 'Megaphone',    description: 'Published release notes + product announcements.', keywords: ['release', 'changelog', 'news'] },
-  { href: '/admin/billing',               label: 'Billing',          workspace: 'office', iconName: 'CreditCard',   description: 'Subscription, invoices, plan history.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'plan'] },
+  { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'plan'] },
   { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
   { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
   { href: '/admin/reports',               label: 'Reports',          workspace: 'office', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
@@ -275,24 +297,24 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // signs you out of the app you are using is a bug rather than a feature.
 
   // Money — the three built for G2/G3/G5, on the rail because being unfindable was the entire finding.
-  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'office', iconName: 'PieChart',     description: 'Money in and out at a glance (G2).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2'] },
+  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'money', section: 'Profitability', iconName: 'PieChart',     description: 'Money in and out at a glance (G2).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2'] },
   // Labelled "Bank Reconciliation", not "Reconcile", for two reasons that point the same way. The
   // Cmd+K acceptance criterion is that typing "rec" surfaces RECEIPTS — the far more common
   // destination — and a bare "Reconcile" beat it, which the ranker test caught immediately. And §2.2 of
   // the audit is specifically about colliding money vocabulary: "reconcile" alone could mean the bank,
   // the subscription, or a payout run.
-  { href: '/admin/finances/reconcile',    label: 'Bank Reconciliation', workspace: 'office', iconName: 'Scale',     description: 'Match recorded payments against the bank statement (G3).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['bank', 'reconcile', 'reconciliation', 'statement', 'g3'] },
-  { href: '/admin/payouts/tax-report',    label: 'Payout Tax Report', workspace: 'office', iconName: 'FileSpreadsheet', description: 'Year-end payout totals per person (G5).', roles: ['admin'], internalOnly: true, keywords: ['1099', 'tax', 'year end', 'g5'] },
+  { href: '/admin/finances/reconcile',    label: 'Bank Reconciliation', workspace: 'money', section: 'Profitability', iconName: 'Scale',     description: 'Match recorded payments against the bank statement (G3).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['bank', 'reconcile', 'reconciliation', 'statement', 'g3'] },
+  { href: '/admin/payouts/tax-report',    label: 'Payout Tax Report', workspace: 'money', section: 'Money out', iconName: 'FileSpreadsheet', description: 'Year-end payout totals per person (G5).', roles: ['admin'], internalOnly: true, keywords: ['1099', 'tax', 'year end', 'g5'] },
 
   // Money — reached from their parent list, so searchable rather than on the rail.
-  { href: '/admin/payments/inbox',        label: 'Payments Inbox',   workspace: 'office', iconName: 'Inbox',        description: 'Customer pledges and "I sent it" claims waiting on the office.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['pledge', 'venmo', 'claim', 'confirm'] },
-  { href: '/admin/payouts/runs',          label: 'Payout Runs',      workspace: 'office', iconName: 'ListChecks',   description: 'Batched payout runs.', roles: ['admin'], internalOnly: true, keywords: ['batch', 'run'] },
-  { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'office', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
-  { href: '/admin/invoices/new',          label: 'New Invoice',      workspace: 'office', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['create', 'bill', 'customer'] },
-  { href: '/admin/invoicing/categories',  label: 'Invoice Categories', workspace: 'office', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },
-  { href: '/admin/billing/invoices',      label: 'Subscription Invoices', workspace: 'office', iconName: 'ReceiptText', description: 'Invoices for THIS app’s subscription — not customer invoices.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'saas', 'plan'] },
-  { href: '/admin/billing/plan-history',  label: 'Plan History',     workspace: 'office', iconName: 'History',      description: 'Subscription plan changes over time.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'upgrade', 'downgrade'] },
-  { href: '/admin/billing/upgrade',       label: 'Upgrade Plan',     workspace: 'office', iconName: 'ArrowUpCircle', description: 'Change the subscription bundle.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'bundle', 'plan'] },
+  { href: '/admin/payments/inbox',        label: 'Payments Inbox',   workspace: 'money', section: 'Money in', iconName: 'Inbox',        description: 'Customer pledges and "I sent it" claims waiting on the office.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['pledge', 'venmo', 'claim', 'confirm'] },
+  { href: '/admin/payouts/runs',          label: 'Payout Runs',      workspace: 'money', section: 'Money out', iconName: 'ListChecks',   description: 'Batched payout runs.', roles: ['admin'], internalOnly: true, keywords: ['batch', 'run'] },
+  { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
+  { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['create', 'bill', 'customer'] },
+  { href: '/admin/invoicing/categories',  label: 'Invoice Line Categories', workspace: 'money', section: 'Money in', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },
+  { href: '/admin/billing/invoices',      label: 'Subscription Invoices', workspace: 'money', section: 'Company account', iconName: 'ReceiptText', description: 'Invoices for THIS app’s subscription — not customer invoices.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'saas', 'plan'] },
+  { href: '/admin/billing/plan-history',  label: 'Plan History',     workspace: 'money', section: 'Company account', iconName: 'History',      description: 'Subscription plan changes over time.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'upgrade', 'downgrade'] },
+  { href: '/admin/billing/upgrade',       label: 'Upgrade Plan',     workspace: 'money', section: 'Company account', iconName: 'ArrowUpCircle', description: 'Change the subscription bundle.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'bundle', 'plan'] },
 
   // Communication.
   { href: '/admin/notifications',         label: 'Notifications',    workspace: 'office', iconName: 'Bell',         description: 'Everything the app has told you.', keywords: ['alerts', 'bell', 'inbox'] },

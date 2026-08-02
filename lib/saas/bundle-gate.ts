@@ -30,6 +30,10 @@ export const WORKSPACE_DEFAULT_BUNDLE: Record<Workspace, BundleId | null> = {
   equipment: 'office',
   'research-cad': null,       // split: research → recon, cad → draft
   knowledge: 'academy',
+  // Money split out of Work + Office in platform audit item 7. Same bundle as the workspaces its
+  // routes came from — the pages did not change, only where they are filed, and a firm that could
+  // reach /admin/invoicing yesterday must still reach it today.
+  money: 'office',
   office: 'office',
 };
 

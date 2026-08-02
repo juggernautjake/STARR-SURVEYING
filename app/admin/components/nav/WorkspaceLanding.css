@@ -108,6 +108,23 @@
   border-radius: 8px;
 }
 
+/* Sections within a landing (platform audit §2.2 — Money's four groups).
+ * Absent on every other workspace, which renders one unlabelled section and
+ * therefore looks exactly as it did. */
+.ws-landing__section + .ws-landing__section {
+  margin-top: 1.6rem;
+}
+
+.ws-landing__section-title {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-text-tertiary);
+  margin: 0 0 0.65rem;
+}
+
 .ws-landing__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

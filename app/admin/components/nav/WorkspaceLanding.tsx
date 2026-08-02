@@ -73,6 +73,19 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
     .filter((r) => r.href !== meta.href)
     .filter((r) => r.showInRail !== false);
 
+  // Grouped when the workspace declares sections (Money does — §2.2's four groups), flat otherwise.
+  // Order comes from first appearance in the registry rather than from a second list: two orderings
+  // of the same thing is §1.3's defect, and this file has no business having an opinion about
+  // whether "Money in" comes before "Money out".
+  const sections: Array<{ title: string | null; routes: typeof routes }> = [];
+  for (const r of routes) {
+    const title = r.section ?? null;
+    const last = sections.find((s) => s.title === title);
+    if (last) last.routes.push(r);
+    else sections.push({ title, routes: [r] });
+  }
+  const grouped = sections.some((s) => s.title !== null);
+
   return (
     <div className="ws-landing">
       <header className="ws-landing__header">
@@ -103,16 +116,23 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
           role + access. Ask an admin if this looks wrong.
         </p>
       ) : (
-        <div className="ws-landing__grid">
-          {routes.map((route) => (
-            <Link key={route.href} href={route.href} className="ws-landing__card">
-              <span className="ws-landing__card-label">{route.label}</span>
-              {route.description ? (
-                <span className="ws-landing__card-meta">{route.description}</span>
-              ) : null}
-            </Link>
-          ))}
-        </div>
+        sections.map((group) => (
+          <section key={group.title ?? '_'} className="ws-landing__section">
+            {grouped ? (
+              <h2 className="ws-landing__section-title">{group.title ?? 'Everything else'}</h2>
+            ) : null}
+            <div className="ws-landing__grid">
+              {group.routes.map((route) => (
+                <Link key={route.href} href={route.href} className="ws-landing__card">
+                  <span className="ws-landing__card-label">{route.label}</span>
+                  {route.description ? (
+                    <span className="ws-landing__card-meta">{route.description}</span>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))
       )}
     </div>
   );

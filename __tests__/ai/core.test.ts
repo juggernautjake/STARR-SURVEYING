@@ -312,7 +312,20 @@ describe('proactive alerts', () => {
   });
 
   it('key on the SITUATION so a check that runs hourly does not re-alert', () => {
-    expect(src).toMatch(/dedupeKey: `clock:\$\{r\.user_email\}:\$\{r\.clock_in_at\}`/);
+    // `started_at`, not `clock_in_at`. This asserted the latter and passed, because it was checking
+    // the same wrong column name the query used — `active_clock_sessions` has no `clock_in_at`, so
+    // PostgREST answered 400 and the check reported "nobody is over 12 hours" forever. A test
+    // written from the code rather than from the schema cannot catch that. Fixed 2026-08-01.
+    expect(src).toMatch(/dedupeKey: `clock:\$\{r\.user_email\}:\$\{r\.started_at\}`/);
+  });
+
+  it('reads a column the clock-sessions table actually has', () => {
+    // The guard for the above: the query and the key must agree, and both must name `started_at`.
+    // The old name still appears in the comment explaining the bug, so this checks the CODE — every
+    // line that is not a comment — rather than the file.
+    const code = src.split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*')).join('\n');
+    expect(code).toMatch(/\.select\('user_email, started_at, job_id'\)/);
+    expect(code).not.toContain('clock_in_at');
   });
 
   it('let a renewed licence alert again on its new dates', () => {

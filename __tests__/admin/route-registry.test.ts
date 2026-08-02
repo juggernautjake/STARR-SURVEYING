@@ -55,7 +55,8 @@ describe('route-registry — lookups', () => {
     const route = findRoute('/admin/receipts');
     expect(route).toBeDefined();
     expect(route?.label).toBe('Receipts');
-    expect(route?.workspace).toBe('office');
+    // Receipts moved Office → Money in platform audit item 7 (§2.2): it is money going out.
+    expect(route?.workspace).toBe('money');
   });
 
   it('findRoute returns undefined for an unknown href', () => {
@@ -65,7 +66,7 @@ describe('route-registry — lookups', () => {
   it('workspaceOf resolves a registered href to its workspace', () => {
     expect(workspaceOf('/admin/jobs')).toBe('work');
     expect(workspaceOf('/admin/cad')).toBe('research-cad');
-    expect(workspaceOf('/admin/receipts')).toBe('office');
+    expect(workspaceOf('/admin/receipts')).toBe('money');
   });
 
   it('workspaceOf picks the deepest-prefix match for nested paths', () => {
@@ -94,8 +95,12 @@ describe('route-registry — breadcrumb trail (F1)', () => {
   });
 
   it('a registered hub page reads Hub › <page> with the page current', () => {
-    const trail = breadcrumbTrail('/admin/dashboard');
-    expect(trail.map((c) => c.label)).toEqual(['Hub', 'Dashboard']);
+    // Was `/admin/dashboard`, which platform audit item 6 deleted — and which kept passing anyway,
+    // because `breadcrumbTrail` falls back to the Hub workspace for an unregistered path and derives
+    // the label from the segment. A test that passes identically whether or not the route exists is
+    // not testing the registry, so this uses a route that is genuinely registered under Hub.
+    const trail = breadcrumbTrail('/admin/assignments');
+    expect(trail.map((c) => c.label)).toEqual(['Hub', 'Assignments']);
     expect(trail[0].href).toBe('/admin/me');
     expect(trail[trail.length - 1].isCurrent).toBe(true);
     expect(trail[0].isCurrent).toBe(false);

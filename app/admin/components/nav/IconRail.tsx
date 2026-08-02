@@ -25,6 +25,7 @@ import {
   Search,
   Star,
   Truck,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -47,6 +48,8 @@ const ICON_FOR_WORKSPACE: Record<Workspace, LucideIcon> = {
   equipment: Truck,
   'research-cad': Compass,
   knowledge: GraduationCap,
+  // Money became its own workspace in platform audit item 7 (§2.2).
+  money: Wallet,
   office: Building2,
 };
 

@@ -28,16 +28,22 @@ export interface PersonaMeta {
 }
 
 // §5.4 rail-order table — every persona's preferred workspace order.
-// Each list is exhaustive (all 6 workspaces) so we can swap personas
+// Each list is exhaustive (all 7 workspaces) so we can swap personas
 // without losing icons.
+//
+// `money` joined in platform audit item 7 (2026-08-01). It is placed by
+// how much each persona actually deals with money rather than dropped at
+// the end of every row — the bookkeeper's whole job is now one workspace,
+// so it goes first for them, and a field surveyor still needs it (mileage,
+// receipts, their own pay) just not before the work.
 export const PERSONAS: Record<Persona, PersonaMeta> = {
-  'field-surveyor':    { id: 'field-surveyor',    label: 'Field Surveyor',    railOrder: ['hub', 'work', 'research-cad', 'knowledge', 'equipment', 'office'] },
-  'equipment-manager': { id: 'equipment-manager', label: 'Equipment Manager', railOrder: ['hub', 'equipment', 'work', 'office', 'research-cad', 'knowledge'] },
-  'dispatcher':        { id: 'dispatcher',        label: 'Dispatcher',        railOrder: ['hub', 'work', 'equipment', 'office', 'research-cad', 'knowledge'] },
-  'bookkeeper':        { id: 'bookkeeper',        label: 'Bookkeeper',        railOrder: ['hub', 'office', 'work', 'knowledge', 'equipment', 'research-cad'] },
-  'researcher':        { id: 'researcher',        label: 'Researcher',        railOrder: ['hub', 'research-cad', 'work', 'knowledge', 'office', 'equipment'] },
-  'admin':             { id: 'admin',             label: 'Admin',             railOrder: ['hub', 'work', 'equipment', 'office', 'research-cad', 'knowledge'] },
-  'student':           { id: 'student',           label: 'Student / Learner', railOrder: ['hub', 'knowledge', 'office', 'work', 'research-cad', 'equipment'] },
+  'field-surveyor':    { id: 'field-surveyor',    label: 'Field Surveyor',    railOrder: ['hub', 'work', 'research-cad', 'knowledge', 'equipment', 'money', 'office'] },
+  'equipment-manager': { id: 'equipment-manager', label: 'Equipment Manager', railOrder: ['hub', 'equipment', 'work', 'office', 'money', 'research-cad', 'knowledge'] },
+  'dispatcher':        { id: 'dispatcher',        label: 'Dispatcher',        railOrder: ['hub', 'work', 'equipment', 'office', 'money', 'research-cad', 'knowledge'] },
+  'bookkeeper':        { id: 'bookkeeper',        label: 'Bookkeeper',        railOrder: ['hub', 'money', 'office', 'work', 'knowledge', 'equipment', 'research-cad'] },
+  'researcher':        { id: 'researcher',        label: 'Researcher',        railOrder: ['hub', 'research-cad', 'work', 'knowledge', 'office', 'money', 'equipment'] },
+  'admin':             { id: 'admin',             label: 'Admin',             railOrder: ['hub', 'work', 'money', 'equipment', 'office', 'research-cad', 'knowledge'] },
+  'student':           { id: 'student',           label: 'Student / Learner', railOrder: ['hub', 'knowledge', 'office', 'work', 'money', 'research-cad', 'equipment'] },
 };
 
 export const PERSONA_ORDER: Persona[] = [

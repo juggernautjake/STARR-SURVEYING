@@ -86,13 +86,16 @@ const COUNTERS: Record<string, Counter[]> = {
     counter('Open leads', '/admin/leads', () =>
       supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).not('status', 'in', '("won","lost")'),
     ),
-    counter('Unpaid invoices', '/admin/invoices', () =>
+  ],
+  // Money in, money out, and the one number that decides whether the firm is being paid — the three
+  // things §2.2's four sections exist to separate.
+  money: [
+    counter('Unpaid invoices', '/admin/invoicing', () =>
       supabaseAdmin
         .from('customer_invoices')
         .select('id', { count: 'exact', head: true })
         .in('status', ['sent', 'overdue', 'partial'])
         .is('voided_at', null),
-      'attention',
     ),
     counter('Past due', '/admin/receivables', () =>
       supabaseAdmin
@@ -101,6 +104,10 @@ const COUNTERS: Record<string, Counter[]> = {
         .is('paid_at', null)
         .is('voided_at', null)
         .lt('due_at', new Date().toISOString()),
+      'attention',
+    ),
+    counter('Receipts to approve', '/admin/receipts', () =>
+      supabaseAdmin.from('receipts').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       'attention',
     ),
   ],

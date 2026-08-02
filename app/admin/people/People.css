@@ -1,0 +1,280 @@
+/* app/admin/people/People.css — the one people directory + the one person profile (audit §2.3).
+ * Tokens throughout; item 17 is clearing inline hexes out of this app and a new surface should not
+ * add to that pile. */
+
+.people,
+.person {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--color-text-primary);
+}
+
+.people__title,
+.person__name {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.people__sub,
+.person__sub {
+  margin: 0.25rem 0 1.2rem;
+  font-size: 0.9rem;
+  color: var(--color-text-tertiary);
+}
+
+.people__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.people__search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 260px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-tertiary);
+}
+.people__search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--color-text-primary);
+  background: transparent;
+  min-width: 0;
+}
+
+.people__filters {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.people__filter {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.people__filter--on {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+}
+
+.people__note {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+.people__note--bad {
+  color: var(--color-error-text);
+  background: var(--color-error-surface);
+  border-color: var(--color-error-text);
+}
+
+.people__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.people__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  text-decoration: none;
+  color: inherit;
+}
+.people__row:hover {
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.08);
+}
+
+.people__avatar {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.people__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.people__who {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+.people__name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.people__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+}
+
+/* Green dot + words. The dot alone would carry the whole meaning, which fails for anyone who cannot
+ * distinguish it from the inactive grey. */
+.people__clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+.people__inactive {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.people__contact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.people__kind {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.people__kind--staff {
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+}
+.people__kind--contact {
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-subtle);
+}
+
+@media (max-width: 640px) {
+  .people__contact { display: none; }
+}
+
+/* ── One person ────────────────────────────────────────────────────────────── */
+
+.person__head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+.person__avatar {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.person__avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.person__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1.2rem 0;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.person__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.83rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+.person__tab:hover {
+  border-color: var(--color-brand-navy);
+  color: var(--color-brand-navy);
+}
+
+.person__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+.person__fact {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.person__fact dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  margin-bottom: 0.2rem;
+}
+.person__fact dd {
+  margin: 0;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}

@@ -44,18 +44,25 @@ export interface ProactiveAlert {
  *  clock-based rule fires on every one of them. Elapsed time is the thing that is actually wrong. */
 async function longClockIns(): Promise<ProactiveAlert[]> {
   const cutoff = new Date(Date.now() - 12 * 3600_000).toISOString();
+  // `started_at`, NOT `clock_in_at`. This shipped asking for `clock_in_at`, which does not exist on
+  // `active_clock_sessions` — PostgREST answered 400, the `if (error) return []` below swallowed it,
+  // and the check reported "nobody is over 12 hours" forever. Verified against the live schema
+  // 2026-08-01; the error path is why a wrong column name here is invisible rather than loud.
   const { data, error } = await supabaseAdmin
     .from('active_clock_sessions')
-    .select('user_email, clock_in_at, job_id')
-    .lt('clock_in_at', cutoff);
-  if (error) return [];
+    .select('user_email, started_at, job_id')
+    .lt('started_at', cutoff);
+  if (error) {
+    console.error('[proactive] long clock-in check failed:', error.message);
+    return [];
+  }
 
-  return ((data ?? []) as Array<{ user_email: string; clock_in_at: string; job_id: string | null }>).map((r) => {
-    const hours = Math.floor((Date.now() - Date.parse(r.clock_in_at)) / 3600_000);
+  return ((data ?? []) as Array<{ user_email: string; started_at: string; job_id: string | null }>).map((r) => {
+    const hours = Math.floor((Date.now() - Date.parse(r.started_at)) / 3600_000);
     return {
       // Keyed on the clock-in, not on today: the same forgotten clock-out is one situation whether
       // the check runs hourly or nightly.
-      dedupeKey: `clock:${r.user_email}:${r.clock_in_at}`,
+      dedupeKey: `clock:${r.user_email}:${r.started_at}`,
       severity: hours >= 20 ? 'urgent' : 'warn',
       title: 'Still clocked in',
       detail: `${r.user_email} has been clocked in for ${hours} hours. If they forgot to clock out, the timesheet needs fixing before payroll.`,
