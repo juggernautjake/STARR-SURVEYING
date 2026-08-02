@@ -244,11 +244,32 @@ polish — nothing else in this plan can be trusted while the engine is down and
   tokens through the helper. Those are the same call sites R6 rewrites for cheap-first routing, so
   the two passes are being done together rather than touching each file twice.
 
-- **R5. Run budget and timebox, enforced.**
-  Per-run ceilings: wall-clock (default 25 min), dollars, AI calls, paid pages. When a ceiling is hit
-  the run **finishes cleanly with what it has** and records what it skipped — never a silent partial.
-  *Acceptance:* a run with a $0.50 ceiling stops, reports "skipped: adjacent parcels, ROW", and still
-  produces a usable packet.
+- **R5. ✅ DONE 2026-08-02 — run budget and timebox, enforced.**
+  `worker/src/infra/run-budget.ts`. Three ceilings — wall clock (default **25 minutes**, the owner's
+  number), spend, and paid pages. Paid pages are bounded separately from dollars because one $50
+  plat set can pass a dollar limit in a single purchase, and that decision deserves its own bound
+  rather than hiding inside a total.
+
+  A caller's `maxResearchTimeMinutes` is honoured and **clamped to 60**: a request for four hours is
+  either a mistake or somebody working around a problem that should be fixed properly, and a worker
+  that accepts it holds a concurrency slot the whole time.
+
+  **Stopping is not failing**, which is the behaviour that matters. At a ceiling the run finishes
+  cleanly with what it has, keeps the documents it already paid for, and carries `budgetSummary` +
+  `skippedWork` on the result: *"Finished early because the run reached its 25-minute time limit.
+  Not attempted: adjoiner research, ROW integration. Re-run with a higher limit to continue."* A run
+  that dies at its limit is worse than useless — the money is spent, the time is gone, and there is
+  nothing to show. A partial result that does not name what is missing is indistinguishable from a
+  complete one, and a surveyor cannot tell "no easements found" from "we stopped looking".
+
+  Enforced at the **phase boundary** (the progress callback), never mid-phase: stopping between
+  phases leaves a coherent partial result; stopping inside one leaves half a chain of title. The
+  ceiling **latches**, so a run winding down does not resume and half-finish a phase twice. Skips are
+  de-duplicated, because a list with "adjoiners" in it six times reads like six failures. An
+  unbudgeted call reports `ok` — a path nobody set a limit on is not an over-budget one.
+
+  Deployment defaults: `RUN_MAX_MINUTES`, `RUN_MAX_COST_USD`, `RUN_MAX_PAID_PAGES`, documented in
+  `.env.example`.
 
 - **R6. Model routing, cheap-first.**
   Adopt `lib/ai/models.ts` in the worker. A router picks by task: OCR/classification → cheapest tier;

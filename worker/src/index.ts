@@ -56,6 +56,8 @@ import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health
 import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
+import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
+import { resetRunSpend, spendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -1052,6 +1054,17 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   const timeline = getTracker(projectId);
   timeline.add('phase-start', 'Pipeline started', `${county} County — ${researchInput.address ?? ''}`);
 
+  // Budget + timebox (plan R5). The owner's ask is a run that works for 20–30 minutes and is "as
+  // cheap but as effective as possible" — both halves are ceilings, and without them a run that
+  // finds an interesting chain of title follows it for an hour.
+  const budgetLimits = limitsFor({ maxResearchTimeMinutes: researchInput.maxResearchTimeMinutes });
+  resetRunSpend(projectId);
+  startRun(projectId, budgetLimits);
+  console.log(
+    `[budget] ${projectId}: ${Math.round(budgetLimits.maxWallClockMs / 60_000)} min, ` +
+    `${budgetLimits.maxCostUsd.toFixed(2)}, ${budgetLimits.maxPaidPages} paid page(s)`,
+  );
+
   // Enable function-level tracing when the request came from the Testing Lab.
   // testMode is set by the run proxy route's workerBody.
   if ((body as Record<string, unknown>).testMode) enableTracing();
@@ -1117,6 +1130,21 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   runCountyResearch(
     researchInput,
     (progress: CountyResearchProgress) => {
+      // ── Budget check at the phase boundary (plan R5) ──
+      //
+      // Between phases, not inside one: stopping between leaves a coherent partial result;
+      // stopping inside leaves half a chain of title. When a ceiling is hit the run is ABORTED
+      // rather than failed — the abort unwinds to the caller, which returns what it has, and the
+      // wind-down summary says what was skipped and why.
+      const budget = checkBudget(projectId, spendForRun(projectId));
+      if (!budget.ok && !pipelineAbortController.signal.aborted) {
+        const summary = windDownSummary(budget);
+        console.warn(`[budget] ${projectId}: ${summary}`);
+        setRunningMessage(projectId, summary ?? 'Finished early — budget reached.');
+        timeline.add('log', 'Budget', summary ?? 'budget reached');
+        pipelineAbortController.abort();
+      }
+
       // Update active pipeline stage from progress events
       const pipeline = activePipelines.get(projectId);
       if (pipeline) {
@@ -1169,6 +1197,23 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
       disableTracing();
       globalStepGate.disableStepMode(projectId);
+
+      // A run that stopped at a ceiling is not a failure — it is a usable answer plus a decision
+      // for a person (plan R5). Say which, and what was not attempted, on the result itself: a
+      // partial result that does not name what is missing is indistinguishable from a complete one,
+      // and a surveyor cannot tell "no easements found" from "we stopped looking".
+      const finalBudget = checkBudget(projectId, spendForRun(projectId));
+      const windDown = windDownSummary(finalBudget);
+      if (windDown) {
+        (unifiedResult as unknown as Record<string, unknown>).budgetSummary = windDown;
+        (unifiedResult as unknown as Record<string, unknown>).skippedWork = finalBudget.skipped;
+        handshakeLogger.attempt('[Budget]', 'info', 'Budget reached', windDown).warn(windDown);
+      }
+      console.log(
+        `[budget] ${projectId}: finished — ${Math.round(finalBudget.elapsedMs / 60_000)} min, ` +
+        `${finalBudget.spentUsd.toFixed(4)} spent${finalBudget.exceeded ? ` (stopped on ${finalBudget.exceeded})` : ''}`,
+      );
+      endRun(projectId);
 
       setCompletedResult(projectId, unifiedResult);
       activePipelines.delete(projectId);
@@ -1630,6 +1675,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         duration_ms: 0,
         failureReason: errMessage,
       };
+      endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
       clearLiveLogForProject(projectId);
