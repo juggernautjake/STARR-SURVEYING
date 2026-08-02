@@ -1756,6 +1756,37 @@ moment Tyler was wired up. **A reachable portal for the wrong index is worse tha
 
 The nine counties are now routed and proven, taking the verified total from 7 to **18**.
 
+#### R39, fourth finding — a third unknown vendor, and a 170-year gap inside it
+
+Falls and Robertson were found the same way, from their own clerk pages: **Avenu/Neumo's "20/20
+Perfect Vision Land Records"**, on per-county subdomains of `uslandrecords.com`. Falls is `i2i`,
+Robertson is `i2j`, and every other county tried on those subdomains 404s — the letters are not a
+sequence to extrapolate. That is now the **third vendor this platform had no name for**.
+
+Searching is free, quoted from the portal: *"Searching and watermarked document viewing is provided
+as a free service."* Only printing and downloading are charged. The index is what research needs, so
+the free tier is sufficient.
+
+**The finding that matters is the coverage gap.** Each county publishes a certification banner, and
+the two disagree by 170 years:
+
+| County | Index certified from | Through | Last document |
+|---|---|---|---|
+| Robertson | **01/01/1800** | 07/30/2026 | 20263237 @ 07/31/2026 |
+| Falls | **09/23/1970** | 07/30/2026 | 23447 @ 07/31/2026 |
+
+Same vendor, same software. A 1940 Falls deed **is not in this index**. A search returns nothing,
+and that nothing is a fact about Falls County's website, not about the land — those years exist on
+paper at the courthouse in Marlin. The correct answer is *"drive to Marlin"*, not *"no deed"*, and
+`coverageWarning()` refuses to let a search run past the start of a county's index without saying
+so. This is the same defect as every other in this document, wearing a new costume: **an unknown
+rendered as an answer**.
+
+**Not routed.** Clicking Search opens a **popup window** — the site warns it uses pop-ups, and one
+was observed opening as `about:blank` and closing before navigating. Reading results means handling
+that window, which is not built, so both counties still fall through to TexasFile. *Located is not
+working* — the same line Tyler was held to until its results were actually read. Seed 551.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
