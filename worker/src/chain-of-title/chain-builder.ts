@@ -7,6 +7,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ChainLink, ChainOfTitle } from '../types/expansion.js';
+// Why the chain stopped, and what it points at but does not contain (research plan R14).
+import {
+  describeTermination,
+  findGaps,
+  summariseChain,
+  type IndexHorizon,
+  type TerminationReason,
+} from './chain-gaps.js';
 
 // ── Chain of Title Builder ──────────────────────────────────────────────────
 
@@ -33,6 +41,9 @@ export class ChainOfTitleBuilder {
     currentOwner: string,
     documents: any[],
     extractionData: any,
+    /** What the county's index actually covers. Turns "we found nothing earlier" into "the clerk's
+     *  index begins in 1902" — the difference between an unfinished job and a finished one. */
+    horizon: IndexHorizon = {},
   ): Promise<ChainOfTitle> {
     console.log(
       `[ChainOfTitle] Building chain for ${currentOwner} (max depth: ${this.maxDepth})`,
@@ -49,7 +60,12 @@ export class ChainOfTitleBuilder {
     );
 
     // Step 3: Build chain by tracing grantor/grantee relationships
-    const chain = this.traceChain(currentOwner, allLinks);
+    const { chain, reason } = this.traceChain(currentOwner, allLinks);
+
+    // Step 3b: Say why the walk ended, and list what the chain cites but does not contain (R14).
+    const termination = describeTermination(reason, chain, horizon);
+    const gaps = findGaps(chain);
+    const completeness = summariseChain(chain, termination, gaps);
 
     // Step 4: Analyze boundary evolution
     const boundaryEvolution = this.analyzeBoundaryEvolution(chain);
@@ -78,6 +94,9 @@ export class ChainOfTitleBuilder {
       acreageHistory,
       easementGrants,
       vacancyAnalysis,
+      termination,
+      gaps,
+      completeness,
     };
 
     // Save result
@@ -88,9 +107,9 @@ export class ChainOfTitleBuilder {
     );
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
-    console.log(
-      `[ChainOfTitle] Complete: ${chain.length} links traced, saved to ${outputPath}`,
-    );
+    // "Complete: N links traced" was printed whether the chain was finished or truncated at the
+    // depth limit — the same lie the result object used to tell.
+    console.log(`[ChainOfTitle] ${completeness.headline} Saved to ${outputPath}`);
 
     return result;
   }
@@ -141,17 +160,25 @@ export class ChainOfTitleBuilder {
 
   // ── Trace Chain ─────────────────────────────────────────────────────────
 
+  /** Walk backward, and SAY WHY IT STOPPED (plan R14).
+   *
+   *  Four endings used to produce the identical result — a chain of N links and nothing else: we
+   *  reached the earliest record, we hit the depth limit, the grantor's deed was never harvested, or
+   *  no starting deed existed at all. Only the first is a complete chain. A surveyor reading the
+   *  packet could not tell which one they were holding. */
   private traceChain(
     currentOwner: string,
     allLinks: ChainLink[],
-  ): ChainLink[] {
+  ): { chain: ChainLink[]; reason: TerminationReason } {
     const chain: ChainLink[] = [];
     let targetGrantee = this.normalizeOwnerName(currentOwner);
     let depth = 0;
 
     while (depth < this.maxDepth) {
       // Guard: empty grantee name would match everything via includes(''), stop tracing
-      if (!targetGrantee) break;
+      if (!targetGrantee) {
+        return { chain, reason: chain.length === 0 ? 'no_starting_deed' : 'reached_earliest_available' };
+      }
 
       // Find the deed where this person is the grantee
       const link = allLinks.find(
@@ -161,19 +188,32 @@ export class ChainOfTitleBuilder {
           !chain.some((c) => c.instrument === l.instrument),
       );
 
-      if (!link) break;
+      if (!link) {
+        // The distinction that matters: nothing found on the FIRST pass means the chain never
+        // started (a retrieval failure); nothing found later means the record we need was not
+        // harvested — which is not the same as it not existing.
+        return { chain, reason: chain.length === 0 ? 'no_starting_deed' : 'grantor_deed_not_found' };
+      }
 
       chain.push(link);
 
       // Trace backward: the grantor of this deed is who we look for next
       const nextGrantee = this.normalizeOwnerName(link.grantor);
-      // Guard: same grantor as current grantee would cause infinite loop
-      if (!nextGrantee || nextGrantee === targetGrantee) break;
+      if (!nextGrantee) {
+        // No grantor named at all — for the earliest instrument this is usually the sovereignty
+        // grant, which is the one ending that means the chain is finished.
+        return { chain, reason: 'reached_earliest_available' };
+      }
+      // Same party on both sides: a correction deed or a transfer into a trust. The walk cannot
+      // continue, but the record has not ended.
+      if (nextGrantee === targetGrantee) return { chain, reason: 'circular_reference' };
       targetGrantee = nextGrantee;
       depth++;
     }
 
-    return chain;
+    // Ran out of OUR budget, not of record. Named separately because it is the one ending we can fix
+    // by changing a number.
+    return { chain, reason: 'max_depth' };
   }
 
   // ── Boundary Evolution Analysis ─────────────────────────────────────────

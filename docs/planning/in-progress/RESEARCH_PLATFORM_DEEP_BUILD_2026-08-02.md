@@ -590,11 +590,52 @@ polish — nothing else in this plan can be trusted while the engine is down and
   subscription record; TitlePoint/DataTree-class vendors and Regrid behind the same interface; PDF
   attachment into `research_documents`. The library and the policy are what those plug into.
 
-- **R14. Full chain of title, to the earliest available instrument.**
+- **R14. Full chain of title, to the earliest available instrument.** ◑ PART DONE 2026-08-02 —
+  gaps + stated reason shipped; the exhaustive backward re-query remains
   `chain-of-title/chain-builder.ts` exists; drive it to exhaustion — walk grantor/grantee backwards,
   record gaps explicitly, and stop with a stated reason ("clerk index begins 1902").
   *Acceptance:* the packet shows a chain with every link's instrument number, date, and source
   screenshot, plus an explicit list of gaps.
+
+  **Shipped — the honesty half** (`worker/src/chain-of-title/chain-gaps.ts`).
+
+  `traceChain()` ended on a bare `break`. Four completely different endings produced the identical
+  result — a chain of N links and nothing else: we reached the sovereignty grant; we hit `maxDepth`,
+  which defaults to **5** and silently truncates a 1900s chain; the grantor's deed exists at the
+  courthouse but was never harvested; or no deed named the current owner at all. Only the first is a
+  complete chain. A surveyor reading the packet could not tell which of the four they were holding —
+  this repo's recurring defect (an unknown rendered as an answer) applied to the document that
+  decides where a boundary is. The walk now returns a `TerminationReason`, and each one carries a
+  sentence and a next step: the depth limit is named as **our** limit rather than the record's, and
+  an empty chain is stated as *a retrieval failure, not a finding about the property*. Passing an
+  `IndexHorizon` turns "we found nothing earlier" into the plan's own example, "the clerk's index
+  begins in 1902".
+
+  **Gaps are errands, not caveats.** Deeds cite their predecessors ("being the same land conveyed in
+  Volume 412, Page 88"); every citation not in the chain is now a gap with a call number on it.
+  `findGaps()` reports unfollowed citations, links that don't join (the newer deed's grantor is not
+  the older deed's grantee — usually a probate, divorce decree or name change sitting between them),
+  and undated links, whose position in the chain is *assumed rather than established*. Deliberately
+  not a completeness score: "87% complete" is unusable, "pull Vol 412 Pg 88" is an afternoon's work.
+  That list is also the worklist for the exhaustive walk, which is why it was worth extracting first.
+
+  Two judgement calls worth keeping: instrument-number citations require a **label** (`Instrument
+  No.`, `Doc#`) because a bare `2019-12345` in a legal description is as likely to be a lot number,
+  and a wrong citation sends somebody to the courthouse for nothing. And party names match on token
+  overlap, since "SMITH, JOHN A" / "John A. Smith" / "John Smith and wife Mary" are one grantee
+  written three ways — a false break in every chain trains people to ignore the gap list. Entity
+  boilerplate (`FAMILY`, `TRUST`, `HOLDINGS`, …) is stripped, or "Smith Family Trust" and "Jones
+  Family Trust" would match and **hide** a real break, which is the worse error of the two.
+
+  `summariseChain()` will not call a chain complete while it has gaps, even when the walk reached the
+  earliest record — a deed we never pulled is still a hole. The builder's own log line said
+  `Complete: N links traced` for a truncated chain; it now prints the honest headline.
+
+  Worker suite 342/342; both roots typecheck clean.
+
+  **Remaining:** the exhaustive backward re-query — going back to the clerk for the deeds the gap
+  list names, rather than only walking documents already harvested. That needs the adapter call path
+  and per-county index horizons as data; the gap list is its input.
 
 - **R15. Complete plat history.**
   Subdivision plats, replats, vacations, and their amendments; each with a page image and the

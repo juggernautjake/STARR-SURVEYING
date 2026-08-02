@@ -271,6 +271,18 @@ export interface ChainOfTitle {
     unaccountedAcreage: number;
     vacancyRisk: 'none' | 'low' | 'medium' | 'high';
   };
+
+  // ── Why the chain ends where it does (plan R14) ───────────────────────────────────────────────
+  //
+  // Optional because chains built before R14 have no honest value to put here, and inventing
+  // `complete: true` for them would be the exact lie this field exists to prevent.
+
+  /** Which of the four endings this was, and whether the chain is actually finished. */
+  termination?: import('../chain-of-title/chain-gaps.js').Termination;
+  /** Instruments this chain cites but does not contain, plus links that do not join. */
+  gaps?: import('../chain-of-title/chain-gaps.js').ChainGap[];
+  /** The one sentence a surveyor reads first. */
+  completeness?: import('../chain-of-title/chain-gaps.js').ChainCompleteness;
 }
 
 // ── Batch Processing Types (Module I) ───────────────────────────────────────
