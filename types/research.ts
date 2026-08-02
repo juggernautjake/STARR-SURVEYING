@@ -222,6 +222,14 @@ export interface ExtractedDataPoint {
   sequence_group?: string | null;
   extraction_confidence?: number | null;
   confidence_reasoning?: string | null;
+  // A person's verdict (plan R23). Independent of confidence: confidence is the model on itself,
+  // this is whether anybody looked. `raw_value` is never overwritten — a correction lands in
+  // `corrected_value`, which is what makes the pair usable as a golden record.
+  review_status?: 'unreviewed' | 'accepted' | 'rejected' | 'corrected' | null;
+  corrected_value?: string | null;
+  review_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ExtractedDataPoint, DataCategory } from '@/types/research';
 // "The AI said" must not render as "here is the deed, at this line" (research plan R17).
 import { evidenceFor, evidenceTotals } from '@/lib/research/fact-evidence';
+// Whether a PERSON has looked — an axis independent of whether there is evidence (research plan R23).
+import { reviewMeta, reviewProgress, type ReviewStatus } from '@/lib/research/fact-review';
 
 interface DataPointsPanelProps {
   projectId: string;
@@ -76,6 +78,11 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
   const [expandedDp, setExpandedDp] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  // Review state (plan R23).
+  const [savingReview, setSavingReview] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  const [correctionDraft, setCorrectionDraft] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -95,6 +102,42 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  /** Record a verdict on one fact (plan R23). Updates in place rather than reloading the list, so a
+   *  reviewer working down fifty facts does not lose their scroll position on every click. */
+  const review = useCallback(async (
+    dp: ExtractedDataPoint,
+    status: ReviewStatus,
+    correctedValue?: string,
+  ) => {
+    setSavingReview(dp.id);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/data-points/${dp.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_status: status, corrected_value: correctedValue ?? null }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        setReviewError(err.error ?? 'The review could not be saved.');
+        return;
+      }
+      const { data_point } = await res.json() as { data_point: ExtractedDataPoint };
+      setReviewError(null);
+      setGrouped(prev => {
+        const next: Record<string, ExtractedDataPoint[]> = {};
+        for (const [cat, list] of Object.entries(prev)) {
+          next[cat] = list.map(x => (x.id === data_point.id ? data_point : x));
+        }
+        return next;
+      });
+      setCorrecting(null);
+    } catch {
+      setReviewError('Unable to save the review — check your connection.');
+    } finally {
+      setSavingReview(null);
+    }
+  }, [projectId]);
 
   function toggleGroup(cat: string) {
     setCollapsedGroups(prev => {
@@ -134,7 +177,9 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
 
   // Leads with what is UNEVIDENCED rather than with the total: "412 data points extracted" reads as
   // thoroughness, while "412 extracted, 38 with no source" reads as a work list (plan R17).
-  const totals = evidenceTotals(Object.values(grouped).flat());
+  const allPoints = Object.values(grouped).flat();
+  const totals = evidenceTotals(allPoints);
+  const progress = reviewProgress(allPoints);
 
   return (
     <div className="research-review__data">
@@ -145,6 +190,13 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
       >
         {totals.headline}
       </p>
+      {/* How much of this has a person actually checked (plan R23). */}
+      <p className="research-review__evidence-headline">{progress.headline}</p>
+      {reviewError && (
+        <p className="research-review__evidence-headline research-review__evidence-headline--warn">
+          {reviewError}
+        </p>
+      )}
 
       {/* Category filter */}
       {availableCategories.length > 1 && (
@@ -209,6 +261,15 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
                           {dp.sequence_order != null && (
                             <span className="research-review__dp-seq">#{dp.sequence_order}</span>
                           )}
+                          {/* Two independent axes: whether there is EVIDENCE (R17) and whether a
+                              person has LOOKED (R23). A quoted fact can still be misread, and an
+                              unevidenced one can be confirmed by a surveyor who knows the property. */}
+                          <span
+                            className={`research-review__dp-review research-review__dp-review--${reviewMeta(dp).status}`}
+                            title={reviewMeta(dp).detail}
+                          >
+                            {reviewMeta(dp).label}
+                          </span>
                           <span
                             className="research-review__dp-evidence"
                             style={{ color: EVIDENCE_TONE[evidenceFor(dp).strength] }}
@@ -260,6 +321,69 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
                               </span>
                             </div>
                           )}
+                          {/* Accept / reject / correct (plan R23). A reviewer who spots a wrong
+                              bearing had nowhere to put that knowledge before this. */}
+                          <div className="research-review__dp-verdict">
+                            <span className="research-review__dp-detail-label">Verdict:</span>
+                            <span className="research-review__dp-detail-value">{reviewMeta(dp).detail}</span>
+                            <div className="research-review__dp-verdict-actions">
+                              {(['accepted', 'rejected'] as const).map(s => (
+                                <button
+                                  key={s}
+                                  className={`research-review__dp-verdict-btn${
+                                    reviewMeta(dp).status === s ? ' research-review__dp-verdict-btn--on' : ''
+                                  }`}
+                                  disabled={savingReview === dp.id}
+                                  onClick={(e) => { e.stopPropagation(); void review(dp, s); }}
+                                >
+                                  {s === 'accepted' ? 'Accept' : 'Reject'}
+                                </button>
+                              ))}
+                              <button
+                                className="research-review__dp-verdict-btn"
+                                disabled={savingReview === dp.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCorrecting(correcting === dp.id ? null : dp.id);
+                                  setCorrectionDraft(dp.corrected_value ?? dp.display_value ?? dp.raw_value);
+                                }}
+                              >
+                                Correct…
+                              </button>
+                              {reviewMeta(dp).status !== 'unreviewed' && (
+                                <button
+                                  className="research-review__dp-verdict-btn"
+                                  disabled={savingReview === dp.id}
+                                  onClick={(e) => { e.stopPropagation(); void review(dp, 'unreviewed'); }}
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            {correcting === dp.id && (
+                              <div className="research-review__dp-correction" onClick={e => e.stopPropagation()}>
+                                <input
+                                  className="research-review__dp-correction-input"
+                                  value={correctionDraft}
+                                  onChange={e => setCorrectionDraft(e.target.value)}
+                                  placeholder="What the document actually says"
+                                />
+                                <button
+                                  className="research-review__dp-verdict-btn research-review__dp-verdict-btn--on"
+                                  disabled={savingReview === dp.id || !correctionDraft.trim()}
+                                  onClick={() => void review(dp, 'corrected', correctionDraft.trim())}
+                                >
+                                  Save correction
+                                </button>
+                                {/* Said out loud: the original is kept, which is what makes the
+                                    pair usable as a golden record for the self-healing checks. */}
+                                <span className="research-review__dp-correction-note">
+                                  The original extraction is kept — this records what it should have said.
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
                           {/* The evidence sentence, always — it is the answer to "how do you know
                               that?", which is the question a reviewer is actually asking. */}
                           <div className="research-review__dp-evidence-detail">

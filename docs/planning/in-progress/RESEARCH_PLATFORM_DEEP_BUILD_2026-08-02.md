@@ -999,7 +999,46 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* an operator can watch a 25-minute run and know at any moment what it is doing and
   what it has spent.
 
-- **R23. Evidence-first review.**
+- **R23. Evidence-first review.** ✅ DONE 2026-08-02
+
+  **Shipped** (seed 534 + `lib/research/fact-review.ts` + a PATCH on the data-point route, wired into
+  `DataPointsPanel`).
+
+  `extracted_data_points` has carried a confidence score since seed 090 and **no human verdict at
+  all**. So a value read correctly off a deed and a value the model invented looked identical to the
+  next reader and to every downstream stage — the boundary computation, the drawing, the packet. A
+  reviewer who spotted a wrong bearing had nowhere to put that knowledge; the only options were to
+  fix nothing, or fix it somewhere else and let the two disagree.
+
+  R17 made it visible whether a fact has **evidence**. This is the other axis: whether a person has
+  **looked**. They are independent — a quoted fact can still be misread, and an unevidenced one can
+  be confirmed by a surveyor who knows the property — so they are two chips, not one scale, beside
+  confidence which is the model's opinion of itself. Three questions, three indicators.
+
+  **The original is never overwritten**, the third place this contract now holds (after
+  `research_survey_plans.ai_plan` and the drawings' annotation layers). A correction lands in
+  `corrected_value` while `raw_value` keeps what the extraction produced, because once a correction
+  overwrites the original, "what did the extraction actually say" stops being answerable — and that
+  is exactly the question worth asking when the same misread appears on the next property. It is also
+  what makes the pair usable: `goldenCandidates()` returns (what we extracted, what it should have
+  been), which is a test case for R9's self-healing checks. A correction is something the business
+  paid a surveyor to produce; throwing it away after one project is the most expensive way to run an
+  extraction pipeline.
+
+  A **rejected fact is kept, not deleted** — deleting it would make the extraction look like it never
+  produced the error — but its `effectiveValue` is null so it drops out of the computation rather
+  than quietly continuing. An **unreviewed** fact stays usable, because refusing to compute anything
+  until every fact is hand-checked would make the pipeline useless; it is simply visibly unchecked
+  wherever it appears. A database CHECK refuses a `corrected` row with no corrected value, which
+  would otherwise degrade silently to "unchanged" downstream.
+
+  Two details from actually using it: reviews update the row in place rather than reloading, so a
+  reviewer working down fifty facts does not lose their scroll position on every click; and clearing
+  a review clears the reviewer too, or the row claims a reviewer for a verdict that no longer exists.
+
+  Root suite 21,567 passing; typecheck clean. Seed 534 applied to production.
+
+  Original item:
   Rebuild the review stage around the fact list: every fact with its source thumbnail, confidence, and
   accept/reject/correct. Corrections feed R9's golden set.
   *Acceptance:* a reviewer can accept or correct 50 facts without leaving the screen or losing place.

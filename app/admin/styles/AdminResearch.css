@@ -2221,6 +2221,69 @@
   margin-bottom: 0.65rem;
 }
 
+/* ── Fact review: accept / reject / correct (plan R23) ────────────────────── */
+
+/* A third chip, distinct from both confidence and evidence, because it answers a third question:
+   has a PERSON looked at this. */
+.research-review__dp-review {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.research-review__dp-review--unreviewed { color: #6B7280; background: #F3F4F6; }
+.research-review__dp-review--accepted   { color: #065F46; background: #D1FAE5; }
+.research-review__dp-review--corrected  { color: #92400E; background: #FEF3C7; }
+/* Rejected is kept, not deleted — so it needs a visible resting state, not an absence. */
+.research-review__dp-review--rejected   { color: #991B1B; background: #FEE2E2; text-decoration: line-through; }
+
+.research-review__dp-verdict { margin-bottom: 0.5rem; }
+
+.research-review__dp-verdict-actions {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.research-review__dp-verdict-btn {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.research-review__dp-verdict-btn--on { border-color: #2563EB; color: #1D4ED8; font-weight: 650; }
+.research-review__dp-verdict-btn:disabled { opacity: 0.55; cursor: default; }
+
+.research-review__dp-correction {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.research-review__dp-correction-input {
+  flex: 1 1 220px;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+}
+
+.research-review__dp-correction-note {
+  flex-basis: 100%;
+  font-size: 0.7rem;
+  color: #6B7280;
+  font-style: italic;
+}
+
 /* ── Run console (plan R22) ───────────────────────────────────────────────── */
 
 .run-console {
