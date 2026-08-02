@@ -39,6 +39,14 @@ import {
   type DepartmentChoice,
   type KofileSiteConfig,
 } from './kofile-discovery.js';
+// Wait for the thing, not for a duration — a fixed delay reported two counties as empty (plan R38).
+import {
+  KOFILE_CONFIG_READY,
+  RESULTS_SETTLED,
+  waitForCondition,
+  waitWithRetry,
+  type WaitablePage,
+} from '../lib/page-readiness.js';
 
 // ── Per-county Kofile configuration ──────────────────────────────────────────
 
@@ -252,11 +260,31 @@ export class KofileClerkAdapter extends ClerkAdapter {
   private async discoverSiteConfig(): Promise<void> {
     if (!this.page) return;
     try {
-      await this.page.goto(this.config.baseUrl, { waitUntil: 'networkidle', timeout: 45_000 });
-      // Invoked, not passed: page.evaluate on a function EXPRESSION returns the function, not
-      // its result — a trap this repo has hit before.
-      const raw = (await this.page.evaluate(`(${READ_SITE_CONFIG})()`)) as KofileSiteConfig | null;
+      await this.page.goto(this.config.baseUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+
+      // Wait for the department list to EXIST, not for a duration. A fixed 3-second wait read Bell
+      // and Milam as having no departments at all — a wrong answer that looked like a finding, and
+      // one that would have been written into the registry as fact.
+      const outcome = await waitWithRetry<KofileSiteConfig | null>(
+        this.page as unknown as WaitablePage,
+        KOFILE_CONFIG_READY,
+        READ_SITE_CONFIG,
+        {
+          label: `${this.countyName}'s department list`,
+          reload: async () => { await this.page!.reload({ waitUntil: 'domcontentloaded', timeout: 45_000 }); },
+        },
+      );
+      console.log(`[Kofile/${this.countyName}] ${outcome.statement}`);
+
+      // A page that never rendered is UNREAD, not empty — `chooseDepartment(null, …)` says so, and
+      // the adapter keeps whatever the registry already knew rather than overwriting it with a
+      // conclusion drawn from a blank page.
+      const raw = outcome.result.ready ? outcome.result.value : null;
       const choice = chooseDepartment(raw, this.countyName);
+      if (!outcome.result.ready) {
+        console.warn(`[Kofile/${this.countyName}] ${choice.reason}`);
+        return;
+      }
 
       console.log(`[Kofile/${this.countyName}] ${choice.reason}`);
       this.discovery = choice;
@@ -396,7 +424,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
       const searchUrl = this.resultsUrl(instrumentNo);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-      await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
+      await this.awaitResults();
 
       return this.parseSearchResults();
     });
@@ -414,7 +442,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
       const searchUrl = this.resultsUrl(`${volume} ${pg}`);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-      await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
+      await this.awaitResults();
 
       return this.parseSearchResults();
     });
@@ -440,7 +468,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
       const searchUrl = this.resultsUrl(cleanName);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-      await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
+      await this.awaitResults();
 
       const results = await this.parseSearchResults();
 
@@ -452,7 +480,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
         const refinedUrl = this.resultsUrl(name);
 
         await this.page!.goto(refinedUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-        await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
+        await this.awaitResults();
         return this.parseSearchResults();
       }
 
@@ -477,7 +505,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
       const searchUrl = this.resultsUrl(cleanName);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-      await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
+      await this.awaitResults();
 
       return this.parseSearchResults();
     });
@@ -521,9 +549,33 @@ export class KofileClerkAdapter extends ClerkAdapter {
       query,
     );
     await this.page.keyboard.press('Enter');
-    await this.page.waitForTimeout(3_000);  // OCR search is slower than index search
+    await this.awaitResults();  // OCR search is slower; wait for the table, not for a guess
 
     return this.parseSearchResults();
+  }
+
+  /** Wait for a results page to settle before reading it (plan R38).
+   *
+   *  Replaces a fixed 2-second delay after every search. Two seconds is enough on a fast day and not
+   *  on a slow one, and the failure is silent: the parser reads an unrendered table, finds no rows,
+   *  and the run reports "no records for this property" — which is a statement about the county's
+   *  index, not about our patience.
+   *
+   *  Rows OR an explicit "no results" both count as settled; only a page showing neither is still
+   *  working. */
+  private async awaitResults(): Promise<void> {
+    if (!this.page) return;
+    const r = await waitForCondition(
+      this.page as unknown as WaitablePage,
+      RESULTS_SETTLED,
+      '() => document.querySelectorAll("table tbody tr").length',
+      { label: `${this.countyName} search results`, timeoutMs: 30_000 },
+    );
+    if (!r.ready) {
+      // Logged rather than thrown: the parser reports the empty page honestly, and one slow search
+      // must not end a 25-minute run.
+      console.warn(`[Kofile/${this.countyName}] ${r.statement}`);
+    }
   }
 
   // ── Search result DOM parser ──────────────────────────────────────────────────
