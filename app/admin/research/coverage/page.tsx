@@ -10,6 +10,8 @@
 
 import Link from 'next/link';
 import AdapterHealthPanel from './AdapterHealthPanel';
+import MeasuredCoverage from './MeasuredCoverage';
+import './MeasuredCoverage.css';
 import './AdapterHealth.css';
 import {
   CLERK_REGISTRY,
@@ -85,6 +87,12 @@ export default function CoveragePage() {
           returning data. A county can be green on one and broken on the other, and only showing the
           first is how a firm promises a customer a county it can no longer search. */}
       <AdapterHealthPanel />
+
+      {/* R11 — measured coverage sits ABOVE the compiled registry below, because "what we have
+          proven" is the claim a firm should read first. The two are separate blocks rather than
+          one coloured table: they answer different questions, and a reader must be able to tell
+          which one they are looking at. */}
+      <MeasuredCoverage />
 
       <section
         style={{

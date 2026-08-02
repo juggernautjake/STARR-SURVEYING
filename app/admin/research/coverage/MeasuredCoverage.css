@@ -1,0 +1,60 @@
+/* app/admin/research/coverage/MeasuredCoverage.css — plan R11. Tokens only. */
+
+.measured {
+  margin-bottom: 24px;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.measured__title {
+  margin: 0;
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.measured__headline { margin: 0.3rem 0 0; font-size: 0.86rem; color: var(--color-text-secondary); }
+
+.measured__warn,
+.measured__note--bad { color: var(--color-warning-text); }
+.measured__warn {
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+  margin: 0.45rem 0 0; font-size: 0.83rem;
+}
+
+.measured__note { margin: 0.6rem 0 0; font-size: 0.85rem; color: var(--color-text-secondary); }
+
+.measured__table { width: 100%; margin-top: 0.8rem; border-collapse: collapse; font-size: 0.82rem; }
+.measured__table th,
+.measured__table td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--color-border); }
+.measured__table th { color: var(--color-text-tertiary); font-weight: 600; }
+
+.measured__county { font-weight: 600; }
+.measured__cell span { display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
+.measured__vendor { display: block; font-style: normal; font-size: 0.72rem; color: var(--color-text-tertiary); }
+
+/* `unknown` gets its own colour rather than borrowing the healthy one. An untested claim shown in
+ * green is the exact failure this panel exists to prevent. */
+.measured__cell--ok      { color: var(--color-success-text); }
+.measured__cell--unknown { color: var(--color-info-text); }
+.measured__cell--bad     { color: var(--color-error-text); }
+.measured__cell--muted   { color: var(--color-text-muted); }
+
+.measured__level { font-weight: 600; text-transform: capitalize; }
+.measured__level--full      { color: var(--color-success-text); }
+.measured__level--partial   { color: var(--color-warning-text); }
+.measured__level--requested { color: var(--color-info-text); }
+.measured__level--none      { color: var(--color-text-muted); }
+
+.measured__when { color: var(--color-text-tertiary); white-space: nowrap; }
+
+.measured__foot {
+  margin: 0.8rem 0 0;
+  max-width: 78ch;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}

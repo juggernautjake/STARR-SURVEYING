@@ -479,11 +479,31 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* a broken adapter produces a proposal a human can accept in one click, and the canary
   re-passes.
 
-- **R11. County coverage map that reflects reality.**
-  `research_county_data_sources` driven by measured canary outcomes, not intent. The UI states, per
-  county, what we can read and what we cannot, with a "request this county" action.
-  *Acceptance:* a user sees "Bell: full · Coryell: CAD only · Milam: not yet" before starting a run.
+- **R11. ✅ DONE 2026-08-02 — county coverage that reflects reality.**
+  `lib/research/coverage-rollup.ts` + `GET /api/admin/research/coverage` + a panel above the
+  existing table.
 
+  The page rendered the worker's **compiled** clerk registry — a map of INTENT, which shows a county
+  identically whether its adapter has ever successfully read a page or not. The measured claim now
+  sits above it as a separate block, deliberately not as a colour change on the same rows: they
+  answer different questions and a reader has to be able to tell which one they are looking at.
+
+  The distinction the whole slice defends is **`verified` vs `unverified`**. An adapter marked
+  `active` that has never passed a health check is a claim nobody has tested, and rendering it like
+  a proven one converts an unknown into a promise — on the dashboard a firm reads before telling a
+  customer it can search their county. `unverified` gets its own colour, its own word ("untested"),
+  and cannot reach `full` however many adapters are registered.
+
+  *Measured against production the moment it shipped:* **21 counties registered, 0 proven.**
+  Headline — *"21 counties are registered and none has been proven to work yet — run a health check
+  to find out where we actually stand"* — plus the sentence that matters most while it is true:
+  *"No health check has ever run… That is a fact about us, not about the counties."* The compiled
+  registry calls Bell and Bexar implemented; nothing has ever verified either. That gap is the
+  entire reason this panel exists.
+
+  Also distinguishes an unreachable portal from a changed page in the per-site note, because they
+  need different repairs, and reports a failed registry read as a failure rather than as zero
+  coverage.
 - **R12. Politeness and legality budget.**
   Central per-host rate limiter, robots/ToS posture recorded per adapter, honest user agent (the
   probe already does this), and a hard rule that captcha solving is only used where the site's terms
