@@ -39,6 +39,13 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | R15 | A page image stored per plat instrument | Same document-attachment path R13 and R17 need — build once, not three times |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
 
+### Owner requests added after the original 30 slices
+| Added | What | Where |
+|---|---|---|
+| 2026-08-02 | Adjoiner info, ROW/easements, shallow-then-deepen on nearby properties, survey recency | **Phase G (R31–R34)** — all four shipped |
+| 2026-08-02 | "Whatever counties are for those places we need to have fully built" (23 places → 13 counties) | **Phase H (R35–R38)** — in progress |
+| 2026-08-02 | Permission to drive Playwright/OCR against county sites to work out how to retrieve documents | **R37**, which R38 depends on |
+
 ### Blocked on the owner, not on code
 Every item in §4 below. In particular: **paid-platform credentials** (R13), **imagery licensing and
 API keys** (R16), the **~10 golden-record properties** confirmed with a surveyor (R19, and R9's
@@ -1495,6 +1502,76 @@ One regex trap worth recording: the encumbrance width parser required its noun i
 unit, which missed `20 foot utility easement` — the commonest form there is. Allowing intervening
 words meant tightening `right` to `right of way`, or `210.5 feet to the right` in a metes-and-bounds
 recital would parse as a 210-foot easement: a fabricated encumbrance on a drawing.
+
+---
+
+### Phase H — The counties this firm actually works (added 2026-08-02, owner request)
+
+**Owner ask, verbatim list:** "Bell, Travis, Williamson, Milam, Harrison, Milano, Cameron, Waco,
+Copperas Cove, Killeen, Temple, Austin, Hutto, Huntsville, Centerville, Conroe, Trinity,
+Madisonville, Round Rock, Pflugerville, Georgetown, Crawford, Bremond, etc. Whatever counties are for
+those places we need to have fully built."
+
+**Owner also granted:** permission to drive Playwright and OCR against county clerk and appraisal
+district sites to work out how to reach and retrieve the documents, if that helps build the adapters.
+
+#### The list resolved to counties
+
+| Place named | County | Adapter today |
+|---|---|---|
+| Bell, Killeen, Temple, Belton | **Bell** | active |
+| Travis, Austin *(city)*, Pflugerville | **Travis** | draft |
+| Williamson, Round Rock, Georgetown, Hutto | **Williamson** | draft |
+| Milam, Milano, Cameron *(city)* | **Milam** | none |
+| Harrison *(Marshall)* | **Harrison** | none |
+| Waco, Crawford | **McLennan** | none |
+| Copperas Cove | **Bell + Coryell** — the city straddles the line | Bell active, Coryell draft |
+| Huntsville | **Walker** | none |
+| Centerville | **Leon** | none |
+| Conroe | **Montgomery** | none |
+| Trinity *(city)* | **Trinity** | none |
+| Madisonville | **Madison** | none |
+| Bremond | **Robertson** | none |
+
+All 254 Texas counties already exist as rows in `research_counties`; what is missing is an **adapter**
+for each of these, which is what "fully built" means here.
+
+#### Two names in the list are genuinely ambiguous — do not let code guess them
+
+1. **"Cameron."** Cameron, Texas is the county seat of **Milam** County. **Cameron County** is a
+   different place 300 miles south (Brownsville). Read alongside "Milam" and "Milano" in the same
+   list, the Milam reading is almost certainly right — but a wrong reading sends a 25-minute run at a
+   clerk 300 miles away, which fails slowly and expensively (R28 refuses to infer county for exactly
+   this reason). **Owner to confirm.**
+2. **"Austin."** The city is in **Travis** County; **Austin County** (Bellville) is a separate county.
+   Read alongside "Pflugerville" and "Round Rock", the city reading is almost certainly right.
+   **Owner to confirm.**
+
+- **R35. Place → county resolution.**
+  A resolver that turns a place name into a county, and **refuses** where the name is ambiguous
+  rather than picking. Seeded with the towns this firm actually works, including the straddle cases.
+  *Acceptance:* "Cameron" returns an ambiguity naming both candidates; "Killeen" returns Bell;
+  "Copperas Cove" returns both Bell and Coryell with the reason.
+
+- **R36. Register the target counties.**
+  An adapter row per county above, so the coverage dashboard (R11) shows them as *registered and
+  unproven* rather than as absent — which is the honest state until each is exercised.
+  *Acceptance:* `/admin/research/coverage` lists all thirteen counties, none claiming to be proven.
+
+- **R37. Survey the live sites (Playwright, owner-permitted).**
+  For each county, visit the clerk and appraisal portals and record what is actually there: the
+  search form, its fields, the results shape, whether images are free or paid, whether a login or a
+  captcha stands in the way, and the DOM fingerprint R7's health checks will watch.
+  *Acceptance:* every county above has a recorded site survey, and each adapter's `config` carries a
+  real base URL and search path rather than a guess.
+
+- **R38. Build and prove each adapter.**
+  Turn each survey into a working adapter, exercised against a real search, and let R9's health
+  checks and R11's coverage report it as *proven* rather than merely registered.
+  *Acceptance:* the coverage headline stops saying "none has been proven to work yet".
+
+**Sequencing note:** R37 must precede R38 — every adapter this repo has shipped against a guessed DOM
+has needed rewriting, and R7/R8/R9 exist because of it.
 
 ---
 
