@@ -826,7 +826,48 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase D — The AI actually analyses the property
 
-- **R19. Feature location from documents.**
+- **R19. Feature location from documents.** ◑ PART DONE 2026-08-02 — located-vs-invented is now a
+  first-class distinction; the golden-set precision/recall measurement is owner-gated
+
+  **Shipped** (`lib/research/feature-location.ts`, wired into `geometry.engine.ts`).
+
+  This slice found something worse than a gap. `geometry.engine.ts` placed every easement as a
+  horizontal line below the centroid, spaced for legibility, and said so in its own comment: *"Since
+  easements rarely have explicit traversal coordinates, we render them as labeled horizontal lines
+  spaced below the centroid, inside the property."* So a 20-foot utility easement running along the
+  north line was drawn **through the middle of the tract**, carrying a `confidence_score` taken from
+  the extraction — which is confidence in the *text*, not in the position — and nothing anywhere
+  marked the position as invented. Same failure class as R15's superseded plat: not a stale answer,
+  a wrong location on a drawing a surveyor takes to the field.
+
+  Every placement now carries a **basis**: `traverse_vertex`, `derived_from_call`, `schematic`, or
+  `unlocated`. Most instruments do recite a side ("along the North line"), and that is locatable
+  against the computed boundary — `sideSegment()` picks the boundary that *is* that side, requiring
+  it to run in the right direction, since a wrong side is a wrong easement. The ones that recite
+  nothing are drawn diagrammatically and labelled **on the face of the drawing**, because whoever
+  reads the plat in the field is not reading the attribute bag.
+
+  The parser only matches forms that actually appear in Texas instruments, and deliberately will not
+  read a bearing as a location: "THENCE North 45 degrees East" is a metes-and-bounds recital, not a
+  side of the tract. A speculative parser is *worse* than none here — a null becomes `schematic` and
+  is labelled diagrammatic, while a wrong guess becomes `derived_from_call` and is believed.
+  Centreline widths are detected because getting that backwards doubles the encumbered strip.
+
+  **Monuments had a quieter version of the same bug.** They were placed at
+  `points[mon.sequence_order]` and **silently dropped** when that index did not exist — not drawn,
+  not listed, gone. Finding called-for monuments is most of what a field crew is sent to do, so one
+  that vanishes is one nobody goes looking for. They now land on an unlocated list with the call and
+  the reason. The location report comes back through an out-parameter rather than module-level state,
+  which this repo has been bitten by before.
+
+  Root suite 21,482 passing; typecheck clean.
+
+  **Remaining:** the acceptance clause itself — "matches the hand-built answer key with a stated
+  precision/recall" — needs the ~10 golden-record properties confirmed with a surveyor (§4.3, owner).
+  Fence/occupation lines, ROW takings and water boundaries also remain; they need imagery (R16's
+  fetchers) rather than document text, so they sit behind that work.
+
+  Original item:
   Extract and geolocate the property's important features — monuments called for, fence/occupation
   lines mentioned, easements and their widths, ROW takings, water boundaries, adjoiner calls — into a
   typed feature list with coordinates where derivable and confidence throughout.

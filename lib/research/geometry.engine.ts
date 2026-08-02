@@ -18,8 +18,33 @@ import {
   formatDistance,
   type TraversePoint,
 } from './normalization';
+// Where a feature actually is, vs where we drew it so the label would fit (research plan R19).
+import {
+  locateEasement,
+  locateMonument,
+  parseEasementCall,
+  summariseLocations,
+  type FeatureLocationSummary,
+  type Placement,
+} from './feature-location';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+
+/** A feature that is called for but could not be drawn (plan R19). It belongs on a list, because the
+ *  alternative — what used to happen to monuments — is that it disappears entirely. */
+export interface UnlocatedFeature {
+  kind: 'monument' | 'easement';
+  label: string;
+  dataPointId: string;
+  note: string;
+}
+
+/** Filled by `buildElementsFromAnalysis` when a collector is passed. */
+export interface FeatureLocationReport {
+  placements: Placement[];
+  unlocated: UnlocatedFeature[];
+  summary: FeatureLocationSummary;
+}
 
 export interface DrawingElementInput {
   element_type: string;
@@ -313,10 +338,20 @@ export function buildElementsFromAnalysis(
   traverseResult: TraverseResult,
   dataPoints: ExtractedDataPoint[],
   discrepancies: Discrepancy[],
-  config: DrawingConfig = DEFAULT_DRAWING_CONFIG
+  config: DrawingConfig = DEFAULT_DRAWING_CONFIG,
+  /** Optional collector for where each feature's position came from (plan R19). An out-parameter
+   *  rather than a changed return type, because every existing caller wants the element array — and
+   *  rather than module-level state, which this repo has been bitten by before. */
+  locations?: FeatureLocationReport,
 ): DrawingElementInput[] {
   const elements: DrawingElementInput[] = [];
   const points = traverseResult.points;
+
+  // Where each feature's position came from (plan R19). Collected as the elements are built so the
+  // caller can say "12 features, 4 of them diagrammatic" rather than presenting all twelve as found.
+  const monumentPlacements: Placement[] = [];
+  const easementPlacements: Placement[] = [];
+  const unlocatedFeatures: UnlocatedFeature[] = [];
 
   // 0. Boundary fill polygon (semi-transparent interior) — drawn first (lowest z-index)
   if (points.length >= 3) {
@@ -397,9 +432,13 @@ export function buildElementsFromAnalysis(
   // 2. Monuments at traverse points
   const monuments = dataPoints.filter(dp => dp.data_category === 'monument');
   for (const mon of monuments) {
-    const pointIndex = mon.sequence_order;
-    if (pointIndex !== undefined && pointIndex !== null && points[pointIndex]) {
-      const pt = points[pointIndex];
+    // A monument whose sequence_order does not land on a computed vertex used to be dropped here
+    // entirely — not drawn, not listed, gone. Finding called-for monuments is most of what a field
+    // crew is sent to do, so one that vanishes is one nobody goes looking for (plan R19).
+    const located = locateMonument(mon.sequence_order, points, mon.display_value ?? mon.raw_value);
+    monumentPlacements.push(located.placement);
+    if (located.position) {
+      const pt = located.position;
       const relDisc = findRelatedDiscrepancies(mon.id, discrepancies);
 
       elements.push({
@@ -412,6 +451,8 @@ export function buildElementsFromAnalysis(
         attributes: {
           ...mon.normalized_value,
           display: mon.display_value,
+          location_basis: located.placement.basis,
+          location_is_real: true,
         },
         layer: 'monuments',
         z_index: 20,
@@ -423,6 +464,15 @@ export function buildElementsFromAnalysis(
         data_point_ids: [mon.id],
         discrepancy_ids: relDisc,
         user_modified: false,
+      });
+    } else {
+      // Not drawable, so it goes on the unlocated list instead of into the void. The field crew
+      // still has to look for it; they now have the call and a reason it is not on the plat.
+      unlocatedFeatures.push({
+        kind: 'monument',
+        label: mon.display_value ?? mon.raw_value,
+        dataPointId: mon.id,
+        note: located.placement.note,
       });
     }
   }
@@ -537,14 +587,38 @@ export function buildElementsFromAnalysis(
     const easWidth = nv?.width ? ` (${nv.width}' wide)` : '';
     const easLabel = `${easTypeRaw}${easWidth}`.substring(0, 60);
 
+    // Where is it actually? (plan R19)
+    //
+    // This block used to place every easement as a horizontal line below the centroid, spaced for
+    // legibility — so a 20-foot utility easement running along the north line was drawn through the
+    // middle of the tract, carrying the extraction's confidence score as though the POSITION were
+    // what had been extracted. Most instruments do recite a side ("along the North line"), which is
+    // locatable against the computed boundary; the ones that do not are now drawn as diagrammatic
+    // and say so, instead of looking identical to the ones that were placed.
+    const call = parseEasementCall(
+      [easement.raw_value, easement.display_value, nv?.description as string | undefined]
+        .filter(Boolean).join(' '),
+    );
+    const located = locateEasement(call, points);
+    const line = located.segment
+      ? {
+          start: [located.segment.start.x, located.segment.start.y] as [number, number],
+          end: [located.segment.end.x, located.segment.end.y] as [number, number],
+        }
+      : {
+          start: [cx - lineHalfLen, cy] as [number, number],
+          end: [cx + lineHalfLen, cy] as [number, number],
+        };
+    easementPlacements.push(located.placement);
+
     // Dashed line representing easement extent
     elements.push({
       element_type: 'line',
       feature_class: 'easement',
       geometry: {
         type: 'line',
-        start: [cx - lineHalfLen, cy],
-        end: [cx + lineHalfLen, cy],
+        start: line.start,
+        end: line.end,
       },
       attributes: {
         description: easement.raw_value,
@@ -552,6 +626,10 @@ export function buildElementsFromAnalysis(
         display: easement.display_value,
         width: nv?.width,
         type: nv?.type,
+        // The renderer and the packet both key off these rather than re-deriving the rule twice.
+        location_basis: located.placement.basis,
+        location_is_real: located.placement.isReal,
+        location_note: located.placement.note,
       },
       layer: 'easements',
       z_index: 5,
@@ -566,18 +644,25 @@ export function buildElementsFromAnalysis(
     });
 
     // Easement label above the line
+    const labelMid = {
+      x: (line.start[0] + line.end[0]) / 2,
+      y: (line.start[1] + line.end[1]) / 2,
+    };
     elements.push({
       element_type: 'label',
       feature_class: 'easement',
       geometry: {
         type: 'label',
-        position: [cx, cy + Math.max(5, spacing * 0.3)],
+        position: [labelMid.x, labelMid.y + Math.max(5, spacing * 0.3)],
         anchor: 'middle',
       },
       attributes: {
-        text: easLabel,
+        // A diagrammatic easement is marked on the FACE of the drawing, not only in metadata —
+        // whoever is reading the plat in the field is not reading the attribute bag.
+        text: located.placement.isReal ? easLabel : `${easLabel} (diagrammatic)`,
         label_type: 'easement',
         rotation: 0,
+        location_basis: located.placement.basis,
       },
       layer: 'easement_labels',
       z_index: 31,
@@ -714,6 +799,12 @@ export function buildElementsFromAnalysis(
         user_modified: false,
       });
     }
+  }
+
+  if (locations) {
+    locations.placements = [...monumentPlacements, ...easementPlacements];
+    locations.unlocated = unlocatedFeatures;
+    locations.summary = summariseLocations(locations.placements);
   }
 
   return elements;
