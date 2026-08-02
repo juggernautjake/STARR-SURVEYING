@@ -10227,6 +10227,9 @@
 }
 .review-doc-card__badge--ok { color: #059669; background: #d1fae5; }
 .review-doc-card__badge--err { color: #dc2626; background: #fee2e2; }
+/* "Thin text" is not an error — the document is usable, but facts drawn from it are incomplete
+   rather than absent, so it gets its own tone rather than borrowing the error one (plan R18). */
+.review-doc-card__badge--warn { color: #b45309; background: #fef3c7; }
 .review-doc-card__badge--img { color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; }
 .review-doc-card__chevron {
   color: #6b7280;

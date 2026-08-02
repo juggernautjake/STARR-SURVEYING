@@ -120,7 +120,11 @@ export type DocumentType =
   | 'deed_screenshot' | 'plat_screenshot' | 'map_screenshot'
   | 'other';
 
-export type ProcessingStatus = 'pending' | 'extracting' | 'extracted' | 'analyzing' | 'analyzed' | 'error';
+// `unreadable` is distinct from `error` on purpose (plan R18): `error` is the retry bucket, and an
+// unreadable scan fails identically on every retry forever. It needs a better scan or a person's
+// eyes, which is a different queue and a different action.
+export type ProcessingStatus =
+  | 'pending' | 'extracting' | 'extracted' | 'analyzing' | 'analyzed' | 'error' | 'unreadable';
 
 export interface ResearchDocument {
   id: string;
@@ -143,6 +147,12 @@ export interface ResearchDocument {
   page_count?: number | null;
   ocr_confidence?: number | null;
   ocr_regions?: OcrRegion[] | null;
+  /** Whether the extraction is usable (plan R18). Null on documents processed before R18 — which is
+   *  honest: they were never assessed, and defaulting them to 'good' would claim a check that never
+   *  ran. */
+  readability?: 'good' | 'partial' | 'unreadable' | null;
+  readability_reason?: string | null;
+  readability_signals?: string[] | null;
   recorded_date?: string | null;
   recording_info?: string | null;
   created_at: string;

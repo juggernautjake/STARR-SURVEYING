@@ -57,6 +57,9 @@ export interface ReviewDocCardProps {
     document_type?: string | null;
     original_filename?: string | null;
     ocr_regions?: unknown;
+    /** Whether the extraction is usable, and why (plan R18). */
+    readability?: 'good' | 'partial' | 'unreadable' | null;
+    readability_reason?: string | null;
   };
   excerpt: string | null;
   hasViewable: boolean;
@@ -92,6 +95,26 @@ export function ReviewDocCard({ typeIcon: TypeIcon, title, typeName, doc, excerp
         )}
         {doc.processing_status === 'error' && (
           <span className="review-doc-card__badge review-doc-card__badge--err">Error</span>
+        )}
+        {/* Without this an unreadable document renders with NO badge — identical to one still
+            waiting to be processed — which is how "we could not read this deed" became invisible
+            (plan R18). The reason is the tooltip: a reviewer needs to know whether to re-scan or to
+            go and read the page themselves. */}
+        {doc.processing_status === 'unreadable' && (
+          <span
+            className="review-doc-card__badge review-doc-card__badge--err"
+            title={doc.readability_reason ?? 'The extracted text was not usable.'}
+          >
+            Unreadable
+          </span>
+        )}
+        {doc.readability === 'partial' && (
+          <span
+            className="review-doc-card__badge review-doc-card__badge--warn"
+            title={doc.readability_reason ?? 'Less text than a recorded instrument usually contains.'}
+          >
+            Thin text
+          </span>
         )}
         {doc.page_count != null && doc.page_count > 1 && (
           <span className="review-doc-card__badge review-doc-card__badge--pages">{doc.page_count} pg</span>

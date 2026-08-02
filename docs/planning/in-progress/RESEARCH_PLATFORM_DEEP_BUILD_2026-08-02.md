@@ -774,7 +774,52 @@ polish — nothing else in this plan can be trusted while the engine is down and
   "here is the deed, at this line".
   *Acceptance:* clicking any fact in the review UI opens its source image scrolled to the region.
 
-- **R18. Shared OCR service with a quality floor.**
+- **R18. Shared OCR service with a quality floor.** ◑ PART DONE 2026-08-02 — the quality floor and
+  the `unreadable` state shipped; consolidating the two extraction paths remains
+
+  **Shipped** (`lib/research/ocr-quality.ts` + seed 532, wired into `processDocument`).
+
+  The escalation to vision already existed. The **floor** did not: `processDocument()` wrote
+  `processing_status: 'extracted'` unconditionally, and the PDF path's own final return carries the
+  comment *"could be empty for truly blank PDFs"*. That empty string was stored as the document's
+  text, marked extracted, and passed to analysis, which extracted facts from nothing. `ocr_confidence`
+  was written to the row and read by nothing.
+
+  The failure was the quiet kind. A scanned 1940s deed that OCR'd to noise did not error — it became
+  a document with a little garbage text, no facts and no explanation, and the packet then reported
+  the property as having **no easements** rather than as having a deed nobody could read.
+
+  `assessOcr()` measures **per page**, because a 40-page deed book with 200 total characters is
+  unreadable even though 200 sounds like text, and assumes one page when the count is missing since
+  assuming more would inflate the floor and let a bad extraction pass. Confidence is finally read,
+  normalised across the 0–1 and 0–100 scales providers mix (guessing wrong by 100× would either fail
+  every page or pass every one).
+
+  **The digit test** is the one that catches the worst case. Length and confidence checks all pass
+  when OCR returns plausible-looking prose from an illegible scan. Deeds and plats are dense with
+  numbers — bearings, distances, curve data, instrument numbers, volumes, dates — so a land record
+  with several hundred characters and **no digits at all** has lost them in extraction, and the
+  next step says so: "the prose may read plausibly while every measurement on the page is missing."
+  It applies only to OCR'd land records; a born-digital cover letter legitimately has no numbers.
+
+  `unreadable` is a **distinct status, not `error`** (seed 532): `error` is the retry bucket, and an
+  unreadable scan fails identically on every retry forever — it needs a better scan or a person's
+  eyes, which is a different queue and a different action. The pipeline stops there rather than
+  classifying and analysing noise, which produces confident nonsense. The reason and the signals that
+  fired are stored so a wrong verdict can be diagnosed without re-running the OCR, and there is a
+  partial index for finding the documents a person has to look at. `partial` is a real middle state:
+  facts from a thin page are *incomplete rather than absent*, and it gets its own badge tone rather
+  than borrowing the error one.
+
+  Root suite 21,460 passing; typecheck clean. Seed 532 applied to production.
+
+  **Remaining:** one entry point. There are still two extraction implementations —
+  `lib/research/document.service.ts` and the worker's `ai-extraction.ts` — with thresholds that have
+  already drifted (500 vs 800 chars, noted in a comment at the call site). The floor now guards the
+  app path; consolidating the two is a larger refactor than this slice and should not be done
+  half-way.
+
+  Original item:
   One OCR entry point (not per-adapter), with confidence per block, automatic escalation to vision for
   low-confidence or handwritten pages, and an explicit "unreadable" state that reaches the UI.
   *Acceptance:* a deliberately blurred page is reported unreadable rather than silently mis-extracted.

@@ -3,6 +3,8 @@
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { callAI, callVision, callDocumentAI, AIServiceError } from './ai-client';
 import type { ResearchDocument, DocumentType } from '@/types/research';
+// An unreadable page must say so rather than becoming a document with no facts (research plan R18).
+import { assessOcr, isLandRecordType, statusFor } from './ocr-quality';
 
 // ── Processing Pipeline ──────────────────────────────────────────────────────
 
@@ -31,6 +33,19 @@ export async function processDocument(documentId: string): Promise<void> {
     // Step 1: Extract text
     const extraction = await extractText(doc);
 
+    // Is what came back actually readable? (plan R18)
+    //
+    // This used to write `processing_status: 'extracted'` unconditionally, so an empty or noise
+    // extraction became a document with no facts and no explanation — and the packet then reported
+    // the property as having no easements rather than as having a deed nobody could read.
+    const assessment = assessOcr({
+      text: extraction.text,
+      pageCount: extraction.pageCount,
+      confidence: extraction.ocrConfidence,
+      method: extraction.method,
+      isLandRecord: isLandRecordType(doc.document_type),
+    });
+
     // Update with extracted text
     await supabaseAdmin.from('research_documents').update({
       extracted_text: extraction.text,
@@ -38,9 +53,20 @@ export async function processDocument(documentId: string): Promise<void> {
       page_count: extraction.pageCount || null,
       ocr_confidence: extraction.ocrConfidence || null,
       ocr_regions: extraction.ocrRegions || null,
-      processing_status: 'extracted',
+      processing_status: statusFor(assessment),
+      readability: assessment.readability,
+      readability_reason: assessment.reason,
+      readability_signals: assessment.signals,
       updated_at: new Date().toISOString(),
     }).eq('id', documentId);
+
+    if (assessment.readability === 'unreadable') {
+      // Stop here. Classifying and analysing noise produces confident nonsense, and a document that
+      // needs a person's eyes must not travel further down the pipeline pretending to be data.
+      console.warn(`[Document] ${documentId} is unreadable: ${assessment.reason}`);
+      await updateDocumentStatus(documentId, 'unreadable');
+      return;
+    }
 
     // Step 2: Classify document type if not already set
     if (!doc.document_type && extraction.text.trim().length > 20) {
