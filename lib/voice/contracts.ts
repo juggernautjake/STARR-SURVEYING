@@ -19,34 +19,13 @@
 import { hashContractBody } from './tokens';
 import { formatCents } from './money';
 
-export type ContractStatus = 'draft' | 'sent' | 'signed' | 'countersigned' | 'void';
-
-/** Which transitions are legal, and therefore which buttons render.
- *
- *  Encoded as data rather than as `if` statements scattered across four routes, because the rule that
- *  matters — a signed contract cannot go back to draft — has to hold everywhere or it holds nowhere. */
-const TRANSITIONS: Record<ContractStatus, ContractStatus[]> = {
-  draft: ['sent', 'void'],
-  sent: ['signed', 'draft', 'void'],
-  // Countersigning is Andrew's acceptance. Voiding after signature is still possible (both parties
-  // walk away) but it is a mutual act, not an edit — hence no path back to `draft`.
-  signed: ['countersigned', 'void'],
-  countersigned: ['void'],
-  void: [],
-};
-
-export function canTransition(from: ContractStatus, to: ContractStatus): boolean {
-  return (TRANSITIONS[from] ?? []).includes(to);
-}
-
-export function allowedTransitions(from: ContractStatus): ContractStatus[] {
-  return TRANSITIONS[from] ?? [];
-}
-
-/** A contract's text is frozen once anyone has signed it. */
-export function isEditable(status: ContractStatus): boolean {
-  return status === 'draft' || status === 'sent';
-}
+// The state machine lives in ./contract-status, which imports nothing. This module reaches
+// node:crypto through ./tokens for the signature hash, and the studio's contract actions are a
+// CLIENT component that needs `isEditable`. Re-exported so there is one definition.
+export { canTransition, allowedTransitions, isEditable, type ContractStatus } from './contract-status';
+// A re-export makes the name available to IMPORTERS, not to this module's own scope — `buildSignatureRecord`
+// below returns a `ContractStatus`, so it needs the type imported as well as forwarded.
+import type { ContractStatus } from './contract-status';
 
 // ── Usage terms ──────────────────────────────────────────────────────────────────────────────────
 //
