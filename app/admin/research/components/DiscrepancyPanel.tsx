@@ -23,6 +23,37 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
+  // Labels for the source documents in each conflict (plan R20). Without these the sources are
+  // rendered as UUIDs, which is barely better than not rendering them at all.
+  const [documentLabels, setDocumentLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/research/${projectId}/documents`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const labels: Record<string, string> = {};
+        for (const doc of (data.documents ?? []) as Array<{
+          id: string; document_label?: string | null; recording_info?: string | null;
+          recorded_date?: string | null; document_type?: string | null; original_filename?: string | null;
+        }>) {
+          // What a surveyor would call it: "1968 warranty deed (Instr. 2019-12345)".
+          const year = doc.recorded_date?.slice(0, 4);
+          const kind = doc.document_type?.replace(/_/g, ' ');
+          labels[doc.id] =
+            doc.document_label
+            || [year, kind].filter(Boolean).join(' ')
+            || doc.recording_info
+            || doc.original_filename
+            || 'an unnamed document';
+        }
+        if (!cancelled) setDocumentLabels(labels);
+      } catch { /* labels are an enhancement; the conflict still renders without them */ }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   const loadDiscrepancies = useCallback(async () => {
     setError(null);
@@ -170,6 +201,7 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
             key={d.id}
             discrepancy={d}
             onResolve={handleResolve}
+            documentLabels={documentLabels}
           />
         ))}
         {discrepancies.length === 0 && (

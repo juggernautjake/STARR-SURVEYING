@@ -874,7 +874,40 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* for a golden-set property the feature list matches the hand-built answer key with a
   stated precision/recall.
 
-- **R20. Conflict finding, stated as questions.**
+- **R20. Conflict finding, stated as questions.** ✅ DONE 2026-08-02
+
+  **Shipped** (`lib/research/conflict-framing.ts`, wired into `DiscrepancyCard` + `DiscrepancyPanel`).
+
+  The detection engines already existed. What did not was the part the acceptance asks for: *"the
+  conflict, both citations, and a recommended field check"*. `DiscrepancyCard` rendered the AI's
+  title, description and recommendation — prose — and the `document_ids` and `data_point_ids` that
+  every discrepancy carries were **never rendered at all**. So "the deed calls 210.5 feet but the
+  plat shows 210.0" arrived as something the model said, with no route to either document: R17's
+  problem one level up, on the most consequential claim in the packet.
+
+  Conflicts are now framed as a **question** — "Which controls — the 1968 deed at 210.5 ft, or the
+  1998 replat at 210.0 ft?" — because a statement of a conflict invites belief and a question invites
+  a reading, and the reading is the surveyor's job rather than ours. Both sides render with their
+  document label and value, and a conflict carrying no source ids is labelled *a claim, not a
+  finding* rather than being styled like the sourced ones.
+
+  **"Surveyor's language" was taken to mean the order of dignity of calls** — natural monuments >
+  artificial monuments > adjoiner calls > course > distance > quantity. The module does **not** apply
+  the hierarchy to decide a conflict; it uses it to say what evidence would settle one. "If the
+  called iron rod is recovered, it controls over the courses and distances on either document" is
+  something a crew can act on; "the deed wins" is a decision nobody asked us to make. Natural
+  monuments are detected from the description text since no data category names one, and they change
+  the answer. The bearing case names the reason so many of these conflicts are not conflicts at all:
+  bearings from different eras rarely share a meridian.
+
+  `ai_recommendation` is free text and sometimes resolves the conflict instead of framing it. A
+  recommendation that quietly picks a winner is worse than none, because the reviewer never learns
+  there was a conflict — so those are now detected and marked *"the model's opinion, not a
+  resolution — the conflict is still open."*
+
+  Root suite 21,507 passing; typecheck clean.
+
+  Original item:
   Where sources disagree (deed vs plat vs CAD vs occupation visible in imagery), the system states the
   conflict in surveyor's language, with both sources shown, rather than picking a winner silently.
   The existing `cross-validation-engine` + `discrepancy-analyzer` become user-facing.
