@@ -57,6 +57,7 @@ import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
+import { describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns } from './infra/run-store.js';
 import { resetRunSpend, spendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
@@ -1065,6 +1066,16 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     `${budgetLimits.maxCostUsd.toFixed(2)}, ${budgetLimits.maxPaidPages} paid page(s)`,
   );
 
+  // Durable run record (plan R3). The documents this run produces are already persisted as they
+  // are found; what used to vanish on a restart was the RUN itself — its phase, clock, spend and
+  // outcome — so a restarted worker showed a two-thirds-finished run as though it never started.
+  void recordRunStart({
+    projectId,
+    county,
+    address: researchInput.address,
+    limits: budgetLimits as unknown as Record<string, unknown>,
+  });
+
   // Enable function-level tracing when the request came from the Testing Lab.
   // testMode is set by the run proxy route's workerBody.
   if ((body as Record<string, unknown>).testMode) enableTracing();
@@ -1145,6 +1156,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         pipelineAbortController.abort();
       }
 
+      // Heartbeat the durable record (plan R3). Carries the spend, so an interrupted run's cost is
+      // known to within one phase rather than being reconstructed afterwards.
+      void recordRunPhase(projectId, progress.phase, progress.message ?? null, spendForRun(projectId));
+
       // Update active pipeline stage from progress events
       const pipeline = activePipelines.get(projectId);
       if (pipeline) {
@@ -1213,6 +1228,14 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         `[budget] ${projectId}: finished — ${Math.round(finalBudget.elapsedMs / 60_000)} min, ` +
         `${finalBudget.spentUsd.toFixed(4)} spent${finalBudget.exceeded ? ` (stopped on ${finalBudget.exceeded})` : ''}`,
       );
+      void recordRunFinish({
+        projectId,
+        status: 'complete',
+        costUsd: finalBudget.spentUsd,
+        paidPages: finalBudget.paidPages,
+        skippedWork: finalBudget.skipped,
+        budgetSummary: windDown,
+      });
       endRun(projectId);
 
       setCompletedResult(projectId, unifiedResult);
@@ -1675,6 +1698,12 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         duration_ms: 0,
         failureReason: errMessage,
       };
+      void recordRunFinish({
+        projectId,
+        status: isAborted ? 'cancelled' : 'failed',
+        costUsd: spendForRun(projectId),
+        failureReason: errMessage.slice(0, 500),
+      });
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
@@ -4541,6 +4570,13 @@ app.listen(PORT, () => {
   });
 
   console.log(`[startup] capacity — ${describeCapacity(CAPACITY)}`);
+
+  // Any run still marked `running` belonged to a process that no longer exists (plan R3). Marked
+  // interrupted, NOT failed: the research did not fail, the process holding it stopped — usually a
+  // deploy — and somebody scanning failures should not have to work out which were releases.
+  void recoverInterruptedRuns().then((recovered) => {
+    console.log(`[startup] run recovery — ${describeRecovery(recovered)}`);
+  });
 
   // Publish the compiled county knowledge into research_site_adapters (plan R8). Until this ran,
   // the self-healing subsystem monitored an EMPTY table while the scrapers that actually break were

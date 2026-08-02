@@ -211,12 +211,33 @@ polish — nothing else in this plan can be trusted while the engine is down and
   was aborted due to timeout / A run started now uses the built-in lite pipeline…" with no console
   errors.
 
-- **R3. Runs survive a restart.**
-  Move the primary pipeline onto the existing BullMQ queue with Redis-backed state; `activePipelines`
-  becomes a projection of the queue, not the source of truth. Persist run state to Postgres
-  (`research_runs`: phase, step, started_at, heartbeat_at, cost_so_far, artifacts_written).
-  *Acceptance:* kill -9 the worker mid-run; on restart the run resumes or is explicitly marked
-  `interrupted` with what it had already paid for and saved.
+- **R3. ✅ DONE 2026-08-02 (the acceptance's second branch) — runs survive a restart.**
+  `seeds/530_research_runs.sql` + `worker/src/infra/run-store.ts`. One row per run: phase, message,
+  heartbeat, spend, paid pages, the limits it was given, the work the budget made it skip, and which
+  build was running.
+
+  **`interrupted` is its own status, not a kind of `failed`.** The research did not fail — the
+  process holding it stopped, and it is usually a deploy. Somebody scanning a list of failures should
+  not have to work out which ones were releases. The recovery sweep runs at boot: any row still
+  `running` whose heartbeat is older than ten minutes belonged to a process that no longer exists.
+  Ten minutes is long enough that a county portal taking four minutes is never mistaken for a dead
+  worker, short enough to answer "did my research survive the deploy?" in the same sitting.
+
+  The spend travels with the heartbeat, which is the point: **an interrupted run that had already
+  bought $12 of plats must not look identical to one that spent nothing** — that difference is what
+  decides whether somebody re-runs it.
+
+  *Verified against production:* a run was started, advanced two phases with $1.25 recorded, its
+  heartbeat backdated eleven minutes, and a fresh boot reported `1 run(s) were interrupted by a
+  restart — $1.2500 already spent, last phase(s): Deed chain. They are marked interrupted, not
+  failed.` The synthetic row was then deleted.
+
+  **What this deliberately does NOT do**, stated in both the module and the seed: it does not resume
+  a half-finished pipeline. The pipeline has no checkpoints, and re-running phases whose side effects
+  are *purchases* is not idempotent — a resume that re-bought documents would be worse than no
+  resume at all. Moving the primary path onto the existing BullMQ queue remains the right end state
+  and is a larger change; this is the urgent half, which is that an interrupted run is **visible as
+  interrupted** rather than as silence.
 
 - **R4. ⚠ PARTIALLY DONE 2026-08-02 — the writer exists; the last call sites are still being
   migrated.**
