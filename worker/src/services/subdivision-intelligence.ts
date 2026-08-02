@@ -16,6 +16,8 @@ import { reconcileAreas } from './area-reconciliation.js';
 import { AdjacencyBuilder } from './adjacency-builder.js';
 import { SubdivisionAIAnalysis } from './subdivision-ai-analysis.js';
 import { TraverseComputation } from './traverse-closure.js';
+// Which plat controls each lot — a replat covers part of a subdivision (research plan R15).
+import { buildPlatHistory, governingPlatFor } from './plat-history.js';
 import type { CADAdapter } from '../adapters/cad-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 import type { BoundaryCall, ExtractedBoundaryData } from '../types/index.js';
@@ -398,6 +400,52 @@ export class SubdivisionIntelligenceEngine {
       .filter((a) => a.type === 'replat')
       .map((a) => ({ instrument: a.instrument, type: a.type, date: a.date }));
 
+    // Splitting the amendments into two buckets was the whole of "the amendment chain": nothing
+    // decided which plat CONTROLS a given lot, so downstream read dimensions off whichever plat was
+    // found first. A replat covers part of a subdivision, so this is answered per lot (plan R15).
+    const originalPlatRef = prop.deedReferences.find((r) => r.type === 'plat');
+    const originalPlatInstrument =
+      originalPlatRef?.instrumentNumber ?? classResult.platInstrument ?? null;
+    const platHistory = buildPlatHistory(subdivisionName, [
+      ...(originalPlatInstrument
+        ? [{
+            instrument: originalPlatInstrument,
+            title: subdivisionName,
+            recordingDate: originalPlatRef?.date ?? '',
+          }]
+        : []),
+      ...amendments.map((a) => ({
+        instrument: a.instrument,
+        // The recorded title is what carries the scope ("Replat of Lots 4-7, Block 2"); the bare
+        // type does not, so a titleless amendment is correctly treated as covering everything.
+        title: (a as { title?: string }).title ?? a.type,
+        recordingDate: a.date ?? '',
+      })),
+    ]);
+
+    const platGovernance = lotInventory.map((inv) => {
+      const parsed = inv.lotName.match(/(?:LOT\s*)?([0-9]{1,4}[A-Z]?)/i);
+      const blk = inv.lotName.match(/BLOCK\s*([0-9A-Z]+)/i)?.[1] ?? null;
+      const g = governingPlatFor(platHistory, parsed?.[1] ?? inv.lotName, blk);
+      return {
+        lotName: inv.lotName,
+        governingInstrument: g.governing?.instrument ?? null,
+        supersededInstruments: g.superseded.map((s) => s.instrument),
+        vacated: g.vacated,
+        statement: g.statement,
+        caveats: g.caveats,
+      };
+    });
+
+    const vacatedCount = platGovernance.filter((g) => g.vacated).length;
+    const supersededCount = platGovernance.filter((g) => g.supersededInstruments.length > 0).length;
+    if (supersededCount > 0 || vacatedCount > 0) {
+      console.log(
+        `[Subdivision] Plat governance: ${supersededCount} lot(s) are governed by a replat or ` +
+        `amendment rather than the original plat${vacatedCount ? `, ${vacatedCount} vacated` : ''}.`,
+      );
+    }
+
     // ── STEP 7: Restrictive Covenant Extraction ─────────────────────────
     console.log('[Subdivision] Step 7: Restrictive covenants...');
     // Covenants are assembled at model creation after source validation (below).
@@ -651,6 +699,7 @@ export class SubdivisionIntelligenceEngine {
       },
       lotRelationships,
       subdivisionAnalysis,
+      platGovernance,
 
       timing: { totalMs },
       aiCalls,

@@ -637,11 +637,49 @@ polish — nothing else in this plan can be trusted while the engine is down and
   list names, rather than only walking documents already harvested. That needs the adapter call path
   and per-county index horizons as data; the gap list is its input.
 
-- **R15. Complete plat history.**
+- **R15. Complete plat history.** ◑ PART DONE 2026-08-02 — supersession + governing plat shipped;
+  page images per instrument remain
   Subdivision plats, replats, vacations, and their amendments; each with a page image and the
   recording data. Cross-link to the lots they create.
   *Acceptance:* for a platted lot the packet contains the governing plat and every later instrument
   that modified it.
+
+  **Shipped** (`worker/src/services/plat-history.ts`, wired into `subdivision-intelligence.ts`).
+
+  `searchForAmendments()` already found replats, amended plats and vacating plats. "STEP 6: Plat
+  Amendment Chain" then split them into two buckets — replats and everything else — and called that
+  the chain. **Nothing decided which plat controls a lot**, so the pipeline read dimensions off
+  whichever plat was found first. `lot-correlator.ts:530` already carried the comment "WARNING: The
+  CAD lot number may not always match the plat if the subdivision was replatted": the risk was known
+  and unhandled. Reading lot dimensions off a superseded plat does not give a slightly stale answer —
+  it puts a boundary in the wrong place, staked in the ground.
+
+  **The governing plat is a property of the LOT, not the subdivision.** A replat almost never covers
+  the whole subdivision: "Replat of Lots 4-7, Block 2, Sunset Acres" governs four lots and leaves the
+  other ninety on the original. A module answering this per subdivision would be wrong in the common
+  case rather than the rare one, so `governingPlatFor(history, lot, block)` is per lot. Original,
+  replat and amended plats each become the controlling document for the lots they reach; a
+  **correction** modifies rather than replaces; a **vacating** plat removes the lot, reported as
+  "may no longer exist as a platted lot — confirm before surveying it as one". Superseded plats stay
+  in the packet, because they describe the monumentation that is actually in the ground.
+
+  **The fail-safe direction is the design.** When a title names no lots, or names them unparseably
+  ("Lots SEVEN through TWELVE"), the scope is the **whole subdivision** — never "no lots". Assuming a
+  replat covers nothing would silently hand back the superseded original as governing. Over-claiming
+  costs a surveyor one extra document to read; under-claiming costs them the corner. Every such
+  assumption is reported as a caveat, so "we could not tell" never looks like "it covers everything".
+
+  Other honest-uncertainty cases: an undated plat sorts last and is flagged rather than allowed to
+  quietly supersede a dated one; a replat with no original in the set says so ("the replat shows what
+  changed, not what was set"); a lot no retrieved plat covers is *a retrieval gap, not evidence that
+  the lot is unplatted*. `platGovernance` now rides on `SubdivisionModel`, optional because a model
+  built before R15 has no honest value to put there.
+
+  Worker suite 362/362; both roots typecheck clean.
+
+  **Remaining:** a page image stored per plat instrument with its recording data — that is the same
+  document-attachment path R13's library and R17's evidence capture need, and is better built once
+  there than three times here.
 
 - **R16. Imagery pack, per parcel.**
   Parcel-framed captures at fixed scales from: high-resolution current aerial (Esri World Imagery /

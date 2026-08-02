@@ -247,6 +247,23 @@ export interface PlatAmendment {
   description?: string;
 }
 
+/** Which plat controls a given lot (plan R15).
+ *
+ *  Per LOT, not per subdivision: a replat almost never covers the whole subdivision, so "Replat of
+ *  Lots 4-7, Block 2" governs four lots and leaves the other ninety on the original plat. Reading
+ *  dimensions off a superseded plat puts a boundary in the wrong place. */
+export interface LotPlatGovernance {
+  lotName: string;
+  /** Null when the lot was vacated, or when no retrieved plat covers it. `statement` says which. */
+  governingInstrument: string | null;
+  /** Earlier plats this lot has outgrown. Still needed — they describe the monumentation that is
+   *  actually in the ground. */
+  supersededInstruments: string[];
+  vacated: boolean;
+  statement: string;
+  caveats: string[];
+}
+
 // ── Surveyor Info ───────────────────────────────────────────────────────────
 
 export interface SurveyorInfo {
@@ -354,6 +371,10 @@ export interface SubdivisionModel {
   commonElements: CommonElements;
   restrictiveCovenants: RestrictiveCovenants;
   lotRelationships: LotRelationships;
+
+  /** Which plat governs each enumerated lot (plan R15). Optional: models produced before R15 have
+   *  no honest value here, and an empty array would read as "no lot was ever replatted". */
+  platGovernance?: LotPlatGovernance[];
   subdivisionAnalysis: SubdivisionWideAnalysis;
 
   timing: { totalMs: number };
