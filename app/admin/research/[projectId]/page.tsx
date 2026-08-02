@@ -41,6 +41,8 @@ import ResearchRunPanel from '../components/ResearchRunPanel';
 import RunConsoleBar from '../components/RunConsoleBar';
 // What changed since the last run — research is not a one-shot (research plan R27).
 import RunDiffPanel from '../components/RunDiffPanel';
+// What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
+import ReportCardPanel from '../components/ReportCardPanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -1816,6 +1818,7 @@ export default function ResearchProjectPage() {
             {/* A job that sat for three months and gained two new deeds needs to say so, and the
                 approved packet needs to be told it is out of date (plan R27). */}
             <RunDiffPanel projectId={projectId} />
+            <ReportCardPanel projectId={projectId} />
             <ResearchRunPanel
               projectId={projectId}
               address={pendingSearchParams?.address ?? project.property_address ?? ''}

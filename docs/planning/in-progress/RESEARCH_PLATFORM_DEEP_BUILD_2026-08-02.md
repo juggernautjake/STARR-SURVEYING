@@ -1327,7 +1327,39 @@ polish — nothing else in this plan can be trusted while the engine is down and
   serialisation, and a visible backlog.
   *Acceptance:* ten simultaneous requests complete without a rate-limit ban or a memory blow-up.
 
-- **R30. Per-run report card.**
+- **R30. Per-run report card.** ✅ DONE 2026-08-02
+
+  **Shipped** (`lib/research/report-card.ts` + the report-card route + `ReportCardPanel`, mounted on
+  the project page).
+
+  "As cheap but as effective as possible" had never been a number. R4 made spend measurable, R5 made
+  the budget enforceable, R22 put both on a screen — but nothing said whether a run costing $4.20 did
+  more than one costing $1.10, so a cheap run and a thin run were indistinguishable.
+
+  **The card refuses to score one thing the plan asked for.** "Facts extracted vs expected for that
+  property type" has **no baseline**: nobody has established what a 40-acre rural tract in Bell
+  County should yield, and inventing a number would produce a score that looks objective and means
+  nothing — the exact failure this document has spent thirty slices closing. So the card states it
+  outright: *"a low fact count here is not evidence of a poor run — nor of a good one."* It also
+  admits that the counts are per project rather than per run, because nothing tags a document or fact
+  with the run that produced it, and silently attributing every fact ever extracted to the latest run
+  would be the same fabrication in a different place.
+
+  What it does measure: cost, wall clock, **cost per fact** (null rather than $0.00 when nothing was
+  extracted — a divide-by-zero would make the emptiest run look the most efficient), sources reached
+  against those registered, and the evidence and review rates R17 and R23 made available. An
+  unreadable document is **not** counted as a source reached, because counting it is how a thin run
+  scores well.
+
+  A **truncated run must never read as a good one**: skipped work, a budget summary or an interrupted
+  status all flag it, and `compareCards()` refuses a verdict outright when either run was truncated —
+  a truncated run always looks cheaper per fact, and rewarding that would train the system to do less
+  work for a better score. Where a run genuinely cost less and found less, the verdict says the
+  counts alone cannot tell a saving from a gap.
+
+  Root suite 21,697 passing; typecheck clean.
+
+  Original item:
   Every finished run scores itself: sources reached vs available, facts extracted vs expected for that
   property type, conflicts found, cost, wall-clock, and what was skipped and why. This is how "as
   cheap but as effective as possible" becomes a number that can be improved.
