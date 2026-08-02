@@ -18,7 +18,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import LoginForm from './LoginForm';
-import { getVoiceSession, studioNeedsSetup } from '@/lib/voice/auth';
+import { getVoiceSession, selfSetupOpen, studioNeedsSetup } from '@/lib/voice/auth';
 import { BASE_PATH } from '@/lib/voice/content';
 
 export const metadata: Metadata = {
@@ -34,8 +34,11 @@ export default async function LoginPage({
   // Already signed in: nothing to do here.
   if (getVoiceSession()) redirect(`${BASE_PATH}/studio`);
 
-  const needsSetup = await studioNeedsSetup();
+  const [needsSetup, canSetUp] = await Promise.all([studioNeedsSetup(), selfSetupOpen()]);
   const requiresKey = Boolean(process.env.VOICE_SIGNUP_KEY);
+  // `?setup=1` is how the "create an account" link arrives; `needsSetup` covers a brand-new studio
+  // where there is nothing to sign in to yet.
+  const mode = needsSetup || searchParams.setup === '1' ? 'setup' : 'login';
 
   return (
     <section className="vaSection">
@@ -54,8 +57,9 @@ export default async function LoginPage({
         </p>
 
         <LoginForm
-          mode={needsSetup || searchParams.setup === '1' ? 'setup' : 'login'}
+          mode={mode}
           requiresKey={requiresKey}
+          canSetUp={canSetUp}
           next={typeof searchParams.next === 'string' ? searchParams.next : `${BASE_PATH}/studio`}
         />
       </div>

@@ -163,6 +163,36 @@ export async function studioNeedsSetup(): Promise<boolean> {
   return (count ?? 0) === 0;
 }
 
+/**
+ * How many studio accounts may exist before self-setup closes.
+ *
+ * ── WHY A WINDOW RATHER THAN A SINGLE FIRST RUN ─────────────────────────────────────────────────
+ *
+ * The owner asked for a surfaced way for Andrew to create his own account when he reaches the login
+ * page — he should pick his own username, email and password rather than being handed credentials
+ * somebody else chose and typed into a chat.
+ *
+ * The alternatives were worse. Emailing him a password means the password exists in an inbox forever.
+ * A single first-run window had already been consumed by the first account. Fully open registration
+ * on a live site is obviously wrong.
+ *
+ * So setup stays available until the studio holds `MAX_SELF_SETUP_ACCOUNTS` accounts, and then closes
+ * permanently. This is a real two-person business: at two accounts the door shuts and every further
+ * account is created by someone already signed in (Studio → Settings → Team). The exposure is one
+ * account, on a `noindex` page nobody is linked to, for the days between deploy and Andrew signing
+ * up — and `VOICE_SIGNUP_KEY` closes even that for a deployment that wants it shut.
+ */
+export const MAX_SELF_SETUP_ACCOUNTS = 2;
+
+/** True while a new person may still create their own account from the login page. */
+export async function selfSetupOpen(): Promise<boolean> {
+  const { count, error } = await supabaseAdmin
+    .from('va_users')
+    .select('id', { count: 'exact', head: true });
+  if (error) return false; // fail closed, as above
+  return (count ?? 0) < MAX_SELF_SETUP_ACCOUNTS;
+}
+
 /** The shared secret guarding first-run account creation, or null when unset. */
 export function signupKey(): string | null {
   const k = process.env.VOICE_SIGNUP_KEY?.trim();

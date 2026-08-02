@@ -616,11 +616,37 @@ a.vaCard:hover,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px;
   height: var(--va-header-h);
+  min-width: 0;
+}
+@media (min-width: 700px) {
+  .vaHeaderInner {
+    gap: 24px;
+  }
 }
 
+/* ── THE HEADER OVERFLOW BUG ─────────────────────────────────────────────────────────────────────
+ *
+ * Reported by the owner: "the navmenu is whack", and the page wider than it should be. Measured at a
+ * 375px viewport: document scrollWidth was 604px — 229px of horizontal overflow — with the menu
+ * button sitting at x=604, entirely off-screen. The navigation was unreachable on a phone.
+ *
+ * The cause was this rule. `white-space: nowrap` plus the tagline made the wordmark 350px wide inside
+ * a 375px viewport, so flex had nothing left for the actions and pushed them past the edge.
+ *
+ * Three fixes, in order of how much each buys:
+ *
+ *   1. The tagline hides below 880px. It is decoration; the navigation is not.
+ *   2. `min-width: 0` lets the wordmark actually shrink. A flex item defaults to min-content width,
+ *      which for nowrap text is the entire string — this property is what makes the layout able to
+ *      give space to anything else.
+ *   3. "Request a quote" hides below 500px and reappears at the foot of the open menu, where it has
+ *      room to be a full-width call to action rather than a 157px squeeze.
+ */
 .vaWordmark {
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--va-font-display);
   font-size: 1.0625rem;
   font-weight: 700;
@@ -637,11 +663,28 @@ a.vaCard:hover,
   color: var(--va-accent);
 }
 .vaWordmarkRole {
+  display: none;
+  white-space: nowrap;
   font-family: var(--va-font-body);
   font-size: 0.5625rem;
   letter-spacing: 0.24em;
   color: var(--va-text-muted);
   font-weight: 500;
+}
+
+/* Only once there is genuinely room for it. */
+@media (min-width: 880px) {
+  .vaWordmarkRole {
+    display: inline;
+  }
+}
+
+@media (max-width: 400px) {
+  /* Tighter tracking buys ~20px without changing the size. */
+  .vaWordmark {
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+  }
 }
 
 .vaNav {
@@ -686,6 +729,14 @@ a.vaCard:hover,
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
+}
+
+/* The quote button reappears inside the open menu below this width — see .vaMobileNavCta. */
+@media (max-width: 499px) {
+  .vaHeaderActions > .vaBtn {
+    display: none;
+  }
 }
 
 .vaMenuBtn {
@@ -722,6 +773,15 @@ a.vaCard:hover,
 }
 .vaMobileNav a:last-of-type {
   border-bottom: 0;
+}
+
+/* The call to action the header could not fit, given the room it deserves. */
+.vaMobileNavCta {
+  display: block !important;
+  margin-top: 18px;
+  width: 100%;
+  text-align: center;
+  border-bottom: 0 !important;
 }
 .vaMobileNav a[aria-current='page'] {
   color: var(--va-accent);
@@ -1989,4 +2049,27 @@ a.vaCard:hover,
   .vaRoot * {
     box-shadow: none !important;
   }
+}
+
+/* The sign-in / create-account switch. A real <button>, not a link styled as one — it changes what
+   the form does rather than navigating, and a link that does not navigate breaks middle-click,
+   right-click-open and every expectation a link sets. */
+.vaLoginSwitch {
+  text-align: center;
+  margin: 18px 0 0;
+  font-size: 0.875rem;
+  color: var(--va-text-muted);
+}
+.vaLoginSwitch button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--va-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.vaLoginSwitch button:hover {
+  color: var(--va-accent-bright);
 }
