@@ -12,6 +12,39 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { pageImagesToBuffer } from './pages-to-pdf.js';
 import type { DocumentPage } from '../types/index.js';
 
+import { assessOcr, isLandRecordType, type Readability } from '../infra/ocr-quality.js';
+
+// ── The readability floor, on the worker path too (plan R18) ───────────────────────────────────
+//
+// R18 put a quality floor on the app's extraction path. This is the path that actually runs
+// production pipelines, and it had none — a scanned deed that OCR'd to nothing was written with
+// `processing_status: 'analyzed'`, which is a stronger claim than the app's path ever made about a
+// document it could actually read.
+//
+// Same assessor as the app, imported rather than reimplemented: two copies is how the rule ends up
+// enforced on one path and not the other.
+function assessArtifact(
+  text: string | null | undefined,
+  pageCount: number,
+  documentType: string | null | undefined,
+): { status: 'analyzed' | 'extracted' | 'unreadable'; readability: Readability; reason: string } {
+  const a = assessOcr({
+    text: text ?? '',
+    pageCount,
+    // Artifact text comes from the vision path, so the digit test applies to land records.
+    method: 'ocr-vision',
+    isLandRecord: isLandRecordType(documentType),
+  });
+  return {
+    // 'analyzed' only when the text is good enough to have been analysed. A thin extraction is
+    // 'extracted' — real, but not a finished analysis — and an unusable one says so.
+    status: a.readability === 'unreadable' ? 'unreadable' : a.readability === 'good' ? 'analyzed' : 'extracted',
+    readability: a.readability,
+    reason: a.reason,
+  };
+}
+
+
 const BUCKET = 'research-documents';
 
 // ── Screenshot Classification ──────────────────────────────────────────────
@@ -523,7 +556,11 @@ export async function uploadPipelineArtifacts(
         document_type: finalDocType,
         document_label: displayLabel,
         page_count: pages.length,
-        processing_status: firstPage.extractedText ? 'analyzed' : 'analyzed',
+        // Both branches of this ternary used to read 'analyzed', so a document with NO extracted
+        // text was marked fully analysed exactly like one with text. The floor now decides (R18).
+        processing_status: assessArtifact(firstPage.extractedText, pages.length, finalDocType).status,
+        readability: assessArtifact(firstPage.extractedText, pages.length, finalDocType).readability,
+        readability_reason: assessArtifact(firstPage.extractedText, pages.length, finalDocType).reason,
         ocr_regions: JSON.stringify({ pageUrls }),  // Store all page URLs for gallery
         extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
         recording_info: firstPage.recordingInfo || null,
@@ -749,7 +786,9 @@ export async function uploadDocumentIncremental(
       document_type: docType,
       document_label: displayLabel,
       page_count: sorted.length,
-      processing_status: firstPage.extractedText ? 'analyzed' : 'extracted',
+      processing_status: assessArtifact(firstPage.extractedText, sorted.length, docType).status,
+      readability: assessArtifact(firstPage.extractedText, sorted.length, docType).readability,
+      readability_reason: assessArtifact(firstPage.extractedText, sorted.length, docType).reason,
       ocr_regions: JSON.stringify({ pageUrls }),
       extracted_text: firstPage.extractedText?.slice(0, 50_000) || null,
       recording_info: firstPage.recordingInfo || null,

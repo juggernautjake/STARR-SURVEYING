@@ -31,7 +31,7 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | Slice | What remains | Why it was not done in the slice |
 |---|---|---|
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
-| R18 | One extraction entry point — `document.service.ts` and the worker's `ai-extraction.ts` have already drifted (500 vs 800 char thresholds) | A refactor across two roots, not safe to do half-way |
+| ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -851,11 +851,25 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Root suite 21,460 passing; typecheck clean. Seed 532 applied to production.
 
-  **Remaining:** one entry point. There are still two extraction implementations —
-  `lib/research/document.service.ts` and the worker's `ai-extraction.ts` — with thresholds that have
-  already drifted (500 vs 800 chars, noted in a comment at the call site). The floor now guards the
-  app path; consolidating the two is a larger refactor than this slice and should not be done
-  half-way.
+  **Follow-up shipped 2026-08-02 — the floor now guards BOTH paths, and it found a worse bug.**
+
+  The worker path is the one that actually runs production pipelines, and it had no floor at all. Its
+  document write was:
+
+  ```ts
+  processing_status: firstPage.extractedText ? 'analyzed' : 'analyzed'
+  ```
+
+  Both branches of that ternary read `analyzed`. So a scanned deed that OCR'd to **nothing** was
+  marked fully analysed, exactly like one with text — a stronger claim than the app's path ever made
+  about a document it could read.
+
+  The assessor now has exactly **one definition** (`worker/src/infra/ocr-quality.ts`, re-exported by
+  `lib/research/ocr-quality.ts`), because two copies is precisely how the neighbouring constant
+  drifted to 500 chars in the app and 800 in the worker, with a comment at the call site explaining
+  the difference rather than removing it. On the worker path `analyzed` is now reserved for text good
+  enough to have been analysed, thin text is `extracted`, and unusable text is `unreadable` with its
+  reason stored. Worker suite 411/411; both roots typecheck clean.
 
   Original item:
   One OCR entry point (not per-adapter), with confidence per block, automatic escalation to vision for
