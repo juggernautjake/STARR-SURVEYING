@@ -52,6 +52,7 @@ import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapte
 import { NotificationService } from './services/notification-service.js';
 import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } from './lib/credit-guard.js';
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
+import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
@@ -59,6 +60,9 @@ import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3100', 10);
+/** Reported by both health endpoints. Kept in one place because a version string that disagrees
+ *  with itself is worse than no version string at all. */
+const WORKER_VERSION = '5.1.0';
 
 app.use(express.json({ limit: '100mb' })); // Large for file uploads
 
@@ -750,7 +754,42 @@ async function persistCountyResults(
   }
 }
 
-// ── Health Check ───────────────────────────────────────────────────────────
+// ── Liveness (/healthz) ────────────────────────────────────────────────────
+//
+// The endpoint the Dockerfile has always polled and the app never defined — see
+// `src/infra/health.ts` for why this is a separate, cheaper endpoint rather than an alias of
+// /health. Cached browser probe; config gaps are reported, not fatal.
+
+const browserHealth = new BrowserHealthCache(async () => {
+  const startedAt = Date.now();
+  try {
+    const browser = await acquireBrowser({ launchOptions: { headless: true, args: ['--no-sandbox'] } });
+    await browser.close();
+    return { ok: true, durationMs: Date.now() - startedAt };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      durationMs: Date.now() - startedAt,
+    };
+  }
+});
+
+app.get('/healthz', (_req: Request, res: Response) => {
+  const { status, body } = buildHealthz({
+    version: WORKER_VERSION,
+    buildSha: process.env.BUILD_SHA ?? process.env.GIT_SHA ?? 'unknown',
+    uptimeSeconds: process.uptime(),
+    browserBackend: process.env.BROWSER_BACKEND ?? 'local',
+    browser: browserHealth.read(),
+    activePipelines: activePipelines.size,
+    completedResults: completedResults.size,
+    warnings: configWarnings(),
+  });
+  res.status(status).json(body);
+});
+
+// ── Health Check (deep) ────────────────────────────────────────────────────
 
 app.get('/health', async (_req: Request, res: Response) => {
   const checks: Record<string, { status: string; detail?: string }> = {};
@@ -830,7 +869,7 @@ app.get('/health', async (_req: Request, res: Response) => {
 
   res.status(allOk ? 200 : 503).json({
     status: allOk ? 'healthy' : 'degraded',
-    version: '5.1.0',
+    version: WORKER_VERSION,
     uptime: process.uptime(),
     activePipelines: activePipelines.size,
     completedResults: completedResults.size,
@@ -4366,8 +4405,17 @@ app.listen(PORT, () => {
 ║       Env:  ${process.env.NODE_ENV ?? 'development'}                         ║
 ╚══════════════════════════════════════════════════════╝
 `);
+  // Warm the browser probe immediately rather than waiting for the first /healthz. A container
+  // that cannot launch Chromium should say so within seconds of booting, not after somebody asks.
+  void browserHealth.refresh().then((r) => {
+    console.log(r.ok
+      ? `[startup] browser probe OK (${r.durationMs}ms, backend=${process.env.BROWSER_BACKEND ?? 'local'})`
+      : `[startup] browser probe FAILED — ${r.error ?? 'unknown'} (this worker cannot run research)`);
+  });
+
   console.log('[Server] Endpoints:');
-  console.log('  GET    /health');
+  console.log('  GET    /healthz                         ← liveness (what the container probes)');
+  console.log('  GET    /health                          ← deep check (config + reachability)');
   console.log('  POST   /research/discover               ← Phase 1: property identity');
   console.log('  POST   /research/harvest                 ← Phase 2: document harvesting');
   console.log('  GET    /research/harvest/:projectId      ← Phase 2: harvest status/result');

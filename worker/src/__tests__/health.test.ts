@@ -1,0 +1,167 @@
+// /healthz — the endpoint the Dockerfile polled and the app never defined (research plan R1).
+//
+// The bug this closes: `HEALTHCHECK … /healthz` in worker/Dockerfile, `app.get('/health', …)` in
+// index.ts, and nothing named healthz anywhere in src. Every container built from that file marked
+// itself unhealthy after three probes and restarted, forever.
+//
+// So the assertions here are about the DECISION the probe makes — when a container should be killed
+// and when it must not be — because that decision is the whole product of this file.
+
+import { describe, it, expect, vi } from 'vitest';
+import {
+  BOOT_GRACE_MS,
+  BrowserHealthCache,
+  buildHealthz,
+  configWarnings,
+  type BrowserProbeResult,
+  type HealthzInputs,
+} from '../infra/health.js';
+
+const okProbe = async (): Promise<BrowserProbeResult> => ({ ok: true, durationMs: 12 });
+const failProbe = async (): Promise<BrowserProbeResult> => ({ ok: false, error: 'Failed to launch', durationMs: 8 });
+
+function inputs(over: Partial<HealthzInputs> = {}): HealthzInputs {
+  return {
+    version: '5.1.0',
+    buildSha: 'abc1234',
+    uptimeSeconds: 42.7,
+    browserBackend: 'local',
+    browser: { ok: true, pending: false, checkedAt: '2026-08-02T00:00:00.000Z', durationMs: 12 },
+    activePipelines: 1,
+    completedResults: 3,
+    warnings: [],
+    ...over,
+  };
+}
+
+describe('what the container probe decides', () => {
+  it('keeps a healthy worker alive', () => {
+    const { status, body } = buildHealthz(inputs());
+    expect(status).toBe(200);
+    expect(body.status).toBe('ok');
+  });
+
+  it('kills a worker that cannot launch a browser', () => {
+    // This service exists to drive a browser. One that cannot is a process that will accept jobs
+    // and fail all of them — which is exactly what a liveness probe should catch, and what an
+    // "is Express up" probe never would.
+    const { status, body } = buildHealthz(inputs({
+      browser: { ok: false, pending: false, checkedAt: '2026-08-02T00:00:00.000Z', durationMs: 8, error: 'Failed to launch' },
+    }));
+    expect(status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.browser.lastError).toBe('Failed to launch');
+  });
+
+  it('does NOT kill a cold container whose first probe has not landed', () => {
+    const { status, body } = buildHealthz(inputs({
+      browser: { ok: true, pending: true, checkedAt: null, durationMs: 0 },
+    }));
+    expect(status).toBe(200);
+    expect(body.status).toBe('starting');
+  });
+
+  it('never kills a container over a missing credential', () => {
+    // A config gap is a deploy problem a restart cannot fix. Restarting on it turns one wrong
+    // setting into a crash loop — which is the /health endpoint's behaviour, and why this is a
+    // separate endpoint rather than an alias of it.
+    const { status, body } = buildHealthz(inputs({
+      warnings: ['ANTHROPIC_API_KEY missing — AI analysis will fail'],
+    }));
+    expect(status).toBe(200);
+    expect(body.warnings).toHaveLength(1);
+  });
+
+  it('reports the deploy identity, so a running container can be matched to a commit', () => {
+    const { body } = buildHealthz(inputs());
+    expect(body.buildSha).toBe('abc1234');
+    expect(body.version).toBe('5.1.0');
+    expect(body.queue).toEqual({ activePipelines: 1, completedResults: 3 });
+  });
+});
+
+describe('the browser probe is cached, not run per request', () => {
+  it('probes once and serves the cache until the TTL expires', async () => {
+    const probe = vi.fn(okProbe);
+    let now = 1_000_000;
+    const cache = new BrowserHealthCache(probe, () => now, 60_000);
+
+    await cache.refresh();
+    expect(probe).toHaveBeenCalledTimes(1);
+
+    now += 30_000;
+    cache.read();
+    cache.read();
+    // A 30-second container probe must not launch Chromium every 30 seconds.
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes in the background rather than making the request wait', async () => {
+    const probe = vi.fn(okProbe);
+    let now = 1_000_000;
+    const cache = new BrowserHealthCache(probe, () => now, 60_000);
+    await cache.refresh();
+
+    now += 61_000;
+    const stale = cache.read();
+    // Answered immediately from the old result — a slow launch on a thrashing host would otherwise
+    // turn the health check into a timeout, which Docker reads as unhealthy.
+    expect(stale.ok).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(probe).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not run two probes at once', async () => {
+    let release: (v: BrowserProbeResult) => void = () => {};
+    const probe = vi.fn(() => new Promise<BrowserProbeResult>((r) => { release = r; }));
+    const cache = new BrowserHealthCache(probe, () => 1_000_000, 60_000);
+
+    const a = cache.refresh();
+    const b = cache.refresh();
+    release({ ok: true, durationMs: 5 });
+    await Promise.all([a, b]);
+    expect(probe).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a thrown probe as a failure rather than propagating it', async () => {
+    // An exception escaping here would take down the health endpoint, i.e. report "unhealthy"
+    // for a reason nobody could read.
+    const cache = new BrowserHealthCache(async () => { throw new Error('boom'); }, () => 1_000_000);
+    const result = await cache.refresh();
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('boom');
+  });
+
+  it('goes degraded once the boot grace period passes with no successful probe', () => {
+    let now = 1_000_000;
+    const cache = new BrowserHealthCache(failProbe, () => now, 60_000);
+    expect(cache.read().ok).toBe(true);          // inside the grace period
+    now += BOOT_GRACE_MS + 1;
+    const late = cache.read();
+    expect(late.ok).toBe(false);
+    expect(late.error).toContain('no probe has completed');
+  });
+});
+
+describe('config warnings', () => {
+  it('names what is missing without being fatal about it', () => {
+    const warnings = configWarnings({} as NodeJS.ProcessEnv);
+    expect(warnings.join(' ')).toContain('ANTHROPIC_API_KEY');
+    expect(warnings.join(' ')).toContain('SUPABASE_URL');
+  });
+
+  it('flags browserbase configured without credentials', () => {
+    const warnings = configWarnings({ BROWSER_BACKEND: 'browserbase' } as NodeJS.ProcessEnv);
+    expect(warnings.join(' ')).toContain('browserbase');
+  });
+
+  it('says nothing when the environment is complete', () => {
+    expect(configWarnings({
+      ANTHROPIC_API_KEY: 'sk-x',
+      SUPABASE_URL: 'https://x.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'k',
+      REDIS_URL: 'redis://x',
+    } as NodeJS.ProcessEnv)).toEqual([]);
+  });
+});

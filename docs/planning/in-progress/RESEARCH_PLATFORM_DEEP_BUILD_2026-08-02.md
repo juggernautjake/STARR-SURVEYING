@@ -155,11 +155,36 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase A — Make the engine real, durable, and measurable
 
-- **R1. `/healthz`, and a deploy that proves itself.**
-  Add the health endpoint the Dockerfile already polls (keep `/health` as an alias). Return build SHA,
-  uptime, browser backend, queue depth, and *whether Chromium can actually launch* — a health check
-  that only proves Express is up would have reported this worker as fine.
-  *Acceptance:* `docker run` reaches `healthy`; a red healthcheck fails CI.
+- **R1. ✅ DONE 2026-08-02 — `/healthz`, and a deploy that proves itself.**
+  `worker/src/infra/health.ts` + `GET /healthz`. NOT an alias of `/health`, which turned out to be the
+  more important half of the finding: `/health` launches Chromium and calls Supabase on every request
+  and returns 503 for config-only warnings, so wiring the container probe to it would have launched a
+  browser twice a minute forever and restarted a working worker over a missing nice-to-have
+  credential. The two endpoints answer two questions now — *is everything configured and reachable*
+  (deep, for humans) and *should this container keep running* (cheap, cached, for Docker).
+
+  The browser probe is part of liveness, because a worker that cannot launch Chromium is a process
+  that will accept jobs and fail all of them — a probe that only proved Express was up would have
+  called the current droplet healthy. It is cached (5 min TTL), deduplicated, refreshed in the
+  background so a slow launch never turns the probe into a timeout, and warmed at boot. Config gaps
+  are reported in `warnings` and are never fatal: restarting on a missing credential turns one wrong
+  setting into a crash loop.
+
+  *Verified by running it*, not by typechecking: `BROWSER_BACKEND=stub` → **200 ok** with the probe
+  duration and queue depth; `BROWSER_BACKEND=local` with no Chromium installed → **503 degraded**
+  carrying Playwright's actual "Executable doesn't exist" message. `--start-period` raised 20s → 90s
+  to match `BOOT_GRACE_MS` so a cold container is never killed mid-boot, and `ARG BUILD_SHA` stamps
+  the image so a running container can be matched to a commit.
+
+  Guarded from the ROOT suite by `__tests__/research/worker-healthcheck-contract.test.ts` — every
+  HEALTHCHECK path must be a route `index.ts` actually defines. Confirmed it fails on the original
+  defect by reintroducing it. It lives in the root suite deliberately: the worker has its own test
+  run needing its own `node_modules`, which makes it the suite most likely to be skipped, and this
+  bug hid precisely in the gap between two suites and a Dockerfile.
+
+  Drive-by, same class: `LocalDocumentStorage.getSignedUrl()` built `file://` + an absolute path by
+  concatenation, so on Windows it emitted `file://C:…a.txt` — backslashes, which is not a URL and
+  will not parse. Now `pathToFileURL().href`. The worker suite is green at 152 passing (it was 151/1).
 
 - **R2. The app tells the truth about the worker.**
   A worker-status probe surfaced in the research UI and on `/admin/research/coverage`: reachable or

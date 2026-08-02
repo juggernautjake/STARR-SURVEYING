@@ -35,6 +35,7 @@
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { Readable } from 'node:stream';
 
 // We type-only-import the S3 client surface we use; the runtime import
@@ -186,8 +187,13 @@ class LocalDocumentStorage implements DocumentStorage {
 
   async getSignedUrl(storageKey: string, _ttlSeconds: number): Promise<string> {
     // Local mode — return a file:// URL. Real signed URLs are R2-only.
+    //
+    // `pathToFileURL`, not string concatenation: on Windows the absolute path is
+    // `C:\…\documents\<id>\a.txt`, and `file://` + backslashes is not a URL — it does not
+    // parse, and nothing downstream can open it. Node's helper handles the drive letter, the
+    // separators and the escaping on every platform.
     this.assertSafeKey(storageKey);
-    return `file://${this.toAbsPath(storageKey)}`;
+    return pathToFileURL(this.toAbsPath(storageKey)).href;
   }
 
   async deleteDocument(storageKey: string): Promise<void> {

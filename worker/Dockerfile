@@ -53,9 +53,21 @@ RUN mkdir -p /app/logs && chown -R pwuser:pwuser /app
 # Drop privileges. The Playwright image ships with the `pwuser` non-root user.
 USER pwuser
 
-# Lightweight liveness signal. The worker's Express app should expose /healthz
-# (TODO Phase A: confirm this endpoint exists; add if missing).
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+# Deploy identity, surfaced by /healthz so a running container can be matched to a commit.
+#   docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) …
+ARG BUILD_SHA=unknown
+ENV BUILD_SHA=${BUILD_SHA}
+
+# Liveness. /healthz now exists (research plan R1 — it did not, and this probe restarted every
+# container built from this file, forever). It is deliberately NOT /health: that one launches
+# Chromium and calls Supabase on every request, and returns 503 for config-only warnings, so as a
+# 30-second probe it would both thrash the host and kill a working worker over a missing
+# nice-to-have credential. /healthz answers the narrower question — should this container keep
+# running — from a cached browser probe. See src/infra/health.ts.
+#
+# start-period 90s matches BOOT_GRACE_MS: a cold container reports `starting` (200) until its first
+# browser probe lands, so it is never killed mid-boot.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3100)+'/healthz', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))"
 
 EXPOSE 3100
