@@ -258,7 +258,8 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 19 | Studio → Contracts + public signing page — draft, send, e-sign with evidence, countersign | ✅ 2026-08-02 |
 | 20 | Studio → Settings — identity, theme picker with live contrast warnings, paperwork defaults, team accounts | ✅ 2026-08-02 |
 | 21 | Studio → Coaching — adoptable default rate card, inline price editing, one-tap lesson logging, lesson notes | ✅ 2026-08-02 |
-| — | **Studio: media, demos, documents** | ⛔ **NOT BUILT** — nav links 404 |
+| 22 | Studio → Media, Demos, Documents — shared sequential uploader, copy-the-reference library, missing-reel prompts, private signed vault | ✅ 2026-08-02 |
+| — | **Every studio nav link now resolves — verified 13/13 at HTTP 200** | ✅ 2026-08-02 |
 | — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
 | — | Stripe payment flow | ⛔ NOT BUILT |
 | — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |

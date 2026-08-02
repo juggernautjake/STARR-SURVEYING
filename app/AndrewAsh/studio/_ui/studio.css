@@ -810,3 +810,69 @@ a.vaTile:hover {
   color: var(--va-accent);
   border-bottom-color: var(--va-accent);
 }
+
+/* ── MEDIA LIBRARY GRID ───────────────────────────────────────────────────────────────────────────
+ *
+ * A fixed-ratio thumbnail so a portrait and a landscape photo make an even grid — a masonry of mixed
+ * ratios looks livelier and makes scanning for a specific image harder, which is the only thing this
+ * grid is for.
+ */
+.vaMediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr));
+  gap: 12px;
+}
+.vaMediaTile {
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--va-ink);
+  display: flex;
+  flex-direction: column;
+}
+.vaMediaTile:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+.vaMediaThumb {
+  aspect-ratio: 4 / 3;
+  background: var(--va-surface-raised);
+  display: grid;
+  place-items: center;
+  color: var(--va-accent);
+  overflow: hidden;
+}
+.vaMediaThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vaMediaMeta {
+  padding: 10px 11px 6px;
+  min-width: 0;
+}
+.vaMediaTitle {
+  display: block;
+  color: var(--va-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vaMediaSub {
+  display: block;
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  margin-top: 2px;
+}
+.vaMediaActions {
+  display: flex;
+  gap: 5px;
+  padding: 0 9px 10px;
+  margin-top: auto;
+}
+.vaMediaActions .vaBtn {
+  padding: 6px 9px;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+}
