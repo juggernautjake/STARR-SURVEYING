@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ExtractedDataPoint, DataCategory } from '@/types/research';
+// "The AI said" must not render as "here is the deed, at this line" (research plan R17).
+import { evidenceFor, evidenceTotals } from '@/lib/research/fact-evidence';
 
 interface DataPointsPanelProps {
   projectId: string;
@@ -54,6 +56,18 @@ function confidenceLabel(score: number | null | undefined): string {
   if (score == null) return '—';
   return `${score}%`;
 }
+
+/** Evidence is not confidence, and the two must not share a visual language. Confidence is the
+ *  model's opinion of its own output; evidence is whether there is a page to go and look at. A
+ *  95%-confident fact with no source is weaker than a 70%-confident quoted one, and the colours have
+ *  to say so. */
+const EVIDENCE_TONE: Record<string, string> = {
+  located:  'var(--color-success-text, #059669)',
+  quoted:   'var(--color-success-text, #059669)',
+  page:     'var(--color-text-secondary, #6B7280)',
+  document: 'var(--color-text-secondary, #6B7280)',
+  asserted: 'var(--color-error, #DC2626)',
+};
 
 export default function DataPointsPanel({ projectId, onViewSource }: DataPointsPanelProps) {
   const [grouped, setGrouped] = useState<Record<string, ExtractedDataPoint[]>>({});
@@ -118,8 +132,20 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
     );
   }
 
+  // Leads with what is UNEVIDENCED rather than with the total: "412 data points extracted" reads as
+  // thoroughness, while "412 extracted, 38 with no source" reads as a work list (plan R17).
+  const totals = evidenceTotals(Object.values(grouped).flat());
+
   return (
     <div className="research-review__data">
+      <p
+        className={`research-review__evidence-headline${
+          totals.unevidenced > 0 ? ' research-review__evidence-headline--warn' : ''
+        }`}
+      >
+        {totals.headline}
+      </p>
+
       {/* Category filter */}
       {availableCategories.length > 1 && (
         <div className="research-review__filters">
@@ -184,6 +210,13 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
                             <span className="research-review__dp-seq">#{dp.sequence_order}</span>
                           )}
                           <span
+                            className="research-review__dp-evidence"
+                            style={{ color: EVIDENCE_TONE[evidenceFor(dp).strength] }}
+                            title={evidenceFor(dp).detail}
+                          >
+                            {evidenceFor(dp).label}
+                          </span>
+                          <span
                             className="research-review__dp-confidence"
                             style={{ color: confidenceColor(dp.extraction_confidence) }}
                           >
@@ -227,16 +260,31 @@ export default function DataPointsPanel({ projectId, onViewSource }: DataPointsP
                               </span>
                             </div>
                           )}
+                          {/* The evidence sentence, always — it is the answer to "how do you know
+                              that?", which is the question a reviewer is actually asking. */}
+                          <div className="research-review__dp-evidence-detail">
+                            <span className="research-review__dp-detail-label">Evidence:</span>
+                            <span className="research-review__dp-detail-value">{evidenceFor(dp).detail}</span>
+                          </div>
                           {onViewSource && (
-                            <button
-                              className="research-review__dp-view-source"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onViewSource(dp.document_id, dp.source_text_excerpt || undefined);
-                              }}
-                            >
-                              View in source document
-                            </button>
+                            evidenceFor(dp).canLocate ? (
+                              <button
+                                className="research-review__dp-view-source"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onViewSource(dp.document_id, dp.source_text_excerpt || undefined);
+                                }}
+                              >
+                                View in source document
+                              </button>
+                            ) : (
+                              // Offered on every row before, including rows with nothing to find —
+                              // and a button that opens a document and lands nowhere teaches a
+                              // reviewer that the whole affordance is unreliable.
+                              <span className="research-review__dp-no-source">
+                                Nothing to open — this value has no recorded source.
+                              </span>
+                            )
                           )}
                         </div>
                       )}

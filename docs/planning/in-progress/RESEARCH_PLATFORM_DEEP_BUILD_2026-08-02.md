@@ -728,7 +728,47 @@ polish — nothing else in this plan can be trusted while the engine is down and
   10 years of the controlling deed, and Street View at each public road frontage — or a stated reason
   why not.
 
-- **R17. Evidence for everything.**
+- **R17. Evidence for everything.** ◑ PART DONE 2026-08-02 — evidence strength + the honest UI
+  shipped; pixel regions await vision extraction (R18)
+
+  **Shipped** (`lib/research/fact-evidence.ts`, wired into `DataPointsPanel`).
+
+  The fetch half already existed: `artifact-uploader.ts` stores screenshots and page images with a
+  source URL and a timestamp. The **fact** half did not. Every extracted fact rendered identically,
+  and the collapsed row showed one number — `extraction_confidence`, which is the model's opinion of
+  its own output, not evidence. A fact the model asserted with nothing behind it at 95% outranked a
+  fact quoted verbatim from a deed at 70%. Worse, "View in source document" was offered on **every**
+  row, including rows with no excerpt to find and no region to scroll to, where it opens a document
+  and lands nowhere — which teaches a reviewer that the whole affordance is unreliable.
+
+  Five strengths, because each changes what a reviewer can do: `located` (page + region) → `quoted`
+  (verbatim excerpt the viewer can highlight) → `page` → `document` → `asserted`. `asserted` is not a
+  bug to hide — some facts legitimately come from cross-referencing rather than from a line on a page
+  — the bug was showing them as though they came from one. Evidence is now a chip beside confidence,
+  deliberately a different shape from it, since the two are different questions and a shared visual
+  language would merge them back together.
+
+  **The bounding box contract is fractions of the page, 0–1 — never pixels.** Page images are
+  re-rendered at whatever width the viewer is and re-uploaded at different resolutions over a
+  project's life, so a pixel box is correct exactly once and silently points at the wrong part of the
+  page ever after. `isNormalisedBox()` rejects pixel values rather than scrolling a reviewer to the
+  wrong line and letting them believe it.
+
+  `locateExcerpt()` is the honest fallback for text-based extraction, which cannot produce pixel
+  coordinates at all: it matches across the line breaks OCR puts in and returns offsets into the real
+  text, so the viewer can highlight without a box. The panel headline leads with what is
+  **unevidenced** — "412 extracted, 38 with no source" reads as a work list, where "412 data points
+  extracted" reads as thoroughness.
+
+  Root suite 21,438 passing; both roots typecheck clean.
+
+  **Remaining:** `extracted_data_points.source_bounding_box` has existed since seed 090 and is
+  written as a literal `null` at the only site that builds data points — it has never held a value.
+  That is not a wiring miss: text extraction has no pixel coordinates to give. `located` becomes
+  reachable when R18's vision path returns per-block geometry, and a guard test records the null so
+  it stays a known gap rather than a surprise.
+
+  Original item:
   Every fetch produces a screenshot + the URL + a timestamp; every extracted fact carries a pointer to
   the page image and the pixel region it came from. This is the difference between "the AI said" and
   "here is the deed, at this line".

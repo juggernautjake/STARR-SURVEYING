@@ -1989,6 +1989,41 @@
   font-weight: 700;
 }
 
+/* Evidence is not confidence (plan R17). Confidence is the model's opinion of its own output;
+   evidence is whether there is a page to go and look at. Deliberately a different shape — an
+   outlined chip rather than bold text — so the two are not read as one scale. */
+.research-review__dp-evidence {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.research-review__dp-evidence-detail {
+  margin-bottom: 0.35rem;
+}
+
+.research-review__dp-no-source {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-text-secondary, #6B7280);
+}
+
+.research-review__evidence-headline {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #6B7280);
+}
+
+.research-review__evidence-headline--warn {
+  color: var(--color-error, #DC2626);
+  font-weight: 600;
+}
+
 .research-review__dp-expand {
   font-size: 0.75rem;
   color: #9CA3AF;
