@@ -1227,7 +1227,52 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase F — Intake and scale
 
-- **R28. Request → run, unattended.**
+- **R28. Request → run, unattended.** ◑ PART DONE 2026-08-02 — the queue, dedupe, atomic claim,
+  retry policy and notifications shipped; the worker-side poller remains
+
+  **Shipped** (seed 537 + `lib/research/intake.ts` + the requests and claim routes).
+
+  Starting research required a person: create a project in the admin UI, then press a button. The
+  owner's ask is the opposite — *"a request comes in → the server works 20–30 minutes → done"* — and
+  there was **no object representing a request at all**, so nothing could queue, retry, deduplicate
+  or notify.
+
+  **Three things cost money if got wrong, and each is guarded in the database rather than in code.**
+
+  *Duplicates.* A run is 20–30 minutes of a machine plus real money in paid pages, so two requests
+  for one property must not both run. Addresses arrive punctuated a dozen ways ("123 FM 436", "123
+  F.M. 436", "123 Fm-436"), so the key is normalised — same reasoning as R13's instrument numbers.
+  The unique index is **partial on the active states**: once a request finishes, the same address may
+  legitimately be requested again months later (that is R27's re-run), and a total index would block
+  the second job on a property forever.
+
+  *Claiming.* Two workers polling one queue **will** race, and a read-then-write hands one property
+  to two machines with a window exactly as wide as the round trip between them. The claim is a
+  conditional `UPDATE … WHERE status = 'queued'` checked by row count, and a lost race walks to the
+  next candidate rather than returning empty — an idle machine beside a full queue is what that loop
+  prevents.
+
+  *Retries.* A permanent failure retried three times is three full runs to reach the same answer, so
+  "no adapter for this county", an unresolvable address, a ToS refusal and a spend ceiling all stop
+  immediately with the reason stated.
+
+  Proven against production: the duplicate was refused by `idx_research_requests_active` (23505), two
+  simultaneous claims produced **exactly one** winner, and the property became re-requestable once
+  the first request completed. Probe rows deleted.
+
+  **Notification goes out either way**, and the failure one is the point: a request that quietly
+  failed looks identical to one still running, and somebody finds out when the crew is already on
+  site — so it says *"Nothing has been researched for this property — do not assume it was covered."*
+  When the notification itself fails, `notified_at` stays null on purpose, because the partial index
+  on unnotified finished requests is how somebody finds the run nobody was told about.
+
+  Root suite 21,677 passing; typecheck clean. Seed 537 applied to production.
+
+  **Remaining:** the worker-side poller that calls `claim`, runs the pipeline and reports back via
+  `PATCH`. The contract is complete and proven from both ends; what is missing is the loop in the
+  worker process, which belongs with R29's concurrency limits rather than being written twice.
+
+  Original item:
   An intake endpoint that accepts a research request (from the AI intake flow in the platform audit's
   D4, from a job, or manually), queues it, runs it to completion within the budget, and notifies on
   finish or failure. This is the owner's "request comes in → server works 20–30 minutes → done".
