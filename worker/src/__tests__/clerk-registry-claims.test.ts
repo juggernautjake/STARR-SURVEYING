@@ -24,7 +24,13 @@ const VERIFIED = [
   '48313', '48325', '48331', '48339', '48347', '48355', '48375', '48439', '48453', '48471', '48491',
 ];
 
-/** Probed and unreachable. These must NOT be routed to Kofile. */
+/** Probed and unreachable ON KOFILE. These must NOT be routed to Kofile.
+ *
+ *  "Unreachable" here means the Kofile URL did not answer — NOT that the county has no portal.
+ *  Coryell and Lampasas both turned out to have fully open portals on a different vendor (eDocTec,
+ *  found 2026-08-02), and the rest have simply not been hunted yet. Reading this list as "these
+ *  counties cannot be researched" would be the same unknown-as-answer mistake the list exists to
+ *  prevent. */
 const UNREACHABLE = {
   '48309': 'McLennan', '48099': 'Coryell', '48145': 'Falls', '48281': 'Lampasas',
   '48053': 'Burnet', '48035': 'Bosque', '48055': 'Caldwell', '48455': 'Trinity',
@@ -54,8 +60,17 @@ describe('what an unreachable county routes to instead', () => {
     for (const [fips, name] of Object.entries(UNREACHABLE)) {
       expect(getClerkSystem(fips), name).not.toBe('kofile');
     }
-    expect(getClerkSystem('48099')).toBe('texasfile');   // Coryell — 31 miles from Bell
-    expect(getClerkSystem('48309')).toBe('texasfile');   // McLennan — Waco
+    expect(getClerkSystem('48309')).toBe('texasfile');   // McLennan — Waco, portal still not found
+  });
+
+  it('routes Coryell and Lampasas to eDocTec, not to the paywall', () => {
+    // Both used to land on TexasFile, which is a paywall we hold no credentials for — so every
+    // search for a Gatesville or Copperas Cove property came back empty. On 2026-08-02 their real
+    // portals were found and driven, and both are fully open (plan R39).
+    //
+    // This assertion is the ratchet: it must never fall back to 'texasfile'.
+    expect(getClerkSystem('48099')).toBe('edoctec');     // Coryell — Gatesville + Copperas Cove
+    expect(getClerkSystem('48281')).toBe('edoctec');     // Lampasas
   });
 
   it('does not silently hand a county to another adapter that cannot reach its site', () => {

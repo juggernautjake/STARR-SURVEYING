@@ -21,6 +21,7 @@ import { HenschenClerkAdapter, HENSCHEN_FIPS_SET } from '../adapters/henschen-cl
 import { IDocketClerkAdapter, IDOCKET_FIPS_SET } from '../adapters/idocket-clerk-adapter.js';
 import { FidlarClerkAdapter, FIDLAR_FIPS_SET } from '../adapters/fidlar-clerk-adapter.js';
 import { TexasFileAdapter } from '../adapters/texasfile-adapter.js';
+import { EdocTecClerkAdapter } from '../adapters/edoctec-clerk-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
@@ -90,7 +91,20 @@ export const KOFILE_FIPS_SET = new Set<string>([
 //
 // Move a vendor into this set only after probing its base URLs — the same rule the Kofile list now
 // carries, and for the same reason.
-const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile']);
+const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec']);
+
+/** eDocTec — found 2026-08-02, and the only vendor here whose every listed county was driven end to
+ *  end before it was listed (plan R39).
+ *
+ *  Both are inside the 80-mile ring and both were on the owner's list: Coryell is Gatesville and
+ *  Copperas Cove, Lampasas is Lampasas. Both are fully open — no login, no paywall — and were
+ *  current to within two days of the search.
+ *
+ *  Before this, both routed to TexasFile, which is a paywall we have no credentials for. */
+export const EDOCTEC_FIPS_SET = new Set<string>([
+  '48099', // Coryell  — 12,705 documents / 20,267 party records; searched live
+  '48281', // Lampasas — searched live, same schema
+]);
 
 /** Is this vendor's adapter known to reach its sites?
  *
@@ -125,7 +139,12 @@ export function getClerkAdapter(
     return new KofileClerkAdapter(countyFIPS, countyName);
   }
 
-  // Priority 2: CountyFusion/Cott Systems (~40+ counties, index-only)
+  // Priority 2: eDocTec — ahead of every unproven vendor because these two counties were driven.
+  if (EDOCTEC_FIPS_SET.has(countyFIPS) && isVendorProven('edoctec')) {
+    return new EdocTecClerkAdapter(countyFIPS, countyName);
+  }
+
+  // Priority 3: CountyFusion/Cott Systems (~40+ counties, index-only)
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) {
     return new CountyFusionAdapter(countyFIPS, countyName);
   }
@@ -159,6 +178,7 @@ export function getClerkAdapter(
  */
 export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (KOFILE_FIPS_SET.has(countyFIPS))       return 'kofile';
+  if (EDOCTEC_FIPS_SET.has(countyFIPS) && isVendorProven('edoctec')) return 'edoctec';
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) return 'countyfusion';
   if (TYLER_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
   if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) return 'henschen';
@@ -167,7 +187,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
   return 'texasfile';
 }
 
-export type ClerkSystem = 'kofile' | 'countyfusion' | 'tyler' | 'henschen' | 'idocket' | 'fidlar' | 'texasfile';
+export type ClerkSystem = 'kofile' | 'edoctec' | 'countyfusion' | 'tyler' | 'henschen' | 'idocket' | 'fidlar' | 'texasfile';
 
 /**
  * Return whether a given county has free document image preview.
@@ -185,6 +205,7 @@ export function hasFreeImagePreview(countyFIPS: string): boolean {
 export function registrySummary(): Record<ClerkSystem, number> {
   return {
     kofile:       KOFILE_FIPS_SET.size,
+    edoctec:      EDOCTEC_FIPS_SET.size,
     countyfusion: COUNTYFUSION_FIPS_SET.size,
     tyler:        TYLER_FIPS_SET.size,
     henschen:     HENSCHEN_FIPS_SET.size,
@@ -193,7 +214,7 @@ export function registrySummary(): Record<ClerkSystem, number> {
     // TexasFile covers all 254; show the remainder not covered by named systems
     texasfile: Math.max(
       0,
-      254 - KOFILE_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_FIPS_SET.size
+      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_FIPS_SET.size
         - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
     ),
   };

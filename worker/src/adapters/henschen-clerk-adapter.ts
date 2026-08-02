@@ -126,7 +126,11 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     countyDisplayName: 'Gillespie County',
     hasImageAccess: true,
   },
-  '48283': {  // Lampasas County
+  // 48281, not 48283 — 48283 is La Salle County, 250 miles south. Filed under the wrong FIPS since
+  // this table was written, so a Lampasas lookup missed and a La Salle lookup would have been sent
+  // to Lampasas's clerk. Harmless only because the Henschen adapter's URLs are all dead and the
+  // vendor is unproven; Lampasas now routes to eDocTec, which was driven (plan R39).
+  '48281': {  // Lampasas County
     baseUrl: 'https://lampasas.co.texas.us',
     searchPath: '/ClerkInquiry/',
     countyDisplayName: 'Lampasas County',
