@@ -45,6 +45,9 @@ interface KofileConfig {
   countyDisplayName: string;
   /** True for all current Kofile deployments */
   hasImagePreview: boolean;
+  /** Real-property department code for this county. Per county, NOT a constant: Milam uses "RP",
+   *  Williamson defaults to "CCM" (court minutes) and returns nothing for a deed search. */
+  department?: string;
   /** Some counties expose CountyFusion SUPERSEARCH for OCR full-text queries */
   hasSUPERSEARCH: boolean;
   superSearchUrl?: string;
@@ -181,6 +184,9 @@ export class KofileClerkAdapter extends ClerkAdapter {
         this.config.hasSUPERSEARCH = true;
       }
       if (typeof cfg.has_supersearch === 'boolean') this.config.hasSUPERSEARCH = cfg.has_supersearch;
+      // A county whose real-property department code is not 'RP' is repaired from the registry
+      // rather than by a release — the same contract R8b established for base_url.
+      if (typeof cfg.department === 'string') this.config.department = cfg.department;
 
       if (before !== this.config.baseUrl) {
         // Worth a line: a run using a URL that is not in the source tree should say so, or the
@@ -302,17 +308,27 @@ export class KofileClerkAdapter extends ClerkAdapter {
    *  because a chain of title needs the earliest instrument the county holds. */
   private resultsUrl(
     term: string,
-    opts: { limit?: number; offset?: number; ocr?: boolean; from?: string; to?: string } = {},
+    opts: { limit?: number; offset?: number; ocr?: boolean; from?: string; to?: string; department?: string } = {},
   ): string {
     const from = opts.from ?? '18000101';
     const to = opts.to ?? new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+    // These are the site's OWN parameter names, read off the address bar after driving its search
+    // form (2026-08-02). `searchValue` + `searchType=quickSearch` is the indexed name search; the
+    // legacy `q=` is a broader keyword sweep — on Milam the same term gives 5,484 against 220,777,
+    // so they are different questions and the narrow one is what a grantor/grantee lookup wants.
     const params = new URLSearchParams({
-      department: 'RP',
-      limit: String(opts.limit ?? 50),
-      offset: String(opts.offset ?? 0),
-      q: term,
+      // Department codes are PER COUNTY. Milam's real property is 'RP'; Williamson's search form
+      // defaults to 'CCM' (court minutes, indexed 1904–1999) and returns nothing for a deed search.
+      // A county whose code is not 'RP' needs it read from its own department picker.
+      department: opts.department ?? this.config.department ?? 'RP',
+      searchType: 'quickSearch',
+      searchValue: term,
+      keywordSearch: 'false',
       recordedDateRange: `${from},${to}`,
       searchOcrText: String(opts.ocr ?? false),
+      limit: String(opts.limit ?? 50),
+      offset: String(opts.offset ?? 0),
     });
     return `${this.config.baseUrl}${this.config.searchPath}?${params.toString()}`;
   }

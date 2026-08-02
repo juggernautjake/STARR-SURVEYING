@@ -45,10 +45,28 @@ describe('the stale query shape is gone', () => {
 });
 
 describe('the builder matches what the live site accepts', () => {
-  it('sends the parameters the site actually reads', () => {
-    for (const p of ['department', 'limit', 'offset', 'q', 'recordedDateRange', 'searchOcrText']) {
-      expect(src).toContain(`${p}:`);
+  it('sends the parameter names the site itself emits', () => {
+    // Read off the address bar after driving each county's own search form (2026-08-02), not
+    // guessed. `searchValue` + `searchType=quickSearch` is the indexed grantor/grantee lookup; the
+    // legacy `q=` is a broad keyword sweep — on Milam the same term gives 5,484 against 220,777, so
+    // they answer different questions and a name search wants the narrow one.
+    for (const p of ['department', 'searchType', 'searchValue', 'keywordSearch', 'recordedDateRange', 'searchOcrText', 'limit', 'offset']) {
+      expect(src, p).toContain(`${p}:`);
     }
+    expect(src).toContain("searchType: 'quickSearch'");
+  });
+
+  it('treats the department code as per-county, not a constant', () => {
+    // Williamson's own form defaults to CCM (court minutes, 1904–1999) and returns nothing for a
+    // deed search; Milam's is RP. Getting this wrong looks exactly like a broken portal.
+    expect(src).toContain('opts.department ?? this.config.department');
+    expect(src).toContain('Department codes are PER COUNTY');
+  });
+
+  it('lets the registry repair a department code without a release', () => {
+    // The same contract R8b established for base_url — the third per-county value after base URL
+    // and column set.
+    expect(src).toContain("if (typeof cfg.department === 'string') this.config.department = cfg.department;");
   });
 
   it('always sends a date range, because omitting it returns nothing', () => {
