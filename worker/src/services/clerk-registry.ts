@@ -24,89 +24,49 @@ import { TexasFileAdapter } from '../adapters/texasfile-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
-// Counties known to use Kofile/GovOS PublicSearch (*.tx.publicsearch.us).
-// Bell, Williamson, Travis, McLennan, and Bexar are fully configured;
-// the remaining follow the default subdomain pattern automatically.
 //
-// Source: https://govos.com/solutions/local-government/clerk/ (2024)
-// Last updated: March 2026
+// The old header cited a vendor marketing page from 2024 and said the unlisted counties "follow the
+// default subdomain pattern automatically". They do not — that assumption is what put 32 counties
+// with no portal into this list. See the doc comment below.
 
-/** Exported so `paid-platform-registry` can share it rather than keep a copy — the two had drifted
- *  six counties apart while a comment said "keep in sync" (plan R37). */
+/** Counties with a VERIFIED Kofile portal — every subdomain below returned 200 on 2026-08-02.
+ *
+ *  This list used to hold 53 counties, taken from a vendor marketing page in 2024. Probing every
+ *  one showed **32 of them have no reachable portal at all**. Research for those counties routed
+ *  to a dead domain, and the failure surfaced as "no records found" — a statement about the
+ *  property rather than about our routing, which is the worst shape a failure can take here.
+ *
+ *  Removing them is not a loss of coverage: TexasFile is the universal fallback and serves all
+ *  254 Texas counties, so an unverified county now reaches a working adapter instead of a dead
+ *  one.
+ *
+ *  Exported so the paid-platform registry shares it rather than keeping a copy — the two had
+ *  already drifted six counties apart (plan R37).
+ *
+ *  A county belongs here because its portal ANSWERED, not because a vendor page listed it.
+ *  Re-probe before adding one. */
 export const KOFILE_FIPS_SET = new Set<string>([
-  // Central Texas
   '48027',  // Bell
-  '48491',  // Williamson
-  '48453',  // Travis (partially; also TexasFile)
-  '48309',  // McLennan
-  '48099',  // Coryell
-  '48145',  // Falls
-  '48281',  // Lampasas
-  '48331',  // Milam
-
-  // South Texas
   '48029',  // Bexar
-  '48019',  // Bandera
-  '48091',  // Comal
-  '48187',  // Guadalupe
-  '48259',  // Kendall
-  '48325',  // Medina
-  '48013',  // Atascosa
-
-  // North / DFW area — major counties verified on publicsearch.us 2026-03-09
-  '48439',  // Tarrant
+  '48041',  // Brazos
+  '48083',  // Coleman
   '48085',  // Collin
   '48121',  // Denton
-  '48497',  // Wise
-  '48143',  // Erath
-  '48139',  // Ellis
-  '48251',  // Johnson
-  '48221',  // Hood
-  '48367',  // Parker
   '48185',  // Grimes
-
-  // East Texas
-  '48073',  // Cherokee
-  '48005',  // Angelina
-  '48347',  // Nacogdoches
-  '48455',  // Trinity
-  '48471',  // Walker
-  '48473',  // Waller
-
-  // West Texas / Hill Country
-  '48137',  // Edwards
-  '48465',  // Val Verde (partial coverage)
-  '48105',  // Crockett
-  '48451',  // Tom Green
-
-  // Verified live 2026-08-02 by the R37 site survey — `<county>.tx.publicsearch.us` returned 200.
-  // These are counties this firm actually works (the owner's Phase H list) that the registry did
-  // not know about, so the platform could already have served them and did not.
-  '48289',  // Leon (Centerville)
-  '48313',  // Madison (Madisonville)
-
-  // Coastal / SE Texas — Montgomery verified on publicsearch.us 2026-03-09
-  // Fort Bend (ccweb), Brazoria (TexasFile), Galveston (Fidlar): NOT on publicsearch.us
+  '48251',  // Johnson
+  '48259',  // Kendall
+  '48289',  // Leon
+  '48313',  // Madison
+  '48325',  // Medina
+  '48331',  // Milam
   '48339',  // Montgomery
-  '48041',  // Brazos
-  '48057',  // Calhoun
-  '48469',  // Victoria
-  '48481',  // Wharton
-  '48477',  // Washington
+  '48347',  // Nacogdoches
   '48355',  // Nueces
-
-  // Panhandle / NW Texas
   '48375',  // Potter
-  '48381',  // Randall
-
-  // Additional verified Kofile counties (publicsearch.us subdomains confirmed)
-  '48053',  // Burnet
-  '48055',  // Caldwell
-  '48035',  // Bosque
-  '48049',  // Brown
-  '48083',  // Coleman
-  '48093',  // Comanche
-  '48095',  // Concho
+  '48439',  // Tarrant
+  '48453',  // Travis
+  '48471',  // Walker
+  '48491',  // Williamson
 ]);
 
 // ── ClerkRegistry ─────────────────────────────────────────────────────────────

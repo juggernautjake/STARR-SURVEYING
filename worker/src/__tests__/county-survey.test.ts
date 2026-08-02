@@ -48,9 +48,12 @@ describe('counties whose Kofile portal was confirmed live', () => {
   });
 
   it('records that these were verified rather than assumed', () => {
-    const src = read('src/services/clerk-registry.ts');
-    expect(src).toContain('Verified live 2026-08-02 by the R37 site survey');
-    expect(src).toContain('returned 200');
+    // The list was later trimmed to only counties whose portal answered (see
+    // clerk-registry-claims.test.ts), so the whole set now carries this guarantee rather than a
+    // note against the two counties this survey added.
+    const src = read('src/services/clerk-registry.ts').replace(/\s+/g, ' ');
+    expect(src).toContain('VERIFIED Kofile portal');
+    expect(src).toContain('returned 200 on 2026-08-02');
   });
 });
 
@@ -69,11 +72,13 @@ describe('one Kofile list, not two', () => {
     expect(paid).toContain('drifted six counties apart');
   });
 
-  it('still covers the counties that were only in the paid copy', () => {
-    // Brazoria was in the paid list and not the clerk one. Sharing the clerk list must not lose it.
-    // It is deliberately NOT re-added: Brazoria is TexasFile, per the clerk registry's own note.
+  it('does not re-add a county merely because the paid copy had it', () => {
+    // Brazoria was in the paid list and not the clerk one. Sharing the clerk list must not smuggle
+    // it back: probing showed no Brazoria portal, and the rule is that a county belongs here because
+    // its portal answered.
     const clerk = read('src/services/clerk-registry.ts');
-    expect(clerk).toContain('Brazoria (TexasFile)');
+    expect(clerk).not.toContain("'48039'");
+    expect(clerk.replace(/\s+/g, ' ')).toContain('because its portal ANSWERED');
   });
 });
 
