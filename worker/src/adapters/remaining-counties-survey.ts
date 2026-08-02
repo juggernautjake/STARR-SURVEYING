@@ -25,8 +25,13 @@
 
 export interface CountySurvey {
   fips: string;
-  /** What was actually found. */
-  status: 'open_partial' | 'login_required' | 'paywalled' | 'not_found';
+  /** What was actually found.
+   *
+   *  `no_online_portal` and `not_found` are deliberately different. The first is a conclusion —
+   *  the county does not publish its land records online. The second is an admission that the
+   *  search is unfinished. Collapsing them would turn "we stopped looking" into "there is nothing
+   *  there", which is this document's defect in its purest form. */
+  status: 'open_partial' | 'login_required' | 'paywalled' | 'no_online_portal' | 'not_found';
   url: string | null;
   /** Years the free path actually covers, when it is known. */
   freeCoverage?: string;
@@ -58,15 +63,42 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
       'Records stated as 1861 to present. The portal is live and is the proof that CountyFusion was ' +
       'never dead — only our TLD was wrong. Not routed: no credentials.',
   },
-  Bastrop: { fips: '48021', status: 'not_found', url: null, note: 'Not yet hunted.' },
+  Bastrop: {
+    fips: '48021',
+    status: 'open_partial',
+    url: 'http://www.cc.co.bastrop.tx.us/RealEstate/SearchEntry.aspx',
+    freeCoverage: '1973–2026 (permanent index; images from 1973)',
+    blocker: 'Search form NOT driven to results — the visible Search control refuses a click. Located, not working.',
+    note:
+      'A FOURTH vendor: Harris Recording Solutions / Aumentum Recorder. Entry is as "Visitor" with NO ' +
+      'login once the disclaimer is acknowledged, and the Real Estate index exposes party, grantor, ' +
+      'grantee, instrument-number range, book, page and document-type filters. The portal states its ' +
+      'own coverage: permanent index 01/01/1973–07/30/2026, temporary index to 08/02/2026, images ' +
+      'from 1973. Pre-1973 is not online at all.',
+  },
   Hays: {
     fips: '48209',
     status: 'not_found',
     url: null,
-    note: 'Henschen names it as their county but no Henschen URL resolves; no replacement portal located (plan R38).',
+    note: 'Henschen names it as their county but no Henschen URL resolves — confirmed in a browser, not just by fetch. No replacement portal located.',
   },
-  Lee: { fips: '48287', status: 'not_found', url: null, note: 'Not yet hunted.' },
-  'San Saba': { fips: '48411', status: 'not_found', url: null, note: 'Not yet hunted.' },
+  Lee: {
+    fips: '48287',
+    status: 'no_online_portal',
+    url: 'https://www.co.lee.tx.us/',
+    note:
+      'NETR lists the clerk as "Website Only" and the county site carries no records search. Lee ' +
+      'appears to have NO online land-records portal — a different fact from "we have not found it". ' +
+      'The path here is TexasFile or the courthouse in Giddings.',
+  },
+  'San Saba': {
+    fips: '48411',
+    status: 'no_online_portal',
+    url: 'https://www.co.san-saba.tx.us/page/sansaba.county.clerk',
+    note:
+      'NETR lists the clerk as "Website Only" and the clerk page carries no records search. No online ' +
+      'land-records portal found. TexasFile or the courthouse in San Saba.',
+  },
 };
 
 // ── THE THREE OTHER "DEAD" VENDORS ARE GENUINELY DEAD ───────────────────────────────────────────
@@ -169,6 +201,12 @@ export function describeCounty(county: string): string {
       return `${county}: portal located at ${s.url} but it requires a login we do not have. Reachable, not readable.`;
     case 'paywalled':
       return `${county}: records exist behind a paywall (${s.url}). The absence of ACCESS, not the absence of records.`;
+    case 'no_online_portal':
+      // A conclusion, not a gap in our effort — but still says nothing about whether deeds exist.
+      return (
+        `${county}: this county appears to publish NO land records online. The records exist on paper ` +
+        `at the courthouse, and TexasFile indexes them. Never report a search here as "no records".`
+      );
     default:
       return `${county}: no portal located yet. This is an unfinished search, NOT a county without records.`;
   }

@@ -1975,6 +1975,42 @@ look like a thorough search that found nothing**, which is the most convincing p
 wrong about whether a deed exists. `bosqueGapWarning()` names the gap and sends the researcher to the
 clerk in Meridian or a paid subscription. Seed 556.
 
+#### R39, tenth finding — the last three counties, and three different kinds of answer
+
+Bastrop, Lee and San Saba were the last counties in the ring with no answer. All three have one now,
+and the answers differ in a way that matters.
+
+**Bastrop — a fourth vendor, open to visitors.**
+`http://www.cc.co.bastrop.tx.us/RealEstate/SearchEntry.aspx` runs **Harris Recording Solutions /
+Aumentum Recorder**, the fourth vendor this platform had no name for. Entry is as *Visitor* with
+**no login** once the disclaimer is acknowledged, and the Real Estate index exposes party, party
+type, grantor, grantee, instrument-number range, book, page and document-type filters. It states its
+own coverage: **permanent index 01/01/1973 – 07/30/2026**, images from 1973. Pre-1973 is not online
+at all.
+
+Not driven to results — the visible Search control refuses both synthetic and trusted clicks
+(Playwright never sees it as stable). **Located, not working**, the same line Tyler and Avenu were
+held to.
+
+**Lee and San Saba — no online portal at all.** NETR lists both clerks as *"Website Only"* and
+neither county site carries a records search. These counties appear not to publish land records
+online, and the survey schema now distinguishes that from an unfinished hunt:
+
+| status | meaning |
+|---|---|
+| `no_online_portal` | we looked, and the county publishes nothing online |
+| `not_found` | we have not finished looking |
+
+**Collapsing those two would turn "we stopped looking" into "there is nothing there"** — this
+document's defect in its purest form. Neither says anything about whether a deed exists: the records
+are on paper at the courthouse (Giddings, San Saba) and TexasFile indexes them, and `describeCounty()`
+states outright that a search there must never be reported as "no records".
+
+**Hays is now the only genuine `not_found`** — Henschen names it, no Henschen URL resolves (confirmed
+in a browser), and no replacement portal has been located. Seed 557.
+
+**Every county in the 80-mile ring now has a definite answer.**
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

@@ -54,8 +54,10 @@ describe('what each remaining county actually offers', () => {
   });
 
   it('never calls an unfinished search a county without records', () => {
-    // The distinction this whole document exists to preserve.
-    expect(describeCounty('Lee')).toContain('unfinished search, NOT a county without records');
+    // The distinction this whole document exists to preserve. Hays is the remaining example — Lee
+    // and San Saba have since been resolved to "publishes nothing online", which is a conclusion
+    // rather than a gap in our effort.
+    expect(describeCounty('Hays')).toContain('unfinished search, NOT a county without records');
   });
 
   it('says nothing at all about a county never surveyed', () => {
@@ -140,5 +142,42 @@ describe('Bosque\'s two free indexes do not meet', () => {
   it('stays quiet on either side of it', () => {
     expect(bosqueGapWarning(1880)).toBeNull();   // QuickLink covers it
     expect(bosqueGapWarning(2020)).toBeNull();   // iDocMarket covers it
+  });
+});
+
+describe('the last three counties, hunted', () => {
+  it('found Bastrop on a fourth vendor, open to visitors', () => {
+    // Harris Recording Solutions / Aumentum. No login once the disclaimer is acknowledged.
+    const b = REMAINING_COUNTY_SURVEY.Bastrop;
+    expect(b.status).toBe('open_partial');
+    expect(b.url).toContain('cc.co.bastrop.tx.us');
+    expect(b.freeCoverage).toContain('1973');
+  });
+
+  it('does not claim Bastrop works, because the search was not driven', () => {
+    // Located is not working — the same line Tyler and Avenu were held to.
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('NOT driven to results');
+  });
+
+  it('distinguishes "no online portal" from "we have not found it"', () => {
+    // The whole point. Lee and San Saba publish nothing online; Hays is an unfinished search.
+    expect(REMAINING_COUNTY_SURVEY.Lee.status).toBe('no_online_portal');
+    expect(REMAINING_COUNTY_SURVEY['San Saba'].status).toBe('no_online_portal');
+    expect(REMAINING_COUNTY_SURVEY.Hays.status).toBe('not_found');
+  });
+
+  it('still refuses to call either one an absence of records', () => {
+    for (const c of ['Lee', 'San Saba']) {
+      const s = describeCounty(c);
+      expect(s, c).toContain('publish NO land records online');
+      expect(s, c).toContain('Never report a search here as "no records"');
+      expect(s, c).toContain('courthouse');
+    }
+  });
+
+  it('warns outside Bastrop\'s online window', () => {
+    // Pre-1973 Bastrop deeds are not online at all.
+    expect(freePathWarning('Bastrop', 1960)).toContain('FREE index covers 1973');
+    expect(freePathWarning('Bastrop', 1990)).toBeNull();
   });
 });
