@@ -18,6 +18,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { ARTIST, DEFAULT_NAV, LONG_BIO, SHORT_BIO, SEED_CREDITS, PLACEHOLDER_DEMOS } from './content';
 import { DEFAULT_THEME_ID, resolveTheme, type VoiceTheme } from './theme';
 import { normalizeWidgets, publicWidgets, type Widget } from './widgets';
+import { normalizePaymentMethods, type PaymentMethod } from './payments';
 
 export interface SiteSettings {
   artistName: string;
@@ -43,6 +44,9 @@ export interface SiteSettings {
   invoiceTermsDays: number;
   invoiceFooter: string | null;
   contractTerms: string | null;
+  /** How Andrew wants to be paid, rendered on the invoice page. See lib/voice/payments.ts. */
+  paymentMethods: PaymentMethod[];
+  paymentNote: string | null;
   /** True when these are the built-in defaults rather than a saved row. The studio shows a nudge. */
   isDefault: boolean;
 }
@@ -72,6 +76,8 @@ export function defaultSettings(): SiteSettings {
     invoiceTermsDays: 14,
     invoiceFooter: null,
     contractTerms: null,
+    paymentMethods: [],
+    paymentNote: null,
     isDefault: true,
   };
 }
@@ -110,6 +116,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       invoiceTermsDays: Number.isFinite(data.invoice_terms_days) ? data.invoice_terms_days : fallback.invoiceTermsDays,
       invoiceFooter: data.invoice_footer ?? null,
       contractTerms: data.contract_terms ?? null,
+      paymentMethods: normalizePaymentMethods(data.payment_methods),
+      paymentNote: data.payment_note ?? null,
       isDefault: false,
     };
   } catch (err) {

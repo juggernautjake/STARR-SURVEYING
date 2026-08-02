@@ -23,20 +23,32 @@ export const dynamic = 'force-dynamic';
 export default async function InvoicesPage(): Promise<React.ReactElement> {
   let invoices: any[] = [];
   let clients: any[] = [];
+  // Payments a CLIENT declared from the invoice page and nobody has confirmed. These are the only
+  // thing on this page that needs Andrew to do something today, so they go above the numbers.
+  let pending: any[] = [];
   try {
-    const [inv, cli] = await Promise.all([
+    const [inv, cli, cliDeclared] = await Promise.all([
       supabaseAdmin
         .from('va_invoices')
         .select('*, client:va_clients(id, name, company)')
         .order('issue_date', { ascending: false })
         .limit(300),
       supabaseAdmin.from('va_clients').select('id, name, company, email').order('name'),
+      supabaseAdmin
+        .from('va_payments')
+        .select('id, invoice_id, amount_cents, method, received_at')
+        .eq('status', 'pending')
+        .eq('declared_by_client', true)
+        .order('received_at', { ascending: false })
+        .limit(20),
     ]);
     invoices = inv.data ?? [];
     clients = cli.data ?? [];
+    pending = cliDeclared.data ?? [];
   } catch {
     invoices = [];
     clients = [];
+    pending = [];
   }
 
   const today = new Date();
@@ -69,6 +81,31 @@ export default async function InvoicesPage(): Promise<React.ReactElement> {
         </div>
         <NewInvoiceButton clients={clients.map((c) => ({ id: c.id, name: c.name, company: c.company ?? null }))} />
       </div>
+
+      {pending.length > 0 && (
+        <div className="vaNotice" role="status">
+          <strong style={{ color: 'var(--va-accent)' }}>
+            {pending.length === 1 ? 'A client says they have paid' : `${pending.length} clients say they have paid`}
+          </strong>
+          <span style={{ display: 'block', marginTop: 6 }}>
+            None of it counts yet. Check the account, then open the invoice and mark it arrived.
+          </span>
+          <ul style={{ margin: '10px 0 0', paddingLeft: 18 }}>
+            {pending.map((p) => {
+              const inv = rows.find((r) => r.id === p.invoice_id);
+              return (
+                <li key={p.id} style={{ marginTop: 4 }}>
+                  <Link href={`${BASE_PATH}/studio/invoices/${p.invoice_id}`} style={{ color: 'var(--va-accent)' }}>
+                    {inv?.invoice_number ?? 'Invoice'}
+                  </Link>{' '}
+                  — {formatCents(p.amount_cents)} by {p.method}
+                  {inv?.client?.name ? `, from ${inv.client.name}` : ''}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="vaTiles">
         <div className="vaTile">

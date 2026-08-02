@@ -29,6 +29,11 @@
    ══════════════════════════════════════════════════════════════════════════════════════════════ */
 
 .vaRoot {
+  /* The host <body> is white. On the pages that carry no site footer — the invoice, the client portal,
+     the signing page — a short document ends before the viewport does and the remainder of the screen
+     is the host's white, below a dark page. This is the floor that prevents it. */
+  min-height: 100vh;
+
   /* Fallbacks so the site renders correctly even if the layout fails to inject a theme — a portfolio
      that loses its database should lose its custom colours, not its legibility. */
   --va-ink: #0a0d14;
@@ -142,6 +147,16 @@
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* The host's reset includes `audio, canvas, embed, iframe, img, object, svg, video { display: block }`.
+   That is right for media and wrong for icons: every lucide glyph placed inside a heading or a
+   sentence — "◇ Agreements", "▤ Everything you have filed" — became a block and dropped onto its own
+   line, on the public portal and on every studio panel title at once. `img` and `video` are left
+   alone because the host's rule is correct for those. */
+.vaRoot :where(svg) {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* The host paints a chevron via background-image on every native <select> site-wide. Andrew's selects
@@ -2134,5 +2149,275 @@ a.vaCard:hover,
   }
   .vaCard {
     break-inside: avoid;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   CLIENT PORTAL + INVOICE PAYMENT
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   These live in voice.css rather than studio.css because a client never loads the studio stylesheet.
+   The pills look deliberately like the studio's, but they are separate classes: the two audiences
+   read the same words differently — "to pay" is a task for the client and a status for Andrew — and
+   sharing the rule would eventually make one of them wrong to fix the other.
+   ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+.vaPortalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--va-line);
+  border-radius: 10px;
+  background: var(--va-surface);
+  text-decoration: none;
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+.vaPortalRow:hover,
+.vaPortalRow:focus-visible {
+  border-color: var(--va-accent);
+  background: var(--va-surface-raised);
+  transform: translateY(-1px);
+}
+.vaPortalRowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.vaPortalRowTitle {
+  font-weight: 600;
+  color: var(--va-text);
+  font-size: 0.9688rem;
+  line-height: 1.35;
+}
+.vaPortalRowSub {
+  color: var(--va-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.vaPortalPill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.vaPortalPillGood { color: #7FB77E; }
+.vaPortalPillLate { color: #E2725B; }
+.vaPortalPillAction { color: var(--va-accent); }
+
+/* Totals sit under the line-item table, right-aligned, with the last row heavier. The final row is
+   what the reader is looking for and everything above it is supporting evidence. */
+.vaInvoiceTotals {
+  margin: 20px 0 0;
+  margin-left: auto;
+  max-width: 320px;
+}
+.vaInvoiceTotals li:last-child .vaSpecKey,
+.vaInvoiceTotals li:last-child .vaSpecValue {
+  color: var(--va-text);
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+/* ── The payment panel ──────────────────────────────────────────────────────────────────────── */
+
+.vaPayPanel {
+  border: 1px solid var(--va-accent);
+  border-radius: 12px;
+  background: var(--va-surface);
+  padding: 24px;
+}
+.vaPayHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaPayHeadLabel {
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* The single largest thing on the page. A client came here to find out what they owe. */
+.vaPayHeadAmount {
+  font-family: var(--va-font-display);
+  font-size: clamp(1.9rem, 6vw, 2.5rem);
+  font-weight: 600;
+  color: var(--va-accent);
+  line-height: 1;
+}
+.vaPayNote {
+  color: var(--va-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  margin: 0 0 18px;
+  white-space: pre-wrap;
+}
+
+.vaPayList {
+  display: grid;
+  gap: 10px;
+}
+.vaPayMethod {
+  border: 1px solid var(--va-line);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 160ms ease;
+}
+.vaPayMethodOpen {
+  border-color: var(--va-accent);
+}
+.vaPayMethodBtn {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 15px 16px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  /* 48px minimum tap target once padding is counted — this is a phone surface first. */
+  min-height: 48px;
+}
+.vaPayMethodBtn:hover {
+  background: var(--va-surface-raised);
+}
+.vaPayMethodIcon {
+  flex: none;
+  color: var(--va-accent);
+}
+.vaPayMethodMain {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.vaPayMethodLabel {
+  font-weight: 600;
+  color: var(--va-text);
+  font-size: 0.9375rem;
+}
+.vaPayMethodSub {
+  color: var(--va-text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.vaPayMethodBody {
+  padding: 4px 16px 18px;
+  border-top: 1px solid var(--va-line);
+  padding-top: 16px;
+}
+
+/* The handle is the one string a client must transcribe exactly, so it is monospaced, selectable and
+   next to a copy button. Typing "@andrewash" as "@andrew-ash" sends money to a stranger. */
+.vaPayHandle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: var(--va-surface-raised);
+  border: 1px solid var(--va-line);
+  margin-bottom: 13px;
+}
+.vaPayHandleValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9375rem;
+  color: var(--va-text);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.vaPayInstruction {
+  color: var(--va-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .vaPayPanel { padding: 18px 15px; }
+  .vaInvoiceTotals { max-width: none; }
+  /* Stacked, full-width and in reading order: the deep link first, then the declaration. */
+  .vaPayMethodBody .vaBtnRow { flex-direction: column; align-items: stretch; }
+  .vaPayMethodBody .vaBtnRow > * { justify-content: center; }
+}
+
+/* An invoice's line items on a phone.
+   .vaTableWrap scrolls sideways, which keeps the page from overflowing but hides the AMOUNT column —
+   the one number the reader opened the invoice for. So below 620px the table stops being a table and
+   each line becomes a small labelled card. Same technique as the studio's .vaDataTable: the column
+   header is repeated per cell from data-label, because a stacked row without it is a column of
+   unlabelled numbers. */
+@media (max-width: 620px) {
+  .vaTableStack,
+  .vaTableStack tbody,
+  .vaTableStack tr,
+  .vaTableStack td {
+    display: block;
+    width: 100%;
+  }
+  /* .vaTable carries `min-width: 480px` so a real table can scroll inside .vaTableWrap. Once the rows
+     are blocks that floor is what pushes every value off the right edge — the cells were rendering,
+     380px past the viewport, which reads on screen as the labels having lost their numbers. */
+  .vaTableStack {
+    min-width: 0;
+  }
+  .vaTableStack thead {
+    display: none;
+  }
+  .vaTableStack tr {
+    border: 1px solid var(--va-line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .vaTableStack td {
+    padding: 5px 0;
+    border: 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: baseline;
+    text-align: left;
+  }
+  .vaTableStack td::before {
+    content: attr(data-label);
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--va-text-muted);
+    font-weight: 700;
+    flex: none;
+  }
+  /* The description is the row's heading, not a labelled field. */
+  .vaTableStack td:first-child {
+    display: block;
+    font-weight: 600;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--va-line);
+  }
+  .vaTableStack td:first-child::before {
+    content: none;
   }
 }

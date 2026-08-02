@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
 import { THEME_PRESETS, resolveTheme, themeContrast } from '@/lib/voice/theme';
+import { normalizePaymentMethods } from '@/lib/voice/payments';
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -81,6 +82,14 @@ export async function PATCH(request: Request): Promise<NextResponse> {
       .filter((n) => n.label && n.href)
       .slice(0, 12);
   }
+  // Payment methods go through normalizePaymentMethods rather than being trusted: a handle is the one
+  // string on the invoice page a client copies verbatim into their banking app, so it is length-capped
+  // and stripped of anything that is not a recognised method here, at the only place it can be.
+  if (Array.isArray(body.paymentMethods)) {
+    patch.payment_methods = normalizePaymentMethods(body.paymentMethods);
+  }
+  text('paymentNote', 'payment_note', 600);
+
   if (Array.isArray(body.socialLinks)) {
     patch.social_links = body.socialLinks
       .filter((n): n is { label: string; url: string } => Boolean(n) && typeof n === 'object')

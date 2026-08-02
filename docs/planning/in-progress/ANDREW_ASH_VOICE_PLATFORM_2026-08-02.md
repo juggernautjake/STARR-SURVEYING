@@ -233,7 +233,8 @@ no CDN URLs, API quotas, and a ToS that does not contemplate it. Costed alternat
 **Login** username `juggernautjake` or email `jacobmaddux96@gmail.com`. Andrew has no account yet — he
 picks his own username, email and password via Studio → Settings → Team (`/api/voice/team`).
 
-**Database is LIVE.** Seeds 538, 539 and 540 are applied to production Supabase.
+**Database is LIVE.** Seeds 538, 539, 540 and 541 are applied to production Supabase
+(`node scripts/apply-seeds.mjs --only 541_voice_payment_methods.sql`).
 
 | # | Slice | Status |
 |---|---|---|
@@ -260,19 +261,46 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 21 | Studio → Coaching — adoptable default rate card, inline price editing, one-tap lesson logging, lesson notes | ✅ 2026-08-02 |
 | 22 | Studio → Media, Demos, Documents — shared sequential uploader, copy-the-reference library, missing-reel prompts, private signed vault | ✅ 2026-08-02 |
 | — | **Every studio nav link now resolves — verified 13/13 at HTTP 200** | ✅ 2026-08-02 |
-| — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
-| — | Stripe payment flow | ⛔ NOT BUILT |
+| 23 | Client portal `/client/[token]` — one link showing a client's agreements and invoices together | ✅ 2026-08-02 |
+| 24 | Invoice pay page `/invoice/[token]` — document view, payment methods, "I've sent it", card via Stripe | ✅ 2026-08-02 |
+| 25 | Payment settings + client-declared payment confirmation in the studio | ✅ 2026-08-02 |
+| 26 | Vitest for `lib/voice` — 107 tests across money, payments, widgets, contracts, expenses | ✅ 2026-08-02 |
 | — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
-| — | Vitest for `lib/voice` pure logic | ⛔ NOT WRITTEN |
-| — | Contrast audit + 390px mobile QA sweep | ⛔ NOT RUN (script exists: `scripts/audit-voice-contrast.mjs`) |
+| — | Contrast audit + 390px sweep of the **studio** pages | ⛔ NOT RUN (script exists: `scripts/audit-voice-contrast.mjs`) |
+
+### How payment works (read this before touching it)
+
+**Andrew's Stripe keys are not this repo's Stripe keys.** `STRIPE_SECRET_KEY` and
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` already exist here and belong to Starr Surveying. Reading them
+would route a client's payment for voice work into a surveying company's account — silently and
+correctly, as far as Stripe is concerned. So `lib/voice/payments.ts` reads `VOICE_`-prefixed
+variables **with no fallback**, and there is a test asserting exactly that. Card payment needs all
+three: `VOICE_STRIPE_SECRET_KEY`, `NEXT_PUBLIC_VOICE_STRIPE_PUBLISHABLE_KEY`, `VOICE_PAYMENTS_LIVE=true`
+(plus `VOICE_STRIPE_WEBHOOK_SECRET` for the webhook). None are set, so card is **off**, and Studio →
+Settings → Getting paid says so and names what is missing.
+
+Everything else works today with nothing configured. Andrew enters Zelle/Venmo/PayPal/cheque details
+in Settings; they appear on every invoice. A client presses "I've sent it", which writes a
+`va_payments` row with `status='pending'` and `declared_by_client=true` — **it does not move
+`paid_cents`**. Andrew sees it as "client says sent" and confirms with "It arrived", which is what
+moves the money. Verified end to end in a browser: pending → confirmed → `paid_cents` 95000, status
+`paid`.
+
+When card is switched on, only the **webhook** may mark an invoice paid — never the browser. The
+PaymentIntent id is stored in `reference` and checked before insert, because Stripe re-delivers events
+and a retry would otherwise double-credit the invoice.
 
 ### Next session starts here
 
-1. Build the ten missing studio pages. `StudioNav` already links to all of them, so they 404 today.
-   Order by value: **inquiries → invoices → expenses → contracts → clients → coaching → media →
-   demos → documents → settings**.
-2. Then the client portal + Stripe.
-3. Then tests, the contrast audit, and the 390px sweep.
+Everything the user asked for is built. What is left is verification, not construction:
+
+1. **390px sweep of the studio pages.** The public site and the two new client pages are verified at
+   390px; the thirteen studio pages are not.
+2. **Run `scripts/audit-voice-contrast.mjs`.** It has never been executed.
+3. **Web-push subscribe UI.** The service worker and manifest exist and `notifyStudio` already writes
+   notifications; nothing yet asks the browser for permission.
+4. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
+   deploy costs money.
 
 ### Defects found and fixed during the build
 
@@ -303,6 +331,19 @@ picks his own username, email and password via Studio → Settings → Team (`/a
    `lib/voice/slug.ts` and `lib/voice/upload-rules.ts`. **Always run `npm run build` before merging.**
 10. **`web-push` "Module not found" on every page load.** A bare `require()` in a try/catch is still
     statically analysed. Indirected through a variable.
+11. **Every inline icon sat on its own line.** Starr's reset includes
+    `audio, canvas, embed, iframe, img, object, svg, video { display: block }`. Right for media,
+    wrong for icons — so "◇ Agreements" on the portal and every studio panel title rendered as a
+    glyph above its heading rather than beside it. One `:where(svg)` reset fixed the whole tenant.
+    *Same class as defect 1: the host stylesheet wins until a zero-specificity rule takes it back.*
+12. **Stacked invoice rows lost their numbers on a phone.** `.vaTable` carries `min-width: 480px` so
+    a real table can scroll inside `.vaTableWrap`. Once the mobile rules made the rows blocks, that
+    floor pushed every value 380px past the right edge — on screen it read as the labels having lost
+    their values, which is not a layout bug anyone would guess from the symptom. Fixed with
+    `min-width: 0` in the same media query. *Found by measuring `getBoundingClientRect()`, not by
+    looking.*
+13. **A white band under short pages.** The host `<body>` is white and the pages with no site footer
+    (invoice, portal, signing) end before the viewport does. `.vaRoot` now has `min-height: 100vh`.
 
 ## 11. Sources
 

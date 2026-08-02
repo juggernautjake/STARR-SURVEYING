@@ -64,6 +64,54 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   // ── RECORD A PAYMENT ──
+  // Confirming or dismissing a payment a CLIENT declared from the invoice page. Same ledger, same
+  // re-sum: 'confirm' flips one row to succeeded, 'reject' deletes the claim. Nothing else can move a
+  // pending row, which is what keeps "they said they paid" and "the money is here" distinguishable.
+  if (typeof body.settlePaymentId === 'string' && body.settlePaymentId) {
+    const decision = body.settleAs === 'reject' ? 'reject' : 'confirm';
+
+    if (decision === 'confirm') {
+      const { error: upErr } = await supabaseAdmin
+        .from('va_payments')
+        .update({ status: 'succeeded', received_at: new Date().toISOString() })
+        .eq('id', body.settlePaymentId)
+        .eq('invoice_id', invoice.id)
+        // Scoped to pending so a double-click cannot re-date a payment that already cleared.
+        .eq('status', 'pending');
+      if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    } else {
+      const { error: delErr } = await supabaseAdmin
+        .from('va_payments')
+        .delete()
+        .eq('id', body.settlePaymentId)
+        .eq('invoice_id', invoice.id)
+        .eq('status', 'pending');
+      if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+    }
+
+    const { data: all } = await supabaseAdmin
+      .from('va_payments')
+      .select('amount_cents')
+      .eq('invoice_id', invoice.id)
+      .eq('status', 'succeeded');
+    const paid = (all ?? []).reduce((sum: number, r: { amount_cents: number }) => sum + (r.amount_cents ?? 0), 0);
+
+    patch.paid_cents = paid;
+    const settled = balanceCents(invoice.total_cents, paid) === 0;
+    // Cleared to null when a rejection drops the invoice back below its total: a paid_at left behind
+    // on an unpaid invoice is a date that reads as fact.
+    patch.paid_at = settled ? new Date().toISOString() : null;
+    patch.status = deriveInvoiceStatus(
+      {
+        status: (invoice.status === 'draft' ? 'sent' : invoice.status) as InvoiceStatus,
+        totalCents: invoice.total_cents,
+        paidCents: paid,
+        dueDate: invoice.due_date,
+      },
+      new Date(),
+    );
+  }
+
   if (body.payment && typeof body.payment === 'object') {
     const p = body.payment as Record<string, unknown>;
     const amount = Math.round(Number(p.amountCents) || 0);

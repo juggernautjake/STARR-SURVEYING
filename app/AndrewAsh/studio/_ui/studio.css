@@ -876,3 +876,87 @@ a.vaTile:hover {
   font-size: 0.625rem;
   letter-spacing: 0.06em;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   GETTING PAID — the payment-methods panel in Settings
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaPayRows {
+  display: grid;
+  gap: 12px;
+}
+.vaPayRow {
+  display: grid;
+  /* The toggle and the destination sit on one line on a desktop; the hint runs full width beneath
+     both, because it is guidance rather than a label and should not squeeze the input. */
+  grid-template-columns: minmax(150px, 210px) 1fr;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--va-line);
+  border-radius: 9px;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.vaPayRowOn {
+  border-color: var(--va-accent);
+  background: var(--va-surface-raised);
+}
+.vaPayRowToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 40px;
+}
+.vaPayRowToggle input {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  accent-color: var(--va-accent);
+  cursor: pointer;
+}
+.vaPayRowLabel {
+  font-weight: 600;
+  color: var(--va-text);
+  font-size: 0.9063rem;
+}
+.vaPayRowInput {
+  min-width: 0;
+}
+.vaPayRowHint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+/* A disabled row is still readable — he is choosing between them — but visibly not in play. */
+.vaPayRow:not(.vaPayRowOn) .vaPayRowInput,
+.vaPayRow:not(.vaPayRowOn) .vaPayRowHint {
+  opacity: 0.62;
+}
+
+/* Card status: a report, not a control. Bordered rather than button-like so it does not invite a
+   click that cannot do anything. */
+.vaCardStatus {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 22px;
+  padding: 15px 16px;
+  border: 1px dashed var(--va-line);
+  border-radius: 9px;
+}
+.vaCardStatus code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--va-surface-raised);
+  color: var(--va-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .vaPayRow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}

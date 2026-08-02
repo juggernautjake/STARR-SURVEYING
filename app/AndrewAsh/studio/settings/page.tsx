@@ -7,7 +7,9 @@
 import type { Metadata } from 'next';
 
 import SettingsForm from './SettingsForm';
+import PaymentPanel from './PaymentPanel';
 import TeamPanel from './TeamPanel';
+import { cardPaymentEnabled, voiceStripePublishableKey, voiceStripeSecretKey } from '@/lib/voice/payments';
 import { getSiteSettings } from '@/lib/voice/settings';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
@@ -32,6 +34,14 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
+  // Named on the studio page so "card payment is off" is answerable rather than mysterious. Computed
+  // on the server: the secret key must never be sent to a browser, not even to test whether it exists.
+  const cardMissing = [
+    voiceStripeSecretKey() ? null : 'VOICE_STRIPE_SECRET_KEY',
+    voiceStripePublishableKey() ? null : 'NEXT_PUBLIC_VOICE_STRIPE_PUBLISHABLE_KEY',
+    process.env.VOICE_PAYMENTS_LIVE === 'true' ? null : 'VOICE_PAYMENTS_LIVE=true',
+  ].filter((x): x is string => x !== null);
+
   return (
     <>
       <div className="vaStudioHead">
@@ -53,6 +63,13 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
       )}
 
       <SettingsForm settings={settings} />
+
+      <PaymentPanel
+        methods={settings.paymentMethods}
+        note={settings.paymentNote}
+        cardLive={cardPaymentEnabled()}
+        cardMissing={cardMissing}
+      />
 
       <TeamPanel
         users={users.map((u) => ({

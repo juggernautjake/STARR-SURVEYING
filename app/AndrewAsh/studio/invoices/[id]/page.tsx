@@ -10,6 +10,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
 import InvoiceActions from './InvoiceActions';
+import SettleButtons from './SettleButtons';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   balanceCents,
@@ -180,6 +181,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
                     <th>How</th>
                     <th>Reference</th>
                     <th className="vaNum">Amount</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -189,11 +191,18 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
                       <td data-label="How" style={{ textTransform: 'capitalize' }}>
                         {String(p.method)}
                         {p.status === 'pending' && (
-                          <span className="vaStatusPill vaStatusDraft" style={{ marginLeft: 8 }}>unconfirmed</span>
+                          <span className="vaStatusPill vaStatusDraft" style={{ marginLeft: 8 }}>
+                            {p.declared_by_client ? 'client says sent' : 'unconfirmed'}
+                          </span>
                         )}
                       </td>
                       <td data-label="Reference" className="vaMuted">{String(p.reference ?? '—')}</td>
                       <td data-label="Amount" className="vaNum">{formatCents(Number(p.amount_cents))}</td>
+                      <td data-label="">
+                        {p.status === 'pending' ? (
+                          <SettleButtons invoiceId={invoice.id} paymentId={String(p.id)} />
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
