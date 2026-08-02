@@ -18,6 +18,44 @@ carries its own acceptance test.
 
 ---
 
+## 0. Status — 2026-08-02
+
+**All 30 slices have been worked. 14 are fully done; 8 carry remaining work; the rest were already
+complete or landed whole.** This document **stays in progress** because the remainders below are real
+build work, not paperwork — moving it now would be marking things deferred to empty a folder.
+
+### Done, nothing outstanding
+R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
+
+### Buildable work still outstanding
+| Slice | What remains | Why it was not done in the slice |
+|---|---|---|
+| R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
+| R18 | One extraction entry point — `document.service.ts` and the worker's `ai-extraction.ts` have already drifted (500 vs 800 char thresholds) | A refactor across two roots, not safe to do half-way |
+| R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
+| R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
+| R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
+| R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
+| R15 | A page image stored per plat instrument | Same document-attachment path R13 and R17 need — build once, not three times |
+| R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
+
+### Blocked on the owner, not on code
+Every item in §4 below. In particular: **paid-platform credentials** (R13), **imagery licensing and
+API keys** (R16), the **~10 golden-record properties** confirmed with a surveyor (R19, and R9's
+canaries), **automation posture per county** (R12 — until a county's terms are read, every captcha
+there is refused, which is the intended failure mode), and **ordering the box** (R29).
+
+### What changed in the platform's character
+Thirty slices found one defect over and over, in fifteen different places: **an unknown rendered as
+an answer**. A chain that stopped without saying why; an easement drawn at an invented position with
+the extraction's confidence attached; a plat that had been superseded; a page nobody could read
+marked `extracted`; a fact the model asserted shown identically to one quoted from a deed; a $0.00
+that meant "not measured"; an empty panel that meant "we could not read it". The fix was the same
+every time — say which, and say what would settle it — and it is now enforced by guard tests rather
+than by discipline.
+
+---
+
 ## 1. What exists today — measured, not estimated
 
 | Thing | Measured |
