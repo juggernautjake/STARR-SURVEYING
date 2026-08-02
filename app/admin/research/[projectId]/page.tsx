@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Upload, Microscope, ClipboardList, HardHat, Search, FolderOpen, MapPin,
-  Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera,
+  Pencil, FileText, Paperclip, BarChart3, Home, DraftingCompass, Route, Camera, PackageCheck,
   ScrollText, Map as MapIcon, Scale, Notebook, Ruler, Landmark, DollarSign, Satellite,
   Mountain, Plug, Waves, Link2, Printer, Loader2, Sparkles, CheckCircle2,
   Check, AlertTriangle, X, Inbox, type LucideIcon,
@@ -43,6 +43,8 @@ import RunConsoleBar from '../components/RunConsoleBar';
 import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
+// Choosing what goes to the crew (research plan R25).
+import PacketBuilderPanel from '../components/PacketBuilderPanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -100,7 +102,7 @@ export default function ResearchProjectPage() {
   const [showRerunConfirm, setShowRerunConfirm] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts'>('summary');
+  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
   // Scroll target for the Quick-stats actionable tiles (Slice C4).
   // Tapping Data Points / Discrepancies / Resolved jumps to the
   // review summary panel and switches to the relevant tab so the
@@ -1944,7 +1946,7 @@ export default function ResearchProjectPage() {
           <div className="review-summary-panel" ref={reviewPanelRef}>
             {/* Tab bar */}
             <div className="review-summary-panel__tabs">
-              {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts'] as const).map(tab => (
+              {(['summary', 'property', 'survey', 'easements', 'discrepancies', 'artifacts', 'packet'] as const).map(tab => (
                 <button
                   key={tab}
                   className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
@@ -1958,12 +1960,18 @@ export default function ResearchProjectPage() {
                     <>Discrepancies{stats.discrepancy_count > 0 && <span className="review-summary-panel__tab-badge">{stats.discrepancy_count}</span>}</>
                   )}
                   {tab === 'artifacts'     && <><Camera size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Artifacts</>}
+                  {tab === 'packet'        && <><PackageCheck size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Packet</>}
                 </button>
               ))}
             </div>
 
             {/* Tab content */}
             <div className="review-summary-panel__body">
+
+              {/* ── Tab: Packet ──
+                  R25 built the packet and R26 put it on the job, but nothing let anybody CHOOSE
+                  what goes in one — so the whole deliverable path was unreachable in practice. */}
+              {reviewTab === 'packet' && <PacketBuilderPanel projectId={projectId} />}
 
               {/* ── Tab: Summary ── */}
               {reviewTab === 'summary' && (() => {

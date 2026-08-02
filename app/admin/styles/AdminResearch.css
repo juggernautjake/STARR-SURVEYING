@@ -11643,3 +11643,120 @@
 .report-card__comparison ul { margin: 0; padding-left: 1.1rem; }
 .report-card__verdict { margin: 0.4rem 0 0; font-weight: 600; color: #111827; }
 .report-card__note { margin: 0.5rem 0 0; color: #6B7280; font-style: italic; }
+
+/* ── Packet builder (plan R25) ────────────────────────────────────────────── */
+
+.packet-builder { font-size: 0.82rem; }
+
+.packet-builder__error {
+  padding: 0.5rem 0.65rem;
+  background: #FEE2E2;
+  color: #991B1B;
+  border-radius: 4px;
+  font-weight: 600;
+  margin: 0 0 0.6rem;
+}
+
+.packet-builder__existing { margin-bottom: 0.8rem; }
+
+.packet-builder__packet {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.55rem;
+  border-radius: 4px;
+  border-left: 3px solid #9CA3AF;
+  background: #F9FAFB;
+  margin-bottom: 0.3rem;
+}
+
+.packet-builder__packet--approved   { border-left-color: #059669; }
+.packet-builder__packet--draft      { border-left-color: #B45309; }
+/* Superseded is kept visible — it is evidence of what a crew was previously given. */
+.packet-builder__packet--superseded { border-left-color: #D1D5DB; opacity: 0.7; }
+
+.packet-builder__packet-title { font-weight: 650; color: #111827; }
+.packet-builder__packet-status { color: #6B7280; font-size: 0.76rem; }
+.packet-builder__packet-pdf { margin-left: auto; color: #1D4ED8; text-decoration: underline; }
+
+.packet-builder__approve {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid #059669;
+  border-radius: 4px;
+  background: #fff;
+  color: #047857;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.packet-builder__meta { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.6rem; }
+
+.packet-builder__title,
+.packet-builder__notes {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.packet-builder__counts { margin: 0 0 0.5rem; color: #4B5563; }
+.packet-builder__caution-count { color: #B45309; font-weight: 650; }
+
+.packet-builder__list {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid #E5E7EB;
+  border-radius: 5px;
+  margin-bottom: 0.6rem;
+}
+
+.packet-builder__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid #F3F4F6;
+  cursor: pointer;
+}
+
+/* An item that needs care is marked on the item, not in a legend — whoever ticks it is the person
+   who needs to know. */
+.packet-builder__item--caution { background: #FFFBEB; }
+
+.packet-builder__item-kind {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9CA3AF;
+  min-width: 62px;
+}
+
+.packet-builder__item-label { font-weight: 600; color: #111827; }
+.packet-builder__item-detail { color: #6B7280; font-size: 0.76rem; }
+
+.packet-builder__item-caution {
+  flex-basis: 100%;
+  margin-left: 1.6rem;
+  color: #92400E;
+  font-size: 0.74rem;
+}
+
+.packet-builder__create {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 5px;
+  background: #2563EB;
+  color: #fff;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.packet-builder__create:disabled { background: #9CA3AF; cursor: default; }
+.packet-builder__note { color: #6B7280; font-style: italic; }
