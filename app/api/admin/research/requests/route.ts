@@ -14,6 +14,8 @@ import {
   type RequestRow,
   type ResearchRequestInput,
 } from '@/lib/research/intake';
+// How deep the queue is and whether it is still a queue (research plan R29).
+import { backlogStatus } from '@/worker/src/infra/queue-worker';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -42,8 +44,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     (r) => (r.status === 'complete' || r.status === 'failed') && !(r as RequestRow & { notified_at?: string }).notified_at,
   ).length;
 
+  // The visible backlog (plan R29). A queue whose depth nobody can see stretches to days without
+  // anybody noticing, and the first symptom is a customer asking where their survey is.
+  const maxConcurrent = Number(process.env.WORKER_MAX_CONCURRENT_PIPELINES) || 3;
+  const backlog = backlogStatus(
+    rows.filter((r) => r.status === 'queued').length,
+    rows.filter((r) => r.status === 'running').length,
+    maxConcurrent,
+  );
+
   return NextResponse.json(
-    { requests: rows, summary: queueSummary(rows, unnotified) },
+    { requests: rows, summary: queueSummary(rows, unnotified), backlog },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }, { routeName: 'research/requests' });

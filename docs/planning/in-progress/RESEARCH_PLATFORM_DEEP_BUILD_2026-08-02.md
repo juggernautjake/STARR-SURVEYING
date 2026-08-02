@@ -1279,7 +1279,50 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* posting a request with an address and county produces a finished packet with no human
   in the loop, and a notification either way.
 
-- **R29. Concurrency, prioritisation, and back-pressure.**
+- **R29. Concurrency, prioritisation, and back-pressure.** ◑ PART DONE 2026-08-02 — admission,
+  per-county serialisation, priority and back-pressure shipped; wiring `pollOnce` into the worker's
+  boot remains
+
+  **Shipped** (`worker/src/infra/queue-worker.ts`, with the backlog surfaced on the requests API).
+
+  R2 computed how many pipelines this box can hold. R12 stopped concurrent requests hammering one
+  county's servers. R28 built the queue, the deduplicated request and the atomic claim. **Nothing
+  pulled from that queue**, so the whole unattended path ended at a table nobody read.
+
+  **Three limits, and they are not the same limit.** The MACHINE limit is about *us* falling over —
+  exceeding it does not degrade gracefully, Chromium is OOM-killed and every run in flight dies with
+  it. The COUNTY limit is about *somebody else* falling over: R12 paces requests to a host, but three
+  concurrent runs on Bell County still means three browser sessions logging into one small clerk
+  portal, and pacing only spaces out the collision. That is the limit that loses access permanently,
+  so it is a hard serialisation at one run per county rather than a delay.
+
+  Two subtleties the obvious implementation misses. A pass must claim the county **within the tick**,
+  or two queued requests for one county are both admitted because neither is running yet. And the
+  county check has to happen **after** the claim in the live loop, since the claim is the only atomic
+  operation available — a request claimed for a busy county is released back rather than run, because
+  losing the race to ourselves is not a reason to open a second session on one clerk.
+
+  Ordering is priority then age: a crew scheduled tomorrow outranks a speculative lookup, and equal
+  priorities are served oldest-first so a busy queue cannot leave one request waiting indefinitely
+  while newer ones overtake it. Every held request carries its reason, because a request that never
+  starts and never explains itself is indistinguishable from a broken queue.
+
+  `backlogStatus()` turns queue depth into a wait a person can act on, and says when the queue has
+  **stopped being a queue** — *"either stop accepting requests or add a machine"*. Without it a
+  backlog stretches to days unnoticed and the first symptom is a customer asking where their survey
+  is.
+
+  The loop deliberately does not await each run — filling the free slots is the point — and a throw
+  inside one reports a failure rather than killing the poller, since a crashed poller means a queue
+  that stops draining with no error anywhere.
+
+  Worker suite 401/401, root suite 21,677 passing; both roots typecheck clean.
+
+  **Remaining:** calling `pollOnce` on a timer from the worker's boot, wired to the R28 claim/report
+  endpoints. The logic and its limits are proven; what is left is the ten lines that start it, and
+  those belong with deploying the box (§4.3, owner).
+
+  Original item:
   Multiple runs without trampling each other or a county's servers: queue priority, per-county
   serialisation, and a visible backlog.
   *Acceptance:* ten simultaneous requests complete without a rate-limit ban or a memory blow-up.
