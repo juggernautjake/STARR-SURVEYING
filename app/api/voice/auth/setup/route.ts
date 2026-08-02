@@ -20,7 +20,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword, setVoiceSession, signupKey, studioNeedsSetup } from '@/lib/voice/auth';
-import { emailProblem, passwordProblem } from '@/lib/voice/auth-rules';
+import { emailProblem, normalizeIdentifier, passwordProblem } from '@/lib/voice/auth-rules';
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: { email?: string; password?: string; displayName?: string; signupKey?: string };
@@ -42,7 +42,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'That setup key is not right.' }, { status: 403 });
   }
 
-  const email = String(body.email ?? '').trim().toLowerCase();
+  const email = normalizeIdentifier(body.email ?? '');
   const displayName = String(body.displayName ?? '').trim() || 'Andrew';
   const password = String(body.password ?? '');
 

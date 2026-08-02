@@ -12,21 +12,10 @@ import { getVoiceSession } from '@/lib/voice/auth';
 import { normalizeWidgets } from '@/lib/voice/widgets';
 import { sanitizeWidgetProps } from '@/lib/voice/sanitize';
 import { defaultPageBySlug, newProjectBlocks } from '@/lib/voice/default-pages';
+import { slugify } from '@/lib/voice/slug';
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
-}
-
-/** Slug rules: lowercase, hyphenated, no leading/trailing hyphen. Generated from a title so Andrew
- *  never has to think about URLs, but editable because he sometimes will want to. */
-export function slugify(input: string): string {
-  return String(input ?? '')
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'untitled';
 }
 
 export async function GET(): Promise<NextResponse> {

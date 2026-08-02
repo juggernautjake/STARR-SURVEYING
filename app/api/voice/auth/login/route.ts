@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase';
 import { setVoiceSession, verifyPassword } from '@/lib/voice/auth';
+import { normalizeIdentifier } from '@/lib/voice/auth-rules';
 
 // A real bcrypt hash of a random string. Compared against when no account is found, purely so the
 // failure path costs the same wall-clock time as the wrong-password path.
@@ -28,18 +29,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Bad request.' }, { status: 400 });
   }
 
-  const email = String(body.email ?? '').trim().toLowerCase();
+  // Username OR email — `va_users.email` is really the unique login key. Normalised the same way it
+  // was normalised on the way in, or `Jake` would never match the stored `jake`.
+  const email = normalizeIdentifier(body.email ?? '');
   const password = String(body.password ?? '');
 
   if (!email || !password) {
     return NextResponse.json({ error: 'Email and password are both required.' }, { status: 400 });
   }
 
-  const { data: user, error } = await supabaseAdmin
+  // Either column signs you in. `.or()` rather than two round trips, and `maybeSingle` is replaced by
+  // `limit(1)` because a malformed row set (the same string in one person's email and another's
+  // username — prevented by the indexes, but not by this query) would make `maybeSingle` throw rather
+  // than simply pick one.
+  const { data: rows, error } = await supabaseAdmin
     .from('va_users')
     .select('*')
-    .eq('email', email)
-    .maybeSingle();
+    .or(`email.eq.${email},username.eq.${email}`)
+    .limit(1);
+
+  const user = rows?.[0] ?? null;
 
   if (error) {
     console.error('[voice/auth] lookup failed:', error.message);

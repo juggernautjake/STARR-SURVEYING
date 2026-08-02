@@ -22,63 +22,20 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
+// The rules live in lib/ because a route file may export only its handlers and segment config —
+// see lib/voice/slug.ts for the build error that taught us.
+import {
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_FILES,
+  fileTypeAllowed,
+  safeStorageName,
+} from '@/lib/voice/upload-rules';
 
 export const runtime = 'nodejs';
 /** Comfortably above a long PDF script, well below anything that would stress a serverless body. */
 export const maxDuration = 30;
 
 const BUCKET = 'voice-uploads';
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB
-const MAX_FILES = 5;
-
-const ALLOWED: { ext: string; mimes: string[] }[] = [
-  { ext: 'pdf', mimes: ['application/pdf'] },
-  { ext: 'txt', mimes: ['text/plain'] },
-  { ext: 'rtf', mimes: ['application/rtf', 'text/rtf'] },
-  { ext: 'doc', mimes: ['application/msword'] },
-  { ext: 'docx', mimes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'] },
-  { ext: 'odt', mimes: ['application/vnd.oasis.opendocument.text'] },
-  { ext: 'md', mimes: ['text/markdown', 'text/plain'] },
-  { ext: 'csv', mimes: ['text/csv', 'text/plain'] },
-  // Reference audio — "here is the read we liked". Common and genuinely useful.
-  { ext: 'mp3', mimes: ['audio/mpeg', 'audio/mp3'] },
-  { ext: 'wav', mimes: ['audio/wav', 'audio/x-wav', 'audio/wave'] },
-  { ext: 'm4a', mimes: ['audio/mp4', 'audio/x-m4a'] },
-];
-
-export function extensionOf(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
-}
-
-/** Both the extension and the declared type must be on the list, and must agree with each other. */
-export function fileTypeAllowed(name: string, mime: string): boolean {
-  const ext = extensionOf(name);
-  const entry = ALLOWED.find((a) => a.ext === ext);
-  if (!entry) return false;
-  // Some browsers send an empty type for less common extensions. Accept that rather than reject a
-  // legitimate .rtf, since the extension already had to match.
-  if (!mime) return true;
-  return entry.mimes.includes(mime.toLowerCase());
-}
-
-/**
- * A storage-safe filename that keeps the original readable.
- *
- * The original name is preserved in the DB record; this only decides the PATH. Directory traversal
- * (`../../`), leading dots, and anything outside a conservative character set are removed — a
- * filename is attacker-controlled input and it is being used to build a path.
- */
-export function safeStorageName(original: string): string {
-  const ext = extensionOf(original);
-  const stem = original
-    .slice(0, original.length - (ext ? ext.length + 1 : 0))
-    .replace(/[^a-zA-Z0-9._-]/g, '-')
-    .replace(/^[.-]+/, '')
-    .replace(/-+/g, '-')
-    .slice(0, 60) || 'file';
-  return ext ? `${stem}.${ext}` : stem;
-}
 
 export async function POST(request: Request): Promise<NextResponse> {
   let form: FormData;
@@ -90,16 +47,16 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const files = form.getAll('files').filter((f): f is File => f instanceof File);
   if (!files.length) return NextResponse.json({ error: 'No file received.' }, { status: 400 });
-  if (files.length > MAX_FILES) {
-    return NextResponse.json({ error: `Up to ${MAX_FILES} files at a time.` }, { status: 400 });
+  if (files.length > MAX_UPLOAD_FILES) {
+    return NextResponse.json({ error: `Up to ${MAX_UPLOAD_FILES} files at a time.` }, { status: 400 });
   }
 
-  await ensureStorageBucket(BUCKET, { public: false, fileSizeLimit: MAX_BYTES });
+  await ensureStorageBucket(BUCKET, { public: false, fileSizeLimit: MAX_UPLOAD_BYTES });
 
   const uploaded: Record<string, unknown>[] = [];
 
   for (const file of files) {
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         { error: `"${file.name}" is larger than 15 MB. Send a link instead, or split it.` },
         { status: 413 },

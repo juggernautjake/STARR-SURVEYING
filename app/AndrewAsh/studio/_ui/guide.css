@@ -1,0 +1,775 @@
+/* app/AndrewAsh/studio/_ui/guide.css — the "Start here" guide and its task cards.
+ *
+ * Split out of studio.css because the guide is long-form reading inside an app, and it needs a
+ * typographic scale the rest of the studio does not.
+ *
+ * ── THE SPACING RULE ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Reported by the owner: "some funky and poorly spaced formatted elements with the sections and check
+ * box stuff." The cause in every case was the same — inline `<span>`s used for stacked content, and
+ * vertical rhythm set per-element instead of per-relationship.
+ *
+ * So spacing here is set by RELATIONSHIP, not by element:
+ *
+ *   · A title and its own subtitle:      4px   — they are one thing.
+ *   · A heading and the content it owns: 12px  — related, but distinct.
+ *   · Two sibling blocks:                20px  — separate thoughts.
+ *   · Two sections:                      10px  + a border. The border does the work, not the gap.
+ *
+ * Anything that stacks gets `display: block` explicitly. That is what the first pass got wrong, and
+ * it is why a section title and its summary rendered as one run-on line.
+ */
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   CHAPTERS AND SECTIONS
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaGuideChapter {
+  margin-bottom: 40px;
+}
+.vaGuideChapterHead {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaGuideChapterTitle {
+  font-family: var(--va-font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--va-accent);
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+.vaGuideChapterBlurb {
+  color: var(--va-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.vaGuideSection {
+  border: 1px solid var(--va-line);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  background: var(--va-surface);
+  overflow: hidden;
+}
+.vaGuideSection[open] {
+  border-color: color-mix(in srgb, var(--va-accent) 42%, var(--va-line));
+}
+
+.vaGuideSummary {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+  transition: background 140ms ease;
+}
+.vaGuideSummary::-webkit-details-marker {
+  display: none;
+}
+.vaGuideSummary:hover {
+  background: var(--va-surface-raised);
+}
+
+.vaGuideIcon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: var(--va-surface-raised);
+  border: 1px solid var(--va-line);
+  color: var(--va-accent);
+  margin-top: 1px;
+}
+.vaGuideSection[open] .vaGuideIcon {
+  background: color-mix(in srgb, var(--va-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--va-accent) 45%, transparent);
+}
+
+.vaGuideSummaryText {
+  flex: 1;
+  min-width: 0;
+}
+/* `display: block` is the fix for the run-on title. These are spans inside a flex child, so without
+   it the title and the summary flow as one line: "WHAT THIS THING ACTUALLY ISTwo websites in a…". */
+.vaGuideSectionTitle {
+  display: block;
+  font-family: var(--va-font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--va-text);
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+.vaGuideSectionSummary {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.vaGuideMeta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: 6px;
+  white-space: nowrap;
+}
+.vaGuideChevron {
+  transition: transform 200ms ease;
+  color: var(--va-accent);
+}
+.vaGuideSection[open] .vaGuideChevron {
+  transform: rotate(180deg);
+}
+/* The reading-time chip is noise on a narrow screen where the title already wraps to three lines. */
+@media (max-width: 560px) {
+  .vaGuideMeta {
+    font-size: 0;
+    gap: 0;
+  }
+  .vaGuideMeta > svg:first-child {
+    display: none;
+  }
+}
+
+.vaGuideBody {
+  padding: 18px 18px 24px;
+  border-top: 1px solid var(--va-line);
+}
+/* Indented to align under the section title on wide screens — the icon column is 34 + 14 = 48px. */
+@media (min-width: 760px) {
+  .vaGuideBody {
+    padding: 20px 24px 28px 66px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   PROSE
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaGuideLead {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--va-text);
+  margin: 0 0 20px;
+  max-width: 70ch;
+}
+.vaGuideBody p {
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.72;
+  margin: 0 0 16px;
+  max-width: 74ch;
+}
+.vaGuideBody p:last-child {
+  margin-bottom: 0;
+}
+.vaGuideBody strong {
+  color: var(--va-text);
+  font-weight: 600;
+}
+.vaGuideBody ul {
+  margin: 0 0 20px;
+  padding: 0;
+  max-width: 74ch;
+  list-style: none;
+}
+.vaGuideBody li {
+  position: relative;
+  padding-left: 22px;
+  margin-bottom: 11px;
+  color: var(--va-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.68;
+}
+.vaGuideBody li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 10px;
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+  background: var(--va-accent);
+}
+
+.vaGuideCallout {
+  border-left: 3px solid var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 7%, transparent);
+  padding: 16px 18px;
+  border-radius: 0 4px 4px 0;
+  margin: 0 0 20px;
+  max-width: 74ch;
+}
+.vaGuideCalloutTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 0 0 8px;
+}
+.vaGuideCallout p:last-child {
+  margin: 0;
+  color: var(--va-text);
+  font-size: 0.9375rem;
+}
+.vaGuideCalloutWarn {
+  border-left-color: #ff8a6a;
+  background: rgba(255, 138, 106, 0.07);
+}
+.vaGuideCalloutWarn .vaGuideCalloutTitle {
+  color: #ff9c7e;
+}
+.vaGuideCalloutMoney {
+  border-left-color: #7fd49b;
+  background: rgba(127, 212, 155, 0.07);
+}
+.vaGuideCalloutMoney .vaGuideCalloutTitle {
+  color: #7fd49b;
+}
+.vaGuideCalloutLaw {
+  border-left-color: var(--va-glow);
+  background: color-mix(in srgb, var(--va-glow) 8%, transparent);
+}
+.vaGuideCalloutLaw .vaGuideCalloutTitle {
+  color: var(--va-glow);
+}
+
+.vaGuideSteps {
+  margin: 0 0 20px;
+  max-width: 76ch;
+}
+.vaGuideStep {
+  border-left: 1px solid var(--va-line);
+  padding: 0 0 20px 20px;
+  position: relative;
+}
+.vaGuideStep:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+.vaGuideStep::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: var(--va-accent);
+}
+.vaGuideStepTitle {
+  color: var(--va-text) !important;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  margin: 0 0 5px !important;
+}
+
+.vaGuideRates {
+  margin: 0 0 24px;
+}
+.vaGuideRatesCaption {
+  font-size: 0.75rem !important;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--va-accent) !important;
+  margin: 0 0 12px !important;
+}
+.vaGuideRatesNote {
+  font-size: 0.8125rem !important;
+  color: var(--va-text-muted);
+  margin: 12px 0 0 !important;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+.vaGuideSources {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--va-line);
+}
+.vaGuideSources p {
+  font-size: 0.6875rem !important;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  margin: 0 0 10px !important;
+  font-weight: 700;
+}
+.vaGuideSources a {
+  display: block;
+  color: var(--va-accent);
+  font-size: 0.8125rem;
+  margin-bottom: 6px;
+  text-decoration: none;
+}
+.vaGuideSources a:hover {
+  text-decoration: underline;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   SIMPLE CHECKLIST
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaChecklist {
+  margin: 0 0 22px;
+  max-width: 76ch;
+}
+.vaChecklistHead {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.vaChecklistCount {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  white-space: nowrap;
+}
+.vaChecklistBar {
+  flex: 1;
+  height: 3px;
+  background: var(--va-line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.vaChecklistBar span {
+  display: block;
+  height: 100%;
+  background: var(--va-accent);
+  transition: width 260ms ease;
+}
+
+.vaChecklistItems {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vaChecklistItems li {
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background: var(--va-ink);
+  transition: border-color 160ms ease, opacity 160ms ease;
+  padding: 0;
+}
+.vaChecklistItems li::before {
+  display: none;
+}
+.vaChecklistItems li:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+/* Completed items fade but stay put. Reordering or hiding them would break a sequence whose order
+   is the point. */
+.vaChecklistDone {
+  opacity: 0.6;
+}
+.vaChecklistDone .vaGuideCheckTitle {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--va-accent) 60%, transparent);
+}
+
+.vaChecklistItems label {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 14px 15px;
+  cursor: pointer;
+}
+/* Visually hidden but focusable. `display: none` would drop it out of the tab order entirely. */
+.vaChecklistItems input,
+.vaTaskSteps input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+.vaChecklistBox {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 1px solid var(--va-accent);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  color: var(--va-accent-contrast);
+  background: transparent;
+  transition: background 160ms ease;
+}
+.vaChecklistDone .vaChecklistBox {
+  background: var(--va-accent);
+}
+.vaChecklistItems input:focus-visible + .vaChecklistBox,
+.vaTaskSteps input:focus-visible + .vaTaskStepBox {
+  outline: 2px solid var(--va-accent);
+  outline-offset: 2px;
+}
+.vaChecklistText {
+  min-width: 0;
+}
+.vaGuideCheckTitle {
+  display: block;
+  color: var(--va-text);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  margin-bottom: 5px;
+}
+.vaGuideCheckDetail {
+  display: block;
+  color: var(--va-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   TASK CARDS — the business-setup breakdown
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaTaskList {
+  margin: 0 0 22px;
+}
+.vaTaskIntro {
+  margin-bottom: 18px !important;
+}
+
+.vaTask {
+  border: 1px solid var(--va-line);
+  border-radius: 6px;
+  background: var(--va-ink);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color 160ms ease;
+}
+.vaTask[open] {
+  border-color: color-mix(in srgb, var(--va-accent) 40%, var(--va-line));
+}
+.vaTask:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 35%, var(--va-line));
+}
+.vaTaskDone {
+  opacity: 0.72;
+}
+
+.vaTaskSummary {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 15px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+.vaTaskSummary::-webkit-details-marker {
+  display: none;
+}
+
+/* Doubles as a progress indicator: empty, a number, or a tick. One element, three states, so the
+   closed row shows how far in Andrew is without opening it. */
+.vaTaskCheck {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--va-accent);
+  display: grid;
+  place-items: center;
+  color: var(--va-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  margin-top: 2px;
+  transition: background 160ms ease, color 160ms ease;
+}
+.vaTaskCheckDone {
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+}
+
+.vaTaskSummaryText {
+  flex: 1;
+  min-width: 0;
+}
+.vaTaskTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-family: var(--va-font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--va-text);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+.vaTaskLater {
+  font-family: var(--va-font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  border: 1px solid var(--va-line);
+  border-radius: 2px;
+  padding: 2px 7px;
+}
+.vaTaskBlurb {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+  line-height: 1.55;
+  margin-bottom: 9px;
+}
+/* Cost and time on the CLOSED row: the two facts that decide whether today is the day. */
+.vaTaskFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+}
+.vaTaskFacts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.vaTaskCount {
+  color: var(--va-accent);
+  font-weight: 600;
+}
+.vaTaskChevron {
+  flex: none;
+  color: var(--va-accent);
+  margin-top: 6px;
+  transition: transform 200ms ease;
+}
+.vaTask[open] .vaTaskChevron {
+  transform: rotate(180deg);
+}
+
+.vaTaskBody {
+  padding: 4px 16px 20px;
+  border-top: 1px solid var(--va-line);
+}
+@media (min-width: 760px) {
+  .vaTaskBody {
+    padding: 6px 20px 22px 54px;
+  }
+}
+
+.vaTaskWhere {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 0.8125rem !important;
+  color: var(--va-text) !important;
+  background: var(--va-surface);
+  border-radius: 4px;
+  padding: 11px 13px;
+  margin: 16px 0 0 !important;
+}
+.vaTaskWhere svg {
+  flex: none;
+  color: var(--va-accent);
+  margin-top: 2px;
+}
+
+/* Its own panel, above the steps, because arriving at a bank counter without the DBA certificate is
+   the single most common way this task fails. */
+.vaTaskNeed {
+  border: 1px dashed color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+  border-radius: 4px;
+  padding: 13px 15px;
+  margin: 16px 0 20px;
+  background: color-mix(in srgb, var(--va-accent) 5%, transparent);
+}
+.vaTaskNeedTitle {
+  font-size: 0.6875rem !important;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--va-accent) !important;
+  margin: 0 0 9px !important;
+}
+.vaTaskNeed ul {
+  margin: 0 !important;
+  padding: 0;
+  list-style: none;
+}
+.vaTaskNeed li {
+  position: relative;
+  padding-left: 18px;
+  margin-bottom: 7px;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--va-text);
+}
+.vaTaskNeed li:last-child {
+  margin-bottom: 0;
+}
+.vaTaskNeed li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--va-accent);
+  transform: none;
+}
+
+.vaTaskSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: taskstep;
+}
+.vaTaskSteps li {
+  padding: 0;
+  margin: 0 0 7px;
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  background: var(--va-surface);
+  transition: border-color 150ms ease, opacity 150ms ease;
+}
+.vaTaskSteps li::before {
+  display: none;
+}
+.vaTaskSteps li:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 40%, var(--va-line));
+}
+.vaTaskStepDone {
+  opacity: 0.58;
+}
+.vaTaskSteps label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.vaTaskStepBox {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--va-accent);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  color: var(--va-accent-contrast);
+  background: transparent;
+  transition: background 150ms ease;
+}
+.vaTaskStepDone .vaTaskStepBox {
+  background: var(--va-accent);
+}
+.vaTaskStepText {
+  min-width: 0;
+}
+.vaTaskStepTitle {
+  display: block;
+  color: var(--va-text);
+  font-size: 0.9063rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.vaTaskStepDetail {
+  display: block;
+  color: var(--va-text-muted);
+  font-size: 0.8438rem;
+  line-height: 1.62;
+  margin-top: 5px;
+}
+.vaTaskStepDone .vaTaskStepTitle {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--va-accent) 55%, transparent);
+}
+
+.vaTaskGotcha {
+  border-left: 3px solid #ff8a6a;
+  background: rgba(255, 138, 106, 0.07);
+  border-radius: 0 4px 4px 0;
+  padding: 13px 15px;
+  margin-top: 18px;
+}
+.vaTaskGotcha p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.6875rem !important;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9c7e !important;
+  margin: 0 0 7px !important;
+}
+.vaTaskGotcha p:last-child {
+  margin: 0 !important;
+  color: var(--va-text) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.65;
+}
+
+.vaTaskLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.vaTaskLinks a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--va-accent);
+  text-decoration: none;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  padding: 7px 12px;
+}
+.vaTaskLinks a:hover {
+  border-color: var(--va-accent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   PRINT — "print the paperwork checklist" has to produce a complete document
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  .vaGuideSection,
+  .vaTask {
+    break-inside: avoid;
+  }
+  /* Collapsed sections print empty otherwise, and the printed page is exactly the one somebody takes
+     to the bank. */
+  .vaGuideSection .vaGuideBody,
+  .vaTask .vaTaskBody {
+    display: block !important;
+  }
+  .vaGuideChevron,
+  .vaTaskChevron {
+    display: none;
+  }
+}

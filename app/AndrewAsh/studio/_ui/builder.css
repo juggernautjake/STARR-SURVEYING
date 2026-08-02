@@ -1,0 +1,592 @@
+/* app/AndrewAsh/studio/_ui/builder.css — the page builder.
+ *
+ * Split from studio.css because it is only loaded by the one route that needs it, and because the
+ * builder is a genuinely different kind of interface from the rest of the studio: three panes, dense
+ * controls, and a preview that has to behave like a browser viewport.
+ *
+ * THREE PANES ON A DESKTOP, THREE TABS ON A PHONE. Three panes at 390px is three unusable panes. The
+ * panes stay in the DOM either way and `data-pane` on the grid decides which is visible — switching
+ * tabs therefore never re-mounts the preview, so scroll position and audio playback survive it.
+ */
+
+.vaBuilder {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── TOOLBAR ─────────────────────────────────────────────────────────────────────────────────── */
+
+.vaBuilderBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.vaBuilderBarMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.vaBuilderTitle {
+  font-family: var(--va-font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--va-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vaBuilderBarActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vaSaveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 2px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--va-line);
+  color: var(--va-text-muted);
+  white-space: nowrap;
+  flex: none;
+}
+.vaSaveBadge-saved,
+.vaSaveBadge-clean {
+  border-color: #5fbf7f;
+  color: #7fd49b;
+}
+.vaSaveBadge-dirty {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+}
+.vaSaveBadge-error {
+  border-color: #ff8a6a;
+  color: #ff9c7e;
+}
+
+.vaBuilderDevice {
+  display: flex;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  overflow: hidden;
+  flex: none;
+}
+.vaBuilderDevice button {
+  background: transparent;
+  border: 0;
+  color: var(--va-text-muted);
+  padding: 7px 12px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.vaBuilderDevice button[aria-pressed='true'] {
+  background: var(--va-accent);
+  color: var(--va-accent-contrast);
+}
+
+/* ── PHONE TABS ──────────────────────────────────────────────────────────────────────────────── */
+
+.vaBuilderTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+@media (min-width: 1100px) {
+  .vaBuilderTabs {
+    display: none;
+  }
+}
+.vaBuilderTabs button {
+  flex: 1;
+  padding: 10px;
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.vaBuilderTabs .vaBuilderTabActive {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 10%, var(--va-surface));
+}
+
+/* ── GRID ────────────────────────────────────────────────────────────────────────────────────── */
+
+.vaBuilderGrid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 1099px) {
+  .vaBuilderGrid[data-pane='blocks'] .vaBuilderPreview,
+  .vaBuilderGrid[data-pane='blocks'] .vaBuilderInspect,
+  .vaBuilderGrid[data-pane='preview'] .vaBuilderBlocks,
+  .vaBuilderGrid[data-pane='preview'] .vaBuilderInspect,
+  .vaBuilderGrid[data-pane='inspect'] .vaBuilderBlocks,
+  .vaBuilderGrid[data-pane='inspect'] .vaBuilderPreview {
+    display: none;
+  }
+}
+@media (min-width: 1100px) {
+  .vaBuilderGrid {
+    grid-template-columns: 268px minmax(0, 1fr) 300px;
+    align-items: start;
+  }
+}
+
+.vaBuilderBlocks,
+.vaBuilderPreview,
+.vaBuilderInspect {
+  background: var(--va-surface);
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  .vaBuilderBlocks,
+  .vaBuilderInspect {
+    position: sticky;
+    top: 74px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+  }
+}
+
+.vaBuilderPaneHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--va-line);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  position: sticky;
+  top: 0;
+  background: var(--va-surface);
+  z-index: 2;
+}
+
+/* ── BLOCK LIST ──────────────────────────────────────────────────────────────────────────────── */
+
+.vaBlockList {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+}
+.vaBlockItem {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: var(--va-ink);
+  overflow: hidden;
+}
+.vaBlockItemActive {
+  border-color: var(--va-accent);
+}
+.vaBlockItemHidden {
+  opacity: 0.5;
+}
+.vaBlockPick {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 9px 11px;
+  cursor: pointer;
+  color: inherit;
+}
+.vaBlockLabel {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin-bottom: 2px;
+}
+.vaBlockPreviewText {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vaBlockTools {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  border-left: 1px solid var(--va-line);
+  flex: none;
+}
+/* Below the usual 44px tap target, deliberately: these are dense secondary tools in a
+   desktop-shaped pane, every one has a larger equivalent (select the block, use the inspector), and
+   every one is undoable with Ctrl+Z. */
+.vaBlockTools button {
+  background: none;
+  border: 0;
+  color: var(--va-text-muted);
+  padding: 5px 7px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.vaBlockTools button:hover:not(:disabled) {
+  color: var(--va-accent);
+  background: var(--va-surface-raised);
+}
+.vaBlockTools button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.vaBlockDelete:hover:not(:disabled) {
+  color: #ff9c7e;
+}
+
+/* The thin insert affordance between blocks. Transparent until hovered, so a twenty-block list is
+   not also a list of twenty buttons competing for attention. */
+.vaBlockInsert {
+  width: 100%;
+  height: 16px;
+  background: none;
+  border: 0;
+  color: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: color 120ms ease;
+}
+.vaBlockInsert:hover,
+.vaBlockInsert:focus-visible {
+  color: var(--va-accent);
+}
+
+/* ── PREVIEW CANVAS ──────────────────────────────────────────────────────────────────────────── */
+
+.vaBuilderCanvasWrap {
+  padding: 14px;
+  background: var(--va-ink);
+  border-radius: 0 0 5px 5px;
+  overflow-x: auto;
+}
+/* THE CONTAINER. Everything inside re-lays-out on THIS element's width, which is what makes
+   narrowing the pane to 390px produce the genuine phone layout instead of a simulation. */
+.vaBuilderCanvas {
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 4px;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: vaPage;
+}
+.vaBuilderCanvasPhone {
+  margin: 0 auto;
+  box-shadow: 0 20px 50px -28px rgba(0, 0, 0, 0.9);
+  border-radius: 18px;
+}
+
+/* ── INSPECTOR ───────────────────────────────────────────────────────────────────────────────── */
+
+.vaInspector {
+  padding: 12px 14px 20px;
+}
+.vaInspectorTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.vaInspectorTabs button {
+  flex: 1;
+  padding: 7px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.vaInspectorTabs button[aria-selected='true'] {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+}
+.vaInspectorDevice {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.vaInspectorDevice button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vaInspectorDevice button[aria-pressed='true'] {
+  border-color: var(--va-accent);
+  color: var(--va-accent);
+  background: color-mix(in srgb, var(--va-accent) 10%, transparent);
+}
+.vaInspectorNote {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--va-text-muted);
+  background: color-mix(in srgb, var(--va-accent) 8%, transparent);
+  border-left: 2px solid var(--va-accent);
+  padding: 9px 11px;
+  margin: 0 0 14px;
+  border-radius: 0 3px 3px 0;
+}
+
+.vaInspectorGroup {
+  border-top: 1px solid var(--va-line);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.vaInspectorGroup:first-of-type {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.vaInspectorGroupTitle {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 0 0 10px;
+}
+.vaInspectorField {
+  margin-bottom: 12px;
+}
+.vaInspectorLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.vaInspectorLabel {
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* A dot rather than a word: it has to be scannable down a column of fifteen controls. */
+.vaOverrideDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--va-accent);
+  flex: none;
+}
+.vaResetBtn {
+  background: none;
+  border: 0;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.vaResetBtn:hover {
+  color: var(--va-accent);
+}
+.vaInspectorHint {
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+.vaInspector .vaInput,
+.vaInspector .vaSelect,
+.vaInspector .vaTextarea {
+  font-size: 0.8125rem;
+  padding: 8px 10px;
+  background: var(--va-ink);
+}
+.vaRange {
+  width: 100%;
+  accent-color: var(--va-accent);
+}
+.vaColorInput {
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: var(--va-ink);
+  cursor: pointer;
+}
+
+.vaListItem {
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--va-ink);
+  display: grid;
+  gap: 6px;
+}
+.vaListItemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  font-weight: 700;
+}
+.vaListItemHead button {
+  background: none;
+  border: 0;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 0.8125rem;
+}
+.vaListItemHead button:hover:not(:disabled) {
+  color: var(--va-accent);
+}
+.vaListItemHead button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── ADD-BLOCK PALETTE ───────────────────────────────────────────────────────────────────────── */
+
+.vaPaletteBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--va-ink) 84%, transparent);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 16px 16px;
+}
+.vaPalette {
+  width: min(100%, 720px);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--va-surface);
+  border: 1px solid var(--va-accent);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.95);
+}
+.vaPaletteHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--va-line);
+  flex: none;
+}
+/* 16px minimum, or iOS Safari zooms the whole page when this focuses. */
+.vaPaletteSearch {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--va-text);
+  font-size: 1rem;
+  outline: none;
+}
+.vaPaletteHead button {
+  background: none;
+  border: 0;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+}
+.vaPaletteBody {
+  overflow-y: auto;
+  padding: 14px 16px 20px;
+}
+.vaPaletteGroup {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--va-accent);
+  margin: 16px 0 8px;
+}
+.vaPaletteGroup:first-child {
+  margin-top: 0;
+}
+.vaPaletteGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 8px;
+}
+.vaPaletteItem {
+  text-align: left;
+  padding: 11px 13px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+.vaPaletteItem:hover {
+  border-color: var(--va-accent);
+}
+.vaPaletteItemLabel {
+  color: var(--va-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.vaPaletteItemHint {
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}

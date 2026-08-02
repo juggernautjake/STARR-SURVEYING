@@ -135,8 +135,18 @@ async function deliverPush(input: CreateNotificationInput, userIds: string[]): P
     sendNotification: (sub: unknown, payload: string) => Promise<unknown>;
   };
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    webpush = require('web-push');
+    // ── WHY THE REQUIRE IS HIDDEN FROM THE BUNDLER ────────────────────────────────────────────
+    //
+    // A bare `require('web-push')` inside a try/catch still gets STATICALLY ANALYSED by webpack,
+    // which then emits "Module not found: Can't resolve 'web-push'" on every build and every page
+    // load in dev — for an optional dependency that is deliberately absent. The try/catch only
+    // handles the runtime throw; it does nothing about build-time resolution.
+    //
+    // Indirecting through a variable makes the specifier opaque to the bundler, so the module is
+    // resolved only if this line actually executes — which it does only when VAPID keys are
+    // configured. `eval` would work too and is a bigger hammer than the problem needs.
+    const load = eval('require') as (id: string) => unknown;
+    webpush = load('web-push') as typeof webpush;
   } catch {
     // Not installed. The notification row is already saved; that is the contract this module makes.
     return;

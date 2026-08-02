@@ -1,7 +1,25 @@
+'use client';
 // app/AndrewAsh/_ui/VoiceFooter.tsx — the footer.
 //
-// Server component: it renders settings and nothing interactive, so there is no reason to ship it to
-// the browser.
+// ── WHY THIS CARRIES 'use client' DESPITE HAVING NO INTERACTIVITY ───────────────────────────────
+//
+// It renders settings and nothing else, so it began as a server component. That broke every page on
+// the site with a hydration failure:
+//
+//     TypeError: Cannot read properties of undefined (reading 'call')
+//       at options.factory (webpack.js)
+//       at Lazy → at div → at VoiceLayout (Server)
+//
+// The cause is a rule of the App Router rather than anything wrong with this file: a Client Component
+// cannot IMPORT a Server Component. `SiteChrome` is a client component — it has to be, because it
+// reads the pathname to decide whether the studio gets a marketing header — and it imports this. The
+// bundler emits a client reference for a module that has no client build, and the factory it resolves
+// to is `undefined`.
+//
+// Two legal fixes exist. Pass the footer down as `children` (keeps it on the server, threads an extra
+// prop through every layout), or make it a client component (ships ~2kB of markup). This file has no
+// data fetching, no secrets and no server APIs, so the second is the cheaper one — and the error
+// message it prevents is one nobody would connect to a footer.
 //
 // The studio link at the bottom is deliberately quiet — a small text link rather than a button. It is
 // Andrew's door, on a page whose audience is clients, and a prominent "Log in" on a freelancer's

@@ -12,9 +12,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import WidgetRenderer from '../../_ui/WidgetRenderer';
-import OwnerBar from '../../_ui/OwnerBar';
-import { buildPageContext } from '../../_ui/SystemPage';
+import WidgetRenderer from '../../../_ui/WidgetRenderer';
+import OwnerBar from '../../../_ui/OwnerBar';
+import { buildPageContext } from '../../../_ui/SystemPage';
 import { getPageBySlug, listLivePages } from '@/lib/voice/settings';
 import { publicWidgets } from '@/lib/voice/widgets';
 import { getVoiceSession } from '@/lib/voice/auth';

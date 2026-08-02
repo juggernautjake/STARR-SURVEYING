@@ -18,8 +18,6 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
 import './_ui/voice.css';
-import VoiceHeader from './_ui/VoiceHeader';
-import VoiceFooter from './_ui/VoiceFooter';
 import RevealOnScroll from './_ui/RevealOnScroll';
 import RegisterVoicePWA from './_ui/RegisterVoicePWA';
 import { getSiteSettings } from '@/lib/voice/settings';
@@ -67,6 +65,7 @@ export async function generateViewport(): Promise<Viewport> {
 }
 
 export default async function VoiceLayout({ children }: { children: ReactNode }): Promise<React.ReactElement> {
+  // Read here for the THEME only — the header and footer moved to the (site) route group.
   const settings = await getSiteSettings();
 
   // The theme is injected as inline custom properties on the root element, computed on the server.
@@ -82,17 +81,17 @@ export default async function VoiceLayout({ children }: { children: ReactNode })
         Skip to content
       </a>
 
-      <VoiceHeader
-        artistName={settings.artistName}
-        tagline={settings.tagline}
-        navItems={settings.navItems}
-      />
+      {/* No header or footer here. The public pages get theirs from `(site)/layout.tsx`, a route
+          group; the studio and the login page deliberately have none. This layout owns only what
+          applies to BOTH halves — the theme, the skip link, the scroll reveal, the service worker.
 
-      <main id="va-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '60vh' }}>
-        {children}
-      </main>
-
-      <VoiceFooter settings={settings} />
+          An earlier version did this with a client wrapper that read the pathname. It broke
+          hydration on every page: a Client Component cannot import a Server Component, and the
+          bundler emitted a client reference whose factory resolved to `undefined`
+          ("Cannot read properties of undefined (reading 'call')"). The route group is the App
+          Router's own answer to "this layout applies to some children and not others", and it is
+          resolved at build time with no client component in the tree at all. */}
+      {children}
 
       {/* Adds the reveal-on-scroll behaviour to anything marked `data-reveal`. Renders no DOM. */}
       <RevealOnScroll />

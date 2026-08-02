@@ -108,6 +108,14 @@ CREATE TABLE IF NOT EXISTS va_users (
     password_hash   TEXT NOT NULL,
     -- 'owner' can edit everything. 'assistant' is reserved for later (view + reply to inquiries).
     role            TEXT NOT NULL DEFAULT 'owner' CHECK (role IN ('owner', 'assistant')),
+
+    -- Which items of the "Start here" business checklist this person has ticked off, as
+    -- {"first-ten-minutes:0": true, "legal-not-advice:2": true}. Stored per USER rather than in
+    -- localStorage so progress follows Andrew from his laptop to his phone — the checklist spans
+    -- weeks (open a bank account, get an EIN, file a DBA) and per-browser progress would reset every
+    -- time he switched device, which is exactly when a weeks-long list stops being used.
+    checklist_progress JSONB NOT NULL DEFAULT '{}'::JSONB,
+
     last_login_at   TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

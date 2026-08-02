@@ -9,7 +9,7 @@
 // visitor (or hide them from Andrew). Correctness beats a cache on a site this size.
 
 import type { Metadata } from 'next';
-import SystemPage, { systemPageMetadata } from './_ui/SystemPage';
+import SystemPage, { systemPageMetadata } from '../_ui/SystemPage';
 
 export const revalidate = 0;
 

@@ -228,39 +228,73 @@ no CDN URLs, API quotas, and a ToS that does not contemplate it. Costed alternat
 
 ## 10. Build ledger
 
+**Branch** `claude/research-platform-phase-gh-2026-08-02` (shared with another session — see §13).
+**Local dev** `npx next dev -p 3211`. **Production check** `npm run build` then `npx next start -p 3212`.
+**Login** username `juggernautjake` or email `jacobmaddux96@gmail.com`. Andrew has no account yet — he
+picks his own username, email and password via Studio → Settings → Team (`/api/voice/team`).
+
+**Database is LIVE.** Seeds 538, 539 and 540 are applied to production Supabase.
+
 | # | Slice | Status |
 |---|---|---|
-| 1 | Photo pipeline + focal-point manifest | ✅ |
-| 2 | Schema — 538 platform, 539 business ops | ✅ |
-| 3 | `lib/voice` core — auth, widgets, theme, style, money, contracts, inquiry, expenses, tokens, notifications | ✅ |
-| 4 | Design system stylesheet + chrome | ✅ |
-| 5 | Widget renderer (26 types, responsive emission, owner mode) | ✅ |
-| 6 | Default pages as block arrays | ⏳ |
-| 7 | Public routes rendering through the renderer | ⏳ |
-| 8 | Studio builder — drag, inspector, mobile toggle | ⏳ |
-| 9 | Studio business surfaces | ⏳ |
-| 10 | Client portal — contracts, e-sign, invoices, pay | ⏳ |
-| 11 | API routes | ⏳ |
-| 12 | Owner bar + footer login + per-widget edit | ⏳ |
-| 13 | PWA + push | ⏳ |
-| 14 | Tests, typecheck, `npm run build` | ⏳ |
-| 15 | Playwright + OCR + contrast audit, desktop and 390px | ⏳ |
+| 1 | Photo pipeline + focal-point manifest (16 photos) | ✅ |
+| 2 | Schema — 538 platform, 539 business ops, 540 username | ✅ applied |
+| 3 | `lib/voice` core — 17 modules | ✅ |
+| 4 | Design system + public chrome | ✅ |
+| 5 | Widget renderer — 29 types, responsive emission, owner mode | ✅ |
+| 6 | Default pages as block arrays (6 public pages) | ✅ |
+| 7 | Public routes via `(site)` route group | ✅ |
+| 8 | Auth — login, first-run setup, team, username-or-email | ✅ verified end to end |
+| 9 | Studio shell — phone-first nav, dashboard | ✅ |
+| 10 | "Start here" playbook — 13 sections, 10 task cards, live checkboxes | ✅ |
+| 11 | Page builder — 3 panes, inspector, mobile toggle, autosave | ✅ built, **not yet driven in a browser** |
+| 12 | API — auth, team, inquiries, uploads, pages, checklist | ✅ |
+| 13 | Inquiry form + script upload | ✅ built, **upload not yet exercised end to end** |
+| 14 | `npm run build` green | ✅ |
+| — | **Studio: inquiries, invoices, contracts, clients, expenses, documents, coaching, demos, media, settings** | ⛔ **NOT BUILT** — nav links 404 |
+| — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
+| — | Stripe payment flow | ⛔ NOT BUILT |
+| — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
+| — | Vitest for `lib/voice` pure logic | ⛔ NOT WRITTEN |
+| — | Contrast audit + 390px mobile QA sweep | ⛔ NOT RUN (script exists: `scripts/audit-voice-contrast.mjs`) |
+
+### Next session starts here
+
+1. Build the ten missing studio pages. `StudioNav` already links to all of them, so they 404 today.
+   Order by value: **inquiries → invoices → expenses → contracts → clients → coaching → media →
+   demos → documents → settings**.
+2. Then the client portal + Stripe.
+3. Then tests, the contrast audit, and the 390px sweep.
 
 ### Defects found and fixed during the build
 
 1. **Headings invisible.** Starr's `globals.css` styles bare `h1–h6` site-wide; `.vaDisplay` set
    font-family but not `color`, so the element selector beat the inherited value. Fixed with a
    zero-specificity `:where()` reset. *Found in a browser; unfindable by reading the CSS.*
-2. **Reel cards 3-up and titles truncated.** `vaGrid2`'s 320px minimum let a third column fit.
-   Minimums are now set from what the content needs.
-3. **Photos cropping heads off.** `object-fit: cover` centres; Andrew is at the far left of the
-   choir and the top eighth of the costume square. Fixed with per-photo focal points in the
-   generated manifest, applied by default so no call site can forget.
-4. **A photo that no crop could fix.** `stage-costume` has his parents' arms around him. Two crop
-   attempts failed; it moved to the About page with a caption. When a crop cannot make an image mean
-   the right thing, the fix is a different placement.
-
----
+2. **Reel cards 3-up, titles truncated to "COMME…".** `vaGrid2`'s 320px minimum let a third column
+   fit at 1440px. Minimums are now derived from what has to fit inside them.
+3. **Photos cropping heads off.** `object-fit: cover` centres; Andrew is at the far left of the choir
+   and in the top eighth of the square costume photo. Focal points now travel with each photo in the
+   generated manifest and are applied by default.
+4. **A photo no crop could fix.** `stage-costume` has his parents' arms around him. Two crop attempts
+   failed; it moved to the About page with a caption.
+5. **About section flattened.** A two-column layout became a vertical stack because a stack was all
+   the widget set could express. Fixed by adding the missing primitive — `mediaText`.
+6. **Every page 500'd on `node:crypto`.** The client-side contact form imported one constant from
+   `contracts.ts`, which reaches `node:crypto` via `tokens.ts`. Webpack follows the module graph, not
+   the usage. Usage scopes moved to a dependency-free module.
+7. **Hydration failure across the whole site.** A client `SiteChrome` wrapper imported the
+   `VoiceFooter` *server* component; the bundler emitted a client reference whose factory was
+   `undefined` ("Cannot read properties of undefined (reading 'call')"). Replaced with a `(site)`
+   route group — the App Router's own answer, resolved at build time with no client component in the
+   tree.
+8. **Same error, narrower.** The guide page (server) rendered `Checklist`/`TaskCard` (client) from
+   inside a switch. Collapsed into one client module, `GuideBody`.
+9. **`npm run build` failed; `npm run dev` never noticed.** Route files exported helpers
+   (`slugify`, `fileTypeAllowed`). A route may export only handlers + segment config. Moved to
+   `lib/voice/slug.ts` and `lib/voice/upload-rules.ts`. **Always run `npm run build` before merging.**
+10. **`web-push` "Module not found" on every page load.** A bare `require()` in a try/catch is still
+    statically analysed. Indirected through a variable.
 
 ## 11. Sources
 

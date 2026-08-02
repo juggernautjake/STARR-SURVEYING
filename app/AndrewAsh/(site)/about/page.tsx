@@ -4,7 +4,7 @@
 // This file exists only to name the slug and the metadata; every page on the site is data.
 
 import type { Metadata } from 'next';
-import SystemPage, { systemPageMetadata } from '../_ui/SystemPage';
+import SystemPage, { systemPageMetadata } from '../../_ui/SystemPage';
 
 export const revalidate = 0;
 

@@ -23,7 +23,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
 import { normalizeWidgets } from '@/lib/voice/widgets';
 import { sanitizeWidgetProps, stripHtml } from '@/lib/voice/sanitize';
-import { slugify } from '../route';
+import { slugify } from '@/lib/voice/slug';
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });

@@ -29,11 +29,36 @@ export function passwordProblem(pw: string): string | null {
   return null;
 }
 
-/** Loose email shape check. Permissive on purpose: this guards a form, not a mailbox. */
-export function emailProblem(email: string): string | null {
-  const v = String(email ?? '').trim();
-  if (!v) return 'Enter your email address.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'That does not look like an email address.';
-  if (v.length > 200) return 'That email address is too long.';
+/**
+ * The login identifier may be an email OR a plain username.
+ *
+ * `va_users.email` is really "the unique login key" — it is never used to send mail from this
+ * platform (notifications go through the studio and Web Push). So there is no reason to force an
+ * address on someone who would rather type `juggernautjake`, and every reason not to: a login that
+ * demands an email from a two-person studio is friction with nothing on the other side of it.
+ *
+ * Usernames are constrained to a conservative set because this string is compared, indexed and shown
+ * in the studio — allowing whitespace or unicode look-alikes would make two visually identical
+ * accounts possible.
+ */
+export function emailProblem(identifier: string): string | null {
+  const v = String(identifier ?? '').trim();
+  if (!v) return 'Enter your username or email.';
+  if (v.length > 200) return 'That is too long.';
+
+  if (v.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'That does not look like an email address.';
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9._-]{3,60}$/.test(v)) {
+    return 'A username can use letters, numbers, dots, dashes and underscores — 3 characters or more.';
+  }
   return null;
+}
+
+/** Normalises an identifier for storage and lookup. Lower-cased so `Andrew` and `andrew` are the
+ *  same account rather than two accounts nobody can tell apart. */
+export function normalizeIdentifier(identifier: string): string {
+  return String(identifier ?? '').trim().toLowerCase();
 }

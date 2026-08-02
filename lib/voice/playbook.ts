@@ -23,7 +23,40 @@
 // The tone is deliberately plain and a bit funny. A document that reads like a compliance manual is a
 // document that gets closed on the first scroll.
 
+/**
+ * A single real-world task, broken down far enough that Andrew can do it without a second search.
+ *
+ * The owner's ask: *"if he goes in to get a business bank account, what all will he need to do that?
+ * … list it all out in chunks and make it so that the chunks are manageable so he can work through
+ * them at his own pace and not be overwhelmed."*
+ *
+ * So each task carries the four things that actually stop someone starting: what it costs, how long
+ * it takes, what to bring, and the steps — each step individually tickable. A task that says "file a
+ * DBA" is a task that gets postponed; a task that says "$15–25, 30 minutes, bring photo ID and the
+ * exact business name, go to the Bell County Clerk" is a task that gets done on a Tuesday.
+ */
+export interface PlaybookTask {
+  /** Stable id — used as the checkbox key, so renaming a task must not reset progress. */
+  id: string;
+  title: string;
+  summary: string;
+  cost: string;
+  time: string;
+  /** Where it actually happens — a website, an office, a phone call. */
+  where?: string;
+  /** What to have in hand before starting. The thing nobody tells you. */
+  need?: string[];
+  /** The steps, each individually tickable. */
+  steps: { text: string; detail?: string }[];
+  /** One thing that trips people up. */
+  gotcha?: string;
+  links?: { label: string; url: string }[];
+  /** True when this can safely wait. Rendered as a "later" chip so the list is not all urgent. */
+  optional?: boolean;
+}
+
 export type PlaybookBlock =
+  | { kind: 'tasks'; intro?: string; items: PlaybookTask[] }
   | { kind: 'para'; text: string }
   | { kind: 'lead'; text: string }
   | { kind: 'list'; items: string[]; ordered?: boolean }
@@ -69,7 +102,6 @@ const CH_SITE: PlaybookChapter = {
       summary: 'Two websites in a trench coat: the one clients see, and the one you run the business from.',
       icon: 'Compass',
       minutes: 3,
-      openByDefault: true,
       blocks: [
         {
           kind: 'lead',
@@ -104,7 +136,6 @@ const CH_SITE: PlaybookChapter = {
       summary: 'Six things to do before you show this to anybody.',
       icon: 'Rocket',
       minutes: 4,
-      openByDefault: true,
       blocks: [
         {
           kind: 'para',
@@ -232,7 +263,6 @@ const CH_RATES: PlaybookChapter = {
       summary: 'You are not selling your time. You are selling a licence.',
       icon: 'KeyRound',
       minutes: 4,
-      openByDefault: true,
       blocks: [
         {
           kind: 'lead',
@@ -271,7 +301,6 @@ const CH_RATES: PlaybookChapter = {
       summary: 'Job by job, with what to charge now and what to charge in three years.',
       icon: 'Receipt',
       minutes: 8,
-      openByDefault: true,
       blocks: [
         {
           kind: 'para',
@@ -365,7 +394,6 @@ const CH_RATES: PlaybookChapter = {
       summary: 'A music degree puts you above the hobby-teacher line on day one.',
       icon: 'GraduationCap',
       minutes: 5,
-      openByDefault: true,
       blocks: [
         {
           kind: 'para',
@@ -492,7 +520,6 @@ const CH_GROWTH: PlaybookChapter = {
       summary: 'Ranked by cost per client. The free ones are also the best ones.',
       icon: 'Target',
       minutes: 6,
-      openByDefault: true,
       blocks: [
         {
           kind: 'para',
@@ -589,7 +616,6 @@ const CH_LEGAL: PlaybookChapter = {
       summary: 'Six things. Three are free. You can do the first four in an afternoon.',
       icon: 'FileCheck',
       minutes: 9,
-      openByDefault: true,
       blocks: [
         {
           kind: 'callout',
@@ -602,50 +628,403 @@ const CH_LEGAL: PlaybookChapter = {
           text: 'Here is the good news: **you are already a business.** The moment you were paid for that telephony contract, you became a sole proprietor in the eyes of the IRS. There was no form. You do not have to "start a business" — you have to formalise the one you have.',
         },
         {
-          kind: 'checklist',
+          kind: 'tasks',
+          intro:
+            'Nine tasks, each one openable on its own. Every one tells you what it costs, how long it takes and exactly what to have in front of you before you start. Tick the steps as you go — your progress is saved to your account, so you can do one on a Tuesday and the next in three weeks.',
           items: [
             {
-              text: 'STEP 1 — Decide: sole proprietor or LLC?  (Cost: $0 or $300)',
-              detail:
-                'Sole proprietor is the default and costs nothing. An LLC costs $300 to file in Texas and separates your personal assets from the business — so if something goes badly wrong, your savings are not on the table. For voice-over specifically the liability risk is genuinely low, so most people start as a sole proprietor and form an LLC once they are earning $30–40k. That is a reasonable plan. Do not let this decision stall the other five steps.',
+              id: 'structure',
+              title: 'Decide: sole proprietor or LLC?',
+              summary: 'The only decision on this list. Ten minutes of thinking, then move on.',
+              cost: '$0 now, or $300 for an LLC',
+              time: '10 minutes to decide',
+              need: ['Nothing. This is a decision, not a filing.'],
+              steps: [
+                {
+                  text: 'Understand the default: you are already a sole proprietor',
+                  detail:
+                    'No form, no fee. Your business income goes on Schedule C of your personal return. This is what almost every voice actor starts as.',
+                },
+                {
+                  text: 'Understand what an LLC buys you',
+                  detail:
+                    'One thing: if the business is ever sued or in debt, your personal savings and car are not on the table. It does NOT change your taxes by default — a single-member LLC is still taxed as a sole proprietor.',
+                },
+                {
+                  text: 'Decide, and write the decision down',
+                  detail:
+                    'For voice-over the liability risk is genuinely low: you are not operating machinery or storing customer data. Most people start as a sole proprietor and form an LLC once they are earning $30–40k, and that is a sound plan. If you are teaching students in person, the calculation shifts a little sooner.',
+                },
+              ],
+              gotcha:
+                'Do not let this decision stall the other eight tasks. Every one of them is worth doing regardless of which way you go, and the bank account matters far more than the structure.',
             },
+
             {
-              text: 'STEP 2 — File a DBA if you trade under a name.  (Cost: ~$15–25)',
-              detail:
-                'Texas requires an "assumed name certificate" if you do business under anything other than your own legal surname. "Andrew Ash Voice" needs one; "Andrew Ash" does not. You file it with the county clerk in your county. This is also what lets you open a bank account in the business name.',
+              id: 'dba',
+              title: 'File your DBA (assumed name certificate)',
+              summary: 'Only needed if you trade under a name that is not your own surname.',
+              cost: '$15–25',
+              time: '30 minutes, in person or by mail',
+              where: 'The county clerk in the county where you live — for Belton, that is the Bell County Clerk.',
+              need: [
+                'Photo ID',
+                'The EXACT business name you want, spelled the way you want it forever',
+                'Your home or business address',
+                'Cash, card or a cheque for the filing fee — some county offices still do not take cards',
+              ],
+              steps: [
+                {
+                  text: 'Work out whether you actually need one',
+                  detail:
+                    '"Andrew Ash" trading as Andrew Ash needs nothing. "Andrew Ash Voice", "Ash Voice Studio" or anything that is not your legal surname needs an assumed name certificate.',
+                },
+                {
+                  text: 'Search the name first',
+                  detail:
+                    'Check the county clerk\'s assumed-name search AND a plain Google search for other voice actors using it. Discovering a conflict after you have printed business cards is the expensive version of this step.',
+                },
+                {
+                  text: 'Check the domain and social handles are free too',
+                  detail:
+                    'Register the name only if you can also get a matching domain. A business name you cannot put on a website is half a business name.',
+                },
+                {
+                  text: 'File it with the county clerk',
+                  detail:
+                    'Fill in the form, sign it in front of the clerk (some counties require notarisation if you file by mail), pay the fee.',
+                },
+                {
+                  text: 'Keep the stamped copy',
+                  detail:
+                    'Photograph it and upload it to Studio → Documents under Licences. The bank will ask for it, and so will you, in two years, at the worst possible moment.',
+                },
+              ],
+              gotcha:
+                'In Texas an assumed name certificate lasts ten years and then expires. Put the expiry date in your calendar the day you file it — nobody sends you a reminder.',
+              links: [
+                { label: 'Texas assumed-name FAQ', url: 'https://www.sos.state.tx.us/corp/namefilingsfaqs.shtml' },
+              ],
             },
+
             {
-              text: 'STEP 3 — Get an EIN from the IRS.  (Cost: FREE, takes 10 minutes online)',
-              detail:
-                'You do not strictly need one as a sole proprietor — you can use your SSN. Get one anyway. It is free, instant, and it means you write an EIN instead of your Social Security number on every W-9 you hand a client. You will hand out a lot of W-9s. Apply directly at irs.gov; anyone charging you for this is scamming you.',
+              id: 'ein',
+              title: 'Get an EIN from the IRS',
+              summary: 'Free, instant, online. The single easiest win on this list.',
+              cost: 'FREE — anyone charging you for this is scamming you',
+              time: '10 minutes',
+              where: 'irs.gov, directly. Not a third-party site.',
+              need: [
+                'Your Social Security number',
+                'Your legal name and address',
+                'The business name, if you filed a DBA',
+                'To be doing it between 7am and 10pm Eastern, weekdays — the IRS system genuinely closes at night',
+              ],
+              steps: [
+                {
+                  text: 'Go to the IRS EIN application directly',
+                  detail:
+                    'Search results are full of services charging $50–150 to fill in a free government form on your behalf. Type irs.gov yourself.',
+                },
+                {
+                  text: 'Choose "Sole Proprietor" (or "LLC" if you formed one)',
+                  detail: 'The reason for applying is "Started a new business" or "Banking purposes". Both are true.',
+                },
+                {
+                  text: 'Complete it in one sitting',
+                  detail:
+                    'The session times out after about 15 minutes of inactivity and does not save. Have your details ready before you start.',
+                },
+                {
+                  text: 'Download the confirmation letter (CP 575) immediately',
+                  detail:
+                    'This is the ONLY time it is offered as a download. Save the PDF to Studio → Documents under Tax. Getting a replacement later means a phone call and a wait.',
+                },
+              ],
+              gotcha:
+                'You do not strictly need an EIN as a sole proprietor — you can use your SSN. Get one anyway: it means you write an EIN instead of your Social Security number on every W-9 you hand a client, and you will hand out a lot of W-9s to people you have never met.',
+              links: [
+                {
+                  label: 'Apply for an EIN online (IRS, free)',
+                  url: 'https://www.irs.gov/businesses/small-businesses-self-employed/apply-for-an-employer-identification-number-ein-online',
+                },
+              ],
             },
+
             {
-              text: 'STEP 4 — Open a separate business bank account.  (Cost: usually FREE)',
-              detail:
-                'The single highest-value thing on this list. Every dollar in, every dollar out, through one account that is not your personal one. It turns tax time from an archaeology project into an export, and it is the first thing an auditor asks about. Do this even if you do nothing else.',
+              id: 'bank',
+              title: 'Open a business bank account',
+              summary: 'The highest-value task on this page. Do this one even if you do nothing else.',
+              cost: 'Usually free — many banks waive fees under a balance threshold',
+              time: '45 minutes in a branch, or 20 minutes online',
+              where: 'Your existing bank first — they already have your identity on file, which halves the paperwork.',
+              need: [
+                'Photo ID (driver\'s licence or passport)',
+                'Your Social Security number',
+                'Your EIN confirmation letter, if you got one',
+                'The stamped DBA certificate, if you filed one — the bank will NOT open an account in a business name without it',
+                'An opening deposit (often $25–100)',
+                'Your business address and phone number',
+              ],
+              steps: [
+                {
+                  text: 'Call ahead and ask what they require',
+                  detail:
+                    'Requirements vary by bank and even by branch. A two-minute phone call saves a wasted trip, which is the most common way this task fails.',
+                },
+                {
+                  text: 'Compare two or three options',
+                  detail:
+                    'Look for: no monthly fee (or an easily-met waiver), free incoming transfers, a good mobile app for depositing cheques, and no per-transaction charges. Online-only business banks are genuinely good at this and often free.',
+                },
+                {
+                  text: 'Open the account',
+                  detail: 'Take everything on the list above. Get the account and routing numbers before you leave.',
+                },
+                {
+                  text: 'Order a debit card and set up online access',
+                  detail: 'You want to be able to see this account from your phone, because that is where you will log expenses.',
+                },
+                {
+                  text: 'Put the account details into Stripe',
+                  detail:
+                    'So client payments through this website land in the business account rather than your personal one. Studio → Settings → Payments.',
+                },
+                {
+                  text: 'Start using it for EVERYTHING business',
+                  detail:
+                    'Every payment in, every microphone, every subscription, every tank of petrol driven to a session. Mixing personal and business spending is the single thing that turns tax time from an export into an archaeology project — and it is the first thing an auditor asks about.',
+                },
+              ],
+              gotcha:
+                'If you have not filed a DBA, open the account in your own name and simply use it only for business. That is perfectly legal for a sole proprietor and gets you 90% of the benefit today rather than in three weeks.',
             },
+
             {
-              text: 'STEP 5 — Set up quarterly estimated taxes.  (Cost: the tax you owe anyway)',
-              detail:
-                'Nobody withholds tax from a freelancer. If you will owe $1,000+ for the year, the IRS expects payments four times a year — roughly April 15, June 15, September 15 and January 15. Miss them and you get penalties on top. This is the thing that blindsides first-year freelancers, and the studio\'s finance page keeps a running 30% set-aside figure specifically so you are never surprised by it. Texas has no state income tax, which saves you an entire second filing.',
+              id: 'bookkeeping',
+              title: 'Set up your bookkeeping',
+              summary: 'Mostly done for you — this is about the habit, not the software.',
+              cost: '$0 (this website) or $15–30/mo for accounting software later',
+              time: '20 minutes to set up, 2 minutes a week thereafter',
+              need: ['Your business bank account, from the task above'],
+              steps: [
+                {
+                  text: 'Decide where the numbers live',
+                  detail:
+                    'For year one, Studio → Expenses and Studio → Invoices is genuinely enough. When you have an accountant, they may want QuickBooks or Wave; you can export to either.',
+                },
+                {
+                  text: 'Log your existing equipment as expenses',
+                  detail:
+                    'Anything you already bought for this work — microphone, interface, headphones, treatment — is deductible if you bought it this tax year. Go back through your receipts now while you can still find them.',
+                },
+                {
+                  text: 'Set the habit: photograph the receipt at the till',
+                  detail:
+                    'Not later. Later is how receipts are lost. Studio → Expenses → Add takes about thirty seconds on a phone and attaches the photo.',
+                },
+                {
+                  text: 'Set aside 30% of every payment the day it arrives',
+                  detail:
+                    'Move it to a separate savings account and pretend it is gone, because it is — it is the tax. The dashboard shows you the running figure. Freelancers who do this never have a bad April.',
+                },
+                {
+                  text: 'Diarise a monthly 20-minute review',
+                  detail: 'Check every invoice is paid, every expense is logged, and the set-aside is real money in a real account.',
+                },
+              ],
             },
+
             {
-              text: 'STEP 6 — Keep a W-9 ready, and expect 1099s.  (Cost: FREE)',
-              detail:
-                'Any client paying you $600+ in a year will ask for a Form W-9 before they pay. Fill one in once, save the PDF in Studio → Documents, and send it in thirty seconds instead of scrambling. In January they send you a 1099-NEC showing what they paid. Report all your income regardless of whether a 1099 arrives — plenty of small clients never send one, and the obligation is yours either way.',
+              id: 'quarterly',
+              title: 'Set up quarterly estimated taxes',
+              summary: 'The thing that blindsides first-year freelancers. Not hard — just unfamiliar.',
+              cost: 'The tax you owe anyway. Penalties if you skip it.',
+              time: '30 minutes to set up, 10 minutes four times a year',
+              where: 'IRS Direct Pay or EFTPS, both free.',
+              need: [
+                'Your Social Security number or EIN',
+                'Your bank account and routing number',
+                'A rough idea of your profit so far this year — the dashboard has it',
+              ],
+              steps: [
+                {
+                  text: 'Understand why this exists',
+                  detail:
+                    'An employer withholds tax from every paycheque. Nobody withholds from a freelancer, so the IRS asks you to pay as you go instead of in one lump next April.',
+                },
+                {
+                  text: 'Work out whether it applies to you yet',
+                  detail:
+                    'If you expect to owe $1,000 or more in tax for the year, it applies. On roughly $5,000+ of profit, assume it does.',
+                },
+                {
+                  text: 'Put the four dates in your calendar now',
+                  detail:
+                    'Roughly 15 April, 15 June, 15 September, and 15 January of the following year. Set the reminder a week early — the payment takes a day or two to clear.',
+                },
+                {
+                  text: 'Register for IRS Direct Pay or EFTPS',
+                  detail:
+                    'Direct Pay needs no registration and works from a bank account. EFTPS requires enrolment by post but keeps a payment history, which is genuinely useful.',
+                },
+                {
+                  text: 'Make the first payment',
+                  detail:
+                    'Use the 30% set-aside figure from your dashboard as the starting point. Paying slightly too much is refunded; paying too little accrues interest.',
+                },
+                {
+                  text: 'Note what Texas does NOT require',
+                  detail:
+                    'Texas has no personal state income tax, so there is no second state filing to make. That saves you a whole parallel process most freelancers have to run.',
+                },
+              ],
+              gotcha:
+                'Self-employment tax is 15.3% on net earnings ON TOP of income tax, and it starts at a much lower income than people expect. That is why the set-aside is 30% and not 15%.',
+              links: [
+                {
+                  label: 'IRS — estimated taxes',
+                  url: 'https://www.irs.gov/businesses/small-businesses-self-employed/estimated-taxes',
+                },
+              ],
+            },
+
+            {
+              id: 'w9',
+              title: 'Prepare your W-9 and expect 1099s',
+              summary: 'Fill one form in once, then send it in thirty seconds for the rest of your career.',
+              cost: 'FREE',
+              time: '15 minutes, once',
+              need: ['Your EIN (or SSN)', 'Your legal name and business name', 'Your address'],
+              steps: [
+                {
+                  text: 'Download a blank Form W-9 from irs.gov',
+                  detail: 'It is one page.',
+                },
+                {
+                  text: 'Fill it in correctly for a sole proprietor',
+                  detail:
+                    'Line 1 is your LEGAL name — not the business name. Line 2 is the business name / DBA. Tick "Individual/sole proprietor or single-member LLC". Use your EIN as the taxpayer number if you have one.',
+                },
+                {
+                  text: 'Sign, date and save it as a PDF',
+                  detail: 'Studio → Documents → Tax. Now it is thirty seconds to send instead of an evening of scrambling.',
+                },
+                {
+                  text: 'Know what comes back',
+                  detail:
+                    'Any client who pays you $600 or more in a calendar year sends you a Form 1099-NEC each January showing what they paid.',
+                },
+                {
+                  text: 'Report everything, 1099 or not',
+                  detail:
+                    'Plenty of small clients never send a 1099. The obligation to report the income is yours either way, and the invoices in this studio are your record of it.',
+                },
+              ],
+              gotcha:
+                'Never email a completed W-9 as a plain attachment to someone you have not verified — it contains your tax ID and address, and W-9 phishing is a real and common scam. Send it through a client portal, or confirm the request by phone first.',
+            },
+
+            {
+              id: 'homeoffice',
+              title: 'Set up your home studio records',
+              summary: 'A real deduction most freelancers under-claim because they never took the photos.',
+              cost: 'FREE',
+              time: '20 minutes, once',
+              optional: true,
+              need: ['A tape measure', 'Your phone camera', 'A recent utility bill and your rent or mortgage statement'],
+              steps: [
+                {
+                  text: 'Measure the space you record in',
+                  detail:
+                    'Note the square footage of the room or booth, and the total square footage of your home. The percentage is the basis of the deduction.',
+                },
+                {
+                  text: 'Photograph it as a working space',
+                  detail:
+                    'The deduction requires the space to be used REGULARLY and EXCLUSIVELY for the business. A booth qualifies easily; a corner of a bedroom is harder to defend. The photos are your evidence.',
+                },
+                {
+                  text: 'Save one month of each bill',
+                  detail:
+                    'Rent or mortgage interest, electricity, internet. The business share of each is deductible at the same percentage.',
+                },
+                {
+                  text: 'Note the simplified option',
+                  detail:
+                    'The IRS also allows a flat $5 per square foot up to 300 sq ft, with no bills required. For a small booth that is often both easier and comparable — your accountant can compare the two in five minutes.',
+                },
+              ],
+              gotcha:
+                '"Exclusively" is the word that matters. A room that is also the guest bedroom does not qualify; a treated closet used only for recording does.',
+            },
+
+            {
+              id: 'insurance',
+              title: 'Business insurance',
+              summary: 'Not yet — but know the trigger that makes it necessary.',
+              cost: '$300–500/year for general liability',
+              time: '30 minutes when the time comes',
+              optional: true,
+              need: ['Your business name and structure', 'A rough annual revenue figure'],
+              steps: [
+                {
+                  text: 'Know the three triggers',
+                  detail:
+                    'You teach students in person; a corporate client asks for a certificate of insurance before they will contract with you; or you start renting outside studio space.',
+                },
+                {
+                  text: 'Check your renter\'s or homeowner\'s policy first',
+                  detail:
+                    'Most personal policies exclude business equipment. A $2,000 microphone stolen from a home studio may not be covered — worth knowing before it happens, not after.',
+                },
+                {
+                  text: 'Get quotes when a trigger fires',
+                  detail:
+                    'General liability plus equipment cover is the usual pairing for a voice actor. Some professional associations bundle it more cheaply than going direct.',
+                },
+              ],
+            },
+
+            {
+              id: 'cpa',
+              title: 'Talk to an accountant once',
+              summary: 'One hour, before your first full tax year ends. It pays for itself.',
+              cost: '$150–300 for a first consultation',
+              time: '1 hour',
+              need: [
+                'Your revenue and expenses so far — export them from Studio → Expenses',
+                'A list of your questions, written down beforehand',
+              ],
+              steps: [
+                {
+                  text: 'Find someone who works with freelancers',
+                  detail:
+                    'Not a chain tax-prep shop. Ask other performers, teachers or photographers locally — the good ones are found by word of mouth.',
+                },
+                {
+                  text: 'Book it for October or November',
+                  detail:
+                    'Early enough that anything they suggest can still be done before the year ends, and before they disappear into filing season.',
+                },
+                {
+                  text: 'Bring the specific questions',
+                  detail:
+                    'Should I form an LLC yet? Am I setting aside enough? Is my home studio deductible as I have it set up? Should I elect §179 on the equipment? Those four are worth the fee on their own.',
+                },
+                {
+                  text: 'Ask what they want from you monthly',
+                  detail: 'Then set that up now, rather than reconstructing it in April.',
+                },
+              ],
+              gotcha:
+                'Everything in this guide is researched and sourced, and none of it is advice about YOUR situation. This is the task that turns it into advice.',
             },
           ],
         },
         {
           kind: 'para',
-          text: 'Two more worth knowing about, neither urgent:',
-        },
-        {
-          kind: 'list',
-          items: [
-            '**Sales tax** — Texas generally does not tax professional services like voice-over or lessons. If you ever sell a physical product (a CD, merchandise), that changes and you need a sales tax permit. Ask the CPA.',
-            '**Insurance** — general liability runs about $300–500/year. Not urgent while you record alone at home. It becomes worth it when you start teaching students in person, or when a corporate client asks for proof of insurance, which some will.',
-          ],
+          text: 'One more worth knowing about: **sales tax.** Texas generally does not tax professional services like voice-over or lessons, so there is usually nothing to register for. If you ever sell a physical product — a CD, merchandise — that changes and you need a sales tax permit. It is a question for the accountant.',
         },
         {
           kind: 'callout',
