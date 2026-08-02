@@ -39,6 +39,8 @@ import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } 
 import ResearchRunPanel from '../components/ResearchRunPanel';
 // What the run has spent and how much of its budget is left (research plan R22).
 import RunConsoleBar from '../components/RunConsoleBar';
+// What changed since the last run — research is not a one-shot (research plan R27).
+import RunDiffPanel from '../components/RunDiffPanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -1811,6 +1813,9 @@ export default function ResearchProjectPage() {
                 neither, so an operator watching a 25-minute run could not tell what it had spent or
                 whether it would finish. */}
             <RunConsoleBar projectId={projectId} />
+            {/* A job that sat for three months and gained two new deeds needs to say so, and the
+                approved packet needs to be told it is out of date (plan R27). */}
+            <RunDiffPanel projectId={projectId} />
             <ResearchRunPanel
               projectId={projectId}
               address={pendingSearchParams?.address ?? project.property_address ?? ''}

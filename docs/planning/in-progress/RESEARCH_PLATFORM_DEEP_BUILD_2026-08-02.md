@@ -1188,7 +1188,39 @@ polish — nothing else in this plan can be trusted while the engine is down and
   document offline.
   *Acceptance:* a field user opens the job and reads the plan without touching the research UI.
 
-- **R27. Re-run diff.**
+- **R27. Re-run diff.** ✅ DONE 2026-08-02
+
+  **Shipped** (`lib/research/run-diff.ts` + the run-diff route + `RunDiffPanel`, mounted on the
+  project page).
+
+  Two gaps, not one. `PipelineDiffEngine` exists, diffs boundary calls between two stored versions,
+  and an API route calls it — but **no screen ever rendered it**, so the engine has been running for
+  nobody. And its scope is narrower than the plan asks: "new instruments, changed CAD values, new
+  imagery" is document- and fact-level change, and a job that sat for three months and gained two new
+  deeds needs to be told that.
+
+  **The honest problem is *changes*.** Additions are exact — `created_at` proves them. But nothing
+  snapshots a CAD value per run, so "this acreage used to read 2.45" is unanswerable in general —
+  *except* where a row keeps both halves, which is precisely what R23's corrections do (`raw_value`
+  alongside `corrected_value`). So this reports what it can prove and prints what it cannot: *"a CAD
+  acreage revised in place is not detectable, because nothing snapshots those values per run."* A
+  diff that silently omits changed values is worse than one that admits it detects additions and
+  corrections only.
+
+  The window opens at the **previous run's start**, not its finish: a document fetched during that
+  run belongs to it, and windowing on the finish would report the whole of the last run's haul as new
+  work on the next one.
+
+  `materialChanges()` separates a new deed or a corrected bearing — which invalidate conclusions
+  drawn without them — from a new aerial photo, which usually does not. That is the difference
+  between a change list and a to-do. And `packetImpact()` tells an **approved packet** it is out of
+  date: *"the approved packet does not reflect them — re-assemble it before the crew goes out"*,
+  rendered prominently rather than as a footnote, because it is the most consequential thing on the
+  panel. A first run says so explicitly, because "no previous run" is not "nothing changed".
+
+  Root suite 21,652 passing; typecheck clean.
+
+  Original item:
   Surface `pipeline-diff-engine`: what changed since the last run — new instruments, changed CAD
   values, new imagery. Research is not a one-shot; a job that sits for three months needs this.
   *Acceptance:* a second run on the same property shows an explicit change list, not a new blob.

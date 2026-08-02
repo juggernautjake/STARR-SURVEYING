@@ -11510,3 +11510,60 @@
   background: #B91C1C;
   border-color: #B91C1C;
 }
+
+/* ── Re-run diff (plan R27) ───────────────────────────────────────────────── */
+
+.run-diff {
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid #E5E7EB;
+  border-left: 4px solid #9CA3AF;
+  border-radius: 6px;
+  background: #F9FAFB;
+  font-size: 0.8rem;
+  color: #374151;
+}
+
+/* A new deed or a corrected bearing invalidates conclusions drawn without them. A new aerial photo
+   usually does not — so only the material ones change the panel's colour. */
+.run-diff--material { border-left-color: #B45309; background: #FFFBEB; }
+.run-diff--bad      { border-left-color: #DC2626; background: #FEF2F2; color: #991B1B; }
+
+.run-diff__headline { margin: 0 0 0.4rem; font-weight: 650; color: #111827; }
+
+/* The approved packet being out of date is the most consequential thing here, so it is not a
+   footnote. */
+.run-diff__packet-impact {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: #FEE2E2;
+  color: #991B1B;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.run-diff__list { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+
+.run-diff__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.run-diff__item--material .run-diff__item-label { color: #92400E; }
+.run-diff__item-label { font-weight: 650; color: #111827; }
+.run-diff__item-detail { color: #6B7280; }
+.run-diff__item-at { margin-left: auto; font-size: 0.72rem; color: #9CA3AF; }
+
+.run-diff__caveat {
+  margin: 0.3rem 0 0;
+  font-size: 0.74rem;
+  color: #6B7280;
+  font-style: italic;
+}
