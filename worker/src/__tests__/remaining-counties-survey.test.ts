@@ -2,13 +2,18 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  BOSQUE_GAP,
+  BROWSER_CONFIRMED_DEAD,
   COUNTYFUSION_HOST,
   COUNTYFUSION_LIVE_HOSTS,
   COUNTYFUSION_RIGHT_TLD,
   COUNTYFUSION_WRONG_TLD,
   REMAINING_COUNTY_SURVEY,
+  bosqueGapWarning,
   describeCounty,
   freePathWarning,
+  idocMarketSearchUrl,
+  IDOCMARKET_TX_COUNTIES,
 } from '../adapters/remaining-counties-survey.js';
 import { isVendorProven } from '../services/clerk-registry.js';
 
@@ -65,7 +70,9 @@ describe('a free window is not the whole record', () => {
     const w = freePathWarning('Bosque', 1995);
     expect(w).toContain('FREE index covers 1847–1905');
     expect(w).toContain('NOT that it does not exist');
-    expect(w).toContain('iDocMarket');
+    // 1995 sits in the hole between the two free indexes, so the blocker points at that rather
+    // than at a single paid alternative.
+    expect(w).toContain('1906–2011 is not in either free index');
   });
 
   it('stays quiet inside the free window', () => {
@@ -82,5 +89,56 @@ describe('a free window is not the whole record', () => {
     // Silence beats inventing a coverage claim.
     expect(freePathWarning('Limestone', 1900)).toBeNull();
     expect(freePathWarning('Lee', 1900)).toBeNull();
+  });
+});
+
+describe('the other three vendors were re-probed in a browser, and are genuinely dead', () => {
+  it('records that the browser confirmed what fetch said', () => {
+    // After the CountyFusion typo, every "dead" URL was re-probed with a real browser rather than
+    // fetch. R37 was right about these three and wrong only about CountyFusion.
+    expect(BROWSER_CONFIRMED_DEAD.henschen).toEqual({ urls: 16, failure: 'ERR_NAME_NOT_RESOLVED' });
+    expect(BROWSER_CONFIRMED_DEAD.idocket).toEqual({ urls: 18, failure: 'HTTP 404' });
+    expect(BROWSER_CONFIRMED_DEAD.fidlar).toEqual({ urls: 6, failure: 'ERR_NAME_NOT_RESOLVED' });
+  });
+
+  it('keeps all three out of the proven vendors', () => {
+    for (const v of ['henschen', 'idocket', 'fidlar'] as const) expect(isVendorProven(v), v).toBe(false);
+  });
+});
+
+describe('iDocMarket, found while re-probing iDocket', () => {
+  it('builds a search URL for its Texas counties', () => {
+    expect(idocMarketSearchUrl('Bosque')).toBe('https://www.idocmarket.com/BOSTX1/Document/Search');
+  });
+
+  it('lists the seven Texas counties it serves', () => {
+    expect(Object.keys(IDOCMARKET_TX_COUNTIES)).toHaveLength(7);
+    expect(IDOCMARKET_TX_COUNTIES.Bosque).toBe('BOSTX1');
+  });
+
+  it('returns null for a county it does not serve', () => {
+    expect(idocMarketSearchUrl('Bell')).toBeNull();
+  });
+});
+
+describe('Bosque\'s two free indexes do not meet', () => {
+  it('warns for a year in the gap', () => {
+    // QuickLink stops 1905, iDocMarket starts 2012. A 1950 deed is in NEITHER, so both searches
+    // return nothing — and two empty results look like a thorough search that found nothing, which
+    // is the most convincing possible way to be wrong about whether a deed exists.
+    const w = bosqueGapWarning(1950);
+    expect(w).toContain('gap between the two free indexes');
+    expect(w).toContain('two empty results are not evidence the deed does not exist');
+    expect(w).toContain('Meridian');
+  });
+
+  it('covers the whole gap inclusively', () => {
+    expect(bosqueGapWarning(BOSQUE_GAP.from)).not.toBeNull();
+    expect(bosqueGapWarning(BOSQUE_GAP.to)).not.toBeNull();
+  });
+
+  it('stays quiet on either side of it', () => {
+    expect(bosqueGapWarning(1880)).toBeNull();   // QuickLink covers it
+    expect(bosqueGapWarning(2020)).toBeNull();   // iDocMarket covers it
   });
 });

@@ -41,11 +41,13 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
     status: 'open_partial',
     url: 'https://kofilequicklinks.com/Bosque/',
     freeCoverage: '1847–1905 (deed index books and volumes)',
-    blocker: 'Records from 1984 to current are on iDocMarket and charged ($5/day + $1/page).',
+    blocker: 'See BOSQUE_GAP — 1906–2011 is not in either free index.',
     note:
-      'Kofile QuickLink is FULLY OPEN — no login, no payment — and serves the historical deed books by ' +
-      'type, year and party, plus book/volume/page lookup. For boundary work those early deeds are ' +
-      'often the operative ones, so a partial free window here is worth more than the year count suggests.',
+      'TWO free portals, and a hole between them. Kofile QuickLink is FULLY OPEN — no login, no ' +
+      'payment — for the historical deed books (type/year/party, plus book/volume/page). iDocMarket ' +
+      'carries the modern index and its Basic Search also opens without a login, but it starts in ' +
+      '2012. For boundary work the early deeds are often the operative ones, so the historical window ' +
+      'is worth more than its year count suggests.',
   },
   Limestone: {
     fips: '48293',
@@ -66,6 +68,65 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
   Lee: { fips: '48287', status: 'not_found', url: null, note: 'Not yet hunted.' },
   'San Saba': { fips: '48411', status: 'not_found', url: null, note: 'Not yet hunted.' },
 };
+
+// ── THE THREE OTHER "DEAD" VENDORS ARE GENUINELY DEAD ───────────────────────────────────────────
+//
+// After the CountyFusion typo, every URL R37 declared dead was re-probed in a real BROWSER rather
+// than with fetch. The verdict held for all three:
+//
+//     Henschen   16/16  ERR_NAME_NOT_RESOLVED — `<county>.co.texas.us` does not exist as a pattern
+//     iDocket    18/18  HTTP 404 — the host resolves, the paths do not
+//     Fidlar      6/6   ERR_NAME_NOT_RESOLVED
+//
+// So R37 was right about these and wrong only about CountyFusion. Recorded so nobody re-runs the
+// sweep hoping the browser will find something: it already has been re-run, this way.
+//
+// iDocket carries a second correction. `online.idocket.com` is alive and is **Judicial Case
+// Search** — court cases, not land records. It was never a deeds vendor, so its counties belonged
+// in a clerk-deeds registry only by mistake.
+
+/** Confirmed dead in a browser on 2026-08-02, not merely by fetch. */
+export const BROWSER_CONFIRMED_DEAD: Record<string, { urls: number; failure: string }> = {
+  henschen: { urls: 16, failure: 'ERR_NAME_NOT_RESOLVED' },
+  idocket: { urls: 18, failure: 'HTTP 404' },
+  fidlar: { urls: 6, failure: 'ERR_NAME_NOT_RESOLVED' },
+};
+
+/** iDocMarket — the land-records product, found while re-probing iDocket.
+ *
+ *  Its Basic Search opens without a login. Seven Texas counties, of which only Bosque is inside the
+ *  80-mile ring; the rest are recorded because finding them cost nothing and re-finding them would. */
+export const IDOCMARKET_TX_COUNTIES: Record<string, string> = {
+  Bosque: 'BOSTX1',
+  Glasscock: 'GLATX1',
+  Hartley: 'HARTX1',
+  Hemphill: 'HEMTX1',
+  Lamb: 'LAMTX1',
+  Reagan: 'REATX1',
+  Sutton: 'SUTTX1',
+};
+
+export function idocMarketSearchUrl(county: string): string | null {
+  const code = IDOCMARKET_TX_COUNTIES[county.replace(/\s+county$/i, '').trim()];
+  return code ? `https://www.idocmarket.com/${code}/Document/Search` : null;
+}
+
+/** Bosque's two free indexes do not meet.
+ *
+ *  QuickLink stops in 1905; iDocMarket starts in 2012. A deed recorded in 1950 is in NEITHER, and
+ *  both searches return nothing. Two empty results look like a thorough search that found nothing —
+ *  which is the most convincing possible way to be wrong about whether a deed exists. */
+export const BOSQUE_GAP = { from: 1906, to: 2011 } as const;
+
+export function bosqueGapWarning(year: number): string | null {
+  if (year < BOSQUE_GAP.from || year > BOSQUE_GAP.to) return null;
+  return (
+    `Bosque: ${year} falls in the gap between the two free indexes — QuickLink ends 1905 and ` +
+    `iDocMarket begins 2012. BOTH will return nothing, and two empty results are not evidence the ` +
+    `deed does not exist. Records for ${BOSQUE_GAP.from}–${BOSQUE_GAP.to} must be obtained from the ` +
+    `clerk in Meridian or through a paid iDocMarket subscription.`
+  );
+}
 
 /** The CountyFusion host that actually answers. */
 export const COUNTYFUSION_HOST = (n: number): string => `https://countyfusion${n}.kofiletech.us/countyweb/`;

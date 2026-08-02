@@ -1934,6 +1934,47 @@ decision.
 **"Not found" here means an unfinished search. It does not mean a county without records** — and
 `describeCounty()` says exactly that, so no run can quietly report it the other way. Seed 555.
 
+#### R39, ninth finding — the other three vendors really are dead, and Bosque has a century-wide hole
+
+Because CountyFusion was alive on a corrected TLD, and because `fetch` fails against those hosts
+while a browser does not, **every** fetch-based "dead" verdict became suspect. All 40 remaining URLs
+were re-probed in a real browser:
+
+| Vendor | Result |
+|---|---|
+| Henschen | **16/16** `ERR_NAME_NOT_RESOLVED` — `<county>.co.texas.us` is not a real pattern |
+| iDocket | **18/18** HTTP 404 — the host resolves, the paths do not |
+| Fidlar | **6/6** `ERR_NAME_NOT_RESOLVED` |
+
+R37 was right about these three and wrong only about CountyFusion. **A confirmed negative is worth
+writing down** — it is the difference between a closed question and a suspicion that costs an
+afternoon every time somebody rediscovers it.
+
+**iDocket was never a deeds vendor.** `online.idocket.com` is alive and is **Judicial Case Search** —
+court cases, not land records. Its counties sat in a clerk-deeds registry by mistake, and searching a
+court docket for a warranty deed returns nothing, which would have been recorded as "this property
+has no deeds".
+
+That led to **iDocMarket**, the actual land-records product. Its Basic Search opens with **no login**
+and it serves seven Texas counties — Bosque, Glasscock, Hartley, Hemphill, Lamb, Reagan, Sutton.
+Bosque's index states **2012–2026** and the form is fully exposed (date range, document number,
+book/volume/page, party name and type). The search was *not* driven to results, so it is recorded as
+located, not working.
+
+**The finding worth the most here: Bosque's two free indexes do not meet.**
+
+```
+Kofile QuickLink   1847 – 1905     free, no login
+iDocMarket         2012 – 2026     free to search, no login
+─────────────────────────────────────────────────────────
+NEITHER            1906 – 2011     a hole a century wide
+```
+
+A deed recorded in 1950 is in neither index. Both searches return nothing — and **two empty results
+look like a thorough search that found nothing**, which is the most convincing possible way to be
+wrong about whether a deed exists. `bosqueGapWarning()` names the gap and sends the researcher to the
+clerk in Meridian or a paid subscription. Seed 556.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
