@@ -165,3 +165,40 @@ export function narrowByYear(from: Date, to: Date, years = 5): Array<{ from: Dat
 
 /** Results were driven end to end on 2026-08-02: SMITH JAMES, 2025, McLennan → 14 documents. */
 export const TYLER_RESULTS_PROVEN = true;
+
+/** Tyler serves 100 result cards per page. */
+export const TYLER_PAGE_SIZE = 100;
+
+/** A pager that never disables Next would loop forever; this is far beyond any real search. */
+export const TYLER_MAX_PAGES = 200;
+
+/** Should the walker fetch another page?
+ *
+ *  Kept pure and separate from the browser so the stop condition is testable. Getting it wrong in
+ *  either direction is expensive: stopping early silently drops documents while looking like a
+ *  complete answer, and never stopping hangs a research run. */
+export function shouldContinuePaging(currentPage: number, totalPages: number, pagesRead: number): boolean {
+  if (!Number.isFinite(currentPage) || !Number.isFinite(totalPages)) return false;
+  if (pagesRead >= TYLER_MAX_PAGES) return false;
+  return currentPage < totalPages;
+}
+
+/** Say plainly whether a paged read got everything.
+ *
+ *  A short answer that claims to be complete is worse than a short answer that admits it is not. */
+export function describeCompleteness(
+  county: string,
+  parsed: number,
+  pagesRead: number,
+  totalPages: number | null,
+  totalResults: number | null,
+): string {
+  const parts = [`${county}: ${parsed} document(s) across ${pagesRead} page(s).`];
+  if (totalPages !== null && pagesRead < totalPages) {
+    parts.push(`INCOMPLETE — the portal reported ${totalPages} page(s) but only ${pagesRead} were read.`);
+  }
+  if (totalResults !== null && parsed < totalResults) {
+    parts.push(`The portal reported ${totalResults} total result(s); ${parsed} were parsed.`);
+  }
+  return parts.join(' ');
+}

@@ -1826,6 +1826,35 @@ volume stays a string. Parsing it as a number yields `NaN` and merges every lett
 
 Both counties are now routed and proven. Seed 552 supersedes 551. **Verified counties: 18 → 20.**
 
+#### R39, sixth finding — page one was never the answer
+
+The Tyler adapter read the first page of results and returned it. Tyler serves **100 cards per
+page** and states the rest in its own banner:
+
+> *"Showing page 1 of 5 for 436 Total Results"*
+
+So a search matching 436 documents returned 100, with nothing marking it short. **That is worse than
+an empty result, not better.** An empty result at least looks like a question; 100 documents look
+like an answer. A surveyor would have built a chain of title on a quarter of the county's records
+with no reason to doubt it.
+
+The walker now advances through the pager's `Next` control — results live in session state, so
+there is no page-2 URL to request — and waits for the **banner's page number to change** before
+reading. Clicking Next and reading immediately re-reads the page just left, returning the same 100
+documents twice and stopping early. Records are deduplicated by instrument number across pages,
+because a record shifting page mid-walk would otherwise read as two conveyances of the same land.
+
+**Driven:** McLennan, grantee `SMITH`, 2025 → **196 documents across 2 pages, 0 duplicates**, 160
+carrying legal descriptions, spanning 01/02/2025 to 12/30/2025. The same search previously returned
+100.
+
+`describeCompleteness()` states *"INCOMPLETE — the portal reported N page(s) but only M were read"*
+whenever the walk stops early, and reports any shortfall against the portal's own total. Bounded at
+200 pages, because a pager that never disables Next would hang a research run. Seed 553.
+
+**This limit still applies to the Avenu 20/20 counties** (Falls, Robertson), which page at 20 and
+read only page one — declared in every result rather than hidden. That is the next slice.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

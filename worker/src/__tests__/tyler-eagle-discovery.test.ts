@@ -4,10 +4,14 @@ import { describe, it, expect } from 'vitest';
 import {
   TYLER_EAGLE_PORTALS,
   TYLER_FIELDS,
+  TYLER_MAX_PAGES,
+  TYLER_PAGE_SIZE,
   TYLER_RESULTS_PROVEN,
   TYLER_SEARCH_BUTTON,
+  describeCompleteness,
   narrowByYear,
   readSearchOutcome,
+  shouldContinuePaging,
   tylerEagleUrl,
 } from '../adapters/tyler-eagle-discovery.js';
 import { getClerkSystem, isVendorProven } from '../services/clerk-registry.js';
@@ -131,5 +135,58 @@ describe('the field map read off the live form', () => {
     // A looser id match opens the per-field help dialog instead, which is indistinguishable from a
     // search that returned nothing.
     expect(TYLER_SEARCH_BUTTON).toBe('a#searchButton');
+  });
+});
+
+describe('paging stops in the right place', () => {
+  it('keeps going while pages remain', () => {
+    expect(shouldContinuePaging(1, 5, 1)).toBe(true);
+    expect(shouldContinuePaging(4, 5, 4)).toBe(true);
+  });
+
+  it('stops on the last page', () => {
+    // Off by one here re-reads the final page forever.
+    expect(shouldContinuePaging(5, 5, 5)).toBe(false);
+  });
+
+  it('stops on a single-page result', () => {
+    expect(shouldContinuePaging(1, 1, 1)).toBe(false);
+  });
+
+  it('refuses to run past the hard cap', () => {
+    // A pager that never disables Next would otherwise hang a research run.
+    expect(shouldContinuePaging(1, 9999, TYLER_MAX_PAGES)).toBe(false);
+  });
+
+  it('stops rather than looping on a nonsense banner', () => {
+    expect(shouldContinuePaging(NaN, 5, 1)).toBe(false);
+    expect(shouldContinuePaging(1, NaN, 1)).toBe(false);
+  });
+
+  it('records the page size the portal actually serves', () => {
+    expect(TYLER_PAGE_SIZE).toBe(100);
+  });
+});
+
+describe('a short answer never claims to be complete', () => {
+  it('says nothing extra when every page was read', () => {
+    const s = describeCompleteness('McLennan', 196, 2, 2, 196);
+    expect(s).toBe('McLennan: 196 document(s) across 2 page(s).');
+  });
+
+  it('says INCOMPLETE when pages were missed', () => {
+    // Silently returning page one of five looks exactly like a complete answer, which is why this
+    // is stated rather than inferred.
+    const s = describeCompleteness('McLennan', 100, 1, 5, 436);
+    expect(s).toContain('INCOMPLETE');
+    expect(s).toContain('reported 5 page(s) but only 1 were read');
+  });
+
+  it('reports a shortfall against the portal\'s own total', () => {
+    expect(describeCompleteness('Hill', 90, 1, 1, 100)).toContain('reported 100 total result(s); 90 were parsed');
+  });
+
+  it('stays quiet when totals are unknown', () => {
+    expect(describeCompleteness('Mills', 5, 1, null, null)).toBe('Mills: 5 document(s) across 1 page(s).');
   });
 });

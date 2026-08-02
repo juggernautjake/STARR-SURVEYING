@@ -21,9 +21,12 @@ import {
 import {
   TYLER_EAGLE_PORTALS,
   TYLER_FIELDS,
+  TYLER_MAX_PAGES,
   TYLER_SEARCH_BUTTON,
+  describeCompleteness,
   narrowByYear,
   readSearchOutcome,
+  shouldContinuePaging,
   tylerEagleUrl,
   type TylerSearchResponse,
 } from './tyler-eagle-discovery.js';
@@ -205,26 +208,93 @@ export class TylerEagleAdapter extends ClerkAdapter {
 
     if (outcome.state !== 'has_results') return { outcome, results: [] };
 
-    // Invoked, not just passed: `page.evaluate("() => {...}")` evaluates the string as an
-    // EXPRESSION, which yields the function object itself and serialises to undefined. The same
-    // mistake in the Kofile discovery reported every county as having no departments.
-    const cards = (await page.evaluate(`(${READ_CARDS})()`)) as TylerCard[];
-    const report = parseResults(cards, pageText);
-    this.lastParseSummary = describeParse(report, this.countyName);
-    console.log(`[Tyler/${this.countyName}] ${this.lastParseSummary}`);
+    const results = await this.readAllPages(pageText);
+    return { outcome, results };
+  }
 
-    return {
-      outcome,
-      results: report.rows.map((r) => ({
-        instrumentNumber: r.instrumentNumber,
-        documentType: this.classifyDocumentType(r.documentType) as DocumentType,
-        recordingDate: r.recordingDate,
-        grantors: r.grantors,
-        grantees: r.grantees,
-        legalDescription: r.legalDescription,
-        source: 'tyler_eagle',
-      })),
-    };
+  /** Read every page of a result set, not just the first.
+   *
+   *  Tyler serves 100 cards per page and states the rest in its banner — "Showing page 1 of 5 for
+   *  436 Total Results". Returning page one would have silently dropped 336 documents while looking
+   *  exactly like a complete answer, which is the same defect as an empty result and harder to
+   *  notice because something did come back.
+   *
+   *  Paging advances through the "Next" control rather than a URL, because the results live in
+   *  session state; there is no page-2 address to request. */
+  private async readAllPages(firstPageText: string): Promise<ClerkDocumentResult[]> {
+    const page = this.page!;
+    const out: ClerkDocumentResult[] = [];
+    const seen = new Set<string>();
+    let pageText = firstPageText;
+    let expectedPages: number | null = null;
+    let pagesRead = 0;
+
+    while (pagesRead < TYLER_MAX_PAGES) {
+      // Invoked, not just passed: `page.evaluate("() => {...}")` evaluates the string as an
+      // EXPRESSION, which yields the function object itself and serialises to undefined. The same
+      // mistake in the Kofile discovery reported every county as having no departments.
+      const cards = (await page.evaluate(`(${READ_CARDS})()`)) as TylerCard[];
+      const report = parseResults(cards, pageText);
+      pagesRead += 1;
+      if (expectedPages === null) expectedPages = report.banner?.pages ?? 1;
+
+      for (const r of report.rows) {
+        // Dedupe across pages: a record shifting between pages while we walk them would otherwise
+        // appear twice, and a duplicated deed reads as two conveyances.
+        if (seen.has(r.instrumentNumber)) continue;
+        seen.add(r.instrumentNumber);
+        out.push({
+          instrumentNumber: r.instrumentNumber,
+          documentType: this.classifyDocumentType(r.documentType) as DocumentType,
+          recordingDate: r.recordingDate,
+          grantors: r.grantors,
+          grantees: r.grantees,
+          legalDescription: r.legalDescription,
+          source: 'tyler_eagle',
+        });
+      }
+
+      const current = report.banner?.page ?? pagesRead;
+      if (!shouldContinuePaging(current, expectedPages ?? 1, pagesRead)) break;
+
+      const advanced = await this.clickNext(current);
+      if (!advanced) break;
+      pageText = await page.evaluate(() => document.body.innerText);
+    }
+
+    const total = parseResults([], pageText).banner?.total ?? null;
+    this.lastParseSummary = describeCompleteness(this.countyName, out.length, pagesRead, expectedPages, total);
+    console.log(`[Tyler/${this.countyName}] ${this.lastParseSummary}`);
+    return out;
+  }
+
+  /** Click the pager's Next and wait for the page number to actually change.
+   *
+   *  Waiting on the banner rather than a delay: clicking Next and reading immediately re-reads the
+   *  page just left, which would return the same 100 documents twice and stop early. */
+  private async clickNext(currentPage: number): Promise<boolean> {
+    const page = this.page!;
+    const clicked = await page.evaluate(() => {
+      const next = Array.from(document.querySelectorAll('a')).find(
+        (a) => (a.textContent || '').trim().toLowerCase() === 'next' && !/ui-disabled/.test(a.className || ''),
+      ) as HTMLElement | undefined;
+      if (!next) return false;
+      next.click();
+      return true;
+    });
+    if (!clicked) return false;
+
+    return page
+      .waitForFunction(
+        (prev) => {
+          const m = /Showing page (\d+) of/i.exec(document.body.innerText);
+          return !!m && Number(m[1]) > prev;
+        },
+        currentPage,
+        { timeout: 60_000, polling: 400 },
+      )
+      .then(() => true)
+      .catch(() => false);
   }
 
   /** Search, and if the portal says "too many", split the window and search each slice.
