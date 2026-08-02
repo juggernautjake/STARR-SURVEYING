@@ -289,6 +289,32 @@ export class KofileClerkAdapter extends ClerkAdapter {
     return new Promise<void>((resolve) => { setTimeout(resolve, ms); });
   }
 
+  /** Build a Kofile results URL from a search term. Verified against the live site 2026-08-02.
+   *
+   *  The old construction — `?searchOper=…&searchString=…` — is IGNORED by the site and returns a
+   *  results page with zero rows and no error. That is worse than a 404: a 404 fails loudly and the
+   *  health check catches it, while an empty results page is indistinguishable from "this property
+   *  has no records". Every search through this adapter was returning an empty index as an answer.
+   *
+   *  `recordedDateRange` is required — omitting it returns nothing. The default spans everything,
+   *  because a chain of title needs the earliest instrument the county holds. */
+  private resultsUrl(
+    term: string,
+    opts: { limit?: number; offset?: number; ocr?: boolean; from?: string; to?: string } = {},
+  ): string {
+    const from = opts.from ?? '18000101';
+    const to = opts.to ?? new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const params = new URLSearchParams({
+      department: 'RP',
+      limit: String(opts.limit ?? 50),
+      offset: String(opts.offset ?? 0),
+      q: term,
+      recordedDateRange: `${from},${to}`,
+      searchOcrText: String(opts.ocr ?? false),
+    });
+    return `${this.config.baseUrl}${this.config.searchPath}?${params.toString()}`;
+  }
+
   // ── Search methods ────────────────────────────────────────────────────────────
 
   async searchByInstrumentNumber(instrumentNo: string): Promise<ClerkDocumentResult[]> {
@@ -298,9 +324,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
     return this.withSessionRetry(async () => {
       console.log(`[Kofile/${this.countyName}] Searching instrument# ${instrumentNo}...`);
 
-      const searchUrl =
-        `${this.config.baseUrl}${this.config.searchPath}` +
-        `?searchOper=instrument&searchString=${instrumentNo}`;
+      const searchUrl = this.resultsUrl(instrumentNo);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
@@ -316,9 +340,9 @@ export class KofileClerkAdapter extends ClerkAdapter {
     return this.withSessionRetry(async () => {
       console.log(`[Kofile/${this.countyName}] Searching Vol ${volume}, Pg ${pg}...`);
 
-      const searchUrl =
-        `${this.config.baseUrl}${this.config.searchPath}` +
-        `?searchOper=book&volume=${volume}&page=${pg}`;
+      // The site exposes no volume/page operator. Its free-text search matches the column the
+      // results table labels "Book/Volume/Page", so the two values are searched as one term.
+      const searchUrl = this.resultsUrl(`${volume} ${pg}`);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
@@ -342,9 +366,9 @@ export class KofileClerkAdapter extends ClerkAdapter {
 
       console.log(`[Kofile/${this.countyName}] Searching grantee: "${cleanName}"...`);
 
-      const searchUrl =
-        `${this.config.baseUrl}${this.config.searchPath}` +
-        `?searchOper=grantee&searchString=${encodeURIComponent(cleanName)}`;
+      // One free-text index covers both party columns; `parseSearchResults` reads the Grantor and
+      // Grantee cells, so filtering by role happens after the search rather than in the URL.
+      const searchUrl = this.resultsUrl(cleanName);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
@@ -356,9 +380,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
         console.log(
           `[Kofile/${this.countyName}] ${results.length} results — retrying with full name: "${name}"`,
         );
-        const refinedUrl =
-          `${this.config.baseUrl}${this.config.searchPath}` +
-          `?searchOper=grantee&searchString=${encodeURIComponent(name)}`;
+        const refinedUrl = this.resultsUrl(name);
 
         await this.page!.goto(refinedUrl, { waitUntil: 'networkidle', timeout: 30_000 });
         await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);
@@ -383,9 +405,7 @@ export class KofileClerkAdapter extends ClerkAdapter {
 
       console.log(`[Kofile/${this.countyName}] Searching grantor: "${cleanName}"...`);
 
-      const searchUrl =
-        `${this.config.baseUrl}${this.config.searchPath}` +
-        `?searchOper=grantor&searchString=${encodeURIComponent(cleanName)}`;
+      const searchUrl = this.resultsUrl(cleanName);
 
       await this.page!.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       await this.page!.waitForTimeout(RATE_LIMIT_MS.SEARCH_TYPE);

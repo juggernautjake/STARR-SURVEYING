@@ -1547,18 +1547,18 @@ for each of these, which is what "fully built" means here.
    Read alongside "Pflugerville" and "Round Rock", the city reading is almost certainly right.
    **Owner to confirm.**
 
-- **R35. Place → county resolution.**
+- **R35. Place → county resolution.** DONE 2026-08-02
   A resolver that turns a place name into a county, and **refuses** where the name is ambiguous
   rather than picking. Seeded with the towns this firm actually works, including the straddle cases.
   *Acceptance:* "Cameron" returns an ambiguity naming both candidates; "Killeen" returns Bell;
   "Copperas Cove" returns both Bell and Coryell with the reason.
 
-- **R36. Register the target counties.**
+- **R36. Register the target counties.** DONE 2026-08-02
   An adapter row per county above, so the coverage dashboard (R11) shows them as *registered and
   unproven* rather than as absent — which is the honest state until each is exercised.
   *Acceptance:* `/admin/research/coverage` lists all thirteen counties, none claiming to be proven.
 
-- **R37. Survey the live sites (Playwright, owner-permitted).**
+- **R37. Survey the live sites (Playwright, owner-permitted).** MOSTLY DONE 2026-08-02 — 13 of 25 portals confirmed by HTTP; the browser-driven form probe still to run
   For each county, visit the clerk and appraisal portals and record what is actually there: the
   search form, its fields, the results shape, whether images are free or paid, whether a login or a
   captcha stands in the way, and the DOM fingerprint R7's health checks will watch.
@@ -1572,6 +1572,35 @@ for each of these, which is what "fully built" means here.
 
 **Sequencing note:** R37 must precede R38 — every adapter this repo has shipped against a guessed DOM
 has needed rewriting, and R7/R8/R9 exist because of it.
+
+#### Survey results, 2026-08-02 (seed 541)
+
+Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
+`<county>.tx.publicsearch.us` answer 200"* is a fact, while *"this page links to something labelled
+Search"* is a guess. Paced at R12's gap, with an identifying user agent.
+
+| Confirmed live | Counties |
+|---|---|
+| **Kofile / GovOS PublicSearch** (clerk) — adapter already exists | Bell, Travis, Williamson, Milam, Walker, **Leon**, Montgomery, **Madison** |
+| **True Automation `esearch`** (appraisal) | Bell, Williamson, Coryell, Walker, Madison |
+| **Looked for, not found** — recorded, not guessed | Harrison, McLennan, Robertson, Trinity clerks; Travis, Milam, Harrison, McLennan, Leon, Montgomery, Trinity, Robertson CADs |
+
+**The finding that mattered:** Leon and Madison were in **no registry**, so research for Centerville
+or Madisonville fell through to the paid TexasFile fallback and would have bought pages the Kofile
+adapter could read free. Both are now registered.
+
+**A duplicated list, drifted.** `paid-platform-registry.ts` kept its own copy of `KOFILE_FIPS_SET`
+behind a *"keep in sync"* comment, and the two had drifted **six counties apart** (Tarrant, Collin,
+Denton, Montgomery, Nueces in one; Brazoria in the other). A county missing from the copy is one the
+purchase planner will not offer a Kofile route for, so the drift quietly narrowed what the platform
+would buy. It now imports the single list — R18's lesson about the OCR floor, in a second place.
+
+**Every surveyed adapter stays a DRAFT.** Knowing a portal exists is not the same as having driven
+it, and R11's coverage must keep reporting them unproven until a probe reads a results page.
+
+**Still to do for R37:** the browser-driven form probe (R7's `site-probe` against each confirmed
+portal) that fills `field_map` from the real DOM. Blocked while another session holds the Playwright
+browser; the HTTP survey above is what could be done without it.
 
 ---
 
