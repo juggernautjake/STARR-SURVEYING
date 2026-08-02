@@ -22,7 +22,12 @@ import { ADMIN_ROUTES, WORKSPACE_ORDER, accessibleRoutes } from '@/lib/admin/rou
  *  A migration is only safe if you can prove nothing fell out of it — otherwise "we simplified the
  *  navigation" and "we deleted some of the navigation" look identical from the diff. */
 const LEGACY_SIDEBAR_HREFS = [
-  '/admin/dashboard', '/admin/assignments', '/admin/schedule',
+  // `/admin/dashboard` was on this list until platform audit Phase 1 item 6 (2026-08-01) deleted the
+  // page as the second competing home. It is removed here rather than excused: this list means "must
+  // still be REACHABLE", and a route that no longer exists cannot satisfy it. The guarantee that its
+  // URL still goes somewhere sensible moved to `__tests__/middleware/legacy-redirects.test.ts`,
+  // which asserts both the redirect target AND that no page file survives to shadow it.
+  '/admin/assignments', '/admin/schedule',
   '/admin/learn', '/admin/learn/roadmap', '/admin/learn/modules', '/admin/learn/knowledge-base',
   '/admin/learn/flashcards', '/admin/learn/exam-prep', '/admin/learn/quiz-history',
   '/admin/learn/fieldbook', '/admin/learn/search', '/admin/learn/students', '/admin/learn/manage',

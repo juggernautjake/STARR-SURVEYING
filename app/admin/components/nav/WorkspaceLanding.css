@@ -45,6 +45,60 @@
   color: #6B7280;
 }
 
+/* At-a-glance strip (platform audit §2.1 — the "Phase 4 widgets" the subtitle
+ * used to promise). Tokens, not literal hexes: item 17 is clearing the inline
+ * ones out of this file's neighbours and new rules should not add to the pile. */
+.ws-landing__stats {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.ws-landing__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 120px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ws-landing__stat:hover {
+  border-color: var(--color-brand-navy);
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.08);
+}
+
+/* Warm only when the number is non-zero. A tinted "0 past due" would train
+ * people to read the colour rather than the figure. */
+.ws-landing__stat--attention {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.ws-landing__stat-value {
+  font-family: 'Sora', 'Inter', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.ws-landing__stat--attention .ws-landing__stat-value {
+  color: #92400e;
+}
+
+.ws-landing__stat-label {
+  font-size: 0.76rem;
+  color: var(--color-text-tertiary, #6b7280);
+}
+
 .ws-landing__empty {
   padding: 1rem;
   font-size: 0.88rem;

@@ -34,10 +34,11 @@ export const HELP_CATALOG: HelpCatalog = {
   // ── Workspace landings ─────────────────────────────────────────────
   '/admin/me': {
     title: 'Your Hub',
-    blurb: 'The Hub is your personalized landing — today\'s schedule, pinned shortcuts, and a recents feed of pages you visit often. Use the IconRail on the left to switch between workspaces.',
+    blurb: 'The Hub is your home in the app, and since the platform audit it is the only one — today\'s schedule, pinned shortcuts, and whatever widgets you put on it. Use the IconRail on the left to switch between workspaces.',
     tips: [
       'Press ⌘K (Ctrl+K on Windows) anywhere in the admin shell to jump to any page.',
       'Star any page (top-left of the page header) to add it to your pinned list — pinned pages always show on the rail.',
+      'Add the "Needs attention" widget to see what the app noticed on its own: expiring certifications, jobs over their estimate, invoices past 60 days, forgotten clock-outs.',
       'Open your profile to override your "persona" if the role-aware defaults aren\'t hiding/showing the right links for the work you\'re doing.',
     ],
     resources: [
@@ -116,18 +117,8 @@ export const HELP_CATALOG: HelpCatalog = {
   },
 
   // ── A few high-value page-level entries ────────────────────────────
-  '/admin/dashboard': {
-    title: 'Dashboard',
-    blurb: 'Snapshot view of your day: education progress, active jobs, finances, schedule, and the activity feed.',
-    tips: [
-      'Cards adapt to your visible role — admins see jobs + research, field crew see jobs + finances + schedule.',
-      'The PTO balance card pulls from pto_balances; the auto-deduction on time-off approval keeps it honest.',
-    ],
-    resources: [
-      { label: 'My finances', href: '/admin/me?tab=pay' },
-      { label: 'My schedule', href: '/admin/schedule' },
-    ],
-  },
+  // Platform audit Phase 1 item 6 (2026-08-01) — the `/admin/dashboard` entry was removed with the
+  // page. There is one home now, and its help is the `/admin/me` entry at the top of this file.
   '/admin/pay-progression': {
     title: 'Pay progression',
     blurb: 'Your current effective rate, tier, seniority, credential bonuses, and the next tier you can reach.',

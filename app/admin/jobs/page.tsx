@@ -175,7 +175,7 @@ export default function AllJobsPage() {
   const userRoles = session?.user?.roles || ['employee'];
   const canViewJobs = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('field_crew') || userRoles.includes('researcher') || userRoles.includes('tech_support');
   if (sessionStatus === 'authenticated' && !canViewJobs) {
-    router.replace('/admin/dashboard');
+    router.replace('/admin/me');
     return null;
   }
 

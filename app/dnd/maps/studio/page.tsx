@@ -10,6 +10,7 @@
 // of that file most expensive to get wrong twice.
 import { redirect } from 'next/navigation';
 import { getDndUser } from '@/lib/dnd/auth';
+import styles from './studio.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,13 +25,13 @@ export default async function PersonalMapStudioPage({ searchParams }: { searchPa
   const src = `/dnd/maps/map-studio.html?${q.toString()}`;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 8px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', borderBottom: '1px solid #1e2d3d', background: '#0b1a2c', color: '#f0e6d2', fontFamily: "'Inter', system-ui, sans-serif" }}>
-        <a href="/dnd/maps" style={{ color: '#c8aa6e', textDecoration: 'none', fontSize: 13 }}>← My Maps</a>
-        <span style={{ fontFamily: "'Cinzel', Georgia, serif", color: '#c8aa6e', letterSpacing: '0.06em', fontSize: 14 }}>✦ Map Studio</span>
-        <a href={src} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', color: '#a09b8c', textDecoration: 'none', fontSize: 12 }}>Open full-screen ↗</a>
+    <div className={styles.shell}>
+      <div className={styles.bar}>
+        <a href="/dnd/maps" className={styles.back}>← My Maps</a>
+        <span className={styles.title}>✦ Map Studio</span>
+        <a href={src} target="_blank" rel="noreferrer" className={styles.fullscreen}>Open full-screen ↗</a>
       </div>
-      <iframe src={src} title="Map Studio" style={{ flex: 1, width: '100%', border: 0, background: '#010a13' }} />
+      <iframe src={src} title="Map Studio" className={styles.frame} />
     </div>
   );
 }

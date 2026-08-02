@@ -170,7 +170,7 @@ export default function ContactProfilePage() {
   const userRoles = useMemo(() => session?.user?.roles || ['employee'], [session]);
   const canManage = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('tech_support');
   if (sessionStatus === 'authenticated' && !canManage) {
-    router.replace('/admin/dashboard');
+    router.replace('/admin/me');
     return null;
   }
   if (!session?.user) return null;

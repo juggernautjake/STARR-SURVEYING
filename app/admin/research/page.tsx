@@ -51,7 +51,7 @@ export default function ResearchListPage() {
   // Role guard — use useEffect so hooks are never called conditionally
   useEffect(() => {
     if (sessionStatus === 'authenticated' && !canAccessResearch) {
-      router.replace('/admin/dashboard');
+      router.replace('/admin/me');
     }
   }, [sessionStatus, canAccessResearch, router]);
 

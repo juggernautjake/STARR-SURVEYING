@@ -47,7 +47,6 @@ const MOCK_SESSION = {
 // Param-free top-level admin pages worth auditing. (Pages needing route
 // params like [id] are excluded.)
 const PAGES: Record<string, ComponentType> = {
-  dashboard: nextDynamic(() => import('@/app/admin/dashboard/page'), { ssr: false }),
   jobs: nextDynamic(() => import('@/app/admin/jobs/page'), { ssr: false }),
   leads: nextDynamic(() => import('@/app/admin/leads/page'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),

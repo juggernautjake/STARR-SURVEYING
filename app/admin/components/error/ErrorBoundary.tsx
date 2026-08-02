@@ -180,7 +180,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <button className="err-boundary__btn err-boundary__btn--primary" onClick={this.handleRetry}>
               Try Again
             </button>
-            <button className="err-boundary__btn" onClick={() => window.location.href = '/admin/dashboard'}>
+            <button className="err-boundary__btn" onClick={() => window.location.href = '/admin/me'}>
               Go to Dashboard
             </button>
             <button className="err-boundary__btn" onClick={this.handleCopy} title="Copy the error message + stack trace to the clipboard">

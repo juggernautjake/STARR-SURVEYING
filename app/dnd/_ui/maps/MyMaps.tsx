@@ -151,7 +151,7 @@ export default function MyMaps({ initialMaps, campaigns }: { initialMaps: MyMapR
         <div style={{ display: 'grid', gap: 8 }}>
           {maps.map((m) => (
             <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: 10, border: '1px solid var(--hx-line)', borderRadius: 8, background: 'rgba(1,10,19,0.4)' }}>
-              <div style={{ width: 52, height: 40, flexShrink: 0, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--hx-line)', background: '#010a13', display: 'grid', placeItems: 'center' }}>
+              <div style={{ width: 52, height: 40, flexShrink: 0, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--hx-line)', background: 'var(--hx-navy-0)', display: 'grid', placeItems: 'center' }}>
                 {m.kind === 'image' && m.image_url
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={m.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -181,7 +181,7 @@ export default function MyMaps({ initialMaps, campaigns }: { initialMaps: MyMapR
               <button className={styles.hexBtn} style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => open(m)}>Open</button>
               <button className={styles.hexBtn} style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => rename(m)} title="Rename">✎</button>
               <button
-                style={{ padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: '#ff6b6b', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
+                style={{ padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--hx-danger-2)', background: 'transparent', border: '1px solid var(--hx-line)', borderRadius: 4 }}
                 onClick={() => remove(m)}
                 title="Delete"
               >✕</button>

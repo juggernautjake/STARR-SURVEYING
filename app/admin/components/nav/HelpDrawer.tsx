@@ -132,7 +132,7 @@ export default function HelpDrawer({
           right: 0,
           height: '100vh',
           width: 'min(420px, 95vw)',
-          background: '#FFF',
+          background: 'var(--color-bg-card)',
           boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.18)',
           zIndex: 221,
           display: 'flex',
@@ -143,7 +143,7 @@ export default function HelpDrawer({
         <header
           style={{
             padding: '1rem 1.25rem',
-            borderBottom: '1px solid #E5E7EB',
+            borderBottom: '1px solid var(--color-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -186,11 +186,11 @@ export default function HelpDrawer({
                 // The label is the point. Written from route metadata, this can describe what a page
                 // is for correctly and still be wrong about what is on it; a reader who cannot tell
                 // it apart from a curated entry has no way to weigh it.
-                <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontFamily: 'Inter,sans-serif', fontSize: '0.7rem', fontWeight: 600, color: '#92400E', background: '#FEF3C7', padding: '0.2rem 0.5rem', borderRadius: '999px', margin: '0 0 0.6rem' }}>
+                <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontFamily: 'Inter,sans-serif', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-warning-text)', background: 'var(--color-warning-surface)', padding: '0.2rem 0.5rem', borderRadius: '999px', margin: '0 0 0.6rem' }}>
                   <Sparkles size={11} aria-hidden="true" /> Written by AI from this page&apos;s registry entry
                 </p>
               ) : null}
-              <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.88rem', color: '#374151', lineHeight: 1.6, margin: '0 0 1rem' }}>
+              <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.88rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '0 0 1rem' }}>
                 {entry.blurb}
               </p>
               <h3 style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>
@@ -198,7 +198,7 @@ export default function HelpDrawer({
               </h3>
               <ul style={{ paddingLeft: '1.1rem', margin: '0 0 1.15rem' }}>
                 {entry.tips.map((tip) => (
-                  <li key={tip} style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.85rem', color: '#374151', lineHeight: 1.55, marginBottom: '0.45rem' }}>
+                  <li key={tip} style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.55, marginBottom: '0.45rem' }}>
                     {tip}
                   </li>
                 ))}
@@ -269,8 +269,8 @@ export default function HelpDrawer({
               marginTop: '1.1rem',
               padding: '0.55rem 0.75rem',
               borderRadius: '9px',
-              border: '1px solid var(--color-border, #E5E7EB)',
-              background: 'var(--color-surface, #FFF)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
               color: 'var(--color-brand-navy)',
               fontFamily: 'Inter,sans-serif',
               fontSize: '0.83rem',

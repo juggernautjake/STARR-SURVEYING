@@ -22,7 +22,7 @@ export default function TestingLabLayout({ children }: { children: React.ReactNo
       return;
     }
     if (status === 'authenticated' && !allowed) {
-      router.replace('/admin/dashboard');
+      router.replace('/admin/me');
     }
   }, [status, allowed, router]);
 

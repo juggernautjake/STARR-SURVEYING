@@ -92,6 +92,18 @@ const AUTH_PREDICATES = [
   // The caller may manage this character's stream (its owner or the DM of a campaign it is in).
   'canManage',
   /own[A-Z]\w*\(/,
+  // The delete is SCOPED to the caller's own rows — `.eq('owner_id', session.userId)` — so the
+  // database answers "whose is it?" as part of the same statement that removes it. There is no
+  // window between the check and the write for it to be wrong about.
+  //
+  // Added 2026-08-01 with standalone maps (/api/dnd/maps). Every DELETE this sweep knew about until
+  // then hung off a campaign, and `getCampaignRole` was the only shape of authorization that
+  // existed. A personal map has no campaign, so ownership IS the whole permission model.
+  //
+  // The pattern is deliberately narrow: it requires the owner column to be compared to the SESSION's
+  // id. `.eq('owner_id', body.userId)` — the shape that actually goes wrong, where the client names
+  // whose rows to delete — does not match, and would still fail this test.
+  /\.eq\(\s*'(owner_id|user_id|created_by)'\s*,\s*session\.\w+/,
 ];
 
 /** How a handler establishes WHO is asking. `getDndSession` is the direct form; the character-access

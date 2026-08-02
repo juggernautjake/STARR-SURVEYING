@@ -6,11 +6,22 @@
 // /admin/equipment + /admin/learn are existing landings; the rail
 // links them directly. /admin/me is the Hub.
 //
-// Phase 3 ships these landings as a directory of the workspace's
-// routes so the Hub's "Workspaces" column no longer 404s. Phase 4
-// adds widgets on top (at-a-glance counts, queue snippets).
+// Phase 3 shipped these landings as a directory of the workspace's routes so
+// the Hub's "Workspaces" column no longer 404s, with a subtitle promising that
+// "Phase 4 adds at-a-glance widgets here".
+//
+// Platform audit §2.1 counted that promise as part of the four-competing-homes
+// problem: a landing that says it is unfinished teaches people not to come
+// back to it, and they navigate around it forever after. This is Phase 4 —
+// the counts arrive from `/api/admin/workspace-summary`, and the subtitle now
+// describes the page instead of apologising for it.
+//
+// The stat strip renders only what came back. A count the server could not
+// take is absent rather than zero: "0 unpaid invoices" is very good news and
+// a failed query looks exactly like it.
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import {
@@ -27,9 +38,28 @@ interface WorkspaceLandingProps {
   workspace: Workspace;
 }
 
+interface WorkspaceStat {
+  label: string;
+  value: number;
+  href: string;
+  tone?: 'neutral' | 'attention';
+}
+
 export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
   const { data: session } = useSession();
   const meta = WORKSPACES[workspace];
+
+  const [stats, setStats] = useState<WorkspaceStat[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStats([]);
+    fetch(`/api/admin/workspace-summary?workspace=${encodeURIComponent(workspace)}`)
+      .then((r) => (r.ok ? r.json() : { stats: [] }))
+      .then((j: { stats?: WorkspaceStat[] }) => { if (!cancelled) setStats(j.stats ?? []); })
+      .catch(() => { /* the directory below is the page; the strip is an addition to it */ });
+    return () => { cancelled = true; };
+  }, [workspace]);
 
   const roles: UserRole[] =
     (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[];
@@ -49,8 +79,23 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
         <h1 className="ws-landing__title">{meta.label}</h1>
         <span className="ws-landing__shortcut">{meta.shortcut}</span>
       </header>
+      {stats.length > 0 ? (
+        <ul className="ws-landing__stats" aria-label={`${meta.label} at a glance`}>
+          {stats.map((s) => (
+            <li key={s.label}>
+              <Link
+                href={s.href}
+                className={`ws-landing__stat${s.tone === 'attention' && s.value > 0 ? ' ws-landing__stat--attention' : ''}`}
+              >
+                <span className="ws-landing__stat-value">{s.value}</span>
+                <span className="ws-landing__stat-label">{s.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <p className="ws-landing__subtitle">
-        {routes.length} {routes.length === 1 ? 'page' : 'pages'} in this workspace. Phase 4 adds at-a-glance widgets here; for now this lists every accessible page.
+        Every page in {meta.label} you can reach — {routes.length} {routes.length === 1 ? 'page' : 'pages'}.
       </p>
       {routes.length === 0 ? (
         <p className="ws-landing__empty">

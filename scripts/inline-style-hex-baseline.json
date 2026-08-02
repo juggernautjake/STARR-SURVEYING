@@ -44,7 +44,6 @@
   "app/admin/components/jobs/JobPhotoGallery.tsx": 5,
   "app/admin/components/jobs/JobQuoteBuilder.tsx": 1,
   "app/admin/components/jobs/LinkContactDialog.tsx": 2,
-  "app/admin/components/nav/HelpDrawer.tsx": 4,
   "app/admin/components/QuizEngine.tsx": 2,
   "app/admin/components/QuizRunner.tsx": 2,
   "app/admin/components/StudentOverridePanel.tsx": 3,

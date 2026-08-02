@@ -152,7 +152,8 @@ describe('who counts as staff', () => {
       'app/admin/components/nav/WorkspaceLanding.tsx',
       'app/admin/components/nav/WorkspaceFlyout.tsx',
       'app/admin/components/AdminSidebar.tsx',
-      'app/admin/dashboard/page.tsx',
+      // `app/admin/dashboard/page.tsx` was the fifth surface. Platform audit Phase 1 item 6
+      // (2026-08-01) deleted the page, which is a stronger fix than de-hard-coding it.
     ];
     for (const f of surfaces) {
       const src = fs.readFileSync(path.join(ROOT, f), 'utf8');

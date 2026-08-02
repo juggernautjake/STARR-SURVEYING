@@ -1,0 +1,63 @@
+/* app/dnd/maps/studio/studio.module.css — chrome for the standalone Map Studio.
+ *
+ * The page shipped with its bar written as inline styles carrying five literal Hextech hexes
+ * (platform audit item 17 caught it: an inline hex cannot be reached by a token, a media query, the
+ * print stylesheet or a contrast audit).
+ *
+ * The tokens are re-declared on `.bar` rather than imported, for the same reason `hextech.module.css`
+ * re-declares them on `.siteChrome`: this page is not inside `.root`, and wrapping it to inherit them
+ * would tint the iframe below — which paints its own world and must not be told what colour anything
+ * is. Five values, declared once, in a file a theme pass can find.
+ */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 8px);
+}
+
+.bar {
+  --hx-panel: #0b1a2c;
+  --hx-line: #1e2d3d;
+  --hx-gold-2: #c8aa6e;
+  --hx-gold-3: #f0e6d2;
+  --hx-muted: #a09b8c;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--hx-line);
+  background: var(--hx-panel);
+  color: var(--hx-gold-3);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.back {
+  color: var(--hx-gold-2);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.title {
+  font-family: 'Cinzel', Georgia, serif;
+  color: var(--hx-gold-2);
+  letter-spacing: 0.06em;
+  font-size: 14px;
+}
+
+.fullscreen {
+  margin-left: auto;
+  color: var(--hx-muted);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+/* The deepest navy in the palette, so the iframe's own background is invisible against the page
+ * while the map loads. */
+.frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #010a13;
+}

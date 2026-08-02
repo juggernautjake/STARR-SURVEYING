@@ -90,6 +90,23 @@ const INTENTIONALLY_PUBLIC = new Map([
 
   // ── bearer-token access ────────────────────────────────────────────────────────────────────────
   ['app/api/share/[token]/route.ts', 'the TOKEN is the credential — checked against `is_revoked` and an expiry, and optionally a password'],
+
+  // Added 2026-08-01 with Phase 2 items 9–11. Same model as `share/[token]`, and the same reason it
+  // is a token rather than an account: a surveying customer interacts with the firm three times over
+  // six weeks and then not again for a decade, so a password is a reset email with extra steps.
+  //
+  // Each is 256 bits, addressed BY the token (nothing to enumerate), revocable, and answers 404
+  // identically for "no such token" and "revoked" so probing learns nothing. Each projection is an
+  // allow-list rather than `select('*')` minus a few columns, so the next internal column added to
+  // one of these tables is private by default.
+  ['app/api/public/proposal/[token]/route.ts', 'a customer reads and accepts their own proposal — the token is the credential, and acceptance is append-only evidence'],
+  ['app/api/public/portal/[token]/route.ts', 'a customer sees ONE job — scoped to the job rather than the customer, so a link forwarded to a lender or title company does not disclose every job they have ever had'],
+  ['app/api/public/change-order/[token]/route.ts', 'a customer approves or declines one change order — the token is the credential'],
+
+  // No token, and none is possible: this answers "whose branding does this public page wear?" before
+  // any customer identity exists. It reads only what a public page may show — name, phone, address,
+  // website — and returns a BLANK profile rather than guessing when the firm is ambiguous.
+  ['app/api/public/tenant/route.ts', 'branding for an unauthenticated pay/portal page — public fields only, and blank rather than a guess when the tenant cannot be resolved'],
 ]);
 
 function walk(dir) {

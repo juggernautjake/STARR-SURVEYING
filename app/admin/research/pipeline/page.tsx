@@ -70,7 +70,7 @@ export default function PipelineDashboardPage() {
 
   useEffect(() => {
     if (sessionStatus === 'authenticated' && !canAccessPipeline) {
-      router.replace('/admin/dashboard');
+      router.replace('/admin/me');
     }
   }, [sessionStatus, canAccessPipeline, router]);
 

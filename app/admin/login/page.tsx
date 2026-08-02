@@ -16,8 +16,8 @@ function LoginContent() {
   const pending = searchParams.get('pending');
   // post-signup-landing-hub-2026-06-18 — default callback is the Hub.
   // Whenever a new account first signs in (or any user lands without a
-  // deep link), they go to /admin/me. The dashboard at /admin/dashboard
-  // stays reachable from the nav but isn't the home page anymore.
+  // deep link), they go to /admin/me. Since platform audit Phase 1 item 6
+  // that is the only home: /admin/dashboard no longer exists.
   const callbackUrl = searchParams.get('callbackUrl') || '/admin/me';
 
   const [email, setEmail] = useState('');

@@ -238,7 +238,7 @@ export async function notifyCelebration(recipientEmails: string[], title: string
     title: `🎉 ${title}`,
     body,
     icon: '🎉',
-    link: '/admin/dashboard',
+    link: '/admin/me',
     source_type: 'celebration',
   });
 }
@@ -291,7 +291,7 @@ export async function notifyFromAdmin(userEmail: string, title: string, body: st
     title: `📢 ${title}`,
     body,
     icon: '📢',
-    link: link || '/admin/dashboard',
+    link: link || '/admin/me',
     source_type: 'admin_direct',
     escalation_level: 'urgent',
   });

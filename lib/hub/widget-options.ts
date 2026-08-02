@@ -166,6 +166,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'open-discussions':         { source: 'settings-form' },
   'pinned-pages':             { source: 'settings-form' },
   'pipeline-status':          { source: 'settings-form' },
+  // Platform audit §5 item 16 — "Needs attention", the standing view of the proactive alert rules.
+  'proactive-alerts':         { source: 'settings-form' },
   'pto-balance':              { source: 'settings-form' },
   'quick-actions':            { source: 'settings-form' },
   'recent-activity':          { source: 'settings-form' },

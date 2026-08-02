@@ -47,7 +47,7 @@ export default function CustomerPortalPage() {
     return (
       <main style={{ maxWidth: 640, margin: '80px auto', padding: 24, textAlign: 'center', fontFamily: 'Inter, system-ui, sans-serif' }}>
         <h1 style={{ fontSize: 20 }}>Link unavailable</h1>
-        <p style={{ color: '#4a5470' }}>{error}</p>
+        <p style={{ color: 'var(--color-doc-body)' }}>{error}</p>
       </main>
     );
   }
@@ -57,11 +57,11 @@ export default function CustomerPortalPage() {
   const unpaid = invoices.filter((i) => !i.paid_at);
 
   return (
-    <main style={{ maxWidth: 820, margin: '0 auto', padding: '32px 20px 80px', fontFamily: 'Inter, system-ui, sans-serif', color: '#152050' }}>
-      <header style={{ borderBottom: '2px solid #1D3095', paddingBottom: 16, marginBottom: 24 }}>
-        <div style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#4a5470' }}>Your survey</div>
+    <main style={{ maxWidth: 820, margin: '0 auto', padding: '32px 20px 80px', fontFamily: 'Inter, system-ui, sans-serif', color: 'var(--color-brand-navy-d)' }}>
+      <header style={{ borderBottom: '2px solid var(--color-brand-navy)', paddingBottom: 16, marginBottom: 24 }}>
+        <div style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-doc-body)' }}>Your survey</div>
         <h1 style={{ fontSize: 24, margin: '4px 0 0' }}>{job.address || job.name || 'Your job'}</h1>
-        <div style={{ fontSize: 13, color: '#4a5470', marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--color-doc-body)', marginTop: 4 }}>
           {[job.city, job.state].filter(Boolean).join(', ')}
           {job.survey_type ? ` · ${job.survey_type}` : ''}
           {job.acreage ? ` · ${job.acreage} acres` : ''}
@@ -70,39 +70,39 @@ export default function CustomerPortalPage() {
       </header>
 
       <section style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 15, borderBottom: '1px solid #e4e7ee', paddingBottom: 6 }}>Where things stand</h2>
+        <h2 style={{ fontSize: 15, borderBottom: '1px solid var(--color-doc-line)', paddingBottom: 6 }}>Where things stand</h2>
         {phase ? (
           <>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 10 }}>
               <div style={{ fontSize: 20, fontWeight: 700 }}>{phase.label}</div>
-              <div style={{ fontSize: 13, color: '#4a5470' }}>{phase.progressPct}%</div>
+              <div style={{ fontSize: 13, color: 'var(--color-doc-body)' }}>{phase.progressPct}%</div>
             </div>
-            <div style={{ height: 10, background: '#e4e7ee', borderRadius: 999, overflow: 'hidden', margin: '8px 0' }}>
-              <div style={{ width: `${phase.progressPct}%`, height: '100%', background: '#1D3095' }} />
+            <div style={{ height: 10, background: 'var(--color-doc-line)', borderRadius: 999, overflow: 'hidden', margin: '8px 0' }}>
+              <div style={{ width: `${phase.progressPct}%`, height: '100%', background: 'var(--color-brand-navy)' }} />
             </div>
-            {phase.note && <p style={{ color: '#31405f', fontSize: 14, margin: 0 }}>{phase.note}</p>}
+            {phase.note && <p style={{ color: 'var(--color-doc-ink)', fontSize: 14, margin: 0 }}>{phase.note}</p>}
           </>
         ) : (
           // A stage the firm chose not to publish, or one nobody has mapped. Either way the customer
           // gets a neutral sentence and a phone number rather than an internal stage name.
-          <p style={{ color: '#4a5470', fontSize: 14 }}>
+          <p style={{ color: 'var(--color-doc-body)', fontSize: 14 }}>
             Your job is in progress. {firm.phone ? <>Call us at <a href={`tel:${firm.phoneE164}`}>{firm.phone}</a> for an update.</> : 'Contact us for an update.'}
           </p>
         )}
-        {job.deadline && <p style={{ fontSize: 13, color: '#4a5470', marginTop: 8 }}>Target completion: {date(job.deadline)}</p>}
+        {job.deadline && <p style={{ fontSize: 13, color: 'var(--color-doc-body)', marginTop: 8 }}>Target completion: {date(job.deadline)}</p>}
       </section>
 
       <section style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 15, borderBottom: '1px solid #e4e7ee', paddingBottom: 6 }}>Your documents</h2>
+        <h2 style={{ fontSize: 15, borderBottom: '1px solid var(--color-doc-line)', paddingBottom: 6 }}>Your documents</h2>
         {deliverables.length === 0 ? (
-          <p style={{ color: '#4a5470', fontSize: 14 }}>Nothing has been issued yet. Your documents will appear here as soon as they are ready.</p>
+          <p style={{ color: 'var(--color-doc-body)', fontSize: 14 }}>Nothing has been issued yet. Your documents will appear here as soon as they are ready.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {deliverables.map((d) => (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid #e4e7ee', borderRadius: 8, padding: '10px 14px' }}>
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--color-doc-line)', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ fontSize: 15 }}>{d.name}</div>
-                  <div style={{ fontSize: 12, color: '#4a5470' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-doc-body)' }}>
                     Revision {d.revision} · Issued {date(d.issued_at)}
                     {/* "Signed and sealed" is the state that means something legally, and the one a
                         lender or title company asks about. Said in words, not implied by a badge. */}
@@ -111,7 +111,7 @@ export default function CustomerPortalPage() {
                 </div>
                 {d.file_url
                   ? <a href={d.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>Download</a>
-                  : <span style={{ fontSize: 12, color: '#4a5470' }}>Contact us for a copy</span>}
+                  : <span style={{ fontSize: 12, color: 'var(--color-doc-body)' }}>Contact us for a copy</span>}
               </div>
             ))}
           </div>
@@ -120,15 +120,15 @@ export default function CustomerPortalPage() {
 
       {changeOrders.length > 0 && (
         <section style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 15, borderBottom: '1px solid #e4e7ee', paddingBottom: 6 }}>Changes to the work</h2>
+          <h2 style={{ fontSize: 15, borderBottom: '1px solid var(--color-doc-line)', paddingBottom: 6 }}>Changes to the work</h2>
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {changeOrders.map((c) => (
-              <div key={c.id} style={{ border: '1px solid #e4e7ee', borderRadius: 8, padding: '10px 14px' }}>
+              <div key={c.id} style={{ border: '1px solid var(--color-doc-line)', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ fontSize: 14 }}>Change #{c.number} — {c.description}</div>
                   <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{c.amount_cents >= 0 ? '+' : '−'}{money(Math.abs(c.amount_cents))}</div>
                 </div>
-                <div style={{ fontSize: 12, color: '#4a5470', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-doc-body)', marginTop: 4 }}>
                   {c.days_added > 0 && `${c.days_added} extra day${c.days_added === 1 ? '' : 's'} · `}
                   {c.status === 'sent' ? 'Awaiting your approval' : c.status === 'approved' ? `Approved ${date(c.decided_at)}` : `Declined ${date(c.decided_at)}`}
                 </div>
@@ -142,16 +142,16 @@ export default function CustomerPortalPage() {
       )}
 
       <section style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 15, borderBottom: '1px solid #e4e7ee', paddingBottom: 6 }}>Invoices</h2>
+        <h2 style={{ fontSize: 15, borderBottom: '1px solid var(--color-doc-line)', paddingBottom: 6 }}>Invoices</h2>
         {invoices.length === 0 ? (
-          <p style={{ color: '#4a5470', fontSize: 14 }}>No invoices yet.</p>
+          <p style={{ color: 'var(--color-doc-body)', fontSize: 14 }}>No invoices yet.</p>
         ) : (
           <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
             {invoices.map((i) => (
-              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid #e4e7ee', borderRadius: 8, padding: '10px 14px' }}>
+              <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', border: '1px solid var(--color-doc-line)', borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <div style={{ fontSize: 15 }}>{i.invoice_number}</div>
-                  <div style={{ fontSize: 12, color: '#4a5470' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-doc-body)' }}>
                     {i.paid_at ? `Paid ${date(i.paid_at)}` : i.due_at ? `Due ${date(i.due_at)}` : 'Issued'}
                   </div>
                 </div>
@@ -159,21 +159,21 @@ export default function CustomerPortalPage() {
                 {!i.paid_at && i.public_slug && (
                   // Straight into the pay portal the firm already has. §2.2's complaint was that a
                   // customer had to know their invoice number to reach it; from here they do not.
-                  <a href={`/pay/${encodeURIComponent(i.public_slug)}`} style={{ fontWeight: 600, color: '#BD1218' }}>Pay now</a>
+                  <a href={`/pay/${encodeURIComponent(i.public_slug)}`} style={{ fontWeight: 600, color: 'var(--color-brand-red)' }}>Pay now</a>
                 )}
               </div>
             ))}
           </div>
         )}
         {unpaid.length > 0 && (
-          <p style={{ fontSize: 13, color: '#4a5470', marginTop: 8 }}>
+          <p style={{ fontSize: 13, color: 'var(--color-doc-body)', marginTop: 8 }}>
             Balance outstanding: <strong>{money(unpaid.reduce((a, i) => a + i.total_cents, 0))}</strong>
           </p>
         )}
       </section>
 
-      <footer style={{ borderTop: '1px solid #e4e7ee', paddingTop: 16, fontSize: 13, color: '#4a5470' }}>
-        <div><strong style={{ color: '#152050' }}>{firm.name}</strong></div>
+      <footer style={{ borderTop: '1px solid var(--color-doc-line)', paddingTop: 16, fontSize: 13, color: 'var(--color-doc-body)' }}>
+        <div><strong style={{ color: 'var(--color-brand-navy-d)' }}>{firm.name}</strong></div>
         <div>{firm.addressLine1}{firm.addressLine2 ? `, ${firm.addressLine2}` : ''}</div>
         <div>
           {firm.phone && <a href={`tel:${firm.phoneE164}`}>{firm.phone}</a>}

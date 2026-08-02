@@ -173,7 +173,7 @@ const KIND_DEFAULTS: Record<
     title: 'Message from dispatch',
     body: '',
     icon: '📢',
-    link: '/admin/dashboard',
+    link: '/admin/me',
     escalation_level: 'urgent',
   },
 };

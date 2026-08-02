@@ -101,7 +101,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // accessible until then. After Phase 2 they redirect into /admin/me.
   { href: '/admin/me',              label: 'Hub',             workspace: 'hub', iconName: 'Home',           description: 'Your personalized landing — today, pinned, recents.', keywords: ['home', 'me', 'personal', 'landing'] },
   { href: '/admin/search',          label: 'Search Everything', workspace: 'hub', iconName: 'Search',       description: 'One search across documents, jobs, customers, contacts, leads and invoices — spelling need not be exact.', keywords: ['find', 'lookup', 'documents', 'deed', 'plat', 'customer', 'job', 'files', 'fuzzy'] },
-  { href: '/admin/dashboard',       label: 'Dashboard',       workspace: 'hub', iconName: 'LayoutDashboard', description: 'Overview metrics + activity.', keywords: ['overview', 'home', 'stats'] },
+  // /admin/dashboard was removed in platform audit Phase 1 item 6 (2026-08-01). It was the second
+  // page claiming to be the home, and every figure on it already exists as a hub widget.
+  // `LEGACY_REDIRECTS` sends the URL to /admin/me; it is deliberately NOT registered here, so it
+  // cannot reappear in the rail, the palette or the mobile drawer — all three derive from this list.
   { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'Your assigned jobs + tasks.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks'] },
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
   // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-*` +

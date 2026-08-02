@@ -78,6 +78,10 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'notifications': { bundle: null, reason: 'Alerts span every bundle a firm holds.' },
   'search': { bundle: null, reason: 'Search spans corpora and filters each by its own permissions (§3b).' },
   'nav-events': { bundle: null, reason: 'Navigation telemetry for the palette — UI plumbing, not a feature.' },
+  // Counts on a workspace landing, one per workspace the firm can already open. Each count is taken
+  // from a table the firm reaches anyway, and the route returns integers, not rows — so gating it
+  // would refuse a number about data the caller can read in full on the next click.
+  'workspace-summary': { bundle: null, reason: 'At-a-glance counts for workspaces the caller can already reach.' },
   'install': { bundle: null, reason: 'App install/PWA metadata.' },
   'users': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },
   'roles': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },

@@ -128,7 +128,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
 
 
   const isActive = (href: string): boolean => {
-    if (href === '/admin/dashboard') return pathname === '/admin/dashboard';
+    if (href === '/admin/me') return pathname === '/admin/me';
     if (href === '/admin/learn') return pathname === '/admin/learn';
     if (href === '/admin/jobs') return pathname === '/admin/jobs';
     if (href === '/admin/messages') return pathname === '/admin/messages';
@@ -154,10 +154,10 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       <aside className={`admin-sidebar ${isOpen ? 'admin-sidebar--open' : ''}`}>
         <div
           className="admin-sidebar__header admin-sidebar__header--clickable"
-          onClick={() => { router.push('/admin/dashboard'); onClose(); }}
+          onClick={() => { router.push('/admin/me'); onClose(); }}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter') { router.push('/admin/dashboard'); onClose(); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { router.push('/admin/me'); onClose(); } }}
         >
           <Image src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" alt="Starr Surveying" width={40} height={40} className="admin-sidebar__logo" />
           <div className="admin-sidebar__brand">

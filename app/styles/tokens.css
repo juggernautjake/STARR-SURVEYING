@@ -77,6 +77,19 @@
   --color-bg-subtle:  #F3F4F6;
   --color-bg-hover:   #F0F4FF;
 
+  /* Border colours as VALUES. `--border-light` and friends below are whole
+   * shorthands (`1px solid …`), which cannot be used where only the colour
+   * varies — `border-bottom-color`, a one-sided rule, a dashed divider. Every
+   * such place was writing #E5E7EB inline instead. (Platform audit item 17.) */
+  --color-border:        #E5E7EB;
+  --color-border-strong: #D1D5DB;
+
+  /* Surface aliases. `--color-bg-card` is the same white; these names exist
+   * because a component reads better as "surface" than as "bg-card" when it is
+   * a panel, a dock or a drawer rather than a card. */
+  --color-surface:        #FFFFFF;
+  --color-surface-subtle: #F9FAFB;
+
   /* ── Brand colors ──────────────────────────────────────────────────── */
   --color-brand-red:    #BD1218;
   --color-brand-red-d:  #9A0F14;   /* hover / active */
@@ -94,6 +107,44 @@
   --color-error-bg:   #FEF2F2;
   --color-info:       #3B82F6;
   --color-info-bg:    #EFF6FF;
+
+  /* ── Status colors as TEXT (platform audit item 17, 2026-08-01) ────
+   * The four above are FILLS — a dot, a bar, a badge background. Set as
+   * small text on their own `-bg` surface they measure below 4.5:1, so
+   * every page that needed a coloured *word* reached past the token and
+   * wrote its own darker hex inline. Six pages had independently arrived
+   * at the same four values, which is the tell that a token was missing
+   * rather than that the pages were being wilful.
+   *
+   * These are those values, named for the job they do. Pairs: use
+   * `-text` on `-surface`, both at once, or neither. */
+  --color-success-text:    #027A48;
+  --color-success-surface: #ECFDF3;
+  --color-warning-text:    #B54708;
+  --color-warning-surface: #FFFAEB;
+  --color-error-text:      #B42318;
+  --color-error-surface:   #FEF3F2;
+  --color-info-text:       #175CD3;
+  --color-info-surface:    #EFF8FF;
+
+  /* ── Customer-facing document surfaces ─────────────────────────────
+   * /proposal/[token], /portal/[token], /change-order/[token] — the
+   * three pages a CUSTOMER sees, which deliberately do not wear the
+   * admin shell's chrome. They share one neutral ramp, cooler than the
+   * admin greys, so a proposal reads as a document rather than as a
+   * screen from somebody's internal tool.
+   *
+   * Distinct tokens rather than reusing --color-text-*: they are set
+   * against white paper at document sizes, and collapsing the two ramps
+   * would mean every future admin-shell tweak silently restyles the
+   * legal artifacts the firm sends to customers. */
+  --color-doc-ink:          #31405F;   /* headings */
+  --color-doc-body:         #4A5470;   /* body copy */
+  --color-doc-body-alt:     #475467;   /* secondary copy, captions */
+  --color-doc-line:         #E4E7EE;   /* dividers */
+  --color-doc-line-alt:     #E4E7EC;
+  --color-doc-line-strong:  #C9CFE0;   /* table rules, input borders */
+  --color-doc-surface:      #F8F9FD;   /* zebra rows, quiet panels */
 
   /* ── Job-phase colors (job-calendar Slice G1) ───────────────────────
    * The org calendar at /admin/calendar paints each scheduled phase

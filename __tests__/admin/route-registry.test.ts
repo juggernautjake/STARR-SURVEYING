@@ -164,9 +164,11 @@ describe('route-registry — access filtering', () => {
 
   it('roleless route is visible to everyone (e.g. guest, no company email)', () => {
     const visible = accessibleRoutes({ roles: ['guest'], isCompanyUser: false });
-    // Routes without `roles` and without `internalOnly` should appear.
-    const dashboard = visible.find((r) => r.href === '/admin/dashboard');
-    expect(dashboard).toBeDefined();
+    // Routes without `roles` and without `internalOnly` should appear. This asserted on
+    // `/admin/dashboard` until platform audit Phase 1 item 6 deleted it; `/admin/me` is the Hub, and
+    // it has been the roleless route this rule is really about all along.
+    const hub = visible.find((r) => r.href === '/admin/me');
+    expect(hub).toBeDefined();
   });
 
   it('role gates are honored for non-admin users', () => {

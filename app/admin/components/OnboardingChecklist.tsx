@@ -46,22 +46,22 @@ export default function OnboardingChecklist() {
   return (
     <section
       aria-label="Set up your firm"
-      style={{ border: '1px solid var(--accent-fg, #175cd3)', background: 'var(--accent-bg, #eff8ff)', borderRadius: 12, padding: 16, marginBottom: 20 }}
+      style={{ border: '1px solid var(--color-info-text)', background: 'var(--color-info-surface)', borderRadius: 12, padding: 16, marginBottom: 20 }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent-fg, #175cd3)' }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-info-text)' }}>
             Setting up · {requiredDone} of {requiredTotal} essentials done
           </div>
           <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>
             {next ? next.title : 'Almost there'}
           </div>
-          {next && <div style={{ fontSize: 13, color: 'var(--muted-fg, #475467)', marginTop: 2 }}>{next.why}</div>}
+          {next && <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>{next.why}</div>}
         </div>
         {next && (
           <Link
             href={next.href}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent-fg, #175cd3)', color: '#fff', textDecoration: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 600, fontSize: 14 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--color-info-text)', color: 'var(--color-bg-card)', textDecoration: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 600, fontSize: 14 }}
           >
             {next.done ? 'Review' : 'Set up'} <ArrowRight size={15} aria-hidden />
           </Link>
@@ -70,7 +70,7 @@ export default function OnboardingChecklist() {
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          style={{ background: 'transparent', border: '1px solid var(--border, #e4e7ec)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}
+          style={{ background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}
         >
           All steps <ChevronDown size={14} aria-hidden style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
         </button>
@@ -79,21 +79,21 @@ export default function OnboardingChecklist() {
       {expanded && (
         <ul style={{ listStyle: 'none', margin: '14px 0 0', padding: 0, display: 'grid', gap: 6 }}>
           {steps.map((s) => (
-            <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--surface, #fff)', border: '1px solid var(--border, #e4e7ec)', borderRadius: 8 }}>
+            <li key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
               {s.done
-                ? <Check size={16} aria-hidden style={{ color: 'var(--ok-fg, #027a48)' }} />
+                ? <Check size={16} aria-hidden style={{ color: 'var(--color-success-text)' }} />
                 : s.blocked
                   // Shown, not hidden. A step you cannot start yet is information; a step that is
                   // not there at all reads as a feature the product does not have.
-                  ? <Lock size={15} aria-hidden style={{ color: 'var(--muted-fg, #475467)' }} />
-                  : <Circle size={15} aria-hidden style={{ color: 'var(--muted-fg, #475467)' }} />}
+                  ? <Lock size={15} aria-hidden style={{ color: 'var(--color-text-secondary)' }} />
+                  : <Circle size={15} aria-hidden style={{ color: 'var(--color-text-secondary)' }} />}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, textDecoration: s.done ? 'line-through' : undefined, color: s.done ? 'var(--muted-fg, #475467)' : undefined }}>
+                <div style={{ fontSize: 14, textDecoration: s.done ? 'line-through' : undefined, color: s.done ? 'var(--color-text-secondary)' : undefined }}>
                   {s.title}
-                  {!s.required && <span style={{ fontSize: 11, color: 'var(--muted-fg, #475467)' }}> · optional</span>}
+                  {!s.required && <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}> · optional</span>}
                 </div>
                 {!s.done && s.blocked && (
-                  <div style={{ fontSize: 12, color: 'var(--muted-fg, #475467)' }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                     Do “{steps.find((x) => x.id === s.blockedBy[0])?.title ?? 'the earlier step'}” first
                   </div>
                 )}
