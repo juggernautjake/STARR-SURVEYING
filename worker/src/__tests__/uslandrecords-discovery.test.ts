@@ -5,6 +5,7 @@ import {
   USLR_COUNTIES,
   USLR_COVERAGE,
   USLR_FIELDS,
+  USLR_REQUIRES_TRUSTED_CLICK,
   USLR_RESULTS_IN_POPUP,
   USLR_RESULTS_PROVEN,
   coverageWarning,
@@ -33,17 +34,27 @@ describe('two counties, found one at a time', () => {
   });
 });
 
-describe('located is not working', () => {
-  it('does not claim results are proven', () => {
-    // Clicking Search opens a popup window that was seen opening as about:blank and closing before
-    // navigating. Reading results means handling that window, which is not built.
-    expect(USLR_RESULTS_PROVEN).toBe(false);
-    expect(USLR_RESULTS_IN_POPUP).toBe(true);
+describe('driven, once the click was trusted', () => {
+  it('claims results proven, because both counties returned records', () => {
+    // Robertson: 239 rows back to 1870. Falls: 40 rows back to 1971.
+    expect(USLR_RESULTS_PROVEN).toBe(true);
   });
 
-  it('routes neither county to this vendor yet', () => {
+  it('records that the popup was a blocker test, not the results target', () => {
+    // This module first said results "open in a popup window". They do not — they render in the
+    // page. The popup was the site checking whether pop-ups are allowed.
+    expect(USLR_RESULTS_IN_POPUP).toBe(false);
+  });
+
+  it('records that only a TRUSTED click submits the form', () => {
+    // A synthetic el.click() sends no POST at all — no error, no change. That symptom reads as
+    // "the site is broken" when it means "our click was not real", which is why it is written down.
+    expect(USLR_REQUIRES_TRUSTED_CLICK).toBe(true);
+  });
+
+  it('routes both counties to this vendor', () => {
     for (const [county, { fips }] of Object.entries(USLR_COUNTIES)) {
-      expect(getClerkSystem(fips), county).not.toBe('uslandrecords');
+      expect(getClerkSystem(fips), county).toBe('uslandrecords');
     }
   });
 });

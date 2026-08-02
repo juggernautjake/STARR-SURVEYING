@@ -33,7 +33,7 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
-| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | eDocTec found (Coryell, Lampasas); nine Tyler Eagle portals found and driven incl. McLennan/Waco; verified counties 7 → 18 |
+| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -1782,10 +1782,49 @@ paper at the courthouse in Marlin. The correct answer is *"drive to Marlin"*, no
 so. This is the same defect as every other in this document, wearing a new costume: **an unknown
 rendered as an answer**.
 
-**Not routed.** Clicking Search opens a **popup window** — the site warns it uses pop-ups, and one
-was observed opening as `about:blank` and closing before navigating. Reading results means handling
-that window, which is not built, so both counties still fall through to TexasFile. *Located is not
-working* — the same line Tyler was held to until its results were actually read. Seed 551.
+#### R39, fifth finding — the popup was innocent, and three more empty-answer traps
+
+Seed 551 blamed a popup window. That popup was the site **testing whether pop-ups are allowed**; it
+had nothing to do with results. The real cause is smaller and more embarrassing: the form submits
+via `<input type="submit">`, and a **synthetic** click — `page.evaluate(() => el.click())` — does
+not submit it. No POST was ever sent: no error, no change, nothing in the network log. That symptom
+reads as *"the site is broken"* when it means *"our click was not real"*. A trusted `page.click()`
+submits immediately.
+
+**Driven end to end** through the compiled adapter:
+
+| County | Result | Earliest |
+|---|---|---|
+| Robertson | 20 documents on page 1 of **239 rows** | 09/13/1871 (`OR/0000U/271`) |
+| Falls | 20 documents on page 1 of **40 rows** | 06/03/1971 |
+
+Falls's earliest result landing in 1971 confirms its 09/23/1970 coverage claim with *data* rather
+than a banner.
+
+Getting there surfaced **three more ways to manufacture an empty answer**, all the same defect:
+
+1. **A timeout is not an empty index.** A bare surname across 1800–2026 returns *"Your search has
+   reached the configured timeout period"* and no rows — indistinguishable, unhandled, from "this
+   name owns nothing here". Third variant in one day, after Kofile's empty department and Tyler's
+   `totalPages: 0`.
+2. **A readiness condition met by page furniture manufactures empty answers.** The wait was "a table
+   row containing a date" — but the certification banner *is* that, and exists before any search
+   runs. The grid was read while still empty, and a 239-row result set was reported as *"genuinely
+   nothing recorded"*.
+3. **The grid is not one row per record.** It renders as a **single `<tr>`** whose cells run the
+   header labels then every record in sequence, so per-row parsing returns exactly one record no
+   matter how many came back — 239 rows read as one document. Records are now cut at each date cell,
+   the only reliable boundary.
+
+**Still open, and reported rather than hidden:** the grid pages at 20 and only page one is read.
+Every result carries *"this is ONE PAGE of a larger result set — page through before concluding"*.
+Paging is the next slice; silently returning 20 of 239 would be this defect again.
+
+Also worth keeping: this vendor publishes **no instrument numbers**. A document's identity is its
+`SERIES/VOLUME/PAGE` citation, and 19th-century volumes are **lettered** (`OR/0000U/271`) — so the
+volume stays a string. Parsing it as a number yields `NaN` and merges every lettered volume into one.
+
+Both counties are now routed and proven. Seed 552 supersedes 551. **Verified counties: 18 → 20.**
 
 #### Survey results, 2026-08-02 (seed 541)
 

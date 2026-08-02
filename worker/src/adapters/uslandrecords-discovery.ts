@@ -20,14 +20,31 @@
 //   * The form fields are ASP.NET WebForms names (see USLR_FIELDS).
 //   * Each county states its own certified coverage, and the two DISAGREE by 170 years — see below.
 //
-// ── WHAT IS NOT PROVEN ──────────────────────────────────────────────────────────────────────────
+// ── DRIVEN, ONCE THE CLICK WAS TRUSTED ──────────────────────────────────────────────────────────
 //
-// The search was not driven to results. Clicking Search opens a POPUP WINDOW (the site warns "This
-// site uses Pop-ups"), which was observed opening as about:blank and closing before navigating.
-// Reading results means handling that window, and that has not been built.
+// This file first recorded that results "open in a popup window" which closed before navigating.
+// Wrong. That popup was the site testing whether pop-ups are allowed. The real reason nothing
+// happened is smaller and more embarrassing: the form submits via an <input type="submit">, and a
+// SYNTHETIC click — page.evaluate(() => el.click()) — does not submit it. No POST was ever sent. A
+// trusted click, page.click(), submits immediately.
 //
-// So neither county is routed here. Located is not working — the same line held for Tyler until its
-// results were actually read.
+// The symptom is worth remembering because it looks like the wrong thing: no POST, no error, no
+// change. That reads as "the site is broken" when it means "our click was not real".
+//
+// With that fixed, both counties return records:
+//
+//     Robertson  SMITH JAMES   239 rows, earliest 01/22/1870
+//     Falls      SMITH JAMES    40 rows, earliest 06/03/1971
+//
+// Falls's earliest result landing in 1971 is the coverage claim below confirmed by data rather than
+// by a banner.
+//
+// ── A THIRD WAY TO SAY "TOO BROAD" ──────────────────────────────────────────────────────────────
+//
+// A bare surname across 1800–2026 returns a modal — "Your search has reached the configured timeout
+// period. Please narrow your search criteria" — and no rows. Unhandled, that is indistinguishable
+// from "this name owns nothing in this county": the same defect as Kofile's empty department and
+// Tyler's totalPages: 0, wearing a third costume in a single day. See readResults().
 
 /** County → subdomain. Verified individually; the letters are not a sequence to extrapolate. */
 export const USLR_COUNTIES: Record<string, { subdomain: string; fips: string }> = {
@@ -50,9 +67,14 @@ export const USLR_FIELDS = {
   searchType: 'SearchCriteriaName1$DDL_SearchName',
 } as const;
 
-/** Results open in a popup window, not in the page. */
-export const USLR_RESULTS_IN_POPUP = true;
-export const USLR_RESULTS_PROVEN = false;
+/** The popup was a pop-up-blocker test, not the results target. Results render in the page. */
+export const USLR_RESULTS_IN_POPUP = false;
+
+/** A synthetic click does not submit this form; only a trusted one does. */
+export const USLR_REQUIRES_TRUSTED_CLICK = true;
+
+/** Driven end to end on 2026-08-02 for both counties. */
+export const USLR_RESULTS_PROVEN = true;
 
 /** What each county's index actually covers, quoted from its own certification banner. */
 export interface Coverage {
