@@ -10,7 +10,7 @@
 //
 // URL patterns vary by county but follow one of two templates:
 //   https://www.{county}countyclerk.com/    (county-branded domains)
-//   https://countyfusion{N}.kofiletech.com/ (Kofile-hosted CountyFusion)
+//   https://countyfusion{N}.kofiletech.us/ (Kofile-hosted CountyFusion)
 //
 // Spec §2.10 — CountyFusion/Cott Adapter
 
@@ -110,7 +110,7 @@ const COUNTYFUSION_CONFIGS: Record<string, CountyFusionConfig> = {
     instrumentField: 'instrno',
   },
   '48479': {  // Webb County — publicsearch.us unreachable; keeping legacy URL
-    baseUrl: 'https://countyfusion7.kofiletech.com/countyweb/login.do?countyname=Webb',
+    baseUrl: 'https://countyfusion7.kofiletech.us/countyweb/login.do?countyname=Webb',
     searchPath: '/countyweb/login.do',
     superSearchPath: null,
     countyDisplayName: 'Webb County',

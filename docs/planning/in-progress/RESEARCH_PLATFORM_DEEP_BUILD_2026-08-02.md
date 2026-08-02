@@ -1890,6 +1890,50 @@ The completeness reporting is accurate in both directions, not merely pessimisti
 **Every proven vendor now returns complete result sets.** Kofile, eDocTec, Tyler Eagle and Avenu
 20/20 — 20 counties, no page-one-only reads remaining.
 
+#### R39, eighth finding — CountyFusion was never dead; our TLD was wrong
+
+Hunting the last six counties turned up something bigger than any of them. R37 probed every
+CountyFusion base URL and concluded the vendor was unreachable. It is not:
+
+```
+WRONG   countyfusion7.kofiletech.com    ERR_NAME_NOT_RESOLVED — the domain does not exist
+RIGHT   countyfusion7.kofiletech.us     200, "Neumo Records County Access Portal"
+```
+
+**All twelve numbered hosts answer on `.us`.** So *"all 54 vendor URLs are dead"* was, for this
+vendor, a fact about a typo in our own registry.
+
+The lesson underneath is the more dangerous one: **that sweep used `fetch`, and `fetch` fails
+against these hosts with `ERR_HTTP2_STREAM_ERROR` even though a browser loads them fine.** A
+negative result from the wrong *client* is not evidence a site is down — the same shape of mistake
+as a negative result from a guessed URL, and it cost a whole vendor. Every "dead" verdict in this
+document that rests on a `fetch` probe should be re-tested in a browser before it is trusted.
+
+CountyFusion is still **not routed**: every per-county entry point is a username/password login and
+no credentials exist. *"The host is alive"* and *"we can read records"* are different claims, and
+collapsing them is how the platform came to claim 53 Kofile counties it could not reach.
+
+**The six counties:**
+
+| County | Status | Detail |
+|---|---|---|
+| Bosque | **OPEN (partial)** | `kofilequicklinks.com/Bosque/` — free, no login, **1847–1905**. 1984→current on iDocMarket at $5/day + $1/page |
+| Limestone | **Login required** | `countyfusion10.kofiletech.us` — records 1861→present, credentials unknown |
+| Bastrop | Not found | not yet hunted |
+| Hays | Not found | Henschen claims it; no Henschen URL resolves; no replacement located |
+| Lee | Not found | not yet hunted |
+| San Saba | Not found | not yet hunted |
+
+Bosque is a genuine win despite the partial window — for boundary work the early deeds are
+frequently the operative ones, so a free 1847–1905 index is worth more than the year count suggests.
+`freePathWarning()` refuses to let a search run outside that window without saying so: searching it
+for a 1995 deed returns nothing, and calling that "no deed" would be wrong twice over, because the
+deed exists and we know exactly where it is. Saying so turns a wrong answer into a purchasing
+decision.
+
+**"Not found" here means an unfinished search. It does not mean a county without records** — and
+`describeCounty()` says exactly that, so no run can quietly report it the other way. Seed 555.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

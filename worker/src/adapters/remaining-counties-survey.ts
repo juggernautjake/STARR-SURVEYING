@@ -1,0 +1,114 @@
+// worker/src/adapters/remaining-counties-survey.ts — the last six counties, hunted (plan R39).
+//
+// Bosque, Limestone, Bastrop, Hays, Lee and San Saba were the counties inside the 80-mile ring with
+// no located portal. They were hunted individually, which is the only method left once no vendor URL
+// pattern generalises.
+//
+// ── THE FINDING THAT MATTERS BEYOND THESE COUNTIES ──────────────────────────────────────────────
+//
+// R37 probed every CountyFusion base URL and concluded the vendor was unreachable. It is not. Our
+// table had the wrong TLD:
+//
+//     WRONG   countyfusion7.kofiletech.com    ERR_NAME_NOT_RESOLVED — the domain does not exist
+//     RIGHT   countyfusion7.kofiletech.us     200, "Neumo Records County Access Portal"
+//
+// All twelve numbered hosts answer on `.us`. So "all 54 vendor URLs are dead" was, in this vendor's
+// case, a fact about a typo in our own registry.
+//
+// A second lesson sits underneath it: the sweep used `fetch`, and `fetch` fails on these hosts with
+// ERR_HTTP2_STREAM_ERROR even though a browser loads them fine. A negative result from the wrong
+// client is not evidence the site is down — the same shape of error as a negative result from a
+// guessed URL, and it cost this project a whole vendor.
+//
+// CountyFusion still is NOT routed: every per-county entry point is a username/password login and
+// no credentials exist. "The host is alive" and "we can read records" are different claims.
+
+export interface CountySurvey {
+  fips: string;
+  /** What was actually found. */
+  status: 'open_partial' | 'login_required' | 'paywalled' | 'not_found';
+  url: string | null;
+  /** Years the free path actually covers, when it is known. */
+  freeCoverage?: string;
+  /** What blocks the rest. */
+  blocker?: string;
+  note: string;
+}
+
+export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
+  Bosque: {
+    fips: '48035',
+    status: 'open_partial',
+    url: 'https://kofilequicklinks.com/Bosque/',
+    freeCoverage: '1847–1905 (deed index books and volumes)',
+    blocker: 'Records from 1984 to current are on iDocMarket and charged ($5/day + $1/page).',
+    note:
+      'Kofile QuickLink is FULLY OPEN — no login, no payment — and serves the historical deed books by ' +
+      'type, year and party, plus book/volume/page lookup. For boundary work those early deeds are ' +
+      'often the operative ones, so a partial free window here is worth more than the year count suggests.',
+  },
+  Limestone: {
+    fips: '48293',
+    status: 'login_required',
+    url: 'https://countyfusion10.kofiletech.us/countyweb/login.do?countyname=LimestoneTX',
+    blocker: 'Username/password login; no guest entry found on the page.',
+    note:
+      'Records stated as 1861 to present. The portal is live and is the proof that CountyFusion was ' +
+      'never dead — only our TLD was wrong. Not routed: no credentials.',
+  },
+  Bastrop: { fips: '48021', status: 'not_found', url: null, note: 'Not yet hunted.' },
+  Hays: {
+    fips: '48209',
+    status: 'not_found',
+    url: null,
+    note: 'Henschen names it as their county but no Henschen URL resolves; no replacement portal located (plan R38).',
+  },
+  Lee: { fips: '48287', status: 'not_found', url: null, note: 'Not yet hunted.' },
+  'San Saba': { fips: '48411', status: 'not_found', url: null, note: 'Not yet hunted.' },
+};
+
+/** The CountyFusion host that actually answers. */
+export const COUNTYFUSION_HOST = (n: number): string => `https://countyfusion${n}.kofiletech.us/countyweb/`;
+
+/** All twelve answered 200 on 2026-08-02. */
+export const COUNTYFUSION_LIVE_HOSTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/** The TLD the registry had, which does not resolve at all. */
+export const COUNTYFUSION_WRONG_TLD = 'kofiletech.com';
+export const COUNTYFUSION_RIGHT_TLD = 'kofiletech.us';
+
+/** Is a county's free path good enough to answer a given search?
+ *
+ *  Bosque's free window stops in 1905. Searching it for a 1995 deed returns nothing, and reporting
+ *  that as "no deed" would be wrong twice over: the deed exists, and we know exactly where it is
+ *  (iDocMarket, behind a fee). Saying so turns a wrong answer into a purchasing decision. */
+export function freePathWarning(county: string, year: number): string | null {
+  const s = REMAINING_COUNTY_SURVEY[county];
+  if (!s || s.status !== 'open_partial' || !s.freeCoverage) return null;
+
+  const range = /(\d{4})\s*[–-]\s*(\d{4})/.exec(s.freeCoverage);
+  if (!range) return null;
+  const [from, to] = [Number(range[1]), Number(range[2])];
+  if (year >= from && year <= to) return null;
+
+  return (
+    `${county}: the FREE index covers ${from}–${to}; ${year} is outside it. ` +
+    `${s.blocker ?? ''} An empty result here means the record is not in the free window — NOT that it does not exist.`
+  ).trim();
+}
+
+/** A one-line statement per county, so a run can say what it could and could not reach. */
+export function describeCounty(county: string): string {
+  const s = REMAINING_COUNTY_SURVEY[county];
+  if (!s) return `${county}: not surveyed.`;
+  switch (s.status) {
+    case 'open_partial':
+      return `${county}: free portal at ${s.url}, covering ${s.freeCoverage}. ${s.blocker ?? ''}`.trim();
+    case 'login_required':
+      return `${county}: portal located at ${s.url} but it requires a login we do not have. Reachable, not readable.`;
+    case 'paywalled':
+      return `${county}: records exist behind a paywall (${s.url}). The absence of ACCESS, not the absence of records.`;
+    default:
+      return `${county}: no portal located yet. This is an unfinished search, NOT a county without records.`;
+  }
+}
