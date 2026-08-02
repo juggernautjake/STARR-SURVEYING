@@ -1,0 +1,385 @@
+# Property Research Platform — Deep Build
+
+**Date:** 2026-08-02
+**Owner ask (verbatim intent):** a *super robust, self-healing, self-adjusting, AI-driven* research
+system that can find everything findable online about a Texas property; navigate county clerk and
+appraisal district sites; hook into paid property-data subscriptions; capture screenshots, full deed
+and plat histories; have AI locate the property's important features from the documents and produce a
+**survey gameplan**; integrate satellite / bird's-eye / street-level imagery; use Playwright, OCR and
+a real browser; run 20–30 minutes per request on rented compute, **as cheap as possible per run**;
+present the result in an intuitive UI; let a person **draw on the saved docs and images and save
+those edits apart from the original**; and let whoever oversees research assemble a **final packet**
+that attaches to the job so the field crew knows what to do.
+
+**How to read this:** §1 is what actually exists, measured today — it is far more than a greenfield,
+and several of the owner's asks are half-built rather than missing. §2 is what is wrong or absent.
+§3 is the build, in slices sized for the stop-hook loop. Each slice is independently shippable and
+carries its own acceptance test.
+
+---
+
+## 1. What exists today — measured, not estimated
+
+| Thing | Measured |
+|---|---|
+| `lib/research/*` (Next.js side) | **31,800 lines**, 54 modules |
+| `worker/src/*` (separate service) | **102,429 lines** — the real engine |
+| Admin research UI | **32,845 lines** across 40 components |
+| Research API routes (Next) | **64** handlers |
+| Worker HTTP routes | **~40** (`/research/property-lookup`, `/harvest`, `/adjacent`, `/row`, `/reconcile`, …) |
+| County **clerk/CAD adapters** in the worker | 17 (Tyler, Kofile, Fidlar, Henschen, iDocket, CountyFusion, TrueAutomation, TexasFile, BIS, HCAD, TAD, generic CAD/clerk, Bexar) |
+| Paid-document platforms with purchase adapters | 8 (`tyler_pay`, `henschen_pay`, `idocket_pay`, `landex`, `fidlar_pay`, `govos_direct`, `kofile_pay`, `texasfile`) — registry sorts **cost-ascending**, free sources first |
+| Public data sources | FEMA NFHL, GLO, TCEQ, RRC, NRCS soils, USGS, TNRIS LiDAR, TxDOT roadways, Comptroller |
+| Counties with a **dedicated** pipeline | **1 of 254** (Bell). Everything else falls to the generic pipeline |
+| Live research projects | **56** (37 in `review`, 8 `configure`, 6 `upload`, 3 `analyzing`, 2 `drawing`) |
+| Live research documents | **654** |
+| Extracted data points | **208** |
+| Rendered drawings | **14** |
+| Registered adapters in `research_site_adapters` | **0** |
+| Adapter health checks ever run | **0** |
+| Research usage/cost events ever recorded | **0** |
+| Research projects linked to a job | **0 of 56** |
+
+**Infrastructure as built:** the worker is a Node 22 + Express + Playwright service, Dockerised
+against `mcr.microsoft.com/playwright:v1.58.2-jammy`, PM2-managed, designed for a DigitalOcean
+droplet. It has a browser factory that can target local Chromium, **Browserbase**, or a stub; a
+captcha-solver interface with a **CapSolver** provider and a stub; a BullMQ + Redis job queue; a
+billing tracker; a confidence-scoring engine; geometric reconciliation; chain-of-title building; ROW
+integration; adjacent-parcel research; and a document-purchase orchestrator that tries free sources
+before paid ones.
+
+**This is not a prototype.** The gap between it and the owner's ask is narrower than the ask implies —
+but the gaps that exist are load-bearing.
+
+---
+
+## 2. What is wrong, missing, or unproven
+
+### 2.1 🔴 The engine is offline, and the container would kill itself if it weren't
+
+`WORKER_URL=http://104.131.20.240:3100`. Probed 2026-08-02: **no response on any path, 100% packet
+loss on ping.** Every deep-research feature in the app — the 20–30 minute pipeline the owner is
+describing — currently returns a 502 or falls back to the "lite" in-Vercel path.
+
+Worse, and separately: `worker/Dockerfile`'s `HEALTHCHECK` polls **`/healthz`**. The Express app
+defines **`/health`**. `grep -rn healthz worker/src` returns nothing. A container built from that
+Dockerfile marks itself unhealthy after three probes and gets restarted forever. The Dockerfile even
+carries the comment *"TODO Phase A: confirm this endpoint exists; add if missing"* — it does not.
+
+### 2.2 🔴 There are two research systems, and they do not know about each other
+
+- The **worker** holds the real county knowledge: 17 adapters, hard-coded in TypeScript, one dedicated
+  county module, a switch statement in `counties/router.ts`.
+- The **app** holds the *registry* the self-healing system was built around — `research_site_adapters`,
+  `research_data_vendors`, `research_counties` (all 254 seeded), canaries, health checks, change
+  proposals, the §8.3 site probe, the §9.8 dashboard.
+
+`grep -rln "research_site_adapters" worker/src` → **nothing**. The self-healing subsystem monitors a
+registry that has **zero rows** while the scrapers that actually break are compiled into a service
+that never reads it. Every "self-healing adapter" guarantee currently applies to an empty set.
+
+### 2.3 🔴 Nothing measures what a run costs
+
+`research_usage_events` has a cost column, a model column, token columns — and **0 rows**. The only
+code touching it is the billing page, which *reads*. The worker's `billing-tracker.ts` contains no
+pricing constants. So "as cheap as possible per run" cannot currently be evaluated, compared, or
+regressed against. Every optimisation in this plan is unmeasurable until a writer exists.
+
+### 2.4 🔴 A run does not survive a restart
+
+`worker/src/index.ts` keeps `activePipelines`, `completedResults`, `completedLogs` in **in-process
+`Map`s**. A 25-minute run on a droplet that restarts, OOMs, or deploys loses everything — including
+paid documents already purchased. BullMQ and ioredis are dependencies and a `job-queue.ts` exists,
+but only `batch-processor.ts` imports it; the primary path does not.
+
+### 2.5 🟠 Model IDs are a generation behind and chosen per-call-site
+
+The worker hard-codes `claude-sonnet-4-6` (22×), `claude-sonnet-4-20250514` (18×),
+`claude-sonnet-4-5-*` (7×), `claude-haiku-4-5-*` (2×) across services. The app standardised on one
+model config in `lib/ai/models.ts` (audit item 13); the worker never adopted it. There is no
+cheap-first escalation policy: a page of clean typed text costs the same model call as a
+19th-century handwritten deed scan.
+
+### 2.6 🟠 Imagery is USGS-only
+
+`map-image.service.ts` fetches USGS `USGSImageryOnly` + `USGSTopo` and geocodes with Nominatim. That
+is free and license-clean, but it is **not** what the owner asked for: no Google/Esri high-resolution
+satellite, no oblique/bird's-eye, no Street View, no historical imagery for comparing a boundary
+against what was there when the deed was written, and no parcel-framed capture at a fixed scale.
+
+### 2.7 🟠 You can draw on documents, but the drawing is not saved
+
+`SourceDocumentViewer.tsx` has a real markup mode (`drawMode`, colours, widths, `drawPaths`) — held
+in a `Map` in React state. Nothing persists it. Only the **generated CAD drawing** has the
+save-separately model done properly (`rendered_drawings.user_annotations` beside AI-generated
+`drawing_elements`). The owner's ask — annotate the saved docs and images, keep edits apart from the
+original — is built for one artifact type and missing for the other 654.
+
+### 2.8 🟠 The survey plan is generated on demand and then thrown away
+
+`GET /api/admin/research/[projectId]/survey-plan` calls `generateSurveyPlan()` and returns it. It is
+not persisted, not versioned, not reviewable, not approvable, and **not attached to anything**.
+`research_projects.job_id` exists and is `NULL` on all 56 rows. There is no packet, and the field crew
+cannot see research output at all.
+
+### 2.9 🟠 Coverage is one county deep
+
+`counties/router.ts` has exactly one `case`. For the other 253 counties the generic pipeline runs
+with generic adapters — which is a reasonable fallback, but nothing measures *how well* it does, and
+nothing tells a user before a run what coverage to expect for their county.
+
+### 2.10 🟠 No run budget, no timebox, no step ceiling
+
+The owner wants a bounded 20–30 minute run. `maxResearchTimeMinutes` is accepted as an input and
+plumbed into the Bell module; there is no global enforcement, no per-run dollar ceiling, no policy for
+what to drop when time runs short. A run can therefore be both too short (missing sources) and too
+expensive (unbounded AI calls) at once.
+
+### 2.11 🟡 Smaller, real
+- **Paid purchases have no receipt trail a bookkeeper can audit** — the orchestrator can spend money;
+  `receipts`/`research_usage_events` never see it.
+- **OCR is per-adapter**, not a shared service with a quality floor; no confidence, no language of
+  "this page was unreadable".
+- **Rate-limit / ToS posture is per-adapter**, with no central politeness budget per county host.
+- **The review UI is one 3,616-line component** whose four stage sections read ~95 pieces of state
+  (measured in the platform audit) — every UI improvement below is more expensive because of it.
+- **No before/after diff on re-runs**: `pipeline-diff-engine.ts` exists in the worker and nothing in
+  the app surfaces it.
+
+---
+
+## 3. The build
+
+Slices are ordered so each one is useful alone and unblocks the next. **Phase A is not optional
+polish — nothing else in this plan can be trusted while the engine is down and nothing is measured.**
+
+### Phase A — Make the engine real, durable, and measurable
+
+- **R1. `/healthz`, and a deploy that proves itself.**
+  Add the health endpoint the Dockerfile already polls (keep `/health` as an alias). Return build SHA,
+  uptime, browser backend, queue depth, and *whether Chromium can actually launch* — a health check
+  that only proves Express is up would have reported this worker as fine.
+  *Acceptance:* `docker run` reaches `healthy`; a red healthcheck fails CI.
+
+- **R2. The app tells the truth about the worker.**
+  A worker-status probe surfaced in the research UI and on `/admin/research/coverage`: reachable or
+  not, last successful run, current queue depth. Today a dead engine looks like a slow page.
+  *Acceptance:* with `WORKER_URL` pointed at a dead host, the UI says so in one sentence and offers
+  the lite path explicitly rather than failing silently.
+
+- **R3. Runs survive a restart.**
+  Move the primary pipeline onto the existing BullMQ queue with Redis-backed state; `activePipelines`
+  becomes a projection of the queue, not the source of truth. Persist run state to Postgres
+  (`research_runs`: phase, step, started_at, heartbeat_at, cost_so_far, artifacts_written).
+  *Acceptance:* kill -9 the worker mid-run; on restart the run resumes or is explicitly marked
+  `interrupted` with what it had already paid for and saved.
+
+- **R4. Cost telemetry that actually writes.**
+  One `recordUsage()` in the worker and the app, called by every AI call, every paid document, every
+  browser-minute. Pricing constants in one file. Backfill `research_usage_events`.
+  *Acceptance:* a completed run has a non-zero `cost_usd`; the billing page shows $/run, and a test
+  fails if an AI call path exists that cannot record.
+
+- **R5. Run budget and timebox, enforced.**
+  Per-run ceilings: wall-clock (default 25 min), dollars, AI calls, paid pages. When a ceiling is hit
+  the run **finishes cleanly with what it has** and records what it skipped — never a silent partial.
+  *Acceptance:* a run with a $0.50 ceiling stops, reports "skipped: adjacent parcels, ROW", and still
+  produces a usable packet.
+
+- **R6. Model routing, cheap-first.**
+  Adopt `lib/ai/models.ts` in the worker. A router picks by task: OCR/classification → cheapest tier;
+  extraction from clean text → mid; handwriting, conflicting calls, gameplan synthesis → top tier.
+  Escalate only on low confidence, and record the escalation.
+  *Acceptance:* a fixture run shows ≥60% of calls on the cheap tier with no drop in extraction
+  accuracy against the golden set (R9).
+
+- **R7. Compute plan, priced.** *(document + config slice, not code)*
+  Compare and record the actual choice for a 20–30 min Playwright+vision run: DigitalOcean droplet
+  (current), Hetzner dedicated (Dockerfile already mentions it), Fly.io machines, and
+  Browserbase-per-session. Include $/run at 1, 10, 100 runs/month. GPU is almost certainly *not*
+  needed — the vision work is API-side; local GPU only matters if we self-host OCR.
+  *Acceptance:* a table in this doc with real prices, and the winner set in deployment config.
+
+### Phase B — One brain: the registry becomes the source of truth
+
+- **R8. Worker reads the adapter registry.**
+  The 17 hard-coded adapters get registered as `research_site_adapters` rows (vendor template +
+  county + config), and the worker resolves its adapter from the registry, falling back to code only
+  when the registry has nothing. This is what makes §2.2 stop being true.
+  *Acceptance:* changing a selector in the registry changes worker behaviour with no deploy.
+
+- **R9. Golden set + canaries on real counties.**
+  Ten known properties across counties/vendors with hand-verified expected extractions. Canaries
+  registered per adapter (the schema already supports it). Nightly health checks against them.
+  *Acceptance:* `research_adapter_health_checks` stops being empty; a deliberately broken selector
+  turns an adapter `degraded` within one cycle.
+
+- **R10. Self-heal on real data, review-required.**
+  With R8+R9 the existing proposal/apply pipeline finally has inputs. Keep auto-apply **off**; the
+  review queue is the product. Add a "what changed on their site" diff view (DOM fingerprint before/
+  after, screenshot pair).
+  *Acceptance:* a broken adapter produces a proposal a human can accept in one click, and the canary
+  re-passes.
+
+- **R11. County coverage map that reflects reality.**
+  `research_county_data_sources` driven by measured canary outcomes, not intent. The UI states, per
+  county, what we can read and what we cannot, with a "request this county" action.
+  *Acceptance:* a user sees "Bell: full · Coryell: CAD only · Milam: not yet" before starting a run.
+
+- **R12. Politeness and legality budget.**
+  Central per-host rate limiter, robots/ToS posture recorded per adapter, honest user agent (the
+  probe already does this), and a hard rule that captcha solving is only used where the site's terms
+  permit. Record every solve attempt with cost.
+  *Acceptance:* two concurrent runs against one county cannot exceed the configured request rate.
+
+### Phase C — Find everything there is to find
+
+- **R13. Paid subscription platforms, first-class.**
+  Wire the 8 purchase adapters to real credentials + a per-firm subscription record; add TexasFile,
+  TitlePoint/DataTree-class vendors and Regrid parcel data behind the same interface. Every purchase
+  writes a receipt row and a usage event (R4), and the cost-ascending order in
+  `paid-platform-registry.ts` becomes an enforced policy, not a sort.
+  *Acceptance:* a run that needs a $0.50 page records the spend, attaches the PDF, and never
+  re-purchases a document already in the library.
+
+- **R14. Full chain of title, to the earliest available instrument.**
+  `chain-of-title/chain-builder.ts` exists; drive it to exhaustion — walk grantor/grantee backwards,
+  record gaps explicitly, and stop with a stated reason ("clerk index begins 1902").
+  *Acceptance:* the packet shows a chain with every link's instrument number, date, and source
+  screenshot, plus an explicit list of gaps.
+
+- **R15. Complete plat history.**
+  Subdivision plats, replats, vacations, and their amendments; each with a page image and the
+  recording data. Cross-link to the lots they create.
+  *Acceptance:* for a platted lot the packet contains the governing plat and every later instrument
+  that modified it.
+
+- **R16. Imagery pack, per parcel.**
+  Parcel-framed captures at fixed scales from: high-resolution current aerial (Esri World Imagery /
+  NAIP), Google satellite + **Street View** at each road frontage, oblique/bird's-eye where available,
+  and **historical aerials** (USGS EarthExplorer / TNRIS) chosen near the deed date. Every image
+  stored as a document with its source, date, scale and licence recorded.
+  *Acceptance:* a packet for a rural parcel contains ≥1 current aerial, ≥1 historical aerial within
+  10 years of the controlling deed, and Street View at each public road frontage — or a stated reason
+  why not.
+
+- **R17. Evidence for everything.**
+  Every fetch produces a screenshot + the URL + a timestamp; every extracted fact carries a pointer to
+  the page image and the pixel region it came from. This is the difference between "the AI said" and
+  "here is the deed, at this line".
+  *Acceptance:* clicking any fact in the review UI opens its source image scrolled to the region.
+
+- **R18. Shared OCR service with a quality floor.**
+  One OCR entry point (not per-adapter), with confidence per block, automatic escalation to vision for
+  low-confidence or handwritten pages, and an explicit "unreadable" state that reaches the UI.
+  *Acceptance:* a deliberately blurred page is reported unreadable rather than silently mis-extracted.
+
+### Phase D — The AI actually analyses the property
+
+- **R19. Feature location from documents.**
+  Extract and geolocate the property's important features — monuments called for, fence/occupation
+  lines mentioned, easements and their widths, ROW takings, water boundaries, adjoiner calls — into a
+  typed feature list with coordinates where derivable and confidence throughout.
+  *Acceptance:* for a golden-set property the feature list matches the hand-built answer key with a
+  stated precision/recall.
+
+- **R20. Conflict finding, stated as questions.**
+  Where sources disagree (deed vs plat vs CAD vs occupation visible in imagery), the system states the
+  conflict in surveyor's language, with both sources shown, rather than picking a winner silently.
+  The existing `cross-validation-engine` + `discrepancy-analyzer` become user-facing.
+  *Acceptance:* a known-conflicting property produces the conflict, both citations, and a recommended
+  field check.
+
+- **R21. The survey gameplan, persisted and versioned.**
+  `generateSurveyPlan()` output becomes a stored, versioned artifact: what to look for, where, in what
+  order; monuments to search with search radii; access notes; expected obstacles; equipment; estimated
+  field hours; and the open questions from R20. Regenerating creates a new version; the old one stays.
+  *Acceptance:* a plan can be regenerated, compared to its predecessor, and edited by a human without
+  losing the AI original.
+
+### Phase E — The people using it
+
+- **R22. Run console.**
+  One screen for a live run: phase, elapsed vs budget, what it is doing right now, live artifacts
+  appearing, cost so far, and a cancel that actually cancels. Replaces guessing at a spinner.
+  *Acceptance:* an operator can watch a 25-minute run and know at any moment what it is doing and
+  what it has spent.
+
+- **R23. Evidence-first review.**
+  Rebuild the review stage around the fact list: every fact with its source thumbnail, confidence, and
+  accept/reject/correct. Corrections feed R9's golden set.
+  *Acceptance:* a reviewer can accept or correct 50 facts without leaving the screen or losing place.
+
+- **R24. Annotation layers on every document and image.**
+  Persist `SourceDocumentViewer`'s markup: `document_annotations` (project, document, page, layer,
+  strokes/shapes/text, author, created_at). **The original file is never modified** — the same
+  contract `rendered_drawings.user_annotations` already honours. Layers can be toggled, named, and
+  exported flattened.
+  *Acceptance:* markup survives reload, is attributable to a person, and the original download is
+  byte-identical to what was fetched.
+
+- **R25. The packet.**
+  A packet builder: choose facts, documents, images, annotations, the gameplan and the conflicts;
+  order them; add cover notes; render a single PDF **and** keep the structured version. Versioned,
+  with an approver recorded.
+  *Acceptance:* a packet PDF opens with a table of contents, and every included document carries its
+  provenance line.
+
+- **R26. Packet → job → field crew.**
+  Attach the packet to a job (`research_projects.job_id` finally load-bearing), surface it on the job
+  page, in Work Mode, and in the mobile app's job view. The crew sees the gameplan and can open any
+  document offline.
+  *Acceptance:* a field user opens the job and reads the plan without touching the research UI.
+
+- **R27. Re-run diff.**
+  Surface `pipeline-diff-engine`: what changed since the last run — new instruments, changed CAD
+  values, new imagery. Research is not a one-shot; a job that sits for three months needs this.
+  *Acceptance:* a second run on the same property shows an explicit change list, not a new blob.
+
+### Phase F — Intake and scale
+
+- **R28. Request → run, unattended.**
+  An intake endpoint that accepts a research request (from the AI intake flow in the platform audit's
+  D4, from a job, or manually), queues it, runs it to completion within the budget, and notifies on
+  finish or failure. This is the owner's "request comes in → server works 20–30 minutes → done".
+  *Acceptance:* posting a request with an address and county produces a finished packet with no human
+  in the loop, and a notification either way.
+
+- **R29. Concurrency, prioritisation, and back-pressure.**
+  Multiple runs without trampling each other or a county's servers: queue priority, per-county
+  serialisation, and a visible backlog.
+  *Acceptance:* ten simultaneous requests complete without a rate-limit ban or a memory blow-up.
+
+- **R30. Per-run report card.**
+  Every finished run scores itself: sources reached vs available, facts extracted vs expected for that
+  property type, conflicts found, cost, wall-clock, and what was skipped and why. This is how "as
+  cheap but as effective as possible" becomes a number that can be improved.
+  *Acceptance:* two runs on the same property with different budgets can be compared on one screen.
+
+---
+
+## 4. Decisions that are the owner's, not mine
+
+These block specific slices and must not be guessed:
+
+1. **Subscription accounts (R13).** Which paid platforms does the firm hold or want — TexasFile,
+   TitlePoint, DataTree, CoreLogic, Regrid, county-specific? Credentials and per-page/per-month
+   costs decide the cost-ascending policy.
+2. **Imagery licensing (R16).** Google's Maps/Street View Static APIs are paid and their terms
+   restrict storage and redistribution; Esri World Imagery and NAIP are cheaper or free with
+   different restrictions. Which do we buy, and may captured tiles be stored in a customer packet?
+3. **Captcha and ToS posture (R12).** Some county portals forbid automated access in their terms.
+   Which counties are we willing to automate, and where do we stop and queue a manual step?
+4. **Compute host (R7).** Droplet vs Hetzner vs Fly vs Browserbase-per-session — a cost/ops
+   trade-off, and the current droplet is unreachable regardless.
+5. **Spend ceilings (R5).** Dollars per run and per month, and what a run should do when it hits
+   them: stop, or ask.
+
+---
+
+## 5. Sequencing note for the loop
+
+Build in order **A → B → C → D → E → F**, one slice per pass. Phase A first is not negotiable: R1–R5
+are what make every later claim in this document verifiable. A slice is done when its acceptance
+criterion is demonstrated — for UI slices that means **driven in a browser**, not just typechecked,
+per this repo's standing lesson that a green suite does not catch an unwired feature.
