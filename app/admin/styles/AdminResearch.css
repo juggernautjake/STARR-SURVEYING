@@ -11855,3 +11855,80 @@
 .adjoiner__status { margin: 0.25rem 0 0; font-size: 0.76rem; color: #1D4ED8; }
 .adjoiner__status--link { text-decoration: underline; }
 .adjoiner__status--muted { color: #9CA3AF; }
+
+/* ── Encumbrance rollup (plan R34) ────────────────────────────────────────── */
+
+.encumbrances { font-size: 0.82rem; margin-bottom: 1rem; }
+
+.encumbrances--bad {
+  padding: 0.6rem 0.8rem;
+  background: #FEF2F2;
+  color: #991B1B;
+  border-left: 4px solid #DC2626;
+  border-radius: 5px;
+}
+
+.encumbrances__headline { margin: 0 0 0.5rem; font-weight: 650; color: #111827; }
+
+/* The size of the gap, stated rather than implied — researching more neighbours is what closes it. */
+.encumbrances__gap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.6rem;
+  background: #FEF3C7;
+  color: #92400E;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.encumbrances__list { list-style: none; margin: 0 0 0.6rem; padding: 0; }
+
+.encumbrance {
+  border: 1px solid #E5E7EB;
+  border-left: 3px solid #6B7280;
+  border-radius: 5px;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.35rem;
+  background: #fff;
+}
+
+/* A neighbour-recorded encumbrance is the one a reader will not expect and is most likely to
+   dismiss — which is exactly the mistake this rollup exists to prevent. */
+.encumbrance--adjoiner { border-left-color: #7C3AED; background: #FAF5FF; }
+
+.encumbrance__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+}
+
+.encumbrance__kind { font-weight: 700; color: #111827; }
+.encumbrance__purpose { font-size: 0.76rem; color: #6B7280; text-transform: capitalize; }
+
+.encumbrance__width { font-size: 0.74rem; color: #065F46; font-weight: 650; }
+/* No stated width means nothing to stake — shown, not left blank. */
+.encumbrance__width--none { color: #B45309; font-weight: 600; }
+
+.encumbrance__unverified {
+  font-size: 0.68rem;
+  color: #92400E;
+  background: #FEF3C7;
+  padding: 0.02rem 0.35rem;
+  border-radius: 3px;
+}
+
+.encumbrance__text { margin: 0 0 0.2rem; color: #374151; }
+.encumbrance__source { margin: 0; font-size: 0.74rem; color: #6B7280; }
+.encumbrance__source--adjoiner { color: #6D28D9; font-weight: 600; }
+.encumbrance__bearing { margin: 0.2rem 0 0; font-size: 0.74rem; color: #6D28D9; }
+
+.encumbrances__caveats {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.74rem;
+  color: #6B7280;
+}

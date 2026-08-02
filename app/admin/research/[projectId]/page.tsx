@@ -47,6 +47,8 @@ import ReportCardPanel from '../components/ReportCardPanel';
 import PacketBuilderPanel from '../components/PacketBuilderPanel';
 // The neighbours, and the opt-in path to researching one properly (research plan R31-R33).
 import AdjoinersPanel from '../components/AdjoinersPanel';
+// What encumbers this property, including anything recorded against a neighbour (plan R34).
+import EncumbrancePanel from '../components/EncumbrancePanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
@@ -2537,6 +2539,11 @@ export default function ResearchProjectPage() {
               })()}
 
               {/* ── Tab: Easements ── */}
+              {/* The encumbrance rollup, above the existing easement summary (plan R34). It pulls
+                  in encumbrances recorded against a NEIGHBOUR, which never appeared here before —
+                  an easement is usually recorded against only one of the two tracts it crosses. */}
+              {reviewTab === 'easements' && <EncumbrancePanel projectId={projectId} />}
+
               {reviewTab === 'easements' && (() => {
                 const meta = project.analysis_metadata as Record<string, unknown> | null;
                 const result = meta?.result as Record<string, unknown> | null;
