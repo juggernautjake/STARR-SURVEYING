@@ -325,11 +325,44 @@ polish — nothing else in this plan can be trusted while the engine is down and
   their module constants. That is a per-adapter change and belongs with R9's canaries, so a change
   can be proven against a known property rather than assumed.
 
-- **R9. Golden set + canaries on real counties.**
-  Ten known properties across counties/vendors with hand-verified expected extractions. Canaries
-  registered per adapter (the schema already supports it). Nightly health checks against them.
-  *Acceptance:* `research_adapter_health_checks` stops being empty; a deliberately broken selector
-  turns an adapter `degraded` within one cycle.
+- **R9. ⚠ HALF DONE 2026-08-02 — sensing is now recorded; the golden set is still to come.**
+  *Owner emphasis: sense a changed site, then adjust.* The sensing already existed and was being
+  thrown away.
+
+  `SiteHealthMonitor` has always opened every county portal in Chromium on a timer and checked that
+  the selectors an adapter depends on are still present. Its results went to memory and a WebSocket
+  and vanished on restart, while the app's self-heal pipeline — diagnose, propose, review, apply —
+  reads `research_adapter_health_checks`, which had **0 rows because nothing wrote to it**. A county
+  could change its site, the monitor would notice within the hour, and the repair machinery would
+  never hear about it.
+
+  `worker/src/infra/health-persistence.ts` is that write, and the translation is where the judgement
+  sits:
+  · a **required** selector gone → `broken` — the signal a repair agent can act on, because there is
+    a page to diagnose;
+  · an **unreachable** site → `error`, NOT broken. Nothing to diagnose from a timeout, and county
+    portals go down for maintenance on weeknights;
+  · an optional element gone → `degraded`, still usable;
+  · the summary names the element ("required element(s) gone — results table"), because "structure
+    changed" sends somebody to read a diff and the element name sends them to the page.
+
+  The adapter's own status moves only after **two consecutive** failures — a dashboard that cries
+  wolf on one maintenance window is one nobody reads — but recovers on the **first** good check,
+  because being wrong in that direction only costs a needless "we can't search that county". A
+  status change invalidates the resolve cache so a repair is not stale for a minute.
+
+  *Verified against production:* a simulated "the results table is gone" result was sensed,
+  translated and written — `{"written":1,"unmatched":[],"errors":[]}` — with the row reading
+  *"Kofile — Bell County: required element(s) gone — results table. The site's structure changed."*
+  The synthetic row was then deleted, because leaving it would tell the coverage dashboard that the
+  one county that works is broken.
+
+  Recording also runs after every scheduled sweep, not only the manual `POST
+  /admin/health/sites/check`.
+
+  **Still to do:** the golden set itself — ten known properties with hand-verified expected
+  extractions, registered as canaries so the *semantic* layer (did we get the right data) can be
+  checked, not just the structural one (are the selectors there).
 
 - **R10. Self-heal on real data, review-required.**
   With R8+R9 the existing proposal/apply pipeline finally has inputs. Keep auto-apply **off**; the

@@ -55,6 +55,7 @@ import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-fact
 import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health.js';
 import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
+import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
 import { makePipelineLoggerCaptchaSink } from './lib/pipeline-logger-sinks.js';
@@ -3753,6 +3754,62 @@ const siteHealthMonitor = new SiteHealthMonitor({
   countyFips: ['48027'],
 });
 
+/** Look up the registry row a monitor result belongs to (plan R9).
+ *
+ *  Returns null for a site the registry does not know about — the monitor probes more than has been
+ *  registered, and that gap is reported rather than hidden. */
+async function resolveAdapterForSite(result: { siteId: string; vendor: string }) {
+  const parsed = parseSiteId(result.siteId, result.vendor);
+  if (!parsed) return null;
+  const supabase = await getSupabase();
+  if (!supabase) return null;
+  const db = supabase as unknown as {
+    from: (t: string) => {
+      select: (c: string) => {
+        ilike: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { id: string } | null }> };
+        eq: (c: string, v: unknown) => { eq: (c: string, v: unknown) => { maybeSingle: () => Promise<{ data: { id: string; status: string } | null }> } };
+      };
+    };
+  };
+  const { data: county } = await db.from('research_counties').select('id').ilike('name', parsed.county).maybeSingle();
+  if (!county?.id) return null;
+  const { data: adapter } = await db.from('research_site_adapters')
+    .select('id, status').eq('county_id', county.id).eq('site_type', parsed.siteType).maybeSingle();
+  return adapter ?? null;
+}
+
+/** Persist whatever the monitor last sensed (plan R9).
+ *
+ *  This is the link that was missing: the monitor has always detected selector drift and always
+ *  thrown the answer away into memory and a WebSocket, while the self-heal pipeline read a table
+ *  nothing wrote to. */
+async function recordSiteHealth(triggeredBy: string): Promise<void> {
+  const summary = siteHealthMonitor.getSummary();
+  const persisted = await persistHealthResults(summary.sites, resolveAdapterForSite, triggeredBy);
+  const bits = [
+    `${persisted.written} check(s) recorded`,
+    persisted.statusChanges.length > 0 ? `${persisted.statusChanges.length} adapter status change(s)` : null,
+    persisted.unmatched.length > 0 ? `${persisted.unmatched.length} probe(s) with no registered adapter` : null,
+    persisted.errors.length > 0 ? `errors: ${persisted.errors.join('; ')}` : null,
+  ].filter(Boolean).join(' · ');
+  console.log(`[SiteHealth] persisted — ${bits}`);
+}
+
+/**
+ * POST /admin/health/sites/check
+ * Run every probe now and RECORD the outcome against the adapter registry, so the self-heal
+ * pipeline has something to diagnose (plan R9).
+ */
+app.post('/admin/health/sites/check', requireAuth, async (_req: Request, res: Response) => {
+  try {
+    const summary = await siteHealthMonitor.checkAll();
+    await recordSiteHealth('manual');
+    res.json({ ...summary, recorded: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 /**
  * GET /admin/health/sites
  * Returns the full health summary for all monitored sites.
@@ -4526,6 +4583,13 @@ app.listen(PORT, () => {
   console.log('  DELETE /admin/health/alerts             ← Clear alerts');
   console.log('');
 
-  // Start periodic health checks (every 6 hours — reduced to minimise log noise)
-  siteHealthMonitor.startPeriodicChecks(6 * 60 * 60 * 1000);
+  // Start periodic health checks (every 6 hours — reduced to minimise log noise).
+  //
+  // Plan R9: the monitor has always detected selector drift and always thrown the answer away.
+  // `onCheckComplete` records it against the adapter registry, which is what the app's self-heal
+  // pipeline reads — so a county changing its site now reaches the repair queue instead of a log
+  // line that scrolls past.
+  siteHealthMonitor.startPeriodicChecks(6 * 60 * 60 * 1000, () => {
+    void recordSiteHealth('scheduled');
+  });
 });

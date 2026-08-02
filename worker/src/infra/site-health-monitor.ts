@@ -163,14 +163,20 @@ export class SiteHealthMonitor {
    * Start periodic health checks.
    * @param intervalMs — check interval in ms (default: 30 minutes)
    */
-  startPeriodicChecks(intervalMs = 30 * 60 * 1000): void {
+  /**
+   * @param onCheckComplete Called after every full sweep (plan R9). This is how results reach
+   *        `research_adapter_health_checks` — without it the monitor senses drift and forgets it,
+   *        which is what it did from the day it was written until 2026-08-02.
+   */
+  startPeriodicChecks(intervalMs = 30 * 60 * 1000, onCheckComplete?: () => void): void {
     if (this.checkInterval) return;
     console.log(`[SiteHealth] Starting periodic checks every ${intervalMs / 60000} min`);
+    const runOnce = () => this.checkAll()
+      .then(() => { onCheckComplete?.(); })
+      .catch(console.error);
     // Run the first check after a short delay (don't block startup)
-    setTimeout(() => this.checkAll().catch(console.error), 10_000);
-    this.checkInterval = setInterval(() => {
-      this.checkAll().catch(console.error);
-    }, intervalMs);
+    setTimeout(runOnce, 10_000);
+    this.checkInterval = setInterval(runOnce, intervalMs);
   }
 
   stopPeriodicChecks(): void {
