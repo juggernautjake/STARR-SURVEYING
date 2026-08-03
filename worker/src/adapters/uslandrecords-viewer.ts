@@ -67,6 +67,39 @@ export interface CapturedPage {
   sourceUrl: string;
   width: number;
   height: number;
+  /** Set when the capture is too small for fine survey text to exist in it (see below). */
+  legibilityWarning?: string;
+}
+
+// ── THE DEFAULT RENDER IS TOO SMALL TO READ A BEARING ───────────────────────────────────────────
+//
+// Measured 2026-08-03: this viewer paints a letter-size page at **304×561** by default. That is about
+// 36 DPI, which puts a 0.07" bearing label at roughly **2.5 pixels**.
+//
+// That is not a marginal capture — the digits are not in the image at all. OCR asked to read them
+// does not fail; it returns something plausible, which is the single failure mode this platform is
+// built to prevent.
+//
+// The image URL carries `WIDTH`, `HEIGHT`, `FITTYPE` and `ZOOM` parameters, so the fix is to REQUEST
+// a larger render rather than to capture the small one more carefully. Until that is driven and
+// proven against the portal, every capture below this threshold says so, and anything fine read from
+// one is unverified.
+
+/** Height in pixels below which a captured page cannot contain readable fine text.
+ *
+ *  A US-letter page is 11" tall; 13 px of 0.07" text needs ~186 DPI, so ~2000 px of page height. Set
+ *  conservatively at 1200 — a capture under this is certainly unusable for a bearing; one above it is
+ *  not thereby proven usable, which is what `ocr-legibility.ts` is for. */
+export const MIN_USABLE_PAGE_HEIGHT_PX = 1200;
+
+export function legibilityWarningFor(width: number, height: number): string | undefined {
+  if (height >= MIN_USABLE_PAGE_HEIGHT_PX) return undefined;
+  return (
+    `Captured at ${width}×${height}, which is roughly ${Math.round(height / 11)} DPI for a letter page — a 0.07" ` +
+    `bearing label is about ${(((height / 11) * 0.07)).toFixed(1)} px tall here, so fine survey text is NOT ` +
+    `PRESENT in this image. Readable for layout and large type only. Anything fine "read" from this is a guess ` +
+    `by the model, not a reading. The viewer's image URL takes WIDTH/HEIGHT/ZOOM — a larger render is the fix.`
+  );
 }
 
 export interface CaptureResult {
@@ -142,15 +175,18 @@ export async function capturePages(
       };
     }
 
+    const warning = legibilityWarningFor(shot.w, shot.h);
     pages.push({
       pageNumber: n,
       imageBase64: shot.data.replace(/^data:image\/png;base64,/, ''),
       sourceUrl: shot.src,
       width: shot.w,
       height: shot.h,
+      legibilityWarning: warning,
     });
     previousSrc = shot.src;
     log(`[USLandRecords viewer] captured page ${n} (${shot.w}×${shot.h})`);
+    if (warning) log(`[USLandRecords viewer] page ${n}: ${warning}`);
 
     // The pager renames the button rather than disabling it.
     const hasNext = await viewerPage.$(USLR_VIEWER.nextSelector);

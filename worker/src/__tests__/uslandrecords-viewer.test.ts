@@ -21,6 +21,7 @@ import {
   RENDERED_PREDICATE,
   USLR_VIEWER,
   capturePages,
+  legibilityWarningFor,
 } from '../adapters/uslandrecords-viewer.js';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ==';
@@ -159,5 +160,46 @@ describe('the adapter no longer refuses outright', () => {
   it('closes the viewer tab afterwards', () => {
     // A tab per document would exhaust a long run's memory.
     expect(src).toContain('viewer.close()');
+  });
+});
+
+describe('the default render is too small to contain a bearing', () => {
+  // Measured 2026-08-03: this viewer paints a letter page at 304×561 — about 36 DPI, putting a 0.07"
+  // bearing at ~2.5 px. Not a marginal capture: the digits are NOT IN THE IMAGE. OCR asked to read
+  // them does not fail, it returns something plausible, which is the one failure mode this platform
+  // exists to prevent.
+  it('warns on a capture that cannot hold fine text', () => {
+    const w = legibilityWarningFor(304, 561);
+    expect(w).toBeDefined();
+    expect(w).toContain('NOT');
+    expect(w).toContain('PRESENT in this image');
+    expect(w).toContain('a guess by the model, not a reading');
+  });
+
+  it('names the fix as a bigger render, not a better capture', () => {
+    // The capture already takes natural size. The natural size IS the problem.
+    expect(legibilityWarningFor(304, 561)).toContain('WIDTH/HEIGHT/ZOOM');
+  });
+
+  it('is silent on a capture large enough to be worth assessing properly', () => {
+    // Silence here is not a claim of legibility — ocr-legibility.ts is what judges that.
+    expect(legibilityWarningFor(2550, 3300)).toBeUndefined();
+  });
+
+  it('attaches the warning to the captured page, not only to the log', async () => {
+    // A log line is not a result. The warning has to travel with the page so anything reading a
+    // bearing off it can say where that bearing came from.
+    const r = await capturePages({
+      waitForFunction: async () => true,
+      evaluate: async () => ({ data: 'data:image/png;base64,AAAA', src: 'https://x/ACSResource.axd?k=1', w: 304, h: 561 }),
+      $: async () => null,
+      click: async () => {},
+    } as never);
+    expect(r.pages[0]!.legibilityWarning).toBeDefined();
+  });
+
+  it('leaves a usable capture unwarned', async () => {
+    const r = await capturePages(fakeViewer(1));   // 1224×1584
+    expect(r.pages[0]!.legibilityWarning).toBeUndefined();
   });
 });
