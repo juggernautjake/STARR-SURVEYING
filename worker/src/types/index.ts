@@ -31,6 +31,17 @@ export interface PipelineResult {
   /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
   reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
   /**
+   * Stage 4: the boundary read as a SURVEY rather than as a record — monuments as objects,
+   * corner-to-corner inverses, curve self-checks, units converted, closure read as evidence about
+   * our own OCR, and a drawing.
+   *
+   * Produced by `survey-reading.ts`, which exists because the nine Phase I modules that do all of
+   * the above had no production caller at all: every import of every one came from a sibling module
+   * or its own test file. Present on every run that reaches Stage 4, including ones with no
+   * traversable description — in that case it carries `notTraversable` and says why.
+   */
+  surveyReading?: import('../services/survey-reading.js').SurveyReading;
+  /**
    * Stage 5: 7-call property validation report — text synthesis, cross-validation,
    * and final discrepancy/confidence report from property-validation-pipeline.ts.
    * Only present when the pipeline reaches Stage 5 (requires Anthropic API key).

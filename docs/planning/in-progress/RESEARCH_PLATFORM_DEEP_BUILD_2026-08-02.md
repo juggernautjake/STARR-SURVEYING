@@ -32,9 +32,15 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 **Phase I added — the survey itself.** A new phase (§3, Phase I) for a set of owner requests that are
 all about the *content* of a document rather than about finding it: corner markers read as objects,
 corners positioned relative to each other, varas converted, and an old survey rotated onto the grid
-being shot. S1–S7 and S9 shipped; S8 (measured OCR tiling quality) is settled as arithmetic and now
-waits only on a golden plat — which S9 partly routes around, by using each document's own **closure**
-as evidence about whether we read it correctly.
+being shot. S1–S7, S9 and S10 shipped; S8 (measured OCR tiling quality) is settled as arithmetic and
+now waits only on a golden plat — which S9 partly routes around, by using each document's own
+**closure** as evidence about whether we read it correctly.
+
+**And S10 is the one that made the other nine real.** An audit at the end of the phase found that
+*every* Phase I module had zero production callers — the whole stack was an island, imported only by
+its siblings and its own tests, so a processed document got the same treatment it got before the
+phase began. `survey-reading.ts` is the bridge, called from `pipeline.ts` Stage 4. Seventh instance
+of the authored-but-not-wired defect in this document, and the largest.
 
 **Document retrieval is real for 22 counties, not one.** An audit found `KofileClerkAdapter.
 getDocumentImages` is a full implementation — Bell was never a bespoke exception, it is the same
@@ -3048,6 +3054,66 @@ distinction matters: everything before this made a document arrive; nothing befo
   a person looking at one document's calls actually is, and three tests drive `drawBoundary` itself
   rather than the module — deliberately, because this session produced the authored-but-not-wired
   defect once already (S8, above). Worker suite green: 75 files / 1258 tests.
+
+- **S10. The bridge — and the reason none of Phase I had ever run.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/survey-reading.ts`, called from `pipeline.ts` Stage 4)
+
+  S1–S9 all say **DONE** above. They were also, all nine of them, **dead code**. Every import of
+  every one of those modules came from a sibling in the same folder or from its own test file:
+
+  ```
+  worker/src/services/*.ts        ← imports each other
+  worker/src/__tests__/*.test.ts  ← imports them
+  (nothing else, anywhere)
+  ```
+
+  `drawBoundary` had zero production callers. So did `parseMonument`, `checkCurve`, `traverse`,
+  `fitRotation` and `diagnoseClosure`. A document processed by this platform got **exactly the
+  treatment it got before Phase I was written** — the owner's ask, *"we need to extract everything of
+  significance from every file we pull"*, was served by none of it. Nine slices of real, tested work,
+  and no connection.
+
+  This is the shape this document has now recorded **seven times** (S8's legibility check being the
+  most recent, and mine). It is worth stating what makes it invisible: every unit test passes either
+  way. A module's own tests cannot tell you whether anything calls it.
+
+  **Stage 4 is where it belongs** — the boundary has just been read and has not yet been reported on.
+  `readSurvey()` takes the `ExtractedBoundaryData` Stage 3 already produces and returns monuments as
+  objects, corner-to-corner inverses, curve self-checks, units converted, closure diagnosed, and a
+  drawing. It is non-fatal by construction: a description it cannot walk comes back saying **why**
+  (`notTraversable`) rather than throwing, so a lot-and-block property does not cost the run its
+  other stages. The reading is on `PipelineResult`, not only in the log — a finding that exists only
+  as log lines cannot be shown to a surveyor.
+
+  **A bridge between two type systems is where meaning quietly changes**, and there were exactly two
+  places here where it could:
+
+  1. **`'feet'` is not a unit.** The pipeline's `BoundaryCall` says `unit: 'feet'`; the survey stack
+     distinguishes `us_survey_feet` from `international_feet`, which differ in the 7th figure. Bare
+     "feet" in a Texas land description means the **US survey foot** — the foot the Texas State Plane
+     zones are defined in — so that is the mapping, written down at the point of translation rather
+     than left for the next reader to rediscover.
+
+  2. **A curve with no chord stops the traverse.** The traverse walks chords, because the chord is
+     the straight line between the two corners a crew occupies. A call reciting radius and delta but
+     no chord is *unusable*, and one unusable call leaves every corner after it unplaced — discarding
+     the entire figure over a value that is derivable. The chord is now derived (`2R·sin(Δ/2)`, and
+     the bearing from the inbound tangent deflected by `Δ/2` **in the stated direction**, since the
+     wrong sign puts the corner on the wrong side of the line by twice the offset). Every such corner
+     is listed in `derivedChords` and warned about, because a corner positioned from a value **we**
+     computed is not the same evidence as one the deed recites.
+
+  **And one place it refuses to guess.** `diagnoseClosure` needs the recorded year, and the
+  extraction does not record which document the calls came from — `ExtractedBoundaryData` carries no
+  source attribution. Taking the bundle's oldest document would excuse a real OCR error whenever an
+  1890 deed was retrieved alongside a 2015 replat; taking the newest would accuse the platform of
+  misreading a description that never closed. `unambiguousRecordedYear()` therefore returns a year
+  only when **every dated document in the run agrees on one**, and null otherwise — falling back to
+  the honest branch S9 already had: *"the recording date is unknown, and the two cases cannot be told
+  apart."* It also declines to read `Vol 412 Pg 88` as a year.
+
+  Worker suite green: 76 files / 1281 tests. Five of the tests drive `pipeline.ts` itself rather than
+  the module, for the obvious reason.
 
 ---
 

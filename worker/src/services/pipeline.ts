@@ -17,6 +17,7 @@ import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
 import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
+import { readSurvey, unambiguousRecordedYear } from './survey-reading.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
 import { generateAndWriteReport } from './report-generator.js';
@@ -2124,6 +2125,26 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const validation = validateBoundary(boundary, propertyResult?.acreage ?? null, logger);
     logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
 
+    // ── The boundary read as a SURVEY, not as a record ────────────────────────────────────────
+    //
+    // Everything Phase I built — monuments as objects, corner-to-corner inverses, curve self-checks,
+    // varas converted, closure read as evidence about our own OCR, the drawing — ran nowhere until
+    // this call. Nine modules, each tested, each imported only by a sibling or its own test file.
+    //
+    // Stage 4 is the right place: the boundary has just been read and has not yet been reported on.
+    // Non-fatal by construction — `readSurvey` returns a reading that says what it could not do
+    // rather than throwing, so a description it cannot walk does not cost the run its other stages.
+    const surveyReading = readSurvey(boundary, {
+      recordedYear: unambiguousRecordedYear(finalProcessedDocs),
+      title: propertyResult?.legalDescription ?? undefined,
+    });
+    logger.info('Stage4', `Survey reading: ${surveyReading.statement}`);
+    if (surveyReading.closure?.nextStep) logger.info('Stage4', `  → ${surveyReading.closure.nextStep}`);
+    for (const c of surveyReading.curves.filter((c) => c.check.verdict === 'inconsistent')) {
+      logger.warn('Stage4', `  Curve at call ${c.callIndex + 1}: ${c.check.statement}`);
+    }
+    for (const d of surveyReading.derivedChords) logger.warn('Stage4', `  ${d.statement}`);
+
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 5: Property Validation Pipeline (Calls 5-7)
     // Text synthesis, cross-validation, and final discrepancy/confidence
@@ -2327,6 +2348,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       documents: finalProcessedDocs,
       boundary,
       validation,
+      surveyReading,
       reconciliation,
       validationReport,
       masterReportText,
