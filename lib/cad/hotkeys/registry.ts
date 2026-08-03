@@ -124,6 +124,11 @@ export const DEFAULT_ACTIONS: BindableAction[] = [
 
   // App / View
   { id: 'view.settings',     category: 'APP',        label: 'Open Settings',        description: 'Open the Settings page',                      defaultKey: 'ctrl+comma',   isChord: false, context: 'GLOBAL' },
+  // The perf overlay existed and was reachable ONLY by knowing `Ctrl+Alt+P` — it appeared in no
+  // menu, no palette and no hotkey list. Two confident, wrong performance analyses were written in
+  // one session by reading source while a live histogram was one keystroke away. Undiscoverable
+  // instrumentation is why people reason instead of measure.
+  { id: 'view.perfOverlay',  category: 'APP',        label: 'Performance Overlay',  description: 'Live render-time histogram (p50/p95/p99 per phase) with synthetic 1k / 50k / 200k fixtures — measure before theorising about performance.', defaultKey: 'ctrl+alt+p', isChord: false, context: 'GLOBAL' },
   { id: 'view.commandBar',   category: 'APP',        label: 'Focus Command Bar',    description: 'Move focus to the command bar',               defaultKey: 'ctrl+shift+k', isChord: false, context: 'GLOBAL' },
   { id: 'view.commandPalette', category: 'APP',      label: 'Open Command Palette', description: 'Open the searchable command palette',         defaultKey: 'ctrl+k',       isChord: false, context: 'GLOBAL' },
   { id: 'view.shortcutHelp', category: 'APP',        label: 'Keyboard Shortcuts',   description: 'Show a cheat-sheet of every keyboard binding grouped by category', defaultKey: 'shift+slash',  isChord: false, context: 'GLOBAL' },

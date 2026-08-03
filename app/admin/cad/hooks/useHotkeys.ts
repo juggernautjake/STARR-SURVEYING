@@ -380,6 +380,13 @@ export function dispatchDefaultAction(action: BindableAction): void {
     case 'view.zoomOut':
       window.dispatchEvent(new CustomEvent('cad:zoomOut'));
       return;
+    case 'view.perfOverlay':
+      // Same custom-event pattern as `view.regenerate` below. PerfOverlay keeps its own open state
+      // and its own Ctrl+Alt+P listener; this adds a SECOND way in — the command palette — so the
+      // instrumentation is discoverable without knowing the hotkey.
+      window.dispatchEvent(new CustomEvent('cad:togglePerfOverlay'));
+      return;
+
     case 'view.regenerate':
       // cad-ux-cleanup-pass Slice 11 — manual canvas refresh. The
       // CanvasViewport listener clears its LOD + feature-index

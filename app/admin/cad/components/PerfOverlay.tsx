@@ -110,8 +110,17 @@ export default function PerfOverlay() {
         setVisible((v) => !v);
       }
     }
+    // Second way in: the command palette dispatches this, so the overlay is findable by someone who
+    // does not already know the hotkey. Two wrong performance analyses were written in one session
+    // by reading source while this histogram was one keystroke away — undiscoverable instrumentation
+    // is why people reason instead of measure.
+    function onToggle() { setVisible((v) => !v); }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('cad:togglePerfOverlay', onToggle);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('cad:togglePerfOverlay', onToggle);
+    };
   }, []);
 
   useEffect(() => {
