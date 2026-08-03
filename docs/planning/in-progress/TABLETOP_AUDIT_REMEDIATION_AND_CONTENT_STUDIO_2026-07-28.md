@@ -1271,7 +1271,29 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **16** | `P5-7b`, `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12` |
+> | ~~**Actionable now**~~ | ~~**16**~~ | ~~`P5-7b`, `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12`~~ |
+> | **Actionable now — CORRECTED 2026-08-03** | **~7** | see the note directly below |
+>
+> **⚠ This table overstated the work by more than half, in two different ways.**
+>
+> **1. `P8-1` was stale** — the bestiary exists. See P8-1 itself for the evidence and the test that
+> now pins it.
+>
+> **2. At least seven of these are FINISHED but UNMERGED.**
+> `origin/claude/dnd-streamer-audit-2026-08-03` is the tip of a linear stack of nine branches (it
+> contains the other eight as ancestors — verified with `git merge-base --is-ancestor`), 13 commits
+> ahead of `main`, carrying: **P5-7b, P8-2, P13-13b, P14-8, P14-9, P14-9b, P14-10, P14-10b, P14-11**,
+> plus a commit ticking eight Phase-13 items by evidence.
+>
+> So the honest remainder is roughly **`P10-5b` and the P13 import slices**, pending that merge.
+>
+> **This is a third failure state** beside "stale item" and "built but unreachable": *built, tested,
+> pushed, never merged*. Every structural guard in this repo reads the working tree, so none of them
+> can see it — a file-existence check cannot tell *nobody wrote it* from *nobody merged it*. This
+> session nearly recorded P8-2 as unbuilt for exactly that reason.
+>
+> **Do not start anything in this doc until that branch is merged and this table re-derived against
+> the tree.** Merging is the owner's, per the standing PR rule; it is item 0 of the handoff.
 >
 > **Phase 6, the Content Studio, is COMPLETE** — all 20 slices including the class studio, the creature
 > builder and sheet, per-field and whole-draft AI assist, file ingest, images, and both engine bridges.
