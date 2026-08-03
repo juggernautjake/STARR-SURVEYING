@@ -17,6 +17,8 @@ import {
 } from './chain-gaps.js';
 // Going back to the clerk for the deeds the gap list names (research plan R14, second half).
 import { walkBack, type WalkCandidate, type WalkResult, type WalkStop } from './chain-walker.js';
+// And by CITATION — the errands the gap list writes (research plan R14, third half).
+import { errandsFromGaps, runErrands, type ErrandDeps, type ErrandRunResult } from './chain-errands.js';
 
 // ── Chain of Title Builder ──────────────────────────────────────────────────
 
@@ -52,6 +54,12 @@ export class ChainOfTitleBuilder {
   private searchAsGrantee?: (grantee: string, before: string) => Promise<WalkCandidate[]>;
   /** Lets the run budget (R5) stop a walk mid-chain. */
   private mayContinue?: () => boolean;
+  /** Citation searches for the gap list's errands. Absent means those errands are reported as
+   *  "could not be searched" rather than run — which is the honest answer, and NOT "not found". */
+  private errandDeps?: ErrandDeps;
+  /** Ceiling on citation searches, separate from the name walk's own budget: they are different
+   *  costs and one should not be able to consume the other's allowance. */
+  private maxErrands?: number;
 
   constructor(
     maxDepth: number = 5,
@@ -59,12 +67,23 @@ export class ChainOfTitleBuilder {
     opts: {
       searchAsGrantee?: (grantee: string, before: string) => Promise<WalkCandidate[]>;
       mayContinue?: () => boolean;
+      fetchByVolumePage?: (volume: string, page: string) => Promise<WalkCandidate[]>;
+      fetchByInstrument?: (instrument: string) => Promise<WalkCandidate[]>;
+      maxErrands?: number;
     } = {},
   ) {
     this.maxDepth = maxDepth;
     this.outputDir = outputDir;
     this.searchAsGrantee = opts.searchAsGrantee;
     this.mayContinue = opts.mayContinue;
+    this.maxErrands = opts.maxErrands;
+    if (opts.fetchByVolumePage || opts.fetchByInstrument) {
+      this.errandDeps = {
+        fetchByVolumePage: opts.fetchByVolumePage,
+        fetchByInstrument: opts.fetchByInstrument,
+        log: (m) => console.log(m),
+      };
+    }
   }
 
   /**
@@ -146,6 +165,62 @@ export class ChainOfTitleBuilder {
       gaps = findGaps(chain);
     }
 
+    // Step 3d: Run the errands the gap list wrote (plan R14, third half).
+    //
+    // Unlike the name walk above, this runs whatever the chain's ending was. A chain can reach the
+    // sovereignty grant — a COMPLETE chain by every other measure — and still recite a partition
+    // deed nobody ever pulled. The walk's stopping condition says nothing about those; they are
+    // named instruments, and being named is what makes them fetchable.
+    //
+    // The searches are by CITATION, so nothing here is a guess: the deed itself supplied the volume
+    // and page. That is also why this is cheap enough to run every time.
+    let errands: ErrandRunResult | null = null;
+    const { errands: worklist, unparseable } = errandsFromGaps(gaps);
+    if (worklist.length > 0 || unparseable.length > 0) {
+      errands = await runErrands(
+        worklist,
+        this.errandDeps ?? {},
+        { maxSearches: this.maxErrands, mayContinue: this.mayContinue },
+        unparseable,
+      );
+      console.log(`[ChainOfTitle] ${errands.statement}`);
+
+      for (const { link, citationKey, citationRaw } of errands.resolved) {
+        chain.push({
+          instrument: link.instrument,
+          type: link.documentType ?? 'deed',
+          grantor: link.grantor,
+          grantee: link.grantee,
+          recordingDate: link.recordingDate,
+          // The citation this answers. Without it the gap stays open even with the deed in hand,
+          // because `VOL412PG88` and the county's own `V412P88` do not normalise to each other —
+          // and the next run would fetch, and on a paid platform re-buy, a document we already have.
+          resolvedCitations: [citationKey],
+          considerationAmount: null,
+          legalDescription: '',
+          acreage: null,
+          boundaryCallsExtracted: false,
+          boundaryChangesDetected: [],
+          measurementSystem: 'unknown',
+          datumDetected: null,
+          // Named separately from the name walk's links, and carrying the citation itself: this one
+          // was fetched because an earlier deed pointed at it by volume and page, which is stronger
+          // provenance than a name-and-date match. The packet should be able to say which deed sent
+          // us for it.
+          source: `clerk-search (cited as ${citationRaw})`,
+          imagePaths: [],
+        } as unknown as ChainLink);
+      }
+
+      if (errands.resolved.length > 0) {
+        // Re-sort and re-derive: a fetched ancestor belongs in date order, and it may itself cite
+        // instruments the chain still lacks. Those become the NEXT run's errands rather than being
+        // chased here — one pass keeps the cost bounded and stated.
+        chain.sort((a, b) => new Date(b.recordingDate).getTime() - new Date(a.recordingDate).getTime());
+        gaps = findGaps(chain);
+      }
+    }
+
     const completeness = summariseChain(chain, termination, gaps);
 
     // Step 4: Analyze boundary evolution
@@ -183,6 +258,11 @@ export class ChainOfTitleBuilder {
       // instruments themselves are fetched — the packet needs to be able to say so.
       chainWalk: walk
         ? { stop: walk.stop, statement: walk.statement, nextStep: walk.nextStep, steps: walk.steps, searchesMade: walk.searchesMade }
+        : undefined,
+      // Likewise every errand, including the ones that could not be run. "Could not be searched" and
+      // "searched and absent" are different findings and are never totalled together.
+      chainErrands: errands
+        ? { statement: errands.statement, searchesMade: errands.searchesMade, counts: errands.counts, outcomes: errands.outcomes }
         : undefined,
     };
 

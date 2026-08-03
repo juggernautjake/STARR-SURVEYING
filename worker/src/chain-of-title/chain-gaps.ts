@@ -161,9 +161,24 @@ export function citedInstruments(text: string | null | undefined): InstrumentCit
 export function linkInstrumentKeys(link: ChainLink): string[] {
   const raw = (link.instrument ?? '').toUpperCase();
   const keys = [raw.replace(/[^A-Z0-9]/g, '')];
+
+  // `412/88`, `412-88`, `412 88` — a non-alphanumeric separator.
   const vp = raw.match(/(\d{1,5})\s*[^0-9A-Z]{1,4}\s*(\d{1,5})/);
   if (vp) keys.push(`VOL${Number(vp[1])}PG${Number(vp[2])}`);
+
+  // `V412P88`, `V.412 PG.88`, `VOL412PG88` — the separator is a LETTER, which the pattern above
+  // cannot match because it excludes A-Z. This is the shape the counties actually return for a
+  // book/page instrument, so without it a deed fetched by citation never closes the gap that
+  // requested it.
+  const lettered = raw.match(/\bV(?:OL(?:UME)?)?\.?\s*(\d{1,5})\s*P(?:G|AGE)?\.?\s*(\d{1,5})\b/);
+  if (lettered) keys.push(`VOL${Number(lettered[1])}PG${Number(lettered[2])}`);
+
   for (const c of citedInstruments(link.instrument)) keys.push(c.key);
+
+  // Citations this link was FETCHED for. Not an inference — we asked for exactly this key and the
+  // county returned this instrument.
+  for (const k of link.resolvedCitations ?? []) keys.push(k);
+
   return keys.filter(Boolean);
 }
 

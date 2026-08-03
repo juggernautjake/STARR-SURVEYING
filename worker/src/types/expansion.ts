@@ -229,6 +229,19 @@ export interface ChainLink {
   datumDetected: 'NAD83' | 'NAD27' | 'magnetic' | 'unknown';
   source: string;
   imagePaths: string[];
+
+  /** Citation keys this link is KNOWN to answer, recorded when it was fetched by citation (R14).
+   *
+   *  Without this, closing a gap depends on re-deriving the citation from the instrument string —
+   *  and it does not survive the round trip. The 1974 deed recites "Volume 412, Page 88", which
+   *  normalises to `VOL412PG88`; the county returns that instrument numbered `V412P88`, which does
+   *  not. So the gap stayed open after the deed was in hand, and the next run would fetch it again —
+   *  paying again, on a paid platform.
+   *
+   *  Recording the key we searched for is better than a cleverer regex because it is not an
+   *  inference at all: we asked for that citation and this is what came back. Instrument formats
+   *  vary by county and by century, and a derivation good enough for Bell will be wrong somewhere. */
+  resolvedCitations?: string[];
 }
 
 export interface ChainOfTitle {
@@ -294,6 +307,19 @@ export interface ChainOfTitle {
     nextStep: string;
     steps: import('../chain-of-title/chain-walker.js').WalkStep[];
     searchesMade: number;
+  };
+
+  /** The errands the gap list wrote, and what came of each (plan R14).
+   *
+   *  Every outcome is kept, not just the retrievals. The three unresolved reasons mean different
+   *  things — searched-and-absent, could-not-be-searched, and search-broke — and only the first is
+   *  evidence about the record. Collapsing them into one "unresolved" count would put a deed sitting
+   *  in the courthouse under the same heading as one that genuinely is not there. */
+  chainErrands?: {
+    statement: string;
+    searchesMade: number;
+    counts: Record<import('../chain-of-title/chain-errands.js').ErrandStatus, number>;
+    outcomes: import('../chain-of-title/chain-errands.js').ErrandOutcome[];
   };
 }
 
