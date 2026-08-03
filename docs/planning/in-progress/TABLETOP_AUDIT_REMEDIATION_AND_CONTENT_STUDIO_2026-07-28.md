@@ -1262,22 +1262,38 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts, measured rather than estimated 2026-08-02: 30 open, of which only 15 are actionable.**
+> **2. Counts, re-measured 2026-08-02 (end of session): 23 open, of which only 8 are actionable.**
+>
+> Counted by parsing the file (`grep -c '^- \[ \] \*\*'`), not by eye — the previous count said 15
+> actionable and listed `P8-1` and six Phase-13 items that were all already shipped, and it also missed
+> `QA-2` entirely.
 >
 > | | count | which |
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **15** | `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12` |
+> | **Actionable now** | **8** | `P10-5b`, `P13-13b`, `P14-8/9/10/11/12`, `QA-2` |
 >
-> **Phase 6, the Content Studio, is COMPLETE** — all 20 slices including the class studio, the creature
-> builder and sheet, per-field and whole-draft AI assist, file ingest, images, and both engine bridges.
-> The owner's priority list is therefore satisfied down to "the audit findings".
+> Shipped this session: `P5-7b` and `P8-2` (built), and `P8-1`, `P13-4`, `P13-5`, `P13-8`, `P13-11`,
+> `P13-12`, `P13-13`, `P13-14` (**ticked by reading the code and querying the database — all eight were
+> already done**). One genuine gap fell out of verifying `P13-13` and is logged as `P13-13b`.
 >
-> **`P5-7b` is DONE (2026-08-02)** — per-slot screens inside the Levels step, driven in a browser across
-> all three systems before ticking, per the standing rule. Its own entry records what changed and the
-> three decisions worth not re-deriving. **Next up is `P8-1`** — the audit findings, which is where the
-> owner's priority order points now that the builder and the Studio are both satisfied.
+> **⚠ READ THIS BEFORE STARTING ANY ITEM IN THIS DOC.** The handoff above tells you to check the code
+> before starting anything marked *blocked*. That is not strong enough. **Ten items in this file were
+> marked open while already shipped** — P5-8, P5-9, P8-3, P8-1, and the whole of Phase 13's remainder.
+> The mechanism is always the same: the work was done under a DIFFERENT plan doc
+> (`completed/BESTIARY_BUILDOUT_2026-07-29.md` closed eight of these on its own), and nothing walks back
+> to tick the original. `BESTIARY_BUILDOUT` even *says in writing* that it closes P8-1, and P8-1 still sat
+> open here for three weeks.
+>
+> So: **treat every unticked item as a claim to verify, not a task to start** — especially any sentence of
+> the form *"no X exists in any system"*, which is exactly what a later buildout falsifies. Grep for the
+> feature and check `docs/planning/completed/` first. On this doc that check has a better than even hit
+> rate, and one session nearly rebuilt a 5,025-creature bestiary that already existed.
+>
+> **Phase 6, the Content Studio, is COMPLETE** — all 20 slices. Phase 13, the bestiary, is now complete
+> too. **Next up is `P14-8`** — but confirm its own premise first: it already says *"confirm whether a
+> manual roll affordance was removed before building a second"*.
 
 - [x] **P5-8 — IG Champion. ✅ RESOLVED 2026-07-27, recorded here 2026-08-02.** Never actually blocked:
       Champion IS published on intuitivegames.net/classes. The page **lazy-renders** its subclass blocks, so
@@ -3537,8 +3553,12 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 
       *(Marked `[~]`, not `[x]`: the transform is done, the writer is not. Ticking it would claim ~320
       creatures are in the bestiary when none are.)*
-- [ ] **P13-4 — SRD 5.2 import (2024).** ~340, the 2024 statblock shape.
-- [ ] **P13-5 — Pathfinder 2e import.** Monster Core via Archives of Nethys, ORC-licensed.
+- [x] **P13-4 — SRD 5.2 import (2024). ✅ SHIPPED — ticked by querying the database 2026-08-02.** `SRD 5.2`
+      is a live `source` value and `dnd5e-2024` carries **303** creatures across 8 sources.
+- [x] **P13-5 — Pathfinder 2e import. ✅ SHIPPED — ticked by querying the database 2026-08-02.**
+      `Pathfinder Monster Core` = **492** creatures; `pathfinder2e` carries **1,594** across 7 sources
+      (Monster Core plus Bestiary 1–3). `scripts/import-bestiary-pf2.mjs`, 30 tests in
+      `bestiary-import-pf2.test.ts`.
 - [x] **P13-6 — Taxonomy + tags.** The brief's own categories — bosses, woodland, massive, demons/abyssal,
       sea, birds, companions, undead, folklore, constructs — derived from type/size/CR/environment rather
       than hand-tagged, so a new import is categorised automatically.
@@ -3600,9 +3620,13 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
 
 ### Generation, variants and transposition
 
-- [ ] **P13-8 — AI creature generation.** Describe it → statblock → **retry / accept / edit**, then it
-      becomes the user's content: private by default, shareable, publishable, art-attachable. Reuses the
-      Studio's assist + per-field review (P6-15/P6-15b) so review is per-field rather than all-or-nothing.
+- [x] **P13-8 — AI creature generation. ✅ SHIPPED — ticked by reading the code 2026-08-02.** Exactly as
+      designed, including the "reuses the Studio's assist" half: `lib/dnd/homebrew/draft-assist.ts` states
+      *"Drafting is asked for by name, from a sentence describing a creature"* and guards the statblock
+      field specifically (*"would replace the creature's numbers with a sentence"*). Routes
+      `/api/dnd/homebrew/draft` (whole draft) and `/api/dnd/homebrew/assist` (per-field), with `creature`
+      one of the 18 `HOMEBREW_KINDS`; private-by-default, shareable and art-attachable come from
+      `dnd_homebrew`'s own `visibility` + image handling rather than anything creature-specific.
 - [x] **P13-9 — Which creatures get variants, decided by RULE not by hand.** The brief is explicit that a
       woodland rabbit does not need three versions and a vampire might. Eligibility is derived — CR/level
       above a floor, or a type that scales (dragon, vampire, giant) — and recorded, so 1,500 creatures do
@@ -3672,17 +3696,40 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       the same day it was added, because this module imports it and the test failed with "now imported and
       should be removed from EXEMPT". `variants.ts` now holds the exemption in its place, expiring with
       P13-3 — the importer that will call both.
-- [ ] **P13-11 — Fork a creature into your own.** Any catalogued creature or variant → an editable copy in
-      your content, with full statblock editing controls. Provenance kept.
-- [ ] **P13-12 — Transpose a creature to any system.** Reuses P6-18's transposer. The brief's *"balanced
-      usable"* is the hard part and gets its own conversion table per system pair.
+- [x] **P13-11 — Fork a creature into your own. ✅ SHIPPED — ticked by reading the code 2026-08-02.**
+      `POST /api/dnd/bestiary/[id]/fork` writes a `dnd_homebrew` row of kind `creature` with a
+      **server-set** `forked_from` (+ `forked_from_label`), so provenance cannot be claimed by the client.
+      `ForkCreature.tsx` is the control; asserted in `bestiary-schema.test.ts` and
+      `bestiary-original-art-and-builder.test.ts` (which also pins that only the owner may change original
+      art).
+- [x] **P13-12 — Transpose a creature to any system. ✅ SHIPPED — ticked by reading the code 2026-08-02.**
+      `lib/dnd/bestiary/transpose.ts` + `SystemLens.tsx` (view any creature through any of the four
+      systems), 27 cases in `bestiary-transpose.test.ts` including an explicit *"nothing is invented"*
+      guard. Not merely wired: **300 `intuitive-games` creatures are in the database with source
+      `Transposed from …`**, so the conversion has actually been run rather than just being callable.
 
 ### Play
 
-- [ ] **P13-13 — Add a creature to a session/encounter.** Extends P6-14's seam: catalogue + variants +
-      your own forks, searchable, N copies at once.
-- [ ] **P13-14 — Library pages for the bestiary.** Fully interactive and searchable, per system, with the
-      taxonomy as facets — PC and mobile.
+- [x] **P13-13 — Add a creature to a session/encounter. ✅ SHIPPED — ticked by reading the code 2026-08-02.**
+      `SendCreatureToFight.tsx` with `FightSource = { homebrewId } | { creatureId } | { creatureVariantId }`
+      — catalogue, variant and your own fork, exactly the three the slice asks for — resolved by
+      `/api/dnd/encounters/[id]/entries`. 19 cases in `creature-to-fight.test.ts`.
+
+      **One real gap remains and is worth carrying forward rather than ticking away:** this is a PUSH from
+      the creature page, not a PULL from the encounter. `maps/PlaceToken.tsx` still offers only "the party,
+      plus creatures already sent to the fight" and its empty state literally reads *"send a creature from
+      the bestiary to a fight"*. A DM mid-session cannot search the bestiary from the map. **Logged as
+      P13-13b below.**
+- [x] **P13-14 — Library pages for the bestiary. ✅ SHIPPED — ticked by reading the code 2026-08-02.**
+      `app/dnd/bestiary/page.tsx` + `[slug]/page.tsx`, all filtering done in-DB by `loadBestiary()`, faceted
+      by **system, tag, creature type, CR band, alignment, plane and free text** — with facets returned from
+      the data so only values that exist are offered. Linked from the global nav (`DndHeader.tsx:86`).
+
+- [ ] **P13-13b — Pull a creature INTO the map/encounter.** *(Split from P13-13, found while verifying it.)*
+      Today the only route from catalogue to table is a push from the creature page, so a DM who wants a
+      wolf mid-session has to leave the map, find the wolf, send it, and come back. `PlaceToken` needs the
+      same search `loadBestiary()` already backs, and the `FightSource` union already accepts all three
+      kinds — so this is a picker over finished machinery, not new mechanics.
 
 ### The honest note
 
