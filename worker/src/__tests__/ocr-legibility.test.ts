@@ -126,6 +126,35 @@ describe('what the portals actually served us', () => {
     expect(r.verdict).toBe('unreadable');
   });
 
+  it('shows the viewport fix moved Avenu from unreadable to MARGINAL — not to safe', () => {
+    // 304x561 -> 1712x3162 purely by opening the capture tab larger. A large improvement, and still
+    // only marginal: the tempting number is the height axis (~287 DPI), but the WIDTH is 1712 px
+    // across 8.5" = 201 DPI, and legibility is set by the worse axis. A bearing is ~14 px.
+    const r = assessLegibility(OBSERVED_CAPTURES.avenuLargeViewport, { rows: 1, cols: 1 });
+    expect(r.verdict).toBe('marginal');
+    expect(r.effectiveDpi).toBeCloseTo(201, 0);
+  });
+
+  it('both fixed vendors land in the same marginal band, which is the open question', () => {
+    // Avenu at the capture viewport and Tyler's DEGRADED copy are both ~200 DPI. Whether a 14 px
+    // bearing is read correctly or confidently wrong is the one thing arithmetic cannot settle.
+    const avenu = assessLegibility(OBSERVED_CAPTURES.avenuLargeViewport, { rows: 1, cols: 1 });
+    const tyler = assessLegibility(OBSERVED_CAPTURES.tylerEagleDegraded, { rows: 3, cols: 3 });
+    expect(avenu.verdict).toBe('marginal');
+    expect(tyler.verdict).toBe('marginal');
+  });
+
+  it('measures Tyler DEGRADED at 200 DPI — the MARGINAL band, not the safe one', () => {
+    // Read out of the PDF's own image XObjects: 1699x2220 against a 611x799pt MediaBox. A 0.07" bearing
+    // is 14 px — over the 13 px floor, under the 20 px comfort mark. That is exactly where OCR does not
+    // fail but guesses, across nine counties.
+    const r = assessLegibility(OBSERVED_CAPTURES.tylerEagleDegraded, { rows: 3, cols: 3 });
+    expect(r.effectiveDpi).toBeGreaterThan(190);
+    expect(r.effectiveDpi).toBeLessThan(210);
+    expect(r.verdict).toBe('marginal');
+    expect(r.statement).toContain('look like a plausible bearing rather than an error');
+  });
+
   it('says the fix is a bigger render, not more tiles', () => {
     const r = assessLegibility(OBSERVED_CAPTURES.avenuDefaultViewer, { rows: 1, cols: 1 });
     expect(r.recommendedTiles).toBeNull();

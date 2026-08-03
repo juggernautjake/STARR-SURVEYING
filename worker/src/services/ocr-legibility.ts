@@ -174,15 +174,43 @@ function round(n: number, dp: number): number {
 
 // ── The documents this platform actually fetches ────────────────────────────────────────────────
 
-/** What a viewer served, measured on 2026-08-03, for judging whether a capture is worth OCRing.
+/** What each vendor actually serves, measured on 2026-08-03 rather than assumed.
  *
- *  Avenu is the alarming one. Its viewer paints a letter-size page at **304×561** by default — about
- *  36 DPI, where a 0.07" bearing is **2.5 px tall**. That is not marginal, it is nothing: the digits
- *  do not exist in the image. The capture code takes the image at its natural size, which is correct
- *  and still not enough, because the natural size IS the problem.
+ *  These are the numbers that decide whether extraction from a given county can be trusted, and they
+ *  differ by a factor of eight across vendors we treat identically everywhere else.
  *
- *  Its image URL carries `WIDTH`/`HEIGHT`/`FITTYPE`/`ZOOM` parameters, so a larger render can be
- *  requested — that is the fix, and it is a change to the request rather than to the capture. */
+ *  ── AVENU: fixed, and it was the alarming one ─────────────────────────────────────────────────
+ *
+ *  Its viewer painted a letter page at **304×561** at an ordinary browser size — about 36 DPI, where
+ *  a 0.07" bearing is **2.5 px**. Not marginal: the digits were not in the image. The render size is
+ *  signed into the image token and cannot be edited, but it TRACKS THE VIEWPORT, so opening the
+ *  capture tab at 2400×3200 yields **1712×3162**.
+ *
+ *  That is a large improvement and it is **still only marginal**, which is worth being precise about
+ *  because the tempting number is the wrong one. The render is fitted to HEIGHT
+ *  (`FITTYPE=Height`), so the height axis reads ~287 DPI — but the WIDTH is 1712 px across 8.5", which
+ *  is **201 DPI**, and legibility is set by the worse axis. A bearing is ~14 px: over the floor, under
+ *  comfortable.
+ *
+ *  Reaching 20 px needs ~286 DPI, i.e. ~2430 px of image width, which means a taller viewport still.
+ *  **Untested** — a headed browser cannot be sized past the screen, and whether this portal will
+ *  render that large is unknown. A headless worker has no such limit, so it is worth trying there.
+ *
+ *  ── TYLER EAGLE: "DEGRADED" costs real resolution, and lands in the dangerous band ────────────
+ *
+ *  Its free copy is served as `DEGRADED-<docId>`. Reading the PDF's image XObjects directly:
+ *  **1699×2220 px** against a `MediaBox` of 611×799 pt (8.49"×11.1") — **200 DPI**, putting a bearing
+ *  at **14 px**.
+ *
+ *  That clears the 13 px floor and misses the 20 px comfort mark, which is precisely the band where
+ *  OCR does not fail but guesses. Nine counties. Whether a 14 px bearing is read correctly or
+ *  confidently wrong is the one thing here that arithmetic cannot settle — it needs a plat whose
+ *  values are known, and it is the sharpest reason to want one. */
 export const OBSERVED_CAPTURES = {
+  /** Before the viewport fix. Kept so a regression is recognisable. */
   avenuDefaultViewer: { widthIn: 8.5, heightIn: 11, pixelWidth: 304, pixelHeight: 561 },
+  /** After: capture tab opened at 2400×3200. */
+  avenuLargeViewport: { widthIn: 8.5, heightIn: 11, pixelWidth: 1712, pixelHeight: 3162 },
+  /** Tyler Eagle's free DEGRADED rendering, read out of the PDF itself. */
+  tylerEagleDegraded: { widthIn: 8.49, heightIn: 11.1, pixelWidth: 1699, pixelHeight: 2220 },
 } as const;

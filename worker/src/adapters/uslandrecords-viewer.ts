@@ -90,11 +90,18 @@ export interface CapturedPage {
 // so the render is set before the URL is ever generated:
 //
 //     viewport 1280×720   →  304×561    ~36 DPI   bearing ~2.5 px   unreadable
-//     viewport 2400×3200  →  1712×3162  ~287 DPI  bearing ~20 px    comfortable
+//     viewport 2400×3200  →  1712×3162  ~201 DPI  bearing ~14 px    MARGINAL
 //
 // So `CAPTURE_VIEWPORT` below is not a cosmetic preference — it is the difference between a document
 // and a picture of one. A context opened at a normal size and pointed at this viewer produces files
 // that look fine in a gallery and cannot be read.
+//
+// **It is still only marginal, and the tempting number is the wrong one.** The render is fitted to
+// HEIGHT, so the height axis reads ~287 DPI — but the WIDTH is 1712 px across 8.5", which is 201 DPI,
+// and legibility is set by the worse axis. Reaching a comfortable 20 px needs ~286 DPI, i.e. ~2430 px
+// of image width and therefore a taller viewport still. Untested: a headed browser cannot be sized
+// past the screen, and whether this portal renders that large is unknown. A headless worker has no
+// such limit, so raising this is worth trying there and measuring with `ocr-legibility.ts`.
 
 /** The viewport the viewer tab must be opened at.
  *
