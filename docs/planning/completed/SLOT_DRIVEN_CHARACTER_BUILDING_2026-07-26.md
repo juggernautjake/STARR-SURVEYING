@@ -47,42 +47,41 @@
 > The half-written change was reverted rather than left in place: a catalogue with two classes whose
 > guards disagree about how many exist is worse than one that is honestly missing them.
 
-> ## ⏸ PICK UP HERE — paused 2026-08-02 mid-slice, at the owner's request
+> ## ✅ CLOSED 2026-08-02 — moved to `completed/`
 >
-> **Every slice S1–S14 is `[x]`. Every row of the status table is shipped. Both open decisions were
-> put to the owner today and answered.** What is left is a five-minute tidy, not a build:
+> **Every slice S1–S14 is `[x]`, every row of the status table is shipped, and both decisions are
+> answered.** Verified before moving rather than taken on the doc's word, since this doc's own history
+> is four rounds of stale entries:
 >
 > | | |
 > |---|---|
-> | **1. Move this doc to `completed/`** | It qualifies now — see the rubric in `docs/planning/README.md`. It was NOT moved today only because the session was interrupted mid-verification. Check `grep -rln SLOT_DRIVEN` for cross-links first (there were none for the Andrew doc; unverified for this one). |
-> | **2. The `PF2_CLASSES` decision is DONE and shipped** | Owner chose **all published**. Magus and Summoner are catalogued (`d6dae1fcc`), 8,902 D&D tests green, merged to `main` in `cf2454f1d` and deployed. No feats were authored for them — they join Oracle and Witch in `PF2_FEATS_CLASS_GAPS`, so you can play one but cannot yet multiclass into one. |
-> | **3. ⚠ ONE THING NEEDS THE OWNER'S ATTENTION** | See "the question I should not have asked" below. |
+> | **Cross-links** | Six files mention this doc. All six reference it **by name** (`SLOT_DRIVEN_CHARACTER_BUILDING`), not by path, so the move breaks nothing. No `// Spec:` comment points at the old path. |
+> | **`PF2_CLASSES`** | Owner chose **all published**. Magus and Summoner catalogued (`d6dae1fcc`), merged in `cf2454f1d`. They join Oracle and Witch in `PF2_FEATS_CLASS_GAPS` — playable, not yet multiclassable into. |
+> | **S7c prepared cap** | **Not an open question. See below.** |
 >
-> ### ⚠ The question I should not have asked
+> ### The S7c "open question" was already closed — in a different doc
 >
-> Reading this doc's summary table, I put S7c's prepared cap to the owner as an open decision — *"what
-> is left is whether to enforce it"*. **It was not open.** Enforcement shipped 2026-07-27 with 15
-> tests, on the owner's own instruction (*"make a good decision for 6, I trust your judgement"*).
+> The previous pause note flagged this as *"⚠ ONE THING NEEDS THE OWNER'S ATTENTION"*, and it does not.
+> `docs/planning/DND_OWNER_DECISIONS_2026-07-27.md` row **2.6** — the authoritative decisions ledger —
+> already records it struck through as **ANSWERED + SHIPPED**, with the reasoning *and* with the reason
+> the objection was wrong:
 >
-> The owner answered **"keep it advisory"**, which would REVERSE working, previously-approved
-> behaviour. I did not act on it, because I checked the code before changing anything.
+> > *"enforced, because 5e already enforces its own prepared cap and two systems disagreeing about
+> > whether a published budget means anything is worse than either answer. **This row's severity note
+> > was wrong:** preparing does not cut against S15's 'only ACQUISITION is gated' boundary, because
+> > preparing acquires nothing — it assigns spells the character already holds into slots the sheet
+> > already publishes."*
 >
-> **So this needs an explicit confirmation and nothing was changed either way.** The case for leaving
-> it enforced, from `spell-counts.ts`: *PF2 showing `Rank 1: 2/3` and then silently allowing a 4th
-> would mean the two systems disagree about whether a stated budget means anything.* It sits inside
-> S15's "only ACQUISITION is gated" boundary rather than against it — preparing is an assignment of
-> spells the character already has, not an acquisition. Four exemptions match the pill display exactly
-> (spontaneous, cantrips, focus spells, unmodelled ranks).
+> Enforcement is live (`app/dnd/_sheet/components/SpellsPanel.tsx:73`, `if (held >= preparedCap) return c`)
+> with 15 tests in `__tests__/dnd/pf2-prepared-cap.test.ts`.
 >
-> If the owner still wants advisory after seeing that, the change is in `SpellsPanel.tsx:73`
-> (`if (held >= preparedCap) return c`) plus the guards in `pf2-prepared-cap.test.ts`.
->
-> ### Also uncommitted at the pause
->
-> Nothing. Working tree is clean, `tsc` passes, and the last commit is the one recording all of the
-> above.
+> **The lesson is the same one this doc keeps re-learning, one layer up.** The earlier note re-opened a
+> settled decision by reading THIS doc's summary table instead of the decisions ledger — exactly the
+> failure mode recorded at the top of this file, where a stale summary manufactured a blocker. A doc's
+> own table is not the record of what the owner decided; `DND_OWNER_DECISIONS_2026-07-27.md` is. Check
+> the ledger before putting a decision to the owner a second time.
 
-**Status:** IN PROGRESS · started 2026-07-26 · owner-directed
+**Status:** ✅ COMPLETE · started 2026-07-26 · closed 2026-08-02 · owner-directed
 **Owner directive (2026-07-26):**
 
 > "If we are building a character level by level, I have noticed on at least some of the character
