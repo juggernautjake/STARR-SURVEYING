@@ -107,6 +107,20 @@ Each is sized to be shipped and verified independently, in the order that makes 
   **First action for S2, before any code is read again:** run the large fixture and paste the
   histogram into this document. Whatever it says, it settles the argument.
 
+  ### S0c — the overlay is now discoverable. **DONE 2026-08-03.**
+
+  The one fix this finding actually justified, and it needed no reasoning about rendering internals:
+  `view.perfOverlay` is registered in `DEFAULT_ACTIONS`, so the **command palette lists it**.
+  `Ctrl+Alt+P` still works — a second door, not a moved one — and dispatch uses the same `CustomEvent`
+  pattern as `view.regenerate`, leaving `PerfOverlay` owning its own state.
+
+  Its description says what it is *for*: *"Live render-time histogram (p50/p95/p99 per phase) with
+  synthetic 1k / 50k / 200k fixtures — measure before theorising about performance."* A bare
+  "Performance Overlay" in a list of forty actions stays hidden in practice.
+
+  Tested that the original keydown handler survives and that **both** listeners are removed on
+  unmount — a leaked window listener is precisely the bug class this overlay helps find.
+
 - **S1. The catalogue.** Drive the CAD editor with Playwright: every menu, panel, dialog and tool,
   screenshotted, with what it does and what it operates on. Cross-referenced against the 55 completed
   docs so a documented decision is recorded as a decision, not as a gap.
@@ -274,6 +288,19 @@ Carried from the research platform work, where each was learned the expensive wa
 
 ---
 
-## 4. Not started
+## 4. State
 
-Every slice above. This document is S0.
+**Done:** S0 (this plan), **S0b** (what the previous perf pass established — the correction that
+matters most), **S0c** (the overlay is discoverable).
+
+**Not started:** S1–S9.
+
+**Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
+(200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
+`cad-desktop-tauri-and-perf-2026-06-14.md` §P6 — the React boundary audit, the one Phase-2 slice that
+never completed, and the previous author's own hypothesis for exactly this symptom.
+
+**Do not skip either step.** This document contains two confident mechanisms that were wrong, both
+written from source in one session, and both would have been settled in five minutes by the overlay
+that was sitting there the whole time. The corrections are left in place rather than deleted, because
+the pattern is the lesson.
