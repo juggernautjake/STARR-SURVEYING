@@ -2804,12 +2804,34 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 #### Still to build in this phase
 
-- **S7. Document retrieval for the vendors that still lack it.** Kofile (22 counties) captures pages;
-  Tyler Eagle, Avenu, eDocTec, Aumentum and iDocMarket do not, and their `getDocumentImages` throws
-  saying so rather than returning empty. The owner's suggestion — *screenshot the viewer when the file
-  cannot be downloaded, and wait longer for it to render* — is the right general fallback and is
-  already the shape of Kofile's last resort. Each vendor needs its viewer driven once to find the
-  render signal worth waiting on; a fixed sleep is what makes a scraper flaky.
+- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu DONE 2026-08-03 — 19
+  counties** (`worker/src/adapters/uslandrecords-viewer.ts`). Four vendors remain: Tyler Eagle (9
+  counties), eDocTec (2), Aumentum (1), iDocMarket (1).
+
+  Avenu's `getDocumentImages` threw *"the viewer is not wired up"* while the portal's own page said
+  *"searching and watermarked document viewing is provided as a free service"* — the pages were there
+  the whole time. Driven on the live Val Verde viewer; three facts made it look harder than it is,
+  and each would be silently re-broken by a tidy-up:
+
+  1. **The viewer opens in a NEW TAB** (`ImageViewerEx.aspx`). Clicking and then waiting on the
+     current page waits forever and reports no images — indistinguishable from a document that has
+     none, and almost certainly why this was left unwired. The tab wait is armed *before* the click.
+  2. **The render signal is the image token changing, not elapsed time.** The owner's instinct —
+     *wait a bit longer for the images to render* — was right about the cause; a fixed sleep is the
+     wrong cure, too short on a slow county server and too long twenty times over. Each page comes
+     from `ACSResource.axd` with a different encrypted key, so "rendered" is exactly: `src` differs
+     from the previous one **and** the image reports `complete` with non-zero `naturalWidth`.
+     `complete` alone is true for a *broken* image.
+  3. **The pager renames its button** (`BtnNext` → `BtnNext_Disabled`) instead of disabling it, so
+     the end condition is the element's absence — exact, where the page text lays "2 of 2" out with
+     tabs through the middle of it.
+
+  Capture is at **natural** size: the viewer scales to fit its frame, and the displayed size throws
+  away the resolution OCR needs to read a bearing. Every stop reason is about us rather than the
+  document — a render timeout says the rest *"was NOT retrieved and is not known to be absent"*.
+
+  The remaining four are the same shape of work: drive each viewer **once** to find its render
+  signal. That is a browser session per vendor, not a guess.
 
 - **S8. OCR tiling quality.** Tiling exists on both the image and PDF paths and now records real tile
   geometry (R17). What has never been **measured** is whether the grid and overlap suit a 36×48 plat:
