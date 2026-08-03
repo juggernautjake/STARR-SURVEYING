@@ -196,3 +196,63 @@ describe('the old call site', () => {
     expect(src).toContain('maps.googleapis.com/maps/api/staticmap');
   });
 });
+
+describe('the framing is actually used (plan R16)', () => {
+  // `imagery-plan.ts` fixed the arithmetic and then had ZERO callers, so `zoom = 19` stayed live in
+  // `lot-correlator.ts` — the exact line this module's header describes as the defect. Ninth
+  // instance of that shape in the research plan.
+  const correlator = fs.readFileSync(
+    path.join(process.cwd(), 'src/counties/bell/analyzers/lot-correlator.ts'), 'utf8');
+
+  it('no longer hardcodes zoom 19', () => {
+    expect(correlator).not.toMatch(/maptype === 'satellite' \? 19 : 18/);
+  });
+
+  it('frames from the parcel size', () => {
+    expect(correlator).toContain('frameParcel({');
+    expect(correlator).toContain('acreage: acreage ?? null');
+  });
+
+  it('passes the acreage the caller already had', () => {
+    // It was sitting in `LotCorrelationInput.acreage` the whole time, one line above the call.
+    expect(correlator).toContain('input.situsAddress, onProgress, input.acreage');
+  });
+
+  it('frames against the REQUESTED width, not the scale-2 pixel count', () => {
+    // `scale: 2` doubles pixels without changing ground coverage. Passing 2560 here would frame
+    // twice as much ground as intended — the opposite of the bug, and just as wrong.
+    expect(correlator).toContain('imageWidthPx: 1280');
+  });
+
+  it('keeps the roadmap one step wider, as it was', () => {
+    // The street view exists to show the parcel in its road context, and one zoom out is that
+    // context. Losing the relationship would be an unrelated regression smuggled in with a fix.
+    expect(correlator).toContain('Math.max(1, framing.zoom - 1)');
+  });
+
+  it('says how it framed, so a wrong-looking image can be diagnosed', () => {
+    expect(correlator).toContain('Imagery framing: ${framing.reason}');
+  });
+});
+
+describe('the arithmetic that made the fixed zoom wrong', () => {
+  // Checked rather than asserted, because it is the justification for changing a live setting.
+  it('zoom 19 shows about a third of a 200-acre tract', () => {
+    const wide = frameParcel({ acreage: 200, latitude: 31, imageWidthPx: 1280 });
+    const at19 = metresPerPixel(19, 31, 1) * 1280;
+    expect(wide.parcelWidthM!).toBeGreaterThan(at19 * 2);
+    expect(wide.zoom).toBeLessThan(19);
+  });
+
+  it('still frames a quarter-acre town lot tightly', () => {
+    // The fixed zoom was not wrong everywhere — it was wrong on the rural work. A fix that pulled
+    // back on a town lot would trade one bad frame for another.
+    const small = frameParcel({ acreage: 0.25, latitude: 31, imageWidthPx: 1280 });
+    expect(small.zoom).toBeGreaterThanOrEqual(19);
+  });
+
+  it('falls back to a stated default when acreage is unknown', () => {
+    const none = frameParcel({ acreage: null, latitude: 31, imageWidthPx: 1280 });
+    expect(none.reason).toContain('default rather than a fit');
+  });
+});

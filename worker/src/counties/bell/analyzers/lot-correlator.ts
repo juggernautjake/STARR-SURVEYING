@@ -17,6 +17,8 @@ import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 // this call decides which lot a description matches.
 import { modelFor } from '../../../infra/model-router.js';
 import { buildUsageFromTokens } from './ai-cost-helpers.js';
+// The frame is fitted to the parcel rather than fixed at zoom 19 (research plan R16).
+import { frameParcel } from '../../../services/imagery-plan.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -119,7 +121,7 @@ export async function correlateTargetLot(
     try {
       onProgress('Fetching Google Maps location images for address pin...');
       googleMapsImages = await fetchGoogleMapsLocationImage(
-        input.lat, input.lon, input.situsAddress, onProgress,
+        input.lat, input.lon, input.situsAddress, onProgress, input.acreage,
       );
     } catch (err) {
       onProgress(`⚠ Google Maps image fetch failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -688,6 +690,12 @@ async function fetchGoogleMapsLocationImage(
   lon: number,
   address: string | null,
   onProgress: (msg: string) => void,
+  /** Parcel size, so the frame can be FITTED rather than fixed (plan R16).
+   *
+   *  Optional because a caller without it still gets a usable image — `frameParcel()` falls back to
+   *  a stated default rather than guessing — but passing it is the difference between showing the
+   *  parcel and showing a ninth of it. */
+  acreage?: number | null,
 ): Promise<{ satellite: string | null; street: string | null }> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
@@ -711,8 +719,31 @@ async function fetchGoogleMapsLocationImage(
 
   const results: { satellite: string | null; street: string | null } = { satellite: null, street: null };
 
+  // ── The frame is FITTED to the parcel, not fixed (plan R16) ─────────────────────────────────
+  //
+  // This was `zoom = 19` for satellite and `18` for roadmap, whatever the property. Zoom 19 is
+  // ~0.26 m/pixel at Texas latitudes, so a 1280 px frame covers about 330 m — fine for a quarter-acre
+  // town lot, and about a THIRD OF THE WIDTH of a 200-acre tract. The model was being asked to
+  // identify a parcel from a picture of a ninth of it, on the rural work this firm mostly does.
+  //
+  // `imagery-plan.ts` fixed the arithmetic and then had no callers at all, so the fixed zoom stayed
+  // live. `frameParcel()` walks down from the tightest zoom until the parcel fits, states its
+  // square-parcel assumption rather than hiding it, and errs wide — a parcel that is small in frame
+  // is still identifiable, one cropped in half is not.
+  //
+  // `scale: 2` doubles the pixels without changing the ground coverage, so the framing width is the
+  // requested 1280, not 2560. Passing the scaled figure would frame twice as much ground as intended.
+  const framing = frameParcel({
+    acreage: acreage ?? null,
+    latitude: lat,
+    imageWidthPx: 1280,
+  });
+  onProgress(`Imagery framing: ${framing.reason}`);
+
   for (const maptype of ['satellite', 'roadmap'] as const) {
-    const zoom = maptype === 'satellite' ? 19 : 18;
+    // The roadmap sits one zoom wider than the satellite, as it always has: the street view exists
+    // to show the parcel in its road context, and one step out is that context.
+    const zoom = maptype === 'satellite' ? framing.zoom : Math.max(1, framing.zoom - 1);
     const label = maptype === 'satellite' ? 'satellite' : 'street';
 
     const params = new URLSearchParams({

@@ -904,8 +904,9 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 1,042/1,042; both roots typecheck clean; lint clean.
 
-- **R16. Imagery pack, per parcel.** ◑ PART DONE 2026-08-02 — framing + provenance + the plan
-  shipped; the fetchers need provider keys and licensing decisions
+- **R16. Imagery pack, per parcel.** ◑ PART DONE — framing + provenance + the plan 2026-08-02;
+  **the framing is now actually applied 2026-08-03**; the additional fetchers need provider keys and
+  licensing decisions
 
   **Shipped** (`worker/src/services/imagery-plan.ts`).
 
@@ -937,10 +938,41 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 383/383; both roots typecheck clean.
 
-  **Remaining:** the fetchers themselves. Deliberately not built here — they need provider
-  credentials and the redistribution decisions flagged `check_licence`, which are the owner's (§4.3),
-  and those are easier to make against an explicit list of what the packet needs than against a code
-  path that quietly produces nothing when a key is missing.
+  **DONE 2026-08-03 — the framing is applied.** The paragraph above describes the zoom-19 defect and
+  says `frameParcel()` "now computes the zoom from acreage and latitude". It computed it for
+  **nobody**: `imagery-plan.ts` had zero callers, and `lot-correlator.ts` still read
+
+  ```ts
+  const zoom = maptype === 'satellite' ? 19 : 18;
+  ```
+
+  So the module written to fix the frame never framed anything, and every rural parcel this platform
+  looked at was still photographed at a third of its width. Ninth instance of this shape in the
+  document, and the most expensive kind: the arithmetic was right, published, and inert.
+
+  `frameParcel()` is now called before the Static Maps request, using the acreage that was already
+  sitting in `LotCorrelationInput` **one line above the call**. The framing reason is logged, so an
+  image that looks wrong can be diagnosed rather than argued about.
+
+  Two things the test pins that are easy to get backwards while "fixing" this. The frame is computed
+  against the **requested** 1280 px width, not the `scale: 2` pixel count — `scale` doubles pixels
+  without changing ground coverage, so passing 2560 would frame twice as much ground as intended,
+  which is the same bug pointing the other way. And the roadmap stays **one zoom wider than the
+  satellite**, as it always was: the street view exists to show the parcel in its road context, and
+  losing that relationship would be an unrelated regression smuggled in with a fix.
+
+  The arithmetic is checked rather than asserted, because it justifies changing a live setting: at
+  zoom 19 a 200-acre tract is more than twice the frame width, and a quarter-acre town lot still
+  frames at 19 or tighter — the fixed zoom was not wrong everywhere, it was wrong on the rural work,
+  and a fix that pulled back on a town lot would trade one bad frame for another.
+
+  Worker suite 79 files / 1,331 tests; both roots typecheck clean.
+
+  **Remaining:** the additional fetchers (Esri/NAIP, Street View per frontage, historical aerials).
+  Deliberately not built here — they need provider credentials and the redistribution decisions
+  flagged `check_licence`, which are the owner's (§4.3), and those are easier to make against an
+  explicit list of what the packet needs than against a code path that quietly produces nothing when
+  a key is missing.
 
   Original item:
   Parcel-framed captures at fixed scales from: high-resolution current aerial (Esri World Imagery /
