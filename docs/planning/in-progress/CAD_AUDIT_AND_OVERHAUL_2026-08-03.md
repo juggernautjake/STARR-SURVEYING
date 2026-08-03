@@ -231,6 +231,98 @@ Each is sized to be shipped and verified independently, in the order that makes 
   be verified in a browser against a real drawing with images and many layers. **It is S2's fix, not
   a slice to sneak in.**
 
+### ▶ MEASURED 2026-08-03 — the cause is named, and it is neither of the two theories above
+
+Ran it, finally, instead of reading it. Dev server, `/admin/cad`, command palette → *Performance
+Overlay* → **Large (200,000 features)**, then **Capture 5s** for a clean steady-state window.
+
+**Conditions: nothing selected, nothing moving, no mouse input, no images in the drawing, labels
+LOD-gated off at this zoom. The scene is static. This is the app doing nothing.**
+
+| phase | n | p50 | p95 | p99 |
+|---|---|---|---|---|
+| overall | 325 | 67.0 | 292.9 | 334.6 |
+| `renderFeatures` | 65 | **73.0** | 107.0 | 113.1 |
+| `renderImageFeatures` | 65 | **62.9** | 94.7 | 106.7 |
+| `renderLabels` | 65 | **62.6** | 86.3 | 117.5 |
+| `renderSelection` | 65 | 0 | 0.10 | 0.10 |
+| **`renderAll`** | 65 | **269.2** | 334.6 | 423.0 |
+
+**65 frames in a 5,324 ms window — 12 fps on a static scene.** At 269 ms per frame the main thread is
+saturated: input handlers queue behind the loop, the tab stops responding, and the only way out is a
+refresh. **That is the owner's freeze, reproduced on demand.**
+
+For scale, the same overlay on an **empty** drawing: `renderAll` p50 **2.90 ms**. The cost is
+essentially all a function of feature count — 200k features cost ~93× an empty sheet.
+
+#### The smoking gun: a pass with nothing to do costs 62.9 ms
+
+There are **no images in this fixture**, yet `renderImageFeatures` spends 62.9 ms per frame. A pass
+that draws nothing cannot be slow because of drawing. `CanvasViewport.tsx:2630`:
+
+```ts
+const visibleFeatures = useDrawingStore.getState().getVisibleFeatures().filter(
+  (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
+);
+```
+
+And `getVisibleFeatures` (`lib/cad/store/drawing-store.ts:880`) is:
+
+```ts
+getVisibleFeatures: () => {
+  const { document } = get();
+  return Object.values(document.features).filter((f) => { ... });
+}
+```
+
+**It derives the visible set from scratch on every call** — `Object.values` over all 200,000
+features, a predicate on each, and a fresh 200k-element array allocated. `renderImageFeatures` pays
+that in full in order to filter it down to zero.
+
+#### And `renderAll` does it FIVE times per frame
+
+Five passes inside one `renderAll()` each call it independently:
+
+| line | pass | what it does with the result |
+|---|---|---|
+| 2007 | `renderFeatures` | uses all of it |
+| 2630 | `renderImageFeatures` | filters to `IMAGE` — **zero here** |
+| 4484 | `renderLabels` | then applies the LOD gate |
+| 4737 | `renderTextFeatures` | filters to `TEXT` |
+| 8931 | `renderAll` itself | filters again |
+
+At 200k features that is **~1,000,000 predicate evaluations and five 200k-element array allocations
+per frame**, before a single pixel is drawn. The measured p50s line up with that arithmetic: ~63 ms
+is the price of one derivation; `renderImageFeatures` and `renderLabels` are almost exactly that and
+nothing more; `renderFeatures` is that plus ~10 ms of actual drawing work.
+
+#### What this means for the two earlier theories in this document
+
+- **The dirty-check theory (already corrected above) was wrong for a second reason.** P3/P3b's
+  tessellation cache is *working* — the real drawing work is the ~10 ms residual inside
+  `renderFeatures`. Adding another dirty layer would have optimised the 4% and left the 96%.
+- **The P6 React-boundary theory is not the main cause either.** This cost is inside the rAF loop
+  with React uninvolved; it reproduces with zero interaction and zero store ticks. P6 remains worth
+  doing, but it is not what freezes the tab.
+
+Both theories were plausible, both were written from source, and **both were wrong** — settled in
+about ten minutes by the overlay that S0c made discoverable. That is the third confident wrong
+mechanism in this document and the first measured one, which is the whole argument for S0c having
+been worth shipping.
+
+**S2 acceptance met: the cause is NAMED with evidence, and no fix has been written.**
+
+- **S2b. Derive the visible set once per frame, not five times.** The measurement makes the fix shape
+  narrow: memoise the visible-feature derivation against document identity and layer visibility so
+  `renderAll` computes it once and the five passes share it, and give the type-filtered passes
+  (`IMAGE`, `TEXT`) their own buckets so a drawing with no images pays nothing for
+  `renderImageFeatures`.
+
+  **Verify in the browser with before/after numbers from the same fixture** — the "before" is the
+  table above. The failure mode of a memo here is a stale cache: the canvas silently stops updating,
+  which looks like success and is worse than the freeze. That risk is exactly why this is a separate
+  slice from the measurement.
+
 - **S3. Guard against losing work.** Independent of S2's cause: a refresh should not lose a drawing.
   Autosave/restore is worth doing even once the freeze is fixed, because a browser tab can always die.
 
@@ -293,7 +385,8 @@ Carried from the research platform work, where each was learned the expensive wa
 **Done:** S0 (this plan), **S0b** (what the previous perf pass established — the correction that
 matters most), **S0c** (the overlay is discoverable).
 
-**Not started:** S1–S9.
+**S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
+re-derived from scratch five times per frame. **Not started:** S1, S2b (the fix), S3–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
