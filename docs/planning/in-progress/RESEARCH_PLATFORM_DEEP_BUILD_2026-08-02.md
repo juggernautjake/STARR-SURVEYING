@@ -2958,6 +2958,17 @@ distinction matters: everything before this made a document arrive; nothing befo
   **guesses**. Whether a 14 px bearing is read correctly or confidently wrong is the one question
   arithmetic cannot answer, and it is the sharpest argument for the golden plat in §4 item 0a.
 
+  **Kofile — 22 counties — is still unmeasured, and its free-preview claim is now in doubt.** Bell's
+  document page loads full metadata anonymously and renders **no image at all** (no img/canvas/iframe,
+  after waiting), offering *Add to Cart* instead. That contradicts `hasFreeImagePreview()`, which
+  returns true for every Kofile county on the strength of a comment. It is **not** evidence the
+  platform cannot fetch them — `bell-clerk.ts:fetchDocumentImages` is documented as proven here and
+  drives a fuller flow — so the function still returns the same answer rather than being flipped on one
+  anonymous observation, and is flagged as unverified where it is asserted. The resolution table
+  therefore has a hole exactly where most of the coverage is, recorded as
+  `KOFILE_RESOLUTION_UNMEASURED` rather than filled with a guess. Settling both is one errand: run
+  the production capture against a Bell instrument and pass the result to `assessLegibility`.
+
   This is what the arithmetic was for: the legibility check said the Avenu capture could not possibly
   work, which sent me back to the portal to find out why. Every page still under the threshold carries
   a warning that travels **with the page**, not only in a log.
