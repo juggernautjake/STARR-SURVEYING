@@ -152,3 +152,20 @@ describe('the check itself is honest', () => {
     expect(VARA_LITERAL.test('scale: 1.25')).toBe(false);
   });
 });
+
+describe('this check has been watched failing', () => {
+  // Verified 2026-08-03 by reintroducing `if (unit === 'varas') return value * 2.7778;` into
+  // validation.ts — the exact line consolidated away — and watching the assertion name the file and
+  // line. Recorded rather than automated: a test that edits source files leaves debris when it dies
+  // mid-run, and here the debris would be a wrong conversion factor in the live closure path.
+  //
+  // Worth stating because three of the four structural checks in this repo were broken on first
+  // write in ways that let them pass while defending nothing. "It passes" is not evidence.
+  it('would catch the literal in the form it actually appeared', () => {
+    expect(VARA_LITERAL.test("if (unit === 'varas') return value * 2.7778;")).toBe(true);
+  });
+
+  it('scans the directory that line lives in', () => {
+    expect(SCAN_DIRS).toContain('worker/src');
+  });
+});

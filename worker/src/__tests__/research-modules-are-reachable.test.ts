@@ -198,3 +198,29 @@ describe('every research module is reachable, or says why not', () => {
     expect(empty, 'An exception without a reason is the defect wearing a permission slip').toEqual([]);
   });
 });
+
+describe('this check has been watched failing', () => {
+  // A check nobody has seen fail is indistinguishable from no check at all — which is, exactly, the
+  // defect this whole file exists to catch. Three of the four structural checks in this repo were
+  // broken on first write in ways that made them pass while defending nothing, so "it passes" is not
+  // evidence that it works.
+  //
+  // Verified 2026-08-03 by dropping an unreferenced module into `worker/src/services/` and watching
+  // the assertion above name it. Recorded here rather than automated: a self-mutating test that
+  // writes files into the source tree can leave debris when it dies mid-run, and the debris is
+  // itself an unreachable module.
+  it('names the directories it would catch a new orphan in', () => {
+    expect(LIBRARY_DIRS).toContain('worker/src/services');
+    expect(LIBRARY_DIRS).toContain('lib/research');
+    expect(LIBRARY_DIRS).toContain('worker/src/lib');
+    expect(LIBRARY_DIRS).toContain('worker/src/infra');
+  });
+
+  it('treats a test file as NOT a caller, which is the whole point', () => {
+    // If tests counted, every module with a unit test would look wired and the check would pass on
+    // all eleven orphans it currently records.
+    const src = fs.readFileSync(
+      path.join(REPO, 'worker/src/__tests__/research-modules-are-reachable.test.ts'), 'utf8');
+    expect(src).toContain("entry.name === '__tests__'");
+  });
+});

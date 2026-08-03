@@ -3820,6 +3820,31 @@ things had to be fixed before it defended anything, and both are worth recording
 
 Root suite 1,470 files; typecheck and `npm run build` clean.
 
+#### All four checks have now been watched failing
+
+**DONE 2026-08-03.** I had claimed that deleting the protected code and confirming the check goes red
+was the habit that saved each of these. That was true of **two** of the four. The other two — the
+reachability check and the duplicate-primitives check — had only ever been *run*, and "it passes" is
+not evidence a check works: three of the four were broken on first write in ways that let them pass
+while defending nothing.
+
+So both were mutation-tested, and both fire:
+
+- **Reachability**: dropped an unreferenced module into `worker/src/services/`; the assertion named
+  it. Non-destructive by construction — a new file, not a broken import.
+- **Duplicate primitives**: reintroduced `if (unit === 'varas') return value * 2.7778;` into
+  `validation.ts` — the exact line consolidated away — and it named the file and the line number.
+  Restored via `git checkout`; `git status` confirms no debris.
+
+The verification is **recorded in each file rather than automated**. A self-mutating test that writes
+into the source tree leaves debris when it dies mid-run, and here the debris would be a wrong
+conversion factor in the live closure path, or an orphan module — the very things being guarded
+against. Each file now also pins the property that makes it *capable* of firing: the directories it
+scans, and, for reachability, that a test file does **not** count as a caller — if tests counted,
+every module with a unit test would look wired and all eleven recorded orphans would pass.
+
+Worker suite 86 files / 1,436 tests; root 1,470 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
