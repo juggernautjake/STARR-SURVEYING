@@ -27,8 +27,8 @@
 //  9.  GLO archives have costPerPage = 0 (free)
 //  10. Kofile_pay covers Bell County (48027)
 //  11. Tyler_pay covers Dallas County (48113)
-//  12. Henschen_pay covers Kimble County (48265)
-//  13. iDocket_pay covers Rockwall County (48401)
+//  12. Henschen_pay covers Kimble County (48267)
+//  13. iDocket_pay covers Rockwall County (48397)
 //  14. Fidlar_pay covers Ward County (48475)
 //  15. getPlatformsForCounty('48027') includes TexasFile (statewide)
 //  16. getPlatformsForCounty('48027') includes Kofile_pay
@@ -266,14 +266,20 @@ describe('PaidPlatformRegistry (services/paid-platform-registry.ts)', () => {
     expect(p?.coveredFIPS).toContain('48113');
   });
 
-  it('12. henschen_pay covers Kimble County (48265)', () => {
+  // Kimble is 48267 and Rockwall is 48397. Both were filed under a neighbour's FIPS until
+  // 2026-08-03 — Kimble under Kerr's, Rockwall under Rusk's — so this registry reported the wrong
+  // county as covered and left the intended one with nothing. See
+  // worker/src/__tests__/fips-labels-match-county-table.test.ts, which now pins all of them.
+  it('12. henschen_pay covers Kimble County (48267, NOT Kerr\'s 48265)', () => {
     const p = PAID_PLATFORM_CATALOG.find((p) => p.id === 'henschen_pay');
-    expect(p?.coveredFIPS).toContain('48265');
+    expect(p?.coveredFIPS).toContain('48267');
+    expect(p?.coveredFIPS).not.toContain('48265');
   });
 
-  it('13. idocket_pay covers Rockwall County (48401)', () => {
+  it('13. idocket_pay covers Rockwall County (48397, NOT Rusk\'s 48401)', () => {
     const p = PAID_PLATFORM_CATALOG.find((p) => p.id === 'idocket_pay');
-    expect(p?.coveredFIPS).toContain('48401');
+    expect(p?.coveredFIPS).toContain('48397');
+    expect(p?.coveredFIPS).not.toContain('48401');
   });
 
   it('14. fidlar_pay covers Ward County (48475)', () => {
@@ -306,11 +312,13 @@ describe('PaidPlatformRegistry (services/paid-platform-registry.ts)', () => {
     expect(plan.countyFIPS).toBe('48027');
   });
 
-  it('19. getAccessPlan("48265", "Kimble") hasWatermarkedPreview=false (Henschen wins)', () => {
-    const plan = PaidPlatformRegistry.getAccessPlan('48265', 'Kimble');
-    // Kimble is NOT in Kofile set — uses Henschen
+  it('19. getAccessPlan("48265") hasWatermarkedPreview=false — Henschen is unproven, so TexasFile', () => {
+    const plan = PaidPlatformRegistry.getAccessPlan('48265', 'Kerr');
+    // 48265 is a Henschen county, but every Henschen base URL was probed dead on 2026-08-02
+    // (16/16 ERR_NAME_NOT_RESOLVED), so `isVendorProven` gates it off and the county falls through
+    // to TexasFile. Either way there is no free watermarked preview here — that is Kofile only.
     expect(plan.freeAccess.hasWatermarkedPreview).toBe(false);
-    expect(plan.freeAccess.clerkSystem).toBe('henschen');
+    expect(plan.freeAccess.clerkSystem).toBe('texasfile');
   });
 
   it('20. getAccessPlan always has TexasFile as a paid option', () => {

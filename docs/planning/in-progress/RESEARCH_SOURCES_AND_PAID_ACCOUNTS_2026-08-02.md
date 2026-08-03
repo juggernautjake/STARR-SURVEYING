@@ -268,7 +268,7 @@ divergence is a question rather than a rounding error.
 | Slice | What | Blocked on |
 |---|---|---|
 | S-6 | **GLO adapter** — free, authoritative, original surveys | DONE 2026-08-02 |
-| S-7 | **texaslandrecords (Avenu) adapter** — 23 counties, free index | nothing |
+| S-7 | **texaslandrecords (Avenu)** — 23 counties, free index | DONE 2026-08-03 |
 | S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | nothing |
 | S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | owner: amounts, ceiling |
 | S-10 | Ledger reconciliation (S-5) | S-8 |
@@ -280,3 +280,43 @@ next unblocked slice.
 **S-12 is DONE** (2026-08-02): `worker/src/research/document-identity.ts` — cross-vendor document
 identity, the near-miss rule, and `DocumentIndex.decide()` which fails toward buying. S-11 (the two
 run modes) now has the piece it depended on.
+
+**S-7 is DONE** (2026-08-03), and it was not the slice it looked like.
+
+`texaslandrecords.com` is **not a records system and needs no adapter**. Its county list is 22 plain
+`<a href>`s pointing at the very `uslandrecords.com` portals this platform already drives, plus three
+Kofile portals. There is nothing behind it to parse.
+
+What it is instead is the lookup table R39 said did not exist. The rule until now was that an Avenu
+county's subdomain "is NOT derivable from the county name … each has to be found from the county's
+own site" — which is why that adapter served **two** counties. Avenu publishes the mapping. So the
+slice became a county-list expansion, and the adapter's parser needed no change at all:
+
+| | |
+|---|---|
+| Avenu counties routed | **2 → 19** (Angelina, Bandera, Castro, Cherokee, Cooke, Duval, Edwards, Falls, Hutchinson, Madison, Marion, McMullen, Robertson, Rusk, San Jacinto, San Augustine, Upton, Val Verde, Wilbarger) |
+| New Kofile counties | **2** — Cochran, Live Oak (Leon was already routed) |
+| Subdomains | i2i, i2j, **i2m**, **i2g** — two more than the pair we had, confirming the letters are not a sequence |
+| Adapter code changed | none — both new subdomains were driven and return the identical grid |
+
+Driven before being listed, not after: **Val Verde** (i2g) `SANCHEZ MARIA` → 313 rows; **San
+Augustine** (i2m) `THOMAS JOHN` → 44 rows reaching back to **1838**. All 19 portals rendered the live
+search form.
+
+Three things worth carrying forward:
+
+- **A probe can manufacture a dead site.** Marion failed `fetch()` twice and would have been written
+  off as unreachable; in a real browser it loads fine — it bounces through
+  `?AspxAutoDetectCookieSupport=1`, which Node's fetch does not survive. The standing rule here is
+  that a county is listed only because its portal *answered*, but that rule is only as good as the
+  instrument doing the asking. "We could not reach it" is itself a claim.
+- **A county can contradict itself.** San Augustine's certification banner says its index starts
+  01/01/1800; its welcome text says 01/02/1856; and a real Bill of Sale filed **2/26/1838** came back
+  from it. Both claims are now recorded and neither is resolved — a search landing between them is
+  told the county disagrees with itself, rather than being handed a confident answer in either
+  direction. Three other counties (Cherokee, Marion, Val Verde) publish no certification banner at
+  all, so their coverage is prose, and `coverageConfidence()` now says which kind of claim each one
+  is instead of reporting all nineteen in the same voice.
+- **Certified-through ≠ last-recorded.** Duval certifies through 07/31/2025 but its last recorded
+  document is dated 07/31/2026. A year of documents is in the index and outside the certification,
+  which is a real distinction in a title search.

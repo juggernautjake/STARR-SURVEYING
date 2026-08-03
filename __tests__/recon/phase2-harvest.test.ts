@@ -40,6 +40,7 @@ import {
 import { KofileClerkAdapter } from '../../worker/src/adapters/kofile-clerk-adapter.js';
 import { CountyFusionAdapter } from '../../worker/src/adapters/countyfusion-adapter.js';
 import { TylerClerkAdapter } from '../../worker/src/adapters/tyler-clerk-adapter.js';
+import { TylerEagleAdapter } from '../../worker/src/adapters/tyler-eagle-adapter.js';
 import { TexasFileAdapter } from '../../worker/src/adapters/texasfile-adapter.js';
 import {
   extractKofilePartyNames,
@@ -445,9 +446,13 @@ describe('getClerkAdapter routing', () => {
     expect(adapter).toBeInstanceOf(KofileClerkAdapter);
   });
 
-  it('returns KofileClerkAdapter for Williamson County (48491)', () => {
+  it('returns TylerEagleAdapter for Williamson County (48491) — its Kofile portal has no land records', () => {
+    // Williamson's Kofile portal answers 200 but indexes ONLY Commissioners Court, so every deed
+    // search there returned an empty page — which reads as "this property has no deeds". Its land
+    // records live on Tyler Eagle (plan R38/R39). A reachable portal for the WRONG index is worse
+    // than no portal, so 48491 was removed from KOFILE_FIPS_SET on purpose.
     const adapter = getClerkAdapter('48491', 'Williamson');
-    expect(adapter).toBeInstanceOf(KofileClerkAdapter);
+    expect(adapter).toBeInstanceOf(TylerEagleAdapter);
   });
 
   it('returns KofileClerkAdapter for Travis County (48453)', () => {
@@ -455,20 +460,26 @@ describe('getClerkAdapter routing', () => {
     expect(adapter).toBeInstanceOf(KofileClerkAdapter);
   });
 
-  it('returns CountyFusionAdapter for Harris County (48201)', () => {
+  it('falls Harris County (48201) through to TexasFile — CountyFusion is not proven reachable', () => {
+    // CountyFusion routing is gated by isVendorProven (plan R37/R38): the county list is kept as
+    // knowledge, but we do not claim we can reach it. TexasFile serves all 254 counties.
     const adapter = getClerkAdapter('48201', 'Harris');
-    expect(adapter).toBeInstanceOf(CountyFusionAdapter);
+    expect(adapter).toBeInstanceOf(TexasFileAdapter);
+    expect(adapter).not.toBeInstanceOf(CountyFusionAdapter);
   });
 
-  it('returns CountyFusionAdapter for Dallas County (48113)', () => {
-    // Dallas is listed in CountyFusion config (not Kofile FIPS set)
+  it('falls Dallas County (48113) through to TexasFile — same CountyFusion gate', () => {
     const adapter = getClerkAdapter('48113', 'Dallas');
-    expect(adapter).toBeInstanceOf(CountyFusionAdapter);
+    expect(adapter).toBeInstanceOf(TexasFileAdapter);
   });
 
-  it('returns TylerClerkAdapter for Hidalgo County (48215)', () => {
+  it('falls Hidalgo County (48215) through to TexasFile — the old Tyler/Odyssey URLs are dead', () => {
+    // TylerClerkAdapter's base URLs (deed.dallascounty.org and friends) were all probed dead on
+    // 2026-08-02. The Tyler EAGLE portals that replaced them are a different adapter and a
+    // different FIPS set; Hidalgo is not among the nine that were driven.
     const adapter = getClerkAdapter('48215', 'Hidalgo');
-    expect(adapter).toBeInstanceOf(TylerClerkAdapter);
+    expect(adapter).toBeInstanceOf(TexasFileAdapter);
+    expect(adapter).not.toBeInstanceOf(TylerClerkAdapter);
   });
 
   it('returns TexasFileAdapter for an unknown county', () => {
@@ -485,12 +496,16 @@ describe('getClerkSystem', () => {
     expect(getClerkSystem('48027')).toBe('kofile');
   });
 
-  it('returns "countyfusion" for Harris County', () => {
-    expect(getClerkSystem('48201')).toBe('countyfusion');
+  it('returns "texasfile" for Harris County while CountyFusion is unproven', () => {
+    expect(getClerkSystem('48201')).toBe('texasfile');
   });
 
-  it('returns "tyler" for Hidalgo County', () => {
-    expect(getClerkSystem('48215')).toBe('tyler');
+  it('returns "texasfile" for Hidalgo County — the old Tyler/Odyssey URLs are dead', () => {
+    expect(getClerkSystem('48215')).toBe('texasfile');
+  });
+
+  it('returns "tyler" for a county whose Tyler Eagle portal was actually driven (Williamson)', () => {
+    expect(getClerkSystem('48491')).toBe('tyler');
   });
 
   it('returns "texasfile" for unknown FIPS', () => {
@@ -499,9 +514,15 @@ describe('getClerkSystem', () => {
 });
 
 describe('hasFreeImagePreview', () => {
-  it('returns true for Kofile counties (Bell, Williamson)', () => {
+  it('returns true for Kofile counties (Bell)', () => {
     expect(hasFreeImagePreview('48027')).toBe(true);
-    expect(hasFreeImagePreview('48491')).toBe(true);
+  });
+
+  it('returns false for Williamson — Tyler Eagle images go through a cart we have not wired', () => {
+    // Williamson left the Kofile set (its Kofile portal has no land records) and routes to Tyler
+    // Eagle, whose getDocumentImages throws rather than returning []. So there is no free preview
+    // there, and claiming one would promise the packet an image we cannot fetch.
+    expect(hasFreeImagePreview('48491')).toBe(false);
   });
 
   it('returns false for CountyFusion counties (no free preview)', () => {

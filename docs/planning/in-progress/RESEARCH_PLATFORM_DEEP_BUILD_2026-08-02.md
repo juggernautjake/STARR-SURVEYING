@@ -27,6 +27,28 @@ build work, not paperwork — moving it now would be marking things deferred to 
 ### Done, nothing outstanding
 R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 
+### Session of 2026-08-03
+
+**County coverage: 22 → 41 routed counties.** S-7 turned out to be a county-list expansion rather
+than an adapter — `texaslandrecords.com` is a directory of the Avenu portals already driven, so the
+Avenu adapter went from 2 counties to 19 with no parser change, and two verified Kofile counties
+(Cochran, Live Oak) came off the same page. Detail in
+`RESEARCH_SOURCES_AND_PAID_ACCOUNTS_2026-08-02.md` §"S-7 is DONE".
+
+**Twelve counties were filed under the wrong FIPS code.** Kimble under Kerr's, Menard under
+Matagorda's, Rockwall under Rusk's, and nine more across the Henschen, iDocket and Fidlar tables.
+This is the third appearance of a bug this codebase had already fixed by hand once (Lampasas filed
+under La Salle), and it is wrong in two directions at once: the intended county silently has no
+adapter, and an unrelated county is reported as covered by a portal that is not its own.
+`paid-platform-registry` builds `coveredFIPS` straight from those sets, so it was answering "a
+platform covers Kerr" and "nothing covers Kimble" — both wrong, neither visible. Fixed, and pinned
+by `worker/src/__tests__/fips-labels-match-county-table.test.ts`, which checks every adapter's
+FIPS→name claim against the authoritative 254-county table.
+
+**The 14 stale recon tests are fixed** — they asserted the pre-R37 belief that Henschen/iDocket/
+Fidlar were reachable. They now pin the `isVendorProven` gate instead, including a sweep asserting
+that *no* county of an unproven vendor routes to it.
+
 ### Buildable work still outstanding
 | Slice | What remains | Why it was not done in the slice |
 |---|---|---|

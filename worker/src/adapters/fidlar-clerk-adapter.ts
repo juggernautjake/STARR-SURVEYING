@@ -88,7 +88,7 @@ export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
     variant: 'laredo',
     hasImageAccess: false,
   },
-  '48243': {  // Jasper County
+  '48241': {  // Jasper County
     baseUrl: 'https://jasper.fidlar.com',
     searchPath: '/LandRecords/',
     countyDisplayName: 'Jasper County',
@@ -102,21 +102,21 @@ export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
     variant: 'laredo',
     hasImageAccess: false,
   },
-  '48415': {  // Sabine County
+  '48403': {  // Sabine County
     baseUrl: 'https://laredo.fidlar.com',
     searchPath: '/TX_Sabine/LandRecords/',
     countyDisplayName: 'Sabine County',
     variant: 'laredo',
     hasImageAccess: false,
   },
-  '48419': {  // San Augustine County
+  '48405': {  // San Augustine County
     baseUrl: 'https://laredo.fidlar.com',
     searchPath: '/TX_SanAugustine/LandRecords/',
     countyDisplayName: 'San Augustine County',
     variant: 'laredo',
     hasImageAccess: false,
   },
-  '48423': {  // San Jacinto County
+  '48407': {  // San Jacinto County
     baseUrl: 'https://sanjacinto.fidlar.com',
     searchPath: '/LandRecords/',
     countyDisplayName: 'San Jacinto County',
@@ -145,7 +145,7 @@ export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
     variant: 'laredo',
     hasImageAccess: false,
   },
-  '48147': {  // Foard County
+  '48155': {  // Foard County
     baseUrl: 'https://laredo.fidlar.com',
     searchPath: '/TX_Foard/LandRecords/',
     countyDisplayName: 'Foard County',

@@ -56,6 +56,7 @@ export const KOFILE_FIPS_SET = new Set<string>([
   '48027',  // Bell
   '48029',  // Bexar
   '48041',  // Brazos
+  '48079',  // Cochran   — found via the texaslandrecords directory (S-7), 2026-08-03
   '48083',  // Coleman
   '48085',  // Collin
   '48121',  // Denton
@@ -63,6 +64,7 @@ export const KOFILE_FIPS_SET = new Set<string>([
   '48251',  // Johnson
   '48259',  // Kendall
   '48289',  // Leon
+  '48297',  // Live Oak  — found via the texaslandrecords directory (S-7), 2026-08-03
   '48313',  // Madison
   '48325',  // Medina
   '48331',  // Milam

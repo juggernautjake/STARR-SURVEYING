@@ -21,7 +21,7 @@
 //  3.  Burnet County (48053) is in HENSCHEN_FIPS_SET
 //  4.  Llano County (48299) is in HENSCHEN_FIPS_SET
 //  5.  San Saba County (48411) is in HENSCHEN_FIPS_SET
-//  6.  Kimble County (48265) is in HENSCHEN_FIPS_SET
+//  6.  Kimble County (48267) is in HENSCHEN_FIPS_SET
 //  7.  All HENSCHEN_CONFIGS entries have a non-empty baseUrl
 //  8.  All HENSCHEN_CONFIGS entries have a non-empty searchPath
 //  9.  createHenschenAdapter returns HenschenClerkAdapter instance
@@ -42,7 +42,7 @@
 //  22. IDOCKET_FIPS_SET is derived from IDOCKET_CONFIGS keys
 //  23. Collin County (48085) is in IDOCKET_FIPS_SET
 //  24. Denton County (48121) is in IDOCKET_FIPS_SET
-//  25. Rockwall County (48401) is in IDOCKET_FIPS_SET
+//  25. Rockwall County (48397) is in IDOCKET_FIPS_SET
 //  26. All IDOCKET_CONFIGS entries have a non-empty baseUrl
 //  27. All IDOCKET_CONFIGS entries have a countySlug that appears in baseUrl
 //  28. createIDocketAdapter returns IDocketClerkAdapter instance
@@ -58,7 +58,7 @@
 //  36. FIDLAR_CONFIGS has ≥ 10 entries
 //  37. FIDLAR_FIPS_SET is derived from FIDLAR_CONFIGS keys
 //  38. Ward County (48475) is in FIDLAR_FIPS_SET
-//  39. Jasper County (48243) is in FIDLAR_FIPS_SET
+//  39. Jasper County (48241) is in FIDLAR_FIPS_SET
 //  40. All FIDLAR_CONFIGS entries have a valid variant ('laredo'|'direct'|'publicsearch')
 //  41. All FIDLAR_CONFIGS entries have a non-empty baseUrl
 //  42. All FIDLAR_CONFIGS entries have a non-empty searchPath
@@ -70,12 +70,13 @@
 //  48. FidlarClerkAdapter.classifyDocumentType 'REPLAT' → 'replat'
 //
 // ── Module D: Services clerk-registry routing ────────────────────────────────
-//  49. getClerkAdapter returns HenschenClerkAdapter for Burnet Co (48053)
-//  50. getClerkAdapter returns IDocketClerkAdapter for Collin Co (48085)
-//  51. getClerkAdapter returns FidlarClerkAdapter for Ward Co (48475)
-//  52. getClerkSystem returns 'henschen' for Burnet Co (48053)
-//  53. getClerkSystem returns 'idocket' for Denton Co (48121)
-//  54. getClerkSystem returns 'fidlar' for Ward Co (48475)
+//  49. Kimble (48267) is a Henschen county but routes to TexasFile — Henschen URLs dead
+//  50. Rockwall (48397) is an iDocket county but routes to TexasFile — iDocket URLs 404
+//  51. Ward (48475) is a Fidlar county but routes to TexasFile — Fidlar URLs dead
+//  52. getClerkSystem returns 'texasfile' for Kimble Co (48267)
+//  53. getClerkSystem returns 'texasfile' for Rockwall Co (48397)
+//  54. getClerkSystem returns 'texasfile' for Ward Co (48475)
+//  54b. no county of an unproven vendor routes to that vendor
 //  55. Kofile priority beats iDocket when FIPS appears in both
 //  56. registrySummary includes henschen count
 //  57. registrySummary includes idocket count
@@ -176,8 +177,11 @@ import {
 import {
   getClerkAdapter,
   getClerkSystem,
+  isVendorProven,
   registrySummary,
 } from '../../worker/src/services/clerk-registry.js';
+
+import { TexasFileAdapter } from '../../worker/src/adapters/texasfile-adapter.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -229,8 +233,8 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
     expect(HENSCHEN_FIPS_SET.has('48411')).toBe(true);
   });
 
-  it('6. Kimble County (48265) is in HENSCHEN_FIPS_SET', () => {
-    expect(HENSCHEN_FIPS_SET.has('48265')).toBe(true);
+  it('6. Kimble County (48267) is in HENSCHEN_FIPS_SET', () => {
+    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(true);
   });
 
   it('7. All HENSCHEN_CONFIGS entries have a non-empty baseUrl', () => {
@@ -352,8 +356,8 @@ describe('iDocket Clerk Adapter — config coverage (idocket-clerk-adapter.ts)',
     expect(IDOCKET_FIPS_SET.has('48121')).toBe(true);
   });
 
-  it('25. Rockwall County (48401) is in IDOCKET_FIPS_SET', () => {
-    expect(IDOCKET_FIPS_SET.has('48401')).toBe(true);
+  it('25. Rockwall County (48397) is in IDOCKET_FIPS_SET', () => {
+    expect(IDOCKET_FIPS_SET.has('48397')).toBe(true);
   });
 
   it('26. All IDOCKET_CONFIGS entries have a non-empty baseUrl', () => {
@@ -444,8 +448,8 @@ describe('Fidlar Technologies Clerk Adapter — config coverage (fidlar-clerk-ad
     expect(FIDLAR_FIPS_SET.has('48475')).toBe(true);
   });
 
-  it('39. Jasper County (48243) is in FIDLAR_FIPS_SET', () => {
-    expect(FIDLAR_FIPS_SET.has('48243')).toBe(true);
+  it('39. Jasper County (48241) is in FIDLAR_FIPS_SET', () => {
+    expect(FIDLAR_FIPS_SET.has('48241')).toBe(true);
   });
 
   it('40. All FIDLAR_CONFIGS entries have a valid variant', () => {
@@ -504,31 +508,54 @@ describe('Fidlar Technologies Clerk Adapter — config coverage (fidlar-clerk-ad
 // ── Module D: Services clerk-registry routing ────────────────────────────────
 
 describe('Services clerk-registry routing for Phase 13 adapters (services/clerk-registry.ts)', () => {
-  it('49. getClerkAdapter returns HenschenClerkAdapter for Kimble Co (48265)', () => {
-    const adapter = getClerkAdapter('48265', 'Kimble');
-    expect(adapter).toBeInstanceOf(HenschenClerkAdapter);
+  // Tests 49–54 used to assert that these counties routed to the Henschen, iDocket and Fidlar
+  // adapters. Every base URL of all three vendors was probed on 2026-08-02 and every one is dead —
+  // Henschen 16/16 ERR_NAME_NOT_RESOLVED, iDocket 18/18 HTTP 404, Fidlar 6/6 ERR_NAME_NOT_RESOLVED
+  // (plan R37/R38). Routing to them produced "no records found", which reads as a statement about
+  // the property rather than about our routing, so `isVendorProven` gates them off and the counties
+  // fall through to TexasFile, which answers.
+  //
+  // These tests now pin that gate. They must NOT be "fixed" by marking a vendor proven; a vendor
+  // becomes proven by probing its URLs, and then these expectations change with it.
+
+  it('49. Kimble Co (48267) is a Henschen county but routes to TexasFile — Henschen URLs are dead', () => {
+    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(true);   // the knowledge is kept…
+    expect(isVendorProven('henschen')).toBe(false);      // …but the reachability is not claimed
+    expect(getClerkAdapter('48267', 'Kimble')).toBeInstanceOf(TexasFileAdapter);
   });
 
-  it('50. getClerkAdapter returns IDocketClerkAdapter for Rockwall Co (48401)', () => {
-    const adapter = getClerkAdapter('48401', 'Rockwall');
-    expect(adapter).toBeInstanceOf(IDocketClerkAdapter);
+  it('50. Rockwall Co (48397) is an iDocket county but routes to TexasFile — iDocket URLs 404', () => {
+    expect(IDOCKET_FIPS_SET.has('48397')).toBe(true);
+    expect(isVendorProven('idocket')).toBe(false);
+    expect(getClerkAdapter('48397', 'Rockwall')).toBeInstanceOf(TexasFileAdapter);
   });
 
-  it('51. getClerkAdapter returns FidlarClerkAdapter for Ward Co (48475)', () => {
-    const adapter = getClerkAdapter('48475', 'Ward');
-    expect(adapter).toBeInstanceOf(FidlarClerkAdapter);
+  it('51. Ward Co (48475) is a Fidlar county but routes to TexasFile — Fidlar URLs are dead', () => {
+    expect(FIDLAR_FIPS_SET.has('48475')).toBe(true);
+    expect(isVendorProven('fidlar')).toBe(false);
+    expect(getClerkAdapter('48475', 'Ward')).toBeInstanceOf(TexasFileAdapter);
   });
 
-  it('52. getClerkSystem returns "henschen" for Kimble Co (48265)', () => {
-    expect(getClerkSystem('48265')).toBe('henschen');
+  it('52. getClerkSystem returns "texasfile" for Kimble Co (48267) while Henschen is unproven', () => {
+    expect(getClerkSystem('48267')).toBe('texasfile');
   });
 
-  it('53. getClerkSystem returns "idocket" for Rockwall Co (48401)', () => {
-    expect(getClerkSystem('48401')).toBe('idocket');
+  it('53. getClerkSystem returns "texasfile" for Rockwall Co (48397) while iDocket is unproven', () => {
+    expect(getClerkSystem('48397')).toBe('texasfile');
   });
 
-  it('54. getClerkSystem returns "fidlar" for Ward Co (48475)', () => {
-    expect(getClerkSystem('48475')).toBe('fidlar');
+  it('54. getClerkSystem returns "texasfile" for Ward Co (48475) while Fidlar is unproven', () => {
+    expect(getClerkSystem('48475')).toBe('texasfile');
+  });
+
+  it('54b. an unproven vendor never routes, for every county it lists', () => {
+    // The gate is a property of the vendor, not of the three counties sampled above. If a future
+    // edit flips one FIPS through without probing, this fails.
+    for (const fips of [...HENSCHEN_FIPS_SET, ...IDOCKET_FIPS_SET, ...FIDLAR_FIPS_SET]) {
+      expect(getClerkSystem(fips)).not.toBe('henschen');
+      expect(getClerkSystem(fips)).not.toBe('idocket');
+      expect(getClerkSystem(fips)).not.toBe('fidlar');
+    }
   });
 
   it('55. Kofile priority beats Henschen when Lampasas (48283) appears in both FIPS sets', () => {

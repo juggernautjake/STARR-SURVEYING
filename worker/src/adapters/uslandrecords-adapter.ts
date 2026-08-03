@@ -21,6 +21,7 @@ import {
   USLR_COUNTIES,
   USLR_FIELDS,
   USLR_MAX_PAGES,
+  coverageConfidence,
   coverageWarning,
   describeUslrCompleteness,
   indexBegins,
@@ -97,6 +98,12 @@ export class USLandRecordsAdapter extends ClerkAdapter {
   lastParseSummary: string | null = null;
   /** Set when a search ran outside what the county actually indexes. */
   lastCoverageWarning: string | null = null;
+  /** How well this county's coverage is known at all — certified, prose-only, or self-disputed.
+   *
+   *  Separate from `lastCoverageWarning`, which is about the search that was just run. This is about
+   *  the county, and it is set on every search so a report can never present a coverage claim read
+   *  off a welcome sentence as if it were a certification. */
+  lastCoverageConfidence: string | null = null;
 
   constructor(countyFIPS: string, countyName: string) {
     super(countyName, countyFIPS);
@@ -373,11 +380,18 @@ export class USLandRecordsAdapter extends ClerkAdapter {
       .catch(() => false);
   }
 
-  /** Record when a caller asks for years this county never digitised. */
+  /** Record when a caller asks for years this county never digitised, and how well this county's
+   *  coverage is known in the first place. */
   private noteCoverage(options?: ClerkSearchOptions): void {
     const from = (options as { from?: Date } | undefined)?.from;
     this.lastCoverageWarning = from ? coverageWarning(this.countyName, from) : null;
     if (this.lastCoverageWarning) console.warn(`[USLandRecords/${this.countyName}] ${this.lastCoverageWarning}`);
+
+    // Always set, warning or not. Nineteen counties route here now and they are not equally well
+    // documented — three publish no certification banner and one contradicts itself — so a run that
+    // reported them all in the same voice would be overstating three of them.
+    this.lastCoverageConfidence = coverageConfidence(this.countyName);
+    if (this.lastCoverageConfidence) console.log(`[USLandRecords/${this.countyName}] ${this.lastCoverageConfidence}`);
   }
 
   async searchByGrantorName(name: string, options?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {

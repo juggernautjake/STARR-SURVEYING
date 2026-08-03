@@ -102,13 +102,18 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     countyDisplayName: 'San Saba County',
     hasImageAccess: false,
   },
-  '48321': {  // Menard County
+  // 48327, not 48321 — 48321 is Matagorda County, on the Gulf coast. Same class of error as the
+  // Lampasas/La Salle one noted below, and it does the same two harms at once: Menard is left
+  // uncovered, and Matagorda is claimed as covered when it is not.
+  '48327': {  // Menard County
     baseUrl: 'https://menard.co.texas.us',
     searchPath: '/ClerkInquiry/',
     countyDisplayName: 'Menard County',
     hasImageAccess: false,
   },
-  '48265': {  // Kimble County
+  // 48267, not 48265 — 48265 is Kerr County. Verified against worker/src/lib/county-fips.ts, which
+  // is the authoritative table; `fips-labels-match-county-table.test.ts` now pins every entry here.
+  '48267': {  // Kimble County
     baseUrl: 'https://kimble.co.texas.us',
     searchPath: '/ClerkInquiry/',
     countyDisplayName: 'Kimble County',

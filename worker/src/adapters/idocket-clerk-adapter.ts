@@ -66,22 +66,22 @@ export interface IDocketConfig {
 export const IDOCKET_COUNTY_NAMES: Record<string, string> = {
   '48085': 'Collin',
   '48121': 'Denton',
-  '48149': 'Freestone',
+  '48161': 'Freestone',
   '48227': 'Howard',
   '48293': 'Limestone',
   '48363': 'PaloPinto',
-  '48401': 'Rockwall',
+  '48397': 'Rockwall',
   '48113': 'Dallas',
   '48019': 'Bandera',
   '48023': 'Baylor',
   '48045': 'Briscoe',
   '48059': 'Callahan',
-  '48153': 'Garza',
+  '48169': 'Garza',
   '48189': 'Hale',
-  '48211': 'Haskell',
+  '48207': 'Haskell',
   '48263': 'Kent',
   '48291': 'Liberty',
-  '48303': 'Lynn',
+  '48305': 'Lynn',
 };
 
 /** Known iDocket county configurations keyed by 5-digit FIPS code. */
@@ -98,7 +98,7 @@ export const IDOCKET_CONFIGS: Record<string, IDocketConfig> = {
     countyDisplayName: 'Denton County',
     hasGuestImageAccess: false,
   },
-  '48149': {
+  '48161': {
     baseUrl: 'https://idocket.com/TX/Freestone',
     countySlug: 'Freestone',
     countyDisplayName: 'Freestone County',
@@ -122,7 +122,7 @@ export const IDOCKET_CONFIGS: Record<string, IDocketConfig> = {
     countyDisplayName: 'Palo Pinto County',
     hasGuestImageAccess: false,
   },
-  '48401': {
+  '48397': {
     baseUrl: 'https://idocket.com/TX/Rockwall',
     countySlug: 'Rockwall',
     countyDisplayName: 'Rockwall County',
@@ -158,7 +158,7 @@ export const IDOCKET_CONFIGS: Record<string, IDocketConfig> = {
     countyDisplayName: 'Callahan County',
     hasGuestImageAccess: false,
   },
-  '48153': {
+  '48169': {
     baseUrl: 'https://idocket.com/TX/Garza',
     countySlug: 'Garza',
     countyDisplayName: 'Garza County',
@@ -170,7 +170,7 @@ export const IDOCKET_CONFIGS: Record<string, IDocketConfig> = {
     countyDisplayName: 'Hale County',
     hasGuestImageAccess: false,
   },
-  '48211': {
+  '48207': {
     baseUrl: 'https://idocket.com/TX/Haskell',
     countySlug: 'Haskell',
     countyDisplayName: 'Haskell County',
@@ -188,7 +188,7 @@ export const IDOCKET_CONFIGS: Record<string, IDocketConfig> = {
     countyDisplayName: 'Liberty County',
     hasGuestImageAccess: false,
   },
-  '48303': {
+  '48305': {
     baseUrl: 'https://idocket.com/TX/Lynn',
     countySlug: 'Lynn',
     countyDisplayName: 'Lynn County',

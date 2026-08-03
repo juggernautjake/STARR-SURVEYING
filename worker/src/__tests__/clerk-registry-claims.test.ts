@@ -25,6 +25,13 @@ const VERIFIED = [
   // Williamson (48491) answered 200 but serves ONLY Commissioners Court — no land records. It now
   // routes to Tyler Eagle, where its deeds actually live (plan R39). A reachable portal for the
   // WRONG index is worse than no portal: it returns an empty page that reads as "no deeds".
+
+  // Added 2026-08-03 (S-7). Both were found on Avenu's texaslandrecords.com county directory, which
+  // lists three Kofile portals among its 22 counties. Both were opened in a real browser and both
+  // show a **Real Property** department with a certification date — the check Williamson taught us
+  // to run, since answering 200 is not the same as indexing land.
+  '48079',  // Cochran   — Real Property, certified through 07/31/2026
+  '48297',  // Live Oak  — Real Property, certified through 07/30/2026
 ];
 
 /** Probed and unreachable ON KOFILE. These must NOT be routed to Kofile.
