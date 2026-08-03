@@ -2935,18 +2935,32 @@ distinction matters: everything before this made a document arrive; nothing befo
   cannot be asked for after the fact. What works is asking the **viewer** — those parameters track the
   browser viewport, and the size is fixed before the URL exists:
 
-  | viewport | render | effective DPI | bearing |
+  | viewport | render | limiting DPI | bearing |
   |---|---|---|---|
-  | 1280×720 | 304×561 | ~36 | ~2.5 px — unreadable |
-  | 2400×3200 | 1712×3162 | ~287 | ~20 px — comfortable |
+  | 1280×720 | 304×561 | ~36 | ~2.5 px — **unreadable** |
+  | 2400×3200 | 1712×3162 | ~201 | ~14 px — **marginal** |
 
   Both measured live. The capture tab is now sized *before* the image renders and reloaded after
   (resizing alone does not re-request it). `CAPTURE_VIEWPORT` is a **correctness** setting, and the
   comment says so where someone would be tempted to shrink it.
 
-  This is what the arithmetic was for: the legibility check said the capture could not possibly work,
-  which sent me back to the portal to find out why. Every page still under the threshold carries a
-  warning that travels **with the page**, not only in a log.
+  **The limiting axis is the width, not the height** — a correction to this document's first version
+  of these numbers, which read ~287 DPI and "comfortable". The render is fitted to *height*, so the
+  height axis does read ~287; but the width is 1712 px across 8.5" = 201 DPI, and legibility is set by
+  the worse axis. Reaching a comfortable 20 px needs ~286 DPI, i.e. ~2430 px of width and a taller
+  viewport again — **untested**, because a headed browser cannot be sized past the screen (the attempt
+  clamped and the render fell to 498×920, which is itself a confirmation of the mechanism). A headless
+  worker has no such limit.
+
+  **Tyler's `DEGRADED` copy measures 200 DPI too** — 1699×2220 against a 611×799 pt MediaBox, read
+  out of the PDF's own image XObjects. So both vendors we can retrieve at scale sit at ~200 DPI and
+  ~14 px per bearing: over the floor, under comfortable, in the band where OCR does not fail but
+  **guesses**. Whether a 14 px bearing is read correctly or confidently wrong is the one question
+  arithmetic cannot answer, and it is the sharpest argument for the golden plat in §4 item 0a.
+
+  This is what the arithmetic was for: the legibility check said the Avenu capture could not possibly
+  work, which sent me back to the portal to find out why. Every page still under the threshold carries
+  a warning that travels **with the page**, not only in a log.
 
   **Still needs a golden plat**, for the part that genuinely is a measurement: whether Tyler's
   `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
