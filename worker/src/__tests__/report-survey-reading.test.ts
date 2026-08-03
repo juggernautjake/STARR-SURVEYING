@@ -10,6 +10,8 @@
 // check cannot see it because the field is on a type rather than in a module.
 
 import { describe, it, expect } from 'vitest';
+import fsMod from 'node:fs';
+import pathMod from 'node:path';
 import { buildMasterReport } from '../services/report-generator.js';
 import { readSurvey } from '../services/survey-reading.js';
 import type { BoundaryCall, ExtractedBoundaryData, PipelineResult } from '../types/index.js';
@@ -155,5 +157,78 @@ describe('the things that must not be quiet', () => {
     const out = buildMasterReport(emptyReport, pipelineWith(readSurvey(varas)));
     expect(out).toContain('UNITS');
     expect(out).toMatch(/vara/i);
+  });
+});
+
+describe('what we could not get, and what it cost', () => {
+  // Four fields were produced and read by nothing — and TWO were added earlier in this same
+  // session. That is the clearest evidence available that this is a shape the codebase invites
+  // rather than carelessness: you write the field, you write the comment saying an invisible number
+  // is one nobody acts on, and then there is nowhere obvious to put it, so it stops on the object.
+  it('lists retrieval failures as errands, not absences', () => {
+    // A report that never mentions the documents it failed to fetch reads as complete.
+    const p = pipelineWith(undefined);
+    (p as { retrievalFailures?: string[] }).retrievalFailures = ['Kofile search timed out for Vol 412 Pg 88'];
+    const out = buildMasterReport(emptyReport, p);
+    expect(out).toContain('WHAT WE COULD NOT GET');
+    expect(out).toContain('errands, not absences');
+    expect(out).toContain('Vol 412 Pg 88');
+  });
+
+  it('distinguishes "none failed" from "not recorded"', () => {
+    // The pipeline is careful to keep undefined and [] apart; the report must not flatten them.
+    const notRecorded = buildMasterReport(emptyReport, pipelineWith(undefined));
+    expect(notRecorded).toContain('not recorded for this run');
+
+    const noneFailed = pipelineWith(undefined);
+    (noneFailed as { retrievalFailures?: string[] }).retrievalFailures = [];
+    expect(buildMasterReport(emptyReport, noneFailed)).toContain('Every document this run went after');
+  });
+
+  it('prints the overpay with its reason, not just a count', () => {
+    const out = buildMasterReport(emptyReport, pipelineWith(undefined), {
+      policyPremiums: [{ instrument: '2020-1234', reason: 'Tyler covers this county at $0.50 but has no credentials configured' }],
+    });
+    expect(out).toContain('2020-1234');
+    expect(out).toContain('no credentials configured');
+    expect(out).toContain('nobody decides to stop paying');
+  });
+
+  it('prints what FREE mode meant for the run', () => {
+    const out = buildMasterReport(emptyReport, pipelineWith(undefined), {
+      modeStatement: 'FREE mode: the paid phase was not run. 4 document(s) were NOT purchased.',
+    });
+    expect(out).toContain('FREE mode');
+    expect(out).toContain('4 document(s)');
+  });
+
+  it('credits the library only when it actually saved something', () => {
+    const saved = buildMasterReport(emptyReport, pipelineWith(undefined), {
+      librarySavings: { reused: 3, savedUsd: 12.5 },
+    });
+    expect(saved).toContain('already in the firm');
+    expect(saved).toContain('$12.50');
+
+    const none = buildMasterReport(emptyReport, pipelineWith(undefined), {
+      librarySavings: { reused: 0, savedUsd: 0 },
+    });
+    expect(none).not.toContain('already in the firm');
+  });
+});
+
+describe('the pipeline hands the report what the report reads', () => {
+  // `partialResult` is assembled by hand and cast with `as PipelineResult`, so anything omitted is
+  // silently absent from the printed report rather than a compile error. surveyReading was added to
+  // the report in the previous slice and never added here — every real run would have printed
+  // "Not computed for this run".
+  const src = fsMod.readFileSync(
+    pathMod.join(process.cwd(), 'src/services/pipeline.ts'), 'utf8');
+
+  it('includes surveyReading in the object it passes', () => {
+    expect(src).toMatch(/const partialResult = \{[\s\S]{0,400}?surveyReading,/);
+  });
+
+  it('includes retrievalFailures too', () => {
+    expect(src).toMatch(/const partialResult = \{[\s\S]{0,400}?retrievalFailures:/);
   });
 });

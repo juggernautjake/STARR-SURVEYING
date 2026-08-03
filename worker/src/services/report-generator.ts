@@ -364,6 +364,84 @@ function buildSurveyReading(pipeline: PipelineResult): string {
   return lines.join('\n');
 }
 
+/**
+ * WHAT WE COULD NOT GET, AND WHAT IT COST — retrieval failures and the spending facts.
+ *
+ * Four fields were being produced and read by nothing, and **two of them were added earlier in this
+ * same session**, which is the clearest evidence available that this defect is not carelessness but
+ * a shape the codebase invites: you write the field, you write the comment explaining why it must
+ * not be silent, and then there is no obvious place to put it, so it goes on the object and stops.
+ *
+ *   `retrievalFailures`  (PipelineResult) — documents we tried and failed to fetch
+ *   `policyPremiums`     (PurchaseReport) — purchases made from a dearer vendor than policy allows
+ *   `modeStatement`      (PurchaseReport) — what FREE mode meant for this run
+ *   `librarySavings`     (PurchaseReport) — documents we did not have to buy again
+ *
+ * The first is the one that matters most to a surveyor: a report that never mentions the documents
+ * it failed to retrieve reads as complete. The other three are money, and each was written with a
+ * comment saying an invisible number is one nobody acts on — while being invisible.
+ */
+function buildRetrievalAndSpending(
+  pipeline: PipelineResult,
+  purchases?: PurchaseReportLike | null,
+): string {
+  const lines: string[] = ['WHAT WE COULD NOT GET, AND WHAT IT COST', HR2];
+  let saidSomething = false;
+
+  const failures = pipeline.retrievalFailures ?? [];
+  if (failures.length > 0) {
+    saidSomething = true;
+    lines.push(`  ${failures.length} document retrieval(s) FAILED. These are errands, not absences —`);
+    lines.push('  the record may exist and be perfectly findable at the courthouse.');
+    for (const f of failures) lines.push(`    · ${wrapAt(f, 6)}`);
+  } else if (pipeline.retrievalFailures === undefined) {
+    // Undefined and [] mean different things here, and the pipeline is careful to keep them apart.
+    lines.push('  Retrieval failures were not recorded for this run.');
+    saidSomething = true;
+  }
+
+  if (purchases?.modeStatement) {
+    saidSomething = true;
+    lines.push('', `  ${wrapAt(purchases.modeStatement, 2)}`);
+  }
+
+  if (purchases?.policyPremiums?.length) {
+    saidSomething = true;
+    lines.push('', `  ${purchases.policyPremiums.length} purchase(s) cost more than the cheapest-first policy allows:`);
+    for (const p of purchases.policyPremiums) {
+      lines.push(`    · ${p.instrument}: ${wrapAt(p.reason, 6)}`);
+    }
+    lines.push('    A premium nobody records is a premium nobody decides to stop paying.');
+  }
+
+  if (purchases?.librarySavings && purchases.librarySavings.reused > 0) {
+    saidSomething = true;
+    lines.push(
+      '',
+      `  ${purchases.librarySavings.reused} document(s) were already in the firm's library and were ` +
+      `not bought again, saving $${purchases.librarySavings.savedUsd.toFixed(2)}.`,
+    );
+  }
+
+  if (!saidSomething) {
+    lines.push('  Every document this run went after was retrieved, and nothing was purchased');
+    lines.push('  outside the cost policy.');
+  }
+
+  return lines.join('\n');
+}
+
+/** The parts of a purchase report this section reads.
+ *
+ *  Structural rather than an import of `PurchaseReport`: the report generator should not gain a
+ *  dependency on the purchase pipeline to print four facts, and the orchestrator loads this file
+ *  from disk as untyped JSON anyway. */
+export interface PurchaseReportLike {
+  modeStatement?: string;
+  policyPremiums?: Array<{ instrument: string; reason: string }>;
+  librarySavings?: { reused: number; savedUsd: number };
+}
+
 /** Wrap a long sentence to the report's width, indenting continuations.
  *
  *  The statements from `survey-reading` are written as prose for a person and routinely run past
@@ -584,6 +662,9 @@ function buildAnalysisLimitations(report: ValidationReport): string {
 export function buildMasterReport(
   report: ValidationReport,
   pipeline: PipelineResult,
+  /** Optional so existing callers compile unchanged. Absent means the spending facts are simply not
+   *  printed, which is honest — a run with no purchase phase has none. */
+  purchases?: PurchaseReportLike | null,
 ): string {
   const header = [
     HR,
@@ -611,6 +692,8 @@ export function buildMasterReport(
     buildRoads(report),
     buildEasements(report),
     buildRecommendedActions(report),
+    // Last, because it is what the reader takes away as outstanding work rather than as findings.
+    buildRetrievalAndSpending(pipeline, purchases),
   ];
 
   const footer = [
@@ -656,8 +739,9 @@ export async function writeMasterReport(
 export async function generateAndWriteReport(
   report: ValidationReport,
   pipeline: PipelineResult,
+  purchases?: PurchaseReportLike | null,
 ): Promise<{ text: string; filePath: string }> {
-  const text     = buildMasterReport(report, pipeline);
+  const text     = buildMasterReport(report, pipeline, purchases);
   const filePath = await writeMasterReport(text, pipeline.projectId);
   return { text, filePath };
 }

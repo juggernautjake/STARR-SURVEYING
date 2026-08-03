@@ -2226,10 +2226,19 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       // Build a partial PipelineResult for the report generator (the full
       // result object is not assembled yet, but the report only needs a
       // subset of fields that are already available here).
+      // The fields the report actually reads must be here, not just the three it used to carry.
+      //
+      // This object is assembled by hand and passed to the report generator, so anything omitted is
+      // silently absent from the printed report rather than missing at compile time — `as
+      // PipelineResult` casts the gap away. `surveyReading` was added to the report in the previous
+      // slice and would have printed "Not computed for this run" on EVERY real run, because it was
+      // never put here. A section that degrades honestly still says nothing when it is starved.
       const partialResult = {
         projectId: input.projectId,
         propertyId: propertyResult?.propertyId ?? null,
         validation,
+        surveyReading,
+        retrievalFailures: retrievalFailures.length > 0 ? [...retrievalFailures] : undefined,
       } as PipelineResult;
       try {
         const { text, filePath } = await generateAndWriteReport(validationReport, partialResult);

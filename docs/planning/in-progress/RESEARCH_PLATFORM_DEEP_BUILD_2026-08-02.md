@@ -3673,6 +3673,46 @@ in shipping code on the strength of a bad stub.
 
 Worker suite 85 files / 1,420 tests; root 1,469 files; typecheck clean.
 
+#### The same question asked of every other result field — including my own
+
+**DONE 2026-08-03** (`buildRetrievalAndSpending`, and a fix to the previous slice).
+
+Having found `surveyReading` produced-and-unread, the obvious next move was to ask it of every other
+field on those result objects. **Four more, and two of them were added earlier in this same
+session:**
+
+| field | on | added |
+|---|---|---|
+| `retrievalFailures` | `PipelineResult` | pre-existing |
+| `librarySavings` | `PurchaseReport` | pre-existing |
+| `policyPremiums` | `PurchaseReport` | **by me, R13** |
+| `modeStatement` | `PurchaseReport` | **by me, S-11** |
+
+That is the clearest evidence available that this is a shape the codebase *invites* rather than
+carelessness: I wrote each field, wrote the comment explaining why the number must not be silent —
+*"a premium nobody records is a premium nobody decides to stop paying"* — and then there was nowhere
+obvious to put it, so it stopped on the object. The orchestrator loads `purchase_report.json` and
+reads exactly one field from it (`billing.totalCharged`); everything else is loaded and dropped.
+
+`retrievalFailures` is the one that matters most to a surveyor: **a report that never mentions the
+documents it failed to fetch reads as complete.** They print as *errands, not absences* — the record
+may exist and be perfectly findable at the courthouse — and "none failed" stays distinct from "not
+recorded", which the pipeline is careful about and the report must not flatten.
+
+### And the previous slice was broken in exactly the way this document keeps describing
+
+`pipeline.ts` builds the object it hands the report generator **by hand**, and casts it
+`as PipelineResult` — so a field omitted there is silently absent from the printed report rather than
+a compile error. It carried three fields. `surveyReading` was added to the report in the slice above
+and **never added to that object**, so every real run would have printed *"Not computed for this
+run"* while the tests passed, because the tests construct their own result.
+
+A section that degrades honestly still says nothing when it is starved. Fixed, and pinned by a test
+that reads `pipeline.ts` rather than constructing a result — which is the only kind of test that
+could have caught it.
+
+Worker suite 85 files / 1,427 tests; root 1,469 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
