@@ -20,8 +20,8 @@ import path from 'node:path';
 
 const read = (f: string) => fs.readFileSync(path.join(process.cwd(), 'src/adapters', f), 'utf8');
 
-/** Adapters a county can actually be routed to today. */
-const ROUTED = [
+/** Clerk adapters a county can actually be routed to today. */
+const ROUTED_CLERK = [
   'kofile-clerk-adapter.ts',
   'texasfile-adapter.ts',
   'edoctec-clerk-adapter.ts',
@@ -30,6 +30,21 @@ const ROUTED = [
   'aumentum-clerk-adapter.ts',
   'idocmarket-adapter.ts',
 ];
+
+/** Appraisal-district adapters, routed live by property-discovery.ts.
+ *
+ *  These carry the same risk in a different costume: an empty result reads as "no property exists
+ *  at this address", and their subdivision helpers feed the ADJOINER list — where a swallowed
+ *  failure shows a surveyor three adjoining parcels when there are nine. */
+const ROUTED_CAD = [
+  'hcad-adapter.ts',
+  'tad-adapter.ts',
+  'bis-adapter.ts',
+  'trueautomation-adapter.ts',
+  'generic-cad-adapter.ts',
+];
+
+const ROUTED = [...ROUTED_CLERK, ...ROUTED_CAD];
 
 /** Strip comments so prose about the old behaviour does not trip the checks. */
 const codeOf = (src: string) => src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
@@ -69,5 +84,30 @@ describe('the reason is recorded where it was fixed', () => {
 
   it('TexasFile says a paywalled image is not an absent image', () => {
     expect(read('texasfile-adapter.ts')).toContain('the absence of ACCESS, not the absence of images');
+  });
+});
+
+describe('the appraisal-district adapters carry the same rule', () => {
+  it('HCAD says a failed owner search is not an owner without property', () => {
+    expect(read('hcad-adapter.ts')).toContain('NOT "this owner has no property in Harris County"');
+  });
+
+  it('TAD says the same for Tarrant', () => {
+    expect(read('tad-adapter.ts')).toContain('NOT "this owner has no property in Tarrant County"');
+  });
+
+  it.each(['hcad-adapter.ts', 'tad-adapter.ts', 'bis-adapter.ts'])(
+    '%s refuses to return a short adjoiner list silently',
+    (file) => {
+      // This is the one that would hurt most quietly: a surveyor sees three adjoining parcels where
+      // there are nine, with nothing marking the list short.
+      const src = read(file);
+      expect(src).toContain('adjoiner list would be INCOMPLETE');
+      expect(src).toContain('not a subdivision with no other lots');
+    },
+  );
+
+  it.each(['hcad-adapter.ts', 'tad-adapter.ts'])('%s treats an unreadable results page as unread', (file) => {
+    expect(read(file)).toContain('Treat as UNREAD, NOT as "no matching property"');
   });
 });

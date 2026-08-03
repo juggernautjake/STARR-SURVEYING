@@ -2339,6 +2339,38 @@ Every failure path now throws with what actually happened — *"session failure,
 **Verified after the change:** Bell grantor `SMITH` → 50 documents; full-text `HAMMIL` → 7. The
 rewrite did not break the paths that worked. Seed 566.
 
+#### R39, twentieth finding — the same defect in the appraisal-district adapters
+
+Seed 566 audited the *clerk* adapters. The **CAD adapters — routed live by `property-discovery.ts`**
+— carry the identical pattern, and one instance is the quietest bug in this entire build.
+
+| Adapter | Returned `[]` for |
+|---|---|
+| HCAD | failed owner search; dead session; both parsers failing; **subdivision lot lookup** |
+| TAD | the same four |
+| BIS | **subdivision lot lookup** |
+
+On a CAD adapter an empty result does not read as "no deeds" — it reads as **"no property exists at
+this address"**, which is a stronger and more damaging claim.
+
+**The adjoiner one is the worst.** `findSubdivisionLotIds` / `findSubdivisionLots` enumerate the
+*other* lots in a subdivision. They feed the **adjoiner list** — the neighbouring-property feature
+this platform was explicitly asked to build. Swallowing a failure there produced a **short neighbour
+list with nothing marking it short**: a surveyor would see three adjoining parcels where there are
+nine, with no reason to doubt it. Unlike a missing deed, nothing downstream would ever contradict it.
+
+Each now throws with what happened, and says the adjoiner list would be **INCOMPLETE** rather than
+letting a partial list pass as a whole one.
+
+**The ratchet now covers both families** — five routed CAD adapters alongside seven routed clerk
+adapters. It immediately earned itself again: it caught a scripted edit of `tad-adapter.ts` that had
+**silently failed to apply**. The script reported success and changed nothing. Without the test that
+would have shipped as a fix that fixed nothing — a fair summary of why this pattern keeps surviving
+review. Seed 567.
+
+*(Also caught in passing: the seed used `cad_property` for the site-type enum; the real value is
+`appraisal_cad`. The seed runner rejected it rather than silently updating zero rows.)*
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

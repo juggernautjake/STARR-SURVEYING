@@ -157,8 +157,12 @@ export class HCADAdapter extends CADAdapter {
       return this.parseSearchResultsAI(ownerName);
 
     } catch (e) {
-      console.warn(`[HCAD] Owner search failed for "${ownerName}":`, e);
-      return [];
+      // A failed owner search is not an owner with no property. Returning [] made the two
+      // indistinguishable to the caller (plan R39).
+      throw new Error(
+        `[HCAD] Owner search FAILED for "${ownerName}" (${(e as Error).message}). ` +
+          `This is an error, NOT "this owner has no property in Harris County".`,
+      );
     }
   }
 
@@ -337,7 +341,8 @@ export class HCADAdapter extends CADAdapter {
    *   - Column 3: Type — td.resulttd > label.blue-rounded-text ("Personal"|"Commercial")
    */
   private async parseSearchResultsDOM(): Promise<PropertySearchResult[]> {
-    if (!this.page) return [];
+    // A dead session is not an empty appraisal roll.
+    if (!this.page) throw new Error('[HCAD] Cannot parse results — the browser session is gone. Session failure, NOT an empty result.');
 
     const results: PropertySearchResult[] = [];
 
@@ -462,8 +467,11 @@ Return ONLY the JSON array, no explanation.`,
         }));
 
     } catch (e) {
-      console.warn('[HCAD] AI search result parse failed:', e);
-      return [];
+      // Both the DOM parser and the AI fallback have now failed: the page is UNREAD, not empty.
+      throw new Error(
+        `[HCAD] Could not read the search results — the DOM parser and the AI fallback both failed ` +
+          `(${(e as Error).message}). Treat as UNREAD, NOT as "no matching property".`,
+      );
     }
   }
 
@@ -667,8 +675,14 @@ Return ONLY valid JSON, no explanation.`,
       return results
         .map(r => r.propertyId)
         .filter(id => id !== excludePropertyId);
-    } catch {
-      return [];
+    } catch (e) {
+      // This feeds the ADJOINER list. Swallowing the failure here produced a short neighbour list
+      // with nothing marking it short — a surveyor would see three adjoining parcels where there
+      // are nine, and no reason to doubt it (plan R39).
+      throw new Error(
+        `[HCAD] Could not enumerate lots in subdivision "${subdivisionName}" (${(e as Error).message}). ` +
+          `The adjoiner list would be INCOMPLETE — this is a lookup failure, not a subdivision with no other lots.`,
+      );
     }
   }
 }
