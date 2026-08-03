@@ -743,10 +743,13 @@ should skip Phase 7 entirely.
 - [ ] **P3-6 — Encounter builder with a difficulty budget.** Add N copies of a creature at once; compute the
       encounter's difficulty against the party using each system's own budget. Depends on P8-1 (bestiary).
 
-      **BLOCKED, not deferred — checked 2026-07-28.** Two independent reasons, either of which is
-      sufficient:
-      · **Its stated dependency is unbuilt.** P8-1 (the bestiary) is still unchecked. "Add N copies of a
-        creature" needs creatures to copy; without a catalogue this is a form with nothing to put in it.
+      **BLOCKED, not deferred — checked 2026-07-28, re-checked 2026-08-03.** ~~Two~~ **One** reason
+      now, and it is still sufficient:
+      · ~~**Its stated dependency is unbuilt.** P8-1 (the bestiary) is still unchecked. "Add N copies of a
+        creature" needs creatures to copy; without a catalogue this is a form with nothing to put in it.~~
+        **VOID 2026-08-03** — P8-1 was stale, not open. The bestiary exists (`/dnd/bestiary`, seeds
+        462/464/467/468). There are creatures to copy. A stale item had been propagating its
+        staleness into a second item, which is the reason to correct these rather than leave them.
       · **The 5e budget data is not licensed to us.** Encounter-building — the XP thresholds by character
         level and the multipliers for group size — is **Dungeon Master's Guide** content and is *not* in
         SRD 5.1. Ground Rule 3 applies exactly as it did to the 2014 feat list: we would be inventing
@@ -2258,11 +2261,41 @@ Every slice below serves that one rule.
 
 ## Phase 8 — Content coverage
 
-- [ ] **P8-1 — A bestiary.** *(E-1.)* No monster catalogue exists in any system; NPCs are hand- or AI-built
-      per campaign and reusable only within it. Every other content axis is catalogued — monsters are the
-      conspicuous omission, and they are what a DM needs most between sessions.
-      **Design:** `lib/dnd/monsters/<system>.ts` from the CC-licensed subsets (5e SRD; PF2 Monster Core),
-      sharing the creature model from P6-13 so a homebrew creature and an official one are the same shape.
+- [x] **P8-1 — A bestiary.** *(E-1.)* ~~No monster catalogue exists in any system; NPCs are hand- or AI-built
+      per campaign and reusable only within it.~~
+
+      **CLOSED 2026-08-03 by measurement — the item was stale, exactly as P8-3 was.** A monster
+      catalogue does exist, built from `BESTIARY_BUILDOUT_2026-07-29.md` (now in `completed/`) by the
+      concurrent agent. That is how an item goes stale without anyone noticing: **the work landed
+      against a different plan document**, so nothing here was ever updated.
+
+      | P8-1 said | Actually |
+      |---|---|
+      | "No monster catalogue exists in any system" | `lib/dnd/bestiary/` — 14 modules |
+      | design: importers for "5e SRD; PF2 Monster Core" | `import-open5e.ts` **and** `import-pf2.ts`, both present |
+      | (nothing about reachability) | `/dnd/bestiary` route + `app/dnd/_ui/bestiary` |
+      | (nothing about persistence) | seeds **462**, **464**, **467**, **468** |
+
+      Pinned by `__tests__/dnd/bestiary-exists.test.ts`, following P8-3's precedent: an audit finding
+      that has been fixed elsewhere stays true-looking until something asserts otherwise, and the
+      cost of believing it is rebuilding finished work. The test asserts the SUBSYSTEM exists and
+      deliberately **not** a creature count, which would fail on a successful import.
+
+      **This propagated.** P3-6 (encounter builder) lists P8-1 as a blocker, so a stale "no bestiary"
+      held a second item closed for a reason that had stopped applying — see the correction there.
+
+      **P8-2 was checked in the same pass, and the answer changed the finding.** My first reading was
+      "P8-2 is genuinely unbuilt, unlike P8-1". Wrong: P8-2 **is** built, on
+      `origin/claude/dnd-srd-magic-items-2026-08-02`, whose head commit reads *"the SRD magic items,
+      catalogued and reachable — P8-2"*. It is simply **not merged**, so it is absent from this
+      branch, from `main`, and therefore from production.
+
+      That is a **third failure state** beside "stale item" and "built but unreachable":
+      **built, tested, pushed, and never merged.** A file-existence check cannot tell *nobody wrote
+      it* from *nobody merged it*, and reading the second as the first is how finished work gets
+      rebuilt. **Nine D&D branches are in this state — 69 commits.** See the handoff for the
+      inventory; it is the highest-value unblocked item in the whole tree and needs the owner, since
+      merging is theirs to authorise.
 - [ ] **P8-2 — Magic items.** *(E-4.)* SRD magic items for 5e; PF2's runes are already modelled and are the
       equivalent surface there.
 - [x] **P8-3 — The IG glossary.** *(E-2.)* ~~Intuitive Games has 32 terms — fewer than **every** unbuilt
