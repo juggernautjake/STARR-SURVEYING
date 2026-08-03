@@ -6,11 +6,15 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
+import CampaignThumb from './CampaignThumb'
 
 export interface CampaignCard {
   id: string
   name: string
   blurb?: string | null
+  /** P14-10. Snake_case because this shape comes straight off the API row rather than through
+   *  `campaign-summary`'s camelCase mapping — renaming it here would mean mapping it there. */
+  thumbnail_url?: string | null
   role: string
 }
 
@@ -128,8 +132,14 @@ export default function CampaignDashboard({ displayName, initialCampaigns }: { d
                   onClick={() => router.push(`/dnd/campaigns/${c.id}`)}
                   style={{ textAlign: 'left', cursor: 'pointer' }}
                 >
+                  {/* P14-10 — this dashboard is a SEPARATE component from `CampaignsHome` (it is the
+                      non-open-access DM view), which is exactly the kind of second listing that gets
+                      forgotten when a thumbnail is "added in one place". */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                    <span className={styles.panelTitle} style={{ margin: 0 }}>{c.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                      <CampaignThumb campaignId={c.id} name={c.name} url={c.thumbnail_url} size="row" />
+                      <span className={styles.panelTitle} style={{ margin: 0 }}>{c.name}</span>
+                    </span>
                     <span style={{ fontSize: 10, letterSpacing: '0.12em', color: c.role === 'dm' ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)', border: '1px solid currentColor', padding: '2px 6px' }}>
                       {c.role.toUpperCase()}
                     </span>

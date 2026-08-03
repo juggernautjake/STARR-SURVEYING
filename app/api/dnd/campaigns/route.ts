@@ -34,7 +34,9 @@ export async function GET() {
   const roleById = new Map(mems.map((m) => [m.campaign_id, m.role]));
   const { data: campaigns, error } = await supabaseAdmin
     .from('dnd_campaigns')
-    .select('id, name, blurb, theme, created_at')
+    // `thumbnail_url` for the dashboard's cards (P14-10) — this list feeds a SECOND campaign
+    // listing that `loadAllCampaignSummaries` does not.
+    .select('id, name, blurb, theme, created_at, thumbnail_url')
     .in('id', ids)
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

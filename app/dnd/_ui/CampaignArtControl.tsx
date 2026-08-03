@@ -78,7 +78,13 @@ export default function CampaignArtControl({ campaignId, initialArtUrl }: { camp
           <button className={styles.hexBtn} onClick={() => saveArt(null)} disabled={busy}>Remove</button>
         )}
       </div>
-      <p style={{ color: 'var(--hx-muted)', fontSize: 12, margin: '8px 0 0' }}>Players see this banner at the top of the campaign hub.</p>
+      {/* P14-10 changed what this sentence can honestly say. The picture is no longer only the hub
+          banner — it is the campaign's thumbnail on every card, row and list. Telling a DM it is "the
+          banner at the top of the hub" would understate where their upload appears. */}
+      <p style={{ color: 'var(--hx-muted)', fontSize: 12, margin: '8px 0 0' }}>
+        This is the campaign&rsquo;s picture: the banner at the top of the hub, and its thumbnail everywhere
+        the campaign is listed. Without one, tables show a lettered tile.
+      </p>
     </section>
   )
 }

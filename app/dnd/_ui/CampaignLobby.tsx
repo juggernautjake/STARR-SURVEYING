@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './hextech.module.css'
 import type { CampaignLobbyData } from '@/lib/dnd/campaign-summary'
+import CampaignThumb from './CampaignThumb'
 
 export default function CampaignLobby({ data, currentName }: { data: CampaignLobbyData; currentName?: string | null }) {
   const router = useRouter()
@@ -56,7 +57,12 @@ export default function CampaignLobby({ data, currentName }: { data: CampaignLob
               </button>
             )}
             <p className={styles.brand}>Choose who you&apos;re playing</p>
-            <h1 className={styles.title}>{data.name}</h1>
+            {/* P14-10 — the lobby is where a player picks who they are; the table they are sitting at
+                should be recognisable at a glance, not only spelled. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              <CampaignThumb campaignId={data.id} name={data.name} url={data.thumbnailUrl} size="row" style={{ width: 46, height: 46 }} />
+              <h1 className={styles.title} style={{ margin: 0 }}>{data.name}</h1>
+            </div>
             {data.setting && <p className={styles.subtitle}>{data.setting}</p>}
             <p style={{ color: 'var(--hx-muted)', fontSize: 13, marginTop: 6 }}>
               {acting ? <>Currently acting as <span style={{ color: 'var(--hx-gold-2)' }}>{acting}</span> — pick again to switch.</> : 'Pick your character to open its sheet, or enter as the Dungeon Master.'}

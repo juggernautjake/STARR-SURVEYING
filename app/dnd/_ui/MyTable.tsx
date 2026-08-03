@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import styles from './hextech.module.css';
 import type { UserProfile } from '@/lib/dnd/campaign-summary';
+import CampaignThumb from './CampaignThumb';
 import NewCampaignButton from './NewCampaignButton';
 
 /**
@@ -59,14 +60,17 @@ function ActionLink({ href, title, primary, children }: { href: string; title: s
   );
 }
 
-function CampaignRow({ id, name, tag }: { id: string; name: string; tag: string }) {
+function CampaignRow({ id, name, tag, thumbnailUrl }: { id: string; name: string; tag: string; thumbnailUrl?: string | null }) {
   return (
     <Link
       href={`/dnd/campaigns/${id}`}
       className={styles.framedPanel}
       style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px' }}
     >
-      <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)' }}>{name}</span>
+      {/* P14-10 — a row-sized thumbnail, so "the campaigns you run" reads as a shelf of tables rather
+          than a list of strings. Same component as the cards, so the placeholder cannot diverge. */}
+      <CampaignThumb campaignId={id} name={name} url={thumbnailUrl} size="row" style={{ marginRight: 2 }} />
+      <span style={{ fontFamily: 'var(--hx-font-display)', fontSize: 15, color: 'var(--hx-gold-2)', flex: 1, minWidth: 0 }}>{name}</span>
       <span style={{ fontSize: 10, letterSpacing: '0.12em', color: tag === 'DM' ? 'var(--hx-gold-2)' : 'var(--hx-teal-1)', border: '1px solid currentColor', padding: '1px 6px' }}>{tag}</span>
     </Link>
   );
@@ -112,7 +116,7 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
         <section style={{ display: 'grid', gap: 8 }}>
           <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 13 }}>⚔️ Campaigns you run</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-            {running.map((c) => <CampaignRow key={c.id} id={c.id} name={c.name} tag="DM" />)}
+            {running.map((c) => <CampaignRow key={c.id} id={c.id} name={c.name} tag="DM" thumbnailUrl={c.thumbnailUrl} />)}
           </div>
         </section>
       )}
@@ -121,7 +125,7 @@ export default function MyTable({ profile }: { profile: UserProfile }) {
         <section style={{ display: 'grid', gap: 8 }}>
           <h2 className={styles.panelTitle} style={{ margin: 0, fontSize: 13 }}>🎲 Campaigns you&apos;re in</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-            {playing.map((c) => <CampaignRow key={c.id} id={c.id} name={c.name} tag="PLAYER" />)}
+            {playing.map((c) => <CampaignRow key={c.id} id={c.id} name={c.name} tag="PLAYER" thumbnailUrl={c.thumbnailUrl} />)}
           </div>
         </section>
       )}

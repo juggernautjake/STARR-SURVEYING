@@ -143,6 +143,9 @@ export interface CampaignCard {
   id: string;
   name: string;
   setting: string | null;
+  /** The campaign's picture (P14-10), or null when the DM has not set one — which is the COMMON case, so
+   *  every card surface renders `CampaignThumb`'s placeholder rather than nothing. */
+  thumbnailUrl: string | null;
   dmName: string | null;
   playerNames: string[];
   characterNames: string[];
@@ -168,6 +171,8 @@ export interface CampaignLobbyData {
   id: string;
   name: string;
   setting: string | null;
+  /** P14-10 — the lobby is where a player chooses who they are; the table should be recognisable. */
+  thumbnailUrl: string | null;
   dm: { userId: string; name: string; locked: boolean } | null;
   players: LobbyPlayer[];
   /** Any DM-run NPCs — shown so they can be opened from the lobby. (The streamer is a
@@ -197,17 +202,17 @@ export async function loadAllCampaignSummaries(opts: { viewerId?: string | null;
   const limit = Math.max(1, Math.min(100, opts.limit ?? 24));
   const { data: camps } = await supabaseAdmin
     .from('dnd_campaigns')
-    .select('id, name, blurb, dm_user_id, visibility, archived_at')
+    .select('id, name, blurb, dm_user_id, visibility, archived_at, thumbnail_url')
     .is('archived_at', null)
     .eq('visibility', 'public')
     .order('created_at', { ascending: false })
     .limit(limit);
-  let campaigns = (camps ?? []) as { id: string; name: string; blurb: string | null; dm_user_id?: string }[];
+  let campaigns = (camps ?? []) as { id: string; name: string; blurb: string | null; dm_user_id?: string; thumbnail_url?: string | null }[];
 
   if (opts.viewerId) {
     const { data: mine } = await supabaseAdmin
       .from('dnd_campaigns')
-      .select('id, name, blurb, dm_user_id, visibility, archived_at')
+      .select('id, name, blurb, dm_user_id, visibility, archived_at, thumbnail_url')
       .is('archived_at', null)
       .eq('dm_user_id', opts.viewerId)
       .order('created_at', { ascending: false })
@@ -233,6 +238,7 @@ export async function loadAllCampaignSummaries(opts: { viewerId?: string | null;
       id: c.id,
       name: c.name,
       setting: c.blurb,
+      thumbnailUrl: c.thumbnail_url ?? null,
       dmName: dm ? names.get(dm.user_id) ?? null : null,
       playerNames: cm.filter((m) => m.role !== 'dm').map((m) => names.get(m.user_id) ?? 'Player'),
       characterNames: characters.filter((ch) => ch.campaign_id === c.id && !ch.is_npc).map((ch) => ch.name),
@@ -253,6 +259,8 @@ export interface UserCampaign {
   id: string;
   name: string;
   role: 'dm' | 'player';
+  /** P14-10 — so the profile's "Your tables" and both MyTable lists show the same picture the cards do. */
+  thumbnailUrl: string | null;
 }
 
 export interface UserProfile {
@@ -287,9 +295,15 @@ export async function loadUserProfile(userId: string): Promise<UserProfile> {
     new Set([...members.map((m) => m.campaign_id), ...characters.map((c) => c.campaign_id).filter((v): v is string => !!v)]),
   );
   const campNames = new Map<string, string>();
+  // P14-10 — the picture travels with the name. Two maps rather than one of objects because `campNames`
+  // is already read in three places below and widening it there would be a bigger change than adding one.
+  const campThumbs = new Map<string, string | null>();
   if (campIds.length) {
-    const { data: camps } = await supabaseAdmin.from('dnd_campaigns').select('id, name').in('id', campIds);
-    for (const c of (camps ?? []) as { id: string; name: string }[]) campNames.set(c.id, c.name);
+    const { data: camps } = await supabaseAdmin.from('dnd_campaigns').select('id, name, thumbnail_url').in('id', campIds);
+    for (const c of (camps ?? []) as { id: string; name: string; thumbnail_url?: string | null }[]) {
+      campNames.set(c.id, c.name);
+      campThumbs.set(c.id, c.thumbnail_url ?? null);
+    }
   }
 
   return {
@@ -305,6 +319,7 @@ export async function loadUserProfile(userId: string): Promise<UserProfile> {
       id: m.campaign_id,
       name: campNames.get(m.campaign_id) ?? 'Campaign',
       role: (m.role === 'dm' ? 'dm' : 'player') as 'dm' | 'player',
+      thumbnailUrl: campThumbs.get(m.campaign_id) ?? null,
     })),
   };
 }
@@ -462,7 +477,13 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
     id: campaign.id,
     name: campaign.name,
     setting: campaign.blurb,
-    artUrl: typeof campaign.theme?.artUrl === 'string' ? (campaign.theme.artUrl as string) : null,
+    // COLUMN FIRST, jsonb key as the fallback (P14-10). Seed 571 promoted `theme.artUrl` to
+    // `thumbnail_url` and backfilled it, but the key is deliberately left in place: a row written by an
+    // older deploy — or restored from a pre-571 backup — still has its picture, so the banner never
+    // blanks for a campaign whose art only exists in the old spot.
+    artUrl: (typeof (campaign as { thumbnail_url?: unknown }).thumbnail_url === 'string'
+      ? (campaign as unknown as { thumbnail_url: string }).thumbnail_url
+      : typeof campaign.theme?.artUrl === 'string' ? (campaign.theme.artUrl as string) : null) || null,
     notes: typeof campaign.theme?.notes === 'string' && (campaign.theme.notes as string).trim() ? (campaign.theme.notes as string) : null,
     gallery,
     dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master' } : null,
@@ -497,8 +518,8 @@ export async function loadCampaignHub(campaignId: string, viewerId: string, view
 
 /** The lobby for one campaign: the DM + each player's PC, for the "enter as" picker. */
 export async function loadCampaignLobby(campaignId: string): Promise<CampaignLobbyData | null> {
-  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb').eq('id', campaignId).maybeSingle();
-  const campaign = camp as { id: string; name: string; blurb: string | null } | null;
+  const { data: camp } = await supabaseAdmin.from('dnd_campaigns').select('id, name, blurb, thumbnail_url').eq('id', campaignId).maybeSingle();
+  const campaign = camp as { id: string; name: string; blurb: string | null; thumbnail_url?: string | null } | null;
   if (!campaign) return null;
 
   // Demo self-heal: ensure the streamer NPC exists before we list the roster.
@@ -553,6 +574,7 @@ export async function loadCampaignLobby(campaignId: string): Promise<CampaignLob
     id: campaign.id,
     name: campaign.name,
     setting: campaign.blurb,
+    thumbnailUrl: campaign.thumbnail_url ?? null,
     dm: dmMem ? { userId: dmMem.user_id, name: names.get(dmMem.user_id) ?? 'Dungeon Master', locked: locked.has(dmMem.user_id) } : null,
     players,
     npcs,

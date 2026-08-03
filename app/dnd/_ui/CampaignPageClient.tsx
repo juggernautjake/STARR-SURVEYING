@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { rosterRoleOf } from '@/lib/dnd/roster'
 import styles from './hextech.module.css'
+import CampaignThumb from './CampaignThumb'
 import InvitesPanel from './InvitesPanel'
 import Chat from './Chat'
 import Soundboard from './Soundboard'
@@ -23,7 +24,7 @@ import CampaignApprovalControl from './CampaignApprovalControl'
 import type { CampaignApproval } from '@/lib/dnd/campaign-approval'
 
 export interface CampaignDetail {
-  campaign: { id: string; name: string; blurb?: string | null; role: string; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
+  campaign: { id: string; name: string; blurb?: string | null; role: string; thumbnail_url?: string | null; theme?: { artUrl?: string | null; notes?: string | null; dmNotes?: string | null } | null }
   members: { userId: string; role: string; displayName: string; avatarUrl?: string | null }[]
   characters: {
     id: string; name: string; token_url?: string | null; is_npc: boolean; sheet_type?: string;
@@ -235,7 +236,12 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
         <div style={{ width: '100%', maxWidth: 900, display: 'grid', gap: 16 }}>
           <div>
             <a className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Lobby (sign out / switch)</a>
-            <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>{data?.campaign.name ?? '…'}</h1>
+            {/* P14-10 — the DM's own view of their table showed no picture at all, while players saw a
+                banner. A DM running several campaigns had nothing to tell them apart at a glance. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 8 }}>
+              {data && <CampaignThumb campaignId={data.campaign.id} name={data.campaign.name} url={data.campaign.thumbnail_url ?? data.campaign.theme?.artUrl} size="row" style={{ width: 44, height: 44 }} />}
+              <h1 className={styles.title} style={{ textAlign: 'left', margin: 0 }}>{data?.campaign.name ?? '…'}</h1>
+            </div>
             {data?.campaign.blurb && <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0' }}>{data.campaign.blurb}</p>}
           </div>
 
@@ -299,7 +305,9 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
                   per-image player visibility, and player-visible + private notes. */}
               {data.campaign.role === 'dm' && (
                 <>
-                  <CampaignArtControl campaignId={campaignId} initialArtUrl={data.campaign.theme?.artUrl ?? null} />
+                  {/* Column first, jsonb key as the pre-571 fallback (P14-10) — the same order the
+                      player hub resolves it in, so DM and player never see different art. */}
+                  <CampaignArtControl campaignId={campaignId} initialArtUrl={data.campaign.thumbnail_url ?? data.campaign.theme?.artUrl ?? null} />
                   <CampaignGalleryDm campaignId={campaignId} />
                   <CampaignMapsDm campaignId={campaignId} />
                   <CampaignNotesDm campaignId={campaignId} initialNotes={data.campaign.theme?.notes ?? ''} initialDmNotes={data.campaign.theme?.dmNotes ?? ''} />

@@ -132,7 +132,10 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
             {data.setting && <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0' }}>{data.setting}</p>}
           </div>
 
-          {/* Campaign art */}
+          {/* Campaign art — the surface this picture originally existed for. Still conditional: unlike a
+              card in a grid, a lone hub page with a monogram slab across the top would be worse than no
+              banner at all, and the name is already the page heading directly above. (P14-10 changed only
+              where the URL comes from: `artUrl` now resolves the `thumbnail_url` column first.) */}
           {data.artUrl && (
             <div className={styles.framedPanel} style={{ padding: 6, overflow: 'hidden' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}

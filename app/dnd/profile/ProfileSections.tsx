@@ -11,6 +11,7 @@ import Link from 'next/link';
 import styles from '@/app/dnd/_ui/hextech.module.css';
 import { relativeTime, type ProfileSummary } from '@/lib/dnd/profile-summary';
 import { homebrewKindLabel } from '@/lib/dnd/homebrew/model';
+import CampaignThumb from '@/app/dnd/_ui/CampaignThumb';
 
 const panel: React.CSSProperties = {
   border: '1px solid var(--hx-line)',
@@ -101,6 +102,8 @@ export default function ProfileSections({ summary }: { summary: ProfileSummary }
           ? <p style={empty}>Not at a table yet. Join one with an invite code, or start your own from the portal.</p>
           : campaigns.map((c) => (
             <div key={c.id} style={row}>
+              {/* P14-10 — "everywhere the campaign shows up". */}
+              <CampaignThumb campaignId={c.id} name={c.name} url={c.thumbnailUrl} size="row" style={{ width: 26, height: 26 }} />
               <Link href={`/dnd/campaigns/${c.id}`} style={rowName}>{c.name}</Link>
               <span style={{ ...meta, border: '1px solid var(--hx-line)', borderRadius: 999, padding: '1px 7px', letterSpacing: '0.05em', textTransform: 'uppercase', fontSize: 10.5, color: c.role === 'dm' ? 'var(--hx-gold-2)' : 'var(--hx-muted)' }}>
                 {c.role === 'dm' ? 'DM' : 'Player'}

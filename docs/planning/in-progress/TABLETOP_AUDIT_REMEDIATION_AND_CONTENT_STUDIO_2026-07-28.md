@@ -4122,10 +4122,46 @@ ticked that has not been verified.**
       `scripts/contact-sheet.mjs` already drives skin × theme × format and measures contrast; extend it to
       open the roller dock and capture each of the four templates per theme. The four stages are
       `DiceCore` / `SigilStack` / `RollBoard` / `Impact` under `_sheet/components/rollers/`.
-- [ ] **P14-10 — Campaign thumbnail.** A DM-set image, shown *"everywhere the campaign shows up"*. Needs
-      a column on `dnd_campaigns`, an upload path (storage landed with seed 459), a DM-gated control, and
-      rendering at every listing: hub cards, `CampaignsHome`, character rows naming a table, campaign
-      header. The "everywhere" half is the half that gets forgotten.
+- [x] **P14-10 — Campaign thumbnail. Done 2026-08-02.** A DM-set image, shown *"everywhere the campaign
+      shows up"*. `seeds/571_dnd_campaign_thumbnail.sql` + `app/dnd/_ui/CampaignThumb.tsx`, wired into six
+      surfaces.
+
+      **It was ~25% built under another name, and that changed the design.** A DM-set campaign image
+      already existed as `theme.artUrl` with an upload control (`CampaignArtControl`) — but it rendered in
+      exactly ONE place, a banner on the player hub. Adding a separate "thumbnail" field would have given a
+      DM **two pictures to set and no way to tell which screen used which**. So the seed PROMOTES the
+      existing value to a `thumbnail_url` column and backfills it: one picture, one control, different
+      crops per surface. The upload route and the client contract (`PATCH {artUrl}`) are unchanged.
+
+      **A column, not the jsonb key it already was, and the requirement is what decides it.** Every listing
+      loads campaigns through narrow `select('id, name, blurb, …')` lists that deliberately do not pull
+      `theme` — so reaching the picture from the jsonb would mean widening each of those to fetch a blob
+      that also carries `dmNotes`. That is the leak `461_dnd_discord_webhook.sql` warns about one column
+      over: *"a column can be left out of a select list; a jsonb key inside a selected blob cannot."*
+
+      **The old key is cleared on WRITE but kept by the SEED**, which is not a contradiction: a seed that
+      deletes the only copy of a user's data has no undo, so the backfill leaves it as a read fallback for
+      pre-571 rows — while the PATCH nulls it, because a stale copy that disagrees with the column is a
+      second answer to "what is this campaign's picture", and the reader prefers the column.
+
+      **The "everywhere" half, which is the half the item warned gets forgotten.** One shared component, so
+      no surface can invent its own fallback: the public grid (`CampaignsHome`), both *"campaigns you
+      run / you're in"* rows (`MyTable`), the **DM dashboard** (`CampaignDashboard` — a second, separate
+      listing that is exactly what gets missed), the DM campaign header, the lobby's "enter as" picker, and
+      the profile's *"Your tables"*. The player hub keeps its banner and now resolves it from the column.
+
+      **The placeholder is the common case, so it is a feature rather than a fallback.** Most campaigns have
+      no picture; a surface rendering nothing for them gives a ragged grid where some cards have art and
+      others have a hole. `CampaignThumb` draws a monogram tile whose colour is hashed from the campaign id
+      — stable across surfaces and reloads, so it works as an identifier rather than decoration.
+
+      Seed applied to the live database and re-run to prove idempotency. 22 tests.
+- [ ] **P14-10b — The invite-accept page never names the campaign.** *(Found while auditing P14-10's
+      "everywhere".)* `/dnd/join/[code]` renders a hardcoded "Join Campaign" — no name, no blurb, no
+      picture. It is the one screen where a person genuinely does not know what they are looking at, and
+      it is the only campaign surface that identifies nothing. Deliberately NOT folded into P14-10: it
+      needs the invite route to resolve and return the campaign, which is a data change rather than a
+      rendering one.
 - [ ] **P14-11 — Streamer parity on IG/PF2.** Background animation, effects and go-live/chat. 85
       `.dnd-sheet.skin-streamer` selectors, many targeting 5e-specific markup (`.stat .big`, `.ab .score`)
       that needs bespoke equivalents, not wider selectors. **Audit which are structural first.**

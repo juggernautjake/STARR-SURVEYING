@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const { data: campaign } = await supabaseAdmin
     .from('dnd_campaigns')
-    .select('id, name, blurb, theme, created_at')
+    .select('id, name, blurb, theme, created_at, thumbnail_url')
     .eq('id', params.id)
     .maybeSingle();
   if (!campaign) return NextResponse.json({ error: 'Campaign not found.' }, { status: 404 });
@@ -112,8 +112,8 @@ async function readWebhook(campaignId: string): Promise<string> {
   }
 }
 
-// PATCH — DM-only campaign edits (Phase P): name, blurb, and the campaign art banner
-// (stored in the `theme` jsonb as `artUrl`). Only the fields provided are changed.
+// PATCH — DM-only campaign edits (Phase P): name, blurb, and the campaign picture (sent as `artUrl`,
+// stored in the `thumbnail_url` column since P14-10). Only the fields provided are changed.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = getDndSession();
   if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -160,11 +160,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // `notes` is the player-visible campaign info; `dmNotes` is the DM's private prep (never sent to players);
   // `preferences` is the normalized CampaignPreferences the sheets/rollers read. Merge so unspecified keys
   // are preserved.
+  // THE CAMPAIGN PICTURE MOVED OUT OF `theme` (P14-10, seed 571). The client still sends `artUrl` — the
+  // contract is unchanged and `CampaignArtControl` did not need touching — but it now lands in the
+  // `thumbnail_url` COLUMN, because every listing surface loads campaigns through narrow selects that
+  // deliberately do not pull `theme` (which also carries `dmNotes`).
+  //
+  // The old jsonb key is CLEARED on write, not left behind. Seed 571 leaves existing values in place as a
+  // read fallback, and a stale key nothing reads costs nothing — but a stale key that DISAGREES with the
+  // column is a second answer to "what is this campaign's picture", and the reader prefers the column, so
+  // the jsonb copy would silently become a lie the moment a DM changed their art.
+  if ('artUrl' in body) patch.thumbnail_url = body.artUrl ? String(body.artUrl) : null;
+
   const themeKeys = ['artUrl', 'notes', 'dmNotes', 'preferences'] as const;
   if (themeKeys.some((k) => k in body)) {
     const { data: cur } = await supabaseAdmin.from('dnd_campaigns').select('theme').eq('id', params.id).maybeSingle();
     let theme = ((cur?.theme as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
-    if ('artUrl' in body) theme.artUrl = body.artUrl ? String(body.artUrl) : null;
+    if ('artUrl' in body) theme.artUrl = null;   // cleared, never a competing copy — see above
     if ('notes' in body) theme.notes = typeof body.notes === 'string' ? body.notes : '';
     if ('dmNotes' in body) theme.dmNotes = typeof body.dmNotes === 'string' ? body.dmNotes : '';
     // Preferences go through the pure normalizer, so a partial/corrupt/hostile body is sanitised to valid

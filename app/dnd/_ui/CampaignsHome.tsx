@@ -5,6 +5,7 @@
 import Link from 'next/link';
 import styles from './hextech.module.css';
 import type { CampaignCard } from '@/lib/dnd/campaign-summary';
+import CampaignThumb from './CampaignThumb';
 
 function CampaignGrid({ campaigns, heading }: { campaigns: CampaignCard[]; heading?: string }) {
   return (
@@ -30,6 +31,10 @@ function CampaignGrid({ campaigns, heading }: { campaigns: CampaignCard[]; headi
               style={{ textDecoration: 'none', display: 'grid', gap: 10, padding: '18px 16px' }}
             >
               <div className={styles.framedPanelTop} />
+              {/* P14-10 — the card's picture. Always rendered: `CampaignThumb` draws a monogram tile when
+                  the DM has set nothing, so a grid of cards keeps one shape instead of some having art
+                  and some having a hole. */}
+              <CampaignThumb campaignId={c.id} name={c.name} url={c.thumbnailUrl} size="card" />
               <h2 className={styles.panelTitle} style={{ margin: 0 }}>{c.name}</h2>
               {c.setting && <p style={{ color: 'var(--hx-gold-3)', margin: 0, fontSize: 13, lineHeight: 1.5 }}>{c.setting}</p>}
               <div style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--hx-muted)' }}>
