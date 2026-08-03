@@ -134,9 +134,18 @@ describe('the surface', () => {
     // A crew told there is nothing when a packet was approved drives out and repeats the work.
     const route = read('app/api/admin/jobs/[id]/research-packet/route.ts');
     expect(route).toContain('not the same as there being none');
+    // The sentence MOVED (offline caching, plan R26): the panel no longer owns it, because "the read
+    // failed" and "the read failed and we hold a copy" are now different answers and the rule that
+    // tells them apart lives in `packet-offline.ts`. The claim being defended is unchanged — a failed
+    // read must never render as "there is no research" — so the assertion follows it rather than
+    // being deleted. Emphasis is now capitalisation, which is this codebase's convention everywhere
+    // a statement carries a warning, and survives being logged or read aloud.
+    const offline = read('lib/research/packet-offline.ts');
+    expect(offline).toContain('NOT the same as there being none');
+
+    // And the panel must actually render whatever that rule produced.
     const panel = read('app/admin/jobs/[id]/JobResearchPacket.tsx');
-    // JSX wraps the line, so match across whitespace rather than on an exact substring.
-    expect(panel.replace(/\s+/g, ' ')).toContain('<strong>not</strong> the same as there being none');
+    expect(panel).toContain('{verdict.statement}');
   });
 
   it('makes job_id load-bearing at last', () => {

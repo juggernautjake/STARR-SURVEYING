@@ -9,8 +9,12 @@
 // or works from a draft nobody finished checking.
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, FileText, HelpCircle } from 'lucide-react';
+import { AlertTriangle, FileText, HelpCircle, WifiOff } from 'lucide-react';
 import type { FieldBrief, JobPacketState } from '@/lib/research/job-packet';
+// A truck with no signal, and the rule about what a stored copy may claim (plan R26).
+import {
+  readCache, writeCache, resolveOffline, type OfflineVerdict,
+} from '@/lib/research/packet-offline';
 
 interface Payload {
   state: JobPacketState;
@@ -30,36 +34,65 @@ const TONE: Record<JobPacketState, string> = {
 };
 
 export default function JobResearchPacket({ jobId }: { jobId: string }) {
-  const [data, setData] = useState<Payload | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [verdict, setVerdict] = useState<OfflineVerdict<Payload> | null>(null);
+  /** A packet that was fetched but could not be stored. The crew is told, because the alternative is
+   *  implying offline access the device does not actually have. */
+  const [cacheFailed, setCacheFailed] = useState(false);
 
   const load = useCallback(async () => {
+    const storage = typeof window === 'undefined' ? null : window.localStorage;
+    const now = Date.now();
+    let live: Payload | null = null;
     try {
       const res = await fetch(`/api/admin/jobs/${jobId}/research-packet`);
-      if (!res.ok) { setFailed(true); return; }
-      setData((await res.json()) as Payload);
-      setFailed(false);
-    } catch { setFailed(true); }
+      if (res.ok) live = (await res.json()) as Payload;
+    } catch { /* no signal, or the server is unreachable — the cache decides what happens next */ }
+
+    if (live !== null) {
+      // Only an APPROVED packet is worth storing. A draft must never be worked from, and caching one
+      // would put "do not work from this" on a device precisely where nobody can re-check it.
+      if (live.state === 'approved') {
+        setCacheFailed(!writeCache(jobId, live, now, storage));
+      } else {
+        setCacheFailed(false);
+      }
+    }
+
+    setVerdict(resolveOffline<Payload>(jobId, live, readCache<Payload>(jobId, storage), now));
   }, [jobId]);
 
   useEffect(() => { void load(); }, [load]);
 
-  if (failed) {
+  if (!verdict) return null;
+
+  const data = verdict.payload;
+  if (!data) {
     return (
       <div className="job-packet job-packet--warn">
-        The research for this job could not be read. This is <strong>not</strong> the same as there
-        being none — check again before assuming nothing was done.
+        {verdict.statement}
       </div>
     );
   }
-  if (!data) return null;
 
   return (
-    <div className={`job-packet ${TONE[data.state]}`}>
+    <div className={`job-packet ${verdict.needsRecheck ? 'job-packet--warn' : TONE[data.state]}`}>
       <div className="job-packet__head">
         <FileText size={15} aria-hidden />
         <span className="job-packet__title">Property research</span>
       </div>
+
+      {/* Above the headline, because it changes whether the headline can be trusted at all. */}
+      {verdict.statement && (
+        <p className="job-packet__offline">
+          <WifiOff size={13} aria-hidden /> {verdict.statement}
+        </p>
+      )}
+      {cacheFailed && (
+        <p className="job-packet__offline">
+          <WifiOff size={13} aria-hidden /> This packet could NOT be stored on this device — it will
+          not be available if you lose signal.
+        </p>
+      )}
 
       <p className="job-packet__headline">{data.headline}</p>
       {data.nextStep && <p className="job-packet__next">{data.nextStep}</p>}

@@ -1491,8 +1491,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* a packet PDF opens with a table of contents, and every included document carries its
   provenance line.
 
-- **R26. Packet → job → field crew.** ◑ PART DONE 2026-08-02 — job page and Work Mode shipped; the
-  native mobile job view and true offline caching remain
+- **R26. Packet → job → field crew.** ◑ PART DONE — job page and Work Mode 2026-08-02; **offline
+  caching 2026-08-03**; the native mobile job view is deferred (see below)
 
   **Shipped** (`lib/research/job-packet.ts` + the job research-packet route + `JobResearchPacket`,
   mounted on the job page **and** in Work Mode).
@@ -1520,10 +1520,49 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Root suite 21,634 passing; typecheck clean.
 
-  **Remaining:** the native mobile app's job view, and genuine offline access to the documents. The
-  snapshot shape was chosen with that in mind — one object per job, no joins — but service-worker
-  caching and the mobile surface are their own work, and the device-runtime items in this repo are
-  owner-tested on hardware rather than here.
+  **Offline caching DONE 2026-08-03** (`lib/research/packet-offline.ts`, wired into
+  `JobResearchPacket.tsx`).
+
+  The snapshot shape was chosen for this — *"being a single object is what will make it cacheable for
+  a truck with no signal"* — and until now a crew out of signal got the failure panel, which is honest
+  and useless.
+
+  **The hazard is not storage, it is R26's own rule.** Superseded packets are *never offered*,
+  because a packet a crew previously worked from is evidence of what they were given rather than
+  something to work from now. A cache breaks that rule **by construction**: the moment a copy lives on
+  a device, that device can show a version the office has replaced, and a cached packet looks exactly
+  like a live one. So the cache is not "the packet" — it is the packet **plus when we last confirmed
+  it**, and `packet-offline.ts` is the rule about what that pair may claim.
+
+  Four answers, because collapsing any two puts somebody on the wrong side of a boundary: `live`
+  (say nothing extra), `offline` (shown, with *"may have been superseded since"*), `stale` (past 12
+  hours — *"do not work from this without re-checking"*, naming what actually supersedes a packet: a
+  new plat, a conflict, a corrected bearing), and `refused` (past 30 days — withheld, but the copy's
+  **existence** is still stated, or an empty panel reads as *"there is no research"*, the exact
+  confusion the four states were built to prevent).
+
+  **Nothing is deleted for being old.** The obvious design drops the copy past its expiry, and that
+  is worse: a crew in a canyon with a three-week-old packet is better served by a three-week-old
+  packet *labelled as such* than by a blank panel. The module only ever downgrades what a copy is
+  allowed to claim.
+
+  Three smaller decisions in the same spirit: **only an approved packet is cached** (caching a draft
+  would put *"do not work from this"* on a device precisely where nobody can re-check it); the cache
+  is keyed and verified per job, so a component remounted on a different job cannot show one job's
+  research on another's screen; and a **failed write is reported**, because a full quota otherwise
+  leaves the UI implying offline access the device does not have.
+
+  One existing test moved rather than being deleted: `job-packet.test.ts` pinned the *"not the same
+  as there being none"* sentence inside the panel's JSX. That sentence now belongs to the offline
+  rule, since "the read failed" and "the read failed and we hold a copy" became different answers.
+  The claim it defends is unchanged and the assertion followed it.
+
+  Root suite 1,468 files; `npm run build` clean.
+
+  **Deferred — the native mobile job view.** Not for cost: the device-runtime items in this repo
+  (camera, compass, background upload) are owner-tested on hardware rather than here, and this one
+  belongs with them. The web job page and Work Mode both carry the packet today, and it now survives
+  losing signal, which is the substance of the acceptance criterion.
 
   Original item:
   Attach the packet to a job (`research_projects.job_id` finally load-bearing), surface it on the job

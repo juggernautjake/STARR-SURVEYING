@@ -1639,6 +1639,21 @@
    not styled as a footnote. */
 .job-packet__next { margin: 0 0 0.5rem; color: #92400E; }
 
+/* The offline / staleness line (plan R26). Sits ABOVE the headline and is styled at least as
+   loudly as a warning, because it governs whether the headline can be trusted at all — a cached
+   packet looks exactly like a live one, and that is the whole hazard. */
+.job-packet__offline {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-start;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  color: #92400E;
+  background: #FEF3C7;
+  font-weight: 600;
+}
+
 .job-packet__warnings {
   margin: 0 0 0.6rem;
   padding-left: 0;
