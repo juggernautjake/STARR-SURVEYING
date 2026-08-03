@@ -1262,7 +1262,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts, re-measured 2026-08-02 (end of session): 22 open, of which only 7 are actionable.**
+> **2. Counts, re-measured 2026-08-02 (end of session): 21 open, of which only 6 are actionable.**
 >
 > Counted by parsing the file (`grep -c '^- \[ \] \*\*'`), not by eye — the previous count said 15
 > actionable and listed `P8-1` and six Phase-13 items that were all already shipped, and it also missed
@@ -1272,19 +1272,21 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **7** | `P10-5b`, `P14-8/9/10/11/12`, `QA-2` |
+> | **Actionable now** | **6** | `P10-5b`, `P14-9/10/11/12`, `QA-2` |
 >
 > Shipped this session: `P5-7b` and `P8-2` (built), and `P8-1`, `P13-4`, `P13-5`, `P13-8`, `P13-11`,
 > `P13-12`, `P13-13`, `P13-14` (**ticked by reading the code and querying the database — all eight were
 > already done**). One genuine gap fell out of verifying `P13-13` and is logged as `P13-13b`.
 >
 > **⚠ READ THIS BEFORE STARTING ANY ITEM IN THIS DOC.** The handoff above tells you to check the code
-> before starting anything marked *blocked*. That is not strong enough. **Ten items in this file were
-> marked open while already shipped** — P5-8, P5-9, P8-3, P8-1, and the whole of Phase 13's remainder.
-> The mechanism is always the same: the work was done under a DIFFERENT plan doc
-> (`completed/BESTIARY_BUILDOUT_2026-07-29.md` closed eight of these on its own), and nothing walks back
-> to tick the original. `BESTIARY_BUILDOUT` even *says in writing* that it closes P8-1, and P8-1 still sat
-> open here for three weeks.
+> before starting anything marked *blocked*. That is not strong enough. **Eleven items in this file were
+> marked open while already shipped** — P5-8, P5-9, P8-3, P8-1, the whole of Phase 13's remainder, and
+> P14-8. The mechanism is always the same: the work was done under a DIFFERENT plan doc
+> (`completed/BESTIARY_BUILDOUT_2026-07-29.md` closed eight of these on its own) or in a commit that never
+> came back to tick the line, and nothing walks back. `BESTIARY_BUILDOUT` even *says in writing* that it
+> closes P8-1, and P8-1 still sat open here for three weeks. P14-8's own text said *"confirm whether one
+> was removed before building a second"* — following that instruction cost one grep and saved building a
+> duplicate dice box.
 >
 > So: **treat every unticked item as a claim to verify, not a task to start** — especially any sentence of
 > the form *"no X exists in any system"*, which is exactly what a later buildout falsifies. Grep for the
@@ -4099,10 +4101,21 @@ ticked that has not been verified.**
 
 ## Outstanding
 
-- [ ] **P14-8 — Manual roll entry.** *"users can record manual rolls if they want"*. `RollFeed.tsx`
-      already posts to `/api/dnd/rolls` and `roll-publish.ts` calls it "the manual dice box", but there is
-      no visible manual affordance in it today. **Confirm whether one was removed before building a
-      second.**
+- [x] **P14-8 — Manual roll entry. ✅ SHIPPED — ticked by reading the code 2026-08-02.** ~~There is no
+      visible manual affordance in it today.~~ There is. `RollFeed.tsx` renders a form **unconditionally at
+      the top of the feed** — *"Rolled with real dice? Record it here."* — with labelled label / result /
+      optional-breakdown inputs, a `submitManual` handler that posts through the exported `postRoll`, and an
+      error state. Shipped as commit `4aeac1d49` *"the manual dice box actually exists now"*, and the source
+      comment cites **P14-8 by name**. Covered by `__tests__/dnd/manual-roll.test.ts` (Areas R3 + R5).
+
+      Its two design choices are already recorded in that comment and are worth not re-litigating: it is
+      **label + result only**, because a formula field would imply the app rolled it and this exists
+      precisely for the rolls it did *not* roll; and `actorName` comes from the server session rather than
+      the form, so nobody can post as someone else from this box.
+
+      **The item's own instruction is what closed it** — *"confirm whether one was removed before building a
+      second"*. It had not been removed; it had been built, and this line was written before that and never
+      updated. Following that instruction cost one grep and saved building a duplicate dice box.
 - [ ] **P14-9 — Roller legibility across systems, themes and styles.** *"some of the styling for the
       rollers … is hard to read and understand. And some of the animations and roller templates look
       bad."* A screen recording was supplied that I cannot open. **Do not guess from the description** —
