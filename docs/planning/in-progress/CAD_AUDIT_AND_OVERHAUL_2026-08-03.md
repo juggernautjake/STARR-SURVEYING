@@ -77,7 +77,40 @@ Each is sized to be shipped and verified independently, in the order that makes 
   runaway loop or a blocked main thread than with a slow leak, which would degrade rather than stop.
   Measure frame time before memory.
 
-  ### ▶ Strong candidate found 2026-08-03: the render loop has no dirty check
+  ### ⚠ CORRECTION 2026-08-03 — read this before the section below
+
+  **The claim below is substantially WRONG and is kept only because the correction is the useful
+  part.** I wrote that `renderAll()` "has no early-out of any kind" and "rebuilds the entire scene"
+  sixteen times a second. The loop is indeed unconditional — that part holds — but the passes inside
+  it are individually guarded, and a previous perf pass built exactly the optimisation I was about to
+  propose:
+
+  | pass | guard |
+  |---|---|
+  | `renderFeatures` | viewport culling + a per-feature draw-state cache (feature ref, epsilon, layer colour) + the store's `dirtyFeatureIds` set. A feature is re-tessellated ONLY if one of those changed. |
+  | `renderImageFeatures` | sprite/texture cache keyed by image id |
+  | `renderLabels` | LOD gate — `shouldRenderLabels(worldPerPixel, lod)` |
+  | `renderGrid` | early return when the grid is hidden |
+
+  That work is `cad-desktop-tauri-and-perf` **Slices P3 and P3b**, cited in the code comments by
+  name. So the per-frame cost on an unchanged scene is the guard checks and the cull, **not** a full
+  scene rebuild — and "add a dirty check" is not the fix, because there is one.
+
+  **This is exactly the failure §1 of this document warns about**, committed one slice after writing
+  the warning: *"any catalogue that ignores those 55 completed docs will re-derive decisions that
+  were made deliberately, which is how a cleanup undoes a fix."* I read the code, formed a
+  confident mechanism, and did not read `cad-desktop-tauri-and-perf` first. Had this shipped as a
+  fix rather than as a note, it would have added a second dirty layer on top of a working one.
+
+  **What survives the correction, and is still worth measuring:** the loop does run `renderAll()`
+  every frame, so the *guards themselves* — the cull, the map lookups, the dirty-set read across
+  every culled feature — run at 60 fps forever, on top of whatever the unguarded passes
+  (`renderSelection`, `renderToolPreview`, `renderSnapIndicator`, and the rest of the sixteen) cost.
+  Whether that is enough to saturate the main thread on a large drawing is a **measurement**, and
+  `Ctrl+Alt+P` answers it. Do not assume it from this document — the last confident mechanism in it
+  was wrong.
+
+  ### ~~▶ Strong candidate found 2026-08-03: the render loop has no dirty check~~ (superseded — see correction above)
 
   `CanvasViewport.tsx` (**15,403 lines**) starts a `requestAnimationFrame` loop that calls
   `renderAll()` **every frame, unconditionally, forever**:
@@ -132,10 +165,10 @@ Each is sized to be shipped and verified independently, in the order that makes 
   time on change, time-to-first-render by element count — then act. Likely candidates: virtualise the
   layer/point tables, batch canvas invalidation, avoid full re-render on a single-element edit.
 
-  **Largely the same root cause as S2** (see the render-loop finding there): "avoid full re-render on
-  a single-element edit" is not currently possible, because there is no such thing as a partial
-  render — every frame is a full one. Fix the dirty gate and this slice becomes a much smaller
-  question about which passes remain expensive when they actually run.
+  **Note the correction in S2**: partial rendering DOES already exist — `renderFeatures` culls to
+  the viewport and re-tessellates only dirty or changed features (Slices P3/P3b). So this slice is
+  not "add incremental rendering"; it is "find what is still expensive once the existing incremental
+  path is accounted for". Measure before designing.
 
 - **S5. UI condensation.** Only after S1, because condensing menus without a catalogue is rearranging
   what you have not read. Target: fewer top-level surfaces, tools grouped by task rather than by
