@@ -39,6 +39,29 @@ export const DEFAULT_CLOSURE_THRESHOLDS: ClosureThresholds = {
 /** A county may not loosen the acceptable floor below this ratio under any circumstance. */
 export const MIN_ACCEPTABLE_FLOOR_RATIO = 2_500;
 
+/** Above this, `validateBoundary` calls a traverse 'excellent' rather than merely 'good'.
+ *
+ *  Higher than `DEFAULT_CLOSURE_THRESHOLDS.excellent` on purpose, and the two are NOT the same
+ *  question. This module's tiers answer *"is this closure acceptable to report?"* — a standards
+ *  question with a floor beneath it. This one answers *"is this the best grade on a quality
+ *  scorecard?"*, where a stricter bar is only a stricter compliment and nothing is blocked by it.
+ *
+ *  It lives here rather than as a literal in `validation.ts` because that is where it WAS, and an
+ *  inline `> 25000` beside two other files' inline thresholds is precisely how three different
+ *  answers to one question came to exist. */
+export const SCORECARD_EXCELLENT_RATIO = 25_000;
+
+/** Below this, a closure is bad enough to cast doubt on the READING rather than on the survey.
+ *
+ *  Distinct from `marginal`, and not a redundant band: `closure-diagnosis.ts` uses closure as
+ *  evidence about whether OCR read a document correctly, and a figure closing at 1:800 is evidence
+ *  of a different KIND from one closing at 1:3,000. The first is unlikely to be a real survey's own
+ *  error on a modern deed; the second routinely is.
+ *
+ *  Kept in this file so that when somebody moves a threshold, they move it where every consumer
+ *  sees it — which is what this module claimed to be and, until 2026-08-03, was not. */
+export const READING_SUSPECT_RATIO = 1_000;
+
 export interface ClosureClassification {
   tier: ClosureTier;
   ratio: number | null;          // null when perimeter or error is zero

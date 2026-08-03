@@ -33,11 +33,19 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const REPO = path.resolve(ROOT, '..');
 
-/** Directories whose modules are library code and should be reachable. */
+/** Directories whose modules are library code and should be reachable.
+ *
+ *  `worker/src/lib` and `worker/src/infra` were missing from the first version of this list, and the
+ *  omission hid a whole subsystem: the real-time progress channel's PUBLISHER lives in
+ *  `worker/src/lib/research-events-emit.ts` and has no callers, which the check could not see. A
+ *  guard is only as good as its coverage, and the directories it skips are exactly where the next
+ *  orphan will be. */
 const LIBRARY_DIRS = [
   'worker/src/services',
   'worker/src/research',
   'worker/src/chain-of-title',
+  'worker/src/lib',
+  'worker/src/infra',
   'lib/research',
 ];
 
@@ -55,6 +63,19 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
     'React hook for a UI that has not been built yet; kept because the event shape it decodes is the worker\'s.',
   'lib/research/white-label.config.ts':
     'Configuration for per-firm branding, read when white-labelling is turned on. Not code that runs.',
+
+  // ── Found 2026-08-03 when this check was widened to worker/src/lib and worker/src/infra ──
+  //
+  // The first version of the list skipped those two directories, and the omission hid a whole
+  // subsystem. Every entry below is a real gap; none is a false alarm.
+  'worker/src/lib/research-events-emit.ts':
+    'The real-time progress channel is built END TO END and connected at NEITHER end: this publisher has no callers and useResearchProgress has no consumer. It needs `npm run ws` deployed as a long-lived process, which Vercel cannot host — a deployment decision, not a coding gap. Until then the UI polls, which works.',
+  'worker/src/lib/rate-limiter.ts':
+    'PARKED: per-site concurrency and backoff limits (spec §18). The adapters currently pace themselves with ad-hoc waits. Real work — being rude to a county portal is how a firm gets blocked — but it belongs with a plan slice, since it changes the timing of every adapter at once.',
+  'worker/src/infra/ai-guardrails.ts':
+    'PARKED: validates AI-extracted bearings/distances/curves. Overlaps with survey-geometry parseBearing and curve-check, both of which ARE wired and refuse bad input at the point of use. Wiring a second validator needs a decision on which one is authoritative, or the two will disagree.',
+  'worker/src/infra/county-config-registry.ts':
+    'PARKED: operator-managed per-county portal overrides. The adapter registry in research_site_adapters (resolveAdapter) already serves this purpose from the database; one of the two should be retired rather than both wired.',
 
   // Built ahead of the surface that will use them. Each is a real decision, not an oversight.
   'lib/research/prioritized-pipeline.ts':

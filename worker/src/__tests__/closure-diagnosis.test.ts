@@ -11,9 +11,12 @@
 // direction argument stops holding.
 
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { traverse } from '../services/survey-geometry.js';
 import {
   GOOD_CLOSURE,
+  POOR_CLOSURE,
   classifyClosure,
   diagnoseClosure,
   rankSuspects,
@@ -203,5 +206,47 @@ describe('the diagnosis is attached to the drawing, not left in a module', () =>
       { bearing: 'S 90°00\'00" W', distance: 980 },
     ]), { recordedYear: 2015 });
     expect(d.caveats.some((c) => /Re-read call/.test(c))).toBe(true);
+  });
+});
+
+describe('there is ONE set of closure numbers', () => {
+  // `lib/closure-tolerance.ts` opens by calling itself "the single source of truth for 'is this
+  // closure acceptable?'" and lists the modules that import from it. Nothing imported it. So this
+  // file declared its own thresholds and `validation.ts` held a third set inline — three answers to
+  // one question, in a platform whose entire subject is boundaries. A surveyor could be told two
+  // different things about the same closure depending on which screen rendered it.
+  //
+  // The drift was not hypothetical: this module was written with a poor/unusable boundary of 1,000
+  // while the shared module's marginal floor was 2,500, by an author (me) who did not know the
+  // shared module existed — which is exactly what a source of truth nobody imports cannot prevent.
+  it('takes its thresholds from the shared module rather than declaring them', async () => {
+    const shared = await import('../lib/closure-tolerance.js');
+    expect(GOOD_CLOSURE).toBe(shared.DEFAULT_CLOSURE_THRESHOLDS.excellent);
+  });
+
+  it('classifies on the shared acceptable floor, not a local literal', async () => {
+    const shared = await import('../lib/closure-tolerance.js');
+    expect(classifyClosure(shared.DEFAULT_CLOSURE_THRESHOLDS.acceptable)).toBe('acceptable');
+    expect(classifyClosure(shared.DEFAULT_CLOSURE_THRESHOLDS.acceptable - 1)).toBe('poor');
+  });
+
+  it('validation.ts uses the shared numbers too', () => {
+    const src = fs.readFileSync(
+      path.join(process.cwd(), 'src/services/validation.ts'), 'utf8');
+    expect(src).toContain('SCORECARD_EXCELLENT_RATIO');
+    expect(src).toContain('DEFAULT_CLOSURE_THRESHOLDS.excellent');
+    // The literals that were there before must be gone, or the import is decoration.
+    expect(src).not.toMatch(/closureError > 25000/);
+    expect(src).not.toMatch(/closureError > 10000/);
+  });
+
+  it('keeps the reading-suspect band as a NAMED distinction, not a duplicate', () => {
+    // 'unusable' is not a redundant fourth tier: a figure closing at 1:800 is evidence of a
+    // different KIND from one closing at 1:3,000 — the first is unlikely to be a real survey's own
+    // error on a modern deed, the second routinely is. The number lives in the shared module so the
+    // next person moves it where every consumer sees it.
+    expect(POOR_CLOSURE).toBe(1_000);
+    expect(classifyClosure(900)).toBe('unusable');
+    expect(classifyClosure(1_500)).toBe('poor');
   });
 });

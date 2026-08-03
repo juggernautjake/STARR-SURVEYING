@@ -10,6 +10,8 @@
  */
 
 import { BoundaryCall, ValidationResult, ExtractedBoundaryData } from '../types/index.js';
+// One set of closure numbers for the whole platform (see the quality block below).
+import { DEFAULT_CLOSURE_THRESHOLDS, SCORECARD_EXCELLENT_RATIO } from '../lib/closure-tolerance.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
 function bearingToAzimuth(decimalDegrees: number, quadrant: string): number {
@@ -224,15 +226,23 @@ export function validateBoundary(
   // ── Overall Quality Score ──────────────────────────────────────────
   if (!result.closureError_ft || data.calls.length === 0) {
     result.overallQuality = 'failed';
-  } else if (closureError < 0.001 || (totalDistance > 0 && totalDistance / closureError > 25000)) {
+    // The three ratios below were inline literals — 25000, 10000, 5000 — sitting alongside a
+    // DIFFERENT set in `closure-diagnosis.ts` and a third, self-described "single source of truth"
+    // in `lib/closure-tolerance.ts` that nothing imported. Three answers to one question, in a
+    // platform whose whole subject is boundaries, and a surveyor could be told two different things
+    // about the same closure depending on which screen rendered it.
+    //
+    // Same numbers as before — this is a consolidation, not a re-grading. What changes is that
+    // moving a threshold now moves it everywhere, which is what that module always claimed.
+  } else if (closureError < 0.001 || (totalDistance > 0 && totalDistance / closureError > SCORECARD_EXCELLENT_RATIO)) {
     if (result.bearingSanity && result.distanceSanity) {
       result.overallQuality = 'excellent';
     } else {
       result.overallQuality = 'good';
     }
-  } else if (totalDistance > 0 && totalDistance / closureError > 10000 && result.bearingSanity) {
+  } else if (totalDistance > 0 && totalDistance / closureError > DEFAULT_CLOSURE_THRESHOLDS.excellent && result.bearingSanity) {
     result.overallQuality = 'good';
-  } else if (totalDistance > 0 && totalDistance / closureError > 5000) {
+  } else if (totalDistance > 0 && totalDistance / closureError > DEFAULT_CLOSURE_THRESHOLDS.acceptable) {
     result.overallQuality = 'fair';
   } else {
     result.overallQuality = 'poor';

@@ -37,11 +37,23 @@
 // which is stated rather than silently producing a confident wrong finger-point.
 
 import { normaliseAzimuth, type Leg, type TraverseResult } from './survey-geometry.js';
+// One set of closure numbers for the whole platform — see GOOD_CLOSURE below for why this import
+// exists at all.
+import { DEFAULT_CLOSURE_THRESHOLDS, READING_SUSPECT_RATIO } from '../lib/closure-tolerance.js';
 
-/** Precision at or above which a description is reading cleanly. */
-export const GOOD_CLOSURE = 10_000;
+/** Precision at or above which a description is reading cleanly.
+ *
+ *  Re-exported from `lib/closure-tolerance.ts` rather than declared here. That module opens by
+ *  calling itself *"the single source of truth for 'is this closure acceptable?'"* and listing the
+ *  modules that import from it — and it had **no importers at all**, which is how this file came to
+ *  declare its own numbers in the first place and how `validation.ts` came to hold a third set
+ *  inline. Three answers to one question, in a platform whose whole subject is boundaries.
+ *
+ *  A surveyor reading two of our screens should not be told two different things about the same
+ *  closure. */
+export const GOOD_CLOSURE = DEFAULT_CLOSURE_THRESHOLDS.excellent;
 /** Below this, something is wrong with the description or with our reading of it. */
-export const POOR_CLOSURE = 1_000;
+export const POOR_CLOSURE = READING_SUSPECT_RATIO;
 /** Modern surveys are expected to beat this; older ones frequently do not. */
 export const MODERN_ERA_YEAR = 1960;
 
@@ -73,7 +85,7 @@ export interface ClosureDiagnosis {
 export function classifyClosure(precision: number | null): ClosureQuality {
   if (precision === null) return 'unknown';
   if (precision >= GOOD_CLOSURE) return 'excellent';
-  if (precision >= 5_000) return 'acceptable';
+  if (precision >= DEFAULT_CLOSURE_THRESHOLDS.acceptable) return 'acceptable';
   if (precision >= POOR_CLOSURE) return 'poor';
   return 'unusable';
 }

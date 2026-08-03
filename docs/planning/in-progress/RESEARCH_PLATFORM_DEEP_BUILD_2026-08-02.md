@@ -3416,6 +3416,51 @@ eventually skips. And five of my own allowlist entries were wrong: the matcher c
 in a registry as a caller, which is a real way this codebase reaches a module, so those five were
 never unreachable at all.
 
+#### Widening it found the eleventh instance, and it was the worst one
+
+**2026-08-03, same day.** The first version of the check scanned four directories and skipped
+`worker/src/lib` and `worker/src/infra`. A guard is only as good as its coverage, and the directories
+it skips are exactly where the next orphan is. Widening it surfaced five more — and one of them is
+the sharpest example this document has:
+
+**`worker/src/lib/closure-tolerance.ts` opens by calling itself *"the single source of truth for 'is
+this closure acceptable?'"*, and lists the four modules that import from it so that "changing a
+threshold changes it everywhere". Nothing imported it.**
+
+The consequence was three different answers to one question, in a platform whose entire subject is
+boundaries:
+
+| | excellent | acceptable | below |
+|---|---|---|---|
+| `closure-tolerance.ts` (the declared source, unused) | ≥10,000 | ≥5,000 | marginal ≥2,500, then poor |
+| `closure-diagnosis.ts` (**written this session**) | ≥10,000 | ≥5,000 | poor ≥1,000, then unusable |
+| `validation.ts` (the live Stage 4 path) | >25,000 | good >10,000 | fair >5,000, then poor |
+
+A traverse closing at 1:3,000 was `marginal` on one path and `poor` on another; one at 1:15,000 was
+`excellent` on two and merely `good` on the third. **A surveyor could be told two different things
+about the same closure depending on which screen rendered it.**
+
+And the drift was not hypothetical or historical — **I caused an instance of it earlier in this
+session**, writing `POOR_CLOSURE = 1_000` in a new module while a shared constant of 2,500 sat
+unimported a directory away. That is precisely what a source of truth nobody imports cannot prevent,
+and it is the argument for the check rather than for more care.
+
+All three now read from `closure-tolerance.ts`. `validation.ts`'s stricter top band is kept — it
+answers a different question (*"is this the best grade on a scorecard?"* rather than *"is this
+acceptable to report?"*, and nothing is blocked by it) — but it is now the named
+`SCORECARD_EXCELLENT_RATIO` in the shared module instead of an inline `> 25000` beside two other
+files' inline literals. Same numbers, so this is a consolidation and not a re-grading; what changes
+is that moving a threshold now moves it everywhere, which is what that module always claimed.
+
+The other four are recorded with reasons: the real-time progress channel is built **end to end and
+connected at neither end** (the publisher has no callers, the hook has no consumer) and needs
+`npm run ws` deployed as a long-lived process, which Vercel cannot host — a deployment decision, and
+the UI polls successfully meanwhile. The rate limiter, the AI guardrails and the county-config
+registry are each parked for a stated reason, two of them because a second implementation is already
+wired and one of the pair should be retired rather than both connected.
+
+Worker suite 81 files / 1,356 tests; root 1,468 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
