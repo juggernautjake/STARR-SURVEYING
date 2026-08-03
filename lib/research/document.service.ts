@@ -2,7 +2,7 @@
 // Handles text extraction, OCR, document classification, and processing state.
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 // Can the model actually read this? Assessed at capture time (plan I/S8).
-import { assessCapture, type CaptureAssessment } from '@/worker/src/services/ocr-legibility';
+import { assessCapture, chooseTiles, type CaptureAssessment } from '@/worker/src/services/ocr-legibility';
 import { callAI, callVision, callDocumentAI, AIServiceError } from './ai-client';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 // An unreadable page must say so rather than becoming a document with no facts (research plan R18).
@@ -219,14 +219,30 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
 
 /** Minimum non-whitespace characters for pdf-parse output to be considered useful */
 const PDF_TEXT_MIN_CHARS = 100;
-/** Tile grid for PDF page images — 3x3 provides excellent detail for plats */
+/** Default tile grid for PDF page images — 3x3 provides excellent detail for plats.
+ *
+ *  A FLOOR now, not a fixed value: `chooseTiles()` may raise it for a page whose resolution the
+ *  default would throw away in the API downscale. It never lowers it — see `ocr-legibility.ts`. */
 const PDF_TILE_ROWS = 3;
 const PDF_TILE_COLS = 3;
 /** Overlap fraction between adjacent PDF tiles (8% — larger than image tiles
  *  because plat drawings have critical detail at tile boundaries) */
 const PDF_TILE_OVERLAP = 0.08;
-/** Scale factor to render PDF pages at for OCR (2x = ~150 DPI → ~300 DPI) */
-const PDF_RENDER_SCALE = 2;
+/** DPI to render PDF pages at for OCR.
+ *
+ *  Was `72 * 2` = **144 DPI**, under a comment claiming "2x = ~150 DPI → ~300 DPI". The comment was
+ *  wrong in the direction that matters: twice PDF's 72 DPI baseline is 144, not 300.
+ *
+ *  144 DPI puts a 0.07" bearing label at **10.1 px**, below the 13 px floor in `ocr-legibility.ts` —
+ *  so fine text on a plat was unreadable *before any tiling happened*, and no grid could recover it,
+ *  because tiling cannot add resolution the render never produced. Every plat processed through this
+ *  path was being OCR'd at a resolution where a bearing cannot be resolved, and OCR asked to read a
+ *  bearing it cannot resolve returns a plausible one rather than an error.
+ *
+ *  288 DPI puts that label at **20.2 px** — the comfortable threshold, not merely the floor. The
+ *  cost is 4× the pixels of the old setting: a letter page renders at 2448×3168, well inside the
+ *  API's 8000 px limit, and a 36×48 plat at 10368×13824, which the tiling then handles. */
+const PDF_RENDER_DPI = 288;
 
 /**
  * Minimum characters in Claude PDF OCR result to skip the per-page tiling pass.
@@ -375,6 +391,10 @@ async function extractFromPdfPageTiled(
   const measuredPdf: NonNullable<ExtractionResult['ocrSegments']>['regions'] = [];
   let pdfPageSize: { width: number; height: number } | null = null;
   let successfulPages = 0;
+  /** Grids actually used, which now vary per page. A method string naming one constant would be a
+   *  fiction the moment two pages of a document are different sizes — and a mixed-size PDF (a deed
+   *  with a plat exhibit stapled on) is exactly the case worth being able to see afterwards. */
+  const gridsUsed = new Set<string>();
 
   // For each page, try to render the PDF to an image.
   // sharp can read PDF files if it was compiled with libvips PDF support (poppler or pdfium).
@@ -384,11 +404,12 @@ async function extractFromPdfPageTiled(
     let pageBuffer: Buffer;
 
     try {
-      // sharp's PDF input: render a specific page at a given density
-      // density controls DPI (default 72); we use 150-300 for OCR quality
+      // sharp's PDF input: render a specific page at a given density.
+      // The density is what fixes whether fine survey text exists in the image at all — see
+      // PDF_RENDER_DPI, where the arithmetic is written out.
       pageBuffer = await sharp(buffer, {
         page: pageIdx,
-        density: 72 * PDF_RENDER_SCALE,
+        density: PDF_RENDER_DPI,
       })
         .png()
         .toBuffer();
@@ -424,15 +445,45 @@ async function extractFromPdfPageTiled(
         continue;
       }
 
+      // How many tiles, decided rather than assumed (plan R18).
+      //
+      // This path processes `research_documents` and writes the facts, and it cut every page into a
+      // constant 3×3 whether it was an 8.5×11 deed or a 36×48 plat. `assessCapture()` was already
+      // computing the grid that WOULD work — on every document — and nothing read it. A page with
+      // the resolution to be readable had it thrown away in the API downscale, and the OCR did not
+      // fail: it returned a plausible bearing.
+      //
+      // The physical size here is EXACT, and it is the only path in this file where that is true.
+      // sharp renders the PDF's MediaBox at a density we choose, so inches = pixels ÷ that density —
+      // no assumption about page size and no reliance on an embedded DPI a scanner may have set
+      // wrongly. A 36×48 plat comes out as 36×48 rather than being assumed to be letter, which is
+      // the assumption that reports four times the true DPI.
+      //
+      // (`pdfPageSize` above is the rendered PIXEL size, not the MediaBox in points — it is used for
+      // region geometry, not for physical size. Reading it as points would call every letter-size
+      // deed a 35-inch sheet.)
+      const pdfPhysical = {
+        widthIn: imgW / PDF_RENDER_DPI,
+        heightIn: imgH / PDF_RENDER_DPI,
+        source: 'pdf_mediabox' as const,
+      };
+      const grid = chooseTiles(imgW, imgH, { rows: PDF_TILE_ROWS, cols: PDF_TILE_COLS }, pdfPhysical);
+      if (grid.changed || grid.capped) {
+        console.log(`[Document] PDF page ${pageIdx + 1} tiling: ${grid.statement}`);
+      }
+      const rowsN = grid.tiles.rows;
+      const colsN = grid.tiles.cols;
+      gridsUsed.add(`${rowsN}x${colsN}`);
+
       // Split into tiles
       const overlapX = Math.floor(imgW * PDF_TILE_OVERLAP);
       const overlapY = Math.floor(imgH * PDF_TILE_OVERLAP);
-      const baseTileW = Math.floor(imgW / PDF_TILE_COLS);
-      const baseTileH = Math.floor(imgH / PDF_TILE_ROWS);
+      const baseTileW = Math.floor(imgW / colsN);
+      const baseTileH = Math.floor(imgH / rowsN);
       const tileTexts: string[] = [];
 
-      for (let row = 0; row < PDF_TILE_ROWS; row++) {
-        for (let col = 0; col < PDF_TILE_COLS; col++) {
+      for (let row = 0; row < rowsN; row++) {
+        for (let col = 0; col < colsN; col++) {
           const left = Math.max(0, col * baseTileW - overlapX);
           const top = Math.max(0, row * baseTileH - overlapY);
           const width = Math.min(baseTileW + 2 * overlapX, imgW - left);
@@ -509,7 +560,7 @@ async function extractFromPdfPageTiled(
   const processedPageCount = Math.min(pageCount, 20);
   return {
     text: mergedText,
-    method: `pdf-page-tiled-${PDF_TILE_ROWS}x${PDF_TILE_COLS}`,
+    method: `pdf-page-tiled-${gridsUsed.size ? [...gridsUsed].sort().join('+') : `${PDF_TILE_ROWS}x${PDF_TILE_COLS}`}@${PDF_RENDER_DPI}dpi`,
     pageCount: processedPageCount,
     ocrConfidence: avgConfidence,
     ocrRegions: allRegions.length ? allRegions : undefined,
@@ -757,10 +808,24 @@ async function extractFromImageTiled(
     return parseVisionResult(result, false);
   }
 
+  // The same decision as the PDF path, from the same policy (plan R18) — which is the point: two
+  // paths tiled documents and disagreed, and the one that writes the facts used the blinder rule.
+  //
+  // The physical size is weaker here than on the PDF path: a standalone image carries no MediaBox,
+  // so the embedded density is used when the scanner set one, and otherwise the assessment assumes
+  // letter and says that it assumed.
+  const imagePhysical = meta.density && meta.density > 1
+    ? { widthIn: imgW / meta.density, heightIn: imgH / meta.density, source: 'image_density' as const }
+    : null;
+  const grid = chooseTiles(imgW, imgH, { rows: TILE_ROWS, cols: TILE_COLS }, imagePhysical);
+  if (grid.changed || grid.capped) console.log(`[Document] Image tiling: ${grid.statement}`);
+  const rowsN = grid.tiles.rows;
+  const colsN = grid.tiles.cols;
+
   const overlapX = Math.floor(imgW * TILE_OVERLAP);
   const overlapY = Math.floor(imgH * TILE_OVERLAP);
-  const tileW = Math.floor(imgW / TILE_COLS) + overlapX;
-  const tileH = Math.floor(imgH / TILE_ROWS) + overlapY;
+  const tileW = Math.floor(imgW / colsN) + overlapX;
+  const tileH = Math.floor(imgH / rowsN) + overlapY;
 
   const tileTexts: string[] = [];
   const tileConfidences: number[] = [];
@@ -768,10 +833,10 @@ async function extractFromImageTiled(
   /** Where each tile actually was. Measured here, not asked of the model (plan R17). */
   const measured: NonNullable<ExtractionResult['ocrSegments']>['regions'] = [];
 
-  for (let row = 0; row < TILE_ROWS; row++) {
-    for (let col = 0; col < TILE_COLS; col++) {
-      const left = Math.max(0, Math.floor(col * imgW / TILE_COLS) - overlapX);
-      const top = Math.max(0, Math.floor(row * imgH / TILE_ROWS) - overlapY);
+  for (let row = 0; row < rowsN; row++) {
+    for (let col = 0; col < colsN; col++) {
+      const left = Math.max(0, Math.floor(col * imgW / colsN) - overlapX);
+      const top = Math.max(0, Math.floor(row * imgH / rowsN) - overlapY);
       const width = Math.min(tileW, imgW - left);
       const height = Math.min(tileH, imgH - top);
 
@@ -822,18 +887,17 @@ async function extractFromImageTiled(
   // Can the model actually read fine survey text off this? Assessed HERE, where the pixel size and
   // the tile grid are both known, rather than being inferred later from a stored image.
   //
-  // The grid is a constant (TILE_ROWS × TILE_COLS) whatever the page turns out to be, so this is the
-  // only place that reports whether the constant was enough for THIS document. An OCR that cannot
-  // resolve a bearing does not fail — it returns a plausible one.
-  const legibility = assessCapture(imgW, imgH, { rows: TILE_ROWS, cols: TILE_COLS },
-    meta.density && meta.density > 1
-      ? { widthIn: imgW / meta.density, heightIn: imgH / meta.density, source: 'image_density' }
-      : null);
+  // Assessed against the grid ACTUALLY USED, not against the constant. Reporting the default here
+  // while `chooseTiles` had raised it would file a verdict about a capture that never happened —
+  // and the stored verdict is what a reviewer later reads to decide whether to trust the numbers.
+  const legibility = assessCapture(imgW, imgH, grid.tiles, imagePhysical);
   console.log(`[Document] OCR legibility (${legibility.verdict}): ${legibility.fullStatement}`);
 
   return {
     text: mergedText,
-    method: `ocr-tiled-${TILE_ROWS}x${TILE_COLS}`,
+    // The grid ACTUALLY used. `method` is stored on the row and is how anyone later reconstructs
+    // how a document was read; naming the default while a different grid ran makes it a fiction.
+    method: `ocr-tiled-${rowsN}x${colsN}`,
     ocrConfidence: avgConfidence,
     ocrRegions: tileRegions.length ? tileRegions : undefined,
     ocrSegments: measured.length

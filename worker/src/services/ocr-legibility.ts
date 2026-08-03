@@ -290,3 +290,114 @@ export function assessCapture(
     fullStatement: report.statement + caveat,
   };
 }
+
+// ── Choosing the grid, rather than reporting on it afterwards (plan R18) ─────────────────────────
+//
+// Everything above answers "was the tiling enough?" — and until now that answer arrived AFTER the
+// tiling had already happened. `document.service.ts` called `assessCapture()` at the end of its OCR
+// pass, printed the verdict, stored it with the segments, and had already cut the page into a
+// constant grid. `recommendedTiles` was computed on every single document and acted on by nothing.
+//
+// That is the R18 remainder: two paths tile and they do not agree. `adaptive-vision.ts` computes its
+// grid; `document.service.ts` uses 3×3 for PDFs and 2×2 for images whether the page is an 8.5×11
+// deed or a 36×48 plat. This function is the one policy both can call, so the disagreement stops
+// being a fact about which file you happen to be in.
+
+/** Most tiles we will cut a page into.
+ *
+ *  Every tile is a separate vision call, so the grid is a COST as well as a quality setting: 6×6 is
+ *  36 calls for one page. The cap is high enough for a 36×48 plat at 300 DPI (which wants 2×2 to
+ *  clear the API limit) and for the deep grids a large scan can ask for, and low enough that a
+ *  pathological page cannot bill for a hundred calls. When it binds, it is stated — a silently
+ *  capped grid would look like a considered choice. */
+export const MAX_TILES_PER_AXIS = 6;
+
+export interface TileDecision {
+  tiles: TileSpec;
+  /** True when this differs from the grid the caller proposed. */
+  changed: boolean;
+  /** True when `MAX_TILES_PER_AXIS` prevented the grid the arithmetic asked for. */
+  capped: boolean;
+  /** What the arithmetic wanted before the cap, when it wanted anything. */
+  wanted: TileSpec | null;
+  statement: string;
+}
+
+/** Decide how to tile a page, given the grid a caller would otherwise use by default.
+ *
+ *  Only ever INCREASES the grid. The existing constants were chosen for plats and a page can be hard
+ *  to read for reasons this arithmetic does not model — faint ink, skew, a stamp across the text — so
+ *  cutting below them to save calls would trade a known-good default for a guess. What this fixes is
+ *  the opposite case: a page with the resolution whose fixed grid throws it away in the API
+ *  downscale.
+ *
+ *  Returns the default unchanged, with a reason, when more tiles cannot help. That case is the one
+ *  worth being careful about: a 150 DPI scan puts a bearing at 10.5 px and NO grid adds resolution
+ *  the scan never had, so recommending 6×6 there would be advice that looks like a fix and changes
+ *  nothing — while costing 36 vision calls to prove it. */
+export function chooseTiles(
+  pixelWidth: number,
+  pixelHeight: number,
+  fallback: TileSpec,
+  physical?: { widthIn: number; heightIn: number; source: SizeSource } | null,
+): TileDecision {
+  const size = physical ?? { widthIn: US_LETTER.widthIn, heightIn: US_LETTER.heightIn };
+  const page: PageSpec = { ...size, pixelWidth, pixelHeight };
+  const at = assessLegibility(page, fallback);
+
+  if (at.verdict === 'good') {
+    return {
+      tiles: fallback, changed: false, capped: false, wanted: null,
+      statement:
+        `Keeping the default ${fallback.rows}×${fallback.cols} grid: fine text already lands at ` +
+        `${at.fineTextPxAtModel} px, which is comfortably readable.`,
+    };
+  }
+
+  const wanted = recommendTiles(page);
+
+  if (!wanted) {
+    return {
+      tiles: fallback, changed: false, capped: false, wanted: null,
+      statement:
+        `Keeping the default ${fallback.rows}×${fallback.cols} grid, because MORE TILES CANNOT HELP — ` +
+        `at ${at.effectiveDpi} effective DPI a 0.07" bearing is only ${at.fineTextPxAtSource} px in the ` +
+        `image we hold, and no grid adds resolution the capture never had. The page needs re-capturing ` +
+        `at a higher resolution, not re-tiling.`,
+    };
+  }
+
+  // Never below the caller's default — see the doc comment.
+  const rawRows = Math.max(wanted.rows, fallback.rows);
+  const rawCols = Math.max(wanted.cols, fallback.cols);
+  const rows = Math.min(rawRows, MAX_TILES_PER_AXIS);
+  const cols = Math.min(rawCols, MAX_TILES_PER_AXIS);
+  const capped = rows < rawRows || cols < rawCols;
+  const changed = rows !== fallback.rows || cols !== fallback.cols;
+
+  if (!changed) {
+    return {
+      tiles: fallback, changed: false, capped, wanted: { rows: rawRows, cols: rawCols },
+      statement:
+        `Keeping the default ${fallback.rows}×${fallback.cols} grid: it already meets or exceeds what ` +
+        `the arithmetic asks for, and fine text is ${at.fineTextPxAtModel} px.`,
+    };
+  }
+
+  const after = assessLegibility(page, { rows, cols });
+  return {
+    tiles: { rows, cols },
+    changed: true,
+    capped,
+    wanted: { rows: rawRows, cols: rawCols },
+    statement:
+      `Tiling ${rows}×${cols} instead of the default ${fallback.rows}×${fallback.cols}: the default ` +
+      `would hand the model ${at.fineTextPxAtModel} px of bearing text after the API downscale, and this ` +
+      `grid keeps ${after.fineTextPxAtModel} px. The resolution is in the image; the default throws it ` +
+      `away.` +
+      (capped
+        ? ` CAPPED at ${MAX_TILES_PER_AXIS} per axis — the arithmetic asked for ${rawRows}×${rawCols}, ` +
+          `so fine text is still below what this page could give.`
+        : ''),
+  };
+}

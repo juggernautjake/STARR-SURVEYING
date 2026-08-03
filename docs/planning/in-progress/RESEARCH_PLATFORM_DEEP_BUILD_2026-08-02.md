@@ -1018,8 +1018,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   "here is the deed, at this line".
   *Acceptance:* clicking any fact in the review UI opens its source image scrolled to the region.
 
-- **R18. Shared OCR service with a quality floor.** ◑ PART DONE 2026-08-02 — the quality floor and
-  the `unreadable` state shipped; consolidating the two extraction paths remains
+- **R18. Shared OCR service with a quality floor.** ✅ **DONE 2026-08-03** — quality floor, the
+  `unreadable` state, and one tiling policy across both extraction paths
 
   **Shipped** (`lib/research/ocr-quality.ts` + seed 532, wired into `processDocument`).
 
@@ -1076,6 +1076,56 @@ polish — nothing else in this plan can be trusted while the engine is down and
   the difference rather than removing it. On the worker path `analyzed` is now reserved for text good
   enough to have been analysed, thin text is `extracted`, and unusable text is `unreadable` with its
   reason stored. Worker suite 411/411; both roots typecheck clean.
+
+  **DONE 2026-08-03 — the two tiling paths now share one policy, and the consolidation found a
+  capture bug underneath it** (`chooseTiles()` in `ocr-legibility.ts`, both loops in
+  `document.service.ts`).
+
+  This was the last piece of R18: two paths tiled documents and disagreed. `adaptive-vision.ts`
+  *computed* its grid; `document.service.ts` — the path that processes `research_documents` and
+  writes the facts — was fixed at 3×3 for PDFs and 2×2 for images, whether the page was an 8.5×11
+  deed or a 36×48 plat.
+
+  The sharp version of that: **`assessCapture()` computed `recommendedTiles` on every single document
+  and nothing ever read it.** The verdict arrived *after* the page had already been cut into the
+  constant grid. The one number that could have changed the outcome was produced, logged, stored
+  beside the segments, and discarded — which is the S8 arithmetic doing everything except the part
+  that mattered.
+
+  `chooseTiles()` is the shared decision. It **only ever raises** the grid: the existing constants
+  were chosen for plats and a page can be hard to read for reasons this arithmetic does not model —
+  faint ink, skew, a stamp across the text — so cutting below them to save calls would trade a
+  known-good default for a guess. And it declines to raise when raising cannot help: at 150 DPI a
+  bearing is 10.5 px and no grid adds resolution the capture never had, so it says *"the page needs
+  re-capturing at a higher resolution, not re-tiling"* rather than issuing advice that looks like a
+  fix, changes nothing, and costs 36 vision calls to prove it. `MAX_TILES_PER_AXIS` caps the cost,
+  and a capped grid **says it was capped** — silently capping would look like a considered choice.
+
+  ### The bug under the bug: every plat was rendered too small to read
+
+  The PDF path rendered at `72 * PDF_RENDER_SCALE` with `PDF_RENDER_SCALE = 2`, under a comment
+  reading *"2x = ~150 DPI → ~300 DPI"*. Twice PDF's 72 DPI baseline is **144**, not 300.
+
+  At 144 DPI a 0.07" bearing label is **10.1 px** — below the 13 px floor. So fine text on every plat
+  processed through this path was unreadable **before any tiling happened**, and no grid could
+  recover it, because tiling cannot add resolution the render never produced. OCR asked to read a
+  bearing it cannot resolve does not fail; it returns a plausible one.
+
+  This is not a tiling bug. It is a **capture** bug that tiling cannot fix, and it was invisible for
+  exactly as long as the legibility check was reporting on captures instead of choosing them. Now
+  `PDF_RENDER_DPI = 288`, which puts that label at **20.2 px** — comfortable, not merely above the
+  floor. A letter page renders at 2448×3168, inside the API's 8000 px limit; a 36×48 plat at
+  10368×13824, which the grid then handles.
+
+  Two smaller corrections in the same pass, both of the wrong-units kind this project keeps hitting:
+  the PDF page's physical size now comes from the **render density** (exact — sharp renders the
+  MediaBox at a density we choose, so inches = pixels ÷ density), and *not* from reading
+  `pdfPageSize` as points, which holds rendered **pixels** and would have declared every letter-size
+  deed a 35-inch sheet. And the stored `method` string names the grid **actually used**, per page,
+  rather than the constant — a mixed-size PDF (a deed with a plat exhibit stapled on) now tiles each
+  page differently and says so.
+
+  Worker suite 78 files / 1,310 tests; root 1,466 files; `npm run build` clean.
 
   Original item:
   One OCR entry point (not per-adapter), with confidence per block, automatic escalation to vision for
@@ -3043,6 +3093,17 @@ distinction matters: everything before this made a document arrive; nothing befo
   `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
   the model reads a *marginal* 14 px bearing correctly or confidently wrong. The arithmetic bounds the
   question; only a plat with known values answers it. See §4.
+
+  **Update 2026-08-03 — the arithmetic now DECIDES rather than reports** (R18, above). `chooseTiles()`
+  picks the grid on both extraction paths, and doing that exposed the thing the reporting version
+  could never have caught: the PDF path was rendering at **144 DPI**, which puts a bearing at 10.1 px
+  and under the floor *before any tiling*. Every plat this platform processed as a PDF was OCR'd at a
+  resolution where a bearing cannot be resolved. Raised to 288 DPI.
+
+  So the golden plat is now needed for a **narrower** question than when this section was written.
+  Two of the three vendors sit at ~200 DPI and that is a retrieval limit no local setting changes;
+  but the PDF path is no longer adding its own, larger loss on top, and the marginal band is now the
+  vendors' band rather than ours.
 
 - **S9. The deed checking our reading of it.** ✅ **DONE 2026-08-03**
   (`worker/src/services/closure-diagnosis.ts`, surfaced in `survey-drawing.ts`)
