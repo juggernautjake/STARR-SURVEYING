@@ -278,6 +278,111 @@ function buildRecommendedActions(report: ValidationReport): string {
 // ── Surveyor-specific sections ────────────────────────────────────────────────
 
 /**
+ * THE SURVEY ITSELF — monuments, corner-to-corner inverses, curve checks, units, and what the
+ * closure says about our READING of the document.
+ *
+ * `pipeline.surveyReading` is produced at Stage 4 by `readSurvey()`, put on the result, written to
+ * the log — and read by NOTHING. Everything Phase I built about the content of a survey stopped one
+ * step short of the document a person opens. Wired into the pipeline is not the same as surfaced,
+ * and this report is where a surveyor actually looks.
+ *
+ * The order is deliberate. Monuments come first because finding called-for monuments is most of what
+ * a field crew is sent to do; the closure diagnosis comes next because it changes whether the
+ * numbers below it can be trusted at all; and the corner-to-corner inverses come last because they
+ * are a reference table rather than something read straight through.
+ */
+function buildSurveyReading(pipeline: PipelineResult): string {
+  const s = pipeline.surveyReading;
+  const lines: string[] = ['THE SURVEY ITSELF', HR2];
+
+  if (!s) {
+    // Distinguished from "nothing to read": a run that predates this section, or one that never
+    // reached Stage 4, has not looked — which is not a finding about the property.
+    lines.push('  Not computed for this run — the survey reading did not run, which is not the same');
+    lines.push('  as a description with nothing in it.');
+    return lines.join('\n');
+  }
+
+  if (s.notTraversable) {
+    lines.push(`  ${s.notTraversable}`);
+    return lines.join('\n');
+  }
+
+  // ── Monuments ──
+  lines.push('  MONUMENTS');
+  if (s.monuments.length === 0) {
+    lines.push('    None described in the calls. A description that names no monuments is unusual');
+    lines.push('    and is worth checking against the document image before relying on it.');
+  } else {
+    lines.push(`    ${wrapAt(s.monumentSummary.statement, 4)}`);
+    for (const m of s.monuments) lines.push(`      · ${wrapAt(m.statement, 8)}`);
+    if (s.located.length < s.monuments.length) {
+      lines.push(
+        `    ${s.monuments.length - s.located.length} of these could NOT be placed on the figure —`,
+        '    their positions relative to the others are not known.',
+      );
+    }
+  }
+
+  // ── Closure, as evidence about our reading ──
+  lines.push('', '  WHAT THE CLOSURE SAYS ABOUT OUR READING');
+  if (s.closure) {
+    lines.push(`    ${wrapAt(s.closure.statement, 4)}`);
+    if (s.closure.nextStep) lines.push(`    NEXT: ${wrapAt(s.closure.nextStep, 4)}`);
+  } else {
+    lines.push('    Not assessed.');
+  }
+
+  // ── Curves that disagree with themselves ──
+  const badCurves = s.curves.filter((c) => c.check.verdict === 'inconsistent');
+  if (badCurves.length > 0) {
+    lines.push('', '  CURVES THAT DO NOT CHECK OUT');
+    for (const c of badCurves) lines.push(`    · Call ${c.callIndex + 1}: ${wrapAt(c.check.statement, 6)}`);
+  }
+
+  // ── Corners we positioned ourselves ──
+  if (s.derivedChords.length > 0) {
+    lines.push('', '  CORNERS POSITIONED FROM A VALUE WE COMPUTED');
+    for (const d of s.derivedChords) lines.push(`    · ${wrapAt(d.statement, 6)}`);
+  }
+
+  // ── Units ──
+  const nonFeet = s.unitsUsed.filter((u) => u.unit !== 'us_survey_feet');
+  if (nonFeet.length > 0) {
+    lines.push('', '  UNITS');
+    for (const u of nonFeet) lines.push(`    · ${u.calls} call(s) in ${u.label}. ${u.inFeet}`);
+  }
+
+  // ── Corner to corner ──
+  if (s.pairs.length > 0) {
+    lines.push('', '  CORNER TO CORNER (computed — the deed states only consecutive corners)');
+    for (const p of s.pairs) {
+      lines.push(`    · Call ${p.fromCallIndex + 1} → ${p.toCallIndex + 1}:  ${p.bearing}  ${p.distance.toFixed(2)} ft`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/** Wrap a long sentence to the report's width, indenting continuations.
+ *
+ *  The statements from `survey-reading` are written as prose for a person and routinely run past
+ *  200 characters; printed raw they wrap wherever the terminal decides and the section stops being
+ *  readable, which is the failure this whole report exists to avoid. */
+function wrapAt(text: string, indent: number, width = 96): string {
+  const pad = ' '.repeat(indent);
+  const words = text.split(/\s+/);
+  const out: string[] = [];
+  let line = '';
+  for (const w of words) {
+    if (line.length + w.length + 1 > width) { out.push(line); line = w; }
+    else line = line ? `${line} ${w}` : w;
+  }
+  if (line) out.push(line);
+  return out.join(`\n${pad}`);
+}
+
+/**
  * TRAVERSE QUALITY — closure error, precision ratio, area, and quality score
  * from the mathematical boundary validation (Stage 4).
  */
@@ -492,6 +597,10 @@ export function buildMasterReport(
     buildPropertySummary(report, pipeline),
     buildAnalysisLimitations(report),
     buildValidationQuality(pipeline),
+    // Directly after TRAVERSE QUALITY, which reports the closure as a NUMBER. This says what that
+    // number means about whether we read the document correctly — the two belong together, and
+    // separating them is how a precision ratio ends up looking like a verdict on the survey.
+    buildSurveyReading(pipeline),
     buildConfidenceSummary(report),
     buildTopActions(report),
     buildPerimeterAnalysis(report),

@@ -3637,6 +3637,42 @@ harness cannot reach role-gated pages. That is the honest remaining gap on this 
 
 Root suite 1,469 files; typecheck and `npm run build` clean.
 
+#### And the survey reading reaches the document a person opens
+
+**DONE 2026-08-03** (`buildSurveyReading` in `worker/src/services/report-generator.ts`).
+
+S10 wired `readSurvey()` into Stage 4 and put the result on `PipelineResult`. It went to the log and
+into the JSON — and **nothing read it**. Everything Phase I built about the CONTENT of a survey
+stopped one step short of the report a surveyor actually opens.
+
+Wired into the pipeline is not the same as surfaced, and this is a variant the reachability check
+**cannot** see: `surveyReading` had a producer and no consumer, but the field is on a *type* rather
+than in a module, so nothing about it looks orphaned.
+
+The new section sits **immediately after TRAVERSE QUALITY**, which is where the closure is printed as
+a number. Separating them is how a precision ratio ends up reading as a verdict on the survey rather
+than on our reading of it. Order inside the section is deliberate too: monuments first, because
+finding called-for monuments is most of what a field crew is sent to do; then what the closure says
+about our reading, because it governs whether anything below it can be trusted; then the
+corner-to-corner inverses, which are a reference table rather than something read straight through.
+
+Four things that would otherwise stay invisible now print: curves that disagree with their own stated
+values, corners positioned from a chord **we** computed rather than one the deed recites, the vara
+conversion when the deed recites varas, and monuments that could not be placed on the figure.
+
+And the section distinguishes **"did not run"** from **"found nothing"** — a run predating it has not
+looked, which is not a finding about the property.
+
+Two of my own defects in the slice. The prose statements from `survey-reading` are written for a
+person and run past 130 characters; I wrote a `wrapAt` helper and then applied it to only *some* of
+the lines, so the monument list still emitted 133-character rows until the test caught it. And a
+minimal `ValidationReport` stub crashed `buildPropertySummary` on `undefined.toFixed` — that one is
+**not** a production defect: `acreage` is `number | null` and not optional, so the state is
+unreachable through the type, and the right fix was to satisfy the type rather than loosen a guard
+in shipping code on the strength of a bad stub.
+
+Worker suite 85 files / 1,420 tests; root 1,469 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
