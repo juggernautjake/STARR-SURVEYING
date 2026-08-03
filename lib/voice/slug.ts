@@ -23,6 +23,57 @@
  * occasionally he will want to. Diacritics are decomposed and stripped rather than dropped, so
  * "Peña" becomes "pena" and not "pea".
  */
+/**
+ * Slugs a custom page must never take, because a static route owns that address and that route does
+ * not read `va_pages`.
+ *
+ * `/AndrewAsh/<slug>` is served by a dynamic segment and Next resolves STATIC routes first. A page
+ * slugged `studio` would save cleanly, appear in the studio with a link, publish without complaint —
+ * and forever render the studio instead. Nothing errors anywhere in that sequence. The only symptom
+ * is Andrew insisting he made a page that isn't there.
+ *
+ * ── WHY THE BUILT-IN PAGE SLUGS ARE *NOT* ON THIS LIST ──────────────────────────────────────────
+ *
+ * `about`, `coaching`, `contact`, `voice-over` and `home` also have static routes — but those routes
+ * are `SystemPage`, which looks the slug up in `va_pages` and prefers Andrew's row over the built-in
+ * default. That is exactly how "adopting" a built-in page works. Blocking them would break the
+ * feature this list is meant to protect, so the test is not "does a route exist" but "does that route
+ * read the table".
+ */
+export const SHADOWED_SLUGS: readonly string[] = [
+  'studio',
+  'login',
+  'logout',
+  'client',
+  'invoice',
+  'contract',
+  'api',
+  // Specified as a page prefix in an earlier draft of the plan. Costs nothing to keep clear.
+  'p',
+];
+
+// `work` is deliberately absent, and the test that lists every DEFAULT_PAGES slug is what caught it
+// being here. /AndrewAsh/work looks like a hardcoded project index but is a SystemPage like any
+// other, so it reads this table and Andrew can adopt and rewrite it. Projects live one level deeper
+// at /work/<slug>, which a page row at `work` does not touch.
+
+/** True when a page at this slug would be shadowed by a route that never consults `va_pages`. */
+export function isShadowedSlug(slug: string): boolean {
+  return SHADOWED_SLUGS.includes(slug);
+}
+
+/**
+ * A slug that is safe to publish at: `slugify`, then stepped past anything a static route swallows.
+ *
+ * Suffixes rather than rejects, because "Studio" is a reasonable thing to call a page about his
+ * recording space, and refusing it outright makes Andrew guess at what the machine will accept.
+ * `-page` reads as deliberate in a URL in a way that `-2` does not.
+ */
+export function safeSlug(input: string): string {
+  const base = slugify(input);
+  return isShadowedSlug(base) ? `${base}-page` : base;
+}
+
 export function slugify(input: string): string {
   return (
     String(input ?? '')

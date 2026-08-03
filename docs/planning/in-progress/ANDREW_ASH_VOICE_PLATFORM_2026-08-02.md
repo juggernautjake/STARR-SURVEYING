@@ -135,7 +135,10 @@ phone preview is literally the phone layout, not an approximation — and no ifr
 | `/AndrewAsh/work` + `/work/[slug]` | Project index and widget-built project pages |
 | `/AndrewAsh/about` | Story, timeline, credits, gallery |
 | `/AndrewAsh/contact` | The quote/sample request form |
-| `/AndrewAsh/p/[slug]` | Any custom page Andrew creates |
+| `/AndrewAsh/[slug]` | Any custom page Andrew creates |
+
+*The last row said `/p/[slug]` until 2026-08-02 and no route existed at either address — see defect 17.
+It is a bare slug now because that is the URL the studio was already generating and showing him.*
 
 **Pricing is published.** The single biggest reason a small business does not enquire is not knowing
 whether this is a $200 or a $2,000 decision. The contact form shows a live estimate as they type,
@@ -268,6 +271,7 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 27 | Contrast audit run — **941 text nodes across 7 routes × 2 viewports, every one clears WCAG AA** | ✅ 2026-08-02 |
 | 28 | 390px sweep of all 13 studio pages — **13/13 fit with no undersized controls** (`scripts/audit-voice-mobile.mjs`, new) | ✅ 2026-08-02 |
 | 29 | Web push — subscribe/unsubscribe panel + `/api/voice/push`; the granted path needs VAPID keys to exercise | ✅ built 2026-08-02 |
+| 30 | Custom pages reachable — `(site)/[slug]`, shadowed-slug guard, page-shaped scaffold | ✅ 2026-08-02 |
 
 ### Verifying it again
 
@@ -380,6 +384,27 @@ client to reply to his email.
     "✓ Every measurable text node clears WCAG AA." A green tick for an audit that never ran is worse
     than a red one. Zero measurements is now an explicit failure. *(Then the real run: 941 nodes, all
     passing.)*
+
+17. **Custom pages had no URL — the headline feature stopped one route short.** The builder created
+    `kind: 'page'` rows and Studio → Pages linked to them at `/AndrewAsh/<slug>`; nothing served that
+    path. Andrew could build a page, publish it, click the address the studio showed him, and land on
+    a 404. Every individual piece existed and worked, so nothing ever failed — **the hole was in the
+    seam**, and it took reading this doc's route table against `find app/AndrewAsh -name page.tsx` to
+    see it. Fixed by `(site)/[slug]/page.tsx`.
+
+    Two consequences worth recording:
+
+    - **Some static routes may be shadowed and some may not**, and the difference is not "does a route
+      exist" but "does that route read `va_pages`". `about` and `work` are `SystemPage`, which prefers
+      Andrew's row — that IS adopting a built-in page, so blocking those slugs would break the feature
+      the guard protects. `studio`, `login`, `client`, `invoice`, `contract`, `api` and `p` never
+      consult the table and would swallow a page silently and permanently. Only those are in
+      `SHADOWED_SLUGS`. **A test written against the real `DEFAULT_PAGES` list caught me having put
+      `work` on the wrong side of that line.**
+    - **A page was being seeded with project scaffolding** — a "Project" eyebrow, a player captioned
+      "The finished spot", and a Client/Role/Delivered spec list. On a page about his rates that is
+      not a head start, it is five blocks to delete before he can begin, which is where a person
+      decides the builder is fighting them. `newPageBlocks` now exists.
 
 ## 11. Sources
 

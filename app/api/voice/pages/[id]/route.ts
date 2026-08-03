@@ -23,7 +23,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
 import { normalizeWidgets } from '@/lib/voice/widgets';
 import { sanitizeWidgetProps, stripHtml } from '@/lib/voice/sanitize';
-import { slugify } from '@/lib/voice/slug';
+import { isShadowedSlug, slugify } from '@/lib/voice/slug';
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -98,7 +98,19 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (typeof body.title === 'string') patch.title = body.title.trim().slice(0, 200) || 'Untitled';
   if (typeof body.subtitle === 'string') patch.subtitle = body.subtitle.trim().slice(0, 300) || null;
   if (typeof body.summary === 'string') patch.summary = stripHtml(body.summary).slice(0, 600) || null;
-  if (typeof body.slug === 'string' && body.slug.trim()) patch.slug = slugify(body.slug);
+  if (typeof body.slug === 'string' && body.slug.trim()) {
+    const next = slugify(body.slug);
+    // Renaming a PAGE onto a slug a non-table route owns would make it unreachable with no error
+    // anywhere. Refused rather than silently suffixed, because unlike creation he typed this one
+    // deliberately and a URL that quietly differs from what he entered is its own bug.
+    if (page.kind === 'page' && isShadowedSlug(next)) {
+      return NextResponse.json(
+        { error: `"/${next}" is already used by the site itself, so a page there would never show. Try another address.` },
+        { status: 409 },
+      );
+    }
+    patch.slug = next;
+  }
   if (typeof body.clientName === 'string') patch.client_name = body.clientName.trim().slice(0, 200) || null;
   if (typeof body.roleLabel === 'string') patch.role_label = body.roleLabel.trim().slice(0, 120) || null;
   if (typeof body.projectType === 'string') patch.project_type = body.projectType.slice(0, 40) || null;

@@ -11,8 +11,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getVoiceSession } from '@/lib/voice/auth';
 import { normalizeWidgets } from '@/lib/voice/widgets';
 import { sanitizeWidgetProps } from '@/lib/voice/sanitize';
-import { defaultPageBySlug, newProjectBlocks } from '@/lib/voice/default-pages';
-import { slugify } from '@/lib/voice/slug';
+import { defaultPageBySlug, newPageBlocks, newProjectBlocks } from '@/lib/voice/default-pages';
+import { safeSlug, slugify } from '@/lib/voice/slug';
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
@@ -92,9 +92,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // ── NEW PAGE ──
-  const title = String(body.title ?? '').trim() || 'Untitled project';
   const kind = body.kind === 'page' ? 'page' : 'project';
-  const baseSlug = slugify(body.slug || title);
+  const title = String(body.title ?? '').trim() || (kind === 'page' ? 'Untitled page' : 'Untitled project');
+  // `safeSlug` rather than `slugify`: a PAGE slugged `studio` or `login` is shadowed by a static
+  // route that never reads this table, so it would never render and nothing would error — see
+  // SHADOWED_SLUGS. Projects live under /work/<slug> and cannot collide, so they keep the plain slug.
+  const baseSlug = kind === 'page' ? safeSlug(body.slug || title) : slugify(body.slug || title);
 
   // Slug collisions are resolved by suffixing rather than rejected. Andrew naming two projects
   // "Radio spot" is normal; making him invent a URL is not.
@@ -110,7 +113,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     slug = `${baseSlug}-${attempt}`;
   }
 
-  const blocks = normalizeWidgets(newProjectBlocks(title)).map((w) => ({
+  // A page is not a project: project scaffolding on a page about his rates is five blocks to delete
+  // before he can start, which is where a person decides the builder is fighting them.
+  const scaffold = kind === 'page' ? newPageBlocks(title) : newProjectBlocks(title);
+  const blocks = normalizeWidgets(scaffold).map((w) => ({
     ...w,
     props: sanitizeWidgetProps(w.type, w.props),
   }));
