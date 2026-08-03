@@ -579,6 +579,53 @@ been worth shipping.
 - **S7. The spreadsheet surface.** Editable numeric tables per layer, new points from typed
   coordinates, round-tripping to the drawing.
 
+  #### ✅ S7a DONE 2026-08-03 — typed coordinates now land where they were typed (a real bug, found in passing)
+
+  S7 asks for "editable numeric tables per layer, new points from typed coordinates, round-tripping
+  to the drawing". Checking the premise first, as usual: **most of it already exists.**
+  `PointDataViewer.tsx` (788 lines) is an editable table that filters by layer and writes back
+  through `updateFeature`, and `PointTablePanel.tsx` sits beside it. What is missing is a create
+  path — and looking for that turned up something worse.
+
+  ### ▶ The defect: coordinate entry ignored the app's own display convention
+
+  `formatCoordinates` does two things to a world point before showing it:
+
+  1. **adds the origin offset** — `displayed northing = worldY + originNorthing`, and the origin is
+     set *automatically whenever survey data with real-world coordinates is imported*;
+  2. **orders and labels the pair by `coordMode`** — **N then E by default**, not X then Y.
+
+  **Nothing undid either.** The command bar took a typed `a,b` straight into `{ x: a, y: b }` world
+  feet. So on any drawing with a real-world origin, a surveyor could read a northing off the status
+  bar, type it back, and get a point that is **not where they typed it** — displaced by the origin,
+  and with the axes swapped if they typed in the order the app was showing them.
+
+  Both failures are silent. The drawing looks fine, the number looks accepted, and the point is in
+  the wrong place. And it stays invisible on a scratch drawing, because the origin is 0 there — **it
+  only bites once a survey import sets a real-world origin, which is exactly when the coordinates
+  matter.** A Texas state-plane northing is around ten million feet; the error is not subtle when it
+  finally appears.
+
+  `coordinatesFromDisplay` in `lib/cad/geometry/units.ts` is the missing inverse, sitting beside the
+  formatter it mirrors so the pair cannot drift. Note the order of operations: display unit → feet
+  **then** remove the origin. Reversed, it subtracts feet from a value still in metres, which is the
+  obvious way to get this subtly wrong and is pinned by a test.
+
+  **The round-trip test is the one that matters** — format a world point, read the two displayed
+  numbers back, and require the same point. It runs against a real state-plane origin, in both
+  coordinate modes, and in metres.
+
+  ### ⚠ This is a deliberate behaviour change, and the owner should know
+
+  In **NE mode (the default)** the command bar now reads the first value as the **northing**. Anyone
+  who had learned to type `x,y` there will find the axes swapped from what they are used to. The
+  change is still right — the app displays `N: … E: …` and input should match what it displays — but
+  it is a change to shipped behaviour rather than a pure fix, so it is called out rather than buried.
+  `@dx,dy` relative entries are deliberately untouched: a displacement has no origin to remove.
+
+  9 tests. **S7b — the create path** (add a point by typing coordinates into the table) is what S7
+  originally asked for and still needs doing; it now has a correct conversion to build on.
+
 - **S8. Draw from research.** Take the boundary the research platform already produces —
   `SurveyReading` now carries calls, monuments, curves, features and per-finding confidence — and
   render an editable drawing from it. **This is the natural join between the two halves of the
@@ -775,7 +822,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S9b (UI/overlay, needs a browser).
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **S7a is DONE** (coordinate-entry defect fixed). **Not started:** S1b+, S4 (recommended for deferral), S5, S7b (create-a-point UI), S9c (canvas overlay).
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read

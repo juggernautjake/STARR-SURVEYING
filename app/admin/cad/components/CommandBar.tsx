@@ -15,6 +15,9 @@ import {
 import type { ParsedCommand, Feature } from '@/lib/cad/types';
 import { useHotkeyContext } from '../hooks/useHotkeyContext';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
+// S7a — the inverse of formatCoordinates. Typed coordinates are in DISPLAY space.
+import { coordinatesFromDisplay } from '@/lib/cad/geometry/units';
+import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { parseBearing } from '@/lib/cad/geometry/bearing';
 import { parseLength } from '@/lib/cad/units/parse-length';
 import { parseAngle } from '@/lib/cad/units/parse-angle';
@@ -253,7 +256,18 @@ export default function CommandBar() {
             toolState.basePoint ?? { x: 0, y: 0 };
           pt = { x: last.x + (val.dx ?? 0), y: last.y + (val.dy ?? 0) };
         } else {
-          pt = { x: val.x ?? 0, y: val.y ?? 0 };
+          // S7a — an ABSOLUTE pair is what the user READ off the screen, so it is in display space:
+          // ordered by `coordMode` (N then E by default, not X then Y) and carrying the origin
+          // offset that a survey import sets automatically. Taking it as raw world feet — which is
+          // what this line used to do — put the point somewhere the user did not type, silently, on
+          // exactly the drawings where coordinates matter most.
+          //
+          // RELATIVE entries above are deliberately untouched: `@dx,dy` is a displacement, and a
+          // displacement has no origin to remove. Only its unit conversion applies, which
+          // `parseLength` already did.
+          const prefs = useDrawingStore.getState().document.settings.displayPreferences
+            ?? DEFAULT_DISPLAY_PREFERENCES;
+          pt = coordinatesFromDisplay(val.x ?? 0, val.y ?? 0, prefs);
         }
         toolStore.addDrawingPoint(pt);
         return;

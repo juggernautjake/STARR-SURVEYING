@@ -259,6 +259,45 @@ export function formatCoordinates(
   };
 }
 
+/**
+ * The inverse of `formatCoordinates` — turn the two numbers a user TYPED into world coordinates.
+ *
+ * CAD_AUDIT Slice S7a. This did not exist, and its absence was a live defect rather than a missing
+ * convenience. `formatCoordinates` above does two things to a world point before showing it:
+ *
+ *   * adds the origin offset (`displayed northing = worldY + originNorthing`), which is set
+ *     automatically whenever survey data with real-world coordinates is imported; and
+ *   * orders and labels the pair by `coordMode` — **N then E by default**, not X then Y.
+ *
+ * Nothing undid either. The command bar took a typed `a,b` straight into `{ x: a, y: b }` world
+ * feet, so on any drawing with a real-world origin a surveyor could read a northing off the status
+ * bar, type it back, and get a point that is not where they typed it — displaced by the origin, and
+ * with the axes swapped if they typed in the order the app was showing them. Both failures are
+ * silent: the drawing looks fine, the number looks accepted, and the point is in the wrong place.
+ *
+ * `first` and `second` are the two values in the order the user entered them, already in the display
+ * linear unit. Returns world feet.
+ */
+export function coordinatesFromDisplay(
+  first: number,
+  second: number,
+  prefs: DisplayPreferences,
+): { x: number; y: number } {
+  // Order first: in NE mode the leading value is the NORTHING, which is world Y.
+  const northingDisplay = prefs.coordMode === 'NE' ? first : second;
+  const eastingDisplay  = prefs.coordMode === 'NE' ? second : first;
+
+  // Display unit → feet, then remove the origin. Both steps mirror `formatCoordinates` exactly and
+  // in reverse; doing them in the other order would subtract feet from a value still in metres.
+  const northingFeet = linearUnitToFeet(northingDisplay, prefs);
+  const eastingFeet  = linearUnitToFeet(eastingDisplay, prefs);
+
+  return {
+    x: eastingFeet - prefs.originEasting,
+    y: northingFeet - prefs.originNorthing,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Area formatting
 // ─────────────────────────────────────────────────────────────────────────────
