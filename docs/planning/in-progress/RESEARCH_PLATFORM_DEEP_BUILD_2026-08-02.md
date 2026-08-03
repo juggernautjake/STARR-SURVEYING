@@ -29,6 +29,18 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 
 ### Session of 2026-08-03
 
+**Phase I added — the survey itself.** A new phase (§3, Phase I) for a set of owner requests that are
+all about the *content* of a document rather than about finding it: corner markers read as objects,
+corners positioned relative to each other, varas converted, and an old survey rotated onto the grid
+being shot. S1–S4 shipped; S5–S8 (curve checks, the drawing, retrieval for the five vendors that
+still lack it, and measured OCR tiling quality) are specified there.
+
+**Document retrieval is real for 22 counties, not one.** An audit found `KofileClerkAdapter.
+getDocumentImages` is a full implementation — Bell was never a bespoke exception, it is the same
+path. It could still `return []` when the viewer changed its class names, which says *this document
+has no pages* about a document the index just listed; it now falls through to the production capture
+and then throws rather than answering with an empty array.
+
 **County coverage: 22 → 41 routed counties.** S-7 turned out to be a county-list expansion rather
 than an adapter — `texaslandrecords.com` is a directory of the Avenu portals already driven, so the
 Avenu adapter went from 2 counties to 19 with no parser change, and two verified Kofile counties
@@ -2644,6 +2656,139 @@ browser; the HTTP survey above is what could be done without it.
 
 ---
 
+### Phase I — The survey itself (added 2026-08-03, owner request)
+
+**Owner asks, verbatim in intent:**
+
+> *"Work especially hard on reviewing and analyzing and extracting information from the surveys such
+> as where corner markers are like iron stakes and iron rods and stuff, and chord lengths and radius
+> and bearings/azimuths and distances and all of that. We need to extract everything of significance
+> from every file we pull."*
+>
+> *"Extract the information that tells us where boundary markers are in relation to each other
+> exactly if possible for every survey research run."*
+>
+> *"If we have an older survey where the bearings are 1–3 degrees off of our GPS recordings from the
+> actual field, we can input our recordings and correctly rotate the original so that the bearings
+> and distances most closely align with the Texas State Plane version we are shooting. Or we might
+> even have robotic and need to adjust the bearing and distances based on what we put in for our
+> initial bearing."*
+>
+> *"Get to a place where the AI could programmatically recreate the boundary survey drawing and
+> clearly show the bearings/azimuths and distances. We would need it where it could convert varas to
+> US survey ft too for older surveys."*
+>
+> *"Use OCR or something to screenshot the images we find if we cannot find a way to download the
+> files. Maybe we just need to wait a bit longer for file images to render in the viewer."*
+
+This phase is about the **content** of the documents, where Phases A–H were about finding them. The
+distinction matters: everything before this made a document arrive; nothing before this read one as a
+*survey*.
+
+---
+
+- **S1. Corner markers, read as objects rather than sentences.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/monuments.ts`)
+
+  The extraction already captured monument text into `BoundaryCall.toPoint`, and nothing parsed it —
+  `"a 5/8 inch iron rod with yellow cap stamped RPLS 5310, found"` travelled the entire platform as a
+  string. Now: kind, size, cap, RPLS number, condition, and status.
+
+  **FOUND vs SET is what the whole of boundary retracement rests on**, and it is the field this slice
+  exists for. A *found* monument, if original, **controls** the corner over the record distance — it
+  is where the parties actually put the line. A *set* one is the previous surveyor's **opinion** made
+  permanent. Treating a set rod as found evidence is how a boundary drifts: surveyor A sets it a foot
+  off, surveyor B "finds" and holds it, and the error is now permanent with a paper trail behind it.
+
+  So status is **never inferred**. Text that does not say gets `unknown` and is reported as a question
+  for the field — defaulting to found would manufacture controlling evidence, defaulting to set would
+  discard it. `"not found"` is tested **before** `"found"`, because `found` is a substring of it and
+  getting that one backwards inverts the most consequential field in the file.
+
+- **S2. Where the corners are in relation to each other.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/survey-geometry.ts`)
+
+  A metes-and-bounds description only ever relates **consecutive** corners. Traversing it into
+  coordinates answers what the prose cannot: *from the rod I am standing on, which way and how far is
+  any other corner* — including the diagonal, which no deed states.
+
+  **A bearing that will not parse is not due north.** `TraverseComputation.bearingToAzimuth` returns
+  `0` when its regex fails. Zero is a legitimate azimuth, so an unreadable call silently becomes a
+  real line pointing north, every corner after it is displaced, the closure error absorbs it, and the
+  traverse still "computes". `parseBearing` returns null, and a traverse containing an unplaced call
+  **refuses to report a closure at all** — it is not a traverse with one fewer side, it is two
+  disconnected runs of corners.
+
+- **S3. Varas, chains, and the two different feet.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/survey-units.ts`)
+
+  The Texas vara is a **legal definition** — 33⅓ inches, exactly 25/9 US survey feet — not the
+  Californian or Mexican vara, which differ by about a foot per 1,900 varas. A vara call read as feet
+  is 36% of its true length **and the traverse still closes to something**, so units are normalised
+  before any geometry runs and `detectUnit` returns null rather than defaulting to feet.
+
+  The two feet are kept apart: US survey (1200/3937 m) versus international (0.3048 m), 2 ppm — about
+  0.01 ft per mile. Negligible for a fence corner, not negligible for a published State Plane
+  coordinate, and the Texas zones are defined in US survey feet.
+
+- **S4. Rotating a record survey onto the grid being shot.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/bearing-rotation.ts`)
+
+  **1–3 degrees is not error — it is a different north.** Magnetic (declination in Central Texas has
+  swung several degrees over a century, so the survey's *date* changes the answer), true, grid
+  (convergence, which grows toward the zone edge), or an assumed basis. So the operation is a
+  **rotation, not a correction**: the internal angles are the old surveyor's actual observations and
+  are usually better than the basis they were reported against.
+
+  Closed-form 2-D Helmert, which for rotation and uniform scale *is* the least-squares answer. Scale
+  is held at 1 unless asked, because a systematic distance difference is usually grid-versus-ground
+  (~1 part in 10,000, about half a foot in a mile) or a unit mistake, and both should be seen rather
+  than absorbed into a scale term.
+
+  **One common point produces no rotation at all** — it fixes position, not direction, and returning
+  0° would read as "the bases already agree". **Two produce an exact and therefore unchecked fit**,
+  which is said out loud. The robotic case (`rotationFromBackthesight`) carries the same warning:
+  whatever bearing you enter for the backsight *is* the basis, so if it is on the wrong monument the
+  whole survey rotates with it and nothing in the arithmetic can tell.
+
+  **An outlier rule that could never fire.** Least squares *spreads* a blunder: of size `d`, the bad
+  point keeps `d(n−1)/n` and the others absorb `d/n` each, capping the ratio at **n−1**. A "3 sigma"
+  test on four corners can therefore never trigger — an 8-foot bust came out at exactly 3.0 and
+  passed. Now compared against the **median** of the remaining residuals, which one bad value cannot
+  move.
+
+---
+
+#### Still to build in this phase
+
+- **S5. Curves, as first-class geometry.** `BoundaryCall.curve` already carries radius, arc length,
+  chord bearing, chord distance, delta and direction, and the traverse walks the **chord** (the chord
+  joins the corners a crew occupies). What is missing is *checking* them: radius, delta and arc are
+  over-determined — any two give the third — so a curve whose three values disagree is a
+  transcription error **the document itself can prove**, and one of very few places a record can be
+  checked without going to the field.
+
+- **S6. The drawing.** Coordinates now exist for every corner, so the boundary can be drawn
+  programmatically with each line labelled by bearing and distance. `svg-renderer.ts` and
+  `plat-drawing-generator.ts` already exist and take a boundary model; the remaining work is feeding
+  them the traverse output and labelling in the **deed's own units** — a line recited in varas should
+  read in varas with the converted feet beside it, not silently in internal feet.
+
+- **S7. Document retrieval for the vendors that still lack it.** Kofile (22 counties) captures pages;
+  Tyler Eagle, Avenu, eDocTec, Aumentum and iDocMarket do not, and their `getDocumentImages` throws
+  saying so rather than returning empty. The owner's suggestion — *screenshot the viewer when the file
+  cannot be downloaded, and wait longer for it to render* — is the right general fallback and is
+  already the shape of Kofile's last resort. Each vendor needs its viewer driven once to find the
+  render signal worth waiting on; a fixed sleep is what makes a scraper flaky.
+
+- **S8. OCR tiling quality.** Tiling exists on both the image and PDF paths and now records real tile
+  geometry (R17). What has never been **measured** is whether the grid and overlap suit a 36×48 plat:
+  too few tiles and the fine bearing text falls below the model's resolution, too many and the cost
+  multiplies with no gain. This wants a measured comparison against a known-good plat rather than a
+  guess — which makes it one of the few slices here that genuinely needs a golden record first (§4).
+
+---
+
 ## 4. Decisions that are the owner's, not mine
 
 These block specific slices and must not be guessed:
@@ -2670,3 +2815,9 @@ Build in order **A → B → C → D → E → F**, one slice per pass. Phase A 
 are what make every later claim in this document verifiable. A slice is done when its acceptance
 criterion is demonstrated — for UI slices that means **driven in a browser**, not just typechecked,
 per this repo's standing lesson that a green suite does not catch an unwired feature.
+
+**Phases G, H and I were added later, from owner requests, and do not sit in that sequence.** G and H
+are coverage — the neighbours and the counties this firm actually works. **Phase I is different in
+kind**: A–H are all about making a document *arrive*, and I is the first phase about reading one as a
+survey. Its remaining slices (S5–S8) are the highest-value work left in this document, because every
+county added by G and H only pays off once the file that county holds can be read properly.
