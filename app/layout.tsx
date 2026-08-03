@@ -132,10 +132,22 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#BD1218',
-  // Lock pinch-zoom off when installed as a PWA so the app feels native
-  // on phones; users can still zoom inside file viewers / image previews.
   width: 'device-width',
   initialScale: 1,
+  // PWA plan W6 — PINCH-ZOOM IS DELIBERATELY LEFT ENABLED. No `maximumScale`, no `userScalable`.
+  //
+  // The comment that used to sit here claimed zoom was "locked off so the app feels native", and it
+  // had been wrong for as long as it existed — neither option was ever set. Corrected rather than
+  // implemented, because the comment described the worse behaviour of the two:
+  //
+  //   * Blocking zoom is an accessibility failure (WCAG 2.1 SC 1.4.4, Resize Text). This app is used
+  //     outdoors in bright sun by crews reading bearings and job numbers — pinching to check a digit
+  //     is exactly the case it would break.
+  //   * It would not work anyway. iOS Safari has ignored `user-scalable=no` since iOS 10, so the
+  //     only reliable effect would be on Android.
+  //
+  // Left as a comment rather than deleted so the next person to reach for "make it feel native"
+  // finds the reasoning instead of the idea.
 };
 
 // ============================================================================
@@ -150,8 +162,11 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        
+        {/* W6 — no hand-written viewport meta here. Next injects one from the `viewport` export
+            above, so writing a second by hand put TWO viewport tags in every page's head, with the
+            duplicate silently outranking or shadowing the export depending on order. Removed so
+            there is one declaration and one place to change it. */}
+
         {/* Preconnect for faster font loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

@@ -190,9 +190,59 @@ business app a worker, and share one push backend.
   A multi-tenancy ratchet (`starr-assumptions`) caught the first draft for hard-coding the firm name
   three more times; the copy is generic now, which is better for tenanting and reads no worse.
 
-- **W6. Mobile fitness pass.** "Make sure everything works on mobile" is its own slice and needs a
-  device pass, not a desktop resize. Worth doing after W1–W3 so it is tested inside the installed
-  shell, where there is no browser chrome and viewport units behave differently.
+- **W6. Mobile fitness pass.** ⚠️ **PARTLY DONE 2026-08-03 — the decidable half shipped; the device
+  half is NOT done and is not claimed.**
+
+  W6 says this "needs a device pass, not a desktop resize", and that is still true. Most of it —
+  real touch targets, thumb reach, behaviour inside the installed shell where there is no browser
+  chrome and viewport units change meaning — cannot be established from source or from a resized
+  desktop window, and none of it is asserted here.
+
+  **The browser was also unavailable for this slice.** Playwright refused local connections that
+  `fetch` from Node completed successfully, across three ports and after closing stale tabs. Rather
+  than loop on it, the slice was re-scoped to what is decidable statically. Recorded so the next
+  session does not read "W6 partly done" as "the pages were looked at on a phone-sized viewport" —
+  they were not.
+
+  ### What shipped: the viewport declaration, which breaks everything else when it is wrong
+
+  Two real defects, both in `app/layout.tsx`:
+
+  1. **A comment claimed pinch-zoom was "locked off so the app feels native". It never was** —
+     neither `maximumScale` nor `userScalable` was ever set. **Corrected the comment, not the code**,
+     because the comment described the worse behaviour:
+     - blocking zoom fails WCAG 2.1 SC 1.4.4, and this app is read outdoors in bright sun by crews
+       checking bearings and job numbers on a phone — pinching to confirm a digit is exactly the
+       case it would break;
+     - it would not even work: iOS Safari has ignored `user-scalable=no` since iOS 10, so the only
+       reliable effect is to break Android for low-vision users.
+
+     The dangerous shape here is that the code was RIGHT and the comment was WRONG. Someone tidying
+     up by making them agree would have shipped an accessibility regression that looked like a fix.
+     `__tests__/pwa/mobile-viewport.test.ts` now fails on that edit — watched failing by making it.
+
+  2. **The viewport was declared twice** — the Next `viewport` export *and* a hand-written
+     `<meta name="viewport">` in `<head>`, so every page carried two, with the duplicate shadowing
+     or outranking the export depending on order. Removed the hand-written one.
+
+  Also pinned: the offline page (raw HTML outside the React tree, so it inherits none of the app's
+  layout rules) declares its own viewport, does not disable zoom, and constrains its width.
+
+  **A third instance of the same self-inflicted bug appeared while writing this**, and it is worth
+  naming because it is now a pattern rather than an accident: the zoom sweep failed against the very
+  comment explaining *why* zoom is not disabled. Every source-scanning check written today got this
+  wrong on its first run. **The failure is not symmetric** — a prose mention causes a false alarm,
+  which is annoying but visible, while the same blindness lets a file that merely *describes* a fix
+  pass as though it applied one. The stripper here handles `//`, `/* */` **and JSX `{/* */}`; a
+  version that knew only the first two would still have failed on this file.
+
+  ### What is left, and what it needs
+
+  **W6b — the actual device pass.** Needs a phone, ideally after installing to the home screen so it
+  is exercised in the standalone shell. The field-critical surfaces are the shortlist: `/admin/me`,
+  the job page and its Work Mode tabs, receipt/photo capture, and `/admin/install` itself. **Not
+  deferrable** — "works on mobile" is the owner's explicit requirement and this half is the half that
+  actually answers it.
 
 ---
 
@@ -210,7 +260,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **Next: W6** (mobile fitness) and W4b (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 partly shipped** (viewport correctness + a zoom-lock guard; the DEVICE pass W6b still needs a phone). **Next: W4b** (subscribe UI + a table per area) (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
 this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it
