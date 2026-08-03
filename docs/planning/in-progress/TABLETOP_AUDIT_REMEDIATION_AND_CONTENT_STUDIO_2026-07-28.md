@@ -4264,9 +4264,57 @@ ticked that has not been verified.**
       Driven in a browser on four real invites (live · DM · expired · unknown), created and **deleted**
       afterwards — all four read correctly; the unknown code shows the generic title and leaks no name.
       12 tests.
-- [ ] **P14-11 — Streamer parity on IG/PF2.** Background animation, effects and go-live/chat. 85
-      `.dnd-sheet.skin-streamer` selectors, many targeting 5e-specific markup (`.stat .big`, `.ab .score`)
-      that needs bespoke equivalents, not wider selectors. **Audit which are structural first.**
+- [ ] **P14-11 — Streamer parity on IG/PF2.** Background animation, effects and go-live/chat.
+      ~~85 selectors~~ **93.** *"Audit which are structural first"* — **✅ the audit is DONE (2026-08-03);
+      the build is not. Read this before writing a single rule.**
+
+      **The premise was half right, and the half it missed is the expensive half. Not one of the 90
+      `theme.css` streamer rules currently applies to a PF2 or IG sheet at all** — every one is prefixed
+      `.dnd-sheet.skin-streamer`, *both classes on the same element*, and the PF2/IG roots never carry
+      `dnd-sheet`:
+
+      | root | className | matches? |
+      |---|---|---|
+      | 5e (`App.tsx:193`) | `dnd-sheet sheet-shell skin-streamer variant-pink` | ✅ |
+      | PF2 (`PF2Sheet.tsx:129/160/197`) | `sheet-shell skin-streamer` | ❌ |
+      | IG (`IGSheet.tsx:143/172/200`) | `sheet-shell igs-root skin-streamer` | ❌ |
+
+      So this is *"the skin barely applies"*, not *"the rules target the wrong markup"*. The entire streamer
+      treatment PF2/IG get today is **3 selectors** in `skinAccents.css` (a CRT scanline on `::before`) plus
+      the token bridge. No motion at all.
+
+      **The 90 rules, classified:**
+
+      | bucket | count | what it means |
+      |---|---|---|
+      | **A — system-agnostic chrome** | 28 | root/background/motion, bare `h2`/`th`/`input`, `.btn` family, `.footer`. **Free** the moment a `.sheet-shell.skin-streamer` / `.igs-root.skin-streamer` arm is added. |
+      | **B — 5e-only markup** | 53 | `.ab .score`, `.vpill`, `.apill`, `.hero`, `.tabs`, `.token-frame`, the 11 stream-chat/influence selectors… |
+      | **C — shared *name*, 5e-only in practice** | 9 | `.card`, `.chip`, `.sec-num` — PF2 uses CSS-module equivalents, IG uses `igs-*`. |
+
+      **Two blockers that decide the whole shape of the build, and neither is CSS-authoring effort:**
+      · **PF2's class names are CSS-MODULE names** (`hextech.module.css` → `pf2StatVal` compiles to a hash).
+        A rule in the global `theme.css` **cannot** target them. Bespoke PF2 rules must live inside the
+        module using `:global(.skin-streamer) .pf2StatVal`, or the markup needs global hooks.
+      · **IG's value elements carry no class and are INLINE-STYLED** (`useIgPanels.tsx:660` sets
+        font-size/weight/colour inline). Inline beats any stylesheet short of `!important`. `IGS_STYLES`'
+        own comment already documents this — it deliberately restricts itself to `transform`/`box-shadow`/
+        `outline`, *"properties the panels never set inline"*.
+
+      **Three more traps for a naive widening:** `variant-blue` is gated 5e-only (`App.tsx:132`), so
+      `theme.css:2772` would be inert; PF2/IG set `background` **inline** on the root
+      (`PF2Sheet.tsx:99`, `IGSheet.tsx:122`), which beats the pink/gold page-wash; and `::before` is already
+      spent on the CRT scanline (`skinAccents.css:36`), so only `::after` is free.
+
+      **Go-live and chat are MODULE features, not skin features.** `StreamOwnerControls` and `StreamChat`
+      are mounted only from `App.tsx` behind `config.modules.includes('stream')` (`registry.ts:71`); the
+      influence meter is imported only by `StreamChat`. Reaching PF2/IG means mounting them and giving the
+      bespoke sheets a `modules` equivalent — a larger job than any stylesheet, and the reason the 11
+      stream selectors in bucket B restyle markup those systems never render.
+
+      **Suggested split, now that the shape is known:** `P14-11a` add the selector arm and take bucket A
+      (28 rules, cheap, visible — background/motion/buttons/footer); `P14-11b` bespoke stat treatments,
+      which needs the PF2 module-scope decision and IG class hooks *first*; `P14-11c` the stream module on
+      bespoke sheets, which is not a styling task at all.
 - [ ] **P14-12 — Composable spells.** The largest request. A spell must be able to LINK to the thing it
       summons or applies — a creature, a weapon, a condition, an effect — resolving to a catalogue entry,
       an existing homebrew piece, or one authored inline in the spell builder. Casting grants it for the
