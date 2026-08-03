@@ -52,7 +52,7 @@ that *no* county of an unproven vendor routes to it.
 ### Buildable work still outstanding
 | Slice | What remains | Why it was not done in the slice |
 |---|---|---|
-| R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
+| ~~R14~~ | **DONE 2026-08-03** — errands run by citation, five outcomes, and "could not be searched" never reported as "not found" | — |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
@@ -702,9 +702,47 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 342/342; both roots typecheck clean.
 
-  **Remaining:** the exhaustive backward re-query — going back to the clerk for the deeds the gap
-  list names, rather than only walking documents already harvested. That needs the adapter call path
-  and per-county index horizons as data; the gap list is its input.
+  **DONE 2026-08-03 — the third half** (`worker/src/chain-of-title/chain-errands.ts`).
+
+  R14 turned out to be three pieces, not two. `chain-gaps.ts` writes the errands; `chain-walker.ts`
+  goes back to the clerk **by name**; this goes back **by citation**. The gap list said *"the 1974
+  deed recites Volume 412, Page 88, which is not in this chain. Pull it."* and nothing pulled it. The
+  name walk cannot: it searches for a *party*, and it only runs when the chain ended in
+  `grantor_deed_not_found` — so a chain that reached the sovereignty grant could still recite a
+  partition deed nobody fetched and call itself complete. Errands run **regardless of how the chain
+  ended**, because being named is what makes an instrument fetchable.
+
+  A citation search is not a guess — the deed supplied the volume and page — so there is no scoring
+  in that file. When a citation returns two instruments, that is a fact about the county's index and
+  both are reported rather than one being picked.
+
+  **Five outcomes, not two.** Several adapters deliberately THROW on `searchByVolumePage` —
+  USLandRecords says *"a missing capability, not an empty result"* — and the obvious implementation
+  (`try { … } catch { return [] }`) would convert that sentence back into the defect it was written
+  to prevent. The packet would say *"Volume 412, Page 88 — not found"* about a deed sitting in the
+  courthouse, indexed, findable by anyone who walks in, and the surveyor stops looking. So:
+  `resolved` / `not_found` / `capability_missing` / `search_failed` / `skipped_budget`. Only
+  `not_found` is evidence about the record, and even it is evidence about the *online* index. The
+  unresolved reasons are never totalled together.
+
+  **A round trip that did not hold**, found by the wiring test rather than by the module's own tests:
+  the deed recites `Volume 412, Page 88` → `VOL412PG88`, and the county returns that instrument
+  numbered `V412P88`. Nothing derived one from the other, so the gap stayed **open with the deed in
+  hand** — and the next run would fetch it again, paying again on a paid platform. Fixed twice:
+  `linkInstrumentKeys` now reads the lettered form counties actually use, and
+  `ChainLink.resolvedCitations` records the key we searched for. The second is the reliable one —
+  instrument formats vary by county and century, and a derivation good enough for Bell will be wrong
+  somewhere.
+
+  One pass only: a fetched ancestor may cite instruments of its own, and those become the *next*
+  run's errands rather than being chased here, so the cost stays bounded and stated.
+
+  Worker suite 1,025/1,025; both roots typecheck clean.
+
+  **Still owner-gated, not code-gated:** per-county index horizons as data (the `IndexHorizon`
+  parameter exists and is honoured; what is missing is a table of which year each county's index
+  begins, which is research rather than engineering — 19 of them are now recorded in
+  `uslandrecords-discovery.ts` as a by-product of S-7).
 
 - **R15. Complete plat history.** ◑ PART DONE 2026-08-02 — supersession + governing plat shipped;
   page images per instrument remain
