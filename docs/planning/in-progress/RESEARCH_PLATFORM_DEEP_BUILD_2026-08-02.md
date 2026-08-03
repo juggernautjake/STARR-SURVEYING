@@ -2302,6 +2302,43 @@ different phrasing — rather than implying the land is unencumbered. Seed 565.
 
 **Search-by-land now works in 22 of 22 routed counties.**
 
+#### R39, nineteenth finding — the defect, audited and ratcheted
+
+The previous finding came from re-reading code that was already "working". Applying that lens to
+every routed adapter found **eleven instances** of the same shape:
+
+| Adapter | Method | Returned `[]` for |
+|---|---|---|
+| Kofile | `searchByLegalDescription` | "not supported" (seed 565) |
+| Kofile | `parseSearchResults` | a dead session |
+| Kofile | DOM + vision parse | both parsers failing |
+| Kofile | AI parse | an unparseable reply |
+| TexasFile | instrument / vol-page / grantee / grantor | a swallowed error, ×4 |
+| TexasFile | `searchByLegalDescription` | "not on the free tier" |
+| TexasFile | `getDocumentImages` | "requires purchase" |
+| TexasFile | `parseResults` | a dead session |
+
+**TexasFile is the fallback for 232 counties**, so its instances reached further than any other bug
+in this build: a slow site, a blocked request or a changed page reported *"this property has no
+records"* for most of Texas.
+
+**Why it keeps happening.** Every one of these is locally reasonable. Returning `[]` from a catch
+block looks defensive; returning `[]` for an unsupported operation looks tidy; returning `[]` when
+the page is gone looks like a guard clause. The damage is invisible at the site of the decision and
+only appears at the call site, where *"the search crashed"*, *"we do not offer that search"* and
+*"this land is unencumbered"* all arrive as the same value.
+
+**The ratchet.** `no-silent-empty-results.test.ts` now fails the build if any routed adapter returns
+`[]` from a catch block or from a missing session. **It immediately caught two instances I had
+missed while fixing the other nine** — which is the argument for having it: this defect is not
+something a careful reading reliably catches.
+
+Every failure path now throws with what actually happened — *"session failure, NOT an empty index"*,
+*"UNREAD, NOT no records"*, *"the absence of ACCESS, not the absence of images"*.
+
+**Verified after the change:** Bell grantor `SMITH` → 50 documents; full-text `HAMMIL` → 7. The
+rewrite did not break the paths that worked. Seed 566.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

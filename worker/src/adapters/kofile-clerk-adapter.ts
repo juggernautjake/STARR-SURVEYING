@@ -629,7 +629,14 @@ export class KofileClerkAdapter extends ClerkAdapter {
   // ── Search result DOM parser ──────────────────────────────────────────────────
 
   private async parseSearchResults(): Promise<ClerkDocumentResult[]> {
-    if (!this.page) return [];
+    // No page means the session died, not that the county has no records. Returning [] here made a
+    // browser failure indistinguishable from a property with nothing recorded against it.
+    if (!this.page) {
+      throw new Error(
+        `[Kofile/${this.countyName}] Cannot parse results — the browser session is gone. ` +
+          `This is a session failure, NOT an empty index.`,
+      );
+    }
 
     // A county whose portal has no land-records department will return an empty results page for
     // every deed search, and an empty result reads as "this property has no deeds" — the most
@@ -684,8 +691,12 @@ export class KofileClerkAdapter extends ClerkAdapter {
       const screenshot = await this.page.screenshot({ fullPage: true });
       return await this.aiParseSearchResults(screenshot);
     } catch (e) {
-      console.warn(`[Kofile/${this.countyName}] AI fallback also failed:`, e);
-      return [];
+      // Both parsers failed. That is a page we could not READ, which is the opposite of a page with
+      // nothing on it — and the caller cannot tell the difference from an empty array.
+      throw new Error(
+        `[Kofile/${this.countyName}] Could not read the results page: the table parser failed and the ` +
+          `vision fallback also failed (${(e as Error).message}). Treat as UNREAD, NOT as "no records".`,
+      );
     }
   }
 
@@ -770,8 +781,12 @@ Return ONLY valid JSON, no explanation. If no results visible, return [].`,
           source: `kofile_${this.countyFIPS}_ai`,
         } satisfies ClerkDocumentResult;
       });
-    } catch {
-      return [];
+    } catch (e) {
+      // The model's reply could not be parsed. Unread, not empty.
+      throw new Error(
+        `[Kofile/${this.countyName}] The AI results parser returned something unusable ` +
+          `(${(e as Error).message}). Treat as UNREAD, NOT as "no records".`,
+      );
     }
   }
 
