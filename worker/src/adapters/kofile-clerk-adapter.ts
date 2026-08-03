@@ -511,21 +511,69 @@ export class KofileClerkAdapter extends ClerkAdapter {
     });
   }
 
+  /** Search the scanned document TEXT — Kofile's search-by-land path (plan R39).
+   *
+   *  ── THIS METHOD USED TO RETURN AN EMPTY ARRAY ─────────────────────────────────────────────────
+   *
+   *  It logged "Legal description search not supported" and returned `[]`. Two things were wrong
+   *  with that, and the second is worse than the first.
+   *
+   *  It was factually wrong: standard PublicSearch DOES support full-text search, through the
+   *  `searchOcrText` parameter this adapter was already sending as `false`.
+   *
+   *  And it returned `[]` for an unsupported operation. A caller cannot tell that from "this land
+   *  has no documents", so the platform's answer for every legal-description search across TWENTY
+   *  Kofile counties — including Bell, the home county — was a silent, confident nothing.
+   *
+   *  ── THE TWO MODES ARE DIFFERENT SEARCHES, NOT BROADER AND NARROWER ────────────────────────────
+   *
+   *  Driven on Bell 2026-08-02 with the term HAMMIL:
+   *
+   *      searchOcrText=false   23 results, matching PARTY NAMES (HAMMILL ERICA, HAMMILL ANDREW P)
+   *      searchOcrText=true     7 results, where the term appears NOWHERE in the row
+   *
+   *  The second set matched the OCR'd text inside the scanned documents. Turning OCR on does not
+   *  widen the index search — it runs a different one. Anybody assuming it is a superset would
+   *  conclude 16 documents had vanished. */
   async searchByLegalDescription(
     legalDesc: string,
-    _options?: ClerkSearchOptions,
+    options?: ClerkSearchOptions,
   ): Promise<ClerkDocumentResult[]> {
-    // CountyFusion SUPERSEARCH supports OCR full-text queries
-    if (this.config.hasSUPERSEARCH && this.config.superSearchUrl) {
-      return this.superSearch(legalDesc);
+    const term = (legalDesc ?? '').trim();
+    if (!term) {
+      throw new Error(`[Kofile/${this.countyName}] Empty legal description — refusing to search the whole index.`);
     }
 
-    // Standard PublicSearch does not support legal-description search
-    console.warn(
-      `[Kofile/${this.countyName}] Legal description search not supported — ` +
-      `use grantee/grantor search instead`,
-    );
-    return [];
+    // Session first — superSearch() needs a page too, and calling it before initSession() threw
+    // "Session not initialized" from inside a method that looked unrelated.
+    await this.initSession();
+    if (!this.page) throw new Error('Session not initialized');
+
+    // SUPERSEARCH is deliberately NOT used here.
+    //
+    // Bell is flagged `hasSUPERSEARCH`, and routing through it times out waiting for a search input
+    // that does not exist on the page — the same class of unverified URL that R37 found across four
+    // vendors. The `searchOcrText` path below was driven and works, so the proven route wins over
+    // the richer-sounding one. Re-enable SUPERSEARCH per county only after driving it.
+
+    return this.withSessionRetry(async () => {
+      console.log(`[Kofile/${this.countyName}] Full-text (OCR) search: "${term}"...`);
+      await this.page!.goto(this.resultsUrl(term, { ocr: true }), { waitUntil: 'networkidle', timeout: 45_000 });
+      await this.awaitResults();
+
+      const results = await this.parseSearchResults();
+      if (results.length === 0) {
+        // Say what an empty full-text result does and does not mean. It searches the scanned page
+        // TEXT, so a document indexed under a legal description it never spells out will not match.
+        console.warn(
+          `[Kofile/${this.countyName}] Full-text search for "${term}" returned nothing. This searched the OCR'd ` +
+            `DOCUMENT TEXT, not the property-description index, so an absent result means the words do not appear in ` +
+            `the scanned pages — NOT that no document touches this land. Try a party search, or a different phrasing ` +
+            `of the survey or subdivision name.`,
+        );
+      }
+      return results;
+    });
   }
 
   // ── SUPERSEARCH (CountyFusion OCR full-text) ──────────────────────────────────

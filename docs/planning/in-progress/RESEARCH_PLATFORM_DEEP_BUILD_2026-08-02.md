@@ -2257,6 +2257,51 @@ starting with LOT/BLOCK/TRACT — as a pure, tested function.
 Neither silently answers "no documents". That is the only thing they have to have in common.
 Seed 564.
 
+#### R39, eighteenth finding — twenty counties could not search by land, silently
+
+`KofileClerkAdapter.searchByLegalDescription` logged *"Legal description search not supported"* and
+returned an **empty array**. Two things were wrong, and the second is far worse.
+
+It was **factually wrong**: standard PublicSearch does support full-text search, through the
+`searchOcrText` parameter this adapter was already sending as `false` on every other query.
+
+And it **returned `[]` for an unsupported operation**. A caller cannot distinguish that from *"this
+land has no documents"*. So the platform's answer to every legal-description search across **twenty
+Kofile counties — including Bell, the home county — was a silent, confident nothing.**
+
+That is this document's defect at its largest blast radius: not one county, not one vendor, but the
+single search a surveyor most wants, answered wrongly everywhere it was offered.
+
+**The two modes are different searches, not broader and narrower.** Driven on Bell with `HAMMIL`:
+
+| Mode | Results | Matched on |
+|---|---|---|
+| `searchOcrText=false` | 23 | **party names** (HAMMILL ERICA, HAMMILL ANDREW P JR) |
+| `searchOcrText=true` | 7 | the term appears **nowhere in the row** — it matched the scanned document text |
+
+Turning OCR on does not widen the index search; it runs a different one. Anybody assuming it is a
+superset would conclude that 16 documents had vanished.
+
+**An unverified route was being preferred over a proven one.** Bell is flagged `hasSUPERSEARCH` and
+the method tried that first; driving it times out waiting for a search input that does not exist —
+the same class of unverified URL R37 found across four vendors. SUPERSEARCH is now disabled here and
+the driven path wins. (A smaller bug fell out with it: `superSearch()` ran *before* `initSession()`,
+so it failed with "Session not initialized" from inside a method that looked unrelated.)
+
+**Driven:** Bell, full-text `HAMMIL` → **7 documents, reaching back to 1929**.
+
+```
+2005038056  8/25/2005  AFFIDAVIT  MCDANNEL LINDA   → MORRIS WENDELL DWAYNE DECD
+1929001426  7/6/1929   (other)    HAMILL F P MRS   → SLOON J A
+1945003495  5/22/1945  (other)    ENNIS STATE BANK → SHANNON J K
+```
+
+Full-text searches the scanned page *text*, so a document indexed under a legal description it never
+spells out will not match. An empty result now says exactly that, and suggests a party search or a
+different phrasing — rather than implying the land is unencumbered. Seed 565.
+
+**Search-by-land now works in 22 of 22 routed counties.**
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
