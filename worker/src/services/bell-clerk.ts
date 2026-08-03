@@ -2616,16 +2616,28 @@ export async function fetchDocumentImages(
   expectedPages: number,
   logger: PipelineLogger,
   county: string = 'bell',
+  /** The portal to open, when the caller already knows it.
+   *
+   *  `KOFILE_CONFIGS` below is the ORIGINAL county list and still names Coryell, McLennan, Falls and
+   *  Lampasas, whose portals were probed dead in R37/R38 and removed from the verified routing set.
+   *  A caller holding a verified base URL — `KofileClerkAdapter`, which exists only because its
+   *  county passed that verification — should pass it rather than have it looked up here, or a
+   *  county whose routing was fixed gets its images fetched from a host that no longer resolves. */
+  baseUrlOverride?: string,
 ): Promise<DocumentPage[]> {
   // Check image cache — return cached pages if we already captured this instrument
-  const cacheKey = `${county}:${instrumentNumber}`;
+  // Keyed on the PORTAL as well as the county name, now that the base URL can be supplied by the
+  // caller. Two callers naming the same county but opening different portals — the stale config map
+  // versus a verified adapter URL — would otherwise share a cache entry, and the second would be
+  // handed the first's pages: one county's deed presented as another's.
+  const cacheKey = `${baseUrlOverride ?? county}:${instrumentNumber}`;
   const cached = imageCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < IMAGE_CACHE_TTL_MS && cached.pages.length > 0) {
     logger.info('2D-IMG', `Image cache hit for instrument ${instrumentNumber}: ${cached.pages.length} page(s) — skipping re-fetch`);
     return cached.pages;
   }
 
-  const baseUrl = getKofileBaseUrl(county);
+  const baseUrl = baseUrlOverride ?? getKofileBaseUrl(county);
   if (!baseUrl) {
     logger.warn('2D-IMG', `No Kofile config for county "${county}" — cannot fetch document images`);
     return [];

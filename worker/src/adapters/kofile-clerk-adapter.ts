@@ -935,6 +935,69 @@ Return ONLY valid JSON, no explanation. If no results visible, return [].`,
       }
     }
 
+    // ── Nothing captured is not "this document has no pages" ────────────────────
+    //
+    // The viewer walk above is selector-driven, and a Kofile viewer that has changed its class names
+    // yields zero images while every step reports success. Returning `[]` there says the document
+    // has no pages — about a document the index just told us has some — which is the silent-empty
+    // defect this codebase has a ratchet for, applied to the one artifact a surveyor actually reads.
+    //
+    // Before giving up, fall through to the capture proven in production against Bell (the
+    // grab-docs workflow, on the 3779 FM 436 session). It is not a duplicate of the above: it
+    // disables the browser HTTP cache, which matters because Kofile serves SIGNED S3 URLs that
+    // expire, and a cached page hands back stale URLs and captures nothing. That is exactly the
+    // shape of failure this fallback exists to catch.
+    if (images.length === 0) {
+      console.warn(
+        `[Kofile/${this.countyName}] Viewer walk captured 0 pages for ${instrumentNo} — ` +
+          `retrying with the production capture path.`,
+      );
+      const { fetchDocumentImages } = await import('../services/bell-clerk.js');
+      const { PipelineLogger } = await import('../lib/logger.js');
+      const pages = await fetchDocumentImages(
+        instrumentNo,
+        20,
+        new PipelineLogger(`kofile-${this.countyFIPS}`),
+        this.countyName,
+        // The adapter's OWN verified base URL, not the county-name lookup in bell-clerk's config —
+        // that map still lists Coryell, McLennan, Falls and Lampasas, whose portals were probed dead
+        // in R37/R38. This adapter was only constructed because the county is in the verified
+        // routing set, so its URL is the trustworthy one.
+        this.config.baseUrl,
+      );
+
+      for (const p of pages) {
+        const filename = `${instrumentNo}_p${p.pageNumber}.${p.imageFormat}`;
+        const filepath = path.join(outputDir, filename);
+        try {
+          fs.writeFileSync(filepath, Buffer.from(p.imageBase64, 'base64'));
+        } catch (e) {
+          console.warn(`[Kofile/${this.countyName}] Could not write ${filename}:`, e);
+          continue;
+        }
+        images.push({
+          instrumentNumber: instrumentNo,
+          pageNumber: p.pageNumber,
+          totalPages: pages.length,
+          imagePath: filepath,
+          imageUrl: p.signedUrl ?? undefined,
+          isWatermarked: true,
+          quality: 'fair',
+        });
+      }
+    }
+
+    if (images.length === 0) {
+      // Both paths failed. Say so rather than handing back an empty array that reads as a finding
+      // about the document — the packet would then print "no page image is held" as though the
+      // county had none, when what happened is that we could not open the viewer.
+      throw new Error(
+        `[Kofile/${this.countyName}] Could not capture any page image for ${instrumentNo} — the ` +
+          `viewer did not yield one and the production capture path also returned nothing. This is a ` +
+          `RETRIEVAL failure, not a document without pages: the index listed this instrument.`,
+      );
+    }
+
     return images;
   }
 
