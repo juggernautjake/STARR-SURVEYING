@@ -20,6 +20,7 @@ import {
   DEFAULT_MAX_PAGES,
   RENDERED_PREDICATE,
   USLR_VIEWER,
+  CAPTURE_VIEWPORT,
   capturePages,
   legibilityWarningFor,
 } from '../adapters/uslandrecords-viewer.js';
@@ -201,5 +202,55 @@ describe('the default render is too small to contain a bearing', () => {
   it('leaves a usable capture unwarned', async () => {
     const r = await capturePages(fakeViewer(1));   // 1224×1584
     expect(r.pages[0]!.legibilityWarning).toBeUndefined();
+  });
+});
+
+describe('the render size is set by the viewport, not by the URL', () => {
+  // The finding that made this slice matter. Measured 2026-08-03:
+  //
+  //   viewport 1280x720   ->  304x561    ~36 DPI   bearing ~2.5 px   unreadable
+  //   viewport 2400x3200  ->  1712x3162  ~287 DPI  bearing ~20 px    comfortable
+  //
+  // The image token SIGNS the render dimensions: re-requesting with CNTHEIGHT edited fails, while the
+  // byte-identical original URL succeeds. So the size cannot be asked for after the fact — it has to
+  // be set before the viewer generates the URL, which makes the viewport a correctness setting rather
+  // than a cosmetic one.
+
+  it('opens the viewer tab large enough to render a readable page', () => {
+    expect(CAPTURE_VIEWPORT.height).toBeGreaterThanOrEqual(3000);
+    expect(CAPTURE_VIEWPORT.width).toBeGreaterThanOrEqual(2000);
+  });
+
+  it('records that the URL cannot be edited to ask for more', () => {
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/adapters/uslandrecords-viewer.ts'), 'utf8');
+    // Someone will try. The reason it fails needs to be where they will look.
+    expect(src).toContain('token signs the render size');
+    expect(src).toContain('even re-sending the identical width');
+  });
+
+  it('sets the viewport before capturing, in the adapter', () => {
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/adapters/uslandrecords-adapter.ts'), 'utf8');
+    const sizeIdx = src.indexOf('setViewportSize');
+    const captureIdx = src.indexOf('capturePages(viewer');
+    expect(sizeIdx).toBeGreaterThan(-1);
+    expect(sizeIdx).toBeLessThan(captureIdx);
+  });
+
+  it('reloads after resizing, so the portal issues a token for the bigger render', () => {
+    // The URL was generated from whatever the container was when the tab opened; resizing alone does
+    // not re-request the image.
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/adapters/uslandrecords-adapter.ts'), 'utf8');
+    expect(src).toContain('viewer.reload(');
+  });
+
+  it('a page rendered at the capture viewport clears the legibility warning', () => {
+    // 3162 px for a letter page is ~287 DPI — a bearing is ~20 px, comfortably readable.
+    expect(legibilityWarningFor(1712, 3162)).toBeUndefined();
   });
 });

@@ -71,19 +71,40 @@ export interface CapturedPage {
   legibilityWarning?: string;
 }
 
-// ── THE DEFAULT RENDER IS TOO SMALL TO READ A BEARING ───────────────────────────────────────────
+// ── THE RENDER SIZE IS SET BY THE VIEWPORT, AND THE DEFAULT IS UNREADABLE ───────────────────────
 //
-// Measured 2026-08-03: this viewer paints a letter-size page at **304×561** by default. That is about
-// 36 DPI, which puts a 0.07" bearing label at roughly **2.5 pixels**.
+// Measured 2026-08-03. At an ordinary browser size this viewer paints a letter-size page at
+// **304×561** — about 36 DPI, which puts a 0.07" bearing label at roughly **2.5 pixels**.
 //
-// That is not a marginal capture — the digits are not in the image at all. OCR asked to read them
-// does not fail; it returns something plausible, which is the single failure mode this platform is
-// built to prevent.
+// That is not a marginal capture. The digits are not in the image at all, and OCR asked to read them
+// does not fail — it returns something *plausible*, which is the single failure mode this platform is
+// built to prevent. Nineteen counties route here, so capturing at the default size would have meant
+// nineteen counties of confident nonsense.
 //
-// The image URL carries `WIDTH`, `HEIGHT`, `FITTYPE` and `ZOOM` parameters, so the fix is to REQUEST
-// a larger render rather than to capture the small one more carefully. Until that is driven and
-// proven against the portal, every capture below this threshold says so, and anything fine read from
-// one is unverified.
+// **The token signs the render size, so the URL cannot be edited.** The image comes from
+// `ACSResource.axd?SCTTYPE=ENCRYPTED&SCTKEY=…&CNTWIDTH=…&CNTHEIGHT=…&FITTYPE=Height&ZOOM=1`, and
+// changing *any* of those parameters — even re-sending the identical width — fails, while the exact
+// original URL succeeds. `CNTWIDTH`/`CNTHEIGHT` are inside what the key covers.
+//
+// What DOES work is asking the viewer for a bigger one. Those parameters track the browser viewport,
+// so the render is set before the URL is ever generated:
+//
+//     viewport 1280×720   →  304×561    ~36 DPI   bearing ~2.5 px   unreadable
+//     viewport 2400×3200  →  1712×3162  ~287 DPI  bearing ~20 px    comfortable
+//
+// So `CAPTURE_VIEWPORT` below is not a cosmetic preference — it is the difference between a document
+// and a picture of one. A context opened at a normal size and pointed at this viewer produces files
+// that look fine in a gallery and cannot be read.
+
+/** The viewport the viewer tab must be opened at.
+ *
+ *  Driven: this produces a ~1712×3162 render of a letter page (~287 DPI), where the default browser
+ *  size produces 304×561 (~36 DPI). The height is what matters — `FITTYPE=Height` means the render is
+ *  fitted to the container's height — but the width is set generously too, so a landscape plat is not
+ *  the one shape that comes back small.
+ *
+ *  Larger would be better still and is untested; this is the size actually measured. */
+export const CAPTURE_VIEWPORT = { width: 2400, height: 3200 } as const;
 
 /** Height in pixels below which a captured page cannot contain readable fine text.
  *

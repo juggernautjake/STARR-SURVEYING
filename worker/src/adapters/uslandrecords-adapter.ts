@@ -448,7 +448,7 @@ export class USLandRecordsAdapter extends ClerkAdapter {
       );
     }
 
-    const { USLR_VIEWER, capturePages } = await import('./uslandrecords-viewer.js');
+    const { CAPTURE_VIEWPORT, USLR_VIEWER, capturePages } = await import('./uslandrecords-viewer.js');
 
     // The viewer tab is a SECOND page on this context. Waiting for it has to be armed BEFORE the
     // click, or the tab can open and be missed in the gap between the two.
@@ -464,7 +464,16 @@ export class USLandRecordsAdapter extends ClerkAdapter {
     }
 
     try {
+      // Set the viewport BEFORE the image renders. This portal fits the page to the container and
+      // signs those dimensions into the image token, so the render size is decided here and cannot be
+      // changed afterwards by editing the URL. At a normal browser size a letter page comes back
+      // 304×561 — about 36 DPI, where a bearing label is 2.5 px and simply is not in the image.
+      await viewer.setViewportSize({ width: CAPTURE_VIEWPORT.width, height: CAPTURE_VIEWPORT.height }).catch(() => undefined);
       await viewer.waitForLoadState('domcontentloaded', { timeout: 20_000 }).catch(() => undefined);
+      // Re-render at the new size: the image URL was generated from whatever the container was when
+      // the tab opened, and a reload is what makes the portal issue a token for the bigger one.
+      await viewer.reload({ waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => undefined);
+
       const result = await capturePages(viewer, { log: (m) => console.log(m) });
       this.lastParseSummary = result.statement;
       console.log(`[USLandRecords/${this.countyName}] ${result.statement}`);
