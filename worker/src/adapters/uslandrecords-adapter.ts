@@ -430,11 +430,68 @@ export class USLandRecordsAdapter extends ClerkAdapter {
     );
   }
 
+  /** Capture the free watermarked pages the portal already shows (plan I/S7).
+   *
+   *  Driven on the live Val Verde viewer 2026-08-03 — see `uslandrecords-viewer.ts` for the DOM and
+   *  the three facts that made this look harder than it is: the viewer opens in a NEW TAB, the
+   *  render signal is the image `src` token changing rather than any elapsed time, and the pager
+   *  renames its Next button instead of disabling it.
+   *
+   *  Requires a row to have been opened in the results grid first, which is what `openDocument`
+   *  does. Throwing rather than returning [] when that has not happened: an empty array here would
+   *  read as "this document has no pages". */
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
-    throw new Error(
-      `[USLandRecords/${this.countyName}] Watermarked viewing is free on this portal but the viewer is not wired up ` +
-        `(${instrumentNo}); printing and download are charged. Not "no images".`,
-    );
+    if (!this.page || !this.context) {
+      throw new Error(
+        `[USLandRecords/${this.countyName}] No session open, so ${instrumentNo} could not be viewed. ` +
+          `A retrieval failure, not a document without images.`,
+      );
+    }
+
+    const { USLR_VIEWER, capturePages } = await import('./uslandrecords-viewer.js');
+
+    // The viewer tab is a SECOND page on this context. Waiting for it has to be armed BEFORE the
+    // click, or the tab can open and be missed in the gap between the two.
+    const viewerPromise = this.context.waitForEvent('page', { timeout: 20_000 }).catch(() => null);
+    await this.page.click(USLR_VIEWER.viewerTabSelector, { timeout: 15_000 }).catch(() => undefined);
+    const viewer = await viewerPromise;
+
+    if (!viewer) {
+      throw new Error(
+        `[USLandRecords/${this.countyName}] The image viewer did not open for ${instrumentNo}. The portal ` +
+          `serves free watermarked pages, so this is a retrieval failure rather than a document without images.`,
+      );
+    }
+
+    try {
+      await viewer.waitForLoadState('domcontentloaded', { timeout: 20_000 }).catch(() => undefined);
+      const result = await capturePages(viewer, { log: (m) => console.log(m) });
+      this.lastParseSummary = result.statement;
+      console.log(`[USLandRecords/${this.countyName}] ${result.statement}`);
+
+      if (result.pages.length === 0) {
+        // Every stop reason here is about US, not about the document.
+        throw new Error(`[USLandRecords/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+      }
+
+      return result.pages.map((p) => ({
+        instrumentNumber: instrumentNo,
+        pageNumber: p.pageNumber,
+        totalPages: result.pages.length,
+        // Kept in memory rather than written to disk here: the caller decides where a document
+        // lives, and this adapter has no download directory of its own.
+        imagePath: '',
+        imageBase64: p.imageBase64,
+        imageUrl: p.sourceUrl,
+        width: p.width,
+        height: p.height,
+        // The portal's own words: free viewing is watermarked; printing and download are charged.
+        isWatermarked: true,
+        quality: p.width >= 1000 ? 'good' : 'fair',
+      } as DocumentImage));
+    } finally {
+      await viewer.close().catch(() => undefined);
+    }
   }
 
   async getDocumentPricing(instrumentNo: string): Promise<PricingInfo> {
