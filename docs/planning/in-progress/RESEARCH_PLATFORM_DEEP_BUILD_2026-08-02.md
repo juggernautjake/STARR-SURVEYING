@@ -2904,11 +2904,37 @@ distinction matters: everything before this made a document arrive; nothing befo
   The remaining four are the same shape of work: drive each viewer **once** to find its render
   signal. That is a browser session per vendor, not a guess.
 
-- **S8. OCR tiling quality.** Tiling exists on both the image and PDF paths and now records real tile
-  geometry (R17). What has never been **measured** is whether the grid and overlap suit a 36×48 plat:
-  too few tiles and the fine bearing text falls below the model's resolution, too many and the cost
-  multiplies with no gain. This wants a measured comparison against a known-good plat rather than a
-  guess — which makes it one of the few slices here that genuinely needs a golden record first (§4).
+- **S8. OCR tiling quality.** ◑ **The arithmetic is settled 2026-08-03**
+  (`worker/src/services/ocr-legibility.ts`); what remains needs a golden plat, and is now a much
+  smaller question.
+
+  This was parked as "needs a measured comparison against a known-good plat". Most of it is not a
+  measurement — a bearing is ~0.07" tall, and whether a model can read it is arithmetic over how many
+  pixels of the **original** survive into the image it is finally shown.
+
+  **Two paths tile, and they do not agree.** `worker/adaptive-vision.ts` *computes* its grid from
+  estimated DPI against a legibility threshold; `lib/document.service.ts` is **fixed** at 3×3 for PDFs
+  and a constant for images — whether the page is an 8.5×11 deed or a 36×48 plat. The second is the
+  path that processes `research_documents` and writes the facts, so the document a surveyor's numbers
+  come from is tiled by a constant, and nothing reported whether the constant sufficed.
+
+  The arithmetic says 3×3 is fine for a 300 DPI plat, and that **1×1 on the same image wrecks it** —
+  the API downscales anything over 8000 px, taking 21 px of bearing text under 12. The resolution
+  existed; the tiling threw it away. It also says when **more tiles cannot help**: at 150 DPI a
+  bearing is 10.5 px and no grid adds resolution the scan never had, so `recommendTiles` returns null
+  rather than advice that looks like a fix and changes nothing.
+
+  **And it found a capture that cannot contain a bearing at all.** Avenu's viewer paints a letter page
+  at **304×561** — about 36 DPI, putting a 0.07" bearing at **~2.5 px**. Not marginal: the digits are
+  not in the image, and OCR asked to read them returns something *plausible*. The capture already
+  takes natural size; the natural size is the problem. The image URL carries `WIDTH`/`HEIGHT`/`ZOOM`,
+  so the fix is to request a larger render — a change to the request, not the capture. Every page
+  under the threshold now carries a warning that travels **with the page**, not only in a log.
+
+  **Still needs a golden plat**, for the part that genuinely is a measurement: whether Tyler's
+  `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
+  the model reads a *marginal* 14 px bearing correctly or confidently wrong. The arithmetic bounds the
+  question; only a plat with known values answers it. See §4.
 
 ---
 
@@ -2916,6 +2942,14 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 These block specific slices and must not be guessed:
 
+0a. **One plat whose answers are already known (Phase I / S8, and R19's canaries).** The single
+   highest-value thing on this list. Every piece of survey geometry built in Phase I — traverse,
+   monuments, curves, rotation, varas — is tested against *synthetic* figures, which proves the
+   arithmetic and nothing about the **reading**. One plat where the bearings, curves and monuments are
+   already known would, in one pass: measure whether Tyler's `DEGRADED` rendering and Bastrop's
+   screenshots clear the legibility threshold in practice; show whether the model reads a marginal
+   14 px bearing correctly or confidently wrong; and test retrieval → OCR → extraction → traverse →
+   drawing end to end for the first time. Ideally Bell County, where retrieval is most proven.
 0. **A free iDocMarket account, for Bosque (Phase I / S7).** The smallest and cheapest item on this
    list, and the only thing standing between 53 and 54 county-slots. iDocMarket's index is free and
    already searched; the *document view* requires a signed-in account, and its own Status endpoint
