@@ -375,10 +375,63 @@ export class TylerEagleAdapter extends ClerkAdapter {
     );
   }
 
+  /** Fetch the document PDF (plan I/S7).
+   *
+   *  The previous version of this method said image retrieval "goes through the portal's cart". That
+   *  was wrong, and wrong in the direction that costs money: driving McLennan's portal on 2026-08-03
+   *  showed the document page embeds PDF.js, and its `file=` parameter is a plain same-host URL
+   *  serving a real `application/pdf` — 210 KB for a two-page deed, fetched with the session cookie
+   *  and **no purchase**.
+   *
+   *  `documentPageUrl` is the `/web/document/<docId>` page a search result links to. */
+  async getDocumentPdf(
+    instrumentNo: string,
+    documentPageUrl: string,
+  ): Promise<{ pdf: Buffer; degraded: boolean; statement: string }> {
+    await this.initSession();
+    const page = this.page;
+    if (!page) {
+      throw new Error(
+        `[Tyler/${this.countyName}] No session open, so ${instrumentNo} could not be fetched. ` +
+          `A retrieval failure, not a document without pages.`,
+      );
+    }
+
+    const { TYLER_EAGLE_VIEWER, fetchPdfInPage, pdfRefFromIframeSrc } = await import('./tyler-eagle-viewer.js');
+
+    await page.goto(documentPageUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // Wait for the PDF.js iframe to be ATTACHED — its src is what carries the file URL, and it is
+    // written after the document metadata loads.
+    await page
+      .waitForSelector(TYLER_EAGLE_VIEWER.viewerIframeSelector, { timeout: 30_000 })
+      .catch(() => undefined);
+
+    const iframeSrc = await page
+      .getAttribute(TYLER_EAGLE_VIEWER.viewerIframeSelector, 'src')
+      .catch(() => null);
+
+    const ref = pdfRefFromIframeSrc(iframeSrc ?? '', new URL(documentPageUrl).origin);
+    if (!ref) {
+      throw new Error(
+        `[Tyler/${this.countyName}] ${instrumentNo}: the document page did not expose a PDF viewer URL. ` +
+          `A retrieval failure — the index listed this instrument — not a document without pages.`,
+      );
+    }
+
+    const result = await fetchPdfInPage(page, ref);
+    if (!result.pdf) {
+      throw new Error(`[Tyler/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+    }
+
+    console.log(`[Tyler/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+    return { pdf: result.pdf, degraded: result.degraded, statement: result.statement };
+  }
+
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
     throw new Error(
-      `[Tyler/${this.countyName}] Image retrieval for ${instrumentNo} goes through the portal's cart, which is not wired up. ` +
-        `The document id is captured on each result; purchasing is not built. Not "no images".`,
+      `[Tyler/${this.countyName}] ${instrumentNo}: this portal serves a PDF, not page images — use ` +
+        `getDocumentPdf(instrumentNo, documentPageUrl), which needs the /web/document/<id> URL from the ` +
+        `search result. Free, no cart. Not "no images".`,
     );
   }
 
