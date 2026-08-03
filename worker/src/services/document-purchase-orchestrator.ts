@@ -27,6 +27,9 @@ import { BillingTracker } from './billing-tracker.js';
 import { PipelineLogger } from '../lib/logger.js';
 // The firm-wide document library: never pay for the same page twice (research plan R13).
 import { findOwned, recordPurchase, summariseSavings, type OwnedDocument } from './purchase-ledger.js';
+// Cheapest-first as a policy rather than a sort (plan R13) — written, then never called.
+import { mayPurchaseFrom } from './platform-choice.js';
+import type { PaidPlatformId } from '../types/document-access.js';
 import { DocumentIndex } from '../research/document-identity.js';
 import type {
   PurchaseOrchestratorConfig,
@@ -138,6 +141,12 @@ export class DocumentPurchaseOrchestrator {
     /** Documents this run did NOT have to buy. Reported, because an invisible saving is one nobody
      *  defends when somebody proposes turning the library off. */
     const reusedFromLibrary: OwnedDocument[] = [];
+    /** Purchases made from a dearer vendor than the cost policy would have chosen (plan R13).
+     *
+     *  Kept as a list rather than a counter because the REASON is the useful part: "Tyler covers
+     *  this county at $0.50 but has no credentials configured" is simultaneously an invoice line
+     *  and a to-do item, and a bare count of overpays is neither. */
+    const policyPremiums: Array<{ instrument: string; reason: string }> = [];
     /** Counted so the identity summary can state both sides of the dedup bargain. */
     let skippedAlreadyHeld = 0;
     let boughtUnderUncertainty = 0;
@@ -208,6 +217,15 @@ export class DocumentPurchaseOrchestrator {
           await texasFileAdapter.initSession();
         }
       }
+
+      // What this run can ACTUALLY buy from, which is the only sense of "configured" that matters
+      // here. `choosePlatform` will otherwise recommend a cheaper vendor we hold credentials for in
+      // principle but did not initialise on this run, and the resulting "you overpaid" line would
+      // name an alternative that was never available — advice that reads as a mistake and is not one.
+      const configuredPlatformIds: PaidPlatformId[] = [
+        ...(kofileAdapter ? ['kofile_pay' as const] : []),
+        ...(texasFileAdapter ? ['texasfile' as const] : []),
+      ];
 
       // ── Step 2: Purchase each recommended document ────────────────────
 
@@ -327,6 +345,36 @@ export class DocumentPurchaseOrchestrator {
         // Purchase from appropriate vendor
         let result: DocumentPurchaseResult;
         const sourceLower = rec.source.toLowerCase();
+
+        // ── Cheapest-first, enforced rather than sorted (plan R13) ───────────────────────────
+        //
+        // `platform-choice.ts` was written to make the cost ordering a policy instead of a
+        // suggestion, and had ZERO callers — so the vendor here kept being picked by whether a
+        // recommendation's free-text `source` happened to contain "kofile". A county covered by a
+        // $0.50 vendor was routinely billed at $1.00 because the string said something else.
+        //
+        // This does not override the choice, and deliberately so: the adapters wired below are the
+        // only ones that can actually complete a purchase, so refusing here would stall a run
+        // rather than save money. What it does is make the overpay VISIBLE and priced, at the
+        // moment it happens and against the specific instrument. A premium nobody records is a
+        // premium nobody ever decides to stop paying.
+        const intendedPlatform: PaidPlatformId | null =
+          sourceLower.includes('kofile') ? 'kofile_pay'
+          : sourceLower.includes('texasfile') ? 'texasfile'
+          : null;
+
+        if (intendedPlatform) {
+          const verdict = mayPurchaseFrom(countyFIPS, intendedPlatform, {
+            configured: configuredPlatformIds,
+          });
+          if (!verdict.allowed) {
+            policyPremiums.push({ instrument: rec.instrument, reason: verdict.reason });
+            this.logger.warn(
+              'Purchase',
+              `Cheapest-first not honoured for ${rec.instrument}: ${verdict.reason}`,
+            );
+          }
+        }
 
         if (sourceLower.includes('kofile') && kofileAdapter) {
           result = await kofileAdapter.purchaseDocument(
@@ -620,6 +668,10 @@ export class DocumentPurchaseOrchestrator {
       aiCalls,
       errors,
       librarySavings: summariseSavings(reusedFromLibrary),
+      // Undefined rather than [] when nothing overpaid, so "the policy was checked and held" stays
+      // distinguishable from "the policy was never evaluated" — the same rule the two fields above
+      // follow, and the difference between a clean run and an unmeasured one.
+      policyPremiums: policyPremiums.length > 0 ? [...policyPremiums] : undefined,
     };
 
     // Persist report

@@ -323,6 +323,21 @@ export interface PurchaseReport {
     savedUsd: number;
   };
 
+  /** Purchases made from a dearer vendor than the cost policy would have chosen (plan R13).
+   *
+   *  The cost-ascending ordering in `paid-platform-registry.ts` was a SORT — a suggestion the buyer
+   *  was free to ignore, and did, because it picked a vendor by whether a recommendation's free-text
+   *  `source` contained "kofile". This is the ordering finally being observed.
+   *
+   *  Each entry carries the reason rather than just a count, because the reason is what somebody
+   *  acts on: *"Tyler covers this county at $0.50 but has no credentials configured"* is at once an
+   *  invoice line and a to-do item. A premium nobody records is a premium nobody decides to stop
+   *  paying.
+   *
+   *  Optional, like the two fields around it: absent means the run did not evaluate the policy, and
+   *  an empty array would claim it did and found nothing. */
+  policyPremiums?: Array<{ instrument: string; reason: string }>;
+
   /** What cross-vendor identity matching did to this run's spending (plan S-13/S-14).
    *
    *  `boughtUnderUncertainty` is the field that must not be hidden. The dedup rule deliberately buys

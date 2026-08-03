@@ -674,9 +674,41 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 323/323; both roots typecheck clean.
 
-  **Remaining (owner-gated or larger):** real credentials for the 8 adapters and a per-firm
-  subscription record; TitlePoint/DataTree-class vendors and Regrid behind the same interface; PDF
-  attachment into `research_documents`. The library and the policy are what those plug into.
+  **DONE 2026-08-03 — the policy is now asked.** The paragraph above describes `platform-choice.ts`
+  as *"the enforcement point"*. It had **zero callers**. The module written to end the overpay never
+  saw a purchase, and the orchestrator went on choosing a vendor by whether a recommendation's
+  free-text `source` contained `"kofile"` — exactly the behaviour the module's own header describes
+  as the defect.
+
+  Eighth instance of this shape in this document, and it keeps landing on the same kind of module: a
+  check nobody runs and a policy nobody enforces fail the same silent way, and both look shipped.
+
+  `mayPurchaseFrom()` is now called before each purchase in `document-purchase-orchestrator.ts`.
+
+  **It records the premium; it does not block the purchase** — a deliberate limit, stated in the code
+  and pinned by a test so it does not get "fixed" later. The Kofile and TexasFile adapters wired into
+  that file are the only ones that can actually complete a purchase, so refusing a dearer vendor
+  would stall a run rather than save money. What changes is that the overpay becomes **visible and
+  priced**, against a specific instrument, at the moment it happens: *"Tyler covers this county at
+  $0.50 but has no credentials configured"* is at once an invoice line and a to-do item. A premium
+  nobody records is a premium nobody ever decides to stop paying — and this is the number that turns
+  "should we subscribe to Tyler?" from an opinion into arithmetic.
+
+  Two details worth keeping. **"Configured" means what this run can actually buy from**, not what
+  credentials exist in principle: otherwise the report names a cheaper alternative that was never
+  initialised, which reads as a mistake and is not one. And `policyPremiums` is **undefined rather
+  than `[]`** when nothing overpaid, so "the policy was checked and held" stays distinguishable from
+  "the policy was never evaluated" — the same rule `librarySavings` and `identity` already follow.
+
+  The typechecker caught the one bug available here: the platform id is `kofile_pay`, not `kofile`.
+  A string comparison would have compiled, never matched, and left the policy permanently silent
+  while looking wired.
+
+  Worker suite 79 files / 1,322 tests; root typecheck and `npm run build` clean.
+
+  **Remaining (owner-gated):** real credentials for the 8 adapters and a per-firm subscription
+  record; TitlePoint/DataTree-class vendors and Regrid behind the same interface; PDF attachment into
+  `research_documents`. The library and the policy are what those plug into, and both are now live.
 
 - **R14. Full chain of title, to the earliest available instrument.** ✅ **DONE 2026-08-03** — gaps,
   the name walk, the citation errands, and (finally) the searches all four of them needed
