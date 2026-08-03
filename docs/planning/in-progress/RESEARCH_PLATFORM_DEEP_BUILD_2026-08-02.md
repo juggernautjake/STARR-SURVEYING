@@ -2980,6 +2980,20 @@ distinction matters: everything before this made a document arrive; nothing befo
   work, which sent me back to the portal to find out why. Every page still under the threshold carries
   a warning that travels **with the page**, not only in a log.
 
+  **Wired 2026-08-03**, after being caught with zero callers — the same authored-but-not-wired defect
+  this session found five times elsewhere and then produced once itself. A legibility check nobody
+  calls prevents nothing, and its unit tests pass either way. It now runs at OCR time in
+  `document.service.ts` (where the pixel size and tile grid are both known), is stored **with** the
+  segments because the verdict describes the *capture* rather than the document, and is surfaced in
+  `analysis.service.ts` at the point facts are written — the only place that knows both that a capture
+  was marginal and that numbers are being extracted from it.
+
+  The honest difficulty is the **physical** page size, which a scanned image does not carry. Three
+  sources, ranked: a PDF `MediaBox` (exact), the image's embedded density (scanners often set it
+  wrongly), or assuming US Letter. The last is marked as a guess, because it is wrong exactly where it
+  matters: a 36×48 plat assumed to be letter reports **four times** its true DPI, turning an
+  unreadable capture into a comfortable-looking one.
+
   **Still needs a golden plat**, for the part that genuinely is a measurement: whether Tyler's
   `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
   the model reads a *marginal* 14 px bearing correctly or confidently wrong. The arithmetic bounds the
