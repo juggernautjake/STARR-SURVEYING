@@ -14,6 +14,7 @@ import {
   API_MAX_PIXELS,
   GOOD_FINE_TEXT_PX,
   MIN_FINE_TEXT_PX,
+  KOFILE_RESOLUTION_UNMEASURED,
   OBSERVED_CAPTURES,
   assessLegibility,
   effectiveDpi,
@@ -159,5 +160,32 @@ describe('what the portals actually served us', () => {
     const r = assessLegibility(OBSERVED_CAPTURES.avenuDefaultViewer, { rows: 1, cols: 1 });
     expect(r.recommendedTiles).toBeNull();
     expect(r.statement).toContain('Re-fetch at a higher render size');
+  });
+});
+
+describe('the hole in the resolution table is named, not filled with a guess', () => {
+  // Kofile is 22 counties — more coverage than every other vendor combined — and its delivered
+  // resolution is the one still unknown. Bell's document page loads full metadata anonymously and
+  // renders NO image (no img/canvas/iframe), offering "Add to Cart" instead. That is not evidence
+  // the platform cannot fetch Kofile images — the production capture in bell-clerk.ts is documented
+  // as proven here and drives a fuller flow — it just means nothing was measured.
+  it('records Kofile as unmeasured rather than assuming a number', () => {
+    expect(KOFILE_RESOLUTION_UNMEASURED).toBe(true);
+  });
+
+  it('does not carry a Kofile entry in the measured captures', () => {
+    // Inventing one for the biggest vendor would be the worst place in the file to guess.
+    expect(Object.keys(OBSERVED_CAPTURES).some((k) => /kofile/i.test(k))).toBe(false);
+  });
+
+  it('flags the free-preview claim as unverified where it is asserted', () => {
+    const fs = require('node:fs') as typeof import('node:fs');
+    const path = require('node:path') as typeof import('node:path');
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/services/clerk-registry.ts'), 'utf8');
+    // hasFreeImagePreview returns true for every Kofile county on the strength of a comment that the
+    // portal's own behaviour now contradicts. Left returning the same answer — guessing the other way
+    // would suppress retrieval attempts that may well succeed — but no longer stated as fact.
+    expect(src).toContain('THIS CLAIM IS UNVERIFIED');
+    expect(src).toContain('renders **no document image at all**');
   });
 });

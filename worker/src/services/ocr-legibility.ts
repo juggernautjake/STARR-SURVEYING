@@ -214,3 +214,19 @@ export const OBSERVED_CAPTURES = {
   /** Tyler Eagle's free DEGRADED rendering, read out of the PDF itself. */
   tylerEagleDegraded: { widthIn: 8.49, heightIn: 11.1, pixelWidth: 1699, pixelHeight: 2220 },
 } as const;
+
+/** Kofile — 22 counties, the largest vendor, and the only delivered resolution still UNKNOWN.
+ *
+ *  Attempted 2026-08-03 and deliberately not guessed. Bell's document page
+ *  (`bell.tx.publicsearch.us/doc/…`) loads full metadata anonymously and renders **no image at all**
+ *  — no `<img>`, `<canvas>` or `<iframe>` — offering "Add to Cart" instead.
+ *
+ *  That is not evidence the platform cannot fetch Kofile images: `bell-clerk.ts:fetchDocumentImages`
+ *  is documented as proven in production here and drives a fuller flow than a page visit. It simply
+ *  was not re-run, so there is no measurement to record, and inventing one for the biggest vendor
+ *  would be the worst place in this file to guess.
+ *
+ *  Measuring it means running that capture against a Bell instrument and passing the result to
+ *  `assessLegibility`. Until then the resolution table has a hole exactly where most of the coverage
+ *  is, and any claim about Kofile extraction quality is unsupported. */
+export const KOFILE_RESOLUTION_UNMEASURED = true;
