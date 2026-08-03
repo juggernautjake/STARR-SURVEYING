@@ -36,12 +36,9 @@ const DIRS = ['app/dnd/_ui', 'app/dnd/_sheet/components'];
  * rather than a way to silence the guard.
  */
 const EXEMPT: Record<string, string> = {
-  'app/dnd/_ui/SystemLibrary.tsx':
-    'GAP, found by this guard on its first run. Its header says "Used by the builder so a DM/player can ' +
-    'see what rules the AI will ground a build in" — and no builder mounts it, so that capability has ' +
-    'never been reachable. Kept rather than deleted because the Content Studio wants exactly this surface ' +
-    '(browse one system\'s rules store while authoring), so it is a component looking for its slice rather ' +
-    'than dead code. Wire it or delete it deliberately; do not let it sit here indefinitely.',
+  // SystemLibrary was the single entry here, exempted with the note "Wire it or delete it
+  // deliberately; do not let it sit here indefinitely." It is now mounted in the 5e and PF2
+  // builders — the surface its own header always claimed — so the exemption goes with it.
 };
 
 /** Every component file the guard scans. */

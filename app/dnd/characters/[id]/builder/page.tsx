@@ -25,6 +25,12 @@ import Dnd5eManualBuilder from '@/app/dnd/_ui/Dnd5eManualBuilder';
 import PF2CharacterBuilder from '@/app/dnd/_ui/PF2CharacterBuilder';
 import IGCharacterBuilder from '@/app/dnd/_ui/IGCharacterBuilder';
 import IGVanillaLibrary from '@/app/dnd/_ui/IGVanillaLibrary';
+// The system-scoped rules browser. Its own header says it is "used by the builder so a DM/player can
+// see what rules the AI will ground a build in" — and nothing imported it. IG had a bespoke library
+// beside its builder; 5e and PF2 players had none, while a component built for exactly that sat
+// unused. Wired rather than deleted, because the functionality is real and the IG flow proves the
+// placement works.
+import SystemLibrary from '@/app/dnd/_ui/SystemLibrary';
 import LevelBuilder from '@/app/dnd/_ui/LevelBuilder';
 import PF2LevelBuilder from '@/app/dnd/_ui/PF2LevelBuilder';
 import IGLevelBuilder from '@/app/dnd/_ui/IGLevelBuilder';
@@ -63,7 +69,10 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Class, race, background & abilities',
       'Pick your class, subclass, species/race and background, then set your ability scores (standard array, point buy, or roll). Everything offered is vanilla and rules-legal for the level you choose.',
-      <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" aiConfigured={aiConfigured} variantKind={variantKind} isDM={isDM} />,
+      <div style={{ display: 'grid', gap: 16 }}>
+        <Dnd5eManualBuilder system={system} characterId={character.id} layout="steps" aiConfigured={aiConfigured} variantKind={variantKind} isDM={isDM} />
+        <SystemLibrary systemKey={system} systemName={SYSTEM_LABEL[system]} />
+      </div>,
     );
     steps.push({
       id: 'levels', title: 'Level by level', phase: 'Levels',
@@ -88,7 +97,10 @@ export default async function CharacterBuilderPage({ params }: { params: { id: s
     foundations(
       'Ancestry, class, background, attributes & picks',
       'Pick your ancestry/heritage, class and subclass, background and deity, allocate your attribute boosts, and choose your trained skills, feats and spells. Ineligible picks are shown greyed with the reason.',
-      <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" variantKind={variantKind} isDM={isDM} />,
+      <div style={{ display: 'grid', gap: 16 }}>
+        <PF2CharacterBuilder characterId={character.id} initialName={character.name} aiConfigured={aiConfigured} startOpen layout="steps" variantKind={variantKind} isDM={isDM} />
+        <SystemLibrary systemKey={system} systemName={SYSTEM_LABEL[system]} />
+      </div>,
     );
     // PF2 has twenty levels and a working level walker of its own (`PF2LevelBuilder` → /pf2-levels), but
     // the guided builder only ever gave it Foundations → Review: a Pathfinder player walking this flow
