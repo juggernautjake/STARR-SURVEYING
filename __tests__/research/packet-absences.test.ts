@@ -125,3 +125,59 @@ describe('an old approved packet does not claim it is clean', () => {
     expect(cmp).toContain('not the\n                same as it having none');
   });
 });
+
+describe('every PacketSources field has something that supplies it', () => {
+  // `readingCaveat` shipped two slices ago with a renderer, a test, and NO PRODUCER — nothing built
+  // it, so the cover line could never appear. That is the mirror image of the defect this session
+  // has been chasing: not a producer with no consumer, but a consumer with nothing feeding it. It
+  // passes every unit test, because the test supplies the field itself.
+  //
+  // The only thing that catches it is comparing the shape to the routes that build it.
+  const packetSrc = read('lib/research/packet.ts');
+  const routes = [
+    'app/api/admin/research/[projectId]/packets/route.ts',
+    'app/api/admin/research/[projectId]/packets/[packetId]/pdf/route.ts',
+  ].map(read).join('\n');
+
+  /** Field names declared on the PacketSources interface. */
+  const declared = (() => {
+    const start = packetSrc.indexOf('export interface PacketSources {');
+    const end = packetSrc.indexOf('\n}', start);
+    const body = packetSrc.slice(start, end);
+    return [...body.matchAll(/^\s{2}(\w+)\??:/gm)].map((m) => m[1]!);
+  })();
+
+  it('finds the interface', () => {
+    // A scan matching nothing would pass forever — the failure mode two other checks in this repo
+    // had before they were fixed.
+    expect(declared.length).toBeGreaterThanOrEqual(6);
+    expect(declared).toContain('readingCaveat');
+  });
+
+  it('at least one route supplies each one', () => {
+    // `\\b`, not `\b`. In a template literal `\b` is a BACKSPACE character, so the pattern became
+    // /[backspace]facts[backspace]/ and matched nothing — the check reported every field as
+    // unsupplied. It failed loudly here, which was luck: with the polarity reversed the same
+    // mistake passes silently forever, which is how the other two checks in this repo were broken
+    // when first written.
+    // Matched as a PROPERTY (`field:` or shorthand `field,`), not merely as a name appearing
+    // somewhere. Verified by deleting `readingCaveat,` from the returned object: the first version
+    // still passed, because the local `const readingCaveat = …` above it kept the word present. A
+    // check that a name is mentioned is not a check that a value is supplied.
+    const missing = declared.filter((f) => !new RegExp(`(^|[\\s{,])${f}\\s*[,:]`, 'm').test(routes));
+    expect(missing, missing.length
+      ? `PacketSources declares these and no route builds them, so the packet can never show them:\n` +
+        `  ${missing.join('\n  ')}`
+      : '').toEqual([]);
+  });
+
+  it('readingCaveat is built from the plan\'s own closure check', () => {
+    expect(routes).toContain('closure_check');
+    expect(routes).toContain('readingCaveat');
+  });
+
+  it('fires only when the closure is NOT acceptable', () => {
+    // Cover warnings that fire on healthy runs are how a crew learns to skip the cover.
+    expect(routes).toContain('cc.acceptable === false');
+  });
+});

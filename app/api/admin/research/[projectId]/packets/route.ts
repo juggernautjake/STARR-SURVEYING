@@ -29,6 +29,7 @@ async function loadSources(projectId: string): Promise<PacketSources> {
       .eq('is_current', true).limit(1),
   ]);
 
+
   const documents = (docRes.data ?? []) as ResearchDocument[];
   const documentLabels: Record<string, string> = {};
   for (const d of documents) {
@@ -40,7 +41,32 @@ async function loadSources(projectId: string): Promise<PacketSources> {
       || 'an unnamed document';
   }
 
-  const plan = (planRes.data ?? [])[0] as { ai_plan?: { property_summary?: string } } | undefined;
+  const plan = (planRes.data ?? [])[0] as {
+    ai_plan?: {
+      property_summary?: string;
+      closure_check?: { closure_ratio?: string; acceptable?: boolean; note?: string } | null;
+    };
+  } | undefined;
+
+  // Whether the boundary closes, on the cover.
+  //
+  // `readingCaveat` was added to the packet two slices ago with a renderer and a test and NO
+  // PRODUCER — a consumer with nothing feeding it, which is the mirror image of the defect this
+  // whole document keeps recording, and I committed it. Wiring it rather than deleting it, because
+  // the fact is genuinely available: the survey plan this route already loads carries the closure
+  // check.
+  //
+  // Only surfaced when the closure is NOT acceptable. A packet whose boundary closes fine does not
+  // need a cover line saying so — cover warnings that fire on healthy runs are how a crew learns to
+  // skip the cover.
+  const cc = plan?.ai_plan?.closure_check;
+  const readingCaveat = cc && cc.acceptable === false
+    ? `The boundary calls in this packet do not close acceptably` +
+      `${cc.closure_ratio ? ` (${cc.closure_ratio})` : ''}. ` +
+      `${cc.note ? `${cc.note} ` : ''}` +
+      `Either the record does not close or the calls were misread — treat every bearing and distance ` +
+      `here as unconfirmed until that is settled.`
+    : null;
 
   // Documents this project holds that cannot be relied on, named for the cover.
   //
@@ -66,6 +92,7 @@ async function loadSources(projectId: string): Promise<PacketSources> {
     // The distinction is the packet's, and handing it the wrong one would make a checked run look
     // unchecked — or worse, the reverse.
     retrievalFailures: unusable,
+    readingCaveat,
   };
 }
 

@@ -3795,6 +3795,31 @@ an answer.
 signature on what the packet said; back-filling it would forge that signature. The crew view says
 the state is unknown instead, and tells them to check the full packet.
 
+#### The mirror defect — a consumer with nothing feeding it
+
+**DONE 2026-08-03.** Applying the same question one more time caught me out: `readingCaveat` shipped
+two slices ago with a renderer, a test, and **no producer**. Nothing built it, so that cover line
+could never appear. Not a producer with no consumer this time — the reverse — and it passes every
+unit test, because the test supplies the field itself.
+
+Wired rather than deleted, because the fact is genuinely available: the survey plan this route
+already loads carries a `closure_check`. It fires **only when the closure is not acceptable** — cover
+warnings that go off on healthy runs are how a crew learns to skip the cover.
+
+A fourth check now compares `PacketSources`' declared fields against the routes that build it. Two
+things had to be fixed before it defended anything, and both are worth recording:
+
+- The pattern was `` `\b${f}\b` `` — in a template literal `\b` is a **backspace character**, so it
+  matched nothing and reported every field as unsupplied. It failed loudly, which was luck; with the
+  polarity reversed the identical mistake passes silently forever, which is how two of the other
+  checks in this repo were broken when first written.
+- It then matched the field NAME anywhere in the file, so deleting `readingCaveat,` from the returned
+  object still passed — the local `const readingCaveat = …` kept the word present. **A check that a
+  name is mentioned is not a check that a value is supplied.** Now matched as a property, and
+  verified by deleting the producer and watching it fail.
+
+Root suite 1,470 files; typecheck and `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
