@@ -66,11 +66,31 @@ business app a worker, and share one push backend.
   `manifest: '/dnd/manifest.webmanifest'`. Struck rather than deleted, because this slice was written
   against a wrong reading of the tree and the correction is worth more than a tidy list.
 
-- **W2. A service worker for the business app.** ← **START HERE.** `public/manifest.json` promises an
-  installable app at `/admin/me` and nothing registers a worker for it, so a crew member who installs
-  it gets no offline and no push. Follow `RegisterTabletopPWA` exactly — scope `/admin/`, and keep its
-  killswitch, which unregisters ONLY its own scope precisely so it cannot take out the other two
-  areas' workers.
+- **W2. A service worker for the business app.** ✅ **DONE 2026-08-03** — `public/admin/sw.js`,
+  `public/admin/offline.html`, `app/admin/components/RegisterAdminPWA.tsx`, mounted in
+  `app/admin/layout.tsx`. **Gated off** behind `NEXT_PUBLIC_ADMIN_PWA=1`.
+
+  Follows `RegisterTabletopPWA` deliberately rather than inventing a second pattern: served from
+  `/admin/sw.js` so the scope cap is a property of the URL, and the OFF path **actively uninstalls**
+  — a flag that merely skips registration leaves an installed worker running forever, which is the
+  opposite of a killswitch. It unregisters and clears caches for **its own scope only**, because
+  `/dnd/` and `/AndrewAsh/` each run their own worker and a broad `unregister()` from here would take
+  both out.
+
+  **What it refuses to cache is the point, and more so here than for the tabletop app**: never
+  `/api/…` (every route is caller-scoped and role-gated, so a cached response is someone else's pay
+  or someone else's job), never non-GET, and navigations are network-only with an offline page rather
+  than network-first-then-cache — nothing authenticated is in the cache by design, and pretending
+  otherwise is how a signed-out user reads a signed-in page on a shared device.
+
+  The offline page says what is true: the data lives on the server, and **nothing you saved has been
+  lost** — which is the thing a crew member will actually fear.
+
+  Fourteen tests pin the cautious properties rather than the caching, because a worker outlives the
+  deploy that installed it and a mistake persists until a user clears site data.
+
+  **To turn it on:** set `NEXT_PUBLIC_ADMIN_PWA=1` in Vercel. It is off until then, so this ships
+  dark and can be enabled after a browser check on a real device.
 
 - **W3. Offline the field packet.** The highest-value offline case in the product: the approved
   packet is already a single snapshot object and `packet-offline.ts` already decides what a cached
@@ -104,8 +124,11 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 
 **W1 was already done** before this document was written — see the correction in §0.
 
-**Start at W2**, the only real gap: the business app's manifest promises an installable app and no
-worker backs it.
+**W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
+a manifest and a scoped worker.
+
+**Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it
 
