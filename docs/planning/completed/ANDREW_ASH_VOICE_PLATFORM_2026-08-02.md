@@ -1,6 +1,16 @@
 # Andrew Ash — Voice Actor & Vocal Coach Platform
 
-**Started** 2026-08-02 · **Branch** `claude/andrew-ash-voice-platform-2026-08-02` · **Status** in progress
+**Started** 2026-08-02 · **Shipped** 2026-08-02 · **Status** COMPLETE — merged to `main` (`cf2454f1d`) and live
+
+> **Moved to `completed/` 2026-08-02.** Every action item in this document is shipped and deployed;
+> verified on production, not just locally — all 7 public pages return 200 and all 13 studio pages
+> render their real content behind the login gate.
+>
+> Three things remain and none is a coding task: **VAPID keys** for phone notifications, **Andrew's
+> own Stripe account** for card payment, and **Andrew's content** (real credits, testimonials, contact
+> details, his account). Each is named with its exact command or env var in "Shipped and deployed"
+> below. They are recorded as owner actions rather than deferred work — the code for all three is
+> written and waiting.
 **Route** `/AndrewAsh` on starr-surveying.com (temporary — see §9 Migration)
 
 ---
@@ -305,20 +315,30 @@ When card is switched on, only the **webhook** may mark an invoice paid — neve
 PaymentIntent id is stored in `reference` and checked before insert, because Stripe re-delivers events
 and a retry would otherwise double-credit the invoice.
 
-### Next session starts here
+### Shipped and deployed — 2026-08-02
 
-Everything the user asked for is built, and every audit has been run and is green.
+Everything the owner asked for is built, every audit is green, and it is **merged to `main` and live**
+(merge `cf2454f1d`, authorised explicitly). Nothing on this platform is waiting on code.
 
-1. **Switch web push on** — needs a person, not code. `npx web-push generate-vapid-keys`, then set
-   `NEXT_PUBLIC_VOICE_VAPID_KEY`, `VOICE_VAPID_PUBLIC_KEY` and `VOICE_VAPID_PRIVATE_KEY` on the host,
-   plus `npm i web-push`. Studio → Settings → Notifications says exactly this until they exist.
+**The deploy was itself the fix for a reported bug.** The owner saw "a lot of 404 pages in the backend
+studio" and reasonably concluded pages were missing. They were not: `main` carried **6** studio pages
+while the branch carried **18**, so the twelve newest — clients, contracts, coaching, expenses,
+invoices, media, demos, documents and the client portal — had simply never been deployed. Verified
+before merging by crawling every clickable `/AndrewAsh` link locally (41/41 answer,
+`scripts/audit-voice-links.mjs`), which is a different and better question than the by-name route
+check that had been passing all along while a real 404 sat in production.
 
-   The subscribe flow is written and its *unconfigured*, *denied* and *unsupported* states were
-   checked in a browser. **The granted path cannot be exercised without real keys and is the one
-   thing on this platform not yet seen working end to end.**
-2. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
-   deploy costs money.
-3. Andrew's own account. He picks his username, email and password at the studio login.
+**What still needs a person, not a developer:**
+
+1. **Switch web push on.** `npx web-push generate-vapid-keys`, set `NEXT_PUBLIC_VOICE_VAPID_KEY`,
+   `VOICE_VAPID_PUBLIC_KEY` and `VOICE_VAPID_PRIVATE_KEY` on the host, and `npm i web-push`. Studio →
+   Settings → Notifications names those three until they exist. The subscribe flow's *unconfigured*,
+   *denied* and *unsupported* states were checked in a browser; **the granted path cannot be exercised
+   without real keys and is the one thing here not seen working end to end.**
+2. **Card payments** need Andrew's own Stripe account and `VOICE_`-prefixed keys. Deliberately never
+   falls back to this repo's Starr keys — see `lib/voice/payments.ts`.
+3. **Andrew's account and content.** He picks his username, email and password at the studio login;
+   §12's open questions are his to answer.
 
 ### What is waiting on a person, not on code
 
