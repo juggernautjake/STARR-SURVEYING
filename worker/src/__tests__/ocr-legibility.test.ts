@@ -163,29 +163,31 @@ describe('what the portals actually served us', () => {
   });
 });
 
-describe('the hole in the resolution table is named, not filled with a guess', () => {
-  // Kofile is 22 counties — more coverage than every other vendor combined — and its delivered
-  // resolution is the one still unknown. Bell's document page loads full metadata anonymously and
-  // renders NO image (no img/canvas/iframe), offering "Add to Cart" instead. That is not evidence
-  // the platform cannot fetch Kofile images — the production capture in bell-clerk.ts is documented
-  // as proven here and drives a fuller flow — it just means nothing was measured.
-  it('records Kofile as unmeasured rather than assuming a number', () => {
-    expect(KOFILE_RESOLUTION_UNMEASURED).toBe(true);
+describe('Kofile — the largest vendor, and the best resolution of the lot', () => {
+  // Bell instrument 2020032310 serves files/documents/99280747/images/94926355_1.png at 2550x3300 —
+  // exactly 300 DPI, a 21 px bearing, free and anonymous.
+  //
+  // The FIRST attempt at this measurement concluded Kofile served no free image at all, because the
+  // document page was inspected for <img>/<canvas>/<iframe> and has none of a useful size. The image
+  // arrives as a SIGNED NETWORK REQUEST and only fires when the viewer is reached the way
+  // bell-clerk.ts reaches it: search, then CLICK the row. Navigating straight to /doc/<id> loads the
+  // metadata and never requests the image. The failure was in the instrument, not the portal.
+  it('measures 300 DPI — comfortably readable', () => {
+    const r = assessLegibility(OBSERVED_CAPTURES.kofileSignedPage, { rows: 3, cols: 3 });
+    expect(r.effectiveDpi).toBeCloseTo(300, 0);
+    expect(r.verdict).toBe('good');
+    expect(r.fineTextPxAtModel).toBeGreaterThanOrEqual(GOOD_FINE_TEXT_PX);
   });
 
-  it('does not carry a Kofile entry in the measured captures', () => {
-    // Inventing one for the biggest vendor would be the worst place in the file to guess.
-    expect(Object.keys(OBSERVED_CAPTURES).some((k) => /kofile/i.test(k))).toBe(false);
+  it('is no longer recorded as unmeasured', () => {
+    expect(KOFILE_RESOLUTION_UNMEASURED).toBe(false);
   });
 
-  it('flags the free-preview claim as unverified where it is asserted', () => {
-    const fs = require('node:fs') as typeof import('node:fs');
-    const path = require('node:path') as typeof import('node:path');
-    const src = fs.readFileSync(path.join(process.cwd(), 'src/services/clerk-registry.ts'), 'utf8');
-    // hasFreeImagePreview returns true for every Kofile county on the strength of a comment that the
-    // portal's own behaviour now contradicts. Left returning the same answer — guessing the other way
-    // would suppress retrieval attempts that may well succeed — but no longer stated as fact.
-    expect(src).toContain('THIS CLAIM IS UNVERIFIED');
-    expect(src).toContain('renders **no document image at all**');
+  it('beats both other retrievable vendors', () => {
+    const kofile = assessLegibility(OBSERVED_CAPTURES.kofileSignedPage, { rows: 3, cols: 3 });
+    const avenu = assessLegibility(OBSERVED_CAPTURES.avenuLargeViewport, { rows: 1, cols: 1 });
+    const tyler = assessLegibility(OBSERVED_CAPTURES.tylerEagleDegraded, { rows: 3, cols: 3 });
+    expect(kofile.effectiveDpi).toBeGreaterThan(avenu.effectiveDpi);
+    expect(kofile.effectiveDpi).toBeGreaterThan(tyler.effectiveDpi);
   });
 });

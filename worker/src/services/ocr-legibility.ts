@@ -213,20 +213,26 @@ export const OBSERVED_CAPTURES = {
   avenuLargeViewport: { widthIn: 8.5, heightIn: 11, pixelWidth: 1712, pixelHeight: 3162 },
   /** Tyler Eagle's free DEGRADED rendering, read out of the PDF itself. */
   tylerEagleDegraded: { widthIn: 8.49, heightIn: 11.1, pixelWidth: 1699, pixelHeight: 2220 },
+  /** Kofile's free signed page image — the best of the lot, and 22 counties. */
+  kofileSignedPage: { widthIn: 8.5, heightIn: 11, pixelWidth: 2550, pixelHeight: 3300 },
 } as const;
 
-/** Kofile — 22 counties, the largest vendor, and the only delivered resolution still UNKNOWN.
+/** Kofile — 22 counties, and the BEST resolution of any vendor here. Measured 2026-08-03.
  *
- *  Attempted 2026-08-03 and deliberately not guessed. Bell's document page
- *  (`bell.tx.publicsearch.us/doc/…`) loads full metadata anonymously and renders **no image at all**
- *  — no `<img>`, `<canvas>` or `<iframe>` — offering "Add to Cart" instead.
+ *  Bell instrument 2020032310 serves `files/documents/99280747/images/94926355_1.png` at
+ *  **2550×3300** — exactly **300 DPI** for a letter page, putting a 0.07" bearing at **21 px**.
+ *  Comfortably readable, free, and anonymous.
  *
- *  That is not evidence the platform cannot fetch Kofile images: `bell-clerk.ts:fetchDocumentImages`
- *  is documented as proven in production here and drives a fuller flow than a page visit. It simply
- *  was not re-run, so there is no measurement to record, and inventing one for the biggest vendor
- *  would be the worst place in this file to guess.
+ *  ── AND THE FIRST ATTEMPT AT THIS MEASUREMENT WAS WRONG ───────────────────────────────────────
  *
- *  Measuring it means running that capture against a Bell instrument and passing the result to
- *  `assessLegibility`. Until then the resolution table has a hole exactly where most of the coverage
- *  is, and any claim about Kofile extraction quality is unsupported. */
-export const KOFILE_RESOLUTION_UNMEASURED = true;
+ *  It concluded Kofile served no free image at all, because the document page was inspected for
+ *  `<img>`/`<canvas>`/`<iframe>` elements and has none of a useful size. The image is fetched as a
+ *  **signed network request** (`?exp=…&sig=…`) rather than sitting in the DOM where it was looked
+ *  for, and it only fires when the viewer is reached the way `bell-clerk.ts` reaches it: search, then
+ *  CLICK the result row. Navigating straight to `/doc/<id>` loads the metadata and never requests the
+ *  image.
+ *
+ *  Worth keeping because the failure was in the METHOD, not the portal: looking in the DOM for
+ *  something delivered over the network produced a confident "no free preview" about the vendor
+ *  carrying most of this platform's coverage. The right instrument was the network log. */
+export const KOFILE_RESOLUTION_UNMEASURED = false;

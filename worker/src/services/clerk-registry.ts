@@ -259,27 +259,20 @@ export type ClerkSystem =
 /**
  * Return whether a given county has free document image preview.
  *
- * ── THIS CLAIM IS UNVERIFIED AS OF 2026-08-03, AND THE EVIDENCE IS AGAINST IT ──────────────────
+ * ── VERIFIED 2026-08-03, AND IT IS THE BEST IMAGE ANY VENDOR HERE SERVES ──────────────────────
  *
- * The original comment read "Kofile provides watermarked previews". Driving Bell's portal
- * anonymously on 2026-08-03 — `bell.tx.publicsearch.us/doc/99280747`, a 2-page release — the
- * document page loads its METADATA (instrument number, parties, page count, book/volume/page) and
- * renders **no document image at all**: no `<img>` over 158 px, no `<canvas>`, no `<iframe>`, after
- * waiting. What it offers instead is "Add to Cart / Express Checkout".
+ * Bell instrument 2020032310 serves `files/documents/99280747/images/94926355_1.png` at
+ * **2550×3300** — exactly 300 DPI for a letter page, free and without signing in. That is better
+ * than Avenu's ~201 DPI and Tyler's ~200, across 22 counties.
  *
- * That does NOT mean the platform cannot get Kofile images — `bell-clerk.ts:fetchDocumentImages` is
- * documented as proven in production against this county, and it drives a fuller flow than a bare
- * page visit. It has not been re-run here, so nothing about it is being asserted either way.
+ * **The image is a signed network request, not a DOM element**, and it only fires when the viewer is
+ * reached by searching and CLICKING the result row — the flow `bell-clerk.ts:fetchDocumentImages`
+ * drives. Navigating straight to `/doc/<id>` loads the metadata and never requests the image, and
+ * inspecting that page for an `<img>` finds only UI icons.
  *
- * What it does mean is that this function's premise — free preview, purely because the county is
- * Kofile — is not supported by what the portal does today, and it is consulted when deciding whether
- * a document can be had without paying. Left returning the same answer rather than flipped on one
- * anonymous observation, because guessing the other way would suppress retrieval attempts that may
- * well succeed. Flagged here so the next person checks rather than inherits it.
- *
- * Settle it by running the production capture against a Bell instrument and measuring the result
- * with `ocr-legibility.ts`. That also fills the last gap in the resolution table — Kofile is 22
- * counties, the largest vendor, and the only one whose delivered resolution is still unknown.
+ * Recorded because a first pass at verifying this concluded the opposite: it looked for the image in
+ * the DOM, found none, and nearly wrote off free previews for the vendor carrying most of this
+ * platform's coverage. The right instrument was the network log.
  */
 export function hasFreeImagePreview(countyFIPS: string): boolean {
   return KOFILE_FIPS_SET.has(countyFIPS);
