@@ -2,6 +2,7 @@
 // Combines deterministic math checks with AI semantic comparison to produce
 // an overall confidence score and list of persisting issues.
 
+import { DEFAULT_CLOSURE_THRESHOLDS, TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, AIServiceError } from './ai-client';
 import { computeElementConfidence } from './confidence';
@@ -354,9 +355,10 @@ function computeMathScore(checks: MathCheckSummary): number {
 
   // Closure precision bonus/penalty
   if (checks.closure_precision !== null) {
-    if (checks.closure_precision >= 25000) score += 15;
-    else if (checks.closure_precision >= 10000) score += 10;
-    else if (checks.closure_precision >= 5000) score += 5;
+    // Scored against the Texas minimums and the shared acceptable floor, not against literals.
+    if (checks.closure_precision >= TEXAS_MIN_URBAN_RATIO) score += 15;
+    else if (checks.closure_precision >= TEXAS_MIN_RURAL_RATIO) score += 10;
+    else if (checks.closure_precision >= DEFAULT_CLOSURE_THRESHOLDS.acceptable) score += 5;
     else if (checks.closure_precision < 2000) score -= 15;
   }
 

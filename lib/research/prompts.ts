@@ -441,7 +441,7 @@ BEARING FORMAT:
 
 DISTANCE FORMAT & UNIT CONVERSIONS:
 - Extract numeric value and unit (feet, varas, chains, meters, links, rods, perches).
-- CRITICAL — Texas vara conversion: 1 vara = 33.333... inches = 2.7778 feet = 0.8467 meters.
+- CRITICAL — Texas varas: report the vara figure AS WRITTEN and mark the unit. Do NOT convert — we convert exactly (1 vara ≈ 2.7778 ft), and a rounded conversion done here cannot be checked.
   (Do NOT confuse with 1 yard = 36 inches = 0.9144 m — the vara is shorter than a yard.)
 - 1 chain = 66 feet = 100 links; 1 link = 0.66 ft; 1 rod = 1 perch = 16.5 ft.
 - Convert to feet for distance_feet field (null only if unit is truly unrecognizable).
@@ -531,7 +531,7 @@ RULES:
 - Do NOT invent values — only compute from other stated values in the same call.
 - If no metes-and-bounds description found, return {"calls": [], "description_type": "lot_block", "notes": "No metes-and-bounds calls found — lot/block or insufficient description"}.
 - Preserve exact original text in raw_text for every call (the full "Thence..." clause).
-- For varas: always include distance_feet using 1 vara = 2.7778 ft conversion.`,
+- For varas: give the vara figure and the unit. Omit distance_feet rather than converting — the conversion is done exactly downstream.`,
   },
 
   // ── Comprehensive Legal Description Analysis ───────────────────────────────

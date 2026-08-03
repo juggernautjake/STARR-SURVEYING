@@ -4,6 +4,7 @@
 //
 // Spec §7.6 — Traverse Closure Computation & Compass Rule
 
+import { TSPS_TRAVERSE_TIERS } from '../lib/closure-tolerance.js';
 import type {
   TraversePoint,
   ClosureResult,
@@ -85,8 +86,8 @@ export class TraverseComputation {
 
     let status: ClosureResult['status'];
     if (ratio >= 50000 || ratio === Infinity) status = 'excellent';
-    else if (ratio >= 15000) status = 'acceptable';
-    else if (ratio >= 5000) status = 'marginal';
+    else if (ratio >= TSPS_TRAVERSE_TIERS.acceptable) status = 'acceptable';
+    else if (ratio >= TSPS_TRAVERSE_TIERS.marginal) status = 'marginal';
     else status = 'poor';
 
     return {

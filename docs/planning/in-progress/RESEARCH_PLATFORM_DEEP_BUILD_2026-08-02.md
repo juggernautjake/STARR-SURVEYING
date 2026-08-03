@@ -3547,6 +3547,64 @@ disagreed about was the *rule*.
 
 Worker suite 82 files / 1,375 tests; root 1,468 files; `npm run build` clean.
 
+#### The check for it, and what the check immediately found
+
+**DONE 2026-08-03** (`worker/src/__tests__/survey-primitives-are-not-duplicated.test.ts`).
+
+Three slices of one defect class is a pattern, so it gets a standing check — the same treatment the
+orphan modules got. It scans `worker/src` and `lib/research` for two things that are mechanically
+detectable and did in fact drift: a vara conversion factor written as a literal, and a closure ratio
+compared against a literal.
+
+**It deliberately does NOT try to detect "a duplicate parser."** Thirty files here contain `[NS]`,
+nearly all of them prompt text, schema examples and format documentation. A check that flagged those
+would be noise, and noisy checks get skipped — which would leave this worse than not having one. The
+bearing case is defended by its own test against the renderer instead.
+
+**The check paid for itself on its first run**, finding what two rounds of careful grepping had
+missed:
+
+- **Two more vara conversions in live code paths** — `lib/research/boundary-fetch.service.ts`
+  (`100 / 36`, correct but a *seventh* copy) and `worker/src/counties/bell/analyzers/deed-analyzer.ts`
+  (`*= 2.7778`, rounded, an eighth). **Both also had `3.28084` for the metre** — the international
+  foot — in traverse arithmetic, the same defect `validation.ts` had. The previous slice's commit
+  message claimed the vara was consolidated. It was not, and only the check knew.
+- **Five more files holding closure thresholds as literals**: `traverse-closure.ts`,
+  `analysis.service.ts`, `comparison.service.ts`, `confidence.ts` and `geometry.engine.ts`. Nine
+  files in total held the numbers.
+
+**But they were not all the same question, and flattening them would have been the real mistake.**
+Three genuinely distinct scales came out of it, and each is now named for what it measures:
+
+| scale | numbers | what it answers |
+|---|---|---|
+| `DEFAULT_CLOSURE_THRESHOLDS` | 10,000 / 5,000 / 2,500 | is this closure acceptable to report? |
+| `TSPS_TRAVERSE_TIERS` | 50,000 / 15,000 / 5,000 | does it meet the TSPS condition-of-survey category? |
+| `TEXAS_MIN_RURAL_RATIO` / `_URBAN_` | 10,000 / 25,000 | does it meet the statutory minimum for this land use? |
+
+A traverse at 1:12,000 is *excellent* on the first and *marginal* on the second, and both are right —
+they are different questions. What was wrong is that nothing said which question any file was asking.
+
+**A correction to this document's own previous entry.** Two slices ago I pulled `25_000` out of
+`validation.ts` and named it `SCORECARD_EXCELLENT_RATIO`, guessing it was a stricter-compliment
+threshold. It is the **urban statutory minimum** — `analysis.service.ts` says so in prose, in the
+discrepancy it writes for a surveyor. The number was right and the name was my invention, which is
+its own kind of drift: a well-named constant that means something else is *harder* to catch than a
+literal, because it looks resolved. Renamed once the third and fourth users turned up and said what
+it was for.
+
+`confidence.ts` is left as a scoring **curve** with seven breakpoints rather than being forced onto
+three tiers; the four that coincide with a named standard now reference it, and the rest are marked
+as curve shape.
+
+Two bugs of my own in this slice, both worth recording because they are the ordinary hazards of bulk
+edits: a string replace turned `>= 50000` into `>= DEFAULT_CLOSURE_THRESHOLDS.acceptable0`, because
+`5000` is a substring of `50000`; and an import inserted before the first `import` line landed
+*inside* an `import type {` block, twice. The typechecker caught both immediately — which is the
+argument for running it between edits rather than at the end.
+
+Worker suite 83 files / 1,381 tests; root 1,468 files; `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

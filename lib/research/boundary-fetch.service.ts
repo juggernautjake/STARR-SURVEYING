@@ -2,6 +2,10 @@
 // Fetches property data from Texas county appraisal district databases (TrueAutomation and others),
 // extracts the legal description, and uses AI to parse the metes-and-bounds boundary calls.
 
+// One unit table for the whole platform — see toFeet below.
+import { convertLength, type LengthUnit } from '@/worker/src/services/survey-units';
+// One set of closure numbers for the whole platform.
+import { DEFAULT_CLOSURE_THRESHOLDS, READING_SUSPECT_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { callAI } from './ai-client';
 import {
   queryParcelByPropId,
@@ -1488,15 +1492,26 @@ function parseBearingToAzimuth(bearing: string): number | null {
   return 360 - decimal; // NW
 }
 
-/** Convert a distance to feet from its stated unit. */
+/** Convert a distance to US survey feet from its stated unit.
+ *
+ *  The vara here was `100 / 36`, which is exactly right and was still the SEVENTH copy of that
+ *  number in the codebase — each correct where it was written, which is precisely how three of the
+ *  others drifted to a rounded `2.7778` while claiming to be exact.
+ *
+ *  The metre was `3.28084`: the INTERNATIONAL foot, in a function feeding traverse arithmetic that
+ *  is compared against Texas State Plane. Same defect as `validation.ts` had. */
 function toFeet(distance: number, unit: string): number {
   const u = (unit ?? 'feet').toLowerCase().trim();
-  if (u === 'vara' || u === 'varas')  return distance * (100 / 36); // 1 vara = 33.333… in = 2.7778 ft
-  if (u === 'chain' || u === 'chains') return distance * 66;
-  if (u === 'link'  || u === 'links')  return distance * 0.66;
-  if (u === 'rod'   || u === 'rods')   return distance * 16.5;
-  if (u === 'meter' || u === 'meters' || u === 'm') return distance * 3.28084;
-  return distance; // feet (default)
+  const map: Record<string, LengthUnit> = {
+    vara: 'varas', varas: 'varas',
+    chain: 'chains', chains: 'chains',
+    link: 'links', links: 'links',
+    rod: 'rods', rods: 'rods',
+    meter: 'meters', meters: 'meters', m: 'meters',
+    foot: 'us_survey_feet', feet: 'us_survey_feet', ft: 'us_survey_feet',
+  };
+  const known = map[u];
+  return known ? convertLength(distance, known, 'us_survey_feet').value : distance;
 }
 
 /**
@@ -1546,12 +1561,14 @@ function runClosureCheck(
 
   let quality: ClosureCheckResult['quality'];
   if (!precision)                  quality = 'unchecked';
-  else if (precision >= 10_000)    quality = 'excellent';
-  else if (precision >= 5_000)     quality = 'good';
-  else if (precision >= 1_000)     quality = 'marginal';
+  // Named constants rather than literals — this is the reading-soundness scale, the same one
+  // closure-diagnosis.ts uses, and it is NOT the TSPS category scale in traverse-closure.ts.
+  else if (precision >= DEFAULT_CLOSURE_THRESHOLDS.excellent)  quality = 'excellent';
+  else if (precision >= DEFAULT_CLOSURE_THRESHOLDS.acceptable) quality = 'good';
+  else if (precision >= READING_SUSPECT_RATIO)                 quality = 'marginal';
   else                             quality = 'poor';
 
-  const closes = precision !== null && precision >= 1_000;
+  const closes = precision !== null && precision >= READING_SUSPECT_RATIO;
   let warning: string | undefined;
   if (!closes && precision !== null) {
     warning = `Traverse does not close — error: ${errorFt.toFixed(3)} ft (1:${precision.toLocaleString()}).`;

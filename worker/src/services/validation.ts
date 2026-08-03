@@ -11,7 +11,7 @@
 
 import { BoundaryCall, ValidationResult, ExtractedBoundaryData } from '../types/index.js';
 // One set of closure numbers for the whole platform (see the quality block below).
-import { DEFAULT_CLOSURE_THRESHOLDS, SCORECARD_EXCELLENT_RATIO } from '../lib/closure-tolerance.js';
+import { DEFAULT_CLOSURE_THRESHOLDS, TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '../lib/closure-tolerance.js';
 // One unit table for the whole platform — see toFeet below.
 import { convertLength, type LengthUnit } from './survey-units.js';
 import type { PipelineLogger } from '../lib/logger.js';
@@ -246,13 +246,13 @@ export function validateBoundary(
     //
     // Same numbers as before — this is a consolidation, not a re-grading. What changes is that
     // moving a threshold now moves it everywhere, which is what that module always claimed.
-  } else if (closureError < 0.001 || (totalDistance > 0 && totalDistance / closureError > SCORECARD_EXCELLENT_RATIO)) {
+  } else if (closureError < 0.001 || (totalDistance > 0 && totalDistance / closureError > TEXAS_MIN_URBAN_RATIO)) {
     if (result.bearingSanity && result.distanceSanity) {
       result.overallQuality = 'excellent';
     } else {
       result.overallQuality = 'good';
     }
-  } else if (totalDistance > 0 && totalDistance / closureError > DEFAULT_CLOSURE_THRESHOLDS.excellent && result.bearingSanity) {
+  } else if (totalDistance > 0 && totalDistance / closureError > TEXAS_MIN_RURAL_RATIO && result.bearingSanity) {
     result.overallQuality = 'good';
   } else if (totalDistance > 0 && totalDistance / closureError > DEFAULT_CLOSURE_THRESHOLDS.acceptable) {
     result.overallQuality = 'fair';

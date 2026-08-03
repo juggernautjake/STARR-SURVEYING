@@ -39,17 +39,37 @@ export const DEFAULT_CLOSURE_THRESHOLDS: ClosureThresholds = {
 /** A county may not loosen the acceptable floor below this ratio under any circumstance. */
 export const MIN_ACCEPTABLE_FLOOR_RATIO = 2_500;
 
-/** Above this, `validateBoundary` calls a traverse 'excellent' rather than merely 'good'.
+/** Texas minimum closure standards, by land use.
  *
- *  Higher than `DEFAULT_CLOSURE_THRESHOLDS.excellent` on purpose, and the two are NOT the same
- *  question. This module's tiers answer *"is this closure acceptable to report?"* — a standards
- *  question with a floor beneath it. This one answers *"is this the best grade on a quality
- *  scorecard?"*, where a stricter bar is only a stricter compliment and nothing is blocked by it.
+ *  ── A correction to this file's own first attempt ───────────────────────────────────────────────
  *
- *  It lives here rather than as a literal in `validation.ts` because that is where it WAS, and an
- *  inline `> 25000` beside two other files' inline thresholds is precisely how three different
- *  answers to one question came to exist. */
-export const SCORECARD_EXCELLENT_RATIO = 25_000;
+ *  `25_000` was pulled out of `validation.ts` two slices ago and named `SCORECARD_EXCELLENT_RATIO`,
+ *  on the guess that it was a stricter-compliment threshold on a quality scorecard. It is not.
+ *  `analysis.service.ts` says what it actually is, in prose, in the discrepancy it writes for a
+ *  surveyor: *"Texas minimum standard for rural surveys is 1:10,000; for urban surveys 1:25,000."*
+ *
+ *  So the number was right and the NAME was wrong, which is its own kind of drift — a well-named
+ *  constant that means something else is harder to catch than a literal, because it looks resolved.
+ *  Renamed once the third and fourth users of it turned up and said what it was for. */
+export const TEXAS_MIN_RURAL_RATIO = 10_000;
+export const TEXAS_MIN_URBAN_RATIO = 25_000;
+
+/** Closure bands for judging a traverse against Texas professional standards.
+ *
+ *  A DIFFERENT SCALE from `DEFAULT_CLOSURE_THRESHOLDS`, and deliberately kept as one rather than
+ *  flattened into it. The Texas Society of Professional Surveyors' condition-of-survey categories
+ *  set closure by land use — roughly 1:15,000 for suburban work and tighter for urban — so a
+ *  traverse at 1:12,000 is genuinely *below category* while still being a perfectly sound reading of
+ *  a document. Those are two questions, and forcing them onto one scale would answer both wrongly.
+ *
+ *  What was NOT acceptable is that `traverse-closure.ts` held these as bare literals while three
+ *  other files held three other sets, so nothing said which question any of them was answering.
+ *  Naming the scale is the fix; changing the numbers would have been a silent re-grading. */
+export const TSPS_TRAVERSE_TIERS = {
+  excellent: 50_000,
+  acceptable: 15_000,
+  marginal: 5_000,
+} as const;
 
 /** Below this, a closure is bad enough to cast doubt on the READING rather than on the survey.
  *

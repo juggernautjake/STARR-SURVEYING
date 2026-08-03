@@ -1,6 +1,7 @@
 // lib/research/geometry.engine.ts — Geometry engine for converting surveying calls to drawing elements
 // Pure math — no AI calls. All functions must be deterministic.
 
+import { DEFAULT_CLOSURE_THRESHOLDS } from '@/worker/src/lib/closure-tolerance';
 import type {
   ExtractedDataPoint,
   Discrepancy,
@@ -152,9 +153,13 @@ export function computeTraverse(
   const totalDistance = calculatePerimeter(calls);
   const ratio = misclosure > 0 ? totalDistance / misclosure : Infinity;
 
-  // Apply Compass Rule if precision is better than 1:5000
+  // Apply the Compass Rule only when the traverse closes well enough to be worth adjusting.
+  //
+  // The threshold is the shared ACCEPTABLE floor, not a local 5000: distributing misclosure around a
+  // figure that does not close is polishing a reading nobody should trust yet, and it hides the very
+  // error the closure was reporting.
   let adjustedPoints: TraversePoint[] | undefined;
-  if (ratio > 5000 && misclosure > 0.001) {
+  if (ratio > DEFAULT_CLOSURE_THRESHOLDS.acceptable && misclosure > 0.001) {
     adjustedPoints = applyCompassRule(rawPoints, dx, dy, calls);
   }
 

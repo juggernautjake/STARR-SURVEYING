@@ -233,8 +233,14 @@ describe('there is ONE set of closure numbers', () => {
   it('validation.ts uses the shared numbers too', () => {
     const src = fs.readFileSync(
       path.join(process.cwd(), 'src/services/validation.ts'), 'utf8');
-    expect(src).toContain('SCORECARD_EXCELLENT_RATIO');
-    expect(src).toContain('DEFAULT_CLOSURE_THRESHOLDS.excellent');
+    // These were `SCORECARD_EXCELLENT_RATIO` and `DEFAULT_CLOSURE_THRESHOLDS.excellent` when this
+    // test was written. Renamed once two more users of the same numbers turned up and said, in
+    // prose meant for a surveyor, what they actually are: *"Texas minimum standard for rural
+    // surveys is 1:10,000; for urban surveys 1:25,000."* The value never changed — only the name,
+    // which had been my guess. A well-named constant that means something else is harder to catch
+    // than a literal, because it looks resolved.
+    expect(src).toContain('TEXAS_MIN_URBAN_RATIO');
+    expect(src).toContain('TEXAS_MIN_RURAL_RATIO');
     // The literals that were there before must be gone, or the import is decoration.
     expect(src).not.toMatch(/closureError > 25000/);
     expect(src).not.toMatch(/closureError > 10000/);

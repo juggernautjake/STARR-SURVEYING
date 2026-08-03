@@ -1,6 +1,7 @@
 // lib/research/analysis.service.ts — AI Analysis Engine orchestration
 // Coordinates per-document extraction, cross-referencing, normalization, and discrepancy detection.
 import { supabaseAdmin } from '@/lib/supabase';
+import { TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
 // Matching a fact's quote back to the tile it was read from (plan R17).
@@ -2086,10 +2087,11 @@ function detectMathDiscrepancies(
           let severity: DiscrepancySeverity = 'info';
           let probableCause: ProbableCause = 'rounding_difference';
 
-          if (ratio < 10000) {
+          // The Texas minimums, named — the prose a few lines down already states them.
+          if (ratio < TEXAS_MIN_RURAL_RATIO) {
             severity = 'error';
             probableCause = 'surveying_error';
-          } else if (ratio < 25000) {
+          } else if (ratio < TEXAS_MIN_URBAN_RATIO) {
             severity = 'discrepancy';
             probableCause = 'rounding_difference';
           }
@@ -2099,8 +2101,8 @@ function detectMathDiscrepancies(
             severity,
             probable_cause: probableCause,
             title: `Traverse misclosure: ${closure.misclosure.toFixed(3)} ft (1:${ratio})`,
-            description: `The boundary calls do not close. Misclosure distance is ${closure.misclosure.toFixed(3)} feet with a precision ratio of 1:${ratio}. Texas minimum standard for rural surveys is 1:10,000; for urban surveys 1:25,000.`,
-            ai_recommendation: ratio < 10000
+            description: `The boundary calls do not close. Misclosure distance is ${closure.misclosure.toFixed(3)} feet with a precision ratio of 1:${ratio}. Texas minimum standard for rural surveys is 1:${TEXAS_MIN_RURAL_RATIO.toLocaleString()}; for urban surveys 1:${TEXAS_MIN_URBAN_RATIO.toLocaleString()}.`,
+            ai_recommendation: ratio < TEXAS_MIN_RURAL_RATIO
               ? 'This closure exceeds the minimum Texas standard. Review all bearing and distance values for transposition or transcription errors.'
               : 'Closure is within acceptable limits but notable. Verify the most uncertain calls.',
             data_point_ids: [],

@@ -9,6 +9,7 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
+import { convertLength } from '../../../services/survey-units.js';
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call reads a scanned deed page region.
@@ -880,11 +881,17 @@ function computeTraverseFromCalls(calls: BoundaryCall[]): ComputedTraverse | nul
       continue;
     }
 
-    // Convert distance to feet
-    let distFt = call.distance;
-    if (call.distanceUnit === 'varas') distFt *= 2.7778;
-    else if (call.distanceUnit === 'meters') distFt *= 3.28084;
-    else if (call.distanceUnit === 'chains') distFt *= 66;
+    // Convert distance to US survey feet.
+    //
+    // Was `*= 2.7778` for the vara (rounded, in a code path) and `*= 3.28084` for the metre (the
+    // INTERNATIONAL foot). Eighth copy of the vara constant in this codebase; the earlier
+    // consolidation pass missed this file and the app-side boundary fetcher, which is why the check
+    // below it now exists rather than another round of grepping carefully.
+    const unitMap = { varas: 'varas', meters: 'meters', chains: 'chains' } as const;
+    const known = unitMap[call.distanceUnit as keyof typeof unitMap];
+    const distFt = known
+      ? convertLength(call.distance, known, 'us_survey_feet').value
+      : call.distance;
 
     // Bearing is degrees from north, clockwise
     // X = easting (positive = east), Y = northing (positive = north)

@@ -3,6 +3,7 @@
 // Criteria account for: document readability, age, contradictions, source type,
 // OCR quality, multi-document confirmation, discrepancy severity, and geometry.
 
+import { DEFAULT_CLOSURE_THRESHOLDS, READING_SUSPECT_RATIO, TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '@/worker/src/lib/closure-tolerance';
 import type {
   ConfidenceFactors,
   Discrepancy,
@@ -324,19 +325,22 @@ function computeGeometricConsistency(
   if (closurePrecision === undefined) return 70; // No closure data — moderate default
 
   let score: number;
-  if (closurePrecision >= 50000) {
+  // 50,000 and 15,000 are curve-shape points with no named standard behind them — this is a SCORE,
+  // not a tier, and it has more breakpoints than any classification scale. The ones that do coincide
+  // with a standard are named, so a future change to the Texas minimums moves this curve with them.
+  if (closurePrecision >= 50_000) {
     score = 98;
-  } else if (closurePrecision >= 25000) {
+  } else if (closurePrecision >= TEXAS_MIN_URBAN_RATIO) {
     score = 95;
   } else if (closurePrecision >= 15000) {
     score = 90;
-  } else if (closurePrecision >= 10000) {
+  } else if (closurePrecision >= TEXAS_MIN_RURAL_RATIO) {
     score = 85;
-  } else if (closurePrecision >= 5000) {
+  } else if (closurePrecision >= DEFAULT_CLOSURE_THRESHOLDS.acceptable) {
     score = 70;
   } else if (closurePrecision >= 2000) {
     score = 55;
-  } else if (closurePrecision >= 1000) {
+  } else if (closurePrecision >= READING_SUSPECT_RATIO) {
     score = 35;
   } else if (closurePrecision >= 500) {
     score = 20;
@@ -362,11 +366,11 @@ function computeGeometricConsistency(
 function computeClosureContribution(closurePrecision?: number): number {
   if (closurePrecision === undefined) return 70; // No data — moderate default
 
-  if (closurePrecision >= 25000) return 95;
-  if (closurePrecision >= 10000) return 85;
-  if (closurePrecision >= 5000) return 70;
+  if (closurePrecision >= TEXAS_MIN_URBAN_RATIO) return 95;
+  if (closurePrecision >= TEXAS_MIN_RURAL_RATIO) return 85;
+  if (closurePrecision >= DEFAULT_CLOSURE_THRESHOLDS.acceptable) return 70;
   if (closurePrecision >= 2000) return 55;
-  if (closurePrecision >= 1000) return 35;
+  if (closurePrecision >= READING_SUSPECT_RATIO) return 35;
   return 15;
 }
 
