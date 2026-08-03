@@ -2759,20 +2759,50 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 ---
 
+- **S5. Curves, as first-class geometry.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/curve-check.ts`)
+
+  Radius, delta and arc are over-determined — any two give the third — so a curve is one of very few
+  things in a land record that can be checked with **no field work and no second document**.
+
+  **Which value is wrong decides what kind of problem it is.** The traverse walks the chord, so a
+  mis-read chord moves a **corner**, while a mis-read radius or delta changes only how the arc bends
+  between corners that are still in the right place — a field problem versus a records correction. A
+  single "curve data inconsistent" flag would lose exactly that.
+
+  OCR has a favourite mistake (3↔8, 5↔6, 1↔7, 0↔8), so where the residual matches a single-digit
+  substitution the check says so: *"the radius is 0.9% off"* is a statistic, *"a 3/8 swap in one
+  digit"* is a correction somebody can make. Fewer than two values is `unverifiable`, never
+  `consistent` — "nothing disagreed" and "nothing was compared" must not read alike — and the
+  arc-and-chord-only case is refused outright because the solution is ill-conditioned for a shallow
+  arc and any radius returned would be invented precision. Tangency is offered as an independent
+  second check on delta, but reported as a **question**, since a non-tangent curve is legal and
+  common.
+
+- **S6. The drawing.** ✅ **DONE 2026-08-03** (`worker/src/services/survey-drawing.ts`)
+
+  Deliberately **not** `reports/svg-renderer.ts`: that draws `model.reconciledPerimeter`, the Phase 7
+  output after every source has been cross-validated. This draws **one document's calls at the moment
+  it is read**, which is how a person looks at what a single deed says — and it therefore has to be
+  able to draw a boundary that does not close, because a single deed frequently does not.
+
+  **What it refuses to draw is the design.** The tempting implementation joins the last point to the
+  first and fills the polygon, and then every drawing looks like a closed, surveyed parcel — including
+  the ones built from calls nobody could read. Somebody will scale off this drawing. So a closure gap
+  is dashed, red and labelled as a gap; unplaced calls leave the outline visibly **broken** rather
+  than bridged by a line nobody measured; nothing is filled; and one scale is used for both axes,
+  because stretching to fit changes every angle in the figure.
+
+  Labels are in the **deed's own units** — `1900 vrs` with `(5277.78')` beneath — since a surveyor
+  comparing the drawing against the deed in hand needs the document's own number first. Monuments
+  follow the plat-legend convention: found filled, set hollow, searched-for-and-missing an X.
+
+  This also caught a bug in S3: `VARAS_TO_US_SURVEY_FEET` was exported as 25/9 while the conversion
+  factor was derived from 33⅓ *international* inches — 2.7777772… against 2.7777778…, about 0.01 ft
+  over 1,900 varas. Small, but a module whose published constant disagrees with its own arithmetic
+  cannot be checked by anyone. Now derived from the US survey foot, with three tests pinning it.
+
 #### Still to build in this phase
-
-- **S5. Curves, as first-class geometry.** `BoundaryCall.curve` already carries radius, arc length,
-  chord bearing, chord distance, delta and direction, and the traverse walks the **chord** (the chord
-  joins the corners a crew occupies). What is missing is *checking* them: radius, delta and arc are
-  over-determined — any two give the third — so a curve whose three values disagree is a
-  transcription error **the document itself can prove**, and one of very few places a record can be
-  checked without going to the field.
-
-- **S6. The drawing.** Coordinates now exist for every corner, so the boundary can be drawn
-  programmatically with each line labelled by bearing and distance. `svg-renderer.ts` and
-  `plat-drawing-generator.ts` already exist and take a boundary model; the remaining work is feeding
-  them the traverse output and labelling in the **deed's own units** — a line recited in varas should
-  read in varas with the converted feet beside it, not silently in internal feet.
 
 - **S7. Document retrieval for the vendors that still lack it.** Kofile (22 counties) captures pages;
   Tyler Eagle, Avenu, eDocTec, Aumentum and iDocMarket do not, and their `getDocumentImages` throws
