@@ -106,12 +106,18 @@ Each is sized to be shipped and verified independently, in the order that makes 
   frame's `renderAll()` exceeds 16 ms, frames queue, the main thread saturates, and the tab stops
   responding. That is a freeze needing a refresh, not a leak that degrades.
 
-  **The instrumentation to prove it already exists.** `renderAll` is already wrapped in
-  `measureRender` from `lib/cad/perf/render-markers.ts`, and so are `renderFeatures`,
-  `renderImageFeatures`, `renderLabels` and `renderSelection` individually. So S2 can produce numbers
-  in minutes — open a large drawing, read the markers, and see which of the sixteen passes dominates.
-  **Do that before changing anything**: the fix shape depends on whether the cost is spread across all
-  sixteen or concentrated in one.
+  **The instrumentation to prove it already exists, and it is already reachable.** `renderAll` is
+  wrapped in `measureRender` from `lib/cad/perf/render-markers.ts`, as are `renderFeatures`,
+  `renderImageFeatures`, `renderLabels` and `renderSelection` individually — and `PerfOverlay.tsx`
+  is **mounted in `CADLayout` and toggled with `Ctrl+Alt+P`**, showing the histogram live.
+
+  So S2 needs no tooling built at all. Open a large drawing, press `Ctrl+Alt+P`, and read which of
+  the sixteen passes dominates. **Do that before changing anything**: the fix shape depends on
+  whether the cost is spread across all sixteen or concentrated in one, and that is a five-minute
+  question with an answer already on screen.
+
+  (Checked rather than assumed — this subsystem has a habit of already containing the thing you were
+  about to build, which is the other half of why §1 says to read the 55 completed docs first.)
 
   **The fix shape, and why it is not a drive-by.** A dirty-flag or store-version gate on the loop is
   the obvious remedy, but getting it wrong means the canvas silently stops updating — worse than the
