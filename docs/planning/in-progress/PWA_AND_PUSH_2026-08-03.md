@@ -11,23 +11,29 @@ general.
 Before recommending anything I checked what exists, because three times today this codebase already
 contained the thing about to be built. It does again:
 
+> **CORRECTED 2026-08-03, an hour after writing.** The first version of this table said the `/dnd`
+> and `/AndrewAsh` manifests were **missing**. They are not — I globbed `manifest*.json` and they are
+> `manifest.webmanifest`. That was the fourth time in one session I asserted something absent that
+> was present, and it happened in the very paragraph claiming I had checked. The corrected table is
+> below; the wrong claim is recorded rather than quietly deleted, because the pattern is the point.
+
 | piece | state |
 |---|---|
-| `public/manifest.json` | **exists** — "Starr Surveying", `start_url: /admin/me`, `scope: /`, themed `#BD1218`, 192/512 icons |
-| `public/dnd/sw.js` | **exists** — a real service worker, registered by `app/dnd/_ui/RegisterTabletopPWA.tsx` at scope `/dnd/` |
-| `public/AndrewAsh/sw.js` | **exists** — same pattern, `RegisterVoicePWA.tsx` |
-| Web Push | **exists** — `NotificationPanel.tsx` subscribes via `PushManager`, `lib/voice/notifications.ts` sends |
-| a manifest for `/dnd` or `/AndrewAsh` | **missing** |
-| a service worker for the business app | **missing** |
+| `public/manifest.json` | **exists** — "Starr Surveying", `start_url: /admin/me`, `scope: /` |
+| `public/dnd/manifest.webmanifest` + `public/dnd/sw.js` | **both exist**, registered at scope `/dnd/` |
+| `public/AndrewAsh/manifest.webmanifest` + `public/AndrewAsh/sw.js` | **both exist**, same pattern |
+| Web Push | **exists** — `PushManager` subscribe + a sender in `lib/voice/notifications.ts` |
+| **a service worker for the business app** | **missing — the only real gap** |
 
-So the state is **inverted between areas**:
+So **two of the three PWAs are already complete and installable**, with their own icons, scopes and
+workers. D&D and AndrewAsh can be added to a home screen today, and iOS push works for them once a
+user does.
 
-- **Business app** — installable (has a manifest), but no service worker: no offline, no push.
-- **D&D and AndrewAsh** — have offline/push machinery, but no manifest, so they cannot be installed
-  as their own app with their own icon. On iOS that also means **push cannot work there**, because
-  iOS only delivers push to a home-screen install.
+The single gap is the **business app**: `public/manifest.json` promises an installable app at
+`/admin/me`, and nothing registers a worker for it. So a crew member can install it and get **no
+offline and no push** — the manifest writes a cheque the app does not honour.
 
-That is the actual gap, and it is much smaller than "build a PWA".
+That is far smaller than "build a PWA", and it is one slice.
 
 ---
 
@@ -55,13 +61,16 @@ business app a worker, and share one push backend.
 
 ## 2. Slices
 
-- **W1. A manifest per area.** `/dnd/manifest.webmanifest` and `/AndrewAsh/manifest.webmanifest`,
-  each with its own name, icons, `start_url` and `scope`, linked from that area's layout. This alone
-  makes both installable — and is what unblocks **iOS push for D&D**, which today cannot work at all.
+- ~~**W1. A manifest per area.**~~ **ALREADY DONE, before this document existed.** Both manifests
+  exist and are declared from their layouts — `app/dnd/layout.tsx` sets
+  `manifest: '/dnd/manifest.webmanifest'`. Struck rather than deleted, because this slice was written
+  against a wrong reading of the tree and the correction is worth more than a tidy list.
 
-- **W2. A service worker for the business app.** The manifest already exists and promises an app;
-  without a worker there is no offline and no push for the crew. Scope `/admin/`, matching the
-  existing pattern rather than inventing one.
+- **W2. A service worker for the business app.** ← **START HERE.** `public/manifest.json` promises an
+  installable app at `/admin/me` and nothing registers a worker for it, so a crew member who installs
+  it gets no offline and no push. Follow `RegisterTabletopPWA` exactly — scope `/admin/`, and keep its
+  killswitch, which unregisters ONLY its own scope precisely so it cannot take out the other two
+  areas' workers.
 
 - **W3. Offline the field packet.** The highest-value offline case in the product: the approved
   packet is already a single snapshot object and `packet-offline.ts` already decides what a cached
@@ -93,5 +102,21 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 
 ## 4. State
 
-Not started. W1 is the smallest and unblocks the most: two manifest files and two `<link>` tags make
-both existing service workers into installable apps, and turn on iOS push for D&D.
+**W1 was already done** before this document was written — see the correction in §0.
+
+**Start at W2**, the only real gap: the business app's manifest promises an installable app and no
+worker backs it.
+
+### A note on how this document was written, which is the most useful thing in it
+
+Four times in one session I asserted that this codebase lacked something it already had — the render
+dirty check, the profiling fixtures, a D&D orphan-check, and these manifests. The last one happened
+**inside the paragraph claiming I had checked first**, because I globbed `manifest*.json` against
+files named `manifest.webmanifest`.
+
+The pattern is not carelessness about whether to look; it is looking with too narrow a probe and
+treating a null result as proof of absence. The cheap defence is the one that caught three of the
+four: **when a check comes back empty, widen it once before believing it.** A `find` by extension, a
+grep for the concept rather than the filename, or simply `ls` the directory.
+
+This repo is mature enough that "it does not exist" is usually wrong.
