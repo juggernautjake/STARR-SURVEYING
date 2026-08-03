@@ -28,10 +28,22 @@ const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8')
  *  Both count. The first version demanded a Tailwind class and flagged a heading in the billing page
  *  that already sets its colour with `style={{ color: TIER_COLORS[...] }}`. That was a false
  *  accusation, and a check that forces redundant code is one people learn to work around. */
-function hasColour(tag: string): boolean {
-  return /\btext-(gray|slate|zinc|red|amber|blue|green|emerald)-\d{2,3}\b/.test(tag)
+function hasColour(tag: string, src = ''): boolean {
+  if (/\btext-(gray|slate|zinc|red|amber|blue|green|emerald)-\d{2,3}\b/.test(tag)
     || /\btext-white\b/.test(tag)
-    || /style=\{\{[^}]*\bcolor\b/.test(tag);
+    || /style=\{\{[^}]*\bcolor\b/.test(tag)) return true;
+
+  // `className={labelCls}` — resolve the variable and look there.
+  //
+  // An app-wide sweep for this bug reported 64 elements across 19 CAD files. Every one was a false
+  // positive, and this was why for sixteen of them: the CAD editor defines `const labelCls = 'block
+  // text-[11px] … text-gray-400 …'` once per file and reuses it. That is a better pattern than the
+  // research pages had, and a check that cannot see it would have sent someone to "fix" nineteen
+  // files that were already right.
+  const ref = /className=\{(\w+)\}/.exec(tag);
+  if (!ref || !src) return false;
+  const decl = new RegExp(`\\b${ref[1]}\\s*=\\s*['"\`]([^'"\`]*)['"\`]`).exec(src);
+  return decl ? hasColour(`className="${decl[1]}"`) : false;
 }
 
 /** Everything in the research area that renders on a dark surface and therefore cannot rely on
@@ -76,7 +88,7 @@ describe('every heading and label on a dark surface names its own colour', () =>
       // sweep of these files came back clean while two headings were still bare.
       const tags = [...src.matchAll(/<h[1-6]\s[^>]*>/g)].map((m) => m[0]);
       expect(tags.length, 'no headings found — did this file change shape?').toBeGreaterThan(0);
-      const bare = tags.filter((t) => !hasColour(t));
+      const bare = tags.filter((t) => !hasColour(t, src));
       expect(bare, `these headings inherit a colour they will never receive:\n  ${bare.join('\n  ')}`)
         .toEqual([]);
     });
@@ -86,7 +98,7 @@ describe('every heading and label on a dark surface names its own colour', () =>
       // A page may legitimately contain no labels. Absence is not a failure — asserting otherwise
       // would force a meaningless label onto a page to satisfy a test.
       if (tags.length === 0) return;
-      const bare = tags.filter((t) => !hasColour(t));
+      const bare = tags.filter((t) => !hasColour(t, src));
       expect(bare, `these labels render dark-on-dark:\n  ${bare.join('\n  ')}`).toEqual([]);
     });
   }
@@ -125,5 +137,33 @@ describe('the harness can mount the panels, which is how this was found', () => 
     // response would be testing the fake.
     const mount = read('app/ux-harness/ResearchPanelHarnessMount.tsx');
     expect(mount).toContain('do not fake API responses');
+  });
+});
+
+describe('the sweep that found nothing, recorded so nobody repeats it', () => {
+  // An app-wide sweep for this bug reported 64 elements across 19 files, all in the CAD editor.
+  // EVERY ONE was a false positive, found by checking before editing:
+  //
+  //   · most were `<label className="block">` wrapping children that each set their own colour —
+  //     the label has no bare text, so the global rule colours nothing visible;
+  //   · the remaining sixteen used `className={labelCls}`, where the variable already carries
+  //     `text-gray-400`.
+  //
+  // So the bug was confined to the research area, and the CAD editor avoided it by defining a label
+  // class constant once per file — a better pattern than the research pages had. Recorded because
+  // the alternative was editing nineteen files that were already correct, and because a future
+  // widening of this check will hit the same two false-positive shapes.
+  it('resolves a className variable rather than accusing it', () => {
+    const src = "const labelCls = 'block text-[11px] font-semibold text-gray-400 mb-1';";
+    expect(hasColour('<label className={labelCls}>', src)).toBe(true);
+  });
+
+  it('still flags a variable that genuinely has no colour', () => {
+    const src = "const labelCls = 'block text-xs font-semibold mb-1';";
+    expect(hasColour('<label className={labelCls}>', src)).toBe(false);
+  });
+
+  it('does not crash when the variable cannot be found', () => {
+    expect(hasColour('<label className={somethingElse}>', '')).toBe(false);
   });
 });

@@ -3910,6 +3910,26 @@ And a process note worth keeping: shell heredocs mangled `\b` into a literal **b
 in this test file — the second time that has happened today. Files with regexes get written with the
 editor, not echoed through a shell.
 
+**An app-wide sweep found nothing more — a negative result worth recording.** The cause is a global
+CSS rule, so the bug cannot be research-specific in principle. Sweeping every `.tsx` under `app/` and
+`components/` that paints a dark surface reported **64 elements across 19 files, all in the CAD
+editor**. Every single one was a false positive, and I found that out by checking one before editing
+any:
+
+- most were `<label className="block">` wrapping children that each set their own colour — the label
+  holds no bare text, so the global rule colours nothing visible;
+- the remaining sixteen used `className={labelCls}`, and that variable already carries
+  `text-gray-400`.
+
+So the defect really was confined to the research area, and the CAD editor avoided it by defining a
+label-class constant **once per file** — a better pattern than the research pages had, and the one to
+copy. The matcher now resolves `className={variable}` and ignores elements with no direct text, so a
+future widening does not repeat the same two false alarms.
+
+The value here is the thing that did *not* happen: a 19-file edit across a subsystem I have not
+tested, to fix approximately nothing. Two narrowings of the sweep cost a few minutes; the edit would
+have cost far more and been indistinguishable from progress.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
