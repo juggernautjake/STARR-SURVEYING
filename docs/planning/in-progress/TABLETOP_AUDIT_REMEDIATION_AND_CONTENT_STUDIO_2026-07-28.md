@@ -1253,12 +1253,35 @@ work is narrow and specific — which is exactly why it was worth measuring rath
 
 So "get all the classes built" is **mostly already true**. What is actually left:
 
-- [ ] **P5-8 — IG Champion.** *(Blocked on data — see the blocked table.)* The single genuine content hole in
-      any of the four systems' class lists. Every other IG subclass carries `powers[]` + `specializations[]`
-      verbatim from the scrape.
-- [ ] **P5-9 — Magus and Summoner spell slots.** *(Blocked on data.)* `slotTableModelled: false` for both;
-      `pf2MaxSpellRank` returns 0 until the published reduced-caster tables are supplied. Everything else
-      about both classes is modelled.
+> **⏸ HANDOFF 2026-08-02 — read this before picking a slice.** The session paused here at the owner's
+> request (computer restart). Two things a resumer needs:
+>
+> **1. This doc's blocked items go stale the same way the slot-driven doc's did.** Its top two priority
+> slices — P5-8 and P5-9 — were both marked *blocked on data* and both had been resolved for days. I
+> ticked them by reading the code, not by building anything. **Before starting any slice marked
+> blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
+> one of them manufactured a decision the owner then had to un-make.
+>
+> **2. Counts: 121 slices done, 35 open** (was 37 before the two above). Owner's priority order is
+> classes → Content Studio → audit findings → *never* Phase 7 without sign-off.
+>
+> **The next genuinely unstarted slice is Phase 6, the Content Studio**, per the owner's own ordering —
+> "built *and surfaced*", their emphasis, because this project's characteristic defect is finishing
+> something nobody can click.
+
+- [x] **P5-8 — IG Champion. ✅ RESOLVED 2026-07-27, recorded here 2026-08-02.** Never actually blocked:
+      Champion IS published on intuitivegames.net/classes. The page **lazy-renders** its subclass blocks, so
+      a scrape that read the DOM without scrolling saw the nav name and an empty body — we recorded *not
+      published* having measured *not yet rendered*. Catalogued with every field traceable to the page;
+      asserted in `slot-plan-blockers.test.ts`.
+- [x] **P5-9 — Magus and Summoner spell slots. ✅ RESOLVED, recorded here 2026-08-02.** Also never blocked.
+      Paizo does not publish a "reduced caster table" — it publishes two class tables that happen to be
+      identical, with the rule as prose above each, so searching for the former failed. The blocker was the
+      **shape of the question**. `PF2_REDUCED_SLOTS` covers levels 1–20 for both, and on 2026-08-02 the owner
+      decided the catalogue means *all published*, so both classes are now buildable (`d6dae1fcc`). A Magus
+      gets its real reduced slots rather than nothing.
+
+      *Both of these were ticked by verifying the code, not by doing new work.* See the note directly below.
 - [x] **P5-10 — PF2 Cleric doctrine.** *(Split: the Monk half is now P5-10b.)* Not blocked — *chosen*. Both
       classes' progressions branch on a player choice, so an assembled Cleric or Monk keeps its level-1 base
       ranks. **Design:** make the choice a slot (the S1–S6 model already does this), then apply the chosen
