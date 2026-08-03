@@ -14,7 +14,7 @@ import { IG_CLASS_TAXONOMY } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { igFeatBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { PREF_SHARED_ENGINE_ONLY, prefAppliesToSystem } from '@/lib/dnd/preference-options';
 import { PF2_CLASSES, pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
-import { pf2IsReducedCaster, pf2ReducedSlots } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
+import { pf2IsReducedCaster, pf2PreparedRoom, pf2ReducedSlots } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
 
 describe('S10 — RESOLVED 2026-07-27: Champion IS published, and is now catalogued', () => {
   const champion = IG_CLASS_DETAILS.find((d) => d.name.toLowerCase() === 'champion');
@@ -170,5 +170,67 @@ describe('the plan summary must not outlive the code — verified, not asserted'
       expect(pf2IsReducedCaster(name), `${name} uses the reduced table`).toBe(true);
     }
     expect(PF2_CLASSES.every((c) => typeof c.summary === 'string' && c.summary.length > 0)).toBe(true);
+  });
+});
+
+// ── THE FIFTH DRIFT, AND THE ONE THAT COST SOMETHING ────────────────────────────────────────────
+//
+// Added 2026-08-02, immediately after the block above failed to catch this. The summary table also
+// described S7c's prepared cap as an open question — "what is left is whether to ENFORCE it" — when
+// enforcement had shipped on 2026-07-27 with 15 tests, on the owner's own instruction.
+//
+// I read that row, put it to the owner as a live decision, and they chose the opposite of what was
+// already running. Nothing broke, because I checked the code before acting. But a stale summary had
+// manufactured a decision to reverse working, approved behaviour, and the person making it could not
+// have known that from what they were shown.
+//
+// So enforcement gets an assertion too. The rule is now: if the plan says a thing is open, a test
+// says whether it is.
+describe('S7c enforcement is SHIPPED, not an open question', () => {
+  const spell = (rank: number, name: string, over: Record<string, unknown> = {}) =>
+    ({ name, rank, prepared: true, focus: false, ...over });
+
+  it('a prepared caster is refused a spell past its cap, with a reason', () => {
+    // Two rank-1 slots, two already prepared.
+    const room = pf2PreparedRoom({
+      kind: 'prepared',
+      slots: [5, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      spells: [spell(1, 'Magic Missile'), spell(1, 'Shield')],
+      rank: 1,
+    });
+    expect(room.hasRoom, 'the cap bites').toBe(false);
+    expect(room.reason, 'and says why — a refusal without one reads as a bug').toBeTruthy();
+  });
+
+  it('with room to spare it does not', () => {
+    const room = pf2PreparedRoom({ kind: 'prepared', slots: [5, 2, 0, 0], spells: [], rank: 1 });
+    expect(room.hasRoom).toBe(true);
+    expect(room.reason).toBeNull();
+  });
+
+  it('re-saving the spell being edited is never refused', () => {
+    // The subtle one: editing a prepared spell must not count itself as occupying the last slot.
+    const room = pf2PreparedRoom({
+      kind: 'prepared',
+      slots: [5, 1, 0, 0],
+      spells: [spell(1, 'Shield')],
+      rank: 1,
+      editingName: 'Shield',
+    });
+    expect(room.hasRoom).toBe(true);
+  });
+
+  it('and the documented exemptions hold, because a refusal that disagrees with the pill is worse than none', () => {
+    const full = [spell(1, 'A'), spell(1, 'B'), spell(1, 'C')];
+    // Spontaneous: a repertoire is not a per-day assignment.
+    expect(pf2PreparedRoom({ kind: 'spontaneous', slots: [5, 1, 0], spells: full, rank: 1 }).hasRoom).toBe(true);
+    // Cantrips are not slot-cast; their cap bites at pick time instead.
+    expect(pf2PreparedRoom({ kind: 'prepared', slots: [5, 1, 0], spells: full, rank: 0 }).hasRoom).toBe(true);
+    // A rank with no modelled slots — refusing here would cap a reduced caster, the bug this strand undid.
+    expect(pf2PreparedRoom({ kind: 'prepared', slots: [5, 0, 0], spells: full, rank: 1 }).hasRoom).toBe(true);
+    // Focus spells come from the focus pool, so they must not consume a slot.
+    expect(
+      pf2PreparedRoom({ kind: 'prepared', slots: [5, 1, 0], spells: [spell(1, 'F', { focus: true })], rank: 1 }).hasRoom,
+    ).toBe(true);
   });
 });

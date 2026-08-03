@@ -47,6 +47,41 @@
 > The half-written change was reverted rather than left in place: a catalogue with two classes whose
 > guards disagree about how many exist is worse than one that is honestly missing them.
 
+> ## ⏸ PICK UP HERE — paused 2026-08-02 mid-slice, at the owner's request
+>
+> **Every slice S1–S14 is `[x]`. Every row of the status table is shipped. Both open decisions were
+> put to the owner today and answered.** What is left is a five-minute tidy, not a build:
+>
+> | | |
+> |---|---|
+> | **1. Move this doc to `completed/`** | It qualifies now — see the rubric in `docs/planning/README.md`. It was NOT moved today only because the session was interrupted mid-verification. Check `grep -rln SLOT_DRIVEN` for cross-links first (there were none for the Andrew doc; unverified for this one). |
+> | **2. The `PF2_CLASSES` decision is DONE and shipped** | Owner chose **all published**. Magus and Summoner are catalogued (`d6dae1fcc`), 8,902 D&D tests green, merged to `main` in `cf2454f1d` and deployed. No feats were authored for them — they join Oracle and Witch in `PF2_FEATS_CLASS_GAPS`, so you can play one but cannot yet multiclass into one. |
+> | **3. ⚠ ONE THING NEEDS THE OWNER'S ATTENTION** | See "the question I should not have asked" below. |
+>
+> ### ⚠ The question I should not have asked
+>
+> Reading this doc's summary table, I put S7c's prepared cap to the owner as an open decision — *"what
+> is left is whether to enforce it"*. **It was not open.** Enforcement shipped 2026-07-27 with 15
+> tests, on the owner's own instruction (*"make a good decision for 6, I trust your judgement"*).
+>
+> The owner answered **"keep it advisory"**, which would REVERSE working, previously-approved
+> behaviour. I did not act on it, because I checked the code before changing anything.
+>
+> **So this needs an explicit confirmation and nothing was changed either way.** The case for leaving
+> it enforced, from `spell-counts.ts`: *PF2 showing `Rank 1: 2/3` and then silently allowing a 4th
+> would mean the two systems disagree about whether a stated budget means anything.* It sits inside
+> S15's "only ACQUISITION is gated" boundary rather than against it — preparing is an assignment of
+> spells the character already has, not an acquisition. Four exemptions match the pill display exactly
+> (spontaneous, cantrips, focus spells, unmodelled ranks).
+>
+> If the owner still wants advisory after seeing that, the change is in `SpellsPanel.tsx:73`
+> (`if (held >= preparedCap) return c`) plus the guards in `pf2-prepared-cap.test.ts`.
+>
+> ### Also uncommitted at the pause
+>
+> Nothing. Working tree is clean, `tsc` passes, and the last commit is the one recording all of the
+> above.
+
 **Status:** IN PROGRESS · started 2026-07-26 · owner-directed
 **Owner directive (2026-07-26):**
 
@@ -98,17 +133,22 @@ now **pinned by assertions** in `__tests__/dnd/slot-plan-blockers.test.ts` (14) 
 editing. A row here that says "blocked on data" about something the code already has is now a
 failing test, not a paragraph someone has to notice.
 
-**Nothing in this table is waiting on data**, and only ONE row is still open at all.
+**⚑ FINAL STATE 2026-08-02: every row is shipped. Nothing in this table is open.**
 
-*Three of the four rows below were stale. I found the third only after rewriting the other two —
-S9 had been answered and closed by the owner on 2026-07-27 and the summary still asked for the
-answer. Four passes over one table by three different readers, each catching a different subset. It
-is not that anyone was careless; it is that a hand-maintained summary of a moving codebase decays
-faster than anyone re-reads it. Hence the assertions.*
+*All four rows were stale, and I found them one at a time in three separate passes on the same day —
+S10 and the S7c data remnant first, S9 while rewriting those, and S7c's ENFORCEMENT half only after
+the owner answered a question I should never have asked. That last one is the instructive failure:
+I read "what is left is whether to enforce the prepared cap" off this table, put it to the owner as
+an open decision, and got an answer that would have REVERSED behaviour they had already approved and
+that had shipped a week earlier with 15 tests. A stale summary does not just mislead a reader — it
+can manufacture a decision, and the decision it manufactures is uninformed by definition.*
+
+*Hence the assertions in `slot-plan-blockers.test.ts`. A summary that can be wrong four times in one
+day is not a summary anyone should be acting on.*
 
 | item | needs | kind |
 |---|---|---|
-| **S7c** — PF2 spell counts | Whether to *enforce* the prepared cap. It cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare, so it is a call rather than a task. Everything needed to implement it is in place. ~~Magus/Summoner reduced tables~~ — **shipped**; `pf2ReducedSlots` covers levels 1–20 for both, verified. | **owner call** |
+| ~~**S7c** — PF2 spell counts~~ | **RESOLVED 2026-07-27 — and this row was stale on that too.** The prepared cap is **enforced**, decided by the owner ("make a good decision for 6, I trust your judgement") and shipped with 15 tests: `SpellsPanel` refuses a prepare past the cap and says why, with four exemptions matching the pill display. ~~Magus/Summoner reduced tables~~ — also shipped; `pf2ReducedSlots` covers levels 1–20 for both. | ✅ shipped |
 | ~~**S9** — per-system dice rollers~~ | **RESOLVED 2026-07-27, and I nearly missed it correcting this very table.** Q4 was closed as *"neither"* — the owner declined both options and asked for correctness instead ("make sure the math is being done and displayed correctly… fix the bugs"), which found a real presentational defect in both bespoke rollers. See the S9 entry in the slice list. | ✅ shipped |
 | ~~**S10** — IG Champion~~ | **RESOLVED 2026-07-27.** Champion is published on intuitivegames.net/classes; the earlier scrape missed it because the page lazy-renders subclass blocks. Catalogued, with every field traceable to the page. | ✅ shipped |
 | **Magus & Summoner in `PF2_CLASSES`** | **The one item that stops this doc closing.** Their spell tables are modelled and the builder already reads them, so each class works the moment it is catalogued — but `PF2_CLASSES` is asserted in several tests as *the 14 Remaster classes*, deliberately, to pin the CORE line-up. These two are Secrets of Magic. Adding them decides whether the catalogue means **core** or **all published**, which is a claim about what the app covers. Every figure needed is captured in the banner at the top of this doc. | **owner decision** |
