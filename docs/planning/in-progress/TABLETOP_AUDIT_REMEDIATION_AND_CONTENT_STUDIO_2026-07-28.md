@@ -4152,18 +4152,52 @@ ticked that has not been verified.**
       identical across all four and the collision report claimed 20 visibly different cells "resolve
       IDENTICALLY". Rooted at the dock it answers the axis's real question — *do the four templates
       resolve differently at all?*
-- [ ] **P14-9b — Fix Candy Bazaar's roller ink.** *(Split from P14-9, now that there is a measurement.)*
-      The numbers above, plus a root cause the repo has already diagnosed once: `roller-tab-contrast.test.ts`
-      records that `.fld` reads `--panel-rgb`, which on a LIGHT skin resolves near-white
-      (`rgba(255,250,254,.98)`), while the dock's ink assumes a dark surface. That test fixed the **tab
-      bar** structurally — *"the ink comes from the same family as the surface"* — and the sweep shows the
-      same bug is still live across the rest of the dock's text.
+- [ ] **P14-9b — Fix Candy Bazaar's roller ink.** *(Split from P14-9.)* **⚠ The root cause stated here on
+      2026-08-02 was WRONG, and an attempt that same day proved it. Read this before trying again.**
 
-      **Deliberately not fixed in the same slice.** Three consecutive slices reasoned confidently about
-      this surface and were wrong, each time by computing against an assumed dark roller instead of
-      measuring one; the contact sheet now exists precisely so the next attempt starts from pictures and
-      numbers. Run `--axis rollers` before and after, and require Candy Bazaar to land where Hextech
-      already is (1–3 of ~26), not merely to improve.
+      **What I predicted:** a near-white dock on a light skin (`roller-tab-contrast.test.ts`'s finding for
+      the tab bar), with light ink on it.
+
+      **What the dock actually resolves to**, read off a live Candy Bazaar sheet with the roller genuinely
+      open — `.fld.fld-ready`, NOT the collapsed FAB, which is the trap that cost P14-9 three runs and cost
+      this attempt its first measurement too:
+
+      | | |
+      |---|---|
+      | `.fld` background | `rgba(10, 22, 38, .98)` — **dark navy** |
+      | `.fld` color | `#f0e6d2` — light cream, **legible on it** |
+      | `--hx-panel-rgb` | **unset at the dock** — it falls back to the dark `--panel-rgb` |
+
+      So the window itself is fine, and "the dock is near-white" is false.
+
+      **The failures, by name and ratio** (from `--axis rollers`, Candy Bazaar × Shadow Isles × Dice Core,
+      20/26):
+
+      | element | ratio | needs |
+      |---|---|---|
+      | `"1d"` | **1.23** | 4.5 |
+      | `"FLAT"` | **1.24** | 4.5 |
+      | `"🔊"`, `"Clear"` | 1.79 | 4.5 |
+
+      1.23:1 is invisible, not merely hard to read — and these are the **dice-pad** buttons, not the tab bar
+      the earlier fix addressed.
+
+      **THE FAILURE IS THEME-DEPENDENT, which is the part no previous attempt saw.** Same skin, same roller,
+      different theme: Hextech Gold **12/26**, Shadow Isles **20/26**, Noxus Crimson **7/26**. The dock's
+      GROUND moves with the theme (the `shellThemeVars` bridge) while its ink stays fixed light. So the fix
+      cannot be a colour — it has to make the dock's ink derive from whatever ground the theme gave it.
+
+      **An attempt was made and REVERTED, deliberately.** Adding
+      `.dnd-sheet .fld .btn.ghost, .fld .btn.ghost { color: var(--ink) }` — aimed at
+      `theme.css:3441`'s `.dnd-sheet.skin-donata .btn.ghost { color: var(--violet-2) }`, which paints Candy
+      Bazaar because the two skins resolve to byte-identical tokens — moved Sigil Stack / Roll Board /
+      Impact from 11/10/11 to **9**, with no regression on any other skin, and left **Dice Core at 20/26**.
+      A partial fix shipped under the word "fixed" is worse than an open item, and the (0,4,0) selector also
+      ties with `theme.css` on specificity, so whether it wins depends on import order rather than on
+      anything stated.
+
+      **The bar remains: Candy Bazaar must land where Hextech already is (1–3 of ~26), not merely improve.**
+      Run `--axis rollers` before and after; the harness now makes that a two-command check.
 - [x] **P14-10 — Campaign thumbnail. Done 2026-08-02.** A DM-set image, shown *"everywhere the campaign
       shows up"*. `seeds/571_dnd_campaign_thumbnail.sql` + `app/dnd/_ui/CampaignThumb.tsx`, wired into six
       surfaces.
