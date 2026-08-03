@@ -3713,6 +3713,41 @@ could have caught it.
 
 Worker suite 85 files / 1,427 tests; root 1,469 files; typecheck clean.
 
+#### The third standing check — a producer with no consumer, hidden behind a cast
+
+**DONE 2026-08-03** (`worker/src/__tests__/report-gets-what-it-reads.test.ts`).
+
+Having shipped that defect **twice in two slices**, it earns a check rather than more care. It
+compares two files: every `pipeline.<field>` the report generator reads, against the object literal
+`pipeline.ts` hands it. Anything read and not passed fails, with the field named.
+
+That is the only kind of test that could catch it. The unit tests construct their own result object,
+so they pass whatever the pipeline does — and `as PipelineResult` tells the compiler to stop
+checking, so a missing field is `undefined` at runtime and every section degrades honestly into
+"not computed", truthfully, forever.
+
+**Verified by reintroducing the bug**: removing `surveyReading` from the literal makes the check fail
+with `surveyReading` named. A check nobody has seen fail is a check nobody knows works — and this
+session has now produced two that needed fixing before they defended anything.
+
+The set now covers all three shapes this codebase produces:
+
+| check | catches |
+|---|---|
+| `research-modules-are-reachable` | a module nothing imports |
+| `survey-primitives-are-not-duplicated` | one rule, several implementations |
+| `report-gets-what-it-reads` | a producer with no consumer, hidden behind a cast |
+
+**Two bugs in the check itself, both of the quiet kind.** Blanking quoted strings to avoid matching
+`pipeline.js` in an import path also blanked *template literals* — where most of this report is
+built, including `${pipeline.propertyId}` — dropping the scan from five fields to two. And the
+string regex allowed newlines, so a lone apostrophe in a prose comment ("the surveyor's opinion", of
+which this file has many) opened a match that ran to the next apostrophe pages later, swallowing the
+accesses between. Both left the check *finding something*, which is why the "finds both sides of the
+comparison" guard exists at all.
+
+Worker suite 86 files / 1,432 tests; root 1,469 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
