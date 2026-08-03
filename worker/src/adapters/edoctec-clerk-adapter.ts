@@ -266,13 +266,68 @@ export class EdocTecClerkAdapter extends ClerkAdapter {
     );
   }
 
+  /** Fetch the free preview PDF (plan I/S7).
+   *
+   *  The previous version of this method said image retrieval "goes through the site's paid cart".
+   *  Driving Coryell on 2026-08-03 showed both things are true at once and the note collapsed them
+   *  into the pessimistic one: the detail page has a **Document Preview** iframe serving
+   *  `application/pdf` free (153 KB, no login), *and* a separate "Purchase Pages" cart at $1.00 for
+   *  **certified** copies. A certified copy is what a court wants; for reading a boundary the free
+   *  preview is the same scan.
+   *
+   *  That mattered here more than anywhere: Coryell is Gatesville and Copperas Cove, and Lampasas is
+   *  the other county on this vendor — all named by the owner as places this firm works. Believing
+   *  they needed a purchase meant believing the firm's own back yard was paywalled when it is not.
+   *
+   *  `ref` comes from the results grid where it printed it (`395664.DI Vol: 255`); pass
+   *  `detailPageUrl` instead for rows that did not carry it. */
+  async getDocumentPdf(
+    instrumentNo: string,
+    opts: { ref?: { imageFileName: string; imageFileVolume: string }; detailPageUrl?: string },
+  ): Promise<{ pdf: Buffer; statement: string }> {
+    await this.initSession();
+    const page = this.page;
+    if (!page) {
+      throw new Error(
+        `[eDocTec/${this.countyName}] No session open, so ${instrumentNo} could not be fetched. ` +
+          `A retrieval failure, not a document without pages.`,
+      );
+    }
+
+    const { EDOCTEC_VIEWER, fetchPreviewPdf, previewUrl, refFromIframeSrc } = await import('./edoctec-viewer.js');
+
+    let ref = opts.ref ?? null;
+    if (!ref && opts.detailPageUrl) {
+      // Fall back to the detail page's preview iframe. A row without a file reference is not a
+      // document without an image.
+      await page.goto(opts.detailPageUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.waitForSelector(EDOCTEC_VIEWER.previewIframeSelector, { timeout: 20_000 }).catch(() => undefined);
+      const src = await page.getAttribute(EDOCTEC_VIEWER.previewIframeSelector, 'src').catch(() => null);
+      ref = refFromIframeSrc(src, this.baseUrl);
+    }
+
+    if (!ref) {
+      throw new Error(
+        `[eDocTec/${this.countyName}] ${instrumentNo}: no image file reference was found on the results row ` +
+          `or the detail page, so the preview URL could not be built. A retrieval failure — the index listed ` +
+          `this instrument — not a document without pages.`,
+      );
+    }
+
+    const result = await fetchPreviewPdf(page, previewUrl(this.baseUrl, ref));
+    if (!result.pdf) {
+      throw new Error(`[eDocTec/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+    }
+
+    console.log(`[eDocTec/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+    return { pdf: result.pdf, statement: result.statement };
+  }
+
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
-    // The site sells certified and uncertified copies through a cart. Image retrieval therefore has
-    // a purchase step that has not been built or authorised, and pretending otherwise would return
-    // an empty page set for a document that has pages.
     throw new Error(
-      `[eDocTec/${this.countyName}] Image retrieval for ${instrumentNo} goes through the site's paid cart, which is not wired up. ` +
-        `Not "no images".`,
+      `[eDocTec/${this.countyName}] ${instrumentNo}: this portal serves a PDF preview, not page images — use ` +
+        `getDocumentPdf(). It is FREE; the cart on the page sells certified copies, which is a different ` +
+        `artifact. Not "no images".`,
     );
   }
 

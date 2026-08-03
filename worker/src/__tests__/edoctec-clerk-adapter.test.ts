@@ -123,8 +123,14 @@ describe('unbuilt capabilities throw instead of returning an empty array', () =>
     await expect(adapter.searchByLegalDescription('ABS 123 SUR')).rejects.toThrow(/NOT offered/);
   });
 
-  it('says images go through an unwired paid cart, not that there are none', async () => {
-    await expect(adapter.getDocumentImages('395664')).rejects.toThrow(/paid cart/);
+  it('points at the free PDF preview rather than claiming a cart is required', async () => {
+    // This test used to assert the opposite — "images go through an unwired paid cart". Driving
+    // Coryell on 2026-08-03 disproved it: the detail page serves application/pdf free (153 KB, no
+    // login) from a Document Preview iframe, and the cart beside it sells CERTIFIED copies, which is
+    // a different artifact. Both were true; the old note kept only the pessimistic half, and that
+    // half said the firm's own back yard was paywalled.
+    await expect(adapter.getDocumentImages('395664')).rejects.toThrow(/getDocumentPdf/);
+    await expect(adapter.getDocumentImages('395664')).rejects.toThrow(/It is FREE/);
   });
 
   it('says pricing is unknown rather than free', async () => {
