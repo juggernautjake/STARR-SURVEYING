@@ -273,9 +273,9 @@ divergence is a question rather than a rounding error.
 |---|---|---|
 | S-6 | **GLO adapter** — free, authoritative, original surveys | DONE 2026-08-02 |
 | S-7 | **texaslandrecords (Avenu)** — 23 counties, free index | DONE 2026-08-03 |
-| S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | nothing |
-| S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | owner: amounts, ceiling |
-| S-10 | Ledger reconciliation (S-5) | S-8 |
+| S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | DONE 2026-08-03 |
+| S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | **owner: amounts, ceiling** |
+| S-10 | Ledger reconciliation (S-5) | DONE 2026-08-03 (`reconcile()`; the scheduled sweep waits on S-9) |
 
 **S-6 is DONE** (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns 1,523 grants;
 Bell + grantee DUNCAN returns 5, with GLO record ids and free PDFs. S-7 (Avenu aggregator) is the
@@ -358,3 +358,44 @@ Against the default $25 budget every recommendation was unaffordable, so Phase 9
 `Budget exceeded — skipping <instrument>` and bought nothing. The failure wore the costume of a
 deliberate spending limit — nothing looked broken, and the only symptom was a run that never bought
 the document it had just called the highest-ROI purchase available. Fixed and pinned.
+
+---
+
+**S-8 + S-10 are DONE** (2026-08-03) — `seeds/569_vendor_accounts.sql` (applied to production;
+`research_vendor_accounts` + `research_vendor_topups` are live and empty) and
+`worker/src/services/vendor-accounts.ts`.
+
+S-1 and S-3 are satisfied by what the schema *refuses* to hold: no password, no card number, no API
+key. `credential_env_var` stores the NAME of the variable holding a secret so a missing credential is
+diagnosable; `stripe_payment_method_id` is a token and `card_last4` is four digits, checked by a
+regex constraint. A test asserts the absence — `expect(seed).not.toMatch(/card_number|cvv|.../)` —
+because "we did not add a password column" is only durable if something fails when someone does.
+
+**The column this table exists for is `balance_source`.** S-2 called an inferred balance and a
+confirmed balance different facts; the schema now makes them impossible to conflate. `balance_usd` is
+**nullable**, and a `CHECK` constraint enforces the pairing: `unknown` must carry no number,
+`confirmed` must carry both a number and a `balance_checked_at`. A `DEFAULT 0` would have meant "this
+account is empty" — a claim, indistinguishable from a genuinely drained account, and one that would
+block purchases that should have gone through.
+
+**Auto top-up refuses rather than improvises**, which is the inverse of the document-purchase rule
+two files away. There, uncertainty means *spend*, because a false skip omits a document invisibly.
+Here, uncertainty means *stop and say why*, because the failure mode is real money moved on a guess.
+`decideTopup` declines — and marks itself `blocked` — on an inferred balance, a stale confirmation,
+an unknown balance, missing limits, a suspended account, no card, a second top-up inside the minimum
+interval, and an unsettled prior charge that may already have landed. It stops at the monthly ceiling
+rather than charging a reduced amount, because a partial top-up leaves the balance below its own
+threshold and triggers the same decision next run — a loop that bills every time round.
+
+Two guard rails live in the database rather than only in code: auto top-up cannot be enabled without
+all three numbers set, and a top-up target below its own trigger is rejected. Every constraint was
+exercised against the live database inside a rolled-back transaction before the seed was committed —
+nine cases, each accepted or rejected as intended.
+
+`auto_topup_enabled` defaults to **FALSE** on every row. Nothing can charge a card until the owner
+supplies the numbers, which is the remaining S-9 blocker.
+
+**What is left in S-9**, and it is only the parts that need those numbers plus a Stripe SetupIntent
+flow: creating the payment method, executing the charge, and the scheduled reconciliation sweep. The
+decision logic, the ledger, the write-before-attempt ordering and `reconcile()` are all built and
+tested.
