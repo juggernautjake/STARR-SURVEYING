@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import VendorAccountsPanel from '../components/VendorAccountsPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -473,7 +474,16 @@ export default function ResearchBillingPage() {
           </div>
         )}
 
-        {/* ── Purchases tab ── */}
+        {/* ── Purchases tab ──
+            The vendor accounts sit above the purchase log because they are what DECIDES whether the
+            next purchase can happen: an account with no balance and no top-up limits will simply
+            stop a run, and the log only shows what already succeeded. */}
+        {activeTab === 'purchases' && (
+          <div className="mb-6">
+            <VendorAccountsPanel />
+          </div>
+        )}
+
         {activeTab === 'purchases' && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
             {purchases.length === 0 ? (

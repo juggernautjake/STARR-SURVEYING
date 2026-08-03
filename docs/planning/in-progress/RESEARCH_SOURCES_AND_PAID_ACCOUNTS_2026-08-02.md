@@ -274,7 +274,7 @@ divergence is a question rather than a rounding error.
 | S-6 | **GLO adapter** — free, authoritative, original surveys | DONE 2026-08-02 |
 | S-7 | **texaslandrecords (Avenu)** — 23 counties, free index | DONE 2026-08-03 |
 | S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | DONE 2026-08-03 |
-| S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | **owner: amounts, ceiling** |
+| S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | **owner: amounts, ceiling** — but there is now a form for them (2026-08-03); what remains is the SetupIntent + charge, which needs a live Stripe decision |
 | S-10 | Ledger reconciliation (S-5) | DONE 2026-08-03 (`reconcile()`; the scheduled sweep waits on S-9) |
 
 **S-6 is DONE** (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns 1,523 grants;
@@ -399,3 +399,38 @@ supplies the numbers, which is the remaining S-9 blocker.
 flow: creating the payment method, executing the charge, and the scheduled reconciliation sweep. The
 decision logic, the ledger, the write-before-attempt ordering and `reconcile()` are all built and
 tested.
+
+**S-9's blocker was half self-inflicted — fixed 2026-08-03**
+(`app/api/admin/research/vendor-accounts/route.ts` + `VendorAccountsPanel.tsx`, on the research
+billing page).
+
+"Blocked on the owner: amounts, ceiling" had been true since the slice list was written, and it would
+have stayed true *after* the owner decided — because `research_vendor_accounts` shipped with its
+schema, its CHECK constraints, its service and its tests, and **nowhere to enter the numbers**. There
+was no route and no screen. A blocker with no form behind it is not waiting on a decision; it is
+waiting on both.
+
+The form does not charge anything and cannot. The card-on-file flow and the charge execution are
+still the genuinely-blocked half. What this adds is the ability for the three numbers to exist, which
+is exactly what `decideTopup()` refuses to act without.
+
+**Nothing here can touch a card.** `card_last4`, the Stripe ids and every balance field are rejected
+with an explanation rather than silently stripped — dropping a field the caller believed it set is
+how a card ends up half-configured, where the UI says saved, the row says no card, and the next
+top-up fails for a reason nobody can see. `credential_env_var` continues to hold only the NAME of an
+environment variable; the route says so at the point where someone would be tempted to return more.
+
+**The database is the authority; the route is the translation.** The CHECK constraints already refuse
+`auto_topup_enabled = TRUE` without all three limits and refuse a target at or below its own trigger.
+Those are not re-implemented as logic — but a CHECK violation reaches a person as an opaque Postgres
+string, so the same two conditions are named in plain language first. The check runs against the row
+**as it will be**, not against the patch alone, because setting the limits in one request and the
+toggle in another is the ordinary way a person fills in a form.
+
+Two display rules carried over from `describeBalance()`, both because the subject is money: a balance
+never appears as a bare number without its provenance (confirmed / inferred / unknown, and *"no
+account"* is not *"$0.00"*), and an empty limit field saves as NULL rather than 0 — an unset ceiling
+and a ceiling of zero are different instructions, and zero would forbid every top-up while the row
+looked fully configured.
+
+Root suite 1,467 files; `npm run build` clean.
