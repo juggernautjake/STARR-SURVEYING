@@ -3605,6 +3605,38 @@ argument for running it between edits rather than at the end.
 
 Worker suite 83 files / 1,381 tests; root 1,468 files; `npm run build` clean.
 
+#### Turning the same scrutiny on this session's own UI
+
+**DONE 2026-08-03** (`__tests__/research/panels-render.test.tsx`).
+
+Three UI surfaces shipped this session — `RotationPanel` (S11), `VendorAccountsPanel` (S-9), and the
+offline banner in `JobResearchPacket` (R26) — and **every test written for them asserts that the file
+CONTAINS a string**. That proves the code says the right thing. It proves nothing about which branch
+produces it, or that anything reaches the screen. This repo's own recorded lesson is precisely that:
+a green 15,000-test suite missed three rendering-condition bugs in one pass, because string
+assertions cannot see a render.
+
+Rendered with `react-dom/server`, matching `__tests__/admin/sidebar-render.test.tsx` and the rest of
+this suite — node environment, no new dependency.
+
+`VendorAccountsPanel`'s two display rules are now **exported** so they can be called directly. They
+are the risky part of that file: they decide when a number may be shown and what must be said beside
+it, and asserting the file contains the word "INFERRED" says nothing about the branch that emits it.
+The cases that matter are the ones a grep cannot express — a `confirmed` source with a **null**
+amount must not print *"$0.00 confirmed from the vendor"*, because a confirmed reading of nothing is
+not a reading; a DECIMAL column arriving from PostgREST as the **string** `'42.50'` must still
+format; and a limit of **0** must not count as unset, since zero and null are different instructions
+and `filter(Boolean)` would have silently merged them.
+
+**What this cannot see, stated rather than implied.** `renderToString` does not run effects, so the
+fetch-driven states of two of these panels are unreachable this way, and the offline banner cannot be
+rendered at all without injecting a verdict the component fetches for itself. What is covered is
+every branch depending on props alone plus the pure rules. **Driving these three panels in a real
+browser is still not done** — the pages are auth-gated and need a project with data, and the UX
+harness cannot reach role-gated pages. That is the honest remaining gap on this session's UI work.
+
+Root suite 1,469 files; typecheck and `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

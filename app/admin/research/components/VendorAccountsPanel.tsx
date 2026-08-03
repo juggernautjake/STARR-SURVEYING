@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-interface AccountRow {
+export interface AccountRow {
   vendor_id: string;
   display_name: string | null;
   account_status: 'none' | 'pending' | 'active' | 'suspended' | string;
@@ -39,8 +39,12 @@ interface AccountRow {
 const n = (v: string | number | null): number | null =>
   v === null || v === '' ? null : Number(v);
 
-/** The same rule `describeBalance()` applies server-side: never a figure without its provenance. */
-function balanceLine(a: AccountRow): string {
+/** The same rule `describeBalance()` applies server-side: never a figure without its provenance.
+ *
+ *  Exported so it can be tested directly. These two functions are the risky part of this file — they
+ *  encode when a number may be shown and what must be said beside it — and a source-text assertion
+ *  that the file *contains* the word "INFERRED" proves nothing about which branch produces it. */
+export function balanceLine(a: AccountRow): string {
   const name = a.display_name || a.vendor_id;
   if (a.account_status === 'none') {
     return `No account. Nothing can be purchased here until one is opened — this is not a balance of $0.00.`;
@@ -57,7 +61,7 @@ function balanceLine(a: AccountRow): string {
   return `${amount} confirmed from the vendor at ${when}.`;
 }
 
-function topupLine(a: AccountRow): string {
+export function topupLine(a: AccountRow): string {
   if (!a.auto_topup_enabled) {
     const set = [n(a.low_water_usd), n(a.topup_to_usd), n(a.monthly_ceiling_usd)].filter((x) => x !== null).length;
     return set === 3
