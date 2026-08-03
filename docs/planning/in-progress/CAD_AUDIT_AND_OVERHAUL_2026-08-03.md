@@ -493,6 +493,54 @@ been worth shipping.
   not "add incremental rendering"; it is "find what is still expensive once the existing incremental
   path is accounted for". Measure before designing.
 
+  #### ✅ S4a DONE 2026-08-03 — interaction measured. The freeze is gone; a 39 fps ceiling remains
+
+  S2b fixed the **static** scene and said plainly that interaction "was not separately measured".
+  That mattered, because the owner does not experience the freeze while sitting still — they
+  experience it *while working*. So: 200,000 features, histogram reset, then five seconds of
+  continuous sweeping `mousemove` over the canvas with periodic wheel-zooms.
+
+  | phase | static (S2b) | under interaction |
+  |---|---|---|
+  | `renderAll` | 25.2 ms | **25.8 ms** |
+  | `renderFeatures` | 15.4 ms | 15.6 ms |
+  | `renderImageFeatures` | 0 ms | 0 ms |
+  | `renderLabels` | 6.2 ms | 6.6 ms |
+  | `renderSelection` | 0 ms | 0 ms |
+
+  **Interaction costs essentially nothing on top of the render loop.** Snap and hit-testing —
+  the paths S2b memoised without measuring — hold up: timing `dispatchEvent` directly (listeners run
+  synchronously, so this times the handler itself with no timer skew) gives a **mousemove handler of
+  0.2 ms p50, 0.5 ms max** across 30 samples at 200k features.
+
+  **The owner's original complaint is answered.** Before S2b: 269 ms/frame, 12 fps, tab unresponsive,
+  refresh required, unsaved work at risk. After: ~25.8 ms/frame under load, ~39 fps, cursor tracking
+  live (the readout updated to N 376.211 / E 104.015 throughout). That is not a freeze.
+
+  ##### A wrong mechanism caught before it was written down
+
+  The driver loop completed only 43 of its ~320 scheduled iterations, ~119 ms each against a 16 ms
+  sleep. The obvious reading — "the mousemove handler blocks for ~100 ms" — is **wrong**, and the
+  direct measurement above disproves it. It was timer starvation: `setTimeout(16)` queues behind a
+  rAF loop already spending 25.8 ms per frame, plus the overlay's own 500 ms poll.
+
+  Recording it because it is the same failure shape as the two corrected theories earlier in this
+  document, arrived at from a different direction: **an indirect signal read as a direct one.** The
+  difference this time is only that the check was cheap enough to run before writing the claim down.
+
+  ##### What is actually left, and whether it is worth doing
+
+  `renderAll` p50 25.8 ms; measured children sum to 22.2 ms, so ~3.6 ms sits in the eleven passes
+  carrying no `measureRender` marker — too little to justify instrumenting them now, which retires
+  the "obvious next measurement" S2b proposed.
+
+  The single remaining cost of consequence is **`renderFeatures` at 15.6 ms**, and 200,000 features
+  is far beyond any real survey drawing. **S4 is therefore recommended for deferral**: the frame
+  budget is met at a fixture size no client drawing approaches, and further optimisation here would
+  buy headroom nobody is short of. Revisit only if a real drawing is measured over ~16 ms/frame —
+  and measure it with `Ctrl+Alt+P` before touching anything, which is the one rule this document has
+  earned three times over.
+
 - **S5. UI condensation.** Only after S1, because condensing menus without a catalogue is rearranging
   what you have not read. Target: fewer top-level surfaces, tools grouped by task rather than by
   implementation.
@@ -546,7 +594,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
