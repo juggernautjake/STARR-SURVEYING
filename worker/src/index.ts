@@ -57,6 +57,10 @@ import { isCreditDepleted, getDepletionMessage, AnthropicCreditDepletedError } f
 import { acquireBrowser, validateAdapterFlagOnStartup } from './lib/browser-factory.js';
 import { BrowserHealthCache, buildHealthz, configWarnings } from './infra/health.js';
 import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js';
+// The research queue: what may run (R29), when to ask (R28/R29), and how to talk to the app.
+import { pollOnce, type QueuedRequest, type RunningRun } from './infra/queue-worker.js';
+import { pollerEnabled, startPoller } from './infra/queue-poller.js';
+import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
@@ -4617,6 +4621,67 @@ validateAdapterFlagOnStartup();
 setSolveAttemptSink(makePipelineLoggerCaptchaSink());
 console.log('[startup] captcha sink → PipelineLogger bridge installed');
 
+// ── Binding the queue to the pipeline (plans R28/R29) ─────────────────────────────────────────
+//
+// `pollOnce` needs three things from this process: what is running, how many may run, and how to
+// run one. The first two come straight from the capacity accounting the HTTP path already uses —
+// deliberately the SAME map, so a queued run and a manually-started one compete for the same slots
+// rather than each thinking it has the box to itself.
+
+/** What is running right now, in the shape R29's admission check expects. */
+function currentRunningRuns(): RunningRun[] {
+  return [...activePipelines.values()].map((p) => ({
+    requestId: p.projectId,
+    county: p.county,
+    startedAt: Date.parse(p.startedAt) || Date.now(),
+  }));
+}
+
+/** Run one claimed request to completion.
+ *
+ *  Registers in `activePipelines` BEFORE awaiting, because that map is what both the capacity limit
+ *  and R29's one-run-per-county rule read. Registering after the run began would let the next tick
+ *  see a free slot that is not free and start a second session on the same clerk portal — the
+ *  failure that loses access permanently rather than merely degrading.
+ *
+ *  Rejecting is a failed run, not a crashed poller: `pollOnce` reports the failure and carries on. */
+async function runQueuedRequest(req: QueuedRequest): Promise<{ projectId?: string }> {
+  const projectId = `REQ-${req.id.slice(0, 8).toUpperCase()}`;
+  const abortController = new AbortController();
+
+  activePipelines.set(projectId, {
+    projectId,
+    address: req.address,
+    county: req.county,
+    state: 'TX',
+    startedAt: new Date().toISOString(),
+    currentStage: 'Queued run starting',
+    abortController,
+  });
+
+  try {
+    const result = await runCountyResearch(
+      { projectId, county: req.county, state: 'TX', address: req.address || undefined },
+      (p) => {
+        const active = activePipelines.get(projectId);
+        if (active) active.currentStage = p.phase;
+      },
+      abortController.signal,
+    );
+
+    // A pipeline that returns `failed` is a failed REQUEST too. Reporting it as complete would
+    // notify the requester that their property was researched when nothing was found — the exact
+    // shape R28's notify-either-way rule exists to prevent.
+    const status = (result as { status?: string }).status;
+    if (status === 'failed') {
+      throw new Error(`The research pipeline reported failed for ${req.address}, ${req.county} County.`);
+    }
+    return { projectId };
+  } finally {
+    activePipelines.delete(projectId);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════════╗
@@ -4656,6 +4721,51 @@ app.listen(PORT, () => {
       console.log(`[startup] adapter registry — published ${r.published} compiled adapter(s)${skipped}`);
     }
   });
+
+  // ── The research queue poller (plans R28/R29) ───────────────────────────────────────────────
+  //
+  // R28 built the queue and the atomic claim; R29 built `pollOnce` with its admission and
+  // per-county limits. Nothing called it, so the unattended path ended at a table nobody read.
+  //
+  // OFF unless RESEARCH_QUEUE_POLLER=1. This is the only loop here that spends money and touches
+  // other people's servers with no human in the loop — each tick can start a 20–30 minute run that
+  // logs into a county clerk portal and may buy pages. `pollerEnabled` also refuses when the flag is
+  // on but the key or the app URL is missing, because polling every tick into a 401 is worse than
+  // not polling: it is noise that hides the misconfiguration causing it.
+  void (async () => {
+    const gate = pollerEnabled();
+    console.log(`[startup] research queue poller — ${gate.reason}`);
+    if (!gate.enabled) return;
+
+    const client = makeQueueClient({
+      baseUrl: process.env.APP_BASE_URL!,
+      workerKey: process.env.WORKER_API_KEY!,
+      log: (m) => console.log(m),
+    });
+
+    const poller = startPoller({
+      tick: () =>
+        pollOnce({
+          claim: () => client.claim(),
+          report: (req, outcome, detail) => client.report(req, outcome, detail),
+          run: (req) => runQueuedRequest(req),
+          currentRunning: () => currentRunningRuns(),
+          maxConcurrent: () => CAPACITY.maxConcurrentPipelines,
+          log: (m) => console.log(m),
+        }),
+      log: (m) => console.log(m),
+    });
+
+    // Stop claiming on shutdown, but let in-flight runs finish and report. A run killed mid-flight
+    // leaves its request claimed and unreported — indistinguishable from one still working, which is
+    // the state R28's notify-either-way rule exists to prevent.
+    for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+      process.on(sig, () => {
+        console.log(`[Queue] ${sig} — no longer claiming; in-flight runs are left to finish.`);
+        poller.stop();
+      });
+    }
+  })();
 
   console.log('[Server] Endpoints:');
   console.log('  GET    /healthz                         ← liveness (what the container probes)');
