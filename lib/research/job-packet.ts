@@ -102,6 +102,16 @@ export interface FieldBrief {
   title: string;
   /** Cover warnings — printed first, because they change what the crew does. */
   warnings: string[];
+  /** True when the snapshot has no `warnings` key at all, rather than an empty one.
+   *
+   *  A packet approved before cover warnings existed carries a snapshot without the field, and
+   *  `?? []` turned that into "this packet has no caveats" — the same claim a packet that was
+   *  genuinely clean makes. Those are opposite facts and a crew acts on them differently: one means
+   *  nothing to worry about, the other means nobody looked.
+   *
+   *  Approval is a signature on what the packet SAID, so the snapshot is not rewritten to add the
+   *  field retroactively — that would forge the signature. It is reported as unknown instead. */
+  warningsUnknown: boolean;
   sections: Array<{ title: string; entries: Array<{ heading: string; body: string; provenance: string; unsupported: boolean }> }>;
   itemCount: number;
 }
@@ -117,6 +127,9 @@ export function fieldBrief(packet: PacketRow | null): FieldBrief | null {
   return {
     title: r.title ?? packet.title,
     warnings: r.warnings ?? [],
+    // `in` rather than a truthiness check: a snapshot that legitimately recorded zero warnings has
+    // the key with an empty array, and that is an ANSWER. Only a missing key is unknown.
+    warningsUnknown: !('warnings' in r),
     sections: r.sections ?? [],
     itemCount: r.itemCount ?? 0,
   };

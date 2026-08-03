@@ -100,6 +100,17 @@ export default function JobResearchPacket({ jobId }: { jobId: string }) {
       {data.state === 'approved' && data.brief && (
         <>
           {/* Warnings first: they change what the crew does. */}
+          {/* An older approved packet has no warnings field at all. Rendering that as "no warnings"
+              tells a crew there is nothing to worry about, when the truth is that nobody looked. */}
+          {data.brief.warningsUnknown && (
+            <ul className="job-packet__warnings">
+              <li>
+                <AlertTriangle size={13} aria-hidden /> This packet was approved before cover warnings
+                were recorded, so whether it has any is <strong>not known</strong>. That is not the
+                same as it having none — check the full packet before relying on it.
+              </li>
+            </ul>
+          )}
           {data.brief.warnings.length > 0 && (
             <ul className="job-packet__warnings">
               {data.brief.warnings.map((w, i) => (

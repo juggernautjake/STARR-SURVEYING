@@ -3780,6 +3780,21 @@ same packet showed the real list elsewhere would leave a crew not knowing which 
 
 Root suite 1,470 files; typecheck and `npm run build` clean.
 
+**And one document further — the crew view (R26).** I claimed the packet was the last document in
+that chain and then checked rather than trusting it, which was right: `fieldBrief()` reads the
+approved snapshot with `r.warnings ?? []`, so a packet **approved before cover warnings existed**
+renders in the crew view as *"no warnings"* — the identical claim a genuinely clean packet makes.
+Opposite facts. One means nothing to worry about; the other means nobody looked. And this is the
+screen on a phone, in a truck.
+
+`warningsUnknown` now distinguishes them, using `'warnings' in r` rather than a truthiness check —
+a snapshot that legitimately recorded **zero** warnings has the key with an empty array, and that is
+an answer.
+
+**The snapshot is deliberately NOT rewritten** to add the field to old packets. Approval is a
+signature on what the packet said; back-filling it would forge that signature. The crew view says
+the state is unknown instead, and tells them to check the full packet.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

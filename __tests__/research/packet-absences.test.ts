@@ -12,6 +12,9 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assemblePacket, type PacketSources } from '@/lib/research/packet';
+import { fieldBrief } from '@/lib/research/job-packet';
+
+const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
 const sources = (over: Partial<PacketSources> = {}): PacketSources => ({
   facts: [], documents: [], conflicts: [], planSummary: null, documentLabels: {}, ...over,
@@ -66,7 +69,6 @@ describe('what the closure says about our reading goes on the cover too', () => 
 describe('both routes that assemble a packet supply the list', () => {
   // A draft PDF printing "not recorded" while the same packet showed the real list elsewhere would
   // be worse than either — the crew would not know which document to believe.
-  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
   const packetsRoute = read('app/api/admin/research/[projectId]/packets/route.ts');
   const pdfRoute = read('app/api/admin/research/[projectId]/packets/[packetId]/pdf/route.ts');
 
@@ -82,5 +84,44 @@ describe('both routes that assemble a packet supply the list', () => {
   it('both pass [] rather than undefined, because the query DID run', () => {
     // `[]` says "established none"; undefined says "not checked". The query ran, so it is the first.
     expect(packetsRoute).toContain('this query DID run');
+  });
+});
+
+describe('an old approved packet does not claim it is clean', () => {
+  // `fieldBrief` did `r.warnings ?? []`, so a packet approved before cover warnings existed rendered
+  // as "no warnings" — the same claim a genuinely clean packet makes. Opposite facts: one means
+  // nothing to worry about, the other means nobody looked. This is the crew view, on a phone, in a
+  // truck.
+  //
+  // The snapshot is NOT rewritten to add the field. Approval is a signature on what the packet said,
+  // and back-filling it would forge that signature.
+  const packetRow = (rendered: unknown) => ({
+    id: 'pk1', research_project_id: 'p1', title: 'Packet', status: 'approved',
+    rendered_json: rendered,
+  } as unknown as Parameters<typeof fieldBrief>[0]);
+
+  it('reports unknown when the snapshot has no warnings key', () => {
+    const b = fieldBrief(packetRow({ title: 'Packet', sections: [], itemCount: 0 }))!;
+    expect(b.warningsUnknown).toBe(true);
+    expect(b.warnings).toEqual([]);
+  });
+
+  it('treats a recorded empty list as an ANSWER, not as unknown', () => {
+    const b = fieldBrief(packetRow({ title: 'Packet', warnings: [], sections: [], itemCount: 0 }))!;
+    expect(b.warningsUnknown).toBe(false);
+  });
+
+  it('carries real warnings through unchanged', () => {
+    const b = fieldBrief(packetRow({
+      title: 'Packet', warnings: ['2 document(s) could not be retrieved'], sections: [], itemCount: 0,
+    }))!;
+    expect(b.warningsUnknown).toBe(false);
+    expect(b.warnings).toEqual(['2 document(s) could not be retrieved']);
+  });
+
+  it('the crew view says so rather than showing an empty warning list', () => {
+    const cmp = read('app/admin/jobs/[id]/JobResearchPacket.tsx');
+    expect(cmp).toContain('data.brief.warningsUnknown');
+    expect(cmp).toContain('not the\n                same as it having none');
   });
 });
