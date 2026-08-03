@@ -191,14 +191,88 @@ rule as everywhere else in this build.
 
 ---
 
+---
+
+## 4. Two research modes — free first, paid on demand
+
+Owner's requirement: the researcher picks a mode when starting a run.
+
+**FREE mode** — every free source and county site. Expected to take 20–30 minutes. If it does not
+answer the question, the researcher escalates.
+
+**PAID mode** — the paid sources as well. Available as an escalation *or* as the starting choice,
+when the researcher wants the best result immediately without waiting for the free pass.
+
+### S-11. Mode selection and the free-source set
+
+FREE mode covers: GLO, every county portal in the 22 routed counties, texaslandrecords' free index,
+the free CAD portals, and the free map/reference sources. PAID adds TexasFile and any subscription
+portal.
+
+The 20–30 minute expectation is a real constraint, not a note: it means free mode has to run sources
+**concurrently** and report progress, or a researcher will assume it has hung.
+
+### S-12. Document identity — the rule that stops us paying twice
+
+Owner's requirement, and the hard part: **never pay for a document we already have**, whether we got
+it free or already bought it from another paid site.
+
+This needs a **document identity key** that is stable across vendors, and that is genuinely
+difficult, because the same instrument is cited differently everywhere:
+
+```
+Kofile        2019-3389          Tyler Eagle   2025028512
+Aumentum      8577 347-249       Avenu         OR/00062/223
+eDocTec       395664             iDocMarket    2026-02531
+```
+
+The natural key is **county + instrument number + recording date**, but only after normalising the
+instrument number — stripping punctuation, leading zeros and series prefixes, and keeping book/page
+as a separate fallback key for records that have no instrument number at all (Avenu publishes none).
+
+**Two documents match only if the county AND the normalised citation AND the recording date agree.**
+Date is part of the key because instrument numbers restart in some counties — a rule already learnt
+and encoded in the eDocTec and Aumentum parsers.
+
+### S-13. Never guess a match
+
+The dedup decision is a **spending** decision, and it fails badly in both directions:
+
+- A **false match** skips buying a document we do not have. The research is silently short, and the
+  reason is invisible — the worst outcome in this whole document.
+- A **false miss** buys a duplicate. That costs a few dollars and is visible in the ledger.
+
+So the rule is: **when identity is uncertain, buy it.** A wasted dollar is recoverable; a missing
+deed presented as a complete record is not. Any near-match that is not an exact key match must be
+recorded as `uncertain` with both citations, and the run should say how many purchases were made
+under uncertainty rather than hiding it.
+
+### S-14. Free-first ordering within paid mode
+
+Even in PAID mode, the free sources run **first**, and every document they return is registered in
+the identity index before a single paid source is queried. Paying for a document that a free source
+was about to return is exactly the waste the owner is asking to avoid, and ordering is what prevents
+it — not filtering afterwards.
+
+### S-15. Purchase ledger as the source of truth
+
+Every purchase records the identity key, the vendor, the price and the run. A repeat purchase of the
+same key — in the same run or a later one — is reported. This is also what makes the balance
+reconciliation in S-5 meaningful: the ledger says what we spent, the vendor says what it took, and a
+divergence is a question rather than a rounding error.
+
+---
+
 ## Slice order
 
 | Slice | What | Blocked on |
 |---|---|---|
-| S-6 | **GLO adapter** — free, authoritative, original surveys | nothing |
+| S-6 | **GLO adapter** — free, authoritative, original surveys | DONE 2026-08-02 |
 | S-7 | **texaslandrecords (Avenu) adapter** — 23 counties, free index | nothing |
 | S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | nothing |
 | S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | owner: amounts, ceiling |
 | S-10 | Ledger reconciliation (S-5) | S-8 |
 
-S-6 and S-7 are unblocked and are the highest-value work remaining on the research platform.
+**S-6 is DONE** (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns 1,523 grants;
+Bell + grantee DUNCAN returns 5, with GLO record ids and free PDFs. S-7 (Avenu aggregator) is the
+next unblocked slice, then S-11/S-12 (two modes + document identity).
