@@ -1262,6 +1262,22 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         { separator: true },
         { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { setTool('INVERSE'); setOpenMenu(null); } },
         { label: 'Forward Point', shortcut: 'FP', action: () => { setTool('FORWARD_POINT'); setOpenMenu(null); } },
+        // CAD_AUDIT Slice S6a — the SAME dialogue as AI → "Calc Point", surfaced where a surveyor
+        // would actually look for it.
+        //
+        // The owner asked for "bearing/distance calculations, distance/distance calculations,
+        // bearing/bearing calculations" as though they needed building. They were already built —
+        // CalcPointDialog has DIST_DIST, BRG_DIST, TWO_BEARINGS, FOURTH_CORNER and PARALLEL over
+        // lib/cad/geometry/cogo.ts — and filed under the AI menu, because they happen to deliver
+        // their result as a reviewable ghost proposal. That is an implementation detail of HOW the
+        // answer is presented, and it had become the reason nobody could find the feature. Classic
+        // COGO is not an AI feature; it is the oldest arithmetic in surveying.
+        //
+        // Deliberately listed in BOTH menus rather than moved: the AI entry is a documented path and
+        // silently relocating it would break anyone who knows where it lives.
+        { separator: true },
+        { label: 'Calc Point (dist–dist, bearing–dist, bearing–bearing, 4th corner)…', action: () => { window.dispatchEvent(new CustomEvent('cad:openCalcPointDialog')); setOpenMenu(null); } },
+        { label: 'Close Drawing (Bowditch adjust)…', action: () => { window.dispatchEvent(new CustomEvent('cad:openCloseDrawingDialog')); setOpenMenu(null); } },
       ],
     },
     {

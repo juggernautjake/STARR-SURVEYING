@@ -126,6 +126,74 @@ Each is sized to be shipped and verified independently, in the order that makes 
   docs so a documented decision is recorded as a decision, not as a gap.
   *Acceptance:* a reader who has never opened the software can name every tool and say what it edits.
 
+- **S1a. The menu catalogue.** ✅ **DONE 2026-08-03.** S1 as written ("every menu, panel, dialog and
+  tool") is not a slice — 106 components. Sliced by surface; this is the menu bar, taken first
+  because S5 (condense menus) is blocked on it. Captured by driving the live app, not by reading
+  `MenuBar.tsx`, so an item that fails to render would be absent here.
+
+  **Seven top-level menus, ~75 items.**
+
+  | menu | items |
+  |---|---|
+  | **File** | New Drawing `Ctrl+N` · Open… `Ctrl+O` · Open Saved Drawing… · File Manager… · Drawing notes… · Branches & Reviews… · Point File Library… · Recover unsaved drawings… · Save `Ctrl+S` · Save to Cloud… · Save a copy (local .starr)… · Export ▸ · Import ▸ · Review & Delivery ▸ |
+  | **Edit** | Undo `Ctrl+Z` · Redo `Ctrl+Y` · Delete Selection `Del` · Select All `Ctrl+A` · Deselect All `Esc` · Send to Layer… `Ctrl+Shift+L` · Intersect Lines… `I X` · Reverse Direction · Explode (Polyline → Lines) · Smooth → Spline · Simplify polyline (0.5 ft tolerance) |
+  | **View** | Zoom Extents `Z E` · Fit Drawing to Page · Move Page · Show Grid `F7` · Disable Snap `F3` · Hide Layer Panel · Hide Properties · Data tables & viewers ▸ · Project Images… `IM` · Hide Title Block |
+  | **Survey** | Adjust Orientation… `OA` · Rotate Drawing View… `RV` · Title Block & North Arrow… · Code-to-Style Mapping… · Connect Points into Linework · Curve Calculator… `CC` · Calculator… `C` · Arc `A` · Spline (Fit-Point) `SF` · Spline (NURBS) `SN` · Curb Return / Fillet `CR` · Offset `OF` · Inverse (Bearing & Distance) `INV` · Forward Point `FP` |
+  | **Draw** | Point `P` · Line `L` · Polyline `PL` · Polygon `PG` · Rectangle `RE` · Circle `CI` · Regular Polygon `RP` · Move `M` · Copy `CO` · Rotate `RO` · Mirror `MI` · Scale `SC` · Erase `E` |
+  | **AI** | AI mode: AUTO / COPILOT / COMMAND / MANUAL · Cycle AI mode `Ctrl+Shift+M` · Run AI Drawing Engine… · Show AI review queue · AI clarifying questions… · AI drawing chat… · AI sidebar (tabs) · Calc Point… · Close Drawing (Bowditch adjust)… · Reconcile Hand Sketch… |
+  | **Help** | Settings & Preferences… · Keyboard Shortcuts… · About Starr CAD |
+
+  ### The finding that changes another slice
+
+  **The owner asked for COGO that already exists.** The request was "bearing/distance calculations,
+  distance/distance calculations, bearing/bearing calculations". `CalcPointDialog` implements
+  `DIST_DIST`, `BRG_DIST`, `TWO_BEARINGS`, `FOURTH_CORNER` and `PARALLEL` over
+  `lib/cad/geometry/cogo.ts` and `geometry/solver.ts` — all of it, working.
+
+  It was filed under the **AI** menu, because the dialogue happens to deliver its answer as a
+  reviewable ghost proposal. That is a detail of *how the result is presented*, and it had become the
+  reason nobody could find the feature. **Classic COGO is not an AI feature; it is the oldest
+  arithmetic in surveying**, and a surveyor looking for it opens Survey.
+
+  This is the built-but-unreachable defect in its subtlest form yet: nothing missing, nothing broken,
+  and the capability still effectively absent. It is also why S1 had to come before S6 — S6 would
+  otherwise have rebuilt a working solver.
+
+  ### Other observations for S5 (recorded, not acted on)
+
+  1. **`Draw` mixes creation with modification.** Point…Regular Polygon create; Move/Copy/Rotate/
+     Mirror/Scale/Erase modify. One flat list, no separator, so "Erase" sits in the menu you open to
+     make things.
+  2. **`File` offers three saves and four opens.** Save / Save to Cloud / Save a copy (local
+     .starr); Open… / Open Saved Drawing… / File Manager… / Point File Library…. The difference
+     between "Open…" and "Open Saved Drawing…" is not discoverable from the labels.
+  3. **`AI` spends five entries on one setting** — four mode items plus Cycle.
+  4. **`Survey` mixes computation with drawing tools.** Arc, Spline, Curb Return and Offset are draw
+     tools living in Survey; Calculator and Curve Calculator are computations.
+  5. **`Edit` carries geometry operations** (Explode, Smooth → Spline, Simplify) that are closer to
+     Draw's modify group than to Undo/Redo/Select.
+
+  Item 1 and item 5 point at the same reshape — a **Modify** group — which is the strongest S5
+  candidate. Deliberately not acted on here: condensing menus is a behavioural change that needs the
+  rest of the catalogue (panels, dialogs, the 40-action command palette) first.
+
+- **S6a. Classic COGO reachable from Survey.** ✅ **DONE 2026-08-03.** The one-line consequence of
+  the finding above: `Calc Point…` and `Close Drawing (Bowditch adjust)…` now also appear under
+  **Survey**, dispatching the *same* `cad:openCalcPointDialog` / `cad:openCloseDrawingDialog` events
+  — not a second implementation, which would drift from the original within a release.
+
+  **Listed in both menus rather than moved.** The AI path is documented and someone knows where it
+  lives; a "cleanup" that costs a user their muscle memory is not a cleanup.
+
+  **Verified in the browser, not just in source.** Opened Survey in the running app, both items
+  render; clicked Calc Point and the dialogue opens with Method = *Distance–distance (2 selected:
+  dist from each)*, the selected-POINT counter, distance inputs, and Compute / Suggest as ghost.
+  Six tests pin it, scoped to the Survey menu block specifically — the AI menu contains the same
+  labels by design, so a whole-file `toContain` would have passed without the fix.
+
+  **S6 is now much smaller than written.** What remains is verifying curve solving and area against
+  the existing `Curve Calculator…` and `Calculator…`, not building intersections.
+
 - **S2. The freeze — measured, not guessed.** Reproduce under `performance.measureUserAgentSpecificMemory`
   and a heap snapshot; instrument listener counts and the undo stack across a long session.
   *Acceptance:* the cause is NAMED with evidence, before any fix is written.
@@ -478,7 +546,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
