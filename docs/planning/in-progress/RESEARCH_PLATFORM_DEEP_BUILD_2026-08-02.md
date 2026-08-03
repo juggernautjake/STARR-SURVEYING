@@ -2805,8 +2805,30 @@ distinction matters: everything before this made a document arrive; nothing befo
 #### Still to build in this phase
 
 - **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu (19) + Tyler Eagle (9) +
-  eDocTec (2) DONE 2026-08-03.** Two single-county vendors remain: Aumentum (Bastrop), iDocMarket
-  (Bosque).
+  eDocTec (2) + Aumentum (1) DONE 2026-08-03 — 53 of 54 county-slots.** One vendor remains:
+  iDocMarket (Bosque).
+
+  **Bastrop is the one where screenshotting was actually right** (`aumentum-viewer.ts`). The owner's
+  suggestion — *screenshot the images if we cannot find a way to download the files* — turned out to
+  be unnecessary on the other three, each of which hands over an image or a PDF once the right URL is
+  found. Aumentum genuinely exposes **neither**: `SearchImage.aspx` opens a tab holding a LEADTOOLS
+  Web Image Viewer that paints into `#divWIV1`, with no `<img src>` and no PDF handler. The
+  alternatives were *checked* and are absent, which is what makes the screenshot correct here and
+  wrong everywhere else.
+
+  **What a screenshot costs is stated rather than glossed.** It captures what the viewer rendered —
+  its zoom, its scaling — not the scan's own resolution: a picture of a picture. Fine for a deed's
+  text; possibly not for a plat's curve table, where a radius sits to the hundredth in 6pt type. So
+  pages carry `capturedByScreenshot`, quality is never rated `good` (a downstream gate must not treat
+  it as equal to a fetched scan), and the caveat travels even on a failed capture because it
+  describes the **method**, not the result. Whether it survives fine plat detail is exactly what S8
+  is waiting to measure.
+
+  Two portal facts that would **hang** a scraper rather than fail it: submitting the search form
+  empty raises `alert("Please enter search criteria.")`, and an unhandled dialog blocks the page and
+  every action after it — which reads as a slow county rather than a bug in us. Filling the party
+  field by assignment is also not enough; the control validates on its own events, so it must be
+  typed.
 
   **Every one of the three "not wired up" notes was wrong about the reason**, and each took under ten
   minutes to disprove in a browser. That is the pattern worth carrying into the last two: the note
