@@ -48,6 +48,65 @@ session and risks reverting it.
 
 Each is sized to be shipped and verified independently, in the order that makes the next one cheaper.
 
+- **S0b. What the previous perf pass already established** — read this before S2 or S4.
+  **DONE 2026-08-03**, by finally reading `cad-desktop-tauri-and-perf-2026-06-14.md` (1,265 lines).
+
+  Its Phase 2 was a six-slice renderer pass, and most of it **shipped**:
+
+  | slice | state |
+  |---|---|
+  | P1 spatial index for feature bounds | DONE — `lib/cad/spatial/feature-index.ts`, a hand-rolled uniform grid |
+  | P2 viewport culling in the render loop | DONE |
+  | P3 / P3b dirty-region tessellation, store + renderer | DONE — this is the guard I mistakenly reported as absent |
+  | P4 / P4b non-blocking label regen, chunked + worker | shipped |
+  | P5 LOD threshold tuning + lazy label render | shipped |
+  | **P6 React boundary audit** | **only ONE cut done** |
+  | N1 profiling harness | **complete and reachable** — see below |
+  | Phase 3 native Rust/wgpu renderer | deliberately deferred, **profiling-gated** |
+
+  ### ▶ The real open lead for the freeze is P6, not the render loop
+
+  The previous author's own hypothesis, written in that doc: *"`CanvasViewport.tsx` is 14,431 lines —
+  almost certainly re-renders the world on every store tick."* Only the first boundary cut shipped
+  (the status-bar cursor pill, moved to its own memoized component with per-field selectors). **The
+  audit itself was never completed** — and the file has since grown to **15,403 lines**.
+
+  That is a far better-grounded lead than the one I invented, and it comes from someone who had
+  profiled the thing. It also fits the symptom better than a render-loop theory: a React reconcile
+  storm on every store tick blocks the main thread in bursts tied to *interaction*, which is what
+  "freezes while I am working and I have to refresh" describes.
+
+  **The named technique is already in the doc**: split via `useSyncExternalStore` selectors with
+  shallow equality; lift `cursorWorld`, `zoom` and `isBoxSelecting` into their own selectors so a
+  cursor move does not reconcile the whole canvas component; memoize `MenuBar` / `LayerPanel` /
+  `PropertyPanel` keyed by the selection-id set rather than raw `selectedIds`. Measure with the React
+  Profiler on a fixture and record the delta.
+
+  ### ▶ THE MEASUREMENT APPARATUS IS ALREADY COMPLETE — there is no excuse for guessing
+
+  I wrote, one paragraph above, that the fixtures "were planned and I have found no evidence they
+  were built", then checked. **They are built.** `lib/cad/perf/fixtures.ts` exports
+  `FIXTURE_SIZES = { small: 1_000, medium: 50_000, large: 200_000 }`, `generateSyntheticFeatures` and
+  `generateNamedFixture` with a fixed seed — and `PerfOverlay.tsx` imports them and generates a
+  fixture on demand.
+
+  So the full loop exists and is reachable **today**, with no build step:
+
+  > `Ctrl+Alt+P` → generate the **large (200,000-feature)** fixture → read p50 / p95 / p99 and the
+  > per-phase breakdown from the live histogram.
+
+  That makes every performance question in this program answerable in minutes. It also means both of
+  today's wrong mechanisms — mine about the dirty check, and my near-miss about the missing fixtures —
+  were produced by reading code when a measurement was one keystroke away.
+
+  **That is the finding of this slice, and it is worth more than either theory:** the reason this
+  subsystem keeps attracting confident wrong analysis is that its instrumentation is invisible unless
+  you go looking. Nothing in the UI advertises `Ctrl+Alt+P`. Anyone who does not know the hotkey
+  reasons from source, and reasoning from source is what produced two errors here in one session.
+
+  **First action for S2, before any code is read again:** run the large fixture and paste the
+  histogram into this document. Whatever it says, it settles the argument.
+
 - **S1. The catalogue.** Drive the CAD editor with Playwright: every menu, panel, dialog and tool,
   screenshotted, with what it does and what it operates on. Cross-referenced against the 55 completed
   docs so a documented decision is recorded as a decision, not as a gap.
