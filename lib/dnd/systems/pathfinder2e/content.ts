@@ -172,6 +172,40 @@ export const PF2_CLASSES: PF2ClassDef[] = [
     spellcasting: { tradition: 'arcane', kind: 'prepared', attribute: 'INT' },
     summary: 'The archetypal arcane prepared caster with an Arcane Thesis and (optionally) a curriculum/school granting an extra slot.',
   },
+
+  // ── SECRETS OF MAGIC ──────────────────────────────────────────────────────────────────────────
+  //
+  // Added 2026-08-02 on an owner decision: this catalogue means ALL PUBLISHED classes, not the
+  // Remaster core line-up. That call had been open for a week and was deliberately not made by an
+  // agent, because it is a claim about what the app covers rather than a coding task.
+  //
+  // Both are REDUCED casters — see PF2_REDUCED_SLOTS in spell-counts.ts. That table was already
+  // modelled and already read by the builder, which is why these two entries are all that was
+  // needed: the machinery behind them has been waiting.
+  //
+  // Paizo does not publish a "reduced caster table" as such; it publishes two class tables that
+  // happen to be identical, with the rule as prose above each. Searching for the former is what made
+  // this look like missing data for weeks — the blocker was the shape of the question.
+  {
+    // STR *or* DEX: a Magus built for Spellstrike with a longsword and one built around a bow are
+    // both standard, so neither can be the only option. First entry is the default the builder picks.
+    name: 'Magus', keyAttribute: ['STR', 'DEX'], hpPerLevel: 8, trainedSkills: 2, fixedSkills: ['Arcana'],
+    initial: { perception: 'trained', fortitude: 'expert', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
+    subclassLabel: 'Hybrid Study', subclassMechanism: 'Hybrid Study',
+    subclassOptions: ['Inexorable Iron', 'Laughing Shadow', 'Sparkling Targe', 'Starlit Span', 'Twisting Tree'],
+    spellcasting: { tradition: 'arcane', kind: 'prepared', attribute: 'INT' },
+    summary: 'A martial arcane caster who fuses weapon and spell through Spellstrike, with a Hybrid Study shaping how the two combine. Casts from a reduced slot table.',
+  },
+  {
+    // 3 + INT free skills, NOT the near-universal 2. Worth the comment: it is the single figure most
+    // likely to be "corrected" to 2 by someone pattern-matching the entries above.
+    name: 'Summoner', keyAttribute: ['CHA'], hpPerLevel: 10, trainedSkills: 3,
+    initial: { perception: 'trained', fortitude: 'expert', reflex: 'trained', will: 'expert', defense: 'trained', ...MARTIAL },
+    subclassLabel: 'Eidolon', subclassMechanism: 'Eidolon',
+    subclassOptions: ['Angel', 'Anarch', 'Axiom', 'Beast', 'Construct', 'Demon', 'Devil', 'Dragon', 'Elemental', 'Fey', 'Plant', 'Psychopomp', 'Undead'],
+    spellcasting: { tradition: 'arcane', kind: 'spontaneous', attribute: 'CHA' }, // tradition varies BY eidolon
+    summary: 'Bonded to an eidolon that acts on shared actions; the pair share HP and a reduced spontaneous slot table, and the eidolon decides the tradition.',
+  },
 ];
 
 // ── Ancestries ────────────────────────────────────────────────────────────────────────────────────

@@ -25,10 +25,13 @@ const catalogNames = PF2_CLASSES.map((c) => c.name);
 
 describe('PF2: which classes can actually be built', () => {
   it('names the classes with level data but no builder entry', () => {
+    // Magus and Summoner left this list on 2026-08-02, when the owner decided the catalogue means
+    // ALL PUBLISHED rather than the Remaster core. The remaining four are the same situation and
+    // the same one-entry fix — the ladders below prove it.
     const buildable = progressionNames.filter((n) => catalogNames.includes(n));
     const notBuildable = progressionNames.filter((n) => !catalogNames.includes(n)).sort();
-    expect(buildable.length).toBe(14);
-    expect(notBuildable).toEqual(['Investigator', 'Kineticist', 'Magus', 'Summoner', 'Swashbuckler', 'Thaumaturge']);
+    expect(buildable.length).toBe(16);
+    expect(notBuildable).toEqual(['Investigator', 'Kineticist', 'Swashbuckler', 'Thaumaturge']);
   });
 
   it('every builder class has level data — the gap runs one way only', () => {
@@ -38,10 +41,12 @@ describe('PF2: which classes can actually be built', () => {
     }
   });
 
-  it('the unbuildable six still have COMPLETE ladders, so only the catalog entry is missing', () => {
+  it('the unbuildable four still have COMPLETE ladders, so only the catalog entry is missing', () => {
     // Worth pinning: the expensive half of the work is already done and correct. Whoever adds a
-    // `PF2ClassDef` gets a working class immediately.
-    for (const n of ['Investigator', 'Kineticist', 'Magus', 'Summoner', 'Swashbuckler', 'Thaumaturge']) {
+    // `PF2ClassDef` gets a working class immediately — which is exactly how Magus and Summoner went
+    // in on 2026-08-02. Two entries, no new machinery, and this test is the reason we knew that in
+    // advance rather than discovering it mid-change.
+    for (const n of ['Investigator', 'Kineticist', 'Swashbuckler', 'Thaumaturge']) {
       const steps = pf2LevelBreakdown(n, 20);
       expect(steps, `${n} ladder`).toHaveLength(20);
       expect(steps.some((s) => s.features.length > 0), `${n} has no features`).toBe(true);

@@ -6,11 +6,28 @@ import { PF2_CLASSES, PF2_ANCESTRIES, PF2_BACKGROUNDS, PF2_SKILLS, PF2_ARMORS } 
 import { pf2Catalog, pf2CatalogCount } from '@/lib/dnd/systems/pathfinder2e/catalog';
 
 describe('pf2 content library', () => {
-  it('has the 14 Remaster classes', () => {
+  // The catalogue covers ALL PUBLISHED classes, not just the Remaster core line-up — an owner
+  // decision taken 2026-08-02 after it sat open for a week. It is spelled out here rather than left
+  // as a bare list, because a future reader finding 16 names has no way to tell a deliberate scope
+  // from an accident, and that ambiguity is what kept Magus and Summoner out for so long.
+  it('has the 14 Remaster core classes plus the 2 from Secrets of Magic', () => {
     expect(PF2_CLASSES.map((c) => c.name).sort()).toEqual([
+      // Remaster core (Player Core 1 + 2)
       'Alchemist', 'Barbarian', 'Bard', 'Champion', 'Cleric', 'Druid', 'Fighter',
-      'Monk', 'Oracle', 'Ranger', 'Rogue', 'Sorcerer', 'Witch', 'Wizard',
+      'Magus', 'Monk', 'Oracle', 'Ranger', 'Rogue', 'Sorcerer', 'Summoner', 'Witch', 'Wizard',
     ]);
+  });
+
+  it('and both Secrets of Magic classes are reduced casters, which is why they needed no new machinery', () => {
+    // PF2_REDUCED_SLOTS was modelled and read by the builder long before these two were catalogued.
+    // If a later class is added that is NOT a reduced caster, this test says nothing about it — it
+    // pins only that these two resolve to the table the builder already had.
+    for (const name of ['Magus', 'Summoner']) {
+      const def = PF2_CLASSES.find((c) => c.name === name);
+      expect(def, `${name} should be catalogued`).toBeDefined();
+      expect(def!.spellcasting, `${name} casts spells`).toBeDefined();
+      expect(def!.summary.length, `${name} needs a summary — the catalog renders it`).toBeGreaterThan(0);
+    }
   });
   it('has the 8 core ancestries and 16 skills', () => {
     expect(PF2_ANCESTRIES).toHaveLength(8);
@@ -49,13 +66,16 @@ describe('pf2 content library', () => {
 
   it('every class has its Player Core key attribute + HP/level (drives class DC + max HP)', () => {
     // Only Fighter/Wizard HP was exercised (via the HP-formula tests). A wrong key attribute (Barbarian
-    // CHA?) mis-computes the class DC and spell attribute; a wrong HP/level mis-sizes every level. Pin all 14.
+    // CHA?) mis-computes the class DC and spell attribute; a wrong HP/level mis-sizes every level. Pin all 16.
     const GOLDEN: Record<string, { key: string[]; hp: number }> = {
       Alchemist: { key: ['INT'], hp: 8 }, Barbarian: { key: ['STR'], hp: 12 }, Bard: { key: ['CHA'], hp: 8 },
       Champion: { key: ['STR', 'DEX'], hp: 10 }, Cleric: { key: ['WIS'], hp: 8 }, Druid: { key: ['WIS'], hp: 8 },
       Fighter: { key: ['STR', 'DEX'], hp: 10 }, Monk: { key: ['STR', 'DEX'], hp: 10 }, Oracle: { key: ['CHA'], hp: 8 },
       Ranger: { key: ['STR', 'DEX'], hp: 10 }, Rogue: { key: ['DEX'], hp: 8 }, Sorcerer: { key: ['CHA'], hp: 6 },
       Witch: { key: ['INT'], hp: 6 }, Wizard: { key: ['INT'], hp: 6 },
+      // Secrets of Magic, added 2026-08-02. Magus takes STR *or* DEX because a Spellstrike build with
+      // a longsword and one built around a bow are both standard.
+      Magus: { key: ['STR', 'DEX'], hp: 8 }, Summoner: { key: ['CHA'], hp: 10 },
     };
     for (const cls of PF2_CLASSES) {
       const g = GOLDEN[cls.name];
@@ -95,7 +115,12 @@ describe('pf2 content library', () => {
   });
   it('every spellcasting class names a tradition + kind', () => {
     const casters = PF2_CLASSES.filter((c) => c.spellcasting);
-    expect(casters.map((c) => c.name).sort()).toEqual(['Bard', 'Cleric', 'Druid', 'Oracle', 'Sorcerer', 'Witch', 'Wizard']);
+    // Magus and Summoner joined 2026-08-02. They are REDUCED casters — fewer slots per rank than the
+    // seven above — which `pf2IsReducedCaster` decides, not this list. Being in this list only means
+    // they cast at all.
+    expect(casters.map((c) => c.name).sort()).toEqual([
+      'Bard', 'Cleric', 'Druid', 'Magus', 'Oracle', 'Sorcerer', 'Summoner', 'Witch', 'Wizard',
+    ]);
   });
   it('backgrounds each grant a skill that exists', () => {
     const skillNames = new Set(PF2_SKILLS.map((s) => s.name));

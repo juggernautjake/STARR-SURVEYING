@@ -136,11 +136,17 @@ describe('tokens', () => {
 });
 
 describe('buildContract', () => {
+  // The FULL required input. Passing a partial object type-checked in vitest but failed `tsc`, which
+  // is the gap the "run npm run build before merging" rule exists for — a test can be green and the
+  // production typecheck still red.
   const input = {
     clientName: 'Dana Reyes',
     artistName: 'Andrew Ash',
+    businessName: 'Andrew Ash Voice',
     projectTitle: 'National radio spot',
     feeCents: 95000,
+    usageScopeId: 'regional-radio',
+    revisionsIncluded: 1,
   };
 
   it('puts the fee and both parties into the text', () => {

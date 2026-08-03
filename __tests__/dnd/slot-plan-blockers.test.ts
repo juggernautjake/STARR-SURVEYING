@@ -150,21 +150,25 @@ describe('the plan summary must not outlive the code — verified, not asserted'
     expect(pf2ReducedSlots('Summoner', 99)).not.toBeNull();
   });
 
-  it('CATALOGUE DECISION, STILL OPEN: PF2_CLASSES is the 14 Remaster classes', () => {
-    // This is the doc's one genuinely open item and it is a decision, not effort — whether the
-    // catalogue means CORE or ALL PUBLISHED. Magus and Summoner are Secrets of Magic.
-    //
-    // WHEN THIS TEST FAILS, THE DECISION HAS BEEN MADE. Update this expectation and the plan's
-    // summary table in the same commit — that pairing is the whole point of the file.
-    expect(PF2_CLASSES).toHaveLength(14);
-    expect(pf2Class('Magus')).toBeNull();
-    expect(pf2Class('Summoner')).toBeNull();
+  it('CATALOGUE DECISION — RESOLVED 2026-08-02: all published, not core-only', () => {
+    // This assertion did its job. It was written the same day saying "when this test fails, the
+    // decision has been made", the owner made it, and the failure is what carried the change into
+    // every guard that had quietly encoded the old answer — four of them, in three files.
+    expect(PF2_CLASSES).toHaveLength(16);
+    expect(pf2Class('Magus')).not.toBeNull();
+    expect(pf2Class('Summoner')).not.toBeNull();
   });
 
-  it('so a Magus is currently unbuildable rather than half-built, which is the safer failure', () => {
-    // The reverted attempt left this the right way round: a catalogue whose guards disagree about
-    // how many classes exist is worse than one that is honestly missing two.
-    expect(pf2Class('Wizard')).not.toBeNull();
+  it('and both arrived complete rather than half-built, which was the condition for adding them at all', () => {
+    // A catalogue whose guards disagree about how many classes exist is worse than one honestly
+    // missing two — which is why the earlier attempt was reverted. `summary` is the field that
+    // attempt would have let someone discover the hard way; the catalog renders it.
+    for (const name of ['Magus', 'Summoner']) {
+      const def = pf2Class(name)!;
+      expect(def.summary.length, `${name} summary`).toBeGreaterThan(0);
+      expect(def.subclassOptions.length, `${name} level-1 choice`).toBeGreaterThan(0);
+      expect(pf2IsReducedCaster(name), `${name} uses the reduced table`).toBe(true);
+    }
     expect(PF2_CLASSES.every((c) => typeof c.summary === 'string' && c.summary.length > 0)).toBe(true);
   });
 });

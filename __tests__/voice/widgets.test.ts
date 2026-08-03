@@ -61,7 +61,7 @@ describe('WIDGET_CATALOG', () => {
 });
 
 describe('resolveMobileStyle — the three layers', () => {
-  const base = { align: 'left', paddingY: 4, maxWidth: 900 } as const;
+  const base = { align: 'left', padding: 4, width: 'normal' } as const;
   const widget = (over: Partial<Widget> = {}): Widget =>
     ({ id: 'w1', type: 'heading', text: 'Press play.', style: { ...base }, ...over }) as unknown as Widget;
 
@@ -77,7 +77,7 @@ describe('resolveMobileStyle — the three layers', () => {
     // Sparse overrides: touch alignment and every other key keeps following desktop forever,
     // including later edits to it.
     const resolved = resolveMobileStyle(widget({ mobileStyle: { align: 'center' } }));
-    expect(resolved.maxWidth).toBe(900);
+    expect(resolved.padding).toBe(4);
   });
 
   it('turns the automation off entirely when autoMobile is false', () => {

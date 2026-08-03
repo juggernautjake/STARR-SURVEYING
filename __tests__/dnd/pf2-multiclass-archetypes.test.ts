@@ -11,12 +11,18 @@ import { pf2FeatEligibility } from '@/lib/dnd/systems/pathfinder2e/eligibility';
 describe('PF2 multiclass via archetype Dedications (MC-PF2)', () => {
   const byName = new Map(PF2_ALL_FEATS.map((f) => [f.name, f]));
 
-  // Oracle & Witch have NO catalogued feats at all — a DOCUMENTED gap (PF2_FEATS_CLASS_GAPS): their Remaster
-  // subsystems (curses/mysteries, patrons/hexes) couldn't be confirmed, so nothing was authored rather than
-  // invented. Every OTHER builder class must have a Dedication so you can multiclass into it.
-  const DOCUMENTED_GAPS = new Set(['Oracle', 'Witch']);
+  // Four classes have NO catalogued feats at all — a DOCUMENTED gap (PF2_FEATS_CLASS_GAPS), not an
+  // oversight. Oracle and Witch: their Remaster subsystems (curses/mysteries, patrons/hexes) couldn't be
+  // confirmed. Magus and Summoner: catalogued 2026-08-02 from the class chassis, which is enough to BUILD
+  // one and not enough to author a feat list keyed off Hybrid Studies and eidolon types. Nothing was
+  // invented in either case. Every OTHER builder class must have a Dedication so you can multiclass into it.
+  //
+  // The consequence is worth stating because it is easy to read as a bug: you cannot currently multiclass
+  // INTO Magus or Summoner. You can play one — the class-feat slots take custom entries, which is the
+  // escape hatch doing its job.
+  const DOCUMENTED_GAPS = new Set(['Oracle', 'Witch', 'Magus', 'Summoner']);
 
-  it('every builder class (bar the documented Oracle/Witch gap) has a "<Class> Dedication" archetype feat', () => {
+  it('every builder class (bar the four documented feat gaps) has a "<Class> Dedication" archetype feat', () => {
     const missing = PF2_CLASSES.map((c) => c.name)
       .filter((n) => !DOCUMENTED_GAPS.has(n) && !byName.has(`${n} Dedication`));
     expect(missing, `classes with no Dedication feat: ${missing.join(', ')}`).toEqual([]);

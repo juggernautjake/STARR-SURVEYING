@@ -37,11 +37,28 @@ describe('the data still marks reduced casters unmodelled', () => {
   });
 });
 
-describe('a reduced caster gets NO fabricated slot table', () => {
+// ── UPDATED 2026-08-02 ───────────────────────────────────────────────────────────────────────────
+//
+// This block asserted `slots === []`, and that was the right answer while the real table was
+// uncaptured: better nothing than a full caster's slots on a Magus. The reduced table has since been
+// captured (PF2_REDUCED_SLOTS), `pf2SpellCountsFor` prefers it over the flag, and the two classes are
+// now in the build catalogue — so a built Magus gets its ACTUAL slots.
+//
+// `slotTableModelled: false` stays on the data entries as the record of what was true before the
+// capture. The assertion that matters has not changed shape, only its target: a reduced caster must
+// never be handed a FULL caster's table. It is now checked by comparison rather than by emptiness.
+describe('a reduced caster gets its own table — never a full caster’s', () => {
   for (const className of UNMODELLED) {
-    it(`${className} at level 9 has empty slots, not a full caster's`, () => {
+    it(`${className} at level 9 gets the reduced table, strictly smaller than a Wizard's`, () => {
       const c = build(className, 9);
-      expect(c.spellcasting.slots).toEqual([]);
+      const wizard = build('Wizard', 9);
+      const total = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+
+      expect(c.spellcasting.slots.length, 'has a table at all').toBeGreaterThan(0);
+      expect(
+        total(c.spellcasting.slots),
+        `${className} must not carry a full caster's slots — the original defect`,
+      ).toBeLessThan(total(wizard.spellcasting.slots));
     });
 
     it(`${className} does not contradict its own spell-rank ceiling`, () => {
