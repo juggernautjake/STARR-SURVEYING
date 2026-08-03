@@ -77,6 +77,48 @@ Each is sized to be shipped and verified independently, in the order that makes 
   runaway loop or a blocked main thread than with a slow leak, which would degrade rather than stop.
   Measure frame time before memory.
 
+  ### ▶ Strong candidate found 2026-08-03: the render loop has no dirty check
+
+  `CanvasViewport.tsx` (**15,403 lines**) starts a `requestAnimationFrame` loop that calls
+  `renderAll()` **every frame, unconditionally, forever**:
+
+  ```ts
+  function renderLoop() {
+    if (!pixiRef.current) return;
+    try { renderAll(); } catch (err) { /* frame skipped */ }
+    rafRef.current = requestAnimationFrame(renderLoop);   // always reschedules
+  }
+  ```
+
+  And `renderAll()` has **no early-out of any kind** — no dirty flag, no version check, no
+  comparison against last-rendered state. Every frame it rebuilds the entire scene:
+
+  > `renderPaper`, `renderGrid`, `renderFeatures`, `renderImageFeatures`, `renderLabels`,
+  > `renderAreaAnnotations`, `renderTextFeatures`, `renderSelection`, `renderInverseMeasurement`,
+  > `renderSnapIndicator`, `renderToolPreview`, `renderTransferGhost`, `renderIntersectPreview`,
+  > `renderCopilotPreview`, `renderTitleBlock`, `renderPaperFurniture`
+  >
+  > — sixteen passes, 60 times a second, whether or not anything changed.
+
+  **This explains all three symptoms at once**, which is why it is worth stating before the profile
+  rather than after: large projects load slowly, changes render slowly, and the app *freezes* on
+  exactly the drawings the owner describes — many layers, many images, many geometries. Once one
+  frame's `renderAll()` exceeds 16 ms, frames queue, the main thread saturates, and the tab stops
+  responding. That is a freeze needing a refresh, not a leak that degrades.
+
+  **The instrumentation to prove it already exists.** `renderAll` is already wrapped in
+  `measureRender` from `lib/cad/perf/render-markers.ts`, and so are `renderFeatures`,
+  `renderImageFeatures`, `renderLabels` and `renderSelection` individually. So S2 can produce numbers
+  in minutes — open a large drawing, read the markers, and see which of the sixteen passes dominates.
+  **Do that before changing anything**: the fix shape depends on whether the cost is spread across all
+  sixteen or concentrated in one.
+
+  **The fix shape, and why it is not a drive-by.** A dirty-flag or store-version gate on the loop is
+  the obvious remedy, but getting it wrong means the canvas silently stops updating — worse than the
+  freeze, because it looks like it worked. It touches the largest component in the codebase and must
+  be verified in a browser against a real drawing with images and many layers. **It is S2's fix, not
+  a slice to sneak in.**
+
 - **S3. Guard against losing work.** Independent of S2's cause: a refresh should not lose a drawing.
   Autosave/restore is worth doing even once the freeze is fixed, because a browser tab can always die.
 
@@ -84,9 +126,20 @@ Each is sized to be shipped and verified independently, in the order that makes 
   time on change, time-to-first-render by element count — then act. Likely candidates: virtualise the
   layer/point tables, batch canvas invalidation, avoid full re-render on a single-element edit.
 
+  **Largely the same root cause as S2** (see the render-loop finding there): "avoid full re-render on
+  a single-element edit" is not currently possible, because there is no such thing as a partial
+  render — every frame is a full one. Fix the dirty gate and this slice becomes a much smaller
+  question about which passes remain expensive when they actually run.
+
 - **S5. UI condensation.** Only after S1, because condensing menus without a catalogue is rearranging
   what you have not read. Target: fewer top-level surfaces, tools grouped by task rather than by
   implementation.
+
+  **`CanvasViewport.tsx` is 15,403 lines**, which is a finding in its own right: hit-testing, sixteen
+  render passes, tool previews, mouse handling and the AI copilot preview all live in one file. That
+  is not a style objection — it is why S2's fix is risky and why nobody can safely change one tool
+  without reading the whole thing. Splitting it is probably a prerequisite for S5 rather than part of
+  it, and should be sequenced deliberately rather than attempted alongside a behavioural change.
 
 - **S6. COGO completeness.** bearing/distance, distance/distance, bearing/bearing intersections;
   inverse; area; curve solving. Check `lib/cad/calculators` first — much of this exists.
