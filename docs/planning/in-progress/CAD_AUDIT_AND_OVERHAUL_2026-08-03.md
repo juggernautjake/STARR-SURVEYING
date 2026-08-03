@@ -554,6 +554,28 @@ been worth shipping.
 - **S6. COGO completeness.** bearing/distance, distance/distance, bearing/bearing intersections;
   inverse; area; curve solving. Check `lib/cad/calculators` first — much of this exists.
 
+  #### ✅ S6 CLOSED 2026-08-03 — every item already existed; S6a was the only work it needed
+
+  S6 asked for "bearing/distance, distance/distance, bearing/bearing intersections; inverse; area;
+  curve solving". Checked each against the code **and against a UI caller**, because in this repo the
+  interesting question is never whether the maths exists — it is whether anything reaches it.
+
+  | S6 item | implementation | reached from |
+  |---|---|---|
+  | dist–dist, brg–dist, brg–brg, 4th corner, parallel | `geometry/cogo.ts`, `geometry/solver.ts` | `CalcPointDialog` — now in **Survey** as well as AI (S6a) |
+  | inverse | `INVERSE` tool | Survey → *Inverse (Bearing & Distance)* `INV`; also `CommandBar` |
+  | area | `geometry/area.ts` (`computeArea`, `computeAreaFromPoints2D`, `computeFeatureArea`) + `area-measurement.ts` | `CanvasViewport`, `featureTooltip`, `HiddenItemsPanel` |
+  | curve solving | `geometry/curve.ts` (`computeCurve`, `circleThrough3Points`, `crossValidateCurve`), `compound-curve.ts`, `curve-fit.ts` | `CurveCalculator` / `CurveCalculatorBody`, Survey → *Curve Calculator…* `CC` |
+  | closure + adjustment (bonus) | `geometry/closure.ts` — `computeClosure`, `bowditchAdjustment`, `transitAdjustment`, `vertexClosure` | `CloseDrawingDialog`, now in Survey too (S6a) |
+
+  `crossValidateCurve` is worth naming: the curve solver checks its own answer against an independent
+  derivation. That is more than the slice asked for.
+
+  **So the entire slice was one menu entry.** The COGO the owner asked for was written, tested and
+  wired — and filed under AI, where a surveyor would not look. Nothing needed building; something
+  needed *finding*. This is the sixth item this program has called missing and found present, and the
+  cost of not checking would have been rebuilding a validated curve solver.
+
 - **S7. The spreadsheet surface.** Editable numeric tables per layer, new points from typed
   coordinates, round-tripping to the drawing.
 
@@ -594,7 +616,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
