@@ -2804,9 +2804,22 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 #### Still to build in this phase
 
-- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu (19) + Tyler Eagle (9) +
-  eDocTec (2) + Aumentum (1) DONE 2026-08-03 — 53 of 54 county-slots.** One vendor remains:
-  iDocMarket (Bosque).
+- **S7. Document retrieval for the vendors that still lack it.** ✅ **DONE 2026-08-03 — all five
+  vendors investigated, four wired, 53 of 54 county-slots retrieving.** Avenu (19), Tyler Eagle (9),
+  eDocTec (2), Aumentum (1). The fifth — iDocMarket / **Bosque** — is **account-gated and needs an
+  owner decision**, not more code.
+
+  **Four of the five "not wired up" notes were wrong about the reason.** Three claimed a paywall where
+  the file is free; the fourth claimed a charge where the barrier is a login. Each took under ten
+  minutes to disprove in a browser. Those notes recorded what somebody assumed, and assumptions about
+  a portal age badly.
+
+  **Bosque is a free registration, not a charge.** `viewDoc(token)` GETs `/Document/Status`, which
+  returns `{"allow":true,"currentBalance":"$0.00","owned":true,"validCC":false}` — no charge anywhere
+  — but `/Document/Detail` redirects to *"Must be signed in to continue."* The index is free and
+  searchable without an account (searches work today); only the document view is gated. The
+  distinction decides the next step: *charged* would mean a wallet and a spending decision, *signed
+  in* means somebody creates a free account. **That is the owner ask** — see §4.
 
   **Bastrop is the one where screenshotting was actually right** (`aumentum-viewer.ts`). The owner's
   suggestion — *screenshot the images if we cannot find a way to download the files* — turned out to
@@ -2903,6 +2916,13 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 These block specific slices and must not be guessed:
 
+0. **A free iDocMarket account, for Bosque (Phase I / S7).** The smallest and cheapest item on this
+   list, and the only thing standing between 53 and 54 county-slots. iDocMarket's index is free and
+   already searched; the *document view* requires a signed-in account, and its own Status endpoint
+   confirms there is **no charge** (`owned:true`, `$0.00`, no card). It needs somebody to register —
+   creating an account in the firm's name is not a decision to make on the firm's behalf. Once it
+   exists, the credentials go in the environment (never the database, per S-1) and the adapter wires
+   like the other four.
 1. **Subscription accounts (R13).** Which paid platforms does the firm hold or want — TexasFile,
    TitlePoint, DataTree, CoreLogic, Regrid, county-specific? Credentials and per-page/per-month
    costs decide the cost-ascending policy.
