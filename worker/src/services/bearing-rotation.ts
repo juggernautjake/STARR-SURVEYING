@@ -260,7 +260,11 @@ export function rotateCalls(
 
   calls.forEach((c, index) => {
     const parsed = c.bearing ? parseBearingSafe(c.bearing) : null;
-    if (!parsed) {
+    // `=== null`, NOT `!parsed`. Due north is azimuth 0, and 0 is falsy: the truthiness check dropped
+    // every `N 0°00'00" E` call as unreadable. That is not an exotic bearing — a call of exactly due
+    // north is the signature of an ASSUMED basis, where the surveyor named one line N 0° E and worked
+    // from it, which is precisely the survey this module exists to rotate.
+    if (parsed === null) {
       skipped.push({ index, reason: `Call ${index + 1}: bearing ${c.bearing ? `"${c.bearing}"` : '(missing)'} could not be read, so it cannot be rotated.` });
       return;
     }

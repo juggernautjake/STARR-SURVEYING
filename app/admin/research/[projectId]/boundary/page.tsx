@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import RotationPanel from '../../components/RotationPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export default function BoundaryViewerPage() {
     new Set(['boundary', 'confidence']),
   );
   const [measureMode, setMeasureMode] = useState(false);
+  const [rotationOpen, setRotationOpen] = useState(false);
   const [svgPanOffset, setSvgPanOffset] = useState({ x: 0, y: 0 });
   const [svgScale, setSvgScale] = useState(1);
 
@@ -333,6 +335,21 @@ export default function BoundaryViewerPage() {
             </label>
           </div>
 
+          {/* ── Field work ──
+              The viewer is where a person is already looking at the record's bearings, which is
+              where the question "and how does this compare to what I shot?" actually gets asked. */}
+          <div className="p-3 border-b border-gray-800">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Field Work</h2>
+            <button
+              onClick={() => setRotationOpen(true)}
+              disabled={calls.length === 0}
+              className="w-full text-left text-sm py-1 text-gray-300 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
+              title={calls.length === 0 ? 'No record calls to rotate' : 'Rotate the record onto measured field work'}
+            >
+              ⟳ Rotate to my basis
+            </button>
+          </div>
+
           {/* Boundary summary */}
           {viewState && (
             <div className="p-3 text-xs text-gray-400">
@@ -440,6 +457,16 @@ export default function BoundaryViewerPage() {
           </aside>
         )}
       </div>
+
+      {/* The record calls this viewer already holds are exactly what the rotation needs, so they are
+          handed over rather than re-fetched — a second fetch could rotate a description the person is
+          not looking at. */}
+      <RotationPanel
+        projectId={projectId}
+        calls={calls.map(c => ({ bearing: c.bearing ?? null, distance: c.distance ?? null }))}
+        isOpen={rotationOpen}
+        onClose={() => setRotationOpen(false)}
+      />
     </div>
   );
 }

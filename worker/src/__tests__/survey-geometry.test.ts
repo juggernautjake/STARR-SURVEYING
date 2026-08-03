@@ -292,3 +292,26 @@ describe('the vara constant and the vara arithmetic must agree', () => {
     expect(toInternal(1900, 'varas')).toBeCloseTo(convertLength(1900, 'varas', 'us_survey_feet').value, 12);
   });
 });
+
+describe('rotateCalls and the falsy azimuth', () => {
+  // Due north is azimuth 0, and 0 is falsy. `if (!parsed)` dropped every `N 0°00'00" E` call as
+  // unreadable — and a call of exactly due north is the signature of an ASSUMED basis, where the
+  // surveyor named one line N 0° E and worked from it. That is the survey this module exists to
+  // rotate, so the bug was aimed squarely at its main case.
+  //
+  // Found by driving the module from a service rather than by reading it: the unit tests here had
+  // never used a due-north bearing.
+  it('rotates a due-north call instead of skipping it', () => {
+    const { rotated, skipped } = rotateCalls(
+      [{ bearing: 'N 0°00\'00" E', distance: 1000 }], 2);
+    expect(skipped).toHaveLength(0);
+    expect(rotated).toHaveLength(1);
+    expect(rotated[0]!.rotatedAzimuthDeg).toBeCloseTo(2, 9);
+  });
+
+  it('still skips a bearing it genuinely cannot read', () => {
+    const { rotated, skipped } = rotateCalls([{ bearing: 'illegible', distance: 100 }], 2);
+    expect(rotated).toHaveLength(0);
+    expect(skipped[0]!.reason).toContain('could not be read');
+  });
+});

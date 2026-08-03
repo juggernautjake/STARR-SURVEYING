@@ -47,6 +47,27 @@ const nextConfig = {
   },
   // Note: Per-route body size limits are configured via route segment config
   // exports in individual API route files (e.g., export const maxDuration = 60)
+
+  // Let the app import worker modules that import each other with ESM `.js` specifiers.
+  //
+  // `worker/` is a real ES module package: TypeScript's NodeNext resolution requires it to write
+  // `import … from './survey-geometry.js'` even though the file on disk is `.ts`. Node resolves that
+  // at runtime; webpack does not, so an app route importing anything under `@/worker/src` that has
+  // its OWN relative imports fails the production build with "Can't resolve './survey-geometry.js'".
+  //
+  // It compiled and every test passed — vitest resolves it fine. Only `npm run build` catches it,
+  // which is the third time in this repo a green suite has sat on top of a broken build.
+  //
+  // `extensionAlias` is webpack's supported answer: try `.ts`/`.tsx` for a `.js` request before
+  // falling back to a real `.js` file, so genuine JavaScript imports still resolve unchanged.
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+    };
+    return config;
+  },
 }
 
 module.exports = nextConfig

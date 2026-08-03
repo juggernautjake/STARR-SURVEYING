@@ -32,7 +32,7 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 **Phase I added — the survey itself.** A new phase (§3, Phase I) for a set of owner requests that are
 all about the *content* of a document rather than about finding it: corner markers read as objects,
 corners positioned relative to each other, varas converted, and an old survey rotated onto the grid
-being shot. S1–S7, S9 and S10 shipped; S8 (measured OCR tiling quality) is settled as arithmetic and
+being shot. S1–S7 and S9–S11 shipped; S8 (measured OCR tiling quality) is settled as arithmetic and
 now waits only on a golden plat — which S9 partly routes around, by using each document's own
 **closure** as evidence about whether we read it correctly.
 
@@ -3114,6 +3114,63 @@ distinction matters: everything before this made a document arrive; nothing befo
 
   Worker suite green: 76 files / 1281 tests. Five of the tests drive `pipeline.ts` itself rather than
   the module, for the obvious reason.
+
+- **S11. The way in to the rotation.** ✅ **DONE 2026-08-03**
+  (`lib/research/rotation.service.ts`, `app/api/admin/research/[projectId]/rotation/route.ts`,
+  `RotationPanel.tsx`, opened from the boundary viewer)
+
+  S10 wired everything Phase I does *to a document*. Rotation is the one operation that cannot be
+  wired that way, because it needs measurements only a **person** can supply — and so it was the one
+  left with no caller at all: no route, no page, no button. The feature the owner asked for by name
+  could not be reached from anywhere in the product.
+
+  Three decisions live in the service rather than the route, because they are about what the answer
+  MEANS:
+
+  **One tie is not a fit, and the UI says so above the number.** With a single common point the
+  residual is zero *by construction* — not because the survey agrees with the ground but because
+  there is nothing left over to disagree. A backsight is the same shape: exact, and unverifiable. The
+  `unchecked` banner renders above the rotation value, not as a footnote, because an unchecked fit is
+  precisely the shape of a confident wrong answer.
+
+  **The scale is observed even when it is not fitted — a gap this slice found.**
+  `fitRotation(points, false)` returns `scale: 1`, a **hardcoded constant, not an observation**. So
+  on the default path a record recited in varas but walked as feet came back with enormous residuals
+  and *nothing naming the cause*: the residuals say something is wrong, only the ratio says the
+  **units** are wrong. `observedScale()` now computes it independently (rotation-invariant, from the
+  spread of each point set about its own centroid) and `explainScale()` names which of the two
+  candidates it is — a State Plane combined factor (~1 in 10,000, half a foot per mile, expected and
+  not a disagreement about the boundary) or a vara (25/9, a boundary in the wrong place). `appliedScale`
+  and `observedScale` are separate fields on purpose: one field holding whichever was available is
+  how a diagnostic ends up applied as a correction.
+
+  **A declined rotation is a 200 with its reason, not a 4xx.** The caller asked a well-formed
+  question; the answer is "not from this input, and here is why". A reason delivered as an error
+  lands in a toast, which is where reasons go to be dismissed.
+
+  ### Two bugs found by building the entry point
+
+  **1. Every due-north call was silently dropped from every rotation.**
+  `rotateCalls` guarded with `if (!parsed)` where `parsed` is an azimuth — and **due north is
+  azimuth 0, which is falsy**. So `N 0°00'00" E` was reported as a bearing that "could not be read".
+  That is not an exotic call: a line called exactly due north is the **signature of an ASSUMED
+  basis**, where the surveyor named one line N 0° E and worked from it. It is the survey this module
+  exists to rotate, so the bug was aimed squarely at its main case. The module's own tests had never
+  used a due-north bearing; driving it from a service found it in the first run.
+
+  **2. The production build broke while the whole suite stayed green.**
+  `worker/` is a real ES module package, so TypeScript requires its internal imports to be written
+  `from './survey-geometry.js'` even though the file is `.ts`. Node resolves that; **webpack does
+  not**. `tsc --noEmit` passed, 1,283 worker tests and 1,466 root test files passed, and
+  `npm run build` failed with *"Can't resolve './survey-geometry.js'"* — because vitest resolves it
+  fine and only the real bundler does not. Fixed with `resolve.extensionAlias` in `next.config.js`,
+  which is webpack's supported answer and leaves genuine `.js` imports resolving unchanged.
+
+  **Third time in this repo a green suite has sat on top of a broken build.** The existing rule —
+  *run `npm run build` before merging* — is the only thing that catches this class, and it earned its
+  keep again here.
+
+  Suites: worker 76 files / 1,283 tests; root 1,466 files; `npm run build` clean.
 
 ---
 
