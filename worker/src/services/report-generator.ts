@@ -353,6 +353,28 @@ function buildSurveyReading(pipeline: PipelineResult): string {
     for (const u of nonFeet) lines.push(`    · ${u.calls} call(s) in ${u.label}. ${u.inFeet}`);
   }
 
+  // ── How sure we are of each number ──
+  // Per finding, rolled up pessimistically. A document average hides the one call that is wrong,
+  // and the one call that is wrong is the whole story.
+  lines.push('', '  CONFIDENCE');
+  lines.push(`    ${wrapAt(s.confidence.statement, 4)}`);
+  const weak = s.confidence.findings.filter((f) => f.band === 'low' || f.band === 'unusable');
+  for (const f of weak.slice(0, 12)) {
+    lines.push(`      · ${f.band.toUpperCase()} — ${f.kind} "${f.raw.slice(0, 40)}": ${wrapAt(f.reasons.join('; '), 8)}`);
+  }
+  if (weak.length > 12) lines.push(`      …and ${weak.length - 12} more below medium confidence.`);
+
+  // ── What else is on the sheet ──
+  if (s.features.length > 0) {
+    lines.push('', '  ALSO SHOWN ON THE DOCUMENT');
+    for (const f of s.features) {
+      const w = f.widthFt != null ? ` (${f.widthFt} ft wide)` : '';
+      lines.push(`    · ${f.kind.replace(/_/g, ' ')}${f.name ? `: ${f.name}` : ''}${w}`);
+    }
+    lines.push('    A watercourse can be a boundary that MOVES; a road may carry a right of way the');
+    lines.push('    deed never mentions; an easement is an encumbrance somebody has to be told about.');
+  }
+
   // ── Corner to corner ──
   if (s.pairs.length > 0) {
     lines.push('', '  CORNER TO CORNER (computed — the deed states only consecutive corners)');

@@ -46,6 +46,9 @@ import { checkCurve, checkTangency, type CurveCheck } from './curve-check.js';
 import { diagnoseClosure, type ClosureDiagnosis } from './closure-diagnosis.js';
 import { drawBoundary, type DrawingResult } from './survey-drawing.js';
 import { convertLength, unitLabel, type LengthUnit } from './survey-units.js';
+// What else is drawn on the sheet, and how sure we are of each number (owner request 2026-08-03).
+import { findPlatFeatures, type PlatFeature } from './plat-notation.js';
+import { scoreDocument, type DocumentConfidence, type Finding } from './finding-confidence.js';
 import type { BoundaryCall, DocumentResult, ExtractedBoundaryData } from '../types/index.js';
 
 /** The recorded year to judge a closure by — but only when the run cannot be wrong about it.
@@ -120,6 +123,14 @@ export interface SurveyReading {
   /** Units the deed actually recites, and what they are in US survey feet. */
   unitsUsed: Array<{ unit: LengthUnit; label: string; calls: number; inFeet: string }>;
   drawing: DrawingResult | null;
+  /** Rivers, creeks, ponds, roads, rights of way, easements — everything the sheet mentions besides
+   *  the boundary. They matter for different reasons: a watercourse can be a boundary that MOVES, a
+   *  road may carry a right of way the deed never mentions, and an easement is an encumbrance
+   *  somebody has to be told about. */
+  features: PlatFeature[];
+  /** Confidence per finding, rolled up to the document — pessimistically, because a boundary is
+   *  only as good as its weakest call and an average hides it. */
+  confidence: DocumentConfidence;
   /** One paragraph a surveyor can read without opening anything else. */
   statement: string;
   /** Why no traverse, when there is none. Never silently empty. */
@@ -228,11 +239,18 @@ function toTraverseInput(
  *  `recordedYear` changes what a poor closure MEANS and is passed through rather than ignored. */
 export function readSurvey(
   data: ExtractedBoundaryData | null,
-  opts: { recordedYear?: number | null; title?: string } = {},
+  opts: {
+    recordedYear?: number | null;
+    title?: string;
+    /** Verdict from `ocr-legibility` for the capture these calls were read from. Drives every
+     *  finding's confidence, because a marginal capture makes OCR guess rather than fail. */
+    legibility?: 'good' | 'marginal' | 'unreadable' | null;
+  } = {},
 ): SurveyReading {
   const empty = (why: string): SurveyReading => ({
     traverse: null, closure: null, monuments: [], monumentSummary: summariseMonuments([]),
     located: [], pairs: [], curves: [], derivedChords: [], unitsUsed: [], drawing: null,
+    features: [], confidence: scoreDocument([]),
     statement: why, notTraversable: why,
   });
 
@@ -331,6 +349,53 @@ export function readSurvey(
     recordedYear: opts.recordedYear ?? null,
   });
 
+  // ── What else the sheet mentions ──────────────────────────────────────────────────────────────
+  // Read from the calls' own free text, which is where a Texas description names what it runs along.
+  const features = findPlatFeatures(
+    data.calls.map((c) => [c.toPoint, c.along].filter(Boolean).join(' ')).join('\n'),
+  );
+
+  // ── Confidence, per finding ───────────────────────────────────────────────────────────────────
+  //
+  // Signals are taken from what the pipeline ALREADY established rather than from a model's opinion
+  // of itself: a call the traverse could not place is unattributed, a curve that fails its own
+  // arithmetic failed a self-check, and a corner positioned from a chord we computed is derived.
+  const derivedIdx = new Set(derivedChords.map((d) => d.callIndex));
+  const badCurveIdx = new Set(
+    curves.filter((c) => c.check.verdict === 'inconsistent').map((c) => c.callIndex),
+  );
+  const unusableIdx = new Set(t.unusable.map((u) => u.index));
+
+  const findings: Finding[] = [];
+  for (const c of data.calls) {
+    const common = {
+      legibility: opts.legibility ?? null,
+      derived: derivedIdx.has(c.sequence),
+      unattributed: unusableIdx.has(c.sequence),
+      failedSelfCheck: badCurveIdx.has(c.sequence),
+    };
+    if (c.bearing?.raw) {
+      findings.push({ kind: 'bearing', raw: c.bearing.raw, signals: { ...common } });
+    }
+    if (c.distance) {
+      findings.push({ kind: 'distance', raw: c.distance.raw, signals: { ...common } });
+    }
+    if (c.curve) {
+      findings.push({
+        kind: 'curve',
+        raw: `R=${c.curve.radius?.raw ?? '?'}`,
+        signals: { ...common, passedSelfCheck: curves.some((x) => x.callIndex === c.sequence && x.check.verdict === 'consistent') },
+      });
+    }
+  }
+  for (const m of monuments) {
+    findings.push({ kind: 'monument', raw: m.raw, signals: { legibility: opts.legibility ?? null } });
+  }
+  for (const f of features) {
+    findings.push({ kind: 'feature', raw: f.raw, signals: { legibility: opts.legibility ?? null } });
+  }
+  const confidence = scoreDocument(findings);
+
   // ── One paragraph ─────────────────────────────────────────────────────────────────────────────
   const parts: string[] = [t.statement, closure.statement];
   if (monuments.length > 0) parts.push(monumentSummary.statement);
@@ -358,6 +423,7 @@ export function readSurvey(
 
   return {
     traverse: t, closure, monuments, monumentSummary, located, pairs, curves, derivedChords,
-    unitsUsed, drawing, statement: parts.join(' '), notTraversable: null,
+    unitsUsed, drawing, features, confidence,
+    statement: parts.join(' '), notTraversable: null,
   };
 }
