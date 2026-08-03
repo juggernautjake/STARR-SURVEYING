@@ -17,8 +17,23 @@ describe('PF2LevelBuilder (B10)', () => {
     expect(UI).toContain("JSON.stringify({ commitTo: target })");
   });
 
-  it('walks the outstanding choices in order (only the first is shown)', () => {
-    expect(UI).toContain('plan?.outstanding?.[0]');
+  it('shows ONE outstanding choice at a time, resolved through the shared screen model (P5-7b)', () => {
+    // This used to pin `plan?.outstanding?.[0]` — the literal expression, not the rule. P5-7b replaced it:
+    // the walker now renders whichever screen the player selected, falling back to the first when nothing
+    // is selected or when the selected one was just answered. The one-at-a-time property is unchanged;
+    // where it comes from is not.
+    //
+    // The behaviour itself is proven in `slot-steps.test.tsx` against the pure module. What is worth a
+    // grep here is that this walker did not keep a private copy of the selection logic.
+    expect(UI).toContain('resolveSlotFocus(steps, focusId)');
+    expect(UI).toContain("from '@/lib/dnd/builder/slot-steps'");
+    expect(UI).not.toContain('plan?.outstanding?.[0]');
+  });
+
+  it('renders the screen strip, so a player can reach a choice that is not the first (P5-7b)', () => {
+    // The point of the slice. Without this the walker resolves a focus it gives no way to change.
+    expect(UI).toContain('<SlotSteps');
+    expect(UI).toContain('onSelect={setFocusId}');
   });
 
   it('offers subclass options from the class, feats scoped to the slot, and 4 boosts', () => {

@@ -15,6 +15,8 @@ import styles from './hextech.module.css';
 import { pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
 import { PF2_ATTRIBUTES, type PF2AttributeKey } from '@/lib/dnd/systems/pathfinder2e/model';
 import { pf2WalkerFeatOptions } from '@/lib/dnd/slots/walker-options';
+import SlotSteps from './builder/SlotSteps';
+import { slotSteps, resolveSlotFocus } from '@/lib/dnd/builder/slot-steps';
 import type { PF2OutstandingChoice, PF2LevelUpPlan } from '@/lib/dnd/systems/pathfinder2e/levelup';
 
 // The plan's shape comes from the planner that PRODUCES it, not from a hand-copy here. It was hand-copied,
@@ -43,6 +45,8 @@ export default function PF2LevelBuilder({
   const [error, setError] = useState<string | null>(null);
   // The last refusal the route flagged as overridable, held with its exact choice (slot plan S6d).
   const [refused, setRefused] = useState<Record<string, unknown> | null>(null);
+  // Which outstanding choice is on screen (P5-7b). Null = the first one, this walker's previous behaviour.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const load = useCallback(
     async (to: number) => {
@@ -65,7 +69,12 @@ export default function PF2LevelBuilder({
     void load(target);
   }, [load, target]);
 
-  const current = plan?.outstanding?.[0] ?? null;
+  // The outstanding list as SCREENS (P5-7b). PF2 is the system this matters most on: it can owe a class
+  // feat, a skill feat and four attribute boosts at the SAME level, which the one-screen walker showed as
+  // three sequential prompts with no way to tell there were three.
+  const steps = useMemo(() => slotSteps(plan?.outstanding), [plan?.outstanding]);
+  const focus = resolveSlotFocus(steps, focusId);
+  const current = focus ? plan?.outstanding?.[focus.position - 1] ?? null : null;
 
   const record = useCallback(
     async (choice: Record<string, unknown>, acceptException = false) => {
@@ -171,13 +180,17 @@ export default function PF2LevelBuilder({
         </div>
       )}
 
+      {/* The outstanding choices, one screen each (P5-7b) */}
+      {plan && steps.length > 0 && (
+        <SlotSteps steps={steps} activeId={focus?.id ?? null} onSelect={setFocusId} disabled={busy} targetLevel={target} />
+      )}
+
       {/* The outstanding-choice walk */}
       {plan && plan.outstanding.length > 0 && current ? (
         <ChoicePrompt
-          key={`${current.level}-${current.kind}-${current.track ?? ''}`}
+          key={focus?.id ?? `${current.level}-${current.kind}-${current.track ?? ''}`}
           choice={current}
           className={className}
-          count={plan.outstanding.length}
           busy={busy}
           onRecord={record}
         />
@@ -218,22 +231,20 @@ const selStyle: React.CSSProperties = {
 function ChoicePrompt({
   choice,
   className,
-  count,
   busy,
   onRecord,
 }: {
   choice: Outstanding;
   className: string;
-  count: number;
   busy: boolean;
   onRecord: (choice: Record<string, unknown>) => void | Promise<void>;
 }) {
   return (
     <div style={{ border: '1px solid var(--line, #2a3b47)', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
       <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-        {/* A REMAINING count, not "Choice 1 of N" — see the note in LevelBuilder. The literal 1 never
-            moved, so answering a choice looked like nothing had happened. */}
-        {count === 1 ? `Last choice · level ${choice.level}` : `${count} choices left · level ${choice.level}`}
+        {/* The remaining COUNT moved to the screen strip above (P5-7b), which is where it belongs now that
+            the count and the list are the same thing. This line names the level this screen is for. */}
+        Level {choice.level}
       </div>
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       <div style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>{choice.detail}</div>

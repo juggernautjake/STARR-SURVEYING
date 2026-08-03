@@ -14,6 +14,8 @@ import { ABILITIES, type AbilityKey } from '@/app/dnd/_sheet/rules/dnd';
 import { FEATS_2024, type Feat } from '@/lib/dnd/feats/dnd5e-2024';
 import { FEATS_2014, FEATS_2014_STATUS } from '@/lib/dnd/feats/dnd5e-2014';
 import { featEligibilityForSystem } from '@/lib/dnd/feats/eligibility';
+import SlotSteps from './builder/SlotSteps';
+import { slotSteps, resolveSlotFocus } from '@/lib/dnd/builder/slot-steps';
 
 /**
  * The feats a 2024 character may take at an ASI slot of a given level: General feats (and, at 19+,
@@ -272,6 +274,9 @@ export default function LevelBuilder({
   // re-sends what was actually refused rather than something re-derived from the form.
   const [refused, setRefused] = useState<{ choice: Choice; reason: string; commitLevel?: number } | null>(null);
   const [draft, setDraft] = useState<Choice | null>(null);
+  // Which outstanding choice the player is looking at (P5-7b). Null = "whichever is first", which is what
+  // this walker did before it had screens, so the default path is unchanged.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const load = useCallback(
     async (to: number) => {
@@ -295,15 +300,21 @@ export default function LevelBuilder({
 
   useEffect(() => { void load(target); }, [load, target]);
 
-  const current = plan?.outstanding?.[0] ?? null;
+  // The outstanding list as SCREENS, and the one being shown (P5-7b). `resolveSlotFocus` falls back to the
+  // first remaining screen when the focused one is gone — which is what happens every time a choice is
+  // answered, since answering removes it from `outstanding`.
+  const steps = useMemo(() => slotSteps(plan?.outstanding), [plan?.outstanding]);
+  const focus = resolveSlotFocus(steps, focusId);
+  const current = focus ? plan?.outstanding?.[focus.position - 1] ?? null : null;
 
   // Reset the draft whenever we move to a different choice.
   //
-  // The dep list is NARROW ON PURPOSE — `current.level` and `current.kind` identify WHICH choice is being
-  // made, and those are the only fields this effect reads. `exhaustive-deps` asks for `current` itself,
-  // and satisfying it would be a real bug: `current` is `plan?.outstanding?.[0]`, a fresh object on every
-  // refetch, so the effect would re-run and **wipe a half-filled draft out from under the player** — the
-  // ability scores they had picked, the skills they had ticked — every time the plan reloaded.
+  // The dep list is NARROW ON PURPOSE — `focus.id` identifies WHICH choice is being made (it is derived
+  // from the choice's level/kind/track, so it is stable across refetches and changes exactly when the
+  // player moves to a different screen). `exhaustive-deps` asks for `current` itself, and satisfying it
+  // would be a real bug: `current` is read out of `plan.outstanding`, a fresh object on every refetch, so
+  // the effect would re-run and **wipe a half-filled draft out from under the player** — the ability
+  // scores they had picked, the skills they had ticked — every time the plan reloaded.
   //
   // Verified against this warning rather than silenced blindly (final-QA slice 43): the effect body reads
   // no other field of `current`, so there is no stale closure to fix. Suppressed so the standing warning
@@ -312,7 +323,7 @@ export default function LevelBuilder({
     if (!current) { setDraft(null); return; }
     setDraft({ level: current.level, kind: current.kind, ...(current.kind === 'expertise' ? { skills: [] } : {}), ...(current.kind === 'asi' ? { abilities: [] } : {}) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.level, current?.kind]);
+  }, [focus?.id]);
 
   const save = useCallback(
     async (choice: Choice, opts: { commitLevel?: number; acceptException?: boolean } = {}) => {
@@ -442,6 +453,11 @@ export default function LevelBuilder({
         </div>
       )}
 
+      {/* ── the outstanding choices, as one screen each (P5-7b) ─────────────── */}
+      {plan && steps.length > 0 && (
+        <SlotSteps steps={steps} activeId={focus?.id ?? null} onSelect={setFocusId} disabled={busy} targetLevel={target} />
+      )}
+
       {/* ── the outstanding-choice walk ────────────────────────────────────── */}
       {plan && plan.outstanding.length > 0 && current && (
         <section className={styles.framedPanel} style={{ padding: '14px 16px', display: 'grid', gap: 12 }}>
@@ -452,10 +468,9 @@ export default function LevelBuilder({
                   hardcoded 1 against a shrinking total, so it said "Choice 1 of 7", then "Choice 1 of 6",
                   then "Choice 1 of 5". It never counted up, so answering a choice looked like nothing had
                   happened. `outstanding` is what REMAINS, and the honest sentence for a remaining count is
-                  how many are left — which also counts down visibly as you work. */}
-              {plan.outstanding.length === 1
-                ? `Last choice · level ${current.level}`
-                : `${plan.outstanding.length} choices left · level ${current.level}`}
+                  how many are left — which also counts down visibly as you work. The strip above now
+                  carries that count, so this line names the LEVEL this screen belongs to. */}
+              Level {current.level}
             </div>
             <h2 className={styles.panelTitle} style={{ margin: '2px 0 0' }}>{current.label}</h2>
             <p style={{ color: 'var(--hx-muted)', fontSize: 13, margin: '4px 0 0' }}>{current.detail}</p>
@@ -586,9 +601,9 @@ export default function LevelBuilder({
             <button className={styles.hexBtn} disabled={busy || !draft} onClick={() => draft && void save(draft)}>
               {busy ? '…' : 'Save this choice'}
             </button>
-            <span style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-              {plan.outstanding.length} choice{plan.outstanding.length === 1 ? '' : 's'} left before level {target}.
-            </span>
+            {/* The "N choices left before level X" that used to sit here is now the strip's own header, forty
+                pixels above (P5-7b). PF2 and IG keep theirs because they sit beside the *Advance* button and
+                explain why it is disabled — a different sentence that happens to use the same words. */}
           </div>
         </section>
       )}

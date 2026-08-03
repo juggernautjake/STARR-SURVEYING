@@ -14,6 +14,8 @@ import { IG_FEATS } from '@/lib/dnd/systems/intuitive-games/content';
 import { igOtherSubclassOptions } from '@/lib/dnd/slots/walker-options';
 import { igMulticlassDedicationName, igMulticlassTargets } from '@/lib/dnd/systems/intuitive-games/levelup';
 import { systemSkills } from '@/lib/dnd/system-rules';
+import SlotSteps from './builder/SlotSteps';
+import { slotSteps, resolveSlotFocus } from '@/lib/dnd/builder/slot-steps';
 
 const IG_ATTRS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 // The five benefits a "New Trait" may grant (intuitivegames.net character-building rules).
@@ -33,6 +35,8 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
   const [error, setError] = useState<string | null>(null);
   // The last refusal the route flagged as overridable (slot plan S6d).
   const [refused, setRefused] = useState<Record<string, unknown> | null>(null);
+  // Which outstanding choice is on screen (P5-7b). Null = the first one, this walker's previous behaviour.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   const load = useCallback(async (to: number) => {
     setError(null);
@@ -50,7 +54,11 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
 
   useEffect(() => { void load(target); }, [load, target]);
 
-  const current = plan?.outstanding?.[0] ?? null;
+  // The outstanding list as SCREENS (P5-7b). IG's level 1 alone owes a Combat Feat AND a General Feat, so
+  // even the first level had two choices the one-screen walker showed one at a time.
+  const steps = useMemo(() => slotSteps(plan?.outstanding), [plan?.outstanding]);
+  const focus = resolveSlotFocus(steps, focusId);
+  const current = focus ? plan?.outstanding?.[focus.position - 1] ?? null : null;
 
   const record = useCallback(async (choice: Record<string, unknown>, acceptException = false) => {
     setBusy(true); setError(null);
@@ -121,8 +129,13 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
         </div>
       )}
 
+      {/* The outstanding choices, one screen each (P5-7b) */}
+      {plan && steps.length > 0 && (
+        <SlotSteps steps={steps} activeId={focus?.id ?? null} onSelect={setFocusId} disabled={busy} targetLevel={target} />
+      )}
+
       {plan && plan.outstanding.length > 0 && current ? (
-        <ChoicePrompt key={`${current.level}-${current.kind}`} choice={current} subclass={subclass} count={plan.outstanding.length} busy={busy} onRecord={record} />
+        <ChoicePrompt key={focus?.id ?? `${current.level}-${current.kind}`} choice={current} subclass={subclass} busy={busy} onRecord={record} />
       ) : plan ? (
         <div style={{ fontSize: 13, color: 'var(--hx-muted)' }}>
           {target > currentLevel ? `Nothing left to choose — ready to advance to level ${target}.` : `Level ${currentLevel} is fully built. Raise the target to keep going.`}
@@ -142,13 +155,11 @@ export default function IGLevelBuilder({ characterId, characterName, subclass, c
 }
 
 /** One outstanding choice, with the right input for its kind. */
-function ChoicePrompt({ choice, subclass, count, busy, onRecord }: { choice: Outstanding; subclass: string; count: number; busy: boolean; onRecord: (c: Record<string, unknown>) => void | Promise<void> }) {
+function ChoicePrompt({ choice, subclass, busy, onRecord }: { choice: Outstanding; subclass: string; busy: boolean; onRecord: (c: Record<string, unknown>) => void | Promise<void> }) {
   return (
     <div style={{ border: '1px solid var(--line, #2a3b47)', borderRadius: 8, padding: 12, display: 'grid', gap: 8 }}>
-      {/* A REMAINING count, not "Choice 1 of N" — see the note in LevelBuilder. */}
-      <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>
-        {count === 1 ? `Last choice · level ${choice.level}` : `${count} choices left · level ${choice.level}`}
-      </div>
+      {/* The remaining count moved to the screen strip above (P5-7b); this names the screen's level. */}
+      <div style={{ fontSize: 12, color: 'var(--hx-muted)' }}>Level {choice.level}</div>
       <div style={{ fontWeight: 600 }}>{choice.label}</div>
       {choice.kind === 'ability-boosts'
         ? <BoostsInput count={choice.count ?? 2} busy={busy} onPick={(attributes) => onRecord({ level: choice.level, kind: choice.kind, attributes })} />

@@ -1262,22 +1262,22 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts, measured rather than estimated 2026-08-02: 31 open, of which only 16 are actionable.**
+> **2. Counts, measured rather than estimated 2026-08-02: 30 open, of which only 15 are actionable.**
 >
 > | | count | which |
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **16** | `P5-7b`, `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12` |
+> | **Actionable now** | **15** | `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12` |
 >
 > **Phase 6, the Content Studio, is COMPLETE** — all 20 slices including the class studio, the creature
 > builder and sheet, per-field and whole-draft AI assist, file ingest, images, and both engine bridges.
 > The owner's priority list is therefore satisfied down to "the audit findings".
 >
-> **Start with `P5-7b`** — per-slot screens inside the Levels step. It is the only actionable slice in
-> the owner's priority band, the slot model already returns exactly the list that would drive it, and
-> the doc records it as a presentation change rather than new mechanics. It is a UI slice, so the
-> standing rule applies: **drive it in a browser before ticking it.**
+> **`P5-7b` is DONE (2026-08-02)** — per-slot screens inside the Levels step, driven in a browser across
+> all three systems before ticking, per the standing rule. Its own entry records what changed and the
+> three decisions worth not re-deriving. **Next up is `P8-1`** — the audit findings, which is where the
+> owner's priority order points now that the builder and the Studio are both satisfied.
 
 - [x] **P5-8 — IG Champion. ✅ RESOLVED 2026-07-27, recorded here 2026-08-02.** Never actually blocked:
       Champion IS published on intuitivegames.net/classes. The page **lazy-renders** its subclass blocks, so
@@ -1475,11 +1475,47 @@ saying plainly so this priority is not mistaken for a large build. The unblocked
       both shapes are read — treating a +4 as a score prints −3; and my own test fixture used `combat.hp`
       where `resolveHp` reads `combat.currentHp`, which failed and was the *test* being wrong.
 
-- [ ] **P5-7b — Per-slot screens inside the Levels step.** *(Split from P5-7.)* The Levels step still embeds
-      each system's whole walker in one screen rather than one screen per outstanding choice. The slot model
-      (`planLevelUp` / `pf2PlanLevelUp` / the IG schedule) already returns exactly the list that would drive
-      it, and the preview panel it would sit beside now exists — so this is a presentation change on top of
-      finished machinery, not new rules work.
+- [x] **P5-7b — Per-slot screens inside the Levels step. Done 2026-08-02.** *(Split from P5-7.)* ~~The Levels
+      step still embeds each system's whole walker in one screen rather than one screen per outstanding
+      choice.~~ The slot model already returned exactly the list that drives it, so this was the predicted
+      presentation change: `lib/dnd/builder/slot-steps.ts` (pure) + `app/dnd/_ui/builder/SlotSteps.tsx`, wired
+      into all three walkers.
+
+      **The behaviour that actually changed is REACHABILITY, not layout.** All three walkers rendered
+      `plan.outstanding[0]` and nothing else, so a player undecided about their subclass could not skip ahead
+      and record the ASI they had already settled on — the whole level stalled behind one choice. Every
+      outstanding choice is now a chip, grouped by level, and every chip is clickable. Driving Orin
+      Sallowmere (PF2 Wizard 9) made the cost of the old screen concrete: **fifteen** outstanding choices
+      across nine levels, of which exactly one was reachable.
+
+      **Nothing about the rules moved, and it was worth checking rather than assuming.** No route asks
+      whether a choice is the first one owed — they record by `(level, kind)` and recompute `outstanding`
+      from storage. The invariant that IS load-bearing, *you cannot commit a level while anything is
+      outstanding*, lives on the commit path (`plan.ready`) and is untouched. Answering in any order was
+      already legal; only the UI forbade it.
+
+      **Ids are derived from the choice, never from its position.** The list shrinks every time a choice is
+      answered, so a position-based id re-points at a different choice on the very next render — you would
+      answer the level-4 ASI and land on the level-4 Expertise screen with the ASI's half-filled draft still
+      in it. `track` is part of the id because PF2 owes a class feat AND a skill feat at the same level; with
+      `L8:feat` alone one of the two is unreachable, which is the same defect this slice exists to remove.
+      Verified in the browser: clicking the level-8 *Skill* feat gave "screen 14 of 15" with exactly one chip
+      marked and the skill-feat catalogue below it.
+
+      **`resolveSlotFocus`'s fallback is the normal path, not a guard.** Answering the screen you are on
+      always deletes it, so the fallback runs on every single save; returning `null` there would render
+      nothing after each choice. Proven live rather than only in a test — the POST was stubbed in the page so
+      no seeded character was mutated, and the strip went 3 → 2, "screen 2 of 3" → "screen 1 of 2", with the
+      level-3 group disappearing and the panel following focus to the first remaining choice. (`updated_at`
+      on the character re-checked afterwards: untouched.)
+
+      **A screen starts fresh, and that is a decision.** Jumping away from a half-filled choice discards the
+      unsaved draft — the same in all three systems. Preserving it means lifting form state out of PF2's and
+      IG's per-kind inputs, which is a rewrite of three components rather than a presentation change, and
+      nothing SAVED is ever lost. Recorded here so the uniformity reads as chosen rather than overlooked.
+
+      **The remaining count moved to the strip** and each walker's prompt header now names its level. The
+      count and the list had become the same fact printed twice.
 
 ---
 

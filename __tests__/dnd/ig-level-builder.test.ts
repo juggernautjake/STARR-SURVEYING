@@ -16,8 +16,18 @@ describe('IGLevelBuilder (IG-4)', () => {
     expect(UI).toContain('JSON.stringify({ commitTo: target })');
   });
 
-  it('walks the outstanding choices in order (only the first is shown)', () => {
-    expect(UI).toContain('plan?.outstanding?.[0]');
+  it('shows ONE outstanding choice at a time, resolved through the shared screen model (P5-7b)', () => {
+    // Was `plan?.outstanding?.[0]`. P5-7b keeps the one-at-a-time property and changes where it comes
+    // from: the player's selected screen, falling back to the first. Proven behaviourally in
+    // `slot-steps.test.tsx`; the grep here only pins that IG shares that module rather than copying it.
+    expect(UI).toContain('resolveSlotFocus(steps, focusId)');
+    expect(UI).toContain("from '@/lib/dnd/builder/slot-steps'");
+    expect(UI).not.toContain('plan?.outstanding?.[0]');
+  });
+
+  it('renders the screen strip — IG owes two feats at level 1, and both must be reachable (P5-7b)', () => {
+    expect(UI).toContain('<SlotSteps');
+    expect(UI).toContain('onSelect={setFocusId}');
   });
 
   it('pulls options from the plan, else the right IG catalog (feats by category, skills, trait benefits)', () => {
