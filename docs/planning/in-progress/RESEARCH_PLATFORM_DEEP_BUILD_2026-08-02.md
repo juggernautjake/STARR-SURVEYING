@@ -3644,7 +3644,32 @@ Root suite 1,469 files; typecheck and `npm run build` clean.
 These block specific slices and must not be guessed:
 
 0a. **One plat whose answers are already known (Phase I / S8, and R19's canaries).** The single
-   highest-value thing on this list. Every piece of survey geometry built in Phase I — traverse,
+   highest-value thing on this list.
+
+   > **There is now somewhere to put it — 2026-08-03** (`worker/src/services/golden-plat.ts`,
+   > `worker/src/__tests__/golden-plats/`). Drop one JSON file in that directory and the measurement
+   > starts running; no code changes, nothing else to ask for. The README there is the entry form.
+   >
+   > Built because this blocker had the S-9 shape: **no form behind it**. A plat could have arrived
+   > tomorrow and the measurement still would not have existed — the decision would have unblocked
+   > nothing.
+   >
+   > Nothing is compared as a string, for the reason `infra/canary.ts` already worked out: bearings
+   > as **angles** within 30 seconds, so `N45°30'E` and `N 45-30-00 E` are one call and the harness
+   > measures our reading rather than our formatting; distances **unit-normalised first**, so a call
+   > read correctly in varas and reported in feet scores as correct instead of a 178% error;
+   > monuments on **kind AND found/set**, with a status confusion counted separately and never folded
+   > into the totals, because a found monument controls the corner and a set one is an opinion.
+   >
+   > Recall and precision are reported as **two numbers**: a pipeline that drops half the calls and
+   > gets the rest perfect is 100% precise and 50% complete, and printing only the first would be
+   > flattering nonsense.
+   >
+   > With no plats loaded it reports **NOT MEASURED** — never 100%, never a pass, and it says why:
+   > *"every survey figure in this platform is validated against synthetic geometry only, which
+   > proves the arithmetic and nothing about the reading."* An empty denominator producing a perfect
+   > score is how a measurement becomes a reassurance.
+ Every piece of survey geometry built in Phase I — traverse,
    monuments, curves, rotation, varas — is tested against *synthetic* figures, which proves the
    arithmetic and nothing about the **reading**. One plat where the bearings, curves and monuments are
    already known would, in one pass: measure whether Tyler's `DEGRADED` rendering and Bastrop's

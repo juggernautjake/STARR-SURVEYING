@@ -58,6 +58,18 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // A category this check did not anticipate: a module whose CONSUMER IS A TEST, legitimately.
+  //
+  // `golden-plat.ts` measures extraction against plats whose answers are known. Its runner is
+  // `golden-plat.test.ts`, which loads whatever sits in `__tests__/golden-plats/` — so the module
+  // does execute, on every suite run, and starts producing a real measurement the moment the owner
+  // drops a JSON file in. There is no production caller to add, and inventing one would be worse
+  // than this line.
+  //
+  // Worth distinguishing from the entries below: those are parked. This one runs.
+  'worker/src/services/golden-plat.ts':
+    'Measurement harness — its runner is golden-plat.test.ts, which auto-loads __tests__/golden-plats/*.json. Executes on every suite run; produces a real score as soon as a plat is supplied.',
+
   // Entry points and operational surfaces — called by a route, a script or a schedule, not imported.
   'lib/research/useResearchProgress.ts':
     'React hook for a UI that has not been built yet; kept because the event shape it decodes is the worker\'s.',
