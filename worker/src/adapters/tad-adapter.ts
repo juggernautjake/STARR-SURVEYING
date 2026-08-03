@@ -139,8 +139,11 @@ export class TADAdapter extends CADAdapter {
       return this.parseSearchResultsAI(ownerName);
 
     } catch (e) {
-      console.warn(`[TAD] Owner search failed for "${ownerName}":`, e);
-      return [];
+      // A failed owner search is not an owner with no property (plan R39).
+      throw new Error(
+        `[TAD] Owner search FAILED for "${ownerName}" (${(e as Error).message}). ` +
+          `This is an error, NOT "this owner has no property in Tarrant County".`,
+      );
     }
   }
 
@@ -299,7 +302,8 @@ export class TADAdapter extends CADAdapter {
    *   - Expanded inline details include Legal Description, State Code, etc.
    */
   private async parseSearchResultsDOM(): Promise<PropertySearchResult[]> {
-    if (!this.page) return [];
+    // A dead session is not an empty appraisal roll.
+    if (!this.page) throw new Error('[TAD] Cannot parse results — the browser session is gone. Session failure, NOT an empty result.');
 
     const results: PropertySearchResult[] = [];
 
@@ -429,8 +433,11 @@ Return ONLY the JSON array, no explanation.`,
         }));
 
     } catch (e) {
-      console.warn('[TAD] AI search result parse failed:', e);
-      return [];
+      // DOM parser and AI fallback both failed: the page is UNREAD, not empty.
+      throw new Error(
+        `[TAD] Could not read the search results — the DOM parser and the AI fallback both failed ` +
+          `(${(e as Error).message}). Treat as UNREAD, NOT as "no matching property".`,
+      );
     }
   }
 
@@ -617,8 +624,13 @@ Return ONLY valid JSON, no explanation.`,
       return results
         .map(r => r.propertyId)
         .filter(id => id !== excludePropertyId);
-    } catch {
-      return [];
+    } catch (e) {
+      // Feeds the ADJOINER list — a swallowed failure produces a short neighbour list with nothing
+      // marking it short (plan R39).
+      throw new Error(
+        `[TAD] Could not enumerate lots in subdivision "${subdivisionName}" (${(e as Error).message}). ` +
+          `The adjoiner list would be INCOMPLETE — a lookup failure, not a subdivision with no other lots.`,
+      );
     }
   }
 }

@@ -9,11 +9,16 @@ import { passwordProblem } from '@/lib/voice/auth-rules';
 interface Props {
   mode: 'login' | 'setup';
   requiresKey: boolean;
+  /** True while a new person may still create their own account — see MAX_SELF_SETUP_ACCOUNTS. */
+  canSetUp: boolean;
   next: string;
 }
 
-export default function LoginForm({ mode, requiresKey, next }: Props): React.ReactElement {
+export default function LoginForm({ mode: initialMode, requiresKey, canSetUp, next }: Props): React.ReactElement {
   const router = useRouter();
+  // Held in state rather than read from the URL on every toggle: switching between signing in and
+  // creating an account should not lose what has already been typed into the shared fields.
+  const [mode, setMode] = useState<'login' | 'setup'>(initialMode);
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -81,11 +86,11 @@ export default function LoginForm({ mode, requiresKey, next }: Props): React.Rea
 
       <div className="vaField">
         <label className="vaLabel" htmlFor="va-login-email">
-          Email
+          {mode === 'setup' ? 'Username or email' : 'Username or email'}
         </label>
         <input
           id="va-login-email"
-          type="email"
+          type="text"
           className="vaInput"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -139,10 +144,40 @@ export default function LoginForm({ mode, requiresKey, next }: Props): React.Rea
           </>
         ) : (
           <>
-            <LogIn size={16} aria-hidden /> {mode === 'setup' ? 'Create the account' : 'Sign in'}
+            <LogIn size={16} aria-hidden /> {mode === 'setup' ? 'Create my account' : 'Sign in'}
           </>
         )}
       </button>
+
+      {/* ── THE WAY IN FOR SOMEONE WHO HAS NEVER BEEN HERE ──────────────────────────────────────
+          Andrew should choose his own username, email and password rather than being handed
+          credentials somebody else picked and typed into a chat. This link is the surfaced route to
+          that, and it disappears the moment the studio is full — see MAX_SELF_SETUP_ACCOUNTS. */}
+      {canSetUp && (
+        <p className="vaLoginSwitch">
+          {mode === 'setup' ? (
+            <>
+              Already have an account?{' '}
+              <button type="button" onClick={() => { setMode('login'); setError(null); }}>
+                Sign in instead
+              </button>
+            </>
+          ) : (
+            <>
+              First time here?{' '}
+              <button type="button" onClick={() => { setMode('setup'); setError(null); }}>
+                Create your account
+              </button>
+            </>
+          )}
+        </p>
+      )}
+
+      {!canSetUp && mode === 'login' && (
+        <p className="vaHint" style={{ textAlign: 'center', marginTop: 16 }}>
+          Need an account? Ask someone already signed in to add you from Settings → Team.
+        </p>
+      )}
     </form>
   );
 }

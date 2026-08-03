@@ -120,6 +120,13 @@ export default function VoiceHeader({ artistName, tagline, navItems }: Props): R
               {item.label}
             </Link>
           ))}
+
+          {/* Below 500px the header cannot fit this button beside the wordmark and the menu toggle —
+              trying to made the whole page 229px wider than the phone. It lives here instead, where
+              it gets to be a full-width call to action rather than a squeeze. */}
+          <Link href={`${BASE_PATH}/contact`} className="vaBtn vaBtnSolid vaMobileNavCta">
+            Request a quote
+          </Link>
         </nav>
       )}
     </header>

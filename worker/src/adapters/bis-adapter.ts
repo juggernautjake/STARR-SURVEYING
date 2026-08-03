@@ -513,8 +513,13 @@ Only include REAL property records (not vehicles or personal property).`,
         .map(l => l.propertyId)
         .filter(id => id !== currentId);
     } catch (e) {
-      console.warn(`[BIS] Could not find subdivision lots for "${subdivisionName}":`, e);
-      return [];
+      // Feeds the ADJOINER list. A swallowed failure here produces a short neighbour list with
+      // nothing marking it short — a surveyor sees three adjoining parcels where there are nine,
+      // and no reason to doubt it (plan R39).
+      throw new Error(
+        `[BIS] Could not enumerate lots in subdivision "${subdivisionName}" (${(e as Error).message}). ` +
+          `The adjoiner list would be INCOMPLETE — a lookup failure, not a subdivision with no other lots.`,
+      );
     }
   }
 

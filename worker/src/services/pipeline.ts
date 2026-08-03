@@ -795,6 +795,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let documents: DocumentResult[] = [];
 
+    /** Stage-2 retrieval steps that failed.
+     *
+     *  Each clerk search below used to `logger.warn` and continue, so a run whose document
+     *  retrieval failed entirely could still finish `complete` on CAD data alone. Collected here so
+     *  the failures reach the result and downgrade the status (plan R39). */
+    const retrievalFailures: string[] = [];
+
     const legalDesc = propertyResult?.legalDescription ?? '';
     const deedRefs  = parseDeedReferences(legalDesc);
 
@@ -1016,6 +1023,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       } catch (b2Err) {
         logger.warn('Stage2B',
           `Clerk plat+deed search failed: ${b2Err instanceof Error ? b2Err.message : String(b2Err)}`);
+        retrievalFailures.push(
+          `Clerk plat+deed search failed: ${b2Err instanceof Error ? b2Err.message : String(b2Err)}`,
+        );
       }
     }
 
@@ -1101,6 +1111,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           } catch (b3Err) {
             logger.warn('Stage2C',
               `Clerk subdivision search "${subdivName}" failed: ${b3Err instanceof Error ? b3Err.message : String(b3Err)}`);
+            retrievalFailures.push(
+              `Clerk subdivision search "${subdivName}" failed: ${b3Err instanceof Error ? b3Err.message : String(b3Err)}`,
+            );
           }
         }
       }
@@ -1115,6 +1128,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         ownerDocs = await searchClerkRecords(input.county, ownerForClerk, logger);
       } catch (clerkErr) {
         logger.warn('Stage2', `Owner-name search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`);
+        retrievalFailures.push(
+          `Owner-name clerk search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`,
+        );
       }
 
       if (ownerDocs.length > 0 && kofile) {
@@ -2210,6 +2226,18 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     let status: PipelineResult['status'] = 'failed';
     if (boundary && boundary.calls.length > 0 && validation.overallQuality !== 'failed') {
       status = (validation.overallQuality === 'excellent' || validation.overallQuality === 'good') ? 'complete' : 'partial';
+      // A boundary can be excellent and the document set still be short: the clerk searches that
+      // failed in Stage 2 only logged a warning, so a run whose document retrieval collapsed could
+      // finish 'complete' on CAD data alone. A reviewer would see a finished run and no reason to
+      // doubt its documents (plan R39).
+      if (status === 'complete' && retrievalFailures.length > 0) {
+        status = 'partial';
+        logger.warn(
+          'Pipeline',
+          `Downgraded COMPLETE → PARTIAL: ${retrievalFailures.length} document-retrieval step(s) failed. ` +
+            `The boundary is good but the document set may be incomplete.`,
+        );
+      }
     } else if (boundary && (boundary.type === 'lot_and_block' || boundary.type === 'reference_only')) {
       status = 'partial';
     } else if (propertyResult?.propertyId) {
@@ -2306,6 +2334,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       duration_ms,
       searchDiagnostics,
       failureReason,
+      // Undefined rather than [] when nothing failed, so "no failures" and "not recorded" stay
+      // distinguishable to anything reading this downstream.
+      retrievalFailures: retrievalFailures.length > 0 ? [...retrievalFailures] : undefined,
     };
 
     await updateStatus(input.projectId, status, `Pipeline ${status} in ${(duration_ms / 1000).toFixed(1)}s — Quality: ${validation.overallQuality}`, {

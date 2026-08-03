@@ -990,7 +990,7 @@ function ListEditor({
                 type="button"
                 onClick={() => onChange(items.filter((_, i) => i !== index))}
                 aria-label="Remove"
-                style={{ color: '#ff9c7e' }}
+                style={{ color: 'var(--va-danger)' }}
               >
                 ✕
               </button>

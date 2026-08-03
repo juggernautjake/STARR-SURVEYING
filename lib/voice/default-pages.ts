@@ -562,6 +562,37 @@ export const DEFAULT_PAGE_SLUGS = DEFAULT_PAGES.map((p) => p.slug);
  * "add your first block" and a page that already has a heading, a player, a description and a call to
  * action is the difference between Andrew publishing his first project and not.
  */
+/**
+ * The starting blocks for a plain PAGE, as opposed to a project.
+ *
+ * A page created with `newProjectBlocks` arrived with a "Project" eyebrow, an empty player captioned
+ * "The finished spot", and a spec list headed Client / Role / Delivered. On a page about his rates or
+ * his studio that is not a head start, it is five things to delete before he can begin — and deleting
+ * scaffolding is exactly the moment a person decides the builder is fighting them.
+ *
+ * Deliberately shorter than the project scaffold. A project has a known shape worth pre-filling; a
+ * page could be anything, so this offers a title, a paragraph and a way to get in touch, and gets out
+ * of the way.
+ */
+export function newPageBlocks(title: string): Widget[] {
+  const stamp = Date.now().toString(36);
+  return [
+    w(`g_${stamp}_1`, 'heading', { text: title, level: 1 }, { size: 9, spaceAbove: 7 }),
+    w(
+      `g_${stamp}_2`,
+      'text',
+      { html: '<p>Write anything here — this page is yours. Add blocks below for images, audio, buttons or a price list.</p>' },
+      { size: 5, textColor: 'textMuted' },
+    ),
+    w(`g_${stamp}_3`, 'cta', {
+      heading: 'Get in touch',
+      body: 'Send the script and get a quote back within one business day.',
+      buttonLabel: 'Request a quote',
+      buttonHref: '/AndrewAsh/contact',
+    }),
+  ];
+}
+
 export function newProjectBlocks(title: string): Widget[] {
   const stamp = Date.now().toString(36);
   return [

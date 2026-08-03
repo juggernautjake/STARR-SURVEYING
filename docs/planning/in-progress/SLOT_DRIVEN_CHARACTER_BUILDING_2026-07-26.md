@@ -88,15 +88,35 @@ paragraph directly above it already reported as **disproven**. The doc contradic
 summary line, which is the version an owner actually reads. Four commits had shipped against S7c by then.
 Same defect slice 72 fixed in the contrast write-ups: prose kept asserting what the evidence had moved past.
 
+**⚑ CORRECTED AGAIN 2026-08-02 — the fourth drift, and the last one this table gets to have.**
+Two rows below were still describing work that had shipped. S10 said "needs data" four paragraphs
+under a banner reporting it resolved, and S7c still called the Magus/Summoner reduced tables blocked
+on a published source that had since shipped as `PF2_REDUCED_SLOTS`/`pf2ReducedSlots`.
+
+Rewriting the prose a fourth time buys the same few weeks the previous three did, so the claims are
+now **pinned by assertions** in `__tests__/dnd/slot-plan-blockers.test.ts` (14) rather than by
+editing. A row here that says "blocked on data" about something the code already has is now a
+failing test, not a paragraph someone has to notice.
+
+**Nothing in this table is waiting on data**, and only ONE row is still open at all.
+
+*Three of the four rows below were stale. I found the third only after rewriting the other two —
+S9 had been answered and closed by the owner on 2026-07-27 and the summary still asked for the
+answer. Four passes over one table by three different readers, each catching a different subset. It
+is not that anyone was careless; it is that a hand-maintained summary of a moving codebase decays
+faster than anyone re-reads it. Hence the assertions.*
+
 | item | needs | kind |
 |---|---|---|
-| **S7c** — PF2 spell counts | **A decision, not data.** The count source (`pf2SpellCountsFor`), the cantrip cap, and both budget displays have shipped. What is left is whether to *enforce* the prepared cap — which cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare. Everything needed to implement it is in place. Separately, the Magus/Summoner **reduced** tables remain blocked on the published source (Ground Rule 3) — that half is data. | **owner call** (+ a data remnant) |
-| **S9** — per-system dice rollers | Owner answer to **Q4**. The BUG half is closed (S-6 scoped both settings out of PF2/IG, so nothing claims to do something it cannot); what is left is a feature question. | owner call |
-| **S10** — IG Champion | Owner supplying Champion's powers/specializations. The catalog is scraped from intuitivegames.net and Champion is not in it; inventing the list is the one thing we must not do. | **data** |
+| **S7c** — PF2 spell counts | Whether to *enforce* the prepared cap. It cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare, so it is a call rather than a task. Everything needed to implement it is in place. ~~Magus/Summoner reduced tables~~ — **shipped**; `pf2ReducedSlots` covers levels 1–20 for both, verified. | **owner call** |
+| ~~**S9** — per-system dice rollers~~ | **RESOLVED 2026-07-27, and I nearly missed it correcting this very table.** Q4 was closed as *"neither"* — the owner declined both options and asked for correctness instead ("make sure the math is being done and displayed correctly… fix the bugs"), which found a real presentational defect in both bespoke rollers. See the S9 entry in the slice list. | ✅ shipped |
+| ~~**S10** — IG Champion~~ | **RESOLVED 2026-07-27.** Champion is published on intuitivegames.net/classes; the earlier scrape missed it because the page lazy-renders subclass blocks. Catalogued, with every field traceable to the page. | ✅ shipped |
+| **Magus & Summoner in `PF2_CLASSES`** | **The one item that stops this doc closing.** Their spell tables are modelled and the builder already reads them, so each class works the moment it is catalogued — but `PF2_CLASSES` is asserted in several tests as *the 14 Remaster classes*, deliberately, to pin the CORE line-up. These two are Secrets of Magic. Adding them decides whether the catalogue means **core** or **all published**, which is a claim about what the app covers. Every figure needed is captured in the banner at the top of this doc. | **owner decision** |
 
-So the honest count is **one blocked item (S10), one data remnant inside S7c, and two decisions** — not
-three blocked items. The difference matters: a blocked item is waiting on the world, a decision is waiting
-on a sentence.
+So the honest count as of 2026-08-02 is **zero blocked items and two decisions**: whether to enforce
+S7c's prepared cap, and whether `PF2_CLASSES` means core or all-published. The difference from "three
+blocked items" matters — a blocked item is waiting on the world, a decision is waiting on a sentence,
+and for most of this doc's life the two were recorded as the same thing.
 
 Plus **seven questions for the owner** at the foot of this doc. Every one shipped on a recorded assumption
 rather than blocking, so none of them is holding code — but Q6 (how many feats an IG character starts with

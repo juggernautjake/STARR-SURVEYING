@@ -538,7 +538,7 @@ export default function PageBuilder({
           <button
             type="button"
             className="vaBtn vaBtnGhost vaBtnSm"
-            style={{ color: '#ff9c7e' }}
+            style={{ color: 'var(--va-danger)' }}
             onClick={async () => {
               const message = isSystemPage
                 ? 'Restore this page to the original it shipped with? Everything you have changed on it will be lost.'

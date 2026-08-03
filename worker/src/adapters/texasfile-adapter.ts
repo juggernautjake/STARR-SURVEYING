@@ -26,6 +26,9 @@ import {
   type DocumentType,
 } from './clerk-adapter.js';
 
+// A paywall is not an empty index — TexasFile is the fallback for 233 counties (plan R38).
+import { readAccess, type AccessResult } from './texasfile-access.js';
+
 /** Base URL for TexasFile public search */
 const TEXASFILE_BASE = 'https://www.texasfile.com';
 
@@ -45,6 +48,11 @@ export class TexasFileAdapter extends ClerkAdapter {
 
   /** Whether we've already navigated to the TexasFile search page */
   private sessionReady = false;
+
+  /** What the last search actually hit. Surfaced so a caller can tell a paywall (the records exist,
+   *  we cannot open them) from an empty index (they do not exist) — the distinction that decides
+   *  whether a county needs a subscription or needs a different portal. */
+  lastAccess: AccessResult | null = null;
 
   constructor(countyFIPS: string, countyName: string) {
     super(countyName, countyFIPS);
@@ -153,8 +161,13 @@ export class TexasFileAdapter extends ClerkAdapter {
         return await this.parseResults();
       } catch (e) {
         if (attempt === MAX_RETRIES) {
-          console.warn(`[TexasFile/${this.countyName}] Instrument# search failed:`, e);
-          return [];
+          // An exhausted retry is an ERROR, not an empty index. TexasFile is the fallback for 232
+          // counties, so returning [] here reported "this property has no records" for most of
+          // Texas whenever the site was slow, blocked or changed.
+          throw new Error(
+            `[TexasFile/${this.countyName}] Instrument-number search FAILED after ${MAX_RETRIES} attempts ` +
+              `(${(e as Error).message}). This is an error, NOT an empty index.`,
+          );
         }
         this.sessionReady = false;
         await this.page.waitForTimeout(2_000);
@@ -181,8 +194,10 @@ export class TexasFileAdapter extends ClerkAdapter {
       await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
       return await this.parseResults();
     } catch (e) {
-      console.warn(`[TexasFile/${this.countyName}] Vol/Page search failed:`, e);
-      return [];
+      throw new Error(
+        `[TexasFile/${this.countyName}] Volume/page search FAILED (${(e as Error).message}). ` +
+          `This is an error, NOT an empty index.`,
+      );
     }
   }
 
@@ -228,8 +243,10 @@ export class TexasFileAdapter extends ClerkAdapter {
         return await this.parseResults();
       } catch (e) {
         if (attempt === MAX_RETRIES) {
-          console.warn(`[TexasFile/${this.countyName}] Grantee search failed:`, e);
-          return [];
+          throw new Error(
+            `[TexasFile/${this.countyName}] Grantee search FAILED after ${MAX_RETRIES} attempts ` +
+              `(${(e as Error).message}). This is an error, NOT an empty index.`,
+          );
         }
         this.sessionReady = false;
         await this.page.waitForTimeout(2_000);
@@ -277,8 +294,10 @@ export class TexasFileAdapter extends ClerkAdapter {
         return await this.parseResults();
       } catch (e) {
         if (attempt === MAX_RETRIES) {
-          console.warn(`[TexasFile/${this.countyName}] Grantor search failed:`, e);
-          return [];
+          throw new Error(
+            `[TexasFile/${this.countyName}] Grantor search FAILED after ${MAX_RETRIES} attempts ` +
+              `(${(e as Error).message}). This is an error, NOT an empty index.`,
+          );
         }
         this.sessionReady = false;
         await this.page.waitForTimeout(2_000);
@@ -288,23 +307,34 @@ export class TexasFileAdapter extends ClerkAdapter {
   }
 
   async searchByLegalDescription(
-    _legalDesc: string,
+    legalDesc: string,
     _options?: ClerkSearchOptions,
   ): Promise<ClerkDocumentResult[]> {
-    // TexasFile does not support legal-description full-text search in the free tier
-    return [];
+    // This returned [] — the same defect fixed in the Kofile adapter, and worse here, because
+    // TexasFile is the fallback for 232 counties. "The free tier does not offer this search" and
+    // "no document mentions this land" are different facts, and only the caller can act on the
+    // first one.
+    throw new Error(
+      `[TexasFile/${this.countyName}] Legal-description search is NOT offered on the free tier ` +
+        `(asked: ${legalDesc.slice(0, 40)}). A missing capability, NOT an empty index — do not record this as ` +
+        `"no documents touch this land". A subscription, or a county with its own portal, is the way to answer it.`,
+    );
   }
 
   // ── Document access ───────────────────────────────────────────────────────────
 
   /**
    * TexasFile requires wallet-based purchase for document images.
-   * Returns an empty array — use getDocumentPricing() to check cost and
-   * Phase 9 (Document Purchase) for the actual purchase flow.
+   *
+   * This used to return an empty array, which reads as "this document has no images". Every
+   * TexasFile document HAS images — they are behind a paywall. Use getDocumentPricing() for the
+   * cost and the purchase flow to obtain them.
    */
-  async getDocumentImages(_instrumentNo: string): Promise<DocumentImage[]> {
-    // TexasFile images require purchase; Phase 9 handles the purchase flow.
-    return [];
+  async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
+    throw new Error(
+      `[TexasFile/${this.countyName}] Images for ${instrumentNo} require a wallet purchase. ` +
+        `The document HAS pages — this is the absence of ACCESS, not the absence of images.`,
+    );
   }
 
   async getDocumentPricing(instrumentNo: string): Promise<PricingInfo> {
@@ -330,7 +360,32 @@ export class TexasFileAdapter extends ClerkAdapter {
    * We parse the rendered DOM.
    */
   private async parseResults(): Promise<ClerkDocumentResult[]> {
-    if (!this.page) return [];
+    // A dead session is not an empty index — and on the fallback for 232 counties, that mistake
+    // reaches further than anywhere else.
+    if (!this.page) {
+      throw new Error(
+        `[TexasFile/${this.countyName}] Cannot parse results — the browser session is gone. ` +
+          `This is a session failure, NOT an empty index.`,
+      );
+    }
+
+    // TexasFile runs the search, tells you how many records matched, and THEN asks for an account.
+    // Without this check that arrives as an empty array — and for the 233 counties that fall back to
+    // TexasFile, "no records found" would be the platform's answer for most of Texas (plan R38).
+    try {
+      const body = await this.page.evaluate(() => document.body.innerText.slice(0, 4000));
+      const access = readAccess(this.page.url(), body, this.countyName);
+      this.lastAccess = access;
+      if (access.state === 'paywalled') {
+        console.warn(`[TexasFile/${this.countyName}] ${access.statement} ${access.nextStep}`);
+        return [];
+      }
+      if (access.state === 'unknown') {
+        console.warn(`[TexasFile/${this.countyName}] ${access.statement}`);
+      }
+    } catch {
+      // A failed read of the page text must not stop the parse below.
+    }
 
     const results: ClerkDocumentResult[] = [];
 

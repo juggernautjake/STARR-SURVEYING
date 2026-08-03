@@ -238,7 +238,16 @@ export class AdjacentResearchWorker {
       result.timing.extractionMs = Date.now() - extractStart;
 
       result.extractedBoundary = extracted;
-      result.researchStatus = extracted && extracted.totalCalls > 0 ? 'complete' : 'partial';
+      // 'complete' requires BOTH a boundary and a clean run. A run that extracted calls but failed
+      // to download images, or failed to pick a deed, is partial — and reporting it complete is how
+      // a reviewer stops looking at exactly the adjoiner that needs a second look (plan R39).
+      const clean = this.errors.length === 0;
+      result.researchStatus = extracted && extracted.totalCalls > 0 && clean ? 'complete' : 'partial';
+      if (extracted && extracted.totalCalls > 0 && !clean) {
+        result.errors.push(
+          `Boundary extracted, but ${this.errors.length} step(s) failed along the way — reported as PARTIAL, not complete.`,
+        );
+      }
 
       if (!extracted || extracted.totalCalls === 0) {
         result.errors.push(
@@ -271,6 +280,15 @@ export class AdjacentResearchWorker {
 
     result.timing.totalMs = Date.now() - startTime;
     result.searchLog = [...this.searchLog];
+
+    // Merge the step-level failures into the result.
+    //
+    // `this.errors` was declared and reset but NEVER surfaced — a dead field. Every step that
+    // recorded a failure into it was writing to nothing, so a run that lost its images, failed to
+    // pick a deed, or crashed mid-extraction reported clean. Draining it here is what makes those
+    // steps visible at all (plan R39).
+    for (const e of this.errors) if (!result.errors.includes(e)) result.errors.push(e);
+
     this.searchLog = [];
     this.errors = [];
     return result;
@@ -459,7 +477,12 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
         return candidates[idx];
       }
     } catch (e) {
-      this.logger.warn('AdjacentWorker', `AI deed selection failed: ${e}`);
+      // A log line is not a result. `errors` is what reaches the caller and what turns
+      // researchStatus into 'partial' — without it, "the AI could not choose a deed" and "this
+      // adjoiner has no deed" are the same null (plan R39).
+      const msg = `AI deed selection FAILED (${(e as Error).message}) — could not choose among the candidates. This is a selection failure, NOT an adjoiner without a deed.`;
+      this.logger.warn('AdjacentWorker', msg);
+      this.errors.push(msg);
     }
     return null;
   }
@@ -476,7 +499,13 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
     try {
       return await this.clerkAdapter.getDocumentImages(deed.instrumentNumber);
     } catch (e) {
-      this.logger.warn('AdjacentWorker', `Failed to download images for ${deed.instrumentNumber}: ${e}`);
+      // The adapters now THROW informative errors here — "the absence of ACCESS, not the absence of
+      // images", "goes through the site's paid cart". Swallowing them into [] discards exactly the
+      // information a reviewer needs, and makes a paywalled document look like a document with no
+      // pages (plan R39).
+      const msg = `Could not download images for ${deed.instrumentNumber}: ${(e as Error).message}`;
+      this.logger.warn('AdjacentWorker', msg);
+      this.errors.push(msg);
       return [];
     }
   }
@@ -614,7 +643,12 @@ CRITICAL:
         notes:            parsed.notes ?? [],
       };
     } catch (e) {
-      this.logger.warn('AdjacentWorker', `AI extraction parse failed: ${e}`);
+      // Null here means "no boundary was extracted". Without recording why, an extraction crash is
+      // indistinguishable from a deed that genuinely contains no metes and bounds — and the second
+      // is a real, common thing, which is what makes the first so easy to miss (plan R39).
+      const msg = `AI boundary extraction FAILED to parse (${(e as Error).message}) — the deed was NOT read. This is not the same as a deed containing no metes and bounds.`;
+      this.logger.warn('AdjacentWorker', msg);
+      this.errors.push(msg);
       return null;
     }
   }

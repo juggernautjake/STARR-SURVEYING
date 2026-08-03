@@ -32,6 +32,8 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 |---|---|---|
 | R14 | The exhaustive backward re-query — going back to the clerk for the deeds the gap list names | Needs the adapter call path; the gap list built in R14 is its input |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
+| R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
+| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
 | R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
@@ -1565,13 +1567,842 @@ for each of these, which is what "fully built" means here.
   *Acceptance:* every county above has a recorded site survey, and each adapter's `config` carries a
   real base URL and search path rather than a guess.
 
-- **R38. Build and prove each adapter.**
+#### R37/R38 findings — the coverage was largely fictional
+
+Driving the live sites turned up more than adapter bugs. **The platform's claimed county coverage was
+mostly untested assertion**, and measuring it changed the picture completely.
+
+**1. The Kofile registry was 60% wrong.** Its list of 53 counties came from a vendor marketing page
+in 2024, with a header saying unlisted counties "follow the default subdomain pattern
+automatically". Probing every entry found **32 have no reachable portal** — including Coryell (31
+miles), McLennan, Falls, Lampasas, Burnet and Bosque. Trimmed to the 21 that answered.
+
+**2. Four of the six clerk adapters cannot reach any site.** Every base URL in Tyler, Henschen,
+iDocket and Fidlar is dead — all 54. Henschen uses `<county>.co.texas.us`, a domain pattern that
+does not exist; iDocket 404s on every county; Fidlar's hosts do not resolve. Routing is now gated on
+`isVendorProven`, so their counties fall through to TexasFile instead of a dead host. The county
+lists are kept — knowing Hays is a Henschen county is real knowledge; the claim we can reach it is
+not.
+
+**3. TexasFile — now the fallback for 233 counties — is a paywall.** Its search runs and states the
+count ("5,000 records matching your search in Bell County"), then redirects to `/register/`. Its URL
+shape and form fields in our adapter were both wrong. A paywall now reports as a paywall **with the
+count**, because "5,000 records exist and we cannot open them" is a purchasing decision while "no
+records found" is a wrong answer.
+
+**4. The Kofile adapter had two independent bugs** that each returned an empty index as an answer:
+the search parameters were ignored by the site (zero rows, no error — worse than a 404, which a
+health check would catch), and the parser required `\d{10,13}` instrument numbers when the real ones
+are `2019-3389` and `DEPU-000021`, so it dropped every row it was given.
+
+**5. Nothing about one county is safe to assume about another.** Department codes differ (Milam
+`RP`="Property Records", Travis `RP`="Land Records", Williamson has no land-records department at
+all). Column sets differ (7 named columns on Milam, 17 in a different order on Montgomery). Date
+ranges differ (Bell indexed from **1600**, Burleson from 1939) and a range outside a county's own is
+an error, not a wider search. Even the Tyler Host URL that works for Williamson does not resolve for
+Hays, Bastrop or Coryell.
+
+**6. Fixed waits produced wrong facts.** A `waitForTimeout(3000)` read Bell and Milam as having no
+departments — an answer that looked like a finding. Every wait is now a condition with a deadline,
+and a timeout is reported as *unread*, never as *empty*.
+
+The through-line is the one this document has been closing since R1: **an unknown rendered as an
+answer.** At county-coverage scale it meant the platform would have told a surveyor "no records
+found" for most of Texas.
+
+- **R38. Build and prove each adapter.** PARTLY DONE 2026-08-02 — 7 counties proven end-to-end, 4 adapters found unreachable and gated, TexasFile paywall surfaced
   Turn each survey into a working adapter, exercised against a real search, and let R9's health
   checks and R11's coverage report it as *proven* rather than merely registered.
   *Acceptance:* the coverage headline stops saying "none has been proven to work yet".
 
 **Sequencing note:** R37 must precede R38 — every adapter this repo has shipped against a guessed DOM
 has needed rewriting, and R7/R8/R9 exist because of it.
+
+- **R39. Hunt each remaining county's portal from its own site.** IN PROGRESS 2026-08-02 — eDocTec found, Coryell + Lampasas off the paywall (seed 548, commit `59a0b463f`)
+  R38 established that no vendor URL pattern generalises. The only method left is per-county: read
+  the clerk's own page, find the portal, drive it, read the DOM, then list it.
+  *Acceptance:* every county within 80 miles of Bell either has a driven adapter or a recorded,
+  specific reason it does not.
+
+#### R39 findings — a vendor nobody knew about
+
+Hunting Coryell one county at a time turned up **eDocTec**, for which this platform had no adapter,
+no registry entry and no name. Two counties inside the 80-mile ring are on it, both **fully open** —
+no login, no paywall, current to within two days of the search:
+
+| County | FIPS | Was | Now | Proof |
+|---|---|---|---|---|
+| Coryell | 48099 | TexasFile (paywalled) | eDocTec | 12,705 docs / 20,267 party records; 20 rows → 12 documents through the compiled adapter |
+| Lampasas | 48281 | TexasFile (paywalled) | eDocTec | same schema; 20 rows → 13 documents |
+
+Coryell is worth two entries on the owner's list by itself: **Gatesville and Copperas Cove**.
+
+Neither county was listed because a URL returned 200. Both were driven end to end through
+`EdocTecClerkAdapter` itself — the R37 rule, applied to the vendor that R37's sweep never saw.
+
+**1. One row per PARTY, not per document.** eDocTec's table is
+`Instrument No | Filed Date | Party Type | Full Name | Document Type | Book/Volume | Page/Line`, and
+the same instrument repeats once per party. That is why the site reports 12,705 documents *and*
+20,267 records for one search. Rows group back by instrument number **and filed date** — number
+alone merges a 1994 and a 2011 deed into one instrument with four grantors.
+
+**2. The trap that matters more.** A *party* search returns only the parties that **matched**. A deed
+whose grantee is not a Smith comes back, from a Smith search, with no grantee. That is not a deed
+without a grantee — it is a question we never asked. Recording it as an empty grantee would both
+publish a wrong fact and stop the chain walker dead, since a deed with no grantee has nothing to
+walk to. Everything assembled from a party search carries `partiesComplete: false`.
+
+**3. The hostname is a trap.** Everything is served from `mclennan.edoctec.com`, but McLennan's own
+records are **not** there — `/McLennan` is a Justice of the Peace ticket-payment portal. Taking the
+hostname as coverage would have pointed Waco deed searches at a page that sells traffic fines.
+McLennan's portal is still not found, and the dead ends are recorded in seed 548 so the search is
+not re-walked.
+
+**4. A FIPS code was wrong for as long as the table has existed.** Henschen had Lampasas under
+`48283`, which is **La Salle County**, 250 miles south. Corrected to `48281`.
+
+Same through-line as R37/R38: **an unknown rendered as an answer.** Here it was two counties'
+worth of "no records found" that actually meant "we were pointed at a paywall".
+
+#### R39, second finding — R38's Tyler conclusion was wrong, and the guess was why
+
+R38 probed `<county>tx-web.tylerhost.net`, found only Williamson, and concluded the Tyler Host
+pattern *"does not generalise"*. It does. The guess omitted one word:
+
+```
+WRONG   mclennantx-web.tylerhost.net          no such host
+RIGHT   mclennancountytx-web.tylerhost.net    live
+```
+
+Re-sweeping 40 counties with the corrected pattern found **nine** live deployments — including
+**McLennan (Waco)**, which R38 had recorded as a dead end. The lesson generalises past Tyler: *a
+negative result from a guessed URL is evidence about the guess, not about the county.* R38's own
+"the pattern does not generalise" note has been superseded rather than deleted, because the wrong
+conclusion is the instructive part.
+
+| County | Miles from Bell | App path |
+|---|---|---|
+| Williamson | 28 | `/williamsonweb/` |
+| McLennan | 35 | `/web/` |
+| Hamilton | 50 | `/web/` |
+| Hill | 55 | `/web/` |
+| Burnet | 60 | `/web/` |
+| Mills | 70 | `/web/` |
+| Erath | 80 | `/web/` |
+| Somervell | 80 | `/web/` |
+| Navarro | 85 | `/web/` |
+
+**Proven:** the disclaimer gate; the menu, which loads *asynchronously* (a fixed wait reads a working
+portal as having no search); per-deployment search IDs (McLennan's OPR search is `DOCSEARCH402S1`) —
+the same discovery problem as Kofile's department codes; the complete form field map; the submit
+control is exactly `a#searchButton`, and a looser id match opens a help dialog that is
+indistinguishable from an empty result; McLennan's stated coverage of **Jan 1 1857 → Jul 30 2026**;
+and that the index answers, since typing SMITH returned real indexed parties from the county's own
+autocomplete.
+
+**Also proven, and the most useful thing for whoever writes the adapter: results are JSON, not
+HTML.** `POST /web/searchPost/<SEARCH_ID>` answers
+`{"validationMessages":{},"totalPages":N,"currentPage":1}`. Scraping the DOM for a results table
+finds nothing because there is no table.
+
+#### R39, third finding — `totalPages: 0` meant TOO MANY, and I read it backwards
+
+Seed 549 recorded that zero as an unresolved contradiction: the search returned nothing for a name
+the county's own autocomplete had just listed. Screenshotting the page settled it in one look:
+
+> **"We found more documents than the maximum allowed. It may be necessary to refine your search."**
+
+`totalPages: 0` is an **over-limit** signal. It means the search matched *more* than the portal will
+return. Reading it as "no records" inverts the truth completely — it turns the largest result set
+the portal can produce into *"this property has nothing recorded"*.
+
+This is the sharpest instance of the defect this document exists to close, because **the wrong
+reading is the one a careful person arrives at**: the field is called `totalPages`, and it says
+zero. The JSON alone cannot distinguish "too many" from "none"; only the rendered page can. So
+`readSearchOutcome()` now *requires* the page text and refuses to decide from the JSON.
+
+Proven by narrowing the same search:
+
+| Search | `totalPages` | Meaning |
+|---|---|---|
+| SMITH, no date range | 0 | over limit |
+| SMITH, one month | 1 | real results |
+| SMITH JAMES, 2025 | 1 | 14 documents |
+
+Seed 549 was wrong on a second count too: results are `li.ss-search-row` **cards**, not table rows.
+Every probe reporting "0 rows" was querying `<tr>` on a page showing fourteen documents. Seed 550
+supersedes 549 and says so.
+
+**Driven end to end.** McLennan, grantor `SMITH JAMES`, 2025, through the compiled
+`TylerEagleAdapter`: 8 documents, 8 of 8 parsed, banner agreeing. The legal descriptions are why
+this matters to a surveyor:
+
+```
+Subdivision: INDIAN TRAILS ADDITION Lot: 10 Block: 2 Acres: .241  408 NAVAJO TRAIL, MCGREGOR
+Survey Name: T J CHAMBERS  Acres: 0.995
+```
+
+Subdivision, lot, block, survey name and acreage, straight off the index.
+
+**Over-limit is handled, not reported as failure.** `narrowByYear()` slices the range into
+contiguous windows and re-searches each. The windows tile with no gaps — a gap is a deed nobody
+sees, which is the same wrong answer as an empty result, only harder to notice. A window that is
+*still* over-limit is logged as incomplete rather than silently returned as the answer.
+
+**Williamson moved off Kofile.** It sat in the Kofile set because its portal answered 200 — but that
+portal serves *only* Commissioners Court, with no land records. Kofile is checked first, so it won
+the routing and every Williamson deed search returned an empty page. A guard test caught this the
+moment Tyler was wired up. **A reachable portal for the wrong index is worse than no portal.**
+
+The nine counties are now routed and proven, taking the verified total from 7 to **18**.
+
+#### R39, fourth finding — a third unknown vendor, and a 170-year gap inside it
+
+Falls and Robertson were found the same way, from their own clerk pages: **Avenu/Neumo's "20/20
+Perfect Vision Land Records"**, on per-county subdomains of `uslandrecords.com`. Falls is `i2i`,
+Robertson is `i2j`, and every other county tried on those subdomains 404s — the letters are not a
+sequence to extrapolate. That is now the **third vendor this platform had no name for**.
+
+Searching is free, quoted from the portal: *"Searching and watermarked document viewing is provided
+as a free service."* Only printing and downloading are charged. The index is what research needs, so
+the free tier is sufficient.
+
+**The finding that matters is the coverage gap.** Each county publishes a certification banner, and
+the two disagree by 170 years:
+
+| County | Index certified from | Through | Last document |
+|---|---|---|---|
+| Robertson | **01/01/1800** | 07/30/2026 | 20263237 @ 07/31/2026 |
+| Falls | **09/23/1970** | 07/30/2026 | 23447 @ 07/31/2026 |
+
+Same vendor, same software. A 1940 Falls deed **is not in this index**. A search returns nothing,
+and that nothing is a fact about Falls County's website, not about the land — those years exist on
+paper at the courthouse in Marlin. The correct answer is *"drive to Marlin"*, not *"no deed"*, and
+`coverageWarning()` refuses to let a search run past the start of a county's index without saying
+so. This is the same defect as every other in this document, wearing a new costume: **an unknown
+rendered as an answer**.
+
+#### R39, fifth finding — the popup was innocent, and three more empty-answer traps
+
+Seed 551 blamed a popup window. That popup was the site **testing whether pop-ups are allowed**; it
+had nothing to do with results. The real cause is smaller and more embarrassing: the form submits
+via `<input type="submit">`, and a **synthetic** click — `page.evaluate(() => el.click())` — does
+not submit it. No POST was ever sent: no error, no change, nothing in the network log. That symptom
+reads as *"the site is broken"* when it means *"our click was not real"*. A trusted `page.click()`
+submits immediately.
+
+**Driven end to end** through the compiled adapter:
+
+| County | Result | Earliest |
+|---|---|---|
+| Robertson | 20 documents on page 1 of **239 rows** | 09/13/1871 (`OR/0000U/271`) |
+| Falls | 20 documents on page 1 of **40 rows** | 06/03/1971 |
+
+Falls's earliest result landing in 1971 confirms its 09/23/1970 coverage claim with *data* rather
+than a banner.
+
+Getting there surfaced **three more ways to manufacture an empty answer**, all the same defect:
+
+1. **A timeout is not an empty index.** A bare surname across 1800–2026 returns *"Your search has
+   reached the configured timeout period"* and no rows — indistinguishable, unhandled, from "this
+   name owns nothing here". Third variant in one day, after Kofile's empty department and Tyler's
+   `totalPages: 0`.
+2. **A readiness condition met by page furniture manufactures empty answers.** The wait was "a table
+   row containing a date" — but the certification banner *is* that, and exists before any search
+   runs. The grid was read while still empty, and a 239-row result set was reported as *"genuinely
+   nothing recorded"*.
+3. **The grid is not one row per record.** It renders as a **single `<tr>`** whose cells run the
+   header labels then every record in sequence, so per-row parsing returns exactly one record no
+   matter how many came back — 239 rows read as one document. Records are now cut at each date cell,
+   the only reliable boundary.
+
+**Still open, and reported rather than hidden:** the grid pages at 20 and only page one is read.
+Every result carries *"this is ONE PAGE of a larger result set — page through before concluding"*.
+Paging is the next slice; silently returning 20 of 239 would be this defect again.
+
+Also worth keeping: this vendor publishes **no instrument numbers**. A document's identity is its
+`SERIES/VOLUME/PAGE` citation, and 19th-century volumes are **lettered** (`OR/0000U/271`) — so the
+volume stays a string. Parsing it as a number yields `NaN` and merges every lettered volume into one.
+
+Both counties are now routed and proven. Seed 552 supersedes 551. **Verified counties: 18 → 20.**
+
+#### R39, sixth finding — page one was never the answer
+
+The Tyler adapter read the first page of results and returned it. Tyler serves **100 cards per
+page** and states the rest in its own banner:
+
+> *"Showing page 1 of 5 for 436 Total Results"*
+
+So a search matching 436 documents returned 100, with nothing marking it short. **That is worse than
+an empty result, not better.** An empty result at least looks like a question; 100 documents look
+like an answer. A surveyor would have built a chain of title on a quarter of the county's records
+with no reason to doubt it.
+
+The walker now advances through the pager's `Next` control — results live in session state, so
+there is no page-2 URL to request — and waits for the **banner's page number to change** before
+reading. Clicking Next and reading immediately re-reads the page just left, returning the same 100
+documents twice and stopping early. Records are deduplicated by instrument number across pages,
+because a record shifting page mid-walk would otherwise read as two conveyances of the same land.
+
+**Driven:** McLennan, grantee `SMITH`, 2025 → **196 documents across 2 pages, 0 duplicates**, 160
+carrying legal descriptions, spanning 01/02/2025 to 12/30/2025. The same search previously returned
+100.
+
+`describeCompleteness()` states *"INCOMPLETE — the portal reported N page(s) but only M were read"*
+whenever the walk stops early, and reports any shortfall against the portal's own total. Bounded at
+200 pages, because a pager that never disables Next would hang a research run. Seed 553.
+
+#### R39, seventh finding — page furniture broke the pager too
+
+Falls and Robertson read 20 rows and stopped; Robertson's own counter said 239. Two things fixed
+it, and the second matters more.
+
+**Ask for more rows before paging.** The grid defaults to 20 and offers 20/50/100 as page-size
+buttons. Raising it first is strictly better than walking a pager — fewer round trips, no postback
+sequencing, no chance of a record shifting page mid-walk. Robertson drops from 12 pages to 3, and
+from 53 seconds to 6.
+
+**Then: the wait was watching a row that never changes.** Paging still stopped after one page even
+though the `Next` control fired correctly. The readiness condition waited for *"the first row
+containing a date"* to change — and that row is the **search-criteria summary** (`Date From:
+1/1/1800 Date Thru: 7/30/2026`), identical on every page. The condition could never be satisfied,
+the wait timed out, and the walk concluded there were no more pages.
+
+That is the **third time in this build** a readiness condition satisfiable by page furniture
+produced a wrong answer, after the Tyler menu and this vendor's own certification banner. The fix is
+the same every time: *wait for the thing you actually need, not for something that resembles it.*
+Here that means a cell which is **exactly** a date — a record's file date — never summary text that
+merely contains one. (The pager control also had to be `#DocList1_LinkButtonNext`; matching the word
+"Next" picks up a plain `<td>` that renders it and is not clickable.)
+
+**Driven:**
+
+| County | Before | After |
+|---|---|---|
+| Falls | 20 of 40 rows | **39 documents from all 40 rows**, 2 pages |
+| Robertson | 20 of 239 rows | **220 documents from all 239 rows**, 3 pages, spanning **1839–2025** |
+
+Zero duplicates in either. Robertson now reaches 1839 — thirty years deeper than page one showed.
+
+The useful proof is that **the INCOMPLETE warning disappeared on its own** once everything was read.
+The completeness reporting is accurate in both directions, not merely pessimistic. Seed 554.
+
+**Every proven vendor now returns complete result sets.** Kofile, eDocTec, Tyler Eagle and Avenu
+20/20 — 20 counties, no page-one-only reads remaining.
+
+#### R39, eighth finding — CountyFusion was never dead; our TLD was wrong
+
+Hunting the last six counties turned up something bigger than any of them. R37 probed every
+CountyFusion base URL and concluded the vendor was unreachable. It is not:
+
+```
+WRONG   countyfusion7.kofiletech.com    ERR_NAME_NOT_RESOLVED — the domain does not exist
+RIGHT   countyfusion7.kofiletech.us     200, "Neumo Records County Access Portal"
+```
+
+**All twelve numbered hosts answer on `.us`.** So *"all 54 vendor URLs are dead"* was, for this
+vendor, a fact about a typo in our own registry.
+
+The lesson underneath is the more dangerous one: **that sweep used `fetch`, and `fetch` fails
+against these hosts with `ERR_HTTP2_STREAM_ERROR` even though a browser loads them fine.** A
+negative result from the wrong *client* is not evidence a site is down — the same shape of mistake
+as a negative result from a guessed URL, and it cost a whole vendor. Every "dead" verdict in this
+document that rests on a `fetch` probe should be re-tested in a browser before it is trusted.
+
+CountyFusion is still **not routed**: every per-county entry point is a username/password login and
+no credentials exist. *"The host is alive"* and *"we can read records"* are different claims, and
+collapsing them is how the platform came to claim 53 Kofile counties it could not reach.
+
+**The six counties:**
+
+| County | Status | Detail |
+|---|---|---|
+| Bosque | **OPEN (partial)** | `kofilequicklinks.com/Bosque/` — free, no login, **1847–1905**. 1984→current on iDocMarket at $5/day + $1/page |
+| Limestone | **Login required** | `countyfusion10.kofiletech.us` — records 1861→present, credentials unknown |
+| Bastrop | Not found | not yet hunted |
+| Hays | Not found | Henschen claims it; no Henschen URL resolves; no replacement located |
+| Lee | Not found | not yet hunted |
+| San Saba | Not found | not yet hunted |
+
+Bosque is a genuine win despite the partial window — for boundary work the early deeds are
+frequently the operative ones, so a free 1847–1905 index is worth more than the year count suggests.
+`freePathWarning()` refuses to let a search run outside that window without saying so: searching it
+for a 1995 deed returns nothing, and calling that "no deed" would be wrong twice over, because the
+deed exists and we know exactly where it is. Saying so turns a wrong answer into a purchasing
+decision.
+
+**"Not found" here means an unfinished search. It does not mean a county without records** — and
+`describeCounty()` says exactly that, so no run can quietly report it the other way. Seed 555.
+
+#### R39, ninth finding — the other three vendors really are dead, and Bosque has a century-wide hole
+
+Because CountyFusion was alive on a corrected TLD, and because `fetch` fails against those hosts
+while a browser does not, **every** fetch-based "dead" verdict became suspect. All 40 remaining URLs
+were re-probed in a real browser:
+
+| Vendor | Result |
+|---|---|
+| Henschen | **16/16** `ERR_NAME_NOT_RESOLVED` — `<county>.co.texas.us` is not a real pattern |
+| iDocket | **18/18** HTTP 404 — the host resolves, the paths do not |
+| Fidlar | **6/6** `ERR_NAME_NOT_RESOLVED` |
+
+R37 was right about these three and wrong only about CountyFusion. **A confirmed negative is worth
+writing down** — it is the difference between a closed question and a suspicion that costs an
+afternoon every time somebody rediscovers it.
+
+**iDocket was never a deeds vendor.** `online.idocket.com` is alive and is **Judicial Case Search** —
+court cases, not land records. Its counties sat in a clerk-deeds registry by mistake, and searching a
+court docket for a warranty deed returns nothing, which would have been recorded as "this property
+has no deeds".
+
+That led to **iDocMarket**, the actual land-records product. Its Basic Search opens with **no login**
+and it serves seven Texas counties — Bosque, Glasscock, Hartley, Hemphill, Lamb, Reagan, Sutton.
+Bosque's index states **2012–2026** and the form is fully exposed (date range, document number,
+book/volume/page, party name and type). The search was *not* driven to results, so it is recorded as
+located, not working.
+
+**The finding worth the most here: Bosque's two free indexes do not meet.**
+
+```
+Kofile QuickLink   1847 – 1905     free, no login
+iDocMarket         2012 – 2026     free to search, no login
+─────────────────────────────────────────────────────────
+NEITHER            1906 – 2011     a hole a century wide
+```
+
+A deed recorded in 1950 is in neither index. Both searches return nothing — and **two empty results
+look like a thorough search that found nothing**, which is the most convincing possible way to be
+wrong about whether a deed exists. `bosqueGapWarning()` names the gap and sends the researcher to the
+clerk in Meridian or a paid subscription. Seed 556.
+
+#### R39, tenth finding — the last three counties, and three different kinds of answer
+
+Bastrop, Lee and San Saba were the last counties in the ring with no answer. All three have one now,
+and the answers differ in a way that matters.
+
+**Bastrop — a fourth vendor, open to visitors.**
+`http://www.cc.co.bastrop.tx.us/RealEstate/SearchEntry.aspx` runs **Harris Recording Solutions /
+Aumentum Recorder**, the fourth vendor this platform had no name for. Entry is as *Visitor* with
+**no login** once the disclaimer is acknowledged, and the Real Estate index exposes party, party
+type, grantor, grantee, instrument-number range, book, page and document-type filters. It states its
+own coverage: **permanent index 01/01/1973 – 07/30/2026**, images from 1973. Pre-1973 is not online
+at all.
+
+Not driven to results — the visible Search control refuses both synthetic and trusted clicks
+(Playwright never sees it as stable). **Located, not working**, the same line Tyler and Avenu were
+held to.
+
+**Lee and San Saba — no online portal at all.** NETR lists both clerks as *"Website Only"* and
+neither county site carries a records search. These counties appear not to publish land records
+online, and the survey schema now distinguishes that from an unfinished hunt:
+
+| status | meaning |
+|---|---|
+| `no_online_portal` | we looked, and the county publishes nothing online |
+| `not_found` | we have not finished looking |
+
+**Collapsing those two would turn "we stopped looking" into "there is nothing there"** — this
+document's defect in its purest form. Neither says anything about whether a deed exists: the records
+are on paper at the courthouse (Giddings, San Saba) and TexasFile indexes them, and `describeCounty()`
+states outright that a search there must never be reported as "no records".
+
+**Hays is now the only genuine `not_found`** — Henschen names it, no Henschen URL resolves (confirmed
+in a browser), and no replacement portal has been located. Seed 557.
+
+**Every county in the 80-mile ring now has a definite answer.**
+
+#### R39, eleventh finding — Bastrop's search runs; two invisible traps were hiding it
+
+Seed 557 recorded Bastrop as "located, not working" because the Search control refused every click.
+It works. Two separate traps were in the way, neither visible from outside, and **both produce
+exactly the symptom of a county with no records: a form that submits and returns nothing.**
+
+**1. The button has no box.** `#cphNoMargin_SearchButtons1_btnSearch` is an `<input>` with width 0,
+height 0 and `z-index: -1`. Playwright refuses it — correctly, it is not a visible target. Aumentum
+renders buttons as table composites, and the real clickable surface is a `<td>` whose id is the
+input's id plus `__5`.
+
+**2. The textbox is a watermark field.** Its value is literally `"Lastname Firstname"` until a focus
+handler clears it. `page.fill()` sets `.value` without triggering that handler, so the watermark
+survives, the form posts *"Lastname Firstname"* as the search term, and the server answers **"Please
+enter search criteria."** — a validation message that never reaches a scraper reading only the
+results area. The fix is to click the field, clear it, and **type with real key events**.
+
+Both belong to the same family as the trusted-click trap on Avenu: *a programmatic shortcut that
+appears to work, on a page that then behaves as though nothing was entered.*
+
+**Driven** — party search `SMITH` → 100 records:
+
+```
+202607417    05/04/2026  DEED        [E] SMITH AARON THOMAS → SMITH BARBARA AMBE
+                                     JOSE ORTIZ SURVEY
+8577 347-249 10/25/1984  DEED        [R] SMITH A BYRON → MEYERS MCDADE H
+7553 116-487 12/18/1980  ASSIGNMENT  [E] SMITH A C → POOL LLOYD
+```
+
+Instrument number, book/page, filing date, document type, party names with `[R]`/`[E]` role markers
+(R = grantoR, E = grantEe) and survey names.
+
+#### R39, twelfth finding — the Aumentum adapter, and where the names actually live
+
+`AumentumClerkAdapter` now exists with `aumentum-results-parser` behind it, and Bastrop routes to
+it. **Twenty-one counties are now served by a proven adapter.**
+
+Two decisions shaped the parser:
+
+**The grid is a flat cell sequence.** `#Table1` is not one `<tr>` per record — like Avenu's, it runs
+the records together, so per-row parsing returns exactly one record however many came back. Records
+are cut at each cell that is **exactly** a date.
+
+**The party summary is the source of truth.** Each record carries a cell listing every party inline
+with its role marker — `[E] SMITH JAMES (+) [R] JENSEN DONALD (+)`, where `[R]` is grantoR and `[E]`
+is grantEe. The individual name cells sit at **unstable offsets**: they shift with how many parties a
+document has, and blank cells pad unpredictably, so counting positions would attribute the wrong name
+to the wrong side of a conveyance. The marker mapping is confirmed against the search form's own
+party-type radio values rather than guessed, and the `(+)` "and others" marker is kept — dropping it
+would silently turn a conveyance by several people into one by a single person.
+
+**Multi-party records are merged, not duplicated.** The first run returned 66 rows with 11
+duplicates; merging by instrument + filing date and unioning the party lists gives **55 documents
+with none**. Completeness is measured against grid *rows*, not merged documents — merging
+legitimately yields fewer documents than rows, and comparing merged totals would cry INCOMPLETE on a
+complete read.
+
+**Driven through the compiled adapter:** grantor `SMITH JAMES` → **55 documents from 100 grid rows,
+0 duplicates**, every one carrying both parties, oldest 10/24/1974, with the coverage warning firing
+correctly for years before 1973.
+
+```
+2325  10/24/1974  DEED OF TRUST   JENSEN DONALD (+) → SMITH JAMES (+)
+5554  08/23/1979  MECHANICS LIEN  SMITH JAMES (+)   → JONES EARL (+)
+4164  07/01/1982  (other)         SMITH JAMES (+)   → ENSERCH EXPLORATION INC
+```
+
+**Not built:** instrument-number search, book/page search, image retrieval, and pagination past the
+first 100 rows. Each throws rather than returning `[]`, because an empty array would read as "no such
+document recorded". Seed 559 supersedes 558.
+
+#### R39, thirteenth finding — the truncation that announces nothing
+
+The intended slice was Aumentum pagination. **There is none to build.** The portal caps results at
+100 rows and offers no pager:
+
+| Search | Result |
+|---|---|
+| `SMITH` | 100 records |
+| `SMITH JAMES` | 100 records |
+| `ENSERCH` | 100 records |
+| `ZZYZX` | 0 records |
+
+Three unrelated searches landing on exactly 100 is a cap, not a coincidence. The
+first/prev/next/last controls named in the toolbar script are **not present on the results list** —
+they belong to the document detail view, for stepping between selected documents.
+
+**This is the worst of the three truncations found in this build.** Tyler announces its over-limit
+with a banner. Avenu announces its timeout with a modal. Aumentum announces *nothing*: it returns
+100 rows and a counter reading "100 records", exactly as it would if the property had 100 documents
+and no more.
+
+So a search matching 3,000 instruments comes back looking like a complete answer of 100, and a
+surveyor would build a chain of title on it with nothing to suggest anything was missing. **That is
+the defect this document opened with, in its most convincing disguise yet.**
+
+Landing exactly on the cap is the only available signal, and it cannot distinguish "exactly 100
+exist" from "thousands exist". So it is *reported* rather than resolved — every capped result carries
+**"TRUNCATED — the true total is UNKNOWN and probably larger"**, and the adapter exposes
+`lastResultTruncated` for a caller to act on. Narrowing dimensions the form does offer: 160
+document-type checkboxes, legal-description fields, and a fuller party name.
+
+**A correction in the same pass:** the adapter claimed this vendor offers no legal-description
+search. It does — `txtLDBook`, `txtLDLot`, `txtLDSection`, `txtLDMapId`, `txtLDFreeForm`. They have
+not been *driven*, which is a smaller and different claim than "not offered"; saying the wrong one
+would send a researcher to a courthouse for something the portal can answer. Seed 560.
+
+#### R39, fourteenth finding — Bosque's modern window, and four kinds of truncation
+
+Bosque's iDocMarket portal is now driven: party `SMITH` → **"Showing: 1000 of 3639 results"**, no
+login. The submit control is the **last** element in `#SearchForm` — `input.btn-primary[value="Search"]`,
+below every date-picker button. Grabbing the first control matching "search" lands on the date
+picker's own buttons, which is what made the earlier attempt look like a broken form.
+
+Records render as `div.row`, not table rows:
+
+```
+DEED #2026-02531  7/28/2026  5 Pages  MAIN KELLY  GUILD MORTGAGE COMPANY LLC  View »
+```
+
+**Four vendors in this build truncate, and all four say so differently:**
+
+| Vendor | How it announces truncation |
+|---|---|
+| Tyler | a **banner** — "more documents than the maximum allowed" |
+| Avenu | a **modal** — "reached the configured timeout period" |
+| iDocMarket | a **count** — "Showing: 1000 of 3639 results" |
+| Aumentum | **nothing** — 100 rows and a counter that reads like an answer |
+
+iDocMarket's is the only one stating *both* numbers, so a caller knows exactly how much is missing
+rather than merely that something is. `describeShowing()` reports the shortfall precisely — *"returned
+1000 of 3639, so 2639 are missing"* — instead of the generic warning Aumentum's silent cap forces.
+**Preserving that difference is the point: flattening every cap into "here are the results" is how a
+partial answer becomes a wrong one.**
+
+Bosque's two free windows are now both driven — QuickLink 1847–1905 and iDocMarket 2012–2026,
+validated through 7/30/2026 — with the century-wide hole between them still recorded and warned
+about.
+
+#### R39, fifteenth finding — the iDocMarket adapter, and an empty field that answered 182,715
+
+`IDocMarketAdapter` exists and Bosque routes to it. **Twenty-two counties are now served by a proven
+adapter, across six vendors.**
+
+**This is the one vendor that marks up its data properly.** Every other one in this build hid its
+data behind something, and each cost a wrong answer before it cost a fix — Kofile's department
+codes, Tyler's per-deployment search IDs and card layout, Avenu's flat cell sequence and
+trusted-click requirement, Aumentum's zero-size button and watermark field. iDocMarket puts the
+party **roles in the class names** (`.grantor-line` / `.grantee-line`), so nothing is inferred from
+position, marker letters or a summary string. That is why this adapter carries no trap comments and
+the others are full of them.
+
+**The bug that mattered was ours.** The first driven run returned 1,000 records reporting *"1000 of
+182,715 results"* — and none of them matched the search name. The page re-initialises its form
+*after* `DOMContentLoaded` and clears the inputs, so filling too early left the party field empty.
+**An empty party field does not fail on this vendor — it searches the entire county index.**
+
+So a name search answered with 182,715 unrelated records: a wrong answer wearing a very large
+number, and *more* convincing than an empty one because it looks like thorough work. Fixed by
+waiting for the form to settle and **verifying the field holds the term before submitting** — the
+same guard Aumentum's watermark needed. With it: **99 records, "all 99 result(s) returned"**, every
+party actually matching.
+
+Bosque still has its hole: this adapter covers the modern index only (2012→), the historical
+QuickLink portal has no adapter, and 1906–2011 is in neither. `bosqueGapWarning()` fires on any
+search reaching into that century.
+
+**Not built:** instrument-number and book/page search (fields exist, undriven); image retrieval
+(`viewDoc` token, charged); pagination past the 1,000-row page, with any shortfall reported exactly.
+Seed 562 supersedes 561.
+
+#### R39, sixteenth finding — search by land, not by name
+
+Every adapter in this build searches by **party**. That is how a title company works; it is not how
+a surveyor works. A surveyor starts with a piece of ground and wants every instrument that touched
+it. `searchByLegalDescription` is that search, and Bosque is the first county where it exists.
+
+**The county publishes a controlled vocabulary.** iDocMarket's Subdivision field is a `<select>`,
+not a text box — Bosque enumerates **396 subdivisions**. That makes *"does this county have a
+subdivision called X"* answerable **exactly**, instead of inferred from a search that returned
+nothing. `listSubdivisions()` exposes the list; an exact match is searched through the dropdown.
+
+**The near miss is the whole point.** A term that *looks* like a subdivision but is absent from the
+county's list would, searched free-form, return nothing — and that nothing reads as *"no documents
+touch this land"* when it actually means *"this county has no subdivision by that name"*. Different
+answers; only one is true. So an unmatched term is **refused, with the near misses named**:
+
+> `"LAKE PLACE" is not an exact subdivision in this county's index, but 2 similar name(s) exist:`
+> `#1 LAKE PLACE PHASE 1, LAKE PLACE PHASE 1.`
+
+Text resembling no subdivision at all goes to the free-form `Legal` field, because there the caller
+genuinely meant free-form. `matchSubdivision()` is pure, so this decision is tested rather than
+merely observed.
+
+**Driven:** `listSubdivisions()` → 396 names; `legal="#1 LAKE PLACE PHASE 1"` → **5 of 5 results, all
+returned**; `legal="LAKE PLACE"` → refused with both real names offered.
+
+```
+2025-03091  9/23/2025  RELEASE OF LIEN  PEOPLES BANK          → STRAUGHAN TRACY
+2016-01976  6/9/2016   RELEASE OF LIEN  CENTRAL NATIONAL BANK → FAUNCE GARY
+```
+
+Tyler's form has none, and Kofile/eDocTec/Avenu are party-and-instrument indexes only — and the
+adapters that cannot search by land **throw rather than returning an empty list**, so it never reads
+as "no documents touch this land". Seed 563.
+
+#### R39, seventeenth finding — a second county by land, and a begins-with trap
+
+Bastrop's legal-description search is implemented, so searching by **land** now works in two
+counties. But this portal behaves nothing like Bosque's, and the difference is a trap.
+
+**The free-form legal field matches BEGINS WITH, not contains.** The portal states its own rule in
+the results header — `Freeform Legal begins with ORTIZ` — and the numbers are the whole argument:
+
+| Term | Records |
+|---|---|
+| `ORTIZ` | **0** |
+| `JOSE` | 100 |
+| `JOSE ORTIZ` | 100 |
+
+Bastrop's records reference the **JOSE ORTIZ SURVEY** constantly. "ORTIZ" — the obvious thing for a
+surveyor to type, because the distinctive part of a survey name is rarely the first word — returns
+nothing. That zero reads as *"no documents touch this land"* when it means *"your term is not at the
+start of the legal description"*.
+
+**This instance is the cruellest one found:** it fails precisely on the search a surveyor is most
+likely to run. The portal offers no contains-mode, so it cannot be fixed from our side. Instead the
+empty result carries its own reason and remedy:
+
+> `0 records for legal description "ORTIZ". NOTE: this field matches BEGINS WITH, not contains — a`
+> `term from the middle of a legal description (e.g. "ORTIZ" for "JOSE ORTIZ SURVEY") returns`
+> `nothing. Try the LEADING words. This is not evidence that no documents touch this land.`
+
+`looksLikeMidStringLegal()` flags terms likely to hit this — anything naming a SURVEY or ABSTRACT, or
+starting with LOT/BLOCK/TRACT — as a pure, tested function.
+
+**The two counties behave differently, and both say so:**
+
+| County | Mechanism | On a miss |
+|---|---|---|
+| Bosque (iDocMarket) | Subdivision `<select>`, 396 exact names | refuses, offering the real names |
+| Bastrop (Aumentum) | free-form text, **begins with** | returns 0 **with the reason attached** |
+
+Neither silently answers "no documents". That is the only thing they have to have in common.
+Seed 564.
+
+#### R39, eighteenth finding — twenty counties could not search by land, silently
+
+`KofileClerkAdapter.searchByLegalDescription` logged *"Legal description search not supported"* and
+returned an **empty array**. Two things were wrong, and the second is far worse.
+
+It was **factually wrong**: standard PublicSearch does support full-text search, through the
+`searchOcrText` parameter this adapter was already sending as `false` on every other query.
+
+And it **returned `[]` for an unsupported operation**. A caller cannot distinguish that from *"this
+land has no documents"*. So the platform's answer to every legal-description search across **twenty
+Kofile counties — including Bell, the home county — was a silent, confident nothing.**
+
+That is this document's defect at its largest blast radius: not one county, not one vendor, but the
+single search a surveyor most wants, answered wrongly everywhere it was offered.
+
+**The two modes are different searches, not broader and narrower.** Driven on Bell with `HAMMIL`:
+
+| Mode | Results | Matched on |
+|---|---|---|
+| `searchOcrText=false` | 23 | **party names** (HAMMILL ERICA, HAMMILL ANDREW P JR) |
+| `searchOcrText=true` | 7 | the term appears **nowhere in the row** — it matched the scanned document text |
+
+Turning OCR on does not widen the index search; it runs a different one. Anybody assuming it is a
+superset would conclude that 16 documents had vanished.
+
+**An unverified route was being preferred over a proven one.** Bell is flagged `hasSUPERSEARCH` and
+the method tried that first; driving it times out waiting for a search input that does not exist —
+the same class of unverified URL R37 found across four vendors. SUPERSEARCH is now disabled here and
+the driven path wins. (A smaller bug fell out with it: `superSearch()` ran *before* `initSession()`,
+so it failed with "Session not initialized" from inside a method that looked unrelated.)
+
+**Driven:** Bell, full-text `HAMMIL` → **7 documents, reaching back to 1929**.
+
+```
+2005038056  8/25/2005  AFFIDAVIT  MCDANNEL LINDA   → MORRIS WENDELL DWAYNE DECD
+1929001426  7/6/1929   (other)    HAMILL F P MRS   → SLOON J A
+1945003495  5/22/1945  (other)    ENNIS STATE BANK → SHANNON J K
+```
+
+Full-text searches the scanned page *text*, so a document indexed under a legal description it never
+spells out will not match. An empty result now says exactly that, and suggests a party search or a
+different phrasing — rather than implying the land is unencumbered. Seed 565.
+
+**Search-by-land now works in 22 of 22 routed counties.**
+
+#### R39, nineteenth finding — the defect, audited and ratcheted
+
+The previous finding came from re-reading code that was already "working". Applying that lens to
+every routed adapter found **eleven instances** of the same shape:
+
+| Adapter | Method | Returned `[]` for |
+|---|---|---|
+| Kofile | `searchByLegalDescription` | "not supported" (seed 565) |
+| Kofile | `parseSearchResults` | a dead session |
+| Kofile | DOM + vision parse | both parsers failing |
+| Kofile | AI parse | an unparseable reply |
+| TexasFile | instrument / vol-page / grantee / grantor | a swallowed error, ×4 |
+| TexasFile | `searchByLegalDescription` | "not on the free tier" |
+| TexasFile | `getDocumentImages` | "requires purchase" |
+| TexasFile | `parseResults` | a dead session |
+
+**TexasFile is the fallback for 232 counties**, so its instances reached further than any other bug
+in this build: a slow site, a blocked request or a changed page reported *"this property has no
+records"* for most of Texas.
+
+**Why it keeps happening.** Every one of these is locally reasonable. Returning `[]` from a catch
+block looks defensive; returning `[]` for an unsupported operation looks tidy; returning `[]` when
+the page is gone looks like a guard clause. The damage is invisible at the site of the decision and
+only appears at the call site, where *"the search crashed"*, *"we do not offer that search"* and
+*"this land is unencumbered"* all arrive as the same value.
+
+**The ratchet.** `no-silent-empty-results.test.ts` now fails the build if any routed adapter returns
+`[]` from a catch block or from a missing session. **It immediately caught two instances I had
+missed while fixing the other nine** — which is the argument for having it: this defect is not
+something a careful reading reliably catches.
+
+Every failure path now throws with what actually happened — *"session failure, NOT an empty index"*,
+*"UNREAD, NOT no records"*, *"the absence of ACCESS, not the absence of images"*.
+
+**Verified after the change:** Bell grantor `SMITH` → 50 documents; full-text `HAMMIL` → 7. The
+rewrite did not break the paths that worked. Seed 566.
+
+#### R39, twentieth finding — the same defect in the appraisal-district adapters
+
+Seed 566 audited the *clerk* adapters. The **CAD adapters — routed live by `property-discovery.ts`**
+— carry the identical pattern, and one instance is the quietest bug in this entire build.
+
+| Adapter | Returned `[]` for |
+|---|---|
+| HCAD | failed owner search; dead session; both parsers failing; **subdivision lot lookup** |
+| TAD | the same four |
+| BIS | **subdivision lot lookup** |
+
+On a CAD adapter an empty result does not read as "no deeds" — it reads as **"no property exists at
+this address"**, which is a stronger and more damaging claim.
+
+**The adjoiner one is the worst.** `findSubdivisionLotIds` / `findSubdivisionLots` enumerate the
+*other* lots in a subdivision. They feed the **adjoiner list** — the neighbouring-property feature
+this platform was explicitly asked to build. Swallowing a failure there produced a **short neighbour
+list with nothing marking it short**: a surveyor would see three adjoining parcels where there are
+nine, with no reason to doubt it. Unlike a missing deed, nothing downstream would ever contradict it.
+
+Each now throws with what happened, and says the adjoiner list would be **INCOMPLETE** rather than
+letting a partial list pass as a whole one.
+
+**The ratchet now covers both families** — five routed CAD adapters alongside seven routed clerk
+adapters. It immediately earned itself again: it caught a scripted edit of `tad-adapter.ts` that had
+**silently failed to apply**. The script reported success and changed nothing. Without the test that
+would have shipped as a fix that fixed nothing — a fair summary of why this pattern keeps surviving
+review. Seed 567.
+
+*(Also caught in passing: the seed used `cad_property` for the site-type enum; the real value is
+`appraisal_cad`. The seed runner rejected it rather than silently updating zero rows.)*
+
+#### R39, twenty-first finding — a dead field swallowed every adjoiner step failure
+
+Seeds 566 and 567 audited the adapters. Auditing the layer **above** them found the same defect, and
+this one is structural rather than a single bad catch.
+
+**`AdjacentResearchWorker` declared `private errors: string[]`, reset it at the end of every run,
+and never merged it into the returned result.** It was a dead field. Every step that recorded a
+failure into it was writing to nothing:
+
+| Step | On failure |
+|---|---|
+| AI deed selection | logged, recorded nowhere, returned `null` |
+| Image download | logged, recorded nowhere, returned `[]` |
+| Boundary extraction | logged, recorded nowhere, returned `null` |
+
+A log line is not a result. The caller received a null deed, an empty image list and a null
+boundary — **indistinguishable from an adjoiner that genuinely has no deed, no images and no metes
+and bounds.** All three of those are real, common situations, which is exactly what made the
+failures invisible.
+
+**And the run called itself complete.** `researchStatus` was `'complete'` whenever any boundary
+calls were extracted, regardless of what had failed on the way — so a run that lost its images and
+could not pick a deed still reported complete, and a reviewer would stop looking at precisely the
+adjoiner that needed a second look. Now `'complete'` requires a boundary **and** a clean run.
+
+**One earlier fix made this worse before it made it better.** Seeds 566/567 made the adapters throw
+informative errors — *"the absence of ACCESS, not the absence of images"*. The image-download catch
+here caught those and returned `[]`, discarding exactly the information the change had created.
+**Fixing a leaf without following it upward produces better errors that nobody ever sees.**
+
+`adjoiner-failures-surface.test.ts` pins the drain, its ordering before the reset, the three
+recorded failures, and the complete-requires-clean rule. Seed 568.
 
 #### Survey results, 2026-08-02 (seed 541)
 

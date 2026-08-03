@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { hashPassword, setVoiceSession, signupKey, studioNeedsSetup } from '@/lib/voice/auth';
+import { MAX_SELF_SETUP_ACCOUNTS, hashPassword, selfSetupOpen, setVoiceSession, signupKey } from '@/lib/voice/auth';
 import { emailProblem, normalizeIdentifier, passwordProblem } from '@/lib/voice/auth-rules';
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -30,9 +30,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Bad request.' }, { status: 400 });
   }
 
-  if (!(await studioNeedsSetup())) {
+  // Open until the studio holds MAX_SELF_SETUP_ACCOUNTS, then closed permanently. Re-checked HERE
+  // and not trusted from the page that rendered the form — a client can POST straight to this
+  // endpoint, so a guard that lives only in the UI is not a guard.
+  if (!(await selfSetupOpen())) {
     return NextResponse.json(
-      { error: 'A studio account already exists. Sign in instead.' },
+      {
+        error: `This studio already has ${MAX_SELF_SETUP_ACCOUNTS} accounts. Ask someone already signed in to add you from Settings.`,
+      },
       { status: 409 },
     );
   }
@@ -63,7 +68,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // 23505 is a unique violation: somebody else got there in the same instant. That is the door
     // having closed, not a failure to open it.
     if (error?.code === '23505') {
-      return NextResponse.json({ error: 'A studio account already exists. Sign in instead.' }, { status: 409 });
+      return NextResponse.json({ error: 'That username or email is already taken.' }, { status: 409 });
     }
     console.error('[voice/auth] setup failed:', error?.message);
     return NextResponse.json(

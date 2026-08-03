@@ -97,13 +97,25 @@ describe('the bug this closes — a Magus had no countable slots at all', () => 
     expect(w.slotsByRank[1], 'a wizard keeps its low ranks').toBeGreaterThan(0);
   });
 
-  it('THE REMAINING GAP, stated rather than implied: neither class is in the BUILD catalogue', () => {
-    // `pf2Class('Magus')` is null — the PF2 content catalogue holds the 14 CORE classes, and Magus and
-    // Summoner are Secrets of Magic. So their slots are modelled but they cannot yet be PICKED in the
-    // builder. Landing the tables first is the right order (the builder already reads them via
-    // `pf2ReducedSlots`, so the class works the moment it is catalogued) — but calling this item finished
-    // without saying so would overstate it, which is the failure this whole session kept finding.
-    expect(pf2Class('Magus')).toBeFalsy();
-    expect(pf2Class('Summoner')).toBeFalsy();
+  it('THE GAP IS CLOSED 2026-08-02: both are in the BUILD catalogue, and the prediction held', () => {
+    // This test used to assert the opposite, and its comment said: "the builder already reads them via
+    // `pf2ReducedSlots`, so the class works the moment it is catalogued". That turned out to be exactly
+    // true — the owner decided the catalogue means ALL PUBLISHED, two `PF2ClassDef` entries went in, and
+    // no other code changed. Landing the tables before the catalogue was the right order.
+    expect(pf2Class('Magus')).toBeTruthy();
+    expect(pf2Class('Summoner')).toBeTruthy();
+  });
+
+  it('and a built one now gets the reduced table rather than nothing', () => {
+    // The cost of the gap, recorded in the plan: "a Magus has shown no spell slots at all". It shows
+    // them now, and they are the REDUCED counts — neither empty nor a full caster's.
+    const magus = pf2SpellCountsFor('Magus', 9);
+    expect(magus.modelled).toBe(true);
+    expect(magus.slotsByRank.some((n) => n > 0)).toBe(true);
+    const wizard = pf2SpellCountsFor('Wizard', 9);
+    expect(
+      magus.slotsByRank.reduce((a, b) => a + b, 0),
+      'a reduced caster has strictly fewer slots than a full one',
+    ).toBeLessThan(wizard.slotsByRank.reduce((a, b) => a + b, 0));
   });
 });

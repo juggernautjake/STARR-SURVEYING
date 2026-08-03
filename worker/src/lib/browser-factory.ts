@@ -270,9 +270,16 @@ export function validateAdapterFlagOnStartup(): void {
 
 async function launchLocal(opts: BrowserFactoryOptions): Promise<BrowserSession> {
   const playwright = await import('playwright');
+  // Let a deployment pin the binary. Playwright resolves a *headless shell* build by default, which
+  // is a separate download from the full Chromium — a machine with only `chromium-<rev>` installed
+  // fails with "Executable doesn't exist" even though a perfectly good browser is sitting there.
+  // Explicit beats reinstalling a second browser on every host.
+  const pinned = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE?.trim();
   const browser = await playwright.chromium.launch({
     headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
     args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+    ...(pinned ? { executablePath: pinned } : {}),
+    // Caller's options win, so an adapter can still override the pin.
     ...opts.launchOptions,
   });
   return {

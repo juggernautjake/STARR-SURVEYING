@@ -410,6 +410,19 @@ a.vaTile:hover {
     justify-content: space-between;
     gap: 16px;
     align-items: baseline;
+    /* An email, a filename and a URL are each one unbreakable token, and this studio's tables are
+       made of them. Without this, `jacobmaddux96@gmail.com` was 175px that could not shrink and would
+       not break: it widened its row, its table, the whole `.vaStudio` grid, and finally the fixed
+       bottom nav — which is 100% of a parent that was now 445px. The sweep reported the NAV as the
+       overflowing element and the cell last, because the symptom is always further out than the
+       cause. */
+    overflow-wrap: anywhere;
+  }
+  /* Flex items default to min-width:auto and refuse to shrink below their content. The cell above can
+     only do its job if what is inside it is allowed to give. */
+  .vaDataTable td > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   /* The header text is repeated per cell via a data attribute, so a stacked row still says what each
      value IS. Without it the card is a column of unlabelled strings. */
@@ -557,5 +570,468 @@ a.vaTile:hover {
 @media (min-width: 1000px) {
   .vaSplitPanels {
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+}
+
+/* ── INVOICE LINE EDITOR ──────────────────────────────────────────────────────────────────────────
+ *
+ * Description / quantity / unit price / remove. Collapses to a stack on a phone with the description
+ * full-width and the two numbers side by side — a 4-column grid at 390px gives each number about 60px,
+ * which is not enough to see "1,250.00" while typing it.
+ */
+.vaLineRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: start;
+}
+.vaLineRow > input:nth-child(2),
+.vaLineRow > input:nth-child(3) {
+  grid-column: span 1;
+}
+@media (min-width: 560px) {
+  .vaLineRow {
+    grid-template-columns: minmax(0, 1fr) 78px 104px 34px;
+    gap: 8px;
+  }
+}
+@media (max-width: 559px) {
+  /* Two numbers share a row beneath the description; the remove button tucks in beside them. */
+  .vaLineRow {
+    grid-template-columns: 1fr 1fr 34px;
+  }
+  .vaLineRow > input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+.vaLineRemove {
+  background: none;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  color: var(--va-text-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  height: 40px;
+}
+.vaLineRemove:hover {
+  color: #ff9c7e;
+  border-color: #ff8a6a;
+}
+
+.vaInvoiceTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--va-line);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+}
+.vaInvoiceTotal strong {
+  font-family: var(--va-font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--va-accent);
+  font-weight: 600;
+}
+
+/* ── INVOICE DOCUMENT ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Styled like an invoice, not like a form. Andrew should be able to check it by READING it rather
+ * than reconstructing it from input fields — which is also why the line items are a table here and
+ * editable only while the invoice is still a draft.
+ */
+.vaInvoiceDoc {
+  background: var(--va-surface);
+}
+.vaInvoiceHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaInvoiceParty {
+  color: var(--va-text);
+  font-size: 0.9375rem;
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.vaInvoiceHead .vaMuted {
+  font-size: 0.8125rem;
+  margin: 2px 0 0;
+}
+.vaInvoiceTotals {
+  margin-top: 20px;
+  max-width: 340px;
+  margin-left: auto;
+}
+.vaInvoiceTotals .vaSpecValue {
+  min-width: 0;
+}
+
+/* A read-only URL beside its copy button. `min-width: 0` on the input is what stops a long URL
+   pushing the button off the panel — flex items default to min-content width, and a URL has none. */
+.vaCopyRow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.vaCopyRow input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.vaCopyRow .vaBtn {
+  flex: none;
+}
+
+/* A proportion bar under a category total. Deliberately thin and unlabelled — the number beside it
+   is the fact; the bar only makes the ranking scannable without reading six figures. */
+.vaCatBar {
+  display: block;
+  height: 3px;
+  background: var(--va-line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+  width: 100%;
+  max-width: 180px;
+  margin-left: auto;
+}
+.vaCatBar span {
+  display: block;
+  height: 100%;
+  background: var(--va-accent);
+}
+
+/* ── THEME PICKER ─────────────────────────────────────────────────────────────────────────────────
+ *
+ * Four swatches per card, in the order they appear on a page: ground, surface, accent, text. Showing
+ * the actual colours beats naming them — "Hallownest" means nothing until you can see it.
+ */
+.vaThemeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px;
+}
+.vaThemeCard {
+  text-align: left;
+  padding: 14px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+}
+.vaThemeCard:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+.vaThemeCardActive {
+  border-color: var(--va-accent);
+  box-shadow: 0 0 0 1px var(--va-accent);
+}
+.vaThemeSwatches {
+  display: flex;
+  gap: 4px;
+  height: 26px;
+}
+.vaThemeSwatches span {
+  flex: 1;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.vaThemeName {
+  color: var(--va-text);
+  font-family: var(--va-font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.vaThemeBlurb {
+  color: var(--va-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.vaColorRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--va-line);
+}
+.vaColorRow:last-child {
+  border-bottom: 0;
+}
+.vaColorRow label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--va-text-muted);
+}
+.vaColorRow input[type='color'] {
+  width: 40px;
+  height: 28px;
+  flex: none;
+  border: 1px solid var(--va-line);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  padding: 2px;
+}
+.vaColorRow code {
+  font-size: 0.6875rem;
+  color: var(--va-text-muted);
+  min-width: 62px;
+  flex: none;
+}
+.vaColorRow button {
+  background: none;
+  border: 0;
+  color: var(--va-accent);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  text-decoration: underline;
+  flex: none;
+}
+
+/* Click-to-edit value in a table cell. Looks like text until hovered, so a table of prices reads as a
+   table rather than as a form — but it is a real button, so it is reachable by keyboard. */
+.vaInlineEdit {
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  color: var(--va-text);
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.vaInlineEdit:hover,
+.vaInlineEdit:focus-visible {
+  color: var(--va-accent);
+  border-bottom-color: var(--va-accent);
+}
+
+/* ── MEDIA LIBRARY GRID ───────────────────────────────────────────────────────────────────────────
+ *
+ * A fixed-ratio thumbnail so a portrait and a landscape photo make an even grid — a masonry of mixed
+ * ratios looks livelier and makes scanning for a specific image harder, which is the only thing this
+ * grid is for.
+ */
+.vaMediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr));
+  gap: 12px;
+}
+.vaMediaTile {
+  border: 1px solid var(--va-line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--va-ink);
+  display: flex;
+  flex-direction: column;
+}
+.vaMediaTile:hover {
+  border-color: color-mix(in srgb, var(--va-accent) 45%, var(--va-line));
+}
+.vaMediaThumb {
+  aspect-ratio: 4 / 3;
+  background: var(--va-surface-raised);
+  display: grid;
+  place-items: center;
+  color: var(--va-accent);
+  overflow: hidden;
+}
+.vaMediaThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.vaMediaMeta {
+  padding: 10px 11px 6px;
+  min-width: 0;
+}
+.vaMediaTitle {
+  display: block;
+  color: var(--va-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vaMediaSub {
+  display: block;
+  color: var(--va-text-muted);
+  font-size: 0.6875rem;
+  margin-top: 2px;
+}
+.vaMediaActions {
+  display: flex;
+  gap: 5px;
+  padding: 0 9px 10px;
+  margin-top: auto;
+}
+.vaMediaActions .vaBtn {
+  padding: 6px 9px;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   GETTING PAID — the payment-methods panel in Settings
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.vaPayRows {
+  display: grid;
+  gap: 12px;
+}
+.vaPayRow {
+  display: grid;
+  /* The toggle and the destination sit on one line on a desktop; the hint runs full width beneath
+     both, because it is guidance rather than a label and should not squeeze the input. */
+  grid-template-columns: minmax(150px, 210px) 1fr;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--va-line);
+  border-radius: 9px;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.vaPayRowOn {
+  border-color: var(--va-accent);
+  background: var(--va-surface-raised);
+}
+.vaPayRowToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 40px;
+}
+.vaPayRowToggle input {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  accent-color: var(--va-accent);
+  cursor: pointer;
+}
+.vaPayRowLabel {
+  font-weight: 600;
+  color: var(--va-text);
+  font-size: 0.9063rem;
+}
+.vaPayRowInput {
+  min-width: 0;
+}
+.vaPayRowHint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+/* A disabled row is still readable — he is choosing between them — but visibly not in play. */
+.vaPayRow:not(.vaPayRowOn) .vaPayRowInput,
+.vaPayRow:not(.vaPayRowOn) .vaPayRowHint {
+  opacity: 0.62;
+}
+
+/* Card status: a report, not a control. Bordered rather than button-like so it does not invite a
+   click that cannot do anything. */
+.vaCardStatus {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 22px;
+  padding: 15px 16px;
+  border: 1px dashed var(--va-line);
+  border-radius: 9px;
+}
+.vaCardStatus code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--va-surface-raised);
+  color: var(--va-text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .vaPayRow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+/* The reference links under a guide task, and the "view this page" links on Pages. Unstyled anchors
+   inherit their line box and land at 21px tall — under the 24px WCAG 2.5.8 asks for and well under
+   what a thumb wants. They are STANDALONE links in a list rather than links inside a sentence, so
+   unlike prose links they can take vertical room without pulling the paragraph apart. */
+/* `.vaGuideSources` had NO styling whatsoever — the citation block under every pricing figure was
+   rendering as a bare paragraph and a column of default links. It was never noticed because the
+   guide is long and the block sits at the bottom of a section somebody has already read. The mobile
+   sweep found it by measuring, which is the point of measuring. */
+.vaGuideSources {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--va-line);
+}
+.vaGuideSources > p {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--va-text-muted);
+  margin: 0 0 6px;
+}
+
+.vaTaskLinks,
+.vaGuideSources {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.vaTaskLinks a,
+.vaGuideSources a {
+  display: inline-block;
+  padding: 6px 0;
+  color: var(--va-accent);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.vaTaskLinks a:hover,
+.vaTaskLinks a:focus-visible,
+.vaGuideSources a:hover,
+.vaGuideSources a:focus-visible {
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  /* Not 44px: a list of eight rate guides padded to 44 each becomes a 350px wall of whitespace, and
+     the guidance for a text link is 24. Buttons and inputs still get the full 44 — those are the
+     things being aimed at rather than read. */
+  .vaTaskLinks a,
+  .vaGuideSources a {
+    padding: 8px 0;
+  }
+  /* A link that IS the cell's value — a page address, a client's website — rather than a word inside
+     a sentence. The stacked row already gives it its own line, so the padding costs no layout. */
+  .vaDataTable td > a {
+    display: inline-block;
+    padding: 4px 0;
   }
 }

@@ -240,6 +240,21 @@ async function main() {
 
   console.log(`\n${checked} text nodes measured across ${ROUTES.length} routes × ${VIEWPORTS.length} viewports.\n`);
 
+  // ZERO MEASUREMENTS IS A FAILURE, NOT A PASS.
+  //
+  // Added 2026-08-02, the first time this script was ever run. Every route had refused to load — the
+  // server was on a different port — and it measured nothing, found no failures, and printed
+  // "✓ Every measurable text node clears WCAG AA." A green tick for an audit that never ran is worse
+  // than a red one, because the red is the only thing that would have made anyone look at the port.
+  if (checked === 0) {
+    console.log(
+      '✗ NOTHING WAS MEASURED. The audit did not run — every route failed to load.\n' +
+        `   Is a server up at ${BASE}? Pass --base http://localhost:PORT to point at it.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   if (failures.length) {
     console.log(`── ${failures.length} CONTRAST FAILURES ─────────────────────────────────────────\n`);
     for (const f of failures) {

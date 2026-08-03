@@ -135,7 +135,10 @@ phone preview is literally the phone layout, not an approximation — and no ifr
 | `/AndrewAsh/work` + `/work/[slug]` | Project index and widget-built project pages |
 | `/AndrewAsh/about` | Story, timeline, credits, gallery |
 | `/AndrewAsh/contact` | The quote/sample request form |
-| `/AndrewAsh/p/[slug]` | Any custom page Andrew creates |
+| `/AndrewAsh/[slug]` | Any custom page Andrew creates |
+
+*The last row said `/p/[slug]` until 2026-08-02 and no route existed at either address — see defect 17.
+It is a bare slug now because that is the URL the studio was already generating and showing him.*
 
 **Pricing is published.** The single biggest reason a small business does not enquire is not knowing
 whether this is a $200 or a $2,000 decision. The contact form shows a live estimate as they type,
@@ -233,7 +236,8 @@ no CDN URLs, API quotas, and a ToS that does not contemplate it. Costed alternat
 **Login** username `juggernautjake` or email `jacobmaddux96@gmail.com`. Andrew has no account yet — he
 picks his own username, email and password via Studio → Settings → Team (`/api/voice/team`).
 
-**Database is LIVE.** Seeds 538, 539 and 540 are applied to production Supabase.
+**Database is LIVE.** Seeds 538, 539, 540 and 541 are applied to production Supabase
+(`node scripts/apply-seeds.mjs --only 541_voice_payment_methods.sql`).
 
 | # | Slice | Status |
 |---|---|---|
@@ -251,20 +255,77 @@ picks his own username, email and password via Studio → Settings → Team (`/a
 | 12 | API — auth, team, inquiries, uploads, pages, checklist | ✅ |
 | 13 | Inquiry form + script upload | ✅ built, **upload not yet exercised end to end** |
 | 14 | `npm run build` green | ✅ |
-| — | **Studio: inquiries, invoices, contracts, clients, expenses, documents, coaching, demos, media, settings** | ⛔ **NOT BUILT** — nav links 404 |
-| — | Client portal (contracts, e-sign, invoices, pay) | ⛔ NOT BUILT |
-| — | Stripe payment flow | ⛔ NOT BUILT |
-| — | PWA install + web push wiring | ⚠️ SW + manifest exist; subscribe UI not built |
-| — | Vitest for `lib/voice` pure logic | ⛔ NOT WRITTEN |
-| — | Contrast audit + 390px mobile QA sweep | ⛔ NOT RUN (script exists: `scripts/audit-voice-contrast.mjs`) |
+| 15 | Studio → Inquiries — list, tabs, detail, signed attachments, lead→client | ✅ 2026-08-02 |
+| 16 | Studio → Invoices — list, money tiles, builder, document view, payment ledger | ✅ 2026-08-02 |
+| 17 | Studio → Expenses — deduction-first tiles, category breakdown, fast entry, Schedule C mapping | ✅ 2026-08-02 |
+| 18 | Studio → Clients — activity-sorted list, lifetime value, portal token control | ✅ 2026-08-02 |
+| 19 | Studio → Contracts + public signing page — draft, send, e-sign with evidence, countersign | ✅ 2026-08-02 |
+| 20 | Studio → Settings — identity, theme picker with live contrast warnings, paperwork defaults, team accounts | ✅ 2026-08-02 |
+| 21 | Studio → Coaching — adoptable default rate card, inline price editing, one-tap lesson logging, lesson notes | ✅ 2026-08-02 |
+| 22 | Studio → Media, Demos, Documents — shared sequential uploader, copy-the-reference library, missing-reel prompts, private signed vault | ✅ 2026-08-02 |
+| — | **Every studio nav link now resolves — verified 13/13 at HTTP 200** | ✅ 2026-08-02 |
+| 23 | Client portal `/client/[token]` — one link showing a client's agreements and invoices together | ✅ 2026-08-02 |
+| 24 | Invoice pay page `/invoice/[token]` — document view, payment methods, "I've sent it", card via Stripe | ✅ 2026-08-02 |
+| 25 | Payment settings + client-declared payment confirmation in the studio | ✅ 2026-08-02 |
+| 26 | Vitest for `lib/voice` — 107 tests across money, payments, widgets, contracts, expenses | ✅ 2026-08-02 |
+| 27 | Contrast audit run — **941 text nodes across 7 routes × 2 viewports, every one clears WCAG AA** | ✅ 2026-08-02 |
+| 28 | 390px sweep of all 13 studio pages — **13/13 fit with no undersized controls** (`scripts/audit-voice-mobile.mjs`, new) | ✅ 2026-08-02 |
+| 29 | Web push — subscribe/unsubscribe panel + `/api/voice/push`; the granted path needs VAPID keys to exercise | ✅ built 2026-08-02 |
+| 30 | Custom pages reachable — `(site)/[slug]`, shadowed-slug guard, page-shaped scaffold | ✅ 2026-08-02 |
+
+### Verifying it again
+
+```
+npm run build && npx next start -p 3225          # audits need a built server
+node scripts/audit-voice-contrast.mjs  --base http://localhost:3225
+node scripts/audit-voice-mobile.mjs    --base http://localhost:3225 --user juggernautjake --pass '…'
+node scripts/audit-route-auth.mjs                # no server needed
+npx vitest run __tests__/voice/                  # 107 cases
+```
+
+### How payment works (read this before touching it)
+
+**Andrew's Stripe keys are not this repo's Stripe keys.** `STRIPE_SECRET_KEY` and
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` already exist here and belong to Starr Surveying. Reading them
+would route a client's payment for voice work into a surveying company's account — silently and
+correctly, as far as Stripe is concerned. So `lib/voice/payments.ts` reads `VOICE_`-prefixed
+variables **with no fallback**, and there is a test asserting exactly that. Card payment needs all
+three: `VOICE_STRIPE_SECRET_KEY`, `NEXT_PUBLIC_VOICE_STRIPE_PUBLISHABLE_KEY`, `VOICE_PAYMENTS_LIVE=true`
+(plus `VOICE_STRIPE_WEBHOOK_SECRET` for the webhook). None are set, so card is **off**, and Studio →
+Settings → Getting paid says so and names what is missing.
+
+Everything else works today with nothing configured. Andrew enters Zelle/Venmo/PayPal/cheque details
+in Settings; they appear on every invoice. A client presses "I've sent it", which writes a
+`va_payments` row with `status='pending'` and `declared_by_client=true` — **it does not move
+`paid_cents`**. Andrew sees it as "client says sent" and confirms with "It arrived", which is what
+moves the money. Verified end to end in a browser: pending → confirmed → `paid_cents` 95000, status
+`paid`.
+
+When card is switched on, only the **webhook** may mark an invoice paid — never the browser. The
+PaymentIntent id is stored in `reference` and checked before insert, because Stripe re-delivers events
+and a retry would otherwise double-credit the invoice.
 
 ### Next session starts here
 
-1. Build the ten missing studio pages. `StudioNav` already links to all of them, so they 404 today.
-   Order by value: **inquiries → invoices → expenses → contracts → clients → coaching → media →
-   demos → documents → settings**.
-2. Then the client portal + Stripe.
-3. Then tests, the contrast audit, and the 390px sweep.
+Everything the user asked for is built, and every audit has been run and is green.
+
+1. **Switch web push on** — needs a person, not code. `npx web-push generate-vapid-keys`, then set
+   `NEXT_PUBLIC_VOICE_VAPID_KEY`, `VOICE_VAPID_PUBLIC_KEY` and `VOICE_VAPID_PRIVATE_KEY` on the host,
+   plus `npm i web-push`. Studio → Settings → Notifications says exactly this until they exist.
+
+   The subscribe flow is written and its *unconfigured*, *denied* and *unsupported* states were
+   checked in a browser. **The granted path cannot be exercised without real keys and is the one
+   thing on this platform not yet seen working end to end.**
+2. **Final push + merge** — the user's explicit instruction is one merge at the very end, because each
+   deploy costs money.
+3. Andrew's own account. He picks his username, email and password at the studio login.
+
+### What is waiting on a person, not on code
+
+Section 12's open questions — the real credits, the telephony client's name, whether the testimonials
+can be un-flagged — plus his contact details and coaching rates. And the payment handles: Studio →
+Settings → Getting paid starts empty on purpose, so until Andrew fills it in, an invoice tells the
+client to reply to his email.
 
 ### Defects found and fixed during the build
 
@@ -295,6 +356,55 @@ picks his own username, email and password via Studio → Settings → Team (`/a
    `lib/voice/slug.ts` and `lib/voice/upload-rules.ts`. **Always run `npm run build` before merging.**
 10. **`web-push` "Module not found" on every page load.** A bare `require()` in a try/catch is still
     statically analysed. Indirected through a variable.
+11. **Every inline icon sat on its own line.** Starr's reset includes
+    `audio, canvas, embed, iframe, img, object, svg, video { display: block }`. Right for media,
+    wrong for icons — so "◇ Agreements" on the portal and every studio panel title rendered as a
+    glyph above its heading rather than beside it. One `:where(svg)` reset fixed the whole tenant.
+    *Same class as defect 1: the host stylesheet wins until a zero-specificity rule takes it back.*
+12. **Stacked invoice rows lost their numbers on a phone.** `.vaTable` carries `min-width: 480px` so
+    a real table can scroll inside `.vaTableWrap`. Once the mobile rules made the rows blocks, that
+    floor pushed every value 380px past the right edge — on screen it read as the labels having lost
+    their values, which is not a layout bug anyone would guess from the symptom. Fixed with
+    `min-width: 0` in the same media query. *Found by measuring `getBoundingClientRect()`, not by
+    looking.*
+13. **A white band under short pages.** The host `<body>` is white and the pages with no site footer
+    (invoice, portal, signing) end before the viewport does. `.vaRoot` now has `min-height: 100vh`.
+14. **The whole studio scrolled sideways on a phone, because of an email address.**
+    `jacobmaddux96@gmail.com` is one unbreakable 175px token in a flex table cell that could not
+    shrink. It widened its row, its table, the `.vaStudio` grid, and finally the fixed bottom nav —
+    which is `100%` of a parent that was now 445px. **The sweep named the NAV and listed the cell
+    last**: an overflow propagates outward, so the thing that looks broken is never the cause. The
+    audit now sorts offenders narrowest-first for that reason.
+15. **`.vaGuideSources` had no CSS at all.** The citation block under every pricing figure in the
+    business guide — the thing that makes "charge $650 for a regional spot" credible — was rendering
+    as a bare paragraph with default browser links. Nobody saw it because it sits at the bottom of a
+    long section. The mobile sweep found it by measuring a 21px link.
+16. **The contrast audit passed without measuring anything.** Its first-ever run hit a server on the
+    wrong port, loaded zero routes, found zero failures, and printed
+    "✓ Every measurable text node clears WCAG AA." A green tick for an audit that never ran is worse
+    than a red one. Zero measurements is now an explicit failure. *(Then the real run: 941 nodes, all
+    passing.)*
+
+17. **Custom pages had no URL — the headline feature stopped one route short.** The builder created
+    `kind: 'page'` rows and Studio → Pages linked to them at `/AndrewAsh/<slug>`; nothing served that
+    path. Andrew could build a page, publish it, click the address the studio showed him, and land on
+    a 404. Every individual piece existed and worked, so nothing ever failed — **the hole was in the
+    seam**, and it took reading this doc's route table against `find app/AndrewAsh -name page.tsx` to
+    see it. Fixed by `(site)/[slug]/page.tsx`.
+
+    Two consequences worth recording:
+
+    - **Some static routes may be shadowed and some may not**, and the difference is not "does a route
+      exist" but "does that route read `va_pages`". `about` and `work` are `SystemPage`, which prefers
+      Andrew's row — that IS adopting a built-in page, so blocking those slugs would break the feature
+      the guard protects. `studio`, `login`, `client`, `invoice`, `contract`, `api` and `p` never
+      consult the table and would swallow a page silently and permanently. Only those are in
+      `SHADOWED_SLUGS`. **A test written against the real `DEFAULT_PAGES` list caught me having put
+      `work` on the wrong side of that line.**
+    - **A page was being seeded with project scaffolding** — a "Project" eyebrow, a player captioned
+      "The finished spot", and a Client/Role/Delivered spec list. On a page about his rates that is
+      not a head start, it is five blocks to delete before he can begin, which is where a person
+      decides the builder is fighting them. `newPageBlocks` now exists.
 
 ## 11. Sources
 
