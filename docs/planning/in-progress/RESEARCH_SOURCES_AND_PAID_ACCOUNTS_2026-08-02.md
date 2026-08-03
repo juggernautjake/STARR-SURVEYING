@@ -275,4 +275,8 @@ divergence is a question rather than a rounding error.
 
 **S-6 is DONE** (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns 1,523 grants;
 Bell + grantee DUNCAN returns 5, with GLO record ids and free PDFs. S-7 (Avenu aggregator) is the
-next unblocked slice, then S-11/S-12 (two modes + document identity).
+next unblocked slice.
+
+**S-12 is DONE** (2026-08-02): `worker/src/research/document-identity.ts` — cross-vendor document
+identity, the near-miss rule, and `DocumentIndex.decide()` which fails toward buying. S-11 (the two
+run modes) now has the piece it depended on.
