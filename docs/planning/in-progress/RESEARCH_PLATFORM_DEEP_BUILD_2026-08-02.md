@@ -2150,8 +2150,37 @@ Bosque's two free windows are now both driven — QuickLink 1847–1905 and iDoc
 validated through 7/30/2026 — with the century-wide hole between them still recorded and warned
 about.
 
-**Not routed:** no adapter class exists for iDocMarket. The search runs; the platform cannot yet
-research this county. Seed 561.
+#### R39, fifteenth finding — the iDocMarket adapter, and an empty field that answered 182,715
+
+`IDocMarketAdapter` exists and Bosque routes to it. **Twenty-two counties are now served by a proven
+adapter, across six vendors.**
+
+**This is the one vendor that marks up its data properly.** Every other one in this build hid its
+data behind something, and each cost a wrong answer before it cost a fix — Kofile's department
+codes, Tyler's per-deployment search IDs and card layout, Avenu's flat cell sequence and
+trusted-click requirement, Aumentum's zero-size button and watermark field. iDocMarket puts the
+party **roles in the class names** (`.grantor-line` / `.grantee-line`), so nothing is inferred from
+position, marker letters or a summary string. That is why this adapter carries no trap comments and
+the others are full of them.
+
+**The bug that mattered was ours.** The first driven run returned 1,000 records reporting *"1000 of
+182,715 results"* — and none of them matched the search name. The page re-initialises its form
+*after* `DOMContentLoaded` and clears the inputs, so filling too early left the party field empty.
+**An empty party field does not fail on this vendor — it searches the entire county index.**
+
+So a name search answered with 182,715 unrelated records: a wrong answer wearing a very large
+number, and *more* convincing than an empty one because it looks like thorough work. Fixed by
+waiting for the form to settle and **verifying the field holds the term before submitting** — the
+same guard Aumentum's watermark needed. With it: **99 records, "all 99 result(s) returned"**, every
+party actually matching.
+
+Bosque still has its hole: this adapter covers the modern index only (2012→), the historical
+QuickLink portal has no adapter, and 1906–2011 is in neither. `bosqueGapWarning()` fires on any
+search reaching into that century.
+
+**Not built:** instrument-number, book/page and legal-description search (fields exist, undriven);
+image retrieval (`viewDoc` token, charged); pagination past the 1,000-row page, with any shortfall
+reported exactly. Seed 562 supersedes 561.
 
 #### Survey results, 2026-08-02 (seed 541)
 

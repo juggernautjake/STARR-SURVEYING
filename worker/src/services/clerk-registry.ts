@@ -27,6 +27,7 @@ import { TYLER_EAGLE_PORTALS } from '../adapters/tyler-eagle-discovery.js';
 import { USLandRecordsAdapter } from '../adapters/uslandrecords-adapter.js';
 import { USLR_COUNTIES } from '../adapters/uslandrecords-discovery.js';
 import { AumentumClerkAdapter, AUMENTUM_COUNTIES } from '../adapters/aumentum-clerk-adapter.js';
+import { IDocMarketAdapter } from '../adapters/idocmarket-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
@@ -99,7 +100,13 @@ export const KOFILE_FIPS_SET = new Set<string>([
 //
 // Move a vendor into this set only after probing its base URLs — the same rule the Kofile list now
 // carries, and for the same reason.
-const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec', 'tyler', 'uslandrecords', 'aumentum']);
+const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec', 'tyler', 'uslandrecords', 'aumentum', 'idocmarket']);
+
+/** iDocMarket — Bosque only inside the ring, driven 2026-08-02 (plan R39).
+ *
+ *  Bosque ALSO has a free historical portal (Kofile QuickLink, 1847–1905) with no adapter. This set
+ *  covers the modern index; bosqueGapWarning() covers the century between them. */
+export const IDOCMARKET_FIPS_SET = new Set<string>(['48035']);
 
 /** Harris Recording Solutions / Aumentum Recorder — Bastrop, driven 2026-08-02 (plan R39).
  *
@@ -182,6 +189,16 @@ export function getClerkAdapter(
     return new AumentumClerkAdapter(countyFIPS, countyName);
   }
 
+  // Priority 2d: iDocMarket — Bosque, driven (R39).
+  //
+  // Bosque has TWO free portals and this adapter covers only the modern one (2012→). Its historical
+  // index (Kofile QuickLink, 1847–1905) has no adapter, and the century between them is in neither.
+  // `bosqueGapWarning()` fires on any search reaching into that hole, so the gap is stated rather
+  // than silently answered with nothing.
+  if (IDOCMARKET_FIPS_SET.has(countyFIPS) && isVendorProven('idocmarket')) {
+    return new IDocMarketAdapter(countyFIPS, countyName);
+  }
+
   // Priority 3: CountyFusion/Cott Systems (~40+ counties, index-only)
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) {
     return new CountyFusionAdapter(countyFIPS, countyName);
@@ -224,6 +241,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (EDOCTEC_FIPS_SET.has(countyFIPS) && isVendorProven('edoctec')) return 'edoctec';
   if (USLR_FIPS_SET.has(countyFIPS) && isVendorProven('uslandrecords')) return 'uslandrecords';
   if (AUMENTUM_FIPS_SET.has(countyFIPS) && isVendorProven('aumentum')) return 'aumentum';
+  if (IDOCMARKET_FIPS_SET.has(countyFIPS) && isVendorProven('idocmarket')) return 'idocmarket';
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) return 'countyfusion';
   if (TYLER_EAGLE_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
   if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) return 'henschen';
@@ -233,7 +251,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
 }
 
 export type ClerkSystem =
-  | 'kofile' | 'edoctec' | 'uslandrecords' | 'aumentum' | 'countyfusion' | 'tyler'
+  | 'kofile' | 'edoctec' | 'uslandrecords' | 'aumentum' | 'idocmarket' | 'countyfusion' | 'tyler'
   | 'henschen' | 'idocket' | 'fidlar' | 'texasfile';
 
 /**
@@ -255,6 +273,7 @@ export function registrySummary(): Record<ClerkSystem, number> {
     edoctec:      EDOCTEC_FIPS_SET.size,
     uslandrecords: USLR_FIPS_SET.size,
     aumentum:     AUMENTUM_FIPS_SET.size,
+    idocmarket:   IDOCMARKET_FIPS_SET.size,
     countyfusion: COUNTYFUSION_FIPS_SET.size,
     tyler:        TYLER_EAGLE_FIPS_SET.size,
     henschen:     HENSCHEN_FIPS_SET.size,
@@ -263,7 +282,7 @@ export function registrySummary(): Record<ClerkSystem, number> {
     // TexasFile covers all 254; show the remainder not covered by named systems
     texasfile: Math.max(
       0,
-      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - USLR_FIPS_SET.size - AUMENTUM_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
+      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - USLR_FIPS_SET.size - AUMENTUM_FIPS_SET.size - IDOCMARKET_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
         - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
     ),
   };
