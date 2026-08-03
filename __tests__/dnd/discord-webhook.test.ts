@@ -148,7 +148,19 @@ describe('the credential does not leak', () => {
     const route = read('app/api/dnd/campaigns/[id]/route.ts');
     expect(route).toContain("discordWebhook: role === 'dm' ? maskWebhookUrl(");
     // The main campaign select must not name the column at all.
-    expect(route).toContain(".select('id, name, blurb, theme, created_at')");
+    //
+    // ASSERTS THE ABSENCE, not one exact string. This used to pin the literal
+    // `.select('id, name, blurb, theme, created_at')`, which made it fail the moment P14-10 added
+    // `thumbnail_url` to that list — a legitimate, unrelated widening. The rule being protected is
+    // "the webhook column is never selected here", and a test that breaks on every other column
+    // added is a test people fix by pasting in the new string, which is how the real guard gets
+    // pasted away. Both selects in this file are checked, so a NEW one cannot skip the rule either.
+    // The rule is about the SHARED campaign read — the one that fetches `name`/`blurb` and is returned
+    // to every member. The route also has a deliberate DM-only `.select('discord_webhook_url')` for the
+    // masked value, so a blanket "no select mentions it" is the wrong rule and fails on the real one.
+    const shared = (route.match(/\.select\('[^']*'\)/g) ?? []).filter((s) => s.includes('name'));
+    expect(shared.length).toBeGreaterThan(0);
+    for (const s of shared) expect(s).not.toContain('discord_webhook_url');
   });
 
   it('and the manage page masks it SERVER-side, before it reaches a client prop', () => {

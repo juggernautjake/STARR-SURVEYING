@@ -23,6 +23,9 @@
 //   --axis formats  (default) every skin × every format, at the character's current theme
 //   --axis themes             every skin × every theme, in Classic
 //   --axis all                every skin × format × theme — 100 cells, slow, for a full review
+//   --axis rollers            every skin × theme × ROLLER TEMPLATE (P14-9) — opens the dock, picks each
+//                             of the four rollers, photographs the DOCK, and measures contrast scoped to
+//                             it. This is the axis for "the rollers are hard to read".
 //
 // Output: .audit/contact/<axis>-<width>/index.html
 import { chromium } from 'playwright';
@@ -45,6 +48,29 @@ if (!CHARACTER) {
 
 const OUT = path.join('.audit', 'contact', `${AXIS}-${WIDTH}`);
 fs.mkdirSync(OUT, { recursive: true });
+
+// ── THE ROLLER AXIS (P14-9) ──────────────────────────────────────────────────────────────────────────
+//
+// Owner: *"some of the styling for the rollers … is hard to read and understand. And some of the
+// animations and roller templates look bad."* A screen recording was supplied that could not be opened,
+// and the slice's own instruction is **do not guess from the description** — so this measures instead.
+//
+// The roller is a FOURTH axis, chosen independently of the sheet template, and it had no coverage here at
+// all: every existing cell screenshots a sheet with the dock CLOSED. Four templates × five skins × their
+// themes is exactly the sort of matrix this file already exists to make judgeable.
+//
+// Two things make the roller different from a sheet cell, and both are why this is a mode rather than one
+// more value in the `formats` loop:
+//   · The dock has to be OPENED, and each template picked on the roller's own picker, not the page's.
+//   · Contrast must be scoped to the dock. Measured across the whole page, a dozen unreadable labels
+//     inside a floating panel vanish into a denominator of several hundred — which is very likely why a
+//     defect the owner can see on a video has never appeared in this tool's output.
+const ROLLER_NAMES = ['Dice Core', 'Sigil Stack', 'Roll Board', 'Impact'];
+/** The dock's own element. `.fld` is the floating-roller container (see `floatingRoller.css`); the
+ *  `roller-tab-contrast` test's whole history is about this element resolving a near-WHITE gradient on a
+ *  light skin, so it is the right thing to both photograph and measure. */
+const ROLLER_ROOT = '.fld';
+const CONTRAST_ROOT = AXIS === 'rollers' ? ROLLER_ROOT : null;
 
 /**
  * Click a picker chip and CONFIRM it took, by polling its own `aria-pressed`.
@@ -151,15 +177,59 @@ const skipped = [];
 // Skin is the OUTER loop and its themes are read after it is applied, because the theme list belongs to
 // the skin: Hextech offers five, Magical Streamer offers two. Collecting themes once from the starting
 // skin and replaying them everywhere would ask four skins for options they do not have.
+/**
+ * Open the floating roller dock, and wait for its TEMPLATE BAR to be visible.
+ *
+ * THE TEST IS VISIBILITY OF THE BAR, NOT EXISTENCE OF `.fld`, and that distinction is the whole bug this
+ * function was written wrong around twice. A MINIMIZED dock collapses to a corner dice FAB (`floatingRoller.css`,
+ * "minimized: the bottom-right dice FAB") but **`.fld` still exists in the DOM** — so an existence check
+ * returns "already open", the opener is never clicked, and every subsequent chip click fails with
+ * "element is not visible". That is what skipped all 100 cells on three consecutive runs while reporting
+ * a picker problem, which is a confident wrong answer about the wrong component.
+ */
+async function openRollerDock(page) {
+  const bar = page.locator('[aria-label="Roller style"]').first();
+  if (await bar.isVisible().catch(() => false)) return true;
+  const opener = page.locator('[aria-label^="Open "]').first();
+  if (await opener.count()) await opener.click({ timeout: 4000 }).catch(() => {});
+  return bar.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
+}
+
+/** Pick a roller template on the roller's OWN picker (`aria-label="Roller style"`), confirming it took.
+ *  Scoped to that bar rather than to the page, because the sheet's format chips are also `aria-pressed`
+ *  buttons and a page-wide text match would happily press the wrong one. */
+async function pickRoller(page, label) {
+  const bar = page.locator('[aria-label="Roller style"]');
+  if (!(await bar.count())) return false;
+  // MATCHED ON `title`, not on the accessible name, and that is the third selector this needed. The
+  // chips render "⬡ Dice Core" on a freshly-loaded sheet — but after a skin or format switch they come
+  // back ICON-ONLY, with empty `innerText`, so every name-based match found nothing and all 40 cells
+  // skipped with "would not apply". `title={`${label} — ${blurb}`}` is set unconditionally in
+  // `RollerTemplateBar.tsx` and survives that collapse, so it is the one stable hook.
+  const chip = bar.locator(`button[title^="${label}"]`).first();
+  if (!(await chip.count())) return false;
+  await chip.click({ timeout: 4000 }).catch(() => {});
+  // POLLED, exactly like `pick()` above and for the same reason: the click lands before React commits, so
+  // reading `aria-pressed` once immediately after it returns `false` for a chip that is about to be
+  // pressed. Reading it once is what made the second run of this axis skip all 40 cells.
+  for (let i = 0; i < 20; i += 1) {
+    const on = await chip.getAttribute('aria-pressed').catch(() => null);
+    if (on === 'true') return true;
+    await page.waitForTimeout(150);
+  }
+  return false;
+}
+
 for (const skin of axes.skins) {
   if (!(await pick(page, skin))) { skipped.push(`${skin} (skin would not apply)`); continue; }
   const themes = AXIS === 'formats' ? [null] : (await readAxes(page)).themes;
-  const formats = AXIS === 'themes' ? [axes.formats[0]] : axes.formats;
+  const formats = AXIS === 'themes' || AXIS === 'rollers' ? [axes.formats[0]] : axes.formats;
   if (AXIS !== 'formats') console.log(`  ${skin}: ${themes.length} theme(s) — ${themes.join(', ')}`);
 
-  for (const format of formats) for (const theme of themes) {
-  const cell = { skin, format, theme };
-  const name = [slug(skin), slug(format), theme ? slug(theme) : ''].filter(Boolean).join('__');
+  const rollers = AXIS === 'rollers' ? ROLLER_NAMES : [null];
+  for (const format of formats) for (const theme of themes) for (const roller of rollers) {
+  const cell = { skin, format, theme, roller };
+  const name = [slug(skin), slug(format), theme ? slug(theme) : '', roller ? slug(roller) : ''].filter(Boolean).join('__');
   process.stdout.write(`  ${name} … `);
   try {
     // Re-asserted every cell: switching format or theme can remount the picker and drop the skin.
@@ -185,20 +255,39 @@ for (const skin of axes.skins) {
       if (!live.includes(want)) throw new Error(`page shows [${live.join(', ')}], not "${want}"`);
     }
 
+    // P14-9 — on the roller axis, open the dock and select this cell's template BEFORE the shot, and
+    // photograph the DOCK rather than the page. A full-page screenshot of a sheet with a small panel
+    // floating over it is not a picture anyone can judge a roller from.
+    let rollerShot = null;
+    if (AXIS === 'rollers') {
+      if (!(await openRollerDock(page))) { skipped.push(`${name} — roller dock would not open`); console.log('SKIPPED — no dock'); continue; }
+      if (!(await pickRoller(page, cell.roller))) { skipped.push(`${name} — roller "${cell.roller}" would not apply`); console.log('SKIPPED — roller did not take'); continue; }
+      // The templates animate in. Without a settle the shot catches a half-played tumble and every cell
+      // looks "bad" for a reason that is the harness's fault rather than the design's.
+      await page.waitForTimeout(700);
+      rollerShot = page.locator(ROLLER_ROOT).first();
+    }
+
     const file = path.join(OUT, `${name}.jpeg`);
-    await page.screenshot({ path: file, type: 'jpeg', quality: 78 });
+    await (rollerShot ?? page).screenshot({ path: file, type: 'jpeg', quality: 78 });
 
     // THE FINGERPRINT IS WHAT MAKES P11-3/P11-4 CHECKABLE. "Are my five skins actually different" and
     // "does this theme change anything" are questions about resolved colour, and reading them off the
     // page beats squinting at a hundred JPEGs — two cells that resolve to identical tokens ARE identical,
     // whatever the picker claims. Collisions are reported at the end.
-    const tokens = await page.evaluate(() => {
+    const tokens = await page.evaluate((rollerSel) => {
       // `[class*="skin-"]` is where the tokens are actually DEFINED. The first version probed
       // `.sheet-shell`, which does not exist on this page, so every cell fell back to `document.body` —
       // and body inherits nothing, so all 22 cells fingerprinted identically and the tool cheerfully
       // reported that five visibly different skins were the same. A probe that misses is not a null
       // result, it is a confident wrong answer.
-      const root = document.querySelector('[class*="skin-"]') ?? document.querySelector('.sheet-shell') ?? document.body;
+      // ON THE ROLLER AXIS, FINGERPRINT THE DOCK. The four rollers share one sheet, so a skin-rooted
+      // fingerprint is byte-identical across all four of them and the collision report screams that 20
+      // visibly different cells "resolve IDENTICALLY" — a confident wrong answer of exactly the kind the
+      // note below was written about, just from the other direction. Rooted at the dock it answers the
+      // question the roller axis is actually for: *do the four templates resolve differently at all?*
+      const root = (rollerSel ? document.querySelector(rollerSel) : null)
+        ?? document.querySelector('[class*="skin-"]') ?? document.querySelector('.sheet-shell') ?? document.body;
       const cs = getComputedStyle(root);
       const vars = ['--hx-gold-1', '--hx-gold-2', '--hx-teal-1', '--hx-text', '--hx-muted', '--hx-line', '--hx-bg-0', '--hx-font-display'];
       const out = {
@@ -209,7 +298,7 @@ for (const skin of axes.skins) {
       };
       for (const v of vars) { const got = cs.getPropertyValue(v).trim(); if (got) out[v] = got; }
       return out;
-    });
+    }, AXIS === 'rollers' ? ROLLER_ROOT : null);
 
     // THE LAYOUT FINGERPRINT (P11-2) — the structural twin of the token fingerprint above. "Do Classic,
     // Codex, Dashboard and Play actually differ in LAYOUT, or only in decoration" is answerable the same
@@ -253,7 +342,7 @@ for (const skin of axes.skins) {
     // Per cell rather than per skin, because P11-3 changed what a theme does: the accents are now clamped
     // against each SKIN's ground, so the pairing that has to hold is (skin × theme × format), and only a
     // sweep of the whole matrix can show it does.
-    const contrast = await page.evaluate(() => {
+    const contrast = await page.evaluate((rootSel) => {
       const parse = (c) => { const m = (c || '').match(/[\d.]+/g); if (!m || m.length < 3) return null;
         return { r: +m[0], g: +m[1], b: +m[2], a: m[3] != null ? +m[3] : 1 }; };
       const over = (t, b) => ({ r: t.r * t.a + b.r * (1 - t.a), g: t.g * t.a + b.g * (1 - t.a), b: t.b * t.a + b.b * (1 - t.a), a: 1 });
@@ -296,7 +385,13 @@ for (const skin of axes.skins) {
         }
         return false;
       };
-      const rows = [...document.querySelectorAll('*')]
+      // SCOPED, since P14-9. The sweep measured the whole page, which is right for a sheet cell and wrong
+      // for a roller: the dock is a few dozen elements floating over a page of hundreds, so its failures
+      // were a rounding error in the denominator and never surfaced. Rooting the probe at the dock is what
+      // makes "the roller is hard to read" answerable at all. `?? document` rather than an empty result —
+      // a probe that misses is a confident wrong answer, which is note (3) of this file's own method.
+      const scope = rootSel ? (document.querySelector(rootSel) ?? document) : document;
+      const rows = [...scope.querySelectorAll('*')]
         .filter((e) => e.children.length === 0 && (e.innerText || '').trim().length > 1)
         .filter((e) => isRendered(e) && !inClosedDetails(e))
         .map((e) => { const cs = getComputedStyle(e);
@@ -318,7 +413,7 @@ for (const skin of axes.skins) {
       const fails = rows.filter((x) => !x.pass);
       // The denominator ships with the verdict: "0 failing" is meaningless if it sampled 0 elements.
       return { sampled: rows.length, failing: fails.length, worst: fails.slice(0, 4) };
-    });
+    }, CONTRAST_ROOT);
 
     // Overflow is measured per cell too: a format can be fine at one skin and broken at another, and this
     // is the cheapest place to notice. Uses the SHARED detector — this file's own copy knew about scroll

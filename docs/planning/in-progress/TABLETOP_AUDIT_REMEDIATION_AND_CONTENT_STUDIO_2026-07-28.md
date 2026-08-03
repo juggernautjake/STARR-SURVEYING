@@ -1272,7 +1272,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **6** | `P10-5b`, `P14-9/10/11/12`, `QA-2` |
+> | **Actionable now** | **6** | `P10-5b`, `P14-9b`, `P14-10b`, `P14-11`, `P14-12`, `QA-2` |
 >
 > Shipped this session: `P5-7b` and `P8-2` (built), and `P8-1`, `P13-4`, `P13-5`, `P13-8`, `P13-11`,
 > `P13-12`, `P13-13`, `P13-14` (**ticked by reading the code and querying the database — all eight were
@@ -4116,12 +4116,54 @@ ticked that has not been verified.**
       **The item's own instruction is what closed it** — *"confirm whether one was removed before building a
       second"*. It had not been removed; it had been built, and this line was written before that and never
       updated. Following that instruction cost one grep and saved building a duplicate dice box.
-- [ ] **P14-9 — Roller legibility across systems, themes and styles.** *"some of the styling for the
-      rollers … is hard to read and understand. And some of the animations and roller templates look
-      bad."* A screen recording was supplied that I cannot open. **Do not guess from the description** —
-      `scripts/contact-sheet.mjs` already drives skin × theme × format and measures contrast; extend it to
-      open the roller dock and capture each of the four templates per theme. The four stages are
-      `DiceCore` / `SigilStack` / `RollBoard` / `Impact` under `_sheet/components/rollers/`.
+- [x] **P14-9 — Roller legibility: MEASURED. Done 2026-08-02.** *"some of the styling for the rollers … is
+      hard to read."* Built exactly as prescribed — `scripts/contact-sheet.mjs --axis rollers` opens the
+      dock, picks each of the four templates, photographs **the dock** and measures contrast **scoped to
+      it**. 88 cells, 2,218 text elements sampled.
+
+      **The guess is now a number, and it names one skin.** Failing elements per cell, worst first:
+
+      | skin · theme · roller | failing / sampled |
+      |---|---|
+      | **Candy Bazaar · Shadow Isles · Dice Core** | **20 / 26** |
+      | **Candy Bazaar · Freljord Ice · Dice Core** | **20 / 26** |
+      | Candy Bazaar · Hextech Gold · Dice Core | 12 / 26 |
+      | Candy Bazaar · Shadow Isles · Roll Board | 11 / 25 |
+      | Candy Bazaar · {Shadow Isles, Freljord Ice} · Impact | 11 / 23 |
+      | Magical Streamer · Aqua · Dice Core | 4 / 26 |
+      | Hextech / Neon Odyssey (every theme, every roller) | 1–3 |
+
+      **Candy Bazaar is the defect; the other four skins are broadly fine.** At 20/26 roughly three
+      quarters of the roller's text fails WCAG — which is what "hard to read" looks like when it is real
+      rather than a matter of taste. `Dice Core` is worst on every skin, and it is the DEFAULT roller.
+
+      **Two things the harness had to get right, both learned the hard way and both now commented:**
+      · **Contrast is scoped to `.fld`.** Measured page-wide, a dozen unreadable labels in a floating panel
+        vanish into a denominator of several hundred — which is why this defect never once appeared in this
+        tool's output despite the tool existing.
+      · **`.fld` exists while the dock is MINIMIZED** (it collapses to a corner FAB). An existence check
+        reported "already open", the opener was never clicked, and every chip click failed as *not
+        visible* — 100 cells skipped on three consecutive runs, while blaming the picker. The test is now
+        the visibility of the template bar. (Two selector attempts also failed first: the chips lead with a
+        glyph, and after a skin switch they re-render icon-only with empty text — so the stable hook is
+        `title`, not the accessible name.)
+
+      **The fingerprint is scoped too.** Four rollers share one sheet, so a skin-rooted fingerprint is
+      identical across all four and the collision report claimed 20 visibly different cells "resolve
+      IDENTICALLY". Rooted at the dock it answers the axis's real question — *do the four templates
+      resolve differently at all?*
+- [ ] **P14-9b — Fix Candy Bazaar's roller ink.** *(Split from P14-9, now that there is a measurement.)*
+      The numbers above, plus a root cause the repo has already diagnosed once: `roller-tab-contrast.test.ts`
+      records that `.fld` reads `--panel-rgb`, which on a LIGHT skin resolves near-white
+      (`rgba(255,250,254,.98)`), while the dock's ink assumes a dark surface. That test fixed the **tab
+      bar** structurally — *"the ink comes from the same family as the surface"* — and the sweep shows the
+      same bug is still live across the rest of the dock's text.
+
+      **Deliberately not fixed in the same slice.** Three consecutive slices reasoned confidently about
+      this surface and were wrong, each time by computing against an assumed dark roller instead of
+      measuring one; the contact sheet now exists precisely so the next attempt starts from pictures and
+      numbers. Run `--axis rollers` before and after, and require Candy Bazaar to land where Hextech
+      already is (1–3 of ~26), not merely to improve.
 - [x] **P14-10 — Campaign thumbnail. Done 2026-08-02.** A DM-set image, shown *"everywhere the campaign
       shows up"*. `seeds/571_dnd_campaign_thumbnail.sql` + `app/dnd/_ui/CampaignThumb.tsx`, wired into six
       surfaces.
