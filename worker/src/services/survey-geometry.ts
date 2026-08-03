@@ -40,7 +40,13 @@ export function parseBearing(raw: string | null | undefined): Bearing | null {
   if (!s) return null;
 
   // Quadrant form. Degree/minute/second separators are whatever the scan produced.
-  const q = /^([NS])\s*(\d{1,3}(?:\.\d+)?)\s*(?:[°º*o:\-\s]\s*(\d{1,2}(?:\.\d+)?))?\s*(?:['´′:\-\s]\s*(\d{1,2}(?:\.\d+)?))?\s*["”″']*\s*([EW])/i.exec(s);
+  // The degree mark is its OWN optional group, separate from the minutes.
+  //
+  // It used to be one of the minutes separators, which meant the symbol could only appear if digits
+  // followed it — so `N 45° E`, an ordinary degrees-only call on an older plat, did not parse at
+  // all. That returned null, which is the safe direction, but it made a legible bearing unreadable
+  // and dropped the call from every figure. Found by testing the claim rather than asserting it.
+  const q = /^([NS])\s*(\d{1,3}(?:\.\d+)?)\s*(?:[°º*o]\s*)?(?:[:\-\s]*\s*(\d{1,2}(?:\.\d+)?))?\s*(?:['´′:\-\s]\s*(\d{1,2}(?:\.\d+)?))?\s*["”″']*\s*([EW])/i.exec(s);
   if (q) {
     const deg = parseFloat(q[2]);
     const min = q[3] ? parseFloat(q[3]) : 0;

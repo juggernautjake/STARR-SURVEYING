@@ -3503,6 +3503,50 @@ the reason with it. It now asserts on the code form.
 
 Worker suite 81 files / 1,361 tests; root 1,468 files; typecheck clean.
 
+#### Third of the same kind: a bearing the drawing could not read was drawn due north
+
+`worker/src/reports/svg-renderer.ts` kept its own bearing regex and `return 0`'d on failure — twice,
+once for no match and once for an unrecognised quadrant. **Zero is due north.** So an unreadable call
+was drawn as a real line heading north at its stated distance, and because a traverse is cumulative,
+that single call rotated every corner after it. The figure looked like a boundary. This is the
+report a surveyor takes to the field, and a corner invented by a failed parse is worse than a corner
+missing from the drawing, because nothing about it looks wrong.
+
+`bearing-rotation.ts` had already written down why this must not exist: *"One bearing grammar in the
+codebase — survey-geometry's. A second parser here would drift from it, and the two would disagree
+about exactly the malformed bearings that matter."* The renderer **was** that second parser, and it
+had drifted — its regex *required* minutes, so `N 45° E`, an ordinary degrees-only call on an older
+plat, never matched and became due north.
+
+It now delegates to `parseBearing`, and both walks skip a call they cannot read rather than advancing
+the pen. The drawing prints **INCOMPLETE — N call(s) could not be read and are NOT drawn** on its own
+face, because whoever reads it in a truck is not reading a log.
+
+**And the test found a real gap in the canonical parser, not just in the renderer.** I asserted that
+`parseBearing` handled degrees-only; it did not. The degree mark was one of the *minutes separators*,
+so the symbol could only appear if digits followed it, and `N 45° E` returned null. Safe direction —
+but it made a perfectly legible bearing unreadable and dropped the call from every figure that used
+it. The degree mark is now its own optional group. That gap existed because the claim had never been
+tested, only stated.
+
+`parseDelta` in the same file had a milder version of the identical defect: a failed parse returned 0,
+and the only use is `delta > 180`, which chooses the major or minor arc — so a 200° curve was drawn
+bulging the wrong way. The endpoints come from the traverse and stay correct, so this is a labelling
+problem rather than a position one; the annotation now says **Δ UNREADABLE — arc direction assumed**
+instead of the drawing silently claiming a shape it could not compute.
+
+**Three slices, three instances of one defect class**, and it is worth naming beside the reachability
+check because that check cannot catch it: every file involved was wired and running. What they
+disagreed about was the *rule*.
+
+| | duplicates | how they differed |
+|---|---|---|
+| closure thresholds | 3 | one called itself the single source of truth and had no importers |
+| the Texas vara | 6 | two were labelled "exact" and were not |
+| bearing parsing | this | one returned 0 — due north — where the canonical one returns null |
+
+Worker suite 82 files / 1,375 tests; root 1,468 files; `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

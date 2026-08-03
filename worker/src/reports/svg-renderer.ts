@@ -5,6 +5,7 @@
 //
 // Spec §10.4 — SVG Boundary Renderer
 
+import { parseBearing } from '../services/survey-geometry.js';
 import type {
   ReportConfig,
   ProjectData,
@@ -34,23 +35,34 @@ function confidenceColor(score: number): string {
   return '#EF4444';
 }
 
-function bearingToAzimuth(bearing: string): number {
-  const m = bearing?.match(
-    /([NS])\s*(\d+)[°]\s*(\d+)[''′]\s*([\d.]+)?[""″]?\s*([EW])/i,
-  );
-  if (!m) return 0;
-  const decimal =
-    parseInt(m[2]) + parseInt(m[3]) / 60 + parseFloat(m[4] || '0') / 3600;
-  const ns = m[1].toUpperCase();
-  const ew = m[5].toUpperCase();
-  if (ns === 'N' && ew === 'E') return decimal;
-  if (ns === 'S' && ew === 'E') return 180 - decimal;
-  if (ns === 'S' && ew === 'W') return 180 + decimal;
-  if (ns === 'N' && ew === 'W') return 360 - decimal;
-  return 0;
+/** Azimuth of a bearing, or **null** when it cannot be read.
+ *
+ *  ── WHY THIS RETURNS NULL, AND WHY IT NO LONGER HAS ITS OWN REGEX ──────────────────────────────
+ *
+ *  It used to `return 0` on an unparseable bearing — twice, once for no regex match and once for an
+ *  unrecognised quadrant. Zero is **due north**, so an unreadable call was drawn as a real line
+ *  heading north at its stated distance, and the resulting figure looked like a boundary. This is
+ *  the report a surveyor takes to the field; a corner invented by a failed parse is worse than a
+ *  corner missing from the drawing, because nothing about it looks wrong.
+ *
+ *  The old regex also *required* minutes (`(\d+)['′]`), so `N 45° E` — ordinary on older plats —
+ *  never matched and became due north. Two different failures, one silent symptom.
+ *
+ *  It now delegates to `survey-geometry.parseBearing`, which is the platform's single bearing
+ *  grammar and already returns null rather than a default. `bearing-rotation.ts` says why in its own
+ *  words: *"A second parser here would drift from it, and the two would disagree about exactly the
+ *  malformed bearings that matter."* This file was that second parser — and it did drift, because it
+ *  rejected forms the canonical one accepts. */
+function bearingToAzimuth(bearing: string): number | null {
+  return parseBearing(bearing)?.azimuthDeg ?? null;
 }
 
-function computeCorners(model: any, pobN = 0, pobE = 0): Point2D[] {
+/** Walk the perimeter into corners.
+ *
+ *  `unplaced` collects the calls that could not be read, so a caller can say the drawing is
+ *  incomplete rather than presenting a short figure as the property. An out-parameter rather than
+ *  module state, which this repo has been bitten by before. */
+function computeCorners(model: any, pobN = 0, pobE = 0, unplaced: number[] = []): Point2D[] {
   const corners: Point2D[] = [];
   let curN = pobN;
   let curE = pobE;
@@ -69,7 +81,15 @@ function computeCorners(model: any, pobN = 0, pobE = 0): Point2D[] {
       brg = call.reconciledBearing || '';
       dist = call.reconciledDistance || 0;
     }
-    const azRad = (bearingToAzimuth(brg) * Math.PI) / 180;
+    // A call we cannot read does not move the pen. Advancing by a defaulted azimuth would place
+    // this corner AND every corner after it, since the traverse is cumulative — one unreadable
+    // bearing used to rotate the entire remainder of the figure while looking correct.
+    const az = bearingToAzimuth(brg);
+    if (az === null) {
+      unplaced.push(corners.length);
+      continue;
+    }
+    const azRad = (az * Math.PI) / 180;
     curN += dist * Math.cos(azRad);
     curE += dist * Math.sin(azRad);
     corners.push({ x: 0, y: 0, northing: curN, easting: curE });
@@ -137,10 +157,17 @@ function lineAngle(
   return angle;
 }
 
-function parseDelta(delta: string): number {
-  const m = delta?.match(/(\d+)[°]\s*(\d+)[''′]\s*([\d.]+)/);
-  if (!m) return 0;
-  return parseInt(m[1]) + parseInt(m[2]) / 60 + parseFloat(m[3]) / 3600;
+/** Central angle in decimal degrees, or null when it cannot be read.
+ *
+ *  Milder than the bearing case but the same overloaded zero: the only use is `delta > 180`, which
+ *  decides whether SVG draws the major or the minor arc. A failed parse returned 0, silently
+ *  choosing the minor arc — so a 200° curve was drawn bulging the wrong way. The endpoints stay
+ *  correct (they come from the traverse), so the figure is not wrong in position, only in shape;
+ *  that is why this is a label rather than a dropped call. */
+function parseDelta(delta: string): number | null {
+  const m = delta?.match(/(\d+)\s*[°º]?\s*(?:(\d+)\s*['′]?\s*(?:([\d.]+)\s*["″]?)?)?/);
+  if (!m || !m[1]) return null;
+  return parseInt(m[1]) + parseInt(m[2] ?? '0') / 60 + parseFloat(m[3] ?? '0') / 3600;
 }
 
 function roundScaleBar(feet: number): number {
@@ -177,7 +204,8 @@ export class SVGBoundaryRenderer {
   }): string {
     const { model, confidence, discovery } = data;
     const conf = this.config.drawing;
-    const corners = computeCorners(model);
+    const unplacedCalls: number[] = [];
+    const corners = computeCorners(model, 0, 0, unplacedCalls);
     const ext = computeExtent(corners, conf.width, conf.height);
     const svgCorners = corners.map((c) => ({
       ...toSVG(c.northing, c.easting, ext),
@@ -280,9 +308,11 @@ export class SVGBoundaryRenderer {
         : conf.boundaryColor;
 
       if (call.type === 'curve' && call.reconciledCurve) {
-        const delta = parseDelta(call.reconciledCurve.delta || '0°00\'00"');
+        const delta = parseDelta(call.reconciledCurve.delta ?? '');
         const scaledR = call.reconciledCurve.radius * ext.scaleFactor;
-        const largeArc = delta > 180 ? 1 : 0;
+        // Unreadable delta falls back to the minor arc — SVG needs an answer — but the annotation
+        // below says the angle could not be read, so the shape is not presented as computed.
+        const largeArc = (delta ?? 0) > 180 ? 1 : 0;
         const sweep =
           (call.reconciledCurve.direction || 'right') === 'right' ? 1 : 0;
         parts.push(
@@ -292,7 +322,9 @@ export class SVGBoundaryRenderer {
           const mid = midpoint(startPt, endPt);
           const offset = sweep === 1 ? 15 : -15;
           parts.push(
-            `<text x="${mid.x}" y="${mid.y + offset}" class="curve-label" text-anchor="middle">R=${call.reconciledCurve.radius.toFixed(2)}' Δ=${call.reconciledCurve.delta}</text>`,
+            `<text x="${mid.x}" y="${mid.y + offset}" class="curve-label" text-anchor="middle">` +
+            `R=${call.reconciledCurve.radius.toFixed(2)}' Δ=${escapeXml(String(call.reconciledCurve.delta ?? ''))}` +
+            `${delta === null ? ' (Δ UNREADABLE — arc direction assumed)' : ''}</text>`,
           );
         }
       } else {
@@ -439,6 +471,23 @@ export class SVGBoundaryRenderer {
     );
     parts.push(`</g>`);
 
+    // ── What this drawing does NOT show ────────────────────────────────────────────────────
+    //
+    // On the face of the drawing rather than in a log, because whoever reads this in a truck is not
+    // reading a log. A figure missing calls is not the property, and previously it was not even
+    // missing them — the unreadable ones were drawn due north, so the shape was wrong in a way that
+    // looked deliberate.
+    if (unplacedCalls.length > 0) {
+      parts.push(
+        `<g transform="translate(20, ${conf.height - 30})">` +
+        `<rect x="-6" y="-14" width="${Math.min(conf.width - 28, 46 + unplacedCalls.length * 26)}" height="22" ` +
+        `fill="#FEF3C7" stroke="#B45309" stroke-width="1"/>` +
+        `<text x="0" y="0" style="font-family:Arial;font-size:11px;font-weight:bold;fill:#92400E">` +
+        `INCOMPLETE — ${unplacedCalls.length} call(s) could not be read and are NOT drawn. ` +
+        `This outline is not the full boundary.</text></g>`,
+      );
+    }
+
     parts.push(`</svg>`);
     return parts.join('\n');
   }
@@ -510,6 +559,9 @@ export class SVGBoundaryRenderer {
       const az = bearingToAzimuth(
         call.reconciledBearing || call.bearing || '',
       );
+      // Same rule as the perimeter: an unreadable bearing does not move the pen. Drawing a lot line
+      // due north because its bearing failed to parse puts a wrong line on a plat.
+      if (az === null) continue;
       const dist = call.reconciledDistance || call.distance || 0;
       const rad = (az * Math.PI) / 180;
       curN += dist * Math.cos(rad);
