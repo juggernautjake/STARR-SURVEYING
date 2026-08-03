@@ -584,6 +584,40 @@ been worth shipping.
   render an editable drawing from it. **This is the natural join between the two halves of the
   platform and the reason the research work this session ended where it did.**
 
+  #### ✅ S8a DONE 2026-08-03 — the reading becomes geometry (the pure half)
+
+  `lib/cad/import/from-survey-reading.ts`. The research worker walks a deed's calls and produces a
+  coordinate per corner, the monuments it found, the watercourses/roads/easements the sheet also
+  shows, and a confidence per finding. **Nothing in CAD could consume any of it** — a surveyor
+  re-typed calls by hand into a drawing the research side had already computed.
+
+  **Structurally typed, importing nothing from `worker/`.** The two projects have separate tsconfigs
+  and separate builds, and a cross-project type import is how the production build breaks while every
+  test stays green — which has happened here three times (`resolve.extensionAlias`). The input is
+  declared as the shape it needs; the worker's real `SurveyReading` satisfies it structurally and
+  neither build learns about the other. A test asserts no `worker/` import.
+
+  **The honesty rules ARE the design, because a drawing is the easiest place in this product to
+  render an unknown as an answer.** A closed polygon looks authoritative regardless of what built it.
+
+  | rule | why |
+  |---|---|
+  | **An incomplete traverse stays an open POLYLINE** | A boundary drawn from 8 of 10 calls is not a boundary with two gaps — it is a different shape that looks finished. Only a traverse with zero unusable calls closes into a POLYGON. |
+  | **Every unusable call is named with its reason** | `TraverseResult.unusable` exists because the worker refuses to skip a call quietly; the drawing must not undo that. |
+  | **Coordinates are relative and say so on each feature** | The worker starts at (0,0) and is explicit that state-plane position needs a measured tie. Lost in translation, a record sketch becomes a located survey. |
+  | **Confidence rides along** | A low-confidence call is still a low-confidence line after it becomes geometry. |
+  | **FOUND vs SET is preserved** | A found monument controls the corner; a set one is an opinion. |
+  | **Water / roads / easements are reported, never drawn** | The reading records *that* a 30 ft easement exists, not where it runs. Drawing it somewhere is invention — the difference between "we know there is an easement" and "here is the easement", and only the first is true. |
+  | **`notDrawn` is required, not optional** | A caller that ignores it presents an incomplete figure as a complete one. |
+
+  A non-traversable description (lot-and-block, reference-only) returns no features **and says why** —
+  an empty result with no explanation reads as "we found nothing".
+
+  16 tests. **What is NOT done:** wiring this into the CAD UI — an import action, a layer choice, and
+  a panel showing `notDrawn` before anything lands on the canvas. That is **S8b**, and it needs a
+  browser, which this session could not keep connected. Shipping the pure half alone is the risk this
+  repo names most often, so S8b should be next in CAD rather than later.
+
 - **S9. Compare against a prior survey.** Given a previous survey for the same lot, overlay and
   report differences. Depends on S8 and on the rotation work already shipped
   (`lib/research/rotation.service.ts`), which is what makes two surveys on different bases
@@ -616,7 +650,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8a is DONE** — the research-to-CAD adapter, pure and tested; S8b (the UI wiring) needs a browser. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S8b, S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
