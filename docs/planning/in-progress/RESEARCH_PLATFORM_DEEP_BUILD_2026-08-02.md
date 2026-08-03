@@ -2804,9 +2804,28 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 #### Still to build in this phase
 
-- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu DONE 2026-08-03 — 19
-  counties** (`worker/src/adapters/uslandrecords-viewer.ts`). Four vendors remain: Tyler Eagle (9
-  counties), eDocTec (2), Aumentum (1), iDocMarket (1).
+- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu (19) + Tyler Eagle (9)
+  DONE 2026-08-03.** Three small vendors remain: eDocTec (2 counties), Aumentum (1), iDocMarket (1).
+
+  **Tyler Eagle hands over the PDF** (`worker/src/adapters/tyler-eagle-viewer.ts`). Its
+  `getDocumentImages` said retrieval *"goes through the portal's cart, which is not wired up"* — wrong,
+  and wrong in the direction that costs money. Driving McLennan showed the document page embeds
+  **PDF.js**, and the iframe's `file=` parameter is a plain same-host URL serving a real
+  `application/pdf`: 210 KB for a two-page deed, `%PDF-1.4`, fetched with the session cookie and **no
+  purchase**. Better than any screenshot could be — Avenu needed page-by-page capture because it
+  paints an `<img>`; this vendor gives you the file.
+
+  **"DEGRADED" is in the filename and it means something.** The free copy is `DEGRADED-<docId>`, and
+  that matters more than a watermark: a watermark is an overlay a reader sees past, a degraded scan is
+  *lower resolution* — precisely what OCR needs to read a bearing to the second. The flag travels with
+  the document. Whether the degradation is bad enough to matter is a **measurement nobody has taken**
+  and needs a known-good plat (see S8).
+
+  It also refuses HTML masquerading as a document: an expired session returns a login page with a
+  perfectly good 200, and storing that as a deed is worse than failing. And Tyler's *"we found more
+  documents than the maximum allowed"* — returned with an **empty result area** — is now matched,
+  making it the third vendor whose too-broad response is indistinguishable from an empty county, after
+  Kofile's empty department and Avenu's timeout modal.
 
   Avenu's `getDocumentImages` threw *"the viewer is not wired up"* while the portal's own page said
   *"searching and watermarked document viewing is provided as a free service"* — the pages were there
