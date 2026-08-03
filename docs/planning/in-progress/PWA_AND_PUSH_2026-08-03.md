@@ -92,10 +92,45 @@ business app a worker, and share one push backend.
   **To turn it on:** set `NEXT_PUBLIC_ADMIN_PWA=1` in Vercel. It is off until then, so this ships
   dark and can be enabled after a browser check on a real device.
 
-- **W3. Offline the field packet.** The highest-value offline case in the product: the approved
-  packet is already a single snapshot object and `packet-offline.ts` already decides what a cached
-  copy may CLAIM (live / offline / stale / refused, with "none" distinct from "not recorded"). W3 is
-  the service-worker half of work whose honesty rules are already written and tested.
+- **W3. Offline the field packet.** ✅ **PARTLY DONE 2026-08-03 — and the remainder is a decision, not
+  a task.** The slice assumed the payload caching still needed building. It did not: `readCache` /
+  `writeCache` / `resolveOffline` are already wired into `JobResearchPacket.tsx`, so the packet is
+  cached in `localStorage` with the honest freshness rules (live / offline / stale / refused, "none"
+  distinct from "not recorded").
+
+  **The real gap was on either side of that, and neither was the service worker.**
+
+  1. **Nothing could enumerate the cache.** Offline, a crew member got a bare "no connection" with no
+     way to learn what they already had. `listCachedPackets` now returns metadata — job id and when
+     the copy was taken — **never the payload**, and the offline page lists them.
+  2. **Nothing ever cleared it.** `localStorage` has no expiry, so a customer's parcel research
+     outlived the session that fetched it. On work vehicles and shared tablets that is a privacy
+     problem, and it is the same shared-device concern W2 raised about the service-worker cache.
+     `clearAllPacketCaches` now runs on sign-out from `AdminTopBar`.
+
+  The offline page reports **when** a copy was taken and deliberately no verdict. `resolveOffline`
+  owns live/stale/refused and its thresholds; the page is plain HTML served by the worker and cannot
+  import the module, so restating those numbers in hand-written JS would put them in two places —
+  the exact defect `survey-primitives-are-not-duplicated` exists to catch. A test asserts the page
+  contains the **derived** cache prefix (so bumping `CACHE_VERSION` fails the build) and none of the
+  threshold values.
+
+  ### ▶ W3b — the remaining half conflicts with W2, and that is the owner's call
+
+  Fully *rendering* a packet with no signal means serving `/admin/jobs/[id]` from cache. W2 refuses
+  that deliberately, and the reasoning still holds: *"nothing authenticated is in the cache by
+  design, and pretending otherwise is how a signed-out user reads a signed-in page on a shared
+  device."* The two goals are in direct tension and no amount of implementation resolves it.
+
+  The shape that would honour both is an **app-shell route** — a static, precacheable page containing
+  no user data, which reads the packet from `localStorage` on the client. That keeps authenticated
+  HTML out of the cache while making the cached data reachable. It is still a widening: today the
+  data is only reachable through an authenticated page; then it would be reachable by anyone holding
+  an unlocked device until sign-out. Clearing on sign-out (shipped above) bounds that, but does not
+  eliminate it — an unlocked, still-signed-in tablet left in a truck is the case that stays open.
+
+  **Recommend deciding, not building.** Cost is moderate; the exposure change is real and is a
+  judgement about how the crews actually handle devices, which is the owner's to make.
 
 - **W4. One push backend.** ✅ **DONE 2026-08-03.** `lib/push/web-push.ts` is now the single Web Push
   transport, and `lib/voice/notifications.ts` — which *was* the push backend — is one of its callers.
@@ -175,7 +210,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**W5 shipped**; **W4 shipped** (one transport, self-hosted). **Next: W3** (offline field packet), then W4b (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **Next: W6** (mobile fitness) and W4b (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
 this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it

@@ -17,6 +17,14 @@
       justify-self: center; margin-top: 4px; padding: 9px 20px; font: inherit; font-size: 13.5px;
       background: #BD1218; color: #fff; border: 0; border-radius: 8px; cursor: pointer;
     }
+    .sub { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+    #cached-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+    #cached-list li {
+      display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px;
+      background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13.5px;
+    }
+    #cached-list .when { color: #6b7280; white-space: nowrap; }
+    .fine { margin-top: 8px; font-size: 12.5px; color: #6b7280; }
   </style>
 </head>
 <body>
@@ -33,7 +41,62 @@
       <strong>Nothing you saved has been lost.</strong> Anything already submitted is on the server;
       anything typed and not yet sent is still in the page you came from.
     </p>
+    <!-- PWA plan W3. Filled in from localStorage when research packets have been cached on this
+         device; stays hidden otherwise, because an empty "Saved on this device" heading reads as a
+         promise that failed. -->
+    <div id="cached" hidden>
+      <h2 class="sub">Saved on this device</h2>
+      <ul id="cached-list"></ul>
+      <p class="fine">
+        Reopen these from the job page once you have signal — the full packet needs the app, which
+        needs a connection. Times are when each copy was taken.
+      </p>
+    </div>
     <button onclick="location.reload()">Try again</button>
   </div>
+  <script>
+    // Deliberately reports WHEN a copy was taken and nothing more. Whether that copy is still
+    // trustworthy is live/offline/stale/refused, and those thresholds live in
+    // lib/research/packet-offline.ts. Restating them here in hand-written JS would put the same
+    // numbers in two places — the exact defect `survey-primitives-are-not-duplicated` exists to
+    // catch — and the two copies would drift silently.
+    (function () {
+      var PREFIX = 'starr.research-packet.v1.';
+      var found = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (!key || key.indexOf(PREFIX) !== 0) continue;
+          try {
+            var p = JSON.parse(localStorage.getItem(key));
+            if (p && typeof p.fetchedAt === 'number' && typeof p.jobId === 'string') found.push(p);
+          } catch (e) { /* skip a half-written entry rather than claim a packet we do not have */ }
+        }
+      } catch (e) { return; }   // private browsing, blocked storage — show the plain page
+      if (!found.length) return;
+
+      found.sort(function (a, b) { return b.fetchedAt - a.fetchedAt; });
+      var ago = function (ms) {
+        var m = Math.round(ms / 60000);
+        if (m < 1) return 'just now';
+        if (m < 60) return m + ' min ago';
+        var h = Math.round(m / 60);
+        if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+        var d = Math.round(h / 24);
+        return d + (d === 1 ? ' day ago' : ' days ago');
+      };
+      var now = Date.now();
+      document.getElementById('cached-list').innerHTML = found.map(function (p) {
+        // textContent-equivalent escaping: jobId comes from our own API, but building HTML from
+        // stored data without escaping is a habit worth not having.
+        var id = String(p.jobId).replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+        return '<li><span class="job">Job ' + id + '</span> <span class="when">'
+          + ago(now - p.fetchedAt) + '</span></li>';
+      }).join('');
+      document.getElementById('cached').hidden = false;
+    })();
+  </script>
 </body>
 </html>

@@ -176,3 +176,67 @@ export function writeCache<T>(
     return false;
   }
 }
+
+/** Every job that currently has a cached packet on this device, newest first.
+ *
+ *  PWA plan W3. Two callers want this and they want it for opposite reasons, which is why it returns
+ *  metadata and never the payload:
+ *
+ *    * the offline page, so a crew member with no signal can see WHAT they have rather than a bare
+ *      "you are offline" — the difference between a dead end and a usable answer;
+ *    * sign-out, which needs the key list in order to destroy it.
+ *
+ *  Deliberately no freshness verdict here. `resolveOffline` owns live/offline/stale/refused and its
+ *  thresholds, and a second copy of those numbers in a second place is precisely the defect
+ *  `survey-primitives-are-not-duplicated` exists to catch. This reports when a copy was taken; what
+ *  that MEANS stays in one module. */
+export function listCachedPackets(
+  storage: Storage | null | undefined,
+): Array<{ jobId: string; fetchedAt: number }> {
+  if (!storage) return [];
+  const prefix = `starr.research-packet.v${CACHE_VERSION}.`;
+  const out: Array<{ jobId: string; fetchedAt: number }> = [];
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      try {
+        const parsed = JSON.parse(storage.getItem(key) ?? '') as CachedPacket<unknown>;
+        // A malformed or half-written entry is skipped, not surfaced as a packet the crew does not
+        // actually have. Same rule as `readCache`: storage disappointing us is never a crash.
+        if (parsed && typeof parsed.fetchedAt === 'number' && typeof parsed.jobId === 'string') {
+          out.push({ jobId: parsed.jobId, fetchedAt: parsed.fetchedAt });
+        }
+      } catch { /* skip this entry */ }
+    }
+  } catch {
+    return [];
+  }
+  return out.sort((a, b) => b.fetchedAt - a.fetchedAt);
+}
+
+/** Destroy every cached packet on this device. Returns how many were removed.
+ *
+ *  Called on sign-out, and the reason is the one W2 raised about the service worker: these are work
+ *  vehicles and shared tablets. A packet holds a customer's parcel research, and it outlives the
+ *  session that fetched it unless something removes it — `localStorage` has no expiry and the next
+ *  person to pick up the device is not necessarily the person it was fetched for.
+ *
+ *  Removes keys in a second pass rather than while iterating, because deleting during a live
+ *  `storage.key(i)` walk shifts the indices and silently skips half the entries — which would look
+ *  like it worked. */
+export function clearAllPacketCaches(storage: Storage | null | undefined): number {
+  if (!storage) return 0;
+  const prefix = `starr.research-packet.v${CACHE_VERSION}.`;
+  const doomed: string[] = [];
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && key.startsWith(prefix)) doomed.push(key);
+    }
+    for (const key of doomed) storage.removeItem(key);
+  } catch {
+    return 0;
+  }
+  return doomed.length;
+}

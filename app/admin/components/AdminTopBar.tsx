@@ -9,6 +9,8 @@ import NotificationBell from './NotificationBell';
 import ClockInPill from './ClockInPill';
 import InitialAvatar from './InitialAvatar';
 
+import { clearAllPacketCaches } from '@/lib/research/packet-offline';
+
 import type { UserRole } from '@/lib/auth-roles';
 import { RouteIcon } from '@/lib/admin/route-icons';
 import { Menu, Star } from 'lucide-react';
@@ -148,7 +150,14 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
             <button
               role="menuitem"
               type="button"
-              onClick={() => signOut({ callbackUrl: '/admin/login' })}
+              onClick={() => {
+                // PWA plan W3 — drop cached research packets before the session ends. These are work
+                // vehicles and shared tablets: a packet holds a customer's parcel research, and
+                // localStorage has no expiry, so without this it outlives the session that fetched
+                // it and greets whoever picks the device up next.
+                try { clearAllPacketCaches(window.localStorage); } catch { /* storage unavailable */ }
+                void signOut({ callbackUrl: '/admin/login' });
+              }}
               style={{
                 display: 'block',
                 width: '100%',
