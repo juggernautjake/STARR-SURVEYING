@@ -59,7 +59,7 @@ that *no* county of an unproven vendor routes to it.
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | ~~R17~~ | **DONE 2026-08-03** — `source_bounding_box` holds a value. The producer was in the app all along: the tiling OCR already measured every tile and discarded the geometry. Also fixed a write that was wiping the document viewer's page URLs | — |
-| R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
+| ~~R28/R29~~ | **DONE 2026-08-03** — the poller runs at boot behind `RESEARCH_QUEUE_POLLER`, default off. The loop was code, not deployment; enabling it is now configuration | — |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
 
@@ -1463,8 +1463,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
 ### Phase F — Intake and scale
 
-- **R28. Request → run, unattended.** ◑ PART DONE 2026-08-02 — the queue, dedupe, atomic claim,
-  retry policy and notifications shipped; the worker-side poller remains
+- **R28. Request → run, unattended.** ✅ **DONE** — queue, dedupe, atomic claim, retries and
+  notifications 2026-08-02; the worker-side poller 2026-08-03
 
   **Shipped** (seed 537 + `lib/research/intake.ts` + the requests and claim routes).
 
@@ -1504,9 +1504,16 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Root suite 21,677 passing; typecheck clean. Seed 537 applied to production.
 
-  **Remaining:** the worker-side poller that calls `claim`, runs the pipeline and reports back via
-  `PATCH`. The contract is complete and proven from both ends; what is missing is the loop in the
-  worker process, which belongs with R29's concurrency limits rather than being written twice.
+  **DONE 2026-08-03** — `worker/src/infra/queue-client.ts`, driven by the poller in R29 below. The
+  client is the only piece that talks to these endpoints, kept apart from both the admission logic
+  and the timer so neither has to be tested against a network.
+
+  **A failed claim throws rather than returning null.** `pollOnce` reads null as "nothing to do" and
+  backs off quietly, so a 401 or a dead app returning null would leave a misconfigured worker sitting
+  silent while the queue filled up behind it — a broken deployment that looks exactly like a quiet
+  week. Reporting, by contrast, never throws: a nested failure while trying to report a failure is
+  where poller crashes come from, and the app's partial index on unnotified finished requests is what
+  finds those.
 
   Original item:
   An intake endpoint that accepts a research request (from the AI intake flow in the platform audit's
@@ -1515,9 +1522,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* posting a request with an address and county produces a finished packet with no human
   in the loop, and a notification either way.
 
-- **R29. Concurrency, prioritisation, and back-pressure.** ◑ PART DONE 2026-08-02 — admission,
-  per-county serialisation, priority and back-pressure shipped; wiring `pollOnce` into the worker's
-  boot remains
+- **R29. Concurrency, prioritisation, and back-pressure.** ✅ **DONE** — admission, serialisation,
+  priority and back-pressure 2026-08-02; `pollOnce` wired into boot 2026-08-03
 
   **Shipped** (`worker/src/infra/queue-worker.ts`, with the backlog surfaced on the requests API).
 
@@ -1554,9 +1560,37 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 401/401, root suite 21,677 passing; both roots typecheck clean.
 
-  **Remaining:** calling `pollOnce` on a timer from the worker's boot, wired to the R28 claim/report
-  endpoints. The logic and its limits are proven; what is left is the ten lines that start it, and
-  those belong with deploying the box (§4.3, owner).
+  **DONE 2026-08-03** (`worker/src/infra/queue-poller.ts`, started from the worker's boot).
+
+  The remainder was recorded as *"the ten lines that start it, and those belong with deploying the
+  box (owner)"*. Only half true: the loop is code. This repo already has the pattern for
+  outward-facing scheduled work — write it, gate it behind an env flag, default off — so deploying
+  the box became **configuration** rather than a code change.
+
+  `RESEARCH_QUEUE_POLLER=1` is required, and the poller **refuses to start** when the flag is on but
+  `WORKER_API_KEY` or `APP_BASE_URL` is missing: polling every tick into a 401 is worse than not
+  polling, because it is noise that hides the misconfiguration causing it.
+
+  **Three ways a naive timer breaks, all with one symptom.** `setInterval(poll, 5000)` gives
+  overlapping ticks (two ticks claiming at once is the race the atomic claim makes *survivable*, not
+  one to invite), a throw that ends the timer silently, and no backoff — a dry queue becomes a request
+  per second per worker forever. Each presents as a queue that stops draining with nothing in the
+  logs, so each has its own test. Errors back off **harder** than an empty queue: asking an erroring
+  app more often is how a struggling one is pushed over.
+
+  **`stop()` cancels no in-flight run.** A run has already claimed its request and may have spent
+  money; killing it mid-flight leaves the request claimed, unreported and indistinguishable from one
+  still working — the exact state R28's notify-either-way rule exists to prevent. Draining is the
+  correct shutdown.
+
+  The run binding registers in `activePipelines` **before** awaiting, because that map is what both
+  the capacity limit and the one-run-per-county rule read. Registering after the run began would let
+  the next tick see a slot that is not free and open a second session on one clerk portal — the
+  failure that loses access permanently. Queued and manually-started runs share one map, so they
+  compete for the same slots rather than each assuming it has the box.
+
+  Worker suite 1,056/1,056; typecheck clean. The `.env.example` ratchet caught both new variables,
+  which is what it is for.
 
   Original item:
   Multiple runs without trampling each other or a county's servers: queue priority, per-county
