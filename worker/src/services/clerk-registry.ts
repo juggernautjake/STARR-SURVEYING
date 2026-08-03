@@ -26,6 +26,7 @@ import { TylerEagleAdapter } from '../adapters/tyler-eagle-adapter.js';
 import { TYLER_EAGLE_PORTALS } from '../adapters/tyler-eagle-discovery.js';
 import { USLandRecordsAdapter } from '../adapters/uslandrecords-adapter.js';
 import { USLR_COUNTIES } from '../adapters/uslandrecords-discovery.js';
+import { AumentumClerkAdapter, AUMENTUM_COUNTIES } from '../adapters/aumentum-clerk-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
@@ -98,7 +99,12 @@ export const KOFILE_FIPS_SET = new Set<string>([
 //
 // Move a vendor into this set only after probing its base URLs — the same rule the Kofile list now
 // carries, and for the same reason.
-const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec', 'tyler', 'uslandrecords']);
+const PROVEN_VENDORS = new Set<ClerkSystem>(['kofile', 'texasfile', 'edoctec', 'tyler', 'uslandrecords', 'aumentum']);
+
+/** Harris Recording Solutions / Aumentum Recorder — Bastrop, driven 2026-08-02 (plan R39).
+ *
+ *  Derived from AUMENTUM_COUNTIES so the routing table cannot drift from the URL table. */
+export const AUMENTUM_FIPS_SET = new Set<string>(Object.values(AUMENTUM_COUNTIES).map((c) => c.fips));
 
 /** Avenu/Neumo "20/20 Perfect Vision" — Falls and Robertson, driven end to end 2026-08-02 (R39).
  *
@@ -171,6 +177,11 @@ export function getClerkAdapter(
     return new USLandRecordsAdapter(countyFIPS, countyName);
   }
 
+  // Priority 2c: Harris/Aumentum — Bastrop, driven (R39).
+  if (AUMENTUM_FIPS_SET.has(countyFIPS) && isVendorProven('aumentum')) {
+    return new AumentumClerkAdapter(countyFIPS, countyName);
+  }
+
   // Priority 3: CountyFusion/Cott Systems (~40+ counties, index-only)
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) {
     return new CountyFusionAdapter(countyFIPS, countyName);
@@ -212,6 +223,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (KOFILE_FIPS_SET.has(countyFIPS))       return 'kofile';
   if (EDOCTEC_FIPS_SET.has(countyFIPS) && isVendorProven('edoctec')) return 'edoctec';
   if (USLR_FIPS_SET.has(countyFIPS) && isVendorProven('uslandrecords')) return 'uslandrecords';
+  if (AUMENTUM_FIPS_SET.has(countyFIPS) && isVendorProven('aumentum')) return 'aumentum';
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS) && isVendorProven('countyfusion')) return 'countyfusion';
   if (TYLER_EAGLE_FIPS_SET.has(countyFIPS) && isVendorProven('tyler')) return 'tyler';
   if (HENSCHEN_FIPS_SET.has(countyFIPS) && isVendorProven('henschen')) return 'henschen';
@@ -221,7 +233,7 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
 }
 
 export type ClerkSystem =
-  | 'kofile' | 'edoctec' | 'uslandrecords' | 'countyfusion' | 'tyler'
+  | 'kofile' | 'edoctec' | 'uslandrecords' | 'aumentum' | 'countyfusion' | 'tyler'
   | 'henschen' | 'idocket' | 'fidlar' | 'texasfile';
 
 /**
@@ -242,6 +254,7 @@ export function registrySummary(): Record<ClerkSystem, number> {
     kofile:       KOFILE_FIPS_SET.size,
     edoctec:      EDOCTEC_FIPS_SET.size,
     uslandrecords: USLR_FIPS_SET.size,
+    aumentum:     AUMENTUM_FIPS_SET.size,
     countyfusion: COUNTYFUSION_FIPS_SET.size,
     tyler:        TYLER_EAGLE_FIPS_SET.size,
     henschen:     HENSCHEN_FIPS_SET.size,
@@ -250,7 +263,7 @@ export function registrySummary(): Record<ClerkSystem, number> {
     // TexasFile covers all 254; show the remainder not covered by named systems
     texasfile: Math.max(
       0,
-      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - USLR_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
+      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - USLR_FIPS_SET.size - AUMENTUM_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
         - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
     ),
   };

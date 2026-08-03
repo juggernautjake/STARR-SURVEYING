@@ -68,7 +68,7 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
     status: 'open_partial',
     url: 'http://www.cc.co.bastrop.tx.us/RealEstate/SearchEntry.aspx',
     freeCoverage: '1973–2026 (permanent index; images from 1973)',
-    blocker: 'Pre-1973 is not online at all. Adapter class not yet written — the search itself is driven and proven.',
+    blocker: 'Pre-1973 is not online at all. Adapter class AumentumClerkAdapter now exists and Bastrop routes to it.',
     note:
       'A FOURTH vendor: Harris Recording Solutions / Aumentum Recorder. Entry is as "Visitor" with NO ' +
       'login once the disclaimer is acknowledged. Driven on 2026-08-02: party search "SMITH" returned ' +

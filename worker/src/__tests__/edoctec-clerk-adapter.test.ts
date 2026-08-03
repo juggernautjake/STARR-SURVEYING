@@ -55,7 +55,8 @@ describe('registry routing', () => {
     // The fallback bucket must shrink by exactly the counties a real adapter now covers, or the
     // dashboard overstates how much of the state is stuck behind the paywall.
     expect(before.texasfile).toBe(
-      254 - before.kofile - before.edoctec - before.uslandrecords - before.countyfusion - before.tyler - before.henschen - before.idocket - before.fidlar,
+      254 - before.kofile - before.edoctec - before.uslandrecords - before.aumentum -
+        before.countyfusion - before.tyler - before.henschen - before.idocket - before.fidlar,
     );
   });
 });

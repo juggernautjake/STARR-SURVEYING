@@ -2043,8 +2043,44 @@ appears to work, on a page that then behaves as though nothing was entered.*
 Instrument number, book/page, filing date, document type, party names with `[R]`/`[E]` role markers
 (R = grantoR, E = grantEe) and survey names.
 
-**Not routed.** No adapter class exists for Harris/Aumentum. *"The search runs"* and *"the platform
-can research this county"* are different claims, and only the first is true. Seed 558.
+#### R39, twelfth finding — the Aumentum adapter, and where the names actually live
+
+`AumentumClerkAdapter` now exists with `aumentum-results-parser` behind it, and Bastrop routes to
+it. **Twenty-one counties are now served by a proven adapter.**
+
+Two decisions shaped the parser:
+
+**The grid is a flat cell sequence.** `#Table1` is not one `<tr>` per record — like Avenu's, it runs
+the records together, so per-row parsing returns exactly one record however many came back. Records
+are cut at each cell that is **exactly** a date.
+
+**The party summary is the source of truth.** Each record carries a cell listing every party inline
+with its role marker — `[E] SMITH JAMES (+) [R] JENSEN DONALD (+)`, where `[R]` is grantoR and `[E]`
+is grantEe. The individual name cells sit at **unstable offsets**: they shift with how many parties a
+document has, and blank cells pad unpredictably, so counting positions would attribute the wrong name
+to the wrong side of a conveyance. The marker mapping is confirmed against the search form's own
+party-type radio values rather than guessed, and the `(+)` "and others" marker is kept — dropping it
+would silently turn a conveyance by several people into one by a single person.
+
+**Multi-party records are merged, not duplicated.** The first run returned 66 rows with 11
+duplicates; merging by instrument + filing date and unioning the party lists gives **55 documents
+with none**. Completeness is measured against grid *rows*, not merged documents — merging
+legitimately yields fewer documents than rows, and comparing merged totals would cry INCOMPLETE on a
+complete read.
+
+**Driven through the compiled adapter:** grantor `SMITH JAMES` → **55 documents from 100 grid rows,
+0 duplicates**, every one carrying both parties, oldest 10/24/1974, with the coverage warning firing
+correctly for years before 1973.
+
+```
+2325  10/24/1974  DEED OF TRUST   JENSEN DONALD (+) → SMITH JAMES (+)
+5554  08/23/1979  MECHANICS LIEN  SMITH JAMES (+)   → JONES EARL (+)
+4164  07/01/1982  (other)         SMITH JAMES (+)   → ENSERCH EXPLORATION INC
+```
+
+**Not built:** instrument-number search, book/page search, image retrieval, and pagination past the
+first 100 rows. Each throws rather than returning `[]`, because an empty array would read as "no such
+document recorded". Seed 559 supersedes 558.
 
 #### Survey results, 2026-08-02 (seed 541)
 

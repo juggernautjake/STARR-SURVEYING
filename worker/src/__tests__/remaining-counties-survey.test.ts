@@ -160,7 +160,7 @@ describe('the last three counties, hunted', () => {
     // The search now runs and returns records. What does NOT exist yet is an adapter class, and the
     // blocker says so rather than letting "driven" imply "wired into the platform".
     expect(REMAINING_COUNTY_SURVEY.Bastrop.note).toContain('Driven on 2026-08-02');
-    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('Adapter class not yet written');
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('AumentumClerkAdapter now exists');
   });
 
   it('distinguishes "no online portal" from "we have not found it"', () => {
@@ -220,6 +220,6 @@ describe('the two traps that hid Bastrop', () => {
   });
 
   it('is honest that no adapter class exists yet', () => {
-    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('Adapter class not yet written');
+    expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('AumentumClerkAdapter now exists');
   });
 });
