@@ -216,7 +216,7 @@ export default function ProjectDocumentsPage() {
             <Link href={`/admin/research/${projectId}`} className="text-gray-400 hover:text-white text-sm">
               ← Back to Project
             </Link>
-            <h1 className="text-xl font-bold">📁 Document Library</h1>
+            <h1 className="text-xl font-bold text-gray-100">📁 Document Library</h1>
           </div>
           <div className="flex gap-4 text-sm text-gray-400">
             <span><strong className="text-white">{documents.length}</strong> documents</span>
@@ -349,7 +349,7 @@ export default function ProjectDocumentsPage() {
         {selectedDoc && (
           <aside className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col flex-shrink-0 overflow-y-auto">
             <div className="flex items-center justify-between p-3 border-b border-gray-800">
-              <h2 className="font-semibold text-sm">{DOC_TYPE_ICONS[selectedDoc.type]} Preview</h2>
+              <h2 className="font-semibold text-sm text-gray-100">{DOC_TYPE_ICONS[selectedDoc.type]} Preview</h2>
               <button onClick={() => { setSelectedDoc(null); setPreviewUrl(null); }}
                 className="text-gray-400 hover:text-white">✕</button>
             </div>

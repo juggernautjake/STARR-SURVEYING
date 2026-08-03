@@ -286,7 +286,7 @@ export default function ResearchBillingPage() {
           <Link href="/admin/research" className="text-gray-400 hover:text-white text-sm">
             ← Research
           </Link>
-          <h1 className="text-xl font-bold">💳 Billing & Usage</h1>
+          <h1 className="text-xl font-bold text-gray-100">💳 Billing & Usage</h1>
         </div>
       </header>
 

@@ -23,10 +23,30 @@ import path from 'node:path';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
-/** Panels that render on a dark surface and therefore cannot rely on inheritance. */
-const DARK_PANELS = [
+/** Does this tag set its own text colour — by Tailwind class OR inline style?
+ *
+ *  Both count. The first version demanded a Tailwind class and flagged a heading in the billing page
+ *  that already sets its colour with `style={{ color: TIER_COLORS[...] }}`. That was a false
+ *  accusation, and a check that forces redundant code is one people learn to work around. */
+function hasColour(tag: string): boolean {
+  return /\btext-(gray|slate|zinc|red|amber|blue|green|emerald)-\d{2,3}\b/.test(tag)
+    || /\btext-white\b/.test(tag)
+    || /style=\{\{[^}]*\bcolor\b/.test(tag);
+}
+
+/** Everything in the research area that renders on a dark surface and therefore cannot rely on
+ *  inheritance.
+ *
+ *  Found by sweeping for `bg-gray-9xx` rather than by listing what I had touched. Two of these
+ *  panels were mine; the four PAGES were pre-existing and had the same bug — including the Boundary
+ *  Viewer, whose `<h1>` title has been invisible to every surveyor who has ever opened it. */
+const DARK_SURFACES = [
   'app/admin/research/components/RotationPanel.tsx',
   'app/admin/research/components/VendorAccountsPanel.tsx',
+  'app/admin/research/billing/page.tsx',
+  'app/admin/research/library/page.tsx',
+  'app/admin/research/[projectId]/boundary/page.tsx',
+  'app/admin/research/[projectId]/documents/page.tsx',
 ];
 
 describe('the global rules that make this necessary still exist', () => {
@@ -43,29 +63,58 @@ describe('the global rules that make this necessary still exist', () => {
   });
 });
 
-describe('every heading and label in a dark panel names its own colour', () => {
-  for (const file of DARK_PANELS) {
+describe('every heading and label on a dark surface names its own colour', () => {
+  for (const file of DARK_SURFACES) {
     const src = read(file);
+    // The whole path in the test name: four of these are called `page.tsx`, and a failure reading
+    // "page.tsx: headings" tells you nothing about which one.
+    const label = file.replace('app/admin/research/', '');
 
-    it(`${path.basename(file)}: headings`, () => {
-      const headings = [...src.matchAll(/<h[1-6]\s+className="([^"]*)"/g)].map((m) => m[1]!);
-      expect(headings.length, 'no headings found — did the panel change shape?').toBeGreaterThan(0);
-      const bare = headings.filter((c) => !/\btext-(gray|white|slate|zinc)-\d{2,3}\b|\btext-white\b/.test(c));
+    it(`${label} — headings`, () => {
+      // Whole tag, not just the className, so an inline colour is visible to `hasColour`. Also
+      // matches multi-line JSX, which a `className="…"`-only pattern misses — that is how the first
+      // sweep of these files came back clean while two headings were still bare.
+      const tags = [...src.matchAll(/<h[1-6]\s[^>]*>/g)].map((m) => m[0]);
+      expect(tags.length, 'no headings found — did this file change shape?').toBeGreaterThan(0);
+      const bare = tags.filter((t) => !hasColour(t));
       expect(bare, `these headings inherit a colour they will never receive:\n  ${bare.join('\n  ')}`)
         .toEqual([]);
     });
 
-    it(`${path.basename(file)}: labels`, () => {
-      const labels = [...src.matchAll(/<label\s+[^>]*className="([^"]*)"/g)].map((m) => m[1]!);
-      expect(labels.length, 'no labels found — did the panel change shape?').toBeGreaterThan(0);
-      const bare = labels.filter((c) => !/\btext-(gray|white|slate|zinc)-\d{2,3}\b|\btext-white\b/.test(c));
+    it(`${label} — labels`, () => {
+      const tags = [...src.matchAll(/<label\s[^>]*>/g)].map((m) => m[0]);
+      // A page may legitimately contain no labels. Absence is not a failure — asserting otherwise
+      // would force a meaningless label onto a page to satisfy a test.
+      if (tags.length === 0) return;
+      const bare = tags.filter((t) => !hasColour(t));
       expect(bare, `these labels render dark-on-dark:\n  ${bare.join('\n  ')}`).toEqual([]);
     });
   }
 });
 
-describe('the harness can mount them, which is how this was found', () => {
-  it('both panels are registered', () => {
+describe('the matcher itself', () => {
+  it('accepts a Tailwind colour', () => {
+    expect(hasColour('<h2 className="text-lg font-semibold text-gray-100">')).toBe(true);
+  });
+
+  it('accepts an inline colour', () => {
+    expect(hasColour('<h2 className="text-2xl font-bold" style={{ color: TIER_COLORS[t] }}>')).toBe(true);
+  });
+
+  it('rejects a tag with no colour at all', () => {
+    expect(hasColour('<h1 className="text-xl font-bold">')).toBe(false);
+  });
+
+  it('does not mistake a size class for a colour', () => {
+    // `text-sm` and `text-2xl` are not colours; treating them as such would make the check pass on
+    // exactly the tags it exists to catch.
+    expect(hasColour('<label className="text-sm">')).toBe(false);
+    expect(hasColour('<h1 className="text-2xl font-bold">')).toBe(false);
+  });
+});
+
+describe('the harness can mount the panels, which is how this was found', () => {
+  it('both are registered', () => {
     const harness = read('app/ux-harness/UxHarnessClient.tsx');
     expect(harness).toContain("'research-rotation'");
     expect(harness).toContain("'research-vendor-accounts'");

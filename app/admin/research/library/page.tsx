@@ -181,7 +181,7 @@ export default function GlobalLibraryPage() {
             <Link href="/admin/research" className="text-gray-400 hover:text-white text-sm">
               ← Research
             </Link>
-            <h1 className="text-xl font-bold flex items-center gap-2"><BookOpen size={20} strokeWidth={1.75} /> Document Library</h1>
+            <h1 className="text-xl font-bold flex items-center gap-2 text-gray-100"><BookOpen size={20} strokeWidth={1.75} /> Document Library</h1>
           </div>
           {stats && (
             <div className="flex gap-6 text-sm text-gray-400">

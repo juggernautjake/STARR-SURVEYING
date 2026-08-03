@@ -3888,6 +3888,28 @@ which was right to fire.
 
 Root suite 1,471 files; typecheck and `npm run build` clean.
 
+**Widened, and it was not just my two panels.** Sweeping the research area for `bg-gray-9xx` rather
+than listing what I had touched found the same bug in **four pre-existing pages** — billing, library,
+documents, and the **Boundary Viewer**, whose `<h1>` title has been invisible to every surveyor who
+has ever opened it, along with both sets of layer/colour-mode toggle labels beside the drawing.
+
+Nine elements in total. The check now covers all six files and is the thing that found the last four:
+my own grep missed them because it only matched `className="…"` on a single line, and JSX wraps.
+
+Three corrections to the check itself along the way, each a small lesson:
+
+- It demanded a Tailwind class and flagged a billing heading that already sets
+  `style={{ color: TIER_COLORS[...] }}` — a false accusation. **A check that forces redundant code is
+  one people learn to work around**, so inline colour now counts.
+- `text-sm` and `text-2xl` are not colours. An earlier pattern would have accepted them and passed on
+  exactly the tags it exists to catch; there is now a test for the matcher itself.
+- Four of the six files are called `page.tsx`, and a failure reading *"page.tsx: headings"* names
+  nothing. The test title carries the path.
+
+And a process note worth keeping: shell heredocs mangled `\b` into a literal **backspace character**
+in this test file — the second time that has happened today. Files with regexes get written with the
+editor, not echoed through a shell.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

@@ -261,7 +261,7 @@ export default function BoundaryViewerPage() {
           <Link href={`/admin/research/${projectId}`} className="text-gray-400 hover:text-white text-sm">
             ← Back
           </Link>
-          <h1 className="text-lg font-semibold">Boundary Viewer</h1>
+          <h1 className="text-lg font-semibold text-gray-100">Boundary Viewer</h1>
           {viewState?.address && (
             <span className="text-gray-400 text-sm truncate max-w-xs">{viewState.address}</span>
           )}
@@ -290,7 +290,7 @@ export default function BoundaryViewerPage() {
           <div className="p-3 border-b border-gray-800">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Layers</h2>
             {(['boundary', 'confidence', 'sources', 'discrepancies'] as ViewLayer[]).map(layer => (
-              <label key={layer} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+              <label key={layer} className="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-100">
                 <input
                   type="checkbox"
                   checked={activeLayers.has(layer)}
@@ -305,7 +305,7 @@ export default function BoundaryViewerPage() {
           <div className="p-3 border-b border-gray-800">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Color Mode</h2>
             {(['solid', 'confidence', 'source'] as ColorMode[]).map(mode => (
-              <label key={mode} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+              <label key={mode} className="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-100">
                 <input
                   type="radio"
                   name="colorMode"
@@ -325,7 +325,7 @@ export default function BoundaryViewerPage() {
             >
               ↺ Reset View
             </button>
-            <label className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+            <label className="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-100">
               <input
                 type="checkbox"
                 checked={measureMode}
@@ -397,7 +397,7 @@ export default function BoundaryViewerPage() {
         {selectedCall && (
           <aside className="w-72 bg-gray-900 border-l border-gray-800 flex flex-col flex-shrink-0 overflow-y-auto">
             <div className="flex items-center justify-between p-3 border-b border-gray-800">
-              <h2 className="font-semibold">Call #{selectedCall.callIndex + 1}</h2>
+              <h2 className="font-semibold text-gray-100">Call #{selectedCall.callIndex + 1}</h2>
               <button onClick={() => setSelectedCall(null)} className="text-gray-400 hover:text-white">✕</button>
             </div>
 
