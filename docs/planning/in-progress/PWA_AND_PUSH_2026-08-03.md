@@ -97,10 +97,43 @@ business app a worker, and share one push backend.
   copy may CLAIM (live / offline / stale / refused, with "none" distinct from "not recorded"). W3 is
   the service-worker half of work whose honesty rules are already written and tested.
 
-- **W4. One push backend.** `lib/voice/notifications.ts` already speaks Web Push. Generalise it to
-  take an audience and a scope, so all three areas share one VAPID key pair and one send path rather
-  than growing three. **Self-host it** — the protocol is simple, you already have the sender, and
-  FCM/OneSignal would add a dependency and a data-sharing question for no capability you lack.
+- **W4. One push backend.** ✅ **DONE 2026-08-03.** `lib/push/web-push.ts` is now the single Web Push
+  transport, and `lib/voice/notifications.ts` — which *was* the push backend — is one of its callers.
+
+  **The design question was what to share, and the answer is not "everything".**
+
+  - **VAPID keys ARE shared.** They identify the application *server* to the push service, not the
+    application. One pair legitimately serves all three scopes; generating three would mean three
+    secrets to rotate for no isolation benefit. Env is `PUSH_VAPID_PUBLIC_KEY` /
+    `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT`, **falling back to the existing `VOICE_VAPID_*`**
+    — those keys are already set in the deployment, and a rename that silently turned push off for
+    the one area currently using it would be a poor way to "unify" anything.
+  - **Subscription storage is NOT shared, and the transport touches no database.** Each area keeps
+    its own table and its own disable policy. The studio's three-strike rule stays in
+    `notifications.ts` because it is the studio's decision, not a property of Web Push — and a
+    transport that wrote to a table would have to know *which* table, which is exactly what made the
+    original impossible to reuse.
+
+  Self-hosted, as the slice recommended. No FCM, no OneSignal, no new dependency: `web-push` is
+  still resolved at runtime behind a bundler-opaque `require` (that trick moved into the transport
+  rather than being copied a second time), so `npm install web-push` plus two env vars remains the
+  entire activation.
+
+  **Two boundary cases carry most of the value**, and both are tested:
+  - `sendPush` returns `[]` when push is unconfigured — **distinct from a list of failures**. If it
+    returned failures, a caller in an environment with no keys would disable every subscription it
+    had.
+  - A failure is `{ gone }` rather than a boolean. 404/410 mean the browser discarded the endpoint
+    for good; **a 500 or 429 is transient**, and treating one as the other unsubscribes every device
+    during an outage.
+
+  16 tests, including three that assert the existing caller was actually rewired — an extracted
+  module with no caller is the defect this codebase produces most often, and W4 would have been a
+  perfect place to commit it.
+
+  **What this unblocks:** `/admin/` and `/dnd/` can now send push without a second sender. Neither
+  does yet — each needs its own subscription table and a subscribe UI, which is W4b and belongs with
+  W3 (offline field packet) rather than here.
 
 - **W5. The iOS install walkthrough.** DONE 2026-08-03 — added to the EXISTING `/admin/install` page
   rather than as a new banner, because that page is already the "get the app" surface and is already
@@ -142,7 +175,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+**W5 shipped**; **W4 shipped** (one transport, self-hosted). **Next: W3** (offline field packet), then W4b (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
 this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it

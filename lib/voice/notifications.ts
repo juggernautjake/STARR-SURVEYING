@@ -11,6 +11,13 @@
 // experience cannot depend on Andrew's phone.
 
 import { supabaseAdmin } from '@/lib/supabase';
+// PWA plan W4 — the shared Web Push transport. This file used to BE the push backend; now it is one
+// of its callers, and /admin/ and /dnd/ can be others.
+import {
+  sendPush,
+  pushConfigured as sharedPushConfigured,
+  vapidPublicKey as sharedVapidPublicKey,
+} from '@/lib/push/web-push';
 
 export const NOTIFICATION_KINDS = [
   'inquiry_received',
@@ -111,12 +118,15 @@ export async function notifyStudio(input: CreateNotificationInput): Promise<numb
  * completely — it just does not ring a phone. Gating on configuration rather than shipping a broken
  * subscribe button is the difference between "not set up yet" and "broken".
  */
+// W4 — re-exported from the shared transport rather than reimplemented, so there is exactly one
+// answer to "is push set up". The existing callers and env vars keep working: the shared version
+// still reads VOICE_VAPID_* and simply prefers PUSH_VAPID_* when present.
 export function pushConfigured(): boolean {
-  return Boolean(process.env.VOICE_VAPID_PUBLIC_KEY && process.env.VOICE_VAPID_PRIVATE_KEY);
+  return sharedPushConfigured();
 }
 
 export function vapidPublicKey(): string | null {
-  return process.env.NEXT_PUBLIC_VOICE_VAPID_KEY || process.env.VOICE_VAPID_PUBLIC_KEY || null;
+  return sharedVapidPublicKey();
 }
 
 /**
@@ -129,38 +139,6 @@ export function vapidPublicKey(): string | null {
  */
 async function deliverPush(input: CreateNotificationInput, userIds: string[]): Promise<void> {
   if (!pushConfigured() || !userIds.length) return;
-
-  let webpush: {
-    setVapidDetails: (s: string, pub: string, priv: string) => void;
-    sendNotification: (sub: unknown, payload: string) => Promise<unknown>;
-  };
-  try {
-    // ── WHY THE REQUIRE IS HIDDEN FROM THE BUNDLER ────────────────────────────────────────────
-    //
-    // A bare `require('web-push')` inside a try/catch still gets STATICALLY ANALYSED by webpack,
-    // which then emits "Module not found: Can't resolve 'web-push'" on every build and every page
-    // load in dev — for an optional dependency that is deliberately absent. The try/catch only
-    // handles the runtime throw; it does nothing about build-time resolution.
-    //
-    // Indirecting through a variable makes the specifier opaque to the bundler, so the module is
-    // resolved only if this line actually executes — which it does only when VAPID keys are
-    // configured. `eval` would work too and is a bigger hammer than the problem needs.
-    const load = eval('require') as (id: string) => unknown;
-    webpush = load('web-push') as typeof webpush;
-  } catch {
-    // Not installed. The notification row is already saved; that is the contract this module makes.
-    return;
-  }
-
-  try {
-    webpush.setVapidDetails(
-      process.env.VOICE_VAPID_SUBJECT || 'mailto:andrew@example.com',
-      process.env.VOICE_VAPID_PUBLIC_KEY as string,
-      process.env.VOICE_VAPID_PRIVATE_KEY as string,
-    );
-  } catch {
-    return;
-  }
 
   const { data: subs } = await supabaseAdmin
     .from('va_push_subscriptions')
@@ -177,36 +155,39 @@ async function deliverPush(input: CreateNotificationInput, userIds: string[]): P
     kind: input.kind,
   });
 
+  // PWA plan W4 — the SENDING half now lives in `lib/push/web-push.ts` so /admin/ and /dnd/ can use
+  // it too. What stays here is everything specific to this scope: which table holds the
+  // subscriptions, and what a failure means for them. The three-strike disable rule below is the
+  // studio's policy, not a property of Web Push, which is precisely why the transport does not own
+  // it — a transport that wrote to a table would have to know which table, and that is what made the
+  // original impossible to reuse.
+  const results = await sendPush(
+    (subs as Array<{ id: string; endpoint: string; p256dh: string; auth: string; failure_count?: number }>),
+    payload,
+  );
+
   await Promise.all(
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    subs.map(async (sub: any) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload,
-        );
+    results.map(async ({ sub, result }) => {
+      if (result.ok) {
         await supabaseAdmin
           .from('va_push_subscriptions')
           .update({ last_used_at: new Date().toISOString(), failure_count: 0 })
           .eq('id', sub.id);
-      } catch (err) {
-        // 404/410 mean the browser threw the subscription away and it will never work again.
-        // Anything else is probably transient, so it only increments a counter — and it takes three
-        // consecutive failures to disable, so one outage does not unsubscribe every device.
-        const status = (err as { statusCode?: number })?.statusCode;
-        const gone = status === 404 || status === 410;
-        const failures = (sub.failure_count ?? 0) + 1;
-        await supabaseAdmin
-          .from('va_push_subscriptions')
-          .update({
-            failure_count: failures,
-            last_failure_at: new Date().toISOString(),
-            disabled_at: gone || failures >= 3 ? new Date().toISOString() : null,
-          })
-          .eq('id', sub.id);
+        return;
       }
+      // `gone` (404/410) means the browser threw the subscription away and it will never work again.
+      // Anything else is probably transient, so it only increments a counter — and it takes three
+      // consecutive failures to disable, so one outage does not unsubscribe every device.
+      const failures = (sub.failure_count ?? 0) + 1;
+      await supabaseAdmin
+        .from('va_push_subscriptions')
+        .update({
+          failure_count: failures,
+          last_failure_at: new Date().toISOString(),
+          disabled_at: result.gone || failures >= 3 ? new Date().toISOString() : null,
+        })
+        .eq('id', sub.id);
     }),
-    /* eslint-enable @typescript-eslint/no-explicit-any */
   );
 }
 
