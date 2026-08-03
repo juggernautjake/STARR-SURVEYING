@@ -33,6 +33,24 @@ export function aumentumBaseUrl(county: string): string | null {
   return AUMENTUM_COUNTIES[county.replace(/\s+county$/i, '').trim()]?.baseUrl ?? null;
 }
 
+/** The free-form legal-description input. Matches BEGINS WITH — see searchByLegalDescription. */
+export const LEGAL_FREEFORM_FIELD = '#cphNoMargin_f_txtLDFreeForm';
+
+/** How this portal matches the free-form legal field, quoted from its own results header. */
+export const LEGAL_MATCH_MODE = 'begins with';
+
+/** Would this legal-description term plausibly fail because the field is begins-with?
+ *
+ *  A surveyor naming a survey usually types the distinctive part ("ORTIZ SURVEY") rather than the
+ *  leading words ("JOSE ORTIZ SURVEY"). Pure, so the warning is testable. */
+export function looksLikeMidStringLegal(term: string): boolean {
+  const t = (term ?? '').trim();
+  if (!t) return false;
+  // A single leading word cannot be "mid-string"; a term starting with a common descriptor is
+  // likely to be the tail of a longer legal.
+  return /^(survey|abstract|abst|league|labor|tract|lot|block|addition)\b/i.test(t) || /\b(survey|abst|abstract)\b/i.test(t);
+}
+
 /** Flatten the results grid to leaf cells, which is what the parser cuts at date boundaries. */
 const READ_GRID = `() => {
   const t = document.getElementById('Table1');
@@ -221,16 +239,100 @@ export class AumentumClerkAdapter extends ClerkAdapter {
     );
   }
 
-  async searchByLegalDescription(legalDesc: string): Promise<ClerkDocumentResult[]> {
-    // This adapter first claimed the vendor offers no legal-description search. It does — the form
-    // carries txtLDBook, txtLDLot, txtLDSection, txtLDMapId and txtLDFreeForm. They have not been
-    // driven, which is a different and smaller claim than "not offered", and saying the wrong one
-    // would send a researcher to a courthouse for something the portal can answer.
-    throw new Error(
-      `[Aumentum/${this.countyName}] Legal-description search EXISTS on this portal (txtLDBook, txtLDLot, ` +
-        `txtLDSection, txtLDMapId, txtLDFreeForm) but has NOT been driven (asked: ${legalDesc.slice(0, 40)}). ` +
-        `An unbuilt capability, not a missing one, and not an empty result.`,
-    );
+  /** Search by legal description — the surveyor's search.
+   *
+   *  ── THE FREE-FORM LEGAL FIELD IS "BEGINS WITH", NOT "CONTAINS" ────────────────────────────────
+   *
+   *  The portal states its own rule in the results header: `Freeform Legal begins with ORTIZ`.
+   *  Driven on Bastrop 2026-08-02:
+   *
+   *      ORTIZ         0 records
+   *      JOSE        100 records
+   *      JOSE ORTIZ  100 records
+   *
+   *  Bastrop's records reference the JOSE ORTIZ SURVEY constantly. Searching "ORTIZ" — the obvious
+   *  thing for a surveyor to type — returns nothing, and that nothing reads as "no documents touch
+   *  this land". It actually means "your term is not at the START of the legal description".
+   *
+   *  This cannot be fixed from our side: the portal offers no contains-mode for this field. So an
+   *  empty result is reported WITH the reason and the remedy, which turns a wrong answer into an
+   *  actionable one. */
+  async searchByLegalDescription(legalDesc: string, options?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    const term = (legalDesc ?? '').trim();
+    if (!term) throw new Error(`[Aumentum/${this.countyName}] Empty legal description — refusing to search the whole index.`);
+
+    await this.initSession();
+    const page = this.page!;
+
+    const from = (options as { from?: Date } | undefined)?.from;
+    this.lastCoverageWarning = from ? freePathWarning(this.countyName, from.getFullYear()) : null;
+    if (this.lastCoverageWarning) console.warn(`[Aumentum/${this.countyName}] ${this.lastCoverageWarning}`);
+
+    await page.goto(`${this.baseUrl}/RealEstate/SearchEntry.aspx`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForSelector(LEGAL_FREEFORM_FIELD, { timeout: 30_000 });
+
+    // Same typing discipline as the party field: these inputs do not take a programmatic fill.
+    const field = page.locator(LEGAL_FREEFORM_FIELD);
+    await field.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Delete');
+    await field.type(term, { delay: 60 });
+
+    const typed = await field.inputValue();
+    if (typed.trim() !== term) {
+      throw new Error(
+        `[Aumentum/${this.countyName}] The legal-description field did not hold "${term}" (got "${typed}"). Refusing to submit.`,
+      );
+    }
+
+    await page.click(BASTROP_TRAPS.searchButtonSelector, { timeout: 25_000 });
+    await page
+      .waitForFunction(
+        () => /SearchResults/i.test(location.href) || /Please enter search criteria/i.test(document.body.innerText),
+        undefined,
+        { timeout: 75_000, polling: 500 },
+      )
+      .catch(() => undefined);
+    await page
+      .waitForFunction(
+        () => {
+          const t = document.getElementById('Table1');
+          return (!!t && Array.from(t.querySelectorAll('td')).some((c) => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test((c.textContent || '').trim()))) ||
+            /\b0\s*records?\b/i.test(document.body.innerText);
+        },
+        undefined,
+        { timeout: 60_000, polling: 500 },
+      )
+      .catch(() => undefined);
+
+    const grid = (await page.evaluate(`(${READ_GRID})()`)) as { cells: string[]; pageText: string };
+    const report = parseResults(grid.cells, grid.pageText);
+    this.lastResultTruncated = report.capped;
+
+    if (report.rows.length === 0) {
+      // Do not hand back a bare empty array. On a begins-with field the most likely cause is the
+      // search term, not the land.
+      this.lastParseSummary =
+        `${this.countyName}: 0 records for legal description "${term}". NOTE: this field matches BEGINS WITH, ` +
+        `not contains — a term from the middle of a legal description (e.g. "ORTIZ" for "JOSE ORTIZ SURVEY") returns ` +
+        `nothing. Try the LEADING words. This is not evidence that no documents touch this land.`;
+      console.warn(`[Aumentum/${this.countyName}] ${this.lastParseSummary}`);
+      return [];
+    }
+
+    this.lastParseSummary = `${this.countyName}: legal begins-with "${term}" → ${describeParse(report, this.countyName)}`;
+    console.log(`[Aumentum/${this.countyName}] ${this.lastParseSummary}`);
+    if (report.capped) console.warn(`[Aumentum/${this.countyName}] RESULT TRUNCATED at the portal's ${AUMENTUM_RESULT_CAP}-row cap.`);
+
+    return report.rows.map((r) => ({
+      instrumentNumber: r.instrumentNumber,
+      volumePage: r.book && r.page ? { volume: r.book, page: r.page } : undefined,
+      documentType: this.classifyDocumentType(r.documentType) as DocumentType,
+      recordingDate: r.recordingDate,
+      grantors: r.grantors,
+      grantees: r.grantees,
+      source: 'harris_aumentum',
+    }));
   }
 
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {

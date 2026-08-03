@@ -2213,10 +2213,49 @@ returned**; `legal="LAKE PLACE"` → refused with both real names offered.
 2016-01976  6/9/2016   RELEASE OF LIEN  CENTRAL NATIONAL BANK → FAUNCE GARY
 ```
 
-**Still party-only everywhere else.** Aumentum has legal-description fields that remain undriven,
-Tyler's form has none, and Kofile/eDocTec/Avenu are party-and-instrument indexes only. Searching by
-land works in exactly one county so far — and the adapters that cannot do it **throw rather than
-returning an empty list**, so it never reads as "no documents touch this land". Seed 563.
+Tyler's form has none, and Kofile/eDocTec/Avenu are party-and-instrument indexes only — and the
+adapters that cannot search by land **throw rather than returning an empty list**, so it never reads
+as "no documents touch this land". Seed 563.
+
+#### R39, seventeenth finding — a second county by land, and a begins-with trap
+
+Bastrop's legal-description search is implemented, so searching by **land** now works in two
+counties. But this portal behaves nothing like Bosque's, and the difference is a trap.
+
+**The free-form legal field matches BEGINS WITH, not contains.** The portal states its own rule in
+the results header — `Freeform Legal begins with ORTIZ` — and the numbers are the whole argument:
+
+| Term | Records |
+|---|---|
+| `ORTIZ` | **0** |
+| `JOSE` | 100 |
+| `JOSE ORTIZ` | 100 |
+
+Bastrop's records reference the **JOSE ORTIZ SURVEY** constantly. "ORTIZ" — the obvious thing for a
+surveyor to type, because the distinctive part of a survey name is rarely the first word — returns
+nothing. That zero reads as *"no documents touch this land"* when it means *"your term is not at the
+start of the legal description"*.
+
+**This instance is the cruellest one found:** it fails precisely on the search a surveyor is most
+likely to run. The portal offers no contains-mode, so it cannot be fixed from our side. Instead the
+empty result carries its own reason and remedy:
+
+> `0 records for legal description "ORTIZ". NOTE: this field matches BEGINS WITH, not contains — a`
+> `term from the middle of a legal description (e.g. "ORTIZ" for "JOSE ORTIZ SURVEY") returns`
+> `nothing. Try the LEADING words. This is not evidence that no documents touch this land.`
+
+`looksLikeMidStringLegal()` flags terms likely to hit this — anything naming a SURVEY or ABSTRACT, or
+starting with LOT/BLOCK/TRACT — as a pure, tested function.
+
+**The two counties behave differently, and both say so:**
+
+| County | Mechanism | On a miss |
+|---|---|---|
+| Bosque (iDocMarket) | Subdivision `<select>`, 396 exact names | refuses, offering the real names |
+| Bastrop (Aumentum) | free-form text, **begins with** | returns 0 **with the reason attached** |
+
+Neither silently answers "no documents". That is the only thing they have to have in common.
+Seed 564.
 
 #### Survey results, 2026-08-02 (seed 541)
 
