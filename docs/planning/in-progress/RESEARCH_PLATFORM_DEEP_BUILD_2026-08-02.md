@@ -58,7 +58,7 @@ that *no* county of an unproven vendor routes to it.
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
-| R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
+| R17 | Writing OCR segments into `ocr_segments` — the locator and the column exist, no producer does | **The stated blocker was wrong**: the vision path already measures boxes and `ai-extraction.ts` discards them. What is actually missing is threading regions worker → document row → `analysis.service` |
 | R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
@@ -895,6 +895,41 @@ polish — nothing else in this plan can be trusted while the engine is down and
   extracted" reads as thoroughness.
 
   Root suite 21,438 passing; both roots typecheck clean.
+
+  **2026-08-03 — the stated blocker was wrong, and half the remainder shipped.**
+
+  This item was parked as *"text extraction has no coordinates to give — unlocked by R18's vision
+  path"*. R18 shipped weeks ago. `adaptive-vision.ts` tiles a page, escalates dense quadrants into
+  zoom sub-quadrants, and returns a pixel `boundingBox` for **every segment** — and
+  `ai-extraction.ts` keeps `avResult.mergedText` and throws `avResult.segments` away. The
+  coordinates were being measured and discarded two files before anything could store them.
+
+  **Shipped**: `lib/research/fact-regions.ts` — matches a fact's quote to the segment it was read
+  from and converts that segment's pixel box to the 0–1 page fraction the fact table requires. A
+  segment is a *quadrant*, not a word, so `precision` travels with the box rather than letting a
+  coarse region pass as a precise one. Every failure is a refusal with a reason: an **ambiguous**
+  quote (in two regions) gets no box, because scrolling a reviewer to a plausible wrong place and
+  letting them believe it is precisely what the 0–1 contract exists to prevent; a box that would
+  need clamping gets none, because it was measured against a different rendering.
+
+  **A column called `ocr_regions` that holds no regions.** The obvious home for the segments was
+  `research_documents.ocr_regions` — present since seed 090, undocumented, perfectly named. It is
+  not free: `artifact-uploader.ts` writes `{"pageUrls": […]}` there and `SourceDocumentViewer` and
+  `ResearchRunPanel` read it back to render each document's pages (90 rows carry it today). Writing
+  segments there would have blanked the page viewer for every document in the system, and the
+  symptom — documents that stop displaying — points nowhere near the cause. The first draft of seed
+  570 did exactly that and put a wrong comment on production before the collision was caught;
+  corrected in place, with the segments in a new `ocr_segments` column and `ocr_regions` now
+  carrying a comment saying what it actually holds. A test pins all three facts.
+
+  **Still remaining, and deliberately not claimed as done:** nothing writes segments into
+  `ocr_segments` yet. The worker produces them and the app writes the facts, and no path carries
+  regions between the two — the same subsystem boundary R15 met. That is a threading change across
+  `ai-extraction` → document persistence → `analysis.service`, not a slice, and calling R17 done on
+  the strength of a locator with no producer would be the authored-but-not-wired defect this session
+  has now found four times.
+
+  Root suite 21,953 passing; typecheck clean; lint clean. Seed 570 applied and verified.
 
   **Remaining:** `extracted_data_points.source_bounding_box` has existed since seed 090 and is
   written as a literal `null` at the only site that builds data points — it has never held a value.
