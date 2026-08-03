@@ -32,6 +32,8 @@
 import { azimuthToBearing, type Leg, type TraverseResult } from './survey-geometry.js';
 import { convertLength, unitLabel, type LengthUnit } from './survey-units.js';
 import { parseMonument, type Monument } from './monuments.js';
+// The closure is the document's own check on our reading of it (plan I/S8).
+import { diagnoseClosure } from './closure-diagnosis.js';
 
 export interface DrawingOptions {
   widthPx?: number;
@@ -40,6 +42,9 @@ export interface DrawingOptions {
   title?: string;
   /** Draw azimuths instead of quadrant bearings. */
   useAzimuths?: boolean;
+  /** The year the deed was recorded. Changes what a poor closure MEANS: 1:800 is unremarkable on an
+   *  1885 compass-and-chain survey and alarming on a 2015 one. */
+  recordedYear?: number | null;
 }
 
 export interface LabelledLeg {
@@ -207,6 +212,13 @@ export function drawBoundary(t: TraverseResult, opts: DrawingOptions = {}): Draw
   parts.push(`<g transform="translate(${W - 45},${M})"><line x1="0" y1="34" x2="0" y2="0" class="north"/><path d="M-5,8 L0,0 L5,8 Z" class="north"/><text x="0" y="48" class="lbl" text-anchor="middle">N</text></g>`);
   parts.push(scaleBar(scale, M, H - 52));
   parts.push('</svg>');
+
+  // What the closure says about our READING of the document (plan I/S8). Attached here because this
+  // is where a person looks at one document's calls, and the closure is the only check available
+  // without a second document or a field visit.
+  const diagnosis = diagnoseClosure(t, opts.recordedYear ?? null);
+  caveats.push(diagnosis.statement);
+  if (diagnosis.nextStep) caveats.push(diagnosis.nextStep);
 
   const units = new Set(labelled.map((l) => l.leg.unit));
   if (units.size > 1) {

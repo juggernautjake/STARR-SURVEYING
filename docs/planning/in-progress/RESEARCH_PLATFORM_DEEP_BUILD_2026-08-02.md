@@ -32,8 +32,9 @@ R1–R3, R5–R7, R9, R11, R12, R20, R21, R22, R23, R24, R27, R30.
 **Phase I added — the survey itself.** A new phase (§3, Phase I) for a set of owner requests that are
 all about the *content* of a document rather than about finding it: corner markers read as objects,
 corners positioned relative to each other, varas converted, and an old survey rotated onto the grid
-being shot. S1–S4 shipped; S5–S8 (curve checks, the drawing, retrieval for the five vendors that
-still lack it, and measured OCR tiling quality) are specified there.
+being shot. S1–S7 and S9 shipped; S8 (measured OCR tiling quality) is settled as arithmetic and now
+waits only on a golden plat — which S9 partly routes around, by using each document's own **closure**
+as evidence about whether we read it correctly.
 
 **Document retrieval is real for 22 counties, not one.** An audit found `KofileClerkAdapter.
 getDocumentImages` is a full implementation — Bell was never a bespoke exception, it is the same
@@ -2998,6 +2999,55 @@ distinction matters: everything before this made a document arrive; nothing befo
   `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
   the model reads a *marginal* 14 px bearing correctly or confidently wrong. The arithmetic bounds the
   question; only a plat with known values answers it. See §4.
+
+- **S9. The deed checking our reading of it.** ✅ **DONE 2026-08-03**
+  (`worker/src/services/closure-diagnosis.ts`, surfaced in `survey-drawing.ts`)
+
+  S8 ends at "only a plat with known values answers it", and that is true of *correctness in general*.
+  But one check needs no golden plat, no second document and no field visit, and it was already being
+  computed and thrown away: **closure**.
+
+  Closure is printed all over this codebase as a number — `closure=1:21670` in a log, `closureRatio`
+  in a manifest. Nothing had ever asked what it MEANS. A boundary is a closed figure; walk the calls
+  and you must arrive back where you started. If you do not, either the deed is wrong or **we read it
+  wrong** — and the *direction* of the miss says which call to look at:
+
+  - A misread **distance** displaces the figure ALONG that course ⇒ a misclosure nearly **parallel**
+    to a course accuses that course's length.
+  - A misread **bearing** swings everything after it ⇒ a misclosure nearly **perpendicular** to a
+    course accuses that course's direction.
+
+  That is ordinary traverse-adjustment practice, and it is unusually well-suited to OCR because the
+  two failure modes look different in the source too: a distance is one number a model may transpose
+  (`247.50` → `274.50`); a bearing is a quadrant letter plus three groups it reads separately. So the
+  diagnosis names the field AND what to look for in it.
+
+  **The limit is the point of the slice.** A bad closure is *not* proof we misread anything.
+  Compass-and-chain work from the 1880s closing at 1:500 is a fact about that survey, not about our
+  OCR; a 1990s deed closing at 1:500 is not. `diagnoseClosure` therefore takes the **recorded year**
+  and changes its conclusion — old deed: *"quite possibly the ORIGINAL SURVEY's, not ours — do not
+  assume a misreading"*; modern deed: *"a reading error is the more likely explanation"*; **unknown
+  date: says the date is missing and that the two cases cannot be told apart**, rather than guessing.
+  Sending a surveyor to re-read a document that is already correct is a real cost, not a stylistic one.
+
+  It also refuses two conclusions. When any call could not be placed, closure is not used at all — the
+  misclosure then *"measures our gap rather than our accuracy"*. And when no single course lines up,
+  it says so: the direction argument holds for **one** blunder, and two errors interact.
+
+  **Two bugs its own tests caught**, both of the kind that would have shipped silently:
+
+  1. A figure that closes *exactly* has no misclosure to divide by, so `closurePrecision` is null —
+     and null otherwise means "unknown". The strongest possible evidence that every call was read
+     correctly was being reported as **no evidence at all**. Now an explicit near-zero branch.
+  2. On a rectangle, a length error on either east-west course produces an *identical* misclosure.
+     Ranking picked one arbitrarily, which sends a reviewer to one of two documents on a coin-flip.
+     `indistinguishableSuspects()` now says *"calls X and Y explain it EQUALLY well — the geometry
+     cannot tell them apart"*.
+
+  **Wired, and tested for being wired.** The diagnosis is pushed into `drawBoundary`'s caveats, where
+  a person looking at one document's calls actually is, and three tests drive `drawBoundary` itself
+  rather than the module — deliberately, because this session produced the authored-but-not-wired
+  defect once already (S8, above). Worker suite green: 75 files / 1258 tests.
 
 ---
 
