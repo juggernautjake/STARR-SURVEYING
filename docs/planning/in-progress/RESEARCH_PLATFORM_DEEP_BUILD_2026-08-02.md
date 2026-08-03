@@ -2118,6 +2118,41 @@ search. It does — `txtLDBook`, `txtLDLot`, `txtLDSection`, `txtLDMapId`, `txtL
 not been *driven*, which is a smaller and different claim than "not offered"; saying the wrong one
 would send a researcher to a courthouse for something the portal can answer. Seed 560.
 
+#### R39, fourteenth finding — Bosque's modern window, and four kinds of truncation
+
+Bosque's iDocMarket portal is now driven: party `SMITH` → **"Showing: 1000 of 3639 results"**, no
+login. The submit control is the **last** element in `#SearchForm` — `input.btn-primary[value="Search"]`,
+below every date-picker button. Grabbing the first control matching "search" lands on the date
+picker's own buttons, which is what made the earlier attempt look like a broken form.
+
+Records render as `div.row`, not table rows:
+
+```
+DEED #2026-02531  7/28/2026  5 Pages  MAIN KELLY  GUILD MORTGAGE COMPANY LLC  View »
+```
+
+**Four vendors in this build truncate, and all four say so differently:**
+
+| Vendor | How it announces truncation |
+|---|---|
+| Tyler | a **banner** — "more documents than the maximum allowed" |
+| Avenu | a **modal** — "reached the configured timeout period" |
+| iDocMarket | a **count** — "Showing: 1000 of 3639 results" |
+| Aumentum | **nothing** — 100 rows and a counter that reads like an answer |
+
+iDocMarket's is the only one stating *both* numbers, so a caller knows exactly how much is missing
+rather than merely that something is. `describeShowing()` reports the shortfall precisely — *"returned
+1000 of 3639, so 2639 are missing"* — instead of the generic warning Aumentum's silent cap forces.
+**Preserving that difference is the point: flattening every cap into "here are the results" is how a
+partial answer becomes a wrong one.**
+
+Bosque's two free windows are now both driven — QuickLink 1847–1905 and iDocMarket 2012–2026,
+validated through 7/30/2026 — with the century-wide hole between them still recorded and warned
+about.
+
+**Not routed:** no adapter class exists for iDocMarket. The search runs; the platform cannot yet
+research this county. Seed 561.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does

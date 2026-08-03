@@ -15,6 +15,9 @@ import {
   describeCounty,
   freePathWarning,
   idocMarketSearchUrl,
+  IDOCMARKET_PAGE_CAP,
+  parseShowing,
+  describeShowing,
   IDOCMARKET_TX_COUNTIES,
 } from '../adapters/remaining-counties-survey.js';
 import { isVendorProven } from '../services/clerk-registry.js';
@@ -221,5 +224,40 @@ describe('the two traps that hid Bastrop', () => {
 
   it('is honest that no adapter class exists yet', () => {
     expect(REMAINING_COUNTY_SURVEY.Bastrop.blocker).toContain('AumentumClerkAdapter now exists');
+  });
+});
+
+describe('iDocMarket truncates honestly, and Bosque is driven', () => {
+  const PAGE = 'Results Bosque, TX Validated Through: 7/30/2026 Showing: 1000 of 3639 results Name Contains SMITH';
+
+  it('reads both numbers from the showing line', () => {
+    expect(parseShowing(PAGE)).toEqual({ shown: 1000, total: 3639, truncated: true });
+  });
+
+  it('states exactly how many are missing', () => {
+    // The distinction worth preserving: Aumentum's cap says nothing, so we can only warn. Here both
+    // numbers are known, so the statement can be exact.
+    const s = describeShowing('Bosque', PAGE)!;
+    expect(s).toContain('returned 1000 of 3639');
+    expect(s).toContain('2639');
+    expect(s).toContain('before treating this as complete');
+  });
+
+  it('says so plainly when nothing was truncated', () => {
+    expect(describeShowing('Bosque', 'Showing: 12 of 12 results')).toBe('Bosque: all 12 result(s) returned.');
+  });
+
+  it('returns null when the page has no showing line', () => {
+    // Silence beats inventing a completeness claim.
+    expect(parseShowing('no counter here')).toBeNull();
+    expect(describeShowing('Bosque', 'no counter here')).toBeNull();
+  });
+
+  it('records the page cap', () => {
+    expect(IDOCMARKET_PAGE_CAP).toBe(1000);
+  });
+
+  it('handles thousands separators', () => {
+    expect(parseShowing('Showing: 1,000 of 12,345 results')).toEqual({ shown: 1000, total: 12345, truncated: true });
   });
 });

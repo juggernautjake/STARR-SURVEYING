@@ -142,6 +142,61 @@ export function idocMarketSearchUrl(county: string): string | null {
   return code ? `https://www.idocmarket.com/${code}/Document/Search` : null;
 }
 
+// ── iDOCMARKET, DRIVEN ──────────────────────────────────────────────────────────────────────────
+//
+// Bosque, 2026-08-02: party "SMITH" → "Showing: 1000 of 3639 results", no login. Records render as
+// `div.row`, not table rows:
+//
+//     DEED #2026-02531  7/28/2026  5 Pages  MAIN KELLY  GUILD MORTGAGE COMPANY LLC  View »
+//
+// i.e. document type, instrument number, recorded date, page count, then the two parties.
+//
+// ── THIS VENDOR TRUNCATES HONESTLY ──────────────────────────────────────────────────────────────
+//
+// Four vendors in this build cap their results, and they differ entirely in how they say so:
+//
+//     Tyler        a banner       "more documents than the maximum allowed"
+//     Avenu        a modal        "reached the configured timeout period"
+//     iDocMarket   a COUNT        "Showing: 1000 of 3639 results"
+//     Aumentum     NOTHING        100 rows and a counter that reads like an answer
+//
+// iDocMarket's is the only one that states both numbers, so a caller knows exactly how much is
+// missing rather than merely that something is. Worth naming, because the platform's job is to
+// preserve that distinction rather than flatten every cap into "here are the results".
+
+export const IDOCMARKET_PAGE_CAP = 1000;
+
+/** "Showing: 1000 of 3639 results" */
+export const IDOCMARKET_SHOWING = /Showing:\s*([\d,]+)\s*of\s*([\d,]+)\s*results/i;
+
+export interface ShowingCount {
+  shown: number;
+  total: number;
+  truncated: boolean;
+}
+
+export function parseShowing(pageText: string): ShowingCount | null {
+  const m = IDOCMARKET_SHOWING.exec(pageText ?? '');
+  if (!m) return null;
+  const shown = Number(m[1].replace(/,/g, ''));
+  const total = Number(m[2].replace(/,/g, ''));
+  return { shown, total, truncated: shown < total };
+}
+
+/** Say how much of the result set was actually returned.
+ *
+ *  Unlike Aumentum's silent cap, both numbers are known here — so the statement can be exact
+ *  instead of a warning that something might be missing. */
+export function describeShowing(county: string, pageText: string): string | null {
+  const s = parseShowing(pageText);
+  if (!s) return null;
+  if (!s.truncated) return `${county}: all ${s.total} result(s) returned.`;
+  return (
+    `${county}: TRUNCATED — the portal returned ${s.shown} of ${s.total} result(s), so ${s.total - s.shown} ` +
+    `are missing. Narrow the search (date range, document type, fuller name) before treating this as complete.`
+  );
+}
+
 /** Bosque's two free indexes do not meet.
  *
  *  QuickLink stops in 1905; iDocMarket starts in 2012. A deed recorded in 1950 is in NEITHER, and
