@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  compareSurveys, normalizeDelta, median, type CompareCall,
+  compareSurveys, normalizeDelta, median, callsFromPoints, type CompareCall,
 } from '@/lib/cad/compare/survey-compare';
 
 const call = (bearing: number | null, distance: number | null): CompareCall => ({ bearing, distance });
@@ -164,5 +164,35 @@ describe('tolerances are configurable, because a 1952 deed is not a 2020 survey'
     b[1] = call((b[1].bearing as number) + 0.01, b[1].distance);   // 36 seconds
     expect(compareSurveys(square, b).comparisons[1].flagged).toBe(false);
     expect(compareSurveys(square, b, { bearingToleranceSeconds: 10 }).comparisons[1].flagged).toBe(true);
+  });
+});
+
+describe('callsFromPoints derives courses from corners', () => {
+  it('uses the SURVEYING azimuth convention, not the mathematical one', () => {
+    // atan2(dx, dy), clockwise from north. The mathematical atan2(dy, dx) mirrors every bearing
+    // about the 45° line — which looks plausible on a square and is wrong on everything else.
+    const calls = callsFromPoints([
+      { x: 0, y: 0 }, { x: 0, y: 100 },   // due north
+      { x: 100, y: 100 },                 // due east
+      { x: 100, y: 0 },                   // due south
+    ]);
+    expect(calls[0].bearing).toBeCloseTo(0, 6);
+    expect(calls[1].bearing).toBeCloseTo(90, 6);
+    expect(calls[2].bearing).toBeCloseTo(180, 6);
+    expect(calls.map((c) => c.distance)).toEqual([100, 100, 100]);
+  });
+
+  it('gives a zero-length course a null bearing rather than 0°', () => {
+    // 0° is due north — a real answer. A duplicated corner has no direction at all.
+    const calls = callsFromPoints([{ x: 5, y: 5 }, { x: 5, y: 5 }]);
+    expect(calls[0].bearing).toBeNull();
+    expect(calls[0].distance).toBe(0);
+  });
+
+  it('round-trips through the comparison as a perfect match', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }, { x: 100, y: 0 }];
+    const out = compareSurveys(callsFromPoints(pts), callsFromPoints(pts));
+    expect(out.flaggedCount).toBe(0);
+    expect(out.basisOffsetDeg).toBe(0);
   });
 });

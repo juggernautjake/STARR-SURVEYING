@@ -702,7 +702,45 @@ been worth shipping.
 
   16 tests.
 
-  ### S9b — what remains
+  #### ✅ S9b DONE 2026-08-03 — reachable from the Survey menu (wiring tested; VISUAL pass not done)
+
+  **Survey → "Compare with a prior survey…"** takes two research readings and reports the
+  difference, leading with the basis statement. A test asserts that ordering: burying the basis
+  under a list of differences would present a change of frame as eighteen errors, which is the
+  exact failure S9a exists to prevent.
+
+  **Two files rather than "current drawing vs a file"**, deliberately. Extracting courses back out
+  of arbitrary drawn geometry means guessing which features are the boundary and in what order, and
+  a comparison built on a guess is worse than none — it reports differences that are artefacts of
+  the guess.
+
+  `callsFromPoints` derives courses from corner coordinates rather than a `legs` array, because
+  points are the one field every reading has and the field the S8a adapter already relies on, so it
+  cannot drift from what was drawn. It uses `atan2(dx, dy)` — the surveying convention, clockwise
+  from north. The mathematical `atan2(dy, dx)` mirrors every bearing about the 45° line, which looks
+  plausible on a square and is wrong on everything else; a test pins north/east/south explicitly.
+  A zero-length course gets a **null** bearing, never 0°, because 0° is due north — a real answer.
+
+  19 tests on the core, 14 on the wiring.
+
+  ### ⚠ The browser could not be used, and the reason is now diagnosed
+
+  Playwright loads **example.com** fine and is refused on **127.0.0.1 and localhost**, on four
+  ports, while Node's `fetch` to the same URL on the same machine returns 200. It worked earlier in
+  this same session, so something changed mid-run — it is browser-side network isolation, not a
+  dead port or a dead server, and no amount of restarting servers fixes it. Recorded so the next
+  session does not spend the time this one did rediscovering it.
+
+  **So S8b and S9b both have tested wiring and no visual confirmation.** That is two UI slices
+  against this repo's standing rule. First thing to do with a working browser, in order: import a
+  reading with an unusable call (expect the dialog to list it and the boundary to come in OPEN),
+  then compare two readings on different bases (expect a basis statement, not a list of errors).
+
+  ### S9c — what still remains
+
+  Overlaying the two figures on the canvas, rather than reporting the difference in a dialog. That
+  is genuinely visual work and should not be attempted without a browser.
+
 
   The UI: pick a prior survey, run the comparison, and show the report beside the drawing — plus
   overlaying the two figures on the canvas. Both need a browser, which this session could not keep
@@ -737,7 +775,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9a is DONE** — the comparison core. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S9b (UI/overlay, needs a browser).
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S9b (UI/overlay, needs a browser).
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read

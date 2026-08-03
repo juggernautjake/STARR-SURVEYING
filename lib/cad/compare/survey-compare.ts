@@ -89,6 +89,31 @@ export function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
+/** Derive the courses of a traverse from its corner coordinates.
+ *
+ *  Deliberately computed from `points` rather than read off a `legs` array: points are the one field
+ *  every reading has and the one the adapter already relies on, so this cannot drift from what was
+ *  actually drawn. Bearings come back as azimuths in degrees, clockwise from north — note the
+ *  `atan2(dx, dy)` argument order, which is the surveying convention and the reverse of the
+ *  mathematical one. Getting that backwards mirrors every bearing about the 45° line, which looks
+ *  plausible on a square and is wrong on everything else. */
+export function callsFromPoints(points: Array<{ x: number; y: number }>): CompareCall[] {
+  const calls: CompareCall[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    const distance = Math.hypot(dx, dy);
+    if (distance === 0) {
+      // A zero-length course has no bearing. Reporting 0° would invent a due-north call.
+      calls.push({ bearing: null, distance: 0 });
+      continue;
+    }
+    const az = (Math.atan2(dx, dy) * 180) / Math.PI;
+    calls.push({ bearing: (az + 360) % 360, distance });
+  }
+  return calls;
+}
+
 export function compareSurveys(
   a: CompareCall[],
   b: CompareCall[],

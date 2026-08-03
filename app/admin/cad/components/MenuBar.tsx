@@ -24,6 +24,8 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 // S8b — the research-platform bridge. Structurally typed, so importing it here does not couple the
 // CAD build to the worker's.
 import { featuresFromSurveyReading, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
+// S9b — compare two records of the same parcel; the basis difference is the headline finding.
+import { compareSurveys, callsFromPoints } from '@/lib/cad/compare/survey-compare';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -959,6 +961,79 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     input.click();
   }
 
+  /** CAD_AUDIT Slice S9b — compare this parcel's record against a prior survey of the same land.
+   *
+   *  Takes TWO research readings and reports the difference. Two files rather than "the current
+   *  drawing versus a file" on purpose: extracting courses back out of arbitrary drawn geometry means
+   *  guessing which features are the boundary and in what order, and a comparison built on a guess is
+   *  worse than no comparison — it would report differences that are artefacts of the guess.
+   *
+   *  The report leads with the BASIS, because that is the finding that stops a surveyor chasing
+   *  ghosts: two records of the same land written forty years apart disagree about every bearing and
+   *  usually agree perfectly, being on different bases of bearings. S9a estimates that rotation and
+   *  removes it; what this dialog shows is what is left. */
+  async function openCompareSurveys() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.multiple = true;
+    input.onchange = async () => {
+      const files = Array.from(input.files ?? []);
+      if (files.length !== 2) {
+        void alertAction({
+          title: 'Pick two readings',
+          message: 'Select exactly two research reading files — the earlier survey and the later one.',
+        });
+        return;
+      }
+      try {
+        const readings = await Promise.all(files.map(async (f) => JSON.parse(await f.text()) as {
+          traverse?: { points?: Array<{ x: number; y: number }> } | null;
+        }));
+        const pointsOf = (r: typeof readings[number]) => r?.traverse?.points ?? [];
+        if (pointsOf(readings[0]).length < 2 || pointsOf(readings[1]).length < 2) {
+          void alertAction({
+            title: 'Nothing to compare',
+            message: 'At least one of those readings has no traversable boundary — a lot-and-block or '
+              + 'reference-only description cannot be compared course by course.',
+          });
+          return;
+        }
+
+        const result = compareSurveys(
+          callsFromPoints(pointsOf(readings[0])),
+          callsFromPoints(pointsOf(readings[1])),
+        );
+
+        const rows = result.comparisons
+          .filter((c) => c.flagged)
+          .map((c) => `• course ${c.index + 1}: ${c.reason}`)
+          .join('\n');
+        const skipped = result.uncomparable.map((u) => `• course ${u.index + 1}: ${u.why}`).join('\n');
+
+        void alertAction({
+          title: `${files[0].name} vs ${files[1].name}`,
+          message: [
+            result.basisStatement,
+            '',
+            result.flaggedCount === 0
+              ? 'No course differs beyond tolerance once the basis is accounted for.'
+              : `${result.flaggedCount} course(s) differ:\n${rows}`,
+            result.countMismatch
+              ? `\nThe records describe a different number of courses (${result.countMismatch.a} vs ${result.countMismatch.b}).`
+              : '',
+            skipped ? `\nCould not be compared:\n${skipped}` : '',
+          ].filter(Boolean).join('\n'),
+        });
+        cadLog.info('Survey', `Compared surveys: ${result.flaggedCount} flagged, basis offset ${result.basisOffsetDeg ?? 'n/a'}`);
+      } catch (err) {
+        cadLog.error('Survey', 'Survey comparison failed', err);
+        void alertAction({ title: 'Starr CAD', message: 'Could not read those files. They may not be valid JSON.' });
+      }
+    };
+    input.click();
+  }
+
   async function openDxf() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1342,6 +1417,7 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         { separator: true },
         { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { setTool('INVERSE'); setOpenMenu(null); } },
         { label: 'Forward Point', shortcut: 'FP', action: () => { setTool('FORWARD_POINT'); setOpenMenu(null); } },
+        { label: 'Compare with a prior survey…', action: () => { void openCompareSurveys(); setOpenMenu(null); } },
         // CAD_AUDIT Slice S6a — the SAME dialogue as AI → "Calc Point", surfaced where a surveyor
         // would actually look for it.
         //

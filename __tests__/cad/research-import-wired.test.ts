@@ -90,3 +90,40 @@ describe('a wrong file is refused by name', () => {
     expect(body).not.toMatch(/if\s*\(\s*!\s*parsed\.traverse\s*\)/);
   });
 });
+
+describe('S9b — comparing with a prior survey is reachable', () => {
+  it('appears in the Survey menu, where a surveyor looks for it', () => {
+    const surveyBlock = code.slice(code.indexOf("label: 'Survey'"), code.indexOf("label: 'Draw'"));
+    expect(surveyBlock).toContain('Compare with a prior survey');
+  });
+
+  it('uses the S9a core rather than reimplementing the comparison', () => {
+    expect(code).toContain("from '@/lib/cad/compare/survey-compare'");
+    expect(code).toContain('compareSurveys(');
+    expect(code).toContain('callsFromPoints(');
+  });
+
+  it('leads the report with the basis statement', () => {
+    // The finding that stops a surveyor chasing ghosts. Burying it under a list of differences would
+    // present a change of frame as eighteen errors — the exact failure S9a exists to prevent.
+    const fn = code.slice(code.indexOf('async function openCompareSurveys'));
+    const body = fn.slice(0, fn.indexOf('async function openDxf'));
+    expect(body).toContain('result.basisStatement');
+    expect(body.indexOf('result.basisStatement')).toBeLessThan(body.indexOf('flaggedCount === 0'));
+  });
+
+  it('refuses a non-traversable reading by name', () => {
+    const fn = code.slice(code.indexOf('async function openCompareSurveys'));
+    const body = fn.slice(0, fn.indexOf('async function openDxf'));
+    expect(body).toContain('Nothing to compare');
+    expect(body).toContain('lot-and-block');
+  });
+
+  it('surfaces the uncomparable courses too', () => {
+    // A comparison that quietly drops the hard half reads as agreement.
+    const fn = code.slice(code.indexOf('async function openCompareSurveys'));
+    const body = fn.slice(0, fn.indexOf('async function openDxf'));
+    expect(body).toContain('uncomparable');
+    expect(body).toContain('Could not be compared');
+  });
+});
