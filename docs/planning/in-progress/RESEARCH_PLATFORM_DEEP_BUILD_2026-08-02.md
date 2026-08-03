@@ -81,6 +81,7 @@ that *no* county of an unproven vendor routes to it.
 | ~~R28/R29~~ | **DONE 2026-08-03** — the poller runs at boot behind `RESEARCH_QUEUE_POLLER`, default off. The loop was code, not deployment; enabling it is now configuration | — |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
+| R4b | Route the remaining **14** AI call sites through `infra/usage` — measured, ratcheted by `ai-spend-is-recorded.test.ts` 2026-08-03. Until then R5's spend ceiling under-counts and a run can overspend silently | Paired with R6's cheap-first rewrite so the same 14 files are not touched twice |
 
 ### Owner requests added after the original 30 slices
 | Added | What | Where |
@@ -352,6 +353,49 @@ polish — nothing else in this plan can be trusted while the engine is down and
   **Still to migrate:** 21 files construct their own Anthropic client directly and do not report
   tokens through the helper. Those are the same call sites R6 rewrites for cheap-first routing, so
   the two passes are being done together rather than touching each file twice.
+
+  **UPDATE 2026-08-03 — the backlog is measured, ratcheted, and it is smaller than this note said.**
+
+  The line above read *"21 files construct their own Anthropic client and do not report tokens"*.
+  Measured: **14**. And the first measurement said **20**, because the probe looked only for a direct
+  `infra/usage` import and missed the nine Bell analyzers that reach it through
+  `ai-cost-helpers.ts`. Widening a check before believing it moved the answer twice on one slice.
+
+  ### ▶ This is a correctness bug with a money consequence, not missing telemetry
+
+  R5's run budget enforces a spend ceiling by reading `spendForRun(projectId)`, which sums **only
+  what `recordUsage` wrote**. A call site that talks to Anthropic without reporting tokens is
+  therefore invisible to the ceiling: **a run can pass every budget check and still overspend.** The
+  drift is silent, it is real money, and it grows in the direction nobody watches — the more work the
+  unmigrated paths do, the further the ceiling sits from the invoice.
+
+  The two largest consumers are on the list (`ai-deed-analyzer.ts` and `ai-plat-analyzer.ts`), which
+  is the worst case: they send whole documents, so they skew the ceiling most.
+
+  ### What shipped: `worker/src/__tests__/ai-spend-is-recorded.test.ts`
+
+  Not the migration — a ratchet, in the same shape as `research-modules-are-reachable`'s
+  `KNOWN_UNREACHABLE`, so the hole cannot grow while the migration proceeds:
+
+  - a **new** unrecorded call site fails immediately;
+  - an entry that **did** get migrated fails too, so the list cannot quietly become a permanent
+    excuse;
+  - a listed file that no longer exists fails;
+  - every exception must carry a real reason;
+  - the count is capped at 14 — it may go down, never up.
+
+  Two tests guard the sweep itself (it must find call sites, and it must find some that *do* report,
+  so the predicate cannot be trivially false). Watched failing in **both** directions: adding an
+  unrecorded call site, and marking an already-migrated file as unmigrated.
+
+  ### R4b — the migration itself
+
+  Fourteen files, each needing its `messages.create` routed through the usage helper. Left as its own
+  slice deliberately: R6 rewrites these same call sites for cheap-first routing, and doing both
+  passes together avoids touching fourteen files twice — which is the reason the note above gave in
+  the first place and is still the right call. **Not deferred**; the ratchet just makes the delay
+  safe instead of invisible.
+
 
 - **R5. ✅ DONE 2026-08-02 — run budget and timebox, enforced.**
   `worker/src/infra/run-budget.ts`. Three ceilings — wall clock (default **25 minutes**, the owner's
