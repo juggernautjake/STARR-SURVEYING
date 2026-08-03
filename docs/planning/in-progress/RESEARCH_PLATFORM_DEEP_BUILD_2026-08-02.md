@@ -2958,16 +2958,23 @@ distinction matters: everything before this made a document arrive; nothing befo
   **guesses**. Whether a 14 px bearing is read correctly or confidently wrong is the one question
   arithmetic cannot answer, and it is the sharpest argument for the golden plat in §4 item 0a.
 
-  **Kofile — 22 counties — is still unmeasured, and its free-preview claim is now in doubt.** Bell's
-  document page loads full metadata anonymously and renders **no image at all** (no img/canvas/iframe,
-  after waiting), offering *Add to Cart* instead. That contradicts `hasFreeImagePreview()`, which
-  returns true for every Kofile county on the strength of a comment. It is **not** evidence the
-  platform cannot fetch them — `bell-clerk.ts:fetchDocumentImages` is documented as proven here and
-  drives a fuller flow — so the function still returns the same answer rather than being flipped on one
-  anonymous observation, and is flagged as unverified where it is asserted. The resolution table
-  therefore has a hole exactly where most of the coverage is, recorded as
-  `KOFILE_RESOLUTION_UNMEASURED` rather than filled with a guess. Settling both is one errand: run
-  the production capture against a Bell instrument and pass the result to `assessLegibility`.
+  **Kofile measures 300 DPI — the best of the lot, across 22 counties.** Bell instrument 2020032310
+  serves `files/documents/99280747/images/94926355_1.png` at **2550×3300**: exactly 300 DPI, a 21 px
+  bearing, free and anonymous. That completes the table.
+
+  | vendor | counties | limiting DPI | bearing | verdict |
+  |---|---|---|---|---|
+  | **Kofile** | 22 | ~300 | 21 px | **good** |
+  | Avenu | 19 | ~201 | 14 px | marginal |
+  | Tyler `DEGRADED` | 9 | ~200 | 14 px | marginal |
+
+  **A first pass at this measurement got it backwards**, and the mistake is worth keeping: it
+  inspected the document page for `<img>`/`<canvas>`/`<iframe>`, found only UI icons, and concluded
+  Kofile served no free image — nearly writing off free previews for the vendor carrying most of this
+  platform's coverage. The image is a **signed network request** (`?exp=&sig=`), not a DOM element,
+  and it only fires when the viewer is reached by searching and CLICKING the row, which is what
+  `bell-clerk.ts` has always done. Navigating straight to `/doc/<id>` never requests it. The failure
+  was in the instrument, not the portal; the right one was the network log.
 
   This is what the arithmetic was for: the legibility check said the Avenu capture could not possibly
   work, which sent me back to the portal to find out why. Every page still under the threshold carries
