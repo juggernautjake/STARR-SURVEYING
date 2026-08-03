@@ -237,6 +237,40 @@ export default function CampaignPageClient({ campaignId, initialData }: { campai
             <a className={styles.hexBtn} href="/dnd" style={{ marginBottom: 10 }}>← Lobby (sign out / switch)</a>
             <h1 className={styles.title} style={{ textAlign: 'left', margin: '8px 0 0' }}>{data?.campaign.name ?? '…'}</h1>
             {data?.campaign.blurb && <p style={{ color: 'var(--hx-muted)', margin: '4px 0 0' }}>{data.campaign.blurb}</p>}
+
+            {/* ── The map surfaces, which the DM previously could not reach ────────────────────
+                This panel had exactly ONE link — "← Lobby". The battle map at `/world` was
+                reachable only from `WorldAuthor`, which renders ON the world page: a link from a
+                page to itself. So the whole map subsystem — LiveMap, fog, tokens, terrain, twenty
+                UI components and an API — existed with no way in for the person who runs it.
+
+                The player hub does link to `/console`, but only once a map is PUBLISHED, and only
+                the DM can publish one. The entry point was behind the thing it was the entry point
+                for.
+
+                Four surfaces, in the order a DM uses them: build the world, draw a map, sculpt a
+                planet, then run the session. */}
+            <nav
+              aria-label="Campaign maps"
+              style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0 0' }}
+            >
+              {[
+                ['world', 'World & battle map', 'Fog, tokens, terrain — the map you run a session on'],
+                ['map-studio', 'Map maker', 'Draw and edit a battle map'],
+                ['planet-forge', 'Planet forge', 'Sculpt a world map in 3D'],
+                ['console', 'DM console', 'Run the session against a published map'],
+              ].map(([slug, label, title]) => (
+                <a
+                  key={slug}
+                  className={styles.hexBtn}
+                  href={`/dnd/campaigns/${campaignId}/${slug}`}
+                  title={title}
+                  style={{ textDecoration: 'none' }}
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
           </div>
 
           {error && <div className={styles.error}>{error}</div>}
