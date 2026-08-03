@@ -1,0 +1,151 @@
+// Free first, paid on demand (plan S-11).
+
+import { describe, it, expect } from 'vitest';
+import {
+  DESIRED_CAPABILITIES,
+  FREE_CONCURRENCY,
+  SOURCE_CATALOGUE,
+  adviseEscalation,
+  buildPlan,
+  describeProgress,
+  fitsFreeWindow,
+  servesCounty,
+} from '../research/research-modes.js';
+
+describe('free sources run first, in BOTH modes', () => {
+  it('puts every free step before every paid one', () => {
+    // This is the anti-waste mechanism and it is an ORDERING rule. Filtering afterwards cannot fix
+    // it, because by then the money is gone.
+    const plan = buildPlan('Bell', 'paid');
+    const lastFree = Math.max(...plan.steps.filter((s) => s.phase === 'free').map((s) => s.order));
+    const firstPaid = Math.min(...plan.steps.filter((s) => s.phase === 'paid').map((s) => s.order));
+    expect(lastFree).toBeLessThan(firstPaid);
+  });
+
+  it('omits paid sources entirely in free mode', () => {
+    const plan = buildPlan('Bell', 'free');
+    expect(plan.steps.every((s) => s.phase === 'free')).toBe(true);
+    expect(plan.paidSteps).toBe(0);
+  });
+
+  it('runs the same free sources in both modes', () => {
+    const free = buildPlan('Bell', 'free').steps.map((s) => s.source.id);
+    const paid = buildPlan('Bell', 'paid').steps.filter((s) => s.phase === 'free').map((s) => s.source.id);
+    expect(paid).toEqual(free);
+  });
+});
+
+describe('a plan only includes sources that serve the county', () => {
+  it('gives Bell its Kofile portal and the statewide sources', () => {
+    const ids = buildPlan('Bell', 'free').steps.map((s) => s.source.id);
+    expect(ids).toContain('kofile');
+    expect(ids).toContain('glo');   // statewide
+    expect(ids).toContain('cad');   // statewide
+    expect(ids).not.toContain('edoctec');   // Coryell/Lampasas only
+  });
+
+  it('gives Coryell eDocTec and not Kofile', () => {
+    const ids = buildPlan('Coryell', 'free').steps.map((s) => s.source.id);
+    expect(ids).toContain('edoctec');
+    expect(ids).not.toContain('kofile');
+  });
+
+  it('tolerates the word County in the name', () => {
+    expect(servesCounty(SOURCE_CATALOGUE.find((s) => s.id === 'edoctec')!, 'Coryell County')).toBe(true);
+  });
+
+  it('requires a county', () => {
+    expect(() => buildPlan('', 'free')).toThrow(/county is required/i);
+  });
+});
+
+describe('the plan says what it cannot reach', () => {
+  it('names capabilities no source covers', () => {
+    // A researcher deciding whether to escalate needs to know what escalating cannot fix.
+    const plan = buildPlan('Hays', 'free');           // no clerk source is routed for Hays
+    expect(plan.missingCapabilities).toContain('conveyances');
+    expect(plan.statement).toContain('No source in this plan covers');
+  });
+
+  it('covers everything desired for a routed county', () => {
+    expect(buildPlan('Bell', 'free').missingCapabilities).toEqual([]);
+  });
+
+  it('warns in free mode when paid sources exist and are unused', () => {
+    const plan = buildPlan('Limestone', 'free');
+    expect(plan.statement).toContain('NOT being used — escalate');
+  });
+
+  it('lists the capabilities a full answer wants', () => {
+    expect(DESIRED_CAPABILITIES).toContain('original_survey');
+    expect(DESIRED_CAPABILITIES).toContain('conveyances');
+  });
+});
+
+describe('the 20–30 minute window', () => {
+  it('fits a normal county with the standard concurrency', () => {
+    expect(fitsFreeWindow(buildPlan('Bell', 'free'))).toBe(true);
+  });
+
+  it('is judged on WALL clock, not summed source time', () => {
+    // Sources are independent and run concurrently; summing them would reject plans that fit fine.
+    const plan = buildPlan('Bell', 'free');
+    expect(plan.estimatedFreeSeconds).toBeGreaterThan(0);
+    expect(fitsFreeWindow(plan, 30, 1)).toBe(plan.estimatedFreeSeconds <= 1800);
+  });
+
+  it('caps concurrency, because county portals are slow and rate-limited', () => {
+    expect(FREE_CONCURRENCY).toBeGreaterThan(1);
+    expect(FREE_CONCURRENCY).toBeLessThanOrEqual(6);
+  });
+});
+
+describe('progress is a correctness feature', () => {
+  it('reports plain progress', () => {
+    expect(describeProgress({ completed: 2, total: 8, currentPhase: 'free', failed: [] })).toBe(
+      'free phase — 2/8 source(s) done (25%).',
+    );
+  });
+
+  it('distinguishes a failed source from one that found nothing', () => {
+    // A twenty-minute silent screen gets killed, and a killed run looks exactly like a run that
+    // found nothing.
+    const s = describeProgress({ completed: 3, total: 8, currentPhase: 'free', failed: ['kofile'] });
+    expect(s).toContain('FAILED');
+    expect(s).toContain('not because the records are absent');
+  });
+
+  it('does not divide by zero on an empty plan', () => {
+    expect(describeProgress({ completed: 0, total: 0, currentPhase: 'free', failed: [] })).toContain('0%');
+  });
+});
+
+describe('escalation advice never oversells paying', () => {
+  it('says no when no paid source serves the county', () => {
+    // Coryell has eDocTec (free) and nothing paid beyond the statewide TexasFile... which does serve
+    // it, so use a county where that is not true.
+    const a = adviseEscalation('Coryell', 0, [], SOURCE_CATALOGUE.filter((s) => s.id !== 'texasfile'));
+    expect(a.worthEscalating).toBe(false);
+    expect(a.reason).toContain('search the same places');
+  });
+
+  it('tells the researcher to re-run failed free sources first', () => {
+    // "Nothing found" after a failure means "not read", not "nothing recorded" — and re-running the
+    // free source costs nothing.
+    const a = adviseEscalation('Bell', 0, ['kofile']);
+    expect(a.worthEscalating).toBe(true);
+    expect(a.reason).toContain('not read');
+    expect(a.reason).toContain('costs nothing and should be tried first');
+  });
+
+  it('recommends escalation after a clean empty free pass', () => {
+    const a = adviseEscalation('Bell', 0, []);
+    expect(a.worthEscalating).toBe(true);
+    expect(a.reason).toContain('ran cleanly and found nothing');
+  });
+
+  it('reassures that found documents will not be re-bought', () => {
+    const a = adviseEscalation('Bell', 12, []);
+    expect(a.reason).toContain('will NOT be bought again');
+  });
+});
