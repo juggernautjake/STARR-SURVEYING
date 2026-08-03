@@ -2371,6 +2371,39 @@ review. Seed 567.
 *(Also caught in passing: the seed used `cad_property` for the site-type enum; the real value is
 `appraisal_cad`. The seed runner rejected it rather than silently updating zero rows.)*
 
+#### R39, twenty-first finding — a dead field swallowed every adjoiner step failure
+
+Seeds 566 and 567 audited the adapters. Auditing the layer **above** them found the same defect, and
+this one is structural rather than a single bad catch.
+
+**`AdjacentResearchWorker` declared `private errors: string[]`, reset it at the end of every run,
+and never merged it into the returned result.** It was a dead field. Every step that recorded a
+failure into it was writing to nothing:
+
+| Step | On failure |
+|---|---|
+| AI deed selection | logged, recorded nowhere, returned `null` |
+| Image download | logged, recorded nowhere, returned `[]` |
+| Boundary extraction | logged, recorded nowhere, returned `null` |
+
+A log line is not a result. The caller received a null deed, an empty image list and a null
+boundary — **indistinguishable from an adjoiner that genuinely has no deed, no images and no metes
+and bounds.** All three of those are real, common situations, which is exactly what made the
+failures invisible.
+
+**And the run called itself complete.** `researchStatus` was `'complete'` whenever any boundary
+calls were extracted, regardless of what had failed on the way — so a run that lost its images and
+could not pick a deed still reported complete, and a reviewer would stop looking at precisely the
+adjoiner that needed a second look. Now `'complete'` requires a boundary **and** a clean run.
+
+**One earlier fix made this worse before it made it better.** Seeds 566/567 made the adapters throw
+informative errors — *"the absence of ACCESS, not the absence of images"*. The image-download catch
+here caught those and returned `[]`, discarding exactly the information the change had created.
+**Fixing a leaf without following it upward produces better errors that nobody ever sees.**
+
+`adjoiner-failures-surface.test.ts` pins the drain, its ordering before the reset, the three
+recorded failures, and the complete-requires-clean rule. Seed 568.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
