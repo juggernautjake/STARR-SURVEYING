@@ -1262,12 +1262,22 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts: 121 slices done, 35 open** (was 37 before the two above). Owner's priority order is
-> classes → Content Studio → audit findings → *never* Phase 7 without sign-off.
+> **2. Counts, measured rather than estimated 2026-08-02: 31 open, of which only 16 are actionable.**
 >
-> **The next genuinely unstarted slice is Phase 6, the Content Studio**, per the owner's own ordering —
-> "built *and surfaced*", their emphasis, because this project's characteristic defect is finishing
-> something nobody can click.
+> | | count | which |
+> |---|---|---|
+> | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
+> | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
+> | **Actionable now** | **16** | `P5-7b`, `P8-1`, `P8-2`, `P10-5b`, `P13-4/5/8/11/12/13/14`, `P14-8/9/10/11/12` |
+>
+> **Phase 6, the Content Studio, is COMPLETE** — all 20 slices including the class studio, the creature
+> builder and sheet, per-field and whole-draft AI assist, file ingest, images, and both engine bridges.
+> The owner's priority list is therefore satisfied down to "the audit findings".
+>
+> **Start with `P5-7b`** — per-slot screens inside the Levels step. It is the only actionable slice in
+> the owner's priority band, the slot model already returns exactly the list that would drive it, and
+> the doc records it as a presentation change rather than new mechanics. It is a UI slice, so the
+> standing rule applies: **drive it in a browser before ticking it.**
 
 - [x] **P5-8 — IG Champion. ✅ RESOLVED 2026-07-27, recorded here 2026-08-02.** Never actually blocked:
       Champion IS published on intuitivegames.net/classes. The page **lazy-renders** its subclass blocks, so
