@@ -170,7 +170,24 @@ export default function CampaignHub({ data, selfId }: { data: CampaignHubData; s
           )}
 
           {/* Every published map for this campaign — players can view any of them (image maps show inline;
-              interactive built maps get an "Open" button that loads that specific map in the console). */}
+              interactive built maps get an "Open" button that loads that specific map in the console).
+
+              WHEN THERE ARE NONE, THIS USED TO RENDER NOTHING AT ALL. A player saw no maps section
+              and could not tell whether the DM had not published one yet, whether the campaign has
+              none, or whether something failed — three different situations, one blank space, and
+              only the first has an obvious next move ("ask the DM"). The empty state now says which
+              it is, for the same reason the crew packet distinguishes "none" from "not recorded". */}
+          {(data.publishedMaps ?? []).length === 0 && (
+            <section className={styles.framedPanel}>
+              <div className={styles.framedPanelTop} />
+              <h2 className={styles.panelTitle}>Galaxy Maps</h2>
+              <p style={{ color: 'var(--hx-muted)', margin: 0, fontSize: 13.5 }}>
+                Your DM has not published a map for this campaign yet. There is nothing missing on
+                your side — maps appear here as soon as one is shared.
+              </p>
+            </section>
+          )}
+
           {(data.publishedMaps ?? []).length > 0 && (
             <section className={styles.framedPanel}>
               <div className={styles.framedPanelTop} />
