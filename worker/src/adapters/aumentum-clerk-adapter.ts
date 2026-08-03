@@ -335,10 +335,52 @@ export class AumentumClerkAdapter extends ClerkAdapter {
     }));
   }
 
+  /** Capture the document page by screenshotting the county's viewer (plan I/S7).
+   *
+   *  Driven on Bastrop 2026-08-03. Unlike Avenu, Tyler Eagle and eDocTec — each of which turned out
+   *  to hand over an image or a PDF once the right URL was found — this portal genuinely exposes
+   *  **neither**. `SearchImage.aspx` holds an iframe running a LEADTOOLS Web Image Viewer that paints
+   *  into `#divWIV1`; there is no `<img src>` and no PDF handler to fetch.
+   *
+   *  So this is the one vendor where screenshotting is the correct answer rather than a shortcut, and
+   *  every page it produces is flagged `capturedByScreenshot` because a picture of a viewer is a worse
+   *  artifact than the document: it carries the viewer's zoom and scaling, not the scan's resolution.
+   *  Fine plat detail read from one of these should say so. */
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
     throw new Error(
-      `[Aumentum/${this.countyName}] Images for ${instrumentNo} go through the site's basket/"Get a Free Copy" flow, which is not wired up. Not "no images".`,
+      `[Aumentum/${this.countyName}] ${instrumentNo}: this portal exposes no downloadable image or PDF — its ` +
+        `viewer is a LEADTOOLS control painting into a div. Use captureDocumentByScreenshot(), which is the ` +
+        `best artifact available here. Not "no images".`,
     );
+  }
+
+  /** The screenshot path described above. Requires the image tab already opened from a results row. */
+  async captureDocumentByScreenshot(
+    instrumentNo: string,
+    imagePage: Parameters<typeof import('./aumentum-viewer.js').captureViewerPage>[0],
+  ): Promise<{ images: DocumentImage[]; caveat: string }> {
+    const { captureViewerPage } = await import('./aumentum-viewer.js');
+    const result = await captureViewerPage(imagePage, { log: (m) => console.log(m) });
+
+    if (result.pages.length === 0) {
+      throw new Error(`[Aumentum/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+    }
+    console.log(`[Aumentum/${this.countyName}] ${instrumentNo}: ${result.statement}`);
+
+    return {
+      images: result.pages.map((p) => ({
+        instrumentNumber: instrumentNo,
+        pageNumber: p.pageNumber,
+        totalPages: result.pages.length,
+        imagePath: '',
+        imageBase64: p.imageBase64,
+        isWatermarked: false,
+        // Never 'good': this is a screenshot of a viewer, and claiming otherwise would let a
+        // downstream quality gate treat it as equivalent to a fetched scan.
+        quality: 'fair',
+      } as DocumentImage)),
+      caveat: result.fidelityCaveat,
+    };
   }
 
   async getDocumentPricing(instrumentNo: string): Promise<PricingInfo> {
