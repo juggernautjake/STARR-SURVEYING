@@ -115,7 +115,7 @@ export default function RotationPanel({ projectId, calls, isOpen, onClose }: Rot
       <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg bg-gray-900 border border-gray-700 text-gray-100">
         <header className="flex items-center justify-between border-b border-gray-800 px-5 py-3">
           <div>
-            <h2 className="text-lg font-semibold">Rotate record onto field work</h2>
+            <h2 className="text-lg font-semibold text-gray-100">Rotate record onto field work</h2>
             <p className="text-xs text-gray-400">
               Expresses the record in the basis you are measuring in. The shape is untouched.
             </p>
@@ -127,7 +127,7 @@ export default function RotationPanel({ projectId, calls, isOpen, onClose }: Rot
           {/* ── Basis ── */}
           <div className="flex gap-4 text-sm">
             {(['ties', 'backsight'] as const).map((m) => (
-              <label key={m} className="flex items-center gap-2 cursor-pointer">
+              <label key={m} className="flex items-center gap-2 cursor-pointer text-gray-100">
                 <input type="radio" name="rotationMode" checked={mode === m} onChange={() => setMode(m)} />
                 <span>{m === 'ties' ? 'Tied corners (GPS)' : 'Backsight (robotic)'}</span>
               </label>
@@ -159,7 +159,7 @@ export default function RotationPanel({ projectId, calls, isOpen, onClose }: Rot
               <button onClick={() => setTies((p) => [...p, emptyTie()])}
                 className="text-sm text-blue-400 hover:text-blue-300">+ Add corner</button>
 
-              <label className="flex items-start gap-2 pt-2 text-sm cursor-pointer">
+              <label className="flex items-start gap-2 pt-2 text-sm cursor-pointer text-gray-100">
                 <input type="checkbox" checked={fitScale} onChange={(e) => setFitScale(e.target.checked)}
                   className="mt-1" />
                 <span>
@@ -180,12 +180,12 @@ export default function RotationPanel({ projectId, calls, isOpen, onClose }: Rot
                 with it.
               </p>
               <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm">
+                <label className="text-sm text-gray-100">
                   <span className="block text-xs text-gray-400 mb-1">Record calls this line</span>
                   <input value={recordBearing} onChange={(e) => setRecordBearing(e.target.value)}
                     placeholder={'N 0°00\'00" E'} className="w-full bg-gray-800 rounded px-2 py-1" />
                 </label>
-                <label className="text-sm">
+                <label className="text-sm text-gray-100">
                   <span className="block text-xs text-gray-400 mb-1">You are holding</span>
                   <input value={measuredBearing} onChange={(e) => setMeasuredBearing(e.target.value)}
                     placeholder={'N 1°42\'18" E'} className="w-full bg-gray-800 rounded px-2 py-1" />

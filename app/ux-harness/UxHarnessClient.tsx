@@ -47,6 +47,12 @@ const MOCK_SESSION = {
 // Param-free top-level admin pages worth auditing. (Pages needing route
 // params like [id] are excluded.)
 const PAGES: Record<string, ComponentType> = {
+  // Research panels (2026-08-03). Registered so this session's UI can be driven at all — the pages
+  // they live on need a project with data, the panels themselves need only props.
+  'research-rotation': nextDynamic(
+    () => import('./ResearchPanelHarnessMount').then((m) => m.RotationPanelHarness), { ssr: false }),
+  'research-vendor-accounts': nextDynamic(
+    () => import('./ResearchPanelHarnessMount').then((m) => m.VendorAccountsPanelHarness), { ssr: false }),
   jobs: nextDynamic(() => import('@/app/admin/jobs/page'), { ssr: false }),
   leads: nextDynamic(() => import('@/app/admin/leads/page'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),

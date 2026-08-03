@@ -152,7 +152,7 @@ export default function VendorAccountsPanel() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold">Vendor accounts</h2>
+        <h2 className="text-lg font-semibold text-gray-100">Vendor accounts</h2>
         <p className="text-xs text-gray-400">
           Limits for automatic top-ups. Nothing charges a card until auto top-up is switched on AND a
           card is on file — and no screen in this app can set a card number.
@@ -165,7 +165,7 @@ export default function VendorAccountsPanel() {
         <div key={a.vendor_id} className="rounded border border-gray-700 bg-gray-900 p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium">{a.display_name || a.vendor_id}</h3>
+              <h3 className="font-medium text-gray-100">{a.display_name || a.vendor_id}</h3>
               <p className="text-xs text-gray-500">
                 {a.account_status}
                 {a.account_identifier ? ` · ${a.account_identifier}` : ''}
@@ -192,7 +192,7 @@ export default function VendorAccountsPanel() {
                   ['monthly_ceiling_usd', 'Monthly ceiling ($)'],
                   ['min_topup_interval_mins', 'Min interval (min)'],
                 ] as const).map(([key, label]) => (
-                  <label key={key} className="text-sm">
+                  <label key={key} className="text-sm text-gray-100">
                     <span className="block text-xs text-gray-400 mb-1">{label}</span>
                     <input
                       value={draft[key] ?? ''}
@@ -204,7 +204,7 @@ export default function VendorAccountsPanel() {
                 ))}
               </div>
 
-              <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <label className="flex items-start gap-2 text-sm cursor-pointer text-gray-100">
                 <input
                   type="checkbox"
                   checked={draft.auto_topup_enabled === 'true'}

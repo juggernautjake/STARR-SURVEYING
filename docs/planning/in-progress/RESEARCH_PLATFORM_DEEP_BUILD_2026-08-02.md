@@ -3845,6 +3845,49 @@ every module with a unit test would look wired and all eleven recorded orphans w
 
 Worker suite 86 files / 1,436 tests; root 1,470 files; typecheck clean.
 
+#### Browser QA, finally attempted — and it found a bug on the first screenshot
+
+**DONE 2026-08-03** (`app/ux-harness/ResearchPanelHarnessMount.tsx` + `panel-contrast.test.ts`).
+
+I named browser QA as "the honest remaining gap" **twice** and never tried it, giving as the reason
+that the pages are auth-gated and need a project with data. That was true of the PAGES and not of the
+PANELS: the UX harness already mounts components with a mock session, and what was missing was
+somewhere to mount ones that take props. The same shape as every other blocker here — the obstacle
+was not the decision, it was the absence of a form for it.
+
+**The first screenshot showed the rotation panel's heading and BOTH radio labels rendering
+dark-on-dark, invisible against `bg-gray-900`.** Every unit test passed, including the render tests
+written one slice earlier: the markup was right and the CSS cascade was not.
+
+Two element rules in `app/styles/globals.css` are the cause:
+
+```css
+h1, h2, h3, h4, h5, h6 { color: var(--brand-dark); }
+label                  { color: var(--brand-dark); }
+```
+
+**An element selector beats an inherited value, always.** `text-gray-100` on the panel container
+never reaches an `<h2>` or a `<label>` inside it — Tailwind's class is on the wrong element to win.
+Those globals are not wrong; they are right for the light admin pages that are most of this app. It
+is a rule about writing a **dark panel inside a light-themed application**, and nothing but looking
+could have found it.
+
+`panel-contrast.test.ts` now fails on any heading or label in a dark panel without an explicit text
+colour, and asserts the two globals still exist — so when they change, the check announces that its
+reason has gone rather than quietly guarding nothing. Verified by removing the fix and watching it
+name the heading.
+
+The vendor-accounts panel rendered its **error** state ("Unauthorized"), which is correct: the
+harness's mock session is not a real server session, so the route properly refuses. That is the panel
+doing exactly what it should, legibly.
+
+Two self-inflicted lessons: `git checkout --` to undo a mutation test **also reverted the
+uncommitted fix** it was testing, silently — the reapply is the only reason it is not lost. And the
+harness mount tripped the repo's existing inline-hex ratchet, which is a rule I should have known and
+which was right to fire.
+
+Root suite 1,471 files; typecheck and `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
