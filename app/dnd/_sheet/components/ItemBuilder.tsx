@@ -18,6 +18,7 @@ import { armorModBonus } from '../lib/derive-ac'
 import { abilityMod } from '../rules/dnd'
 import { useChar } from '../state/store'
 import { MASTERY_PROPERTIES } from '@/lib/dnd/equipment/dnd5e-2024'
+import MagicItemPicker from './MagicItemPicker'
 
 const KINDS: { id: ItemKind; label: string }[] = [
   { id: 'weapon', label: '⚔ Weapon' },
@@ -139,6 +140,21 @@ export default function ItemBuilder({
       <div style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--tealbright)', fontWeight: 800 }}>
         {initial ? '✎ Edit item' : '＋ New item'}
       </div>
+
+      {/* The SRD magic-item catalogue (P8-2) — offered only when CREATING. On an edit it would be a
+          "replace everything you just typed" button sitting above the fields it would overwrite, and the
+          player's own item is not a thing to start over from. Picking one patches the same state the
+          fields below write, so it prefills rather than locking anything. */}
+      {!initial && (
+        <MagicItemPicker
+          onPick={(picked) => setIt((v) => ({
+            // The picked item's OWN id is discarded in favour of the one this builder already minted:
+            // `save()` and the Inventory upsert both key on it, and swapping it mid-edit would make a
+            // re-pick add a second row instead of replacing the draft.
+            ...picked, id: v.id,
+          }))}
+        />
+      )}
 
       {/* Kind picker */}
       <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>

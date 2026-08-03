@@ -24,6 +24,8 @@
     "migrate:dnd-content": "tsx scripts/migrate-dnd-content.ts",
     "verify:fs-figures": "tsx scripts/verify-fs-figures.ts",
     "verify:fs-questions": "tsx scripts/verify-fs-questions.ts",
+    "import:magic-items": "node scripts/import-srd-magic-items.mjs",
+    "verify:magic-items": "node scripts/import-srd-magic-items.mjs --check",
     "import:bestiary": "npx --yes vite-node -c vitest.config.ts scripts/import-bestiary.mjs --",
     "import:bestiary:pf2": "npx --yes vite-node -c vitest.config.ts scripts/import-bestiary-pf2.mjs --",
     "art:creatures": "npx --yes vite-node -c vitest.config.ts scripts/fetch-creature-art.mjs --",
