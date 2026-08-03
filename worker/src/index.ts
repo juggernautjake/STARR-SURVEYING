@@ -40,6 +40,8 @@ import { ChainOfTitleBuilder } from './chain-of-title/chain-builder.js';
 import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
+import { getClerkAdapter } from './services/clerk-registry.js';
+import { searchDepsFromAdapter } from './chain-of-title/chain-search-deps.js';
 import { SiteHealthMonitor } from './infra/site-health-monitor.js';
 // Phase 13 imports
 import { USGSClient } from './sources/usgs-client.js';
@@ -3490,7 +3492,13 @@ app.get(
 /**
  * POST /research/chain-of-title
  * Build deep chain of title for a property.
- * Body: { projectId, currentOwner, documents, extractionData, maxDepth? }
+ * Body: { projectId, currentOwner, documents, extractionData, maxDepth?, county?, countyFIPS?,
+ *         indexBeginsYear? }
+ *
+ * `county` (or `countyFIPS`) is what turns this from a walk over already-harvested documents into
+ * the backward RE-QUERY R14 specified. Without it the builder had no searches at all — see
+ * `chain-of-title/chain-search-deps.ts`. It stays optional so existing callers keep working, and
+ * the response says which of the two happened rather than leaving them indistinguishable.
  */
 app.post(
   '/research/chain-of-title',
@@ -3500,8 +3508,8 @@ app.post(
     const logger = new (await import('./lib/logger.js')).PipelineLogger(
       req.body?.projectId || 'unknown',
     );
-    const { projectId, currentOwner, documents, extractionData, maxDepth } =
-      req.body || {};
+    const { projectId, currentOwner, documents, extractionData, maxDepth,
+            county, countyFIPS, indexBeginsYear } = req.body || {};
 
     if (!projectId) {
       res.status(400).json({ error: 'projectId is required' });
@@ -3520,19 +3528,51 @@ app.post(
     });
 
     try {
+      // The searches R14 built and nobody supplied.
+      //
+      // `ChainOfTitleBuilder` takes `searchAsGrantee` / `fetchByVolumePage` / `fetchByInstrument` as
+      // OPTIONAL constructor options, and this — its only caller — passed no options object at all.
+      // Every module degrades honestly when its dependency is missing, which is exactly why an
+      // entirely inert backward re-query never failed a test: the chain walked only the documents
+      // already harvested, and said so truthfully, forever.
+      let searchDeps: ReturnType<typeof searchDepsFromAdapter> = {};
+      let searchedWith: string | null = null;
+      if (county || countyFIPS) {
+        const entry = county ? getClerkByCountyName(county) : null;
+        const fips = countyFIPS || (entry ? `48${entry.fips}` : null);
+        const name = county || entry?.county || '';
+        if (fips && name) {
+          searchDeps = searchDepsFromAdapter(getClerkAdapter(fips, name));
+          searchedWith = `${name} (FIPS ${fips})`;
+        }
+      }
+
       const builder = new ChainOfTitleBuilder(
         maxDepth || 5,
         ANALYSIS_DIR,
+        searchDeps,
       );
       const result = await builder.buildChain(
         projectId,
         currentOwner,
         documents || [],
         extractionData || {},
+        indexBeginsYear ? { indexBeginsYear } : {},
       );
 
       attempt({ status: 'success', dataPointsFound: result.chain.length });
-      res.json({ projectId, chainOfTitle: result });
+      // Stated rather than implied: a chain built WITHOUT a county was walked over harvested
+      // documents only, and a reader cannot tell that from the chain itself. It is the difference
+      // between "no earlier deed exists" and "nobody went to look".
+      res.json({
+        projectId,
+        chainOfTitle: result,
+        searchedWith,
+        note: searchedWith
+          ? `Backward re-query ran against ${searchedWith}'s clerk index.`
+          : 'No county was supplied, so NO clerk searches were run — this chain walks only the ' +
+            'documents already harvested. Pass `county` or `countyFIPS` to re-query the index.',
+      });
     } catch (err: any) {
       attempt({ status: 'fail', error: err.message });
       logger.error('Phase11_ChainOfTitle', 'Chain of title build failed', err);

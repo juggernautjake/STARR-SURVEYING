@@ -678,8 +678,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   subscription record; TitlePoint/DataTree-class vendors and Regrid behind the same interface; PDF
   attachment into `research_documents`. The library and the policy are what those plug into.
 
-- **R14. Full chain of title, to the earliest available instrument.** ◑ PART DONE 2026-08-02 —
-  gaps + stated reason shipped; the exhaustive backward re-query remains
+- **R14. Full chain of title, to the earliest available instrument.** ✅ **DONE 2026-08-03** — gaps,
+  the name walk, the citation errands, and (finally) the searches all four of them needed
   `chain-of-title/chain-builder.ts` exists; drive it to exhaustion — walk grantor/grantee backwards,
   record gaps explicitly, and stop with a stated reason ("clerk index begins 1902").
   *Acceptance:* the packet shows a chain with every link's instrument number, date, and source
@@ -757,6 +757,44 @@ polish — nothing else in this plan can be trusted while the engine is down and
   run's errands rather than being chased here, so the cost stays bounded and stated.
 
   Worker suite 1,025/1,025; both roots typecheck clean.
+
+  **DONE 2026-08-03 — the fourth piece, which is why none of the other three ever ran**
+  (`worker/src/chain-of-title/chain-search-deps.ts`).
+
+  All three modules above are real, tested, and reached from `worker/src/index.ts`. The backward
+  re-query was nonetheless **completely inert**, and had been since it was written. `ChainOfTitleBuilder`
+  takes its searches as *optional constructor options*, and its only caller passed no options object
+  at all:
+
+  ```ts
+  new ChainOfTitleBuilder(maxDepth || 5, ANALYSIS_DIR)     // ← no third argument
+  ```
+
+  So `searchAsGrantee` was undefined and `errandDeps` was undefined. Every run walked only the
+  documents already harvested — the exact behaviour R14 was written to replace — and **said so
+  truthfully**, because each module degrades honestly when its dependency is missing. That is what
+  made it invisible: nothing failed, no test caught it, and a feature that had never once queried a
+  clerk index looked like a working one.
+
+  This is a quieter variant of the authored-but-not-wired defect and **it does not show up in a
+  caller grep**: the modules had callers. They had no arguments. Worth naming as its own shape —
+  *wired but never fed*.
+
+  `searchDepsFromAdapter()` builds the three searches from a county's clerk adapter, and the endpoint
+  now takes `county` / `countyFIPS` / `indexBeginsYear`. The response states which of the two runs
+  happened, because a chain built without a county cannot be told from one whose county had nothing
+  earlier — the difference between *"no earlier deed exists"* and *"nobody went to look"*.
+
+  **The throw is passed through on purpose.** Adapters that raise on `searchByVolumePage` are relied
+  upon by `chain-errands`'s five outcomes, so a `try { … } catch { return [] }` in this file would
+  quietly undo all of that work one layer below where it was done. Pinned by a test that asserts the
+  rejection propagates.
+
+  Grantors are joined rather than truncated to the first: a deed from three siblings names three
+  grantors, and dropping two breaks the *next* link, producing a chain that reports a break which
+  exists only because we discarded the evidence.
+
+  Worker suite 77 files / 1,296 tests; both roots typecheck clean.
 
   **Still owner-gated, not code-gated:** per-county index horizons as data (the `IndexHorizon`
   parameter exists and is honoured; what is missing is a table of which year each county's index
