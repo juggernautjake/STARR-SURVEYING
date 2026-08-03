@@ -149,7 +149,23 @@ function hasCaller(modulePath: string, sources: Array<{ abs: string; text: strin
   const base = path.basename(modulePath, '.ts');
   const selfAbs = path.join(REPO, modulePath);
   const pattern = new RegExp(`['"\`][^'"\`]*\\b${base.replace(/\./g, '\\.')}(\\.js)?['"\`]`);
-  return sources.some((f) => f.abs !== selfAbs && pattern.test(f.text));
+  // `includes` first, regex only on the survivors. This is a NECESSARY condition, not a heuristic:
+  // the pattern contains `base` as a literal, so a file whose text does not contain that substring
+  // cannot possibly match it. Same answers, and it skips the regex on the ~95% of files that never
+  // mention the module.
+  //
+  // Why this is worth a comment: the check was intermittently failing at ~5.1 s against vitest's 5 s
+  // default, but ONLY in the full-suite run and never in isolation — the worst shape a structural
+  // guard can take, because it looks like a real orphan, passes on re-run, and teaches people to
+  // re-run past it. The cost was one regex over every source file's ENTIRE text once per module,
+  // roughly 12,000 full-file scans.
+  //
+  // A first attempt extracted each file's quoted literals once and matched against those. It looked
+  // equivalent — the pattern is quote-bounded at both ends — and it was NOT: scanning for quote
+  // pairs left-to-right mis-pairs them after any apostrophe in prose, so a single "don't" in a
+  // comment hides every literal after it. It reported twelve modules as orphans that are wired.
+  // Recorded because the reasoning was persuasive and wrong, and only running it caught that.
+  return sources.some((f) => f.abs !== selfAbs && f.text.includes(base) && pattern.test(f.text));
 }
 
 describe('every research module is reachable, or says why not', () => {
