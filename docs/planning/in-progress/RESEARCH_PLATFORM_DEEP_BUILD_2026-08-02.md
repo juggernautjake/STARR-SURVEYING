@@ -56,7 +56,7 @@ that *no* county of an unproven vendor routes to it.
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
-| R25 | The packet picker UI, and embedded page images in the PDF | The API takes a selection today; images need R24's `flattenLayers` wired to a renderer |
+| ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
 | R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
@@ -1244,8 +1244,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   *Acceptance:* markup survives reload, is attributable to a person, and the original download is
   byte-identical to what was fetched.
 
-- **R25. The packet.** ◑ PART DONE 2026-08-02 — the packet, its PDF, versioning and approval
-  shipped; the selection UI and embedded page images remain
+- **R25. The packet.** ✅ **DONE** — packet, PDF, versioning and approval 2026-08-02; selection UI
+  and embedded page images 2026-08-03
 
   **Shipped** (seed 536 + `lib/research/packet.ts` + `packet-pdf.ts` + the packets and packet-PDF
   routes).
@@ -1284,10 +1284,45 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Root suite 21,618 passing; typecheck clean. Seed 536 applied to production.
 
-  **Remaining:** the picker UI for choosing and ordering items (the API takes the selection today),
-  and embedded page images and drawings in the PDF — it is text-first on purpose, because a packet's
-  value is in what it *says* and that is what is readable on a phone in a truck. R24's
-  `flattenLayers` is the input when annotated page images are added here.
+  **DONE 2026-08-03.**
+
+  **The picker was already built.** `PacketBuilderPanel` exists, is wired into the research project
+  page under the packet tab, opens with a sensible default selection — every conflict, every readable
+  document, the plan; facts left OUT, because fifty unreviewed facts is how an unchecked value
+  reaches a crew looking authoritative — and orders items. That line was stale. Checking the premise
+  before building saved building it twice; it is the second stale item found this way this session.
+
+  **Page images** (`lib/research/packet-images.ts` + `packet-pdf.ts`). Worth doing now because R15
+  made it meaningful: the packet knows *which* plat governs a lot and whether we hold it, and a
+  packet that names the governing plat but cannot show it hands a crew an instrument number.
+
+  Text-first is preserved rather than abandoned — the plan, the open questions and the facts still
+  come first and still read on a phone. Images follow the text.
+
+  **An absent image is a statement, not a blank**, which is the same failure R15 found one layer up.
+  A document entry with no image looks identical whether it was never fetched, could not be read, or
+  was left out of a deliberately text-only print — and those are an errand, a trip to the courthouse,
+  and neither, respectively. `PacketImage` carries a status, every document entry prints one, and no
+  code path prints a document entry with silence where an image would be.
+
+  **Bounded, and the bounds reported**: one page per document, at most 12 documents imaged, 8 MB
+  total — embedding everything turns a 200 KB packet into something a phone cannot open on a rural
+  connection, defeating the reason it is text-first. Every limit hit is stated on the **cover** *and*
+  on the entry, since a reader at item 34 does not carry a cover caveat down the document. A single
+  embedded page of a four-page deed says so, because the pages not shown are exactly where a
+  reservation or an exception tends to be.
+
+  Fetching is split from rendering so `renderPacketPdf` stays synchronous and pure and a malformed
+  PNG cannot take the plan and the open questions down with it. Images are fetched at print time
+  rather than frozen into `rendered_json`: approval is a signature on what the packet *says*, and the
+  page images are the documents' own stored artifacts, immutable and addressed by id.
+
+  Root suite 21,931 passing; typecheck clean; lint clean; `npm run build` compiles.
+
+  **Deferred, with the reason:** annotated drawings from R24's `flattenLayers`. The embedding path is
+  built and takes any image; what is missing is a server-side raster of the annotation layers, which
+  is a canvas-rendering job of its own rather than a packet concern. The packet already prints
+  drawings' provenance and states that no page image is held for them, so nothing is silently absent.
 
   Original item:
   A packet builder: choose facts, documents, images, annotations, the gameplan and the conflicts;
