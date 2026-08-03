@@ -21,6 +21,9 @@ import {
 import { saveDrawingToCloud } from '@/lib/cad/persistence/cloud-save';
 import type { AIMode } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
+// S8b — the research-platform bridge. Structurally typed, so importing it here does not couple the
+// CAD build to the worker's.
+import { featuresFromSurveyReading, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -883,6 +886,79 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     input.click();
   }
 
+  /** CAD_AUDIT Slice S8b — import a boundary the research platform already read.
+   *
+   *  S8a built the adapter; this is the half that makes it reachable. Without it the research side
+   *  computes a boundary and a surveyor still re-types the calls by hand, which is this codebase's
+   *  most frequent defect and would be a poor place to repeat it.
+   *
+   *  THREE DECISIONS HERE THAT DIFFER FROM THE OTHER IMPORTERS, EACH DELIBERATE:
+   *
+   *  1. **It ADDS, it does not replace.** `importFromDxf`/`importFromGeoJSON` call `loadDocument`,
+   *     which throws the current drawing away. That is right for "open a DXF" and wrong here: a
+   *     deed boundary is something you bring INTO a drawing you are already working in, and
+   *     replacing would silently destroy the surveyor's work.
+   *  2. **Omissions are confirmed BEFORE anything lands, not logged after.** S8a's whole design is
+   *     that a drawing must not present an incomplete figure as a complete one. Putting the
+   *     `notDrawn` list in the console — where the other importers put their warnings — would mean
+   *     the one person who needs it is the one least likely to see it.
+   *  3. **A file that is not a reading is refused by NAME.** Parsing arbitrary JSON and producing an
+   *     empty drawing would look like "this deed had no boundary" rather than "wrong file". */
+  async function openResearchReading() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text()) as unknown;
+        // Duck-check before trusting it. `traverse` is the field that makes a reading a reading, and
+        // it is legitimately null for a lot-and-block description — so PRESENCE is the test, not
+        // truthiness.
+        if (!parsed || typeof parsed !== 'object' || !('traverse' in parsed)) {
+          void alertAction({
+            title: 'Not a research reading',
+            message: 'That file does not look like a survey reading — it has no traverse field. '
+              + 'Pick the JSON the research platform produced for this property.',
+          });
+          return;
+        }
+
+        const result = featuresFromSurveyReading(parsed as SurveyReadingLike);
+
+        if (result.notDrawn.length > 0) {
+          const lines = result.notDrawn.map((n) => `• ${n.what} — ${n.why}`).join('\n');
+          const ok = await confirmAction({
+            title: result.features.length ? 'Some of this reading cannot be drawn' : 'Nothing can be drawn',
+            message:
+              `${result.features.length} feature(s) will be added.\n\n`
+              + `NOT drawn:\n${lines}\n\n`
+              + (result.closed
+                ? ''
+                : 'The boundary is left OPEN because at least one call could not be used — a closed '
+                  + 'shape would look complete when it is not.\n\n')
+              + 'Coordinates are relative to the point of beginning; this is not tied to the state plane.',
+            confirmLabel: result.features.length ? 'Add anyway' : 'OK',
+          });
+          if (!ok || result.features.length === 0) return;
+        }
+
+        useDrawingStore.getState().addFeatures(result.features);
+        cadLog.info(
+          'FileIO',
+          `Imported research reading: ${result.features.length} feature(s), `
+            + `${result.closed ? 'closed' : 'OPEN (incomplete)'}, `
+            + `${result.notDrawn.length} item(s) not drawn`,
+        );
+      } catch (err) {
+        cadLog.error('FileIO', 'Research reading import failed', err);
+        void alertAction({ title: 'Starr CAD', message: 'Could not read that file. It may not be valid JSON.' });
+      }
+    };
+    input.click();
+  }
+
   async function openDxf() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1061,6 +1137,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
             { label: '📍 From Shared Point-File Library…', action: () => { window.dispatchEvent(new CustomEvent('cad:openPointFileLibrary')); setOpenMenu(null); } },
             { label: 'Import DXF…', action: () => { void openDxf(); setOpenMenu(null); } },
             { label: 'Import GeoJSON…', action: () => { void openGeoJson(); setOpenMenu(null); } },
+            // S8b — the research platform's own reading. Listed with the other imports because that
+            // is where a surveyor looks for "bring something in", not under a research-specific menu
+            // they would have to know exists.
+            { label: '📐 Import Research Reading (boundary from a deed)…', action: () => { void openResearchReading(); setOpenMenu(null); } },
             // cad-trv-import-export Slice 4 — opens a file picker,
             // parses + previews counts in a confirm dialog, then
             // appends layers + features to the current drawing.

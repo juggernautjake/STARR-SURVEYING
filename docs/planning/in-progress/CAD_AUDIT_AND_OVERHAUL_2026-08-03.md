@@ -618,6 +618,45 @@ been worth shipping.
   browser, which this session could not keep connected. Shipping the pure half alone is the risk this
   repo names most often, so S8b should be next in CAD rather than later.
 
+  #### ✅ S8b DONE 2026-08-03 — and it is reachable, which was the whole risk
+
+  S8a built the adapter and nothing called it. **File → Import → "📐 Import Research Reading (boundary
+  from a deed)…"** now does. Listed among the other imports because that is where a surveyor looks
+  for *bring something in* — not under a research-specific menu they would have to know exists.
+
+  **Three decisions that differ from the other importers, each deliberate:**
+
+  1. **It ADDS; it does not replace.** `importFromDxf` / `importFromGeoJSON` call `loadDocument`,
+     which throws the current drawing away. Correct for "open a DXF", **catastrophic here**: a deed
+     boundary is brought *into* a drawing already in progress, and replacing would silently destroy
+     the surveyor's work. Pinned by a test that fails if `loadDocument` appears on this path.
+  2. **Omissions are confirmed BEFORE anything lands.** The other importers log warnings to the
+     console. Here the omissions *are* the safety property — S8a's design is that a drawing must
+     never present an incomplete figure as complete — so putting them where only a developer looks
+     would defeat it. The dialog names every undrawn item, says the boundary is left **OPEN** when a
+     call could not be used, and states that coordinates are **not tied to the state plane**.
+     Watched failing: moving `addFeatures` above the confirm fails the ordering test.
+  3. **A wrong file is refused by name.** Parsing arbitrary JSON and producing an empty drawing would
+     read as *"this deed had no boundary"* rather than *"you picked the wrong file"*. The check is
+     for the **presence** of `traverse`, not its truthiness — `traverse: null` is the legitimate
+     shape for a lot-and-block description, and a truthiness check would reject exactly the documents
+     that need the explanation.
+
+  9 tests, plus the 16 from S8a.
+
+  ### ⚠ What is NOT verified: the visual pass
+
+  Source tests prove the wiring, not the rendering. Nobody has opened this menu, picked a file, and
+  read the dialog — the dev server and Playwright would not stay connected for the second half of
+  this session (Playwright refused local connections that Node's `fetch` completed, across four
+  ports). **This repo's standing rule is that UI slices are driven in a browser before being ticked,
+  and that did not happen here.** Recorded rather than glossed, because the failure this rule exists
+  to catch — a green suite missing a rendering bug — is exactly the one that would survive.
+
+  **First thing to do with a working browser:** open `/admin/cad`, File → Import → Import Research
+  Reading, feed it a reading with at least one `unusable` call, and confirm the dialog lists it and
+  the boundary comes in **open**.
+
 - **S9. Compare against a prior survey.** Given a previous survey for the same lot, overlay and
   report differences. Depends on S8 and on the rotation work already shipped
   (`lib/research/rotation.service.ts`), which is what makes two surveys on different bases
@@ -650,7 +689,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8a is DONE** — the research-to-CAD adapter, pure and tested; S8b (the UI wiring) needs a browser. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S8b, S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S8b, S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
