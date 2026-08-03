@@ -2627,9 +2627,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       imageCacheDocIdRef.current = doc.id;
     }
 
-    const visibleFeatures = useDrawingStore.getState().getVisibleFeatures().filter(
-      (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
-    );
+    // S2b — this line was the single clearest piece of evidence in the S2 profile: it cost 62.9 ms
+    // per frame in a drawing with NO images, because it materialised all 200,000 visible features
+    // and filtered them down to nothing. The bucket makes an image-free drawing cost nothing here.
+    const visibleFeatures = useDrawingStore.getState()
+      .getVisibleFeaturesByGeometryType('IMAGE')
+      .filter((f) => f.geometry.image);
     const activeIds = new Set(visibleFeatures.map((f) => f.id));
 
     // Remove sprites for features no longer visible. destroy() the sprite —
@@ -4734,7 +4737,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;
     const drawingScale = doc.settings.drawingScale ?? 50;
-    const layerVisible = useDrawingStore.getState().getVisibleFeatures().filter(f => f.type === 'TEXT');
+    // S2b — was `getVisibleFeatures().filter(f => f.type === 'TEXT')`, which walked every feature in
+    // the drawing on every frame to find the text. The bucket is built once per document version.
+    const layerVisible = useDrawingStore.getState().getVisibleFeaturesByType('TEXT');
     // Phase 7 §19 — viewport cull TEXT features the same way
     // we cull geometry. Keep the layer-visible set so off-
     // viewport text objects survive across pans without

@@ -21,6 +21,70 @@ import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascad
 // fallback chain.
 import { canonicalizePointName } from '../feature-fields';
 
+// ── CAD_AUDIT Slice S2b — the visible/selectable set is derived ONCE per document version ──
+//
+// S2 measured the freeze rather than theorising about it: on a 200,000-feature drawing, sitting
+// perfectly still with no input, `renderAll` cost **269 ms per frame** — twelve frames a second
+// while the app did nothing. The giveaway was `renderImageFeatures` spending 62.9 ms in a drawing
+// containing **no images at all**. A pass that draws nothing cannot be slow because of drawing.
+//
+// It was slow because `getVisibleFeatures()` re-derived the whole set from scratch on every call —
+// `Object.values` over 200k features, a predicate each, a fresh 200k array allocated — and FIVE
+// passes inside a single `renderAll` each called it independently (CanvasViewport lines 2007, 2630,
+// 4484, 4737, 8931). Roughly a million predicate evaluations and five large allocations per frame
+// before a single pixel was drawn.
+//
+// WHY A REFERENCE CHECK IS A SOUND CACHE KEY HERE, and why this is not the stale-cache bug it looks
+// like: the predicate reads exactly two things — `document.features` (which carries each feature's
+// own `hidden` flag) and `document.layers` (visible / frozen). Every one of this store's 33 update
+// paths rebuilds `document` immutably; there is no immer, no `Object.assign`, and no in-place write
+// to either map anywhere in the codebase. So a changed set means a changed reference, necessarily.
+// This is the same contract React already depends on to re-render at all — the cache is exactly as
+// correct as the store, not a new assumption layered on top.
+//
+// The stale-cache failure mode is nastier than the freeze it fixes (the canvas silently stops
+// updating, which looks like success), so `__resetVisibleCache` exists for tests and
+// `drawing-store-visible-cache.test.ts` pins the invalidation on every axis: add, delete, hide a
+// feature, hide/freeze a layer.
+type VisibleCache = {
+  featuresRef: DrawingDocument['features'];
+  layersRef: DrawingDocument['layers'];
+  visible: Feature[] | null;
+  selectable: Feature[] | null;
+  /** Lazily built, and only for the geometry types anyone actually asks for. The IMAGE and TEXT
+   *  passes each used to filter the full 200k list every frame to find their handful; now they cost
+   *  the length of their own bucket. */
+  byGeometryType: Map<string, Feature[]> | null;
+  byFeatureType: Map<string, Feature[]> | null;
+};
+
+let visibleCache: VisibleCache | null = null;
+
+function cacheFor(document: DrawingDocument): VisibleCache {
+  if (
+    visibleCache
+    && visibleCache.featuresRef === document.features
+    && visibleCache.layersRef === document.layers
+  ) {
+    return visibleCache;
+  }
+  visibleCache = {
+    featuresRef: document.features,
+    layersRef: document.layers,
+    visible: null,
+    selectable: null,
+    byGeometryType: null,
+    byFeatureType: null,
+  };
+  return visibleCache;
+}
+
+/** Test-only. The cache is keyed on object identity, so a fixture that reuses a `features` object
+ *  across documents could otherwise read a previous document's answer. */
+export function __resetVisibleCache(): void {
+  visibleCache = null;
+}
+
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
 function createDefaultDocument(): DrawingDocument {
@@ -165,6 +229,11 @@ interface DrawingStore {
   getLayer: (id: string) => Layer | undefined;
   getFeaturesOnLayer: (layerId: string) => Feature[];
   getVisibleFeatures: () => Feature[];
+  /** CAD_AUDIT S2b — visible features bucketed by `geometry.type` (e.g. 'IMAGE'), so a pass that
+   *  handles one geometry kind does not walk the whole drawing to find it. */
+  getVisibleFeaturesByGeometryType: (type: string) => Feature[];
+  /** CAD_AUDIT S2b — visible features bucketed by the feature-level `type` (e.g. 'TEXT'). */
+  getVisibleFeaturesByType: (type: string) => Feature[];
   /** cad-domain-audit Slice E — features that are SELECTABLE: their
    *  layer is visible AND not locked AND not frozen, AND the feature
    *  itself isn't hidden. Use this for snap targets / hit-testing /
@@ -879,7 +948,9 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   getVisibleFeatures: () => {
     const { document } = get();
-    return Object.values(document.features).filter((f) => {
+    const cache = cacheFor(document);
+    if (cache.visible) return cache.visible;
+    cache.visible = Object.values(document.features).filter((f) => {
       if (f.hidden === true) return false;
       const layer = document.layers[f.layerId];
       if (!layer) return false;
@@ -890,16 +961,65 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       // of `canFeatureBeRendered`.
       return canFeatureBeRendered(layer);
     });
+    return cache.visible;
+  },
+
+  /** S2b — the visible features whose GEOMETRY is of one type, without walking the rest.
+   *  `renderImageFeatures` was filtering all 200,000 features every frame to find its zero images;
+   *  that single pass measured 62.9 ms of a 269 ms frame. */
+  getVisibleFeaturesByGeometryType: (type: string) => {
+    const { document } = get();
+    const cache = cacheFor(document);
+    if (!cache.byGeometryType) {
+      const buckets = new Map<string, Feature[]>();
+      // Built from the memoised visible list so the predicate runs at most once per document
+      // version no matter which accessor is reached first.
+      for (const f of get().getVisibleFeatures()) {
+        const key = f.geometry?.type;
+        if (!key) continue;
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(f);
+        else buckets.set(key, [f]);
+      }
+      cache.byGeometryType = buckets;
+    }
+    return cache.byGeometryType.get(type) ?? [];
+  },
+
+  /** S2b — same, for the FEATURE-level `type` discriminator that `renderTextFeatures` filters on.
+   *  Kept separate from the geometry index because they are genuinely different fields and
+   *  conflating them is how a TEXT feature with non-TEXT geometry would quietly disappear. */
+  getVisibleFeaturesByType: (type: string) => {
+    const { document } = get();
+    const cache = cacheFor(document);
+    if (!cache.byFeatureType) {
+      const buckets = new Map<string, Feature[]>();
+      for (const f of get().getVisibleFeatures()) {
+        const key = f.type;
+        if (!key) continue;
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(f);
+        else buckets.set(key, [f]);
+      }
+      cache.byFeatureType = buckets;
+    }
+    return cache.byFeatureType.get(type) ?? [];
   },
 
   getSelectableFeatures: () => {
     const { document } = get();
-    return Object.values(document.features).filter((f) => {
+    const cache = cacheFor(document);
+    if (cache.selectable) return cache.selectable;
+    // Memoised for the same reason as the render set, but the payoff is on a different path: this
+    // one backs snap and hit-testing, so before S2b every mousemove over a large drawing re-derived
+    // it from scratch.
+    cache.selectable = Object.values(document.features).filter((f) => {
       if (f.hidden === true) return false;
       const layer = document.layers[f.layerId];
       if (!layer) return false;
       return canFeatureBeEdited(layer);
     });
+    return cache.selectable;
   },
 
   getAllFeatures: () => Object.values(get().document.features),

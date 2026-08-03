@@ -323,6 +323,63 @@ been worth shipping.
   which looks like success and is worse than the freeze. That risk is exactly why this is a separate
   slice from the measurement.
 
+  #### ✅ S2b DONE 2026-08-03 — measured before, measured after, on the same fixture
+
+  `lib/cad/store/drawing-store.ts` now memoises the visible/selectable derivation against
+  `document.features` / `document.layers` **object identity**, and adds two lazily-built buckets
+  (`getVisibleFeaturesByGeometryType`, `getVisibleFeaturesByType`) so the `IMAGE` and `TEXT` passes
+  stop scanning the whole drawing. `CanvasViewport` lines 2630 and 4737 were rewired to use them —
+  an accessor nothing calls would have been this repo's signature defect, and the test asserts the
+  call sites.
+
+  **Why a reference check is a legitimate cache key here, rather than the stale-cache bug it
+  resembles:** the predicate reads exactly `document.features` (which carries each feature's own
+  `hidden`) and `document.layers` (visible / frozen). All 33 update paths in the store rebuild
+  `document` immutably — checked for immer, `Object.assign`, and in-place writes to either map, and
+  there are none. A changed set therefore *necessarily* means a changed reference. This is the same
+  contract React already depends on to re-render at all, not a new assumption stacked on top.
+
+  **Before / after, 200,000 features, static scene, no input, `Capture 5s`:**
+
+  | phase | before p50 | after p50 |
+  |---|---|---|
+  | `renderAll` | 269.2 ms | **25.2 ms** |
+  | `renderFeatures` | 73.0 ms | **15.4 ms** |
+  | `renderImageFeatures` | 62.9 ms | **0 ms** |
+  | `renderLabels` | 62.6 ms | **6.2 ms** |
+  | `renderSelection` | 0 ms | 0 ms |
+
+  Frames recorded in the ~5 s window: **65 → 490**. `renderImageFeatures` going to exactly zero is
+  the confirmation that matters — it was the pass with nothing to do, and it now costs nothing,
+  which is what the mechanism predicted rather than merely what we hoped.
+
+  **One honest caveat about the instrument.** In both captures the sample count and the p50 do not
+  reconcile with the window length (65 × 269 ms and 490 × 25.2 ms both exceed ~5 s). That
+  inconsistency is present in the *before* data too, so it is a property of how `render-markers`
+  accounts samples, not something this change introduced. Treat these numbers as a **like-for-like
+  relative comparison** — same instrument, same fixture, same method, one variable changed — and not
+  as absolute frame times. Worth fixing the accounting later; it does not affect the conclusion.
+
+  **Pinned by `__tests__/cad/drawing-store-visible-cache.test.ts` (14 tests).** The stale-cache
+  failure mode is worse than the freeze — the canvas silently stops updating, which looks like
+  success — so invalidation is tested on every axis the predicate reads: add, delete, hide a
+  feature, hide a layer, freeze a layer, plus locked-but-visible to keep the visible and selectable
+  sets from being conflated. **The check was watched failing**: breaking the cache key fails 7 of
+  the 14. Two self-inflicted traps on the way, both worth recording because both are recurring
+  shapes in this repo: the first sabotage silently *did not apply* because the file is CRLF and the
+  match string used `\n` (so the test appeared to pass a broken build), and the first version of the
+  call-site check failed against the **comment explaining the fix**, which quotes the old code — a
+  source check that cannot tell code from prose would equally have passed a file where the fix was
+  described and never applied. It now strips comment lines first.
+
+  **What this does NOT claim to have fixed.** This is the static-scene cost. Interaction paths
+  (`getSelectableFeatures` on every mousemove for snap and hit-testing) are now memoised too and
+  should benefit, but that was not separately measured. Also unmeasured: whether the ~15 ms residual
+  in `renderFeatures` at 200k is worth attacking, and the eleven render passes that carry no
+  `measureRender` marker at all — `renderAll` p50 25.2 ms is still well above the sum of its
+  measured children, so there is more in there than the overlay currently shows. Instrumenting the
+  remaining passes is the obvious next measurement, and it is cheap.
+
 - **S3. Guard against losing work.** Independent of S2's cause: a refresh should not lose a drawing.
   Autosave/restore is worth doing even once the freeze is fixed, because a browser tab can always die.
 
@@ -386,7 +443,9 @@ Carried from the research platform work, where each was learned the expensive wa
 matters most), **S0c** (the overlay is discoverable).
 
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
-re-derived from scratch five times per frame. **Not started:** S1, S2b (the fix), S3–S9.
+re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
+renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
+window. **Not started:** S1, S3–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
