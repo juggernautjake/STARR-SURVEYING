@@ -234,6 +234,10 @@ as a separate fallback key for records that have no instrument number at all (Av
 Date is part of the key because instrument numbers restart in some counties — a rule already learnt
 and encoded in the eDocTec and Aumentum parsers.
 
+> **S-13 and S-14 are DONE (2026-08-03).** Both are wired into the real purchase path — see the note
+> at the end of this document. S-11 and S-12 shipped as *modules with no callers*, which prevented
+> no spending at all; the wiring is what makes them true.
+
 ### S-13. Never guess a match
 
 The dedup decision is a **spending** decision, and it fails badly in both directions:
@@ -320,3 +324,37 @@ Three things worth carrying forward:
 - **Certified-through ≠ last-recorded.** Duval certifies through 07/31/2025 but its last recorded
   document is dated 07/31/2026. A year of documents is in the index and outside the certification,
   which is a real distinction in a title search.
+
+---
+
+**S-13 + S-14 are DONE** (2026-08-03) — the dedup rule now runs on the path that spends money.
+
+S-11 and S-12 shipped as modules with **zero callers**. The purchase step was still deduping with
+`findOwned(countyFIPS, instrument)`: an exact match on the raw instrument number against the purchase
+ledger. That misses three ways at once — no cross-vendor normalisation (Kofile's `2019-3389` vs Tyler
+Eagle's `20193389`), no book/page fallback (so Avenu's records, which carry no instrument number,
+could never match), and it only knows what was *bought*, so a document the free pass already returned
+did not stop the paid purchase of the same one. That last is exactly the owner's requirement.
+
+Now the free pass is registered into a `DocumentIndex` **before any paid source is queried**, each
+purchase consults `decide()`, and the report carries an identity block stating *both* sides —
+skipped-as-already-held **and** bought-under-uncertainty.
+
+**The rule that decides what may be registered.** A watermarked preview is *seen*, not *held*.
+Kofile's free tier returns watermarked pages and removing the watermark is the whole reason to buy
+the document; registering one as held would end the run with a watermarked image standing in for a
+clean one, no purchase in the ledger, and nothing saying a document was missing. So registration
+requires a usable copy — unwatermarked, with a page image on disk. Everything else is counted and
+reported, never registered.
+
+**And Phase 9 could never buy anything.** The budget guard read `estimatedCost` by stripping
+non-digits and parsing the rest, which glued the ends of a range together:
+
+```
+"$6-12" → 612       "$4-8" → 48       "$12-24" → 1224
+```
+
+Against the default $25 budget every recommendation was unaffordable, so Phase 9 logged
+`Budget exceeded — skipping <instrument>` and bought nothing. The failure wore the costume of a
+deliberate spending limit — nothing looked broken, and the only symptom was a run that never bought
+the document it had just called the highest-ROI purchase available. Fixed and pinned.
