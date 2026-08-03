@@ -2178,9 +2178,45 @@ Bosque still has its hole: this adapter covers the modern index only (2012→), 
 QuickLink portal has no adapter, and 1906–2011 is in neither. `bosqueGapWarning()` fires on any
 search reaching into that century.
 
-**Not built:** instrument-number, book/page and legal-description search (fields exist, undriven);
-image retrieval (`viewDoc` token, charged); pagination past the 1,000-row page, with any shortfall
-reported exactly. Seed 562 supersedes 561.
+**Not built:** instrument-number and book/page search (fields exist, undriven); image retrieval
+(`viewDoc` token, charged); pagination past the 1,000-row page, with any shortfall reported exactly.
+Seed 562 supersedes 561.
+
+#### R39, sixteenth finding — search by land, not by name
+
+Every adapter in this build searches by **party**. That is how a title company works; it is not how
+a surveyor works. A surveyor starts with a piece of ground and wants every instrument that touched
+it. `searchByLegalDescription` is that search, and Bosque is the first county where it exists.
+
+**The county publishes a controlled vocabulary.** iDocMarket's Subdivision field is a `<select>`,
+not a text box — Bosque enumerates **396 subdivisions**. That makes *"does this county have a
+subdivision called X"* answerable **exactly**, instead of inferred from a search that returned
+nothing. `listSubdivisions()` exposes the list; an exact match is searched through the dropdown.
+
+**The near miss is the whole point.** A term that *looks* like a subdivision but is absent from the
+county's list would, searched free-form, return nothing — and that nothing reads as *"no documents
+touch this land"* when it actually means *"this county has no subdivision by that name"*. Different
+answers; only one is true. So an unmatched term is **refused, with the near misses named**:
+
+> `"LAKE PLACE" is not an exact subdivision in this county's index, but 2 similar name(s) exist:`
+> `#1 LAKE PLACE PHASE 1, LAKE PLACE PHASE 1.`
+
+Text resembling no subdivision at all goes to the free-form `Legal` field, because there the caller
+genuinely meant free-form. `matchSubdivision()` is pure, so this decision is tested rather than
+merely observed.
+
+**Driven:** `listSubdivisions()` → 396 names; `legal="#1 LAKE PLACE PHASE 1"` → **5 of 5 results, all
+returned**; `legal="LAKE PLACE"` → refused with both real names offered.
+
+```
+2025-03091  9/23/2025  RELEASE OF LIEN  PEOPLES BANK          → STRAUGHAN TRACY
+2016-01976  6/9/2016   RELEASE OF LIEN  CENTRAL NATIONAL BANK → FAUNCE GARY
+```
+
+**Still party-only everywhere else.** Aumentum has legal-description fields that remain undriven,
+Tyler's form has none, and Kofile/eDocTec/Avenu are party-and-instrument indexes only. Searching by
+land works in exactly one county so far — and the adapters that cannot do it **throw rather than
+returning an empty list**, so it never reads as "no documents touch this land". Seed 563.
 
 #### Survey results, 2026-08-02 (seed 541)
 

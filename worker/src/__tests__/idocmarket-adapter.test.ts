@@ -1,7 +1,7 @@
 // iDocMarket — the one vendor that marks up its data properly (plan R39).
 
 import { describe, it, expect } from 'vitest';
-import { IDocMarketAdapter, usableRecords, type IDocMarketRecord } from '../adapters/idocmarket-adapter.js';
+import { IDocMarketAdapter, matchSubdivision, usableRecords, type IDocMarketRecord } from '../adapters/idocmarket-adapter.js';
 import { IDOCMARKET_FIPS_SET, getClerkSystem, isVendorProven, registrySummary } from '../services/clerk-registry.js';
 
 const rec = (over: Partial<IDocMarketRecord> = {}): IDocMarketRecord => ({
@@ -65,17 +65,53 @@ describe('unbuilt capabilities throw rather than returning nothing', () => {
     await expect(a.searchByVolumePage('412', '88')).rejects.toThrow(/NOT implemented/);
   });
 
-  it('says legal-description search EXISTS but is undriven', async () => {
-    // A smaller and different claim than "not offered" — saying the wrong one would send a
-    // researcher to a courthouse for something the portal can answer.
-    await expect(a.searchByLegalDescription('LOT 3 BLOCK 1')).rejects.toThrow(/EXISTS .* but has NOT been driven/);
-  });
-
   it('says images are charged and unwired, not absent', async () => {
     await expect(a.getDocumentImages('2025-00232')).rejects.toThrow(/not "no images"/);
   });
 
   it('treats quoted pricing as unconfirmed', async () => {
     await expect(a.getDocumentPricing('2025-00232')).rejects.toThrow(/unconfirmed/);
+  });
+});
+
+describe('legal-description search picks the right kind of search', () => {
+  // Real values from Bosque's dropdown, which enumerates 396 subdivisions.
+  const SUBS = ['#1 LAKE PLACE PHASE 1', 'LAKE PLACE PHASE 1', 'A P ANDERSON ADD', 'ACKERMAN SUDIVISION'];
+
+  it('matches an exact subdivision', () => {
+    expect(matchSubdivision('#1 LAKE PLACE PHASE 1', SUBS)).toEqual({ kind: 'exact', value: '#1 LAKE PLACE PHASE 1' });
+  });
+
+  it('matches case-insensitively and ignores surrounding space', () => {
+    expect(matchSubdivision('  a p anderson add ', SUBS)).toEqual({ kind: 'exact', value: 'A P ANDERSON ADD' });
+  });
+
+  it('refuses a near miss rather than searching free-form', () => {
+    // This is the case that matters. "LAKE PLACE" free-form returns nothing, and that nothing reads
+    // as "no documents touch this land" when it means "no subdivision by that name exists here".
+    const m = matchSubdivision('LAKE PLACE', SUBS);
+    expect(m.kind).toBe('near_miss');
+    if (m.kind === 'near_miss') expect(m.candidates).toEqual(['#1 LAKE PLACE PHASE 1', 'LAKE PLACE PHASE 1']);
+  });
+
+  it('allows genuine free-form text that resembles no subdivision', () => {
+    // Nothing looks like it, so the caller meant free-form and gets it.
+    expect(matchSubdivision('ABST 123 J ORTIZ SURVEY', SUBS)).toEqual({ kind: 'free_form' });
+  });
+
+  it('treats an empty term as free-form rather than matching everything', () => {
+    expect(matchSubdivision('', SUBS)).toEqual({ kind: 'free_form' });
+    expect(matchSubdivision('   ', SUBS)).toEqual({ kind: 'free_form' });
+  });
+
+  it('caps the near-miss list so an error stays readable', () => {
+    const many = Array.from({ length: 30 }, (_, i) => `OAK RIDGE PHASE ${i}`);
+    const m = matchSubdivision('OAK RIDGE', many);
+    if (m.kind === 'near_miss') expect(m.candidates.length).toBeLessThanOrEqual(8);
+  });
+
+  it('refuses an empty legal description outright', async () => {
+    const a = new IDocMarketAdapter('48035', 'Bosque');
+    await expect(a.searchByLegalDescription('  ')).rejects.toThrow(/refusing to search the whole index/i);
   });
 });

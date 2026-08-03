@@ -79,6 +79,32 @@ export function usableRecords(records: IDocMarketRecord[]): IDocMarketRecord[] {
   return records.filter((r) => r.instrumentNumber && r.recordingDate);
 }
 
+export type SubdivisionMatch =
+  | { kind: 'exact'; value: string }
+  | { kind: 'near_miss'; candidates: string[] }
+  | { kind: 'free_form' };
+
+/** Decide how a legal-description term should be searched.
+ *
+ *  Pure, and separated from the browser, because the near-miss case is the one that matters and it
+ *  must be testable. A term that looks like a subdivision but is not in the county's list would,
+ *  searched free-form, return nothing — and that nothing reads as "no documents touch this land"
+ *  when it actually means "this county has no subdivision by that name". Those are different
+ *  answers and only one of them is true. */
+export function matchSubdivision(term: string, subdivisions: string[]): SubdivisionMatch {
+  const t = (term ?? '').trim().toLowerCase();
+  if (!t) return { kind: 'free_form' };
+
+  const exact = subdivisions.find((s) => s.trim().toLowerCase() === t);
+  if (exact) return { kind: 'exact', value: exact };
+
+  const near = subdivisions.filter((s) => s.trim().toLowerCase().includes(t)).slice(0, 8);
+  if (near.length > 0) return { kind: 'near_miss', candidates: near };
+
+  // Nothing resembles it, so the caller genuinely meant free-form text.
+  return { kind: 'free_form' };
+}
+
 export class IDocMarketAdapter extends ClerkAdapter {
   private searchUrl: string;
   private context: BrowserContext | null = null;
@@ -166,6 +192,16 @@ export class IDocMarketAdapter extends ClerkAdapter {
       );
     }
 
+    return this.submitAndRead(`party="${name}"`, options);
+  }
+
+  /** Submit whatever criteria are already filled in, then read and report the results.
+   *
+   *  Shared by every search so the completeness reporting cannot drift between them — the party
+   *  search and the legal-description search must describe a truncated result identically. */
+  private async submitAndRead(criteria: string, _options?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    const page = this.page!;
+
     // The submit control is the LAST element in the form. Matching the first control labelled
     // "search" lands on the date picker's own buttons, and the search never runs.
     const submit = page.locator('#SearchForm input.btn-primary[value="Search"]');
@@ -190,7 +226,7 @@ export class IDocMarketAdapter extends ClerkAdapter {
 
     const showing = parseShowing(out.pageText);
     this.lastResultTruncated = showing?.truncated ?? false;
-    const parts = [`${this.countyName}: ${records.length} record(s) parsed from ${out.records.length} row(s).`];
+    const parts = [`${this.countyName}: ${criteria} → ${records.length} record(s) parsed from ${out.records.length} row(s).`];
     const shown = describeShowing(this.countyName, out.pageText);
     if (shown) parts.push(shown);
     else parts.push('The portal stated no result count, so completeness is UNKNOWN.');
@@ -231,11 +267,77 @@ export class IDocMarketAdapter extends ClerkAdapter {
     );
   }
 
-  async searchByLegalDescription(legalDesc: string): Promise<ClerkDocumentResult[]> {
-    throw new Error(
-      `[iDocMarket/${this.countyName}] Legal-description search EXISTS (StartLot, EndLot, Block, Legal, LegalNotes) ` +
-        `but has NOT been driven (asked: ${legalDesc.slice(0, 40)}). An unbuilt capability, not a missing one.`,
-    );
+  /** Every subdivision the county's index knows, straight from the form's own dropdown.
+   *
+   *  A controlled vocabulary, which is unusual and useful: it means "is there a subdivision called
+   *  X in this county" is answerable exactly, instead of being inferred from a search returning
+   *  nothing. Bosque lists 397. */
+  async listSubdivisions(): Promise<string[]> {
+    await this.initSession();
+    const page = this.page!;
+    await page.goto(this.searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForSelector('#Subdivision', { timeout: 30_000 });
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
+
+    return (await page.evaluate(() => {
+      const s = document.getElementById('Subdivision') as HTMLSelectElement | null;
+      if (!s) return [];
+      return Array.from(s.options).map((o) => o.value.trim()).filter(Boolean);
+    })) as string[];
+  }
+
+  /** Search by legal description.
+   *
+   *  Two different searches hide behind one method, and the difference matters:
+   *
+   *    - A term matching a SUBDIVISION in the county's dropdown is searched exactly, via that
+   *      dropdown. This is the surveyor's normal case and the most reliable path.
+   *    - Anything else goes to the free-form `Legal` field.
+   *
+   *  The trap is in between. If a caller passes something that LOOKS like a subdivision but is not
+   *  in the county's list, the free-form search returns nothing — and that nothing reads as "no
+   *  documents touch this land" when it actually means "this county has no subdivision by that
+   *  name". So an unmatched term is reported with the near misses rather than silently searched
+   *  free-form and answered with zero. */
+  async searchByLegalDescription(legalDesc: string, options?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    // Checked BEFORE opening a browser: an empty criterion searches the whole county index, and
+    // refusing costs nothing.
+    const term = (legalDesc ?? '').trim();
+    if (!term) throw new Error(`[iDocMarket/${this.countyName}] Empty legal description — refusing to search the whole index.`);
+
+    await this.initSession();
+    const page = this.page!;
+
+    const match = matchSubdivision(term, await this.listSubdivisions());
+
+    if (match.kind === 'near_miss') {
+      throw new Error(
+        `[iDocMarket/${this.countyName}] "${term}" is not an exact subdivision in this county's index, but ` +
+          `${match.candidates.length} similar name(s) exist: ${match.candidates.join(', ')}. Searching free-form would ` +
+          `return nothing and that nothing would read as "no documents touch this land". Pick one of the above, or pass ` +
+          `a genuine free-form legal description.`,
+      );
+    }
+    const exact = match.kind === 'exact' ? match.value : null;
+
+    // From here the search is honest either way: an exact subdivision, or free-form text the caller
+    // meant as free-form.
+    await page.goto(this.searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.waitForSelector('#Subdivision', { timeout: 30_000 });
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
+
+    if (exact) await page.selectOption('#Subdivision', exact);
+    else await page.fill('#Legal', term);
+
+    const held = exact ? await page.inputValue('#Subdivision') : await page.inputValue('#Legal');
+    if (held.trim().toLowerCase() !== (exact ?? term).toLowerCase()) {
+      throw new Error(
+        `[iDocMarket/${this.countyName}] The legal-description field did not hold "${exact ?? term}" (got "${held}"). ` +
+          `Refusing to submit: an empty criterion searches the WHOLE county index.`,
+      );
+    }
+
+    return this.submitAndRead(`legal="${exact ?? term}"${exact ? ' (exact subdivision)' : ' (free-form)'}`, options);
   }
 
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
