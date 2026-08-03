@@ -9,6 +9,8 @@
 import { CADAdapter, type PropertySearchResult, type PropertyDetail } from './cad-adapter.js';
 import type { CADConfig } from '../services/cad-registry.js';
 import type { AddressVariant } from '../services/address-normalizer.js';
+// The Comptroller's authoritative district list — consulted before any search-engine guess.
+import { cadUrlForCounty } from '../research/cad-directory.js';
 
 // ── Build a minimal CADConfig for an unknown county ───────────────────────────
 
@@ -46,6 +48,29 @@ export class GenericCADAdapter extends CADAdapter {
 
   private async discoverPortalUrl(): Promise<string> {
     if (this.discoveredSearchUrl) return this.discoveredSearchUrl;
+
+    // ── The authoritative answer first, before spending anything on a guess ────────────────────
+    //
+    // The Comptroller publishes the official appraisal district for all 254 counties
+    // (`research/cad-directory.ts`, 241 with a website). Asking it costs nothing, cannot be
+    // reordered by a search engine, and cannot return a data broker or a lookalike domain — all
+    // three of which the Google-plus-vision path below can, and none of which anything downstream
+    // could detect once the scraped values entered the pipeline as "county appraisal data".
+    //
+    // Note this returns the district's SITE, not its property-search page. That is the honest
+    // trade: the search path is guessed but specific, this is verified but general, and the adapter
+    // navigates from a district's home page perfectly well. A verified starting point beats an
+    // unverified deep link.
+    const official = cadUrlForCounty(this.countyName);
+    if (official) {
+      this.discoveredSearchUrl = official;
+      console.log(`[Generic] CAD portal for ${this.countyName} from the Comptroller directory: ${official}`);
+      return official;
+    }
+
+    // Fall through only for the 13 counties the Comptroller lists no website for. The guess is the
+    // last resort it always should have been, not the first move.
+    console.log(`[Generic] No Comptroller-listed website for ${this.countyName}; falling back to search discovery.`);
 
     await this.initBrowser();
     if (!this.page) throw new Error('Browser not initialized');

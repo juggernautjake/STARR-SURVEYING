@@ -121,6 +121,59 @@ The GLO map store and Portal to Texas History matter for the same reason GLO's g
 
 ---
 
+### S-16. The Comptroller CAD directory — a fact where there was a guess. ✅ DONE 2026-08-03
+
+§2 listed the *Comptroller CAD directory* as "worth having". It turned out to close a live defect
+rather than add a nice-to-have.
+
+**What `generic-cad-adapter.ts` was doing:** to find a county's appraisal district it ran a **Google
+search** and asked a **vision model to pick the right link off the results page** — once per county,
+every run. Three problems in one:
+
+- it spends a search plus an AI call every time, for a value that never changes;
+- it depends on Google's result ordering, which is not ours to rely on;
+- **the URL is unverified.** A model picking from a search page can return a data broker, a paid
+  aggregator, or a lookalike domain as easily as the official district — and everything downstream
+  would then present whatever it scraped as *county appraisal data*.
+
+That last point is this platform's signature defect stated exactly: **an unknown rendered as an
+answer**. The Comptroller publishes the fact, so the fact now wins.
+
+**What shipped:** `worker/src/research/cad-directory.ts` — all **254** counties with the
+Comptroller's county number, district name, website, phone and email, scraped from the official
+directory (index + 254 pages at ~4 req/s) and committed as generated data.
+`generic-cad-adapter.discoverPortalUrl()` consults it **before opening a browser**; the search-and-
+guess path survives only as the fallback for the **13** counties with no published site, which is
+the last resort it always should have been.
+
+It returns the district's SITE, not a deep link to its property search. That is the honest trade —
+the guessed URL was specific but unverified, this is general but verified, and the adapter navigates
+from a home page perfectly well.
+
+**The extraction's own bugs are the useful part of this note:**
+
+- A first pass wrote **Motley's mailing address into the website field** ("P.O. Box 249 Floydada,
+  TX 79235-0249"). It *looked* populated, which is what made it dangerous: nothing downstream can
+  tell such a value is wrong, and a caller would navigate to it instead of falling back. Hostnames
+  are now validated, and Motley is `null` — 13 counties are null on purpose, because **null is
+  honest and a plausible-looking wrong value is not.**
+- A first pass also lost **Wilson** to a transient fetch failure and would have shipped 253 counties
+  quietly. Retries with backoff recovered it; the count is asserted at exactly 254.
+- The block is bounded to the Appraisal District section, because the Tax Assessor-Collector's
+  website sits directly below it on the same page and would have been captured as the district's —
+  a wrong answer that looks completely right.
+
+18 tests, including four spot checks anyone can verify independently (`hcad.org` is the state's
+largest district) and three asserting the adapter consults the directory **before** `initBrowser`,
+since consulting it afterwards would keep both the cost and the risk.
+
+**Lookup refuses to be clever.** It tolerates "Bell County", "Bell CAD", case and whitespace, and
+returns `null` for anything else — a fuzzy match would silently point a run at the wrong county's
+appraisal roll.
+
+
+---
+
 ## 3. Paid accounts, balances and automatic top-up
 
 Owner's requirement, verbatim in intent: hold account info so we know we *have* an account, track the
@@ -300,6 +353,7 @@ divergence is a question rather than a rounding error.
 | S-8 | `vendor_accounts` schema + balance tracking (S-1, S-2) | DONE 2026-08-03 |
 | S-9 | Stripe card-on-file + auto top-up (S-3, S-4) | **owner: amounts, ceiling** — but there is now a form for them (2026-08-03); what remains is the SetupIntent + charge, which needs a live Stripe decision |
 | S-10 | Ledger reconciliation (S-5) | DONE 2026-08-03 (`reconcile()`; the scheduled sweep waits on S-9) |
+| S-16 | **Comptroller CAD directory** — all 254 appraisal districts, replacing a per-run Google+AI guess | DONE 2026-08-03 |
 
 **S-6 is DONE** (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns 1,523 grants;
 Bell + grantee DUNCAN returns 5, with GLO record ids and free PDFs. S-7 (Avenu aggregator) is the
