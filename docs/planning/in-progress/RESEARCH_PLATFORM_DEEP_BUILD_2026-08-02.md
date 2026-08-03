@@ -2804,8 +2804,25 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 #### Still to build in this phase
 
-- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu (19) + Tyler Eagle (9)
-  DONE 2026-08-03.** Three small vendors remain: eDocTec (2 counties), Aumentum (1), iDocMarket (1).
+- **S7. Document retrieval for the vendors that still lack it.** ◑ **Avenu (19) + Tyler Eagle (9) +
+  eDocTec (2) DONE 2026-08-03.** Two single-county vendors remain: Aumentum (Bastrop), iDocMarket
+  (Bosque).
+
+  **Every one of the three "not wired up" notes was wrong about the reason**, and each took under ten
+  minutes to disprove in a browser. That is the pattern worth carrying into the last two: the note
+  said what somebody assumed, not what the portal does.
+
+  **eDocTec's preview is free** (`worker/src/adapters/edoctec-viewer.ts`). Its note said retrieval
+  *"goes through the site's paid cart"*. Both things are true at once and the note kept only the
+  pessimistic half: the detail page's **Document Preview** iframe serves `application/pdf` — 153 KB,
+  no login, free — while the *"Purchase Pages"* cart beside it sells **certified** copies at $1.00.
+  A certified copy is what a court wants; for reading a boundary the free preview is the same scan.
+
+  This one mattered most of the three: Coryell is **Gatesville and Copperas Cove**, and Lampasas is
+  the other county on the adapter — all named by the owner as places this firm works. The wrong note
+  said the firm's own back yard was paywalled when it is not. The image reference is printed in the
+  results grid itself (`395664.DI Vol: 255`), so a run that has already searched needs no second
+  round trip.
 
   **Tyler Eagle hands over the PDF** (`worker/src/adapters/tyler-eagle-viewer.ts`). Its
   `getDocumentImages` said retrieval *"goes through the portal's cart, which is not wired up"* — wrong,
