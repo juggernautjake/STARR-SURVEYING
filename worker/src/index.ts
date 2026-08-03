@@ -27,6 +27,9 @@ import { GeometricReconciliationEngine } from './services/geometric-reconciliati
 import { uploadPipelineArtifacts, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
+// The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
+import { buildPlan, type ResearchMode } from './research/research-modes.js';
+import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
 import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
 import { createReportRoutes } from './routes/report-routes.js';
@@ -3036,12 +3039,18 @@ app.get('/research/confidence/:projectId', requireAuth, rateLimit(60, 60_000), (
 // Results are persisted to /tmp/analysis/{projectId}/purchase_report.json.
 
 app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
-  const { projectId, confidenceReportPath, budget, autoReanalyze, paymentMethod } = req.body as {
+  const { projectId, confidenceReportPath, budget, autoReanalyze, paymentMethod, mode } = req.body as {
     projectId?: string;
     confidenceReportPath?: string;
     budget?: number;
     autoReanalyze?: boolean;
     paymentMethod?: string;
+    /** The run's research mode (plan S-11). 'free' means no paid source is touched at all.
+     *
+     *  Defaults to 'paid' so existing callers keep their behaviour — this endpoint IS the paid
+     *  phase, and silently turning it into a no-op for everyone who has not been updated would look
+     *  exactly like a run that found nothing to buy. */
+    mode?: ResearchMode;
   };
 
   if (!projectId || !confidenceReportPath) {
@@ -3105,6 +3114,53 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
 
     const countyFIPS = confReport.propertyContext?.countyFIPS || '48027';
     const countyName = confReport.propertyContext?.county || 'Bell';
+
+    // ── The mode the researcher picked, finally governing something (plan S-11) ─────────────
+    //
+    // `research-modes.ts` was built for the owner's requirement — "a researcher picks a mode when
+    // starting a run", FREE or PAID — and had zero callers. No type carried a mode, no endpoint
+    // read one, and this endpoint bought documents regardless. The picker governed nothing.
+    //
+    // FREE is not a filter applied afterwards. Filtering after the fact does not refund anything,
+    // so free mode must mean the paid phase does not RUN — and it says what it skipped, because a
+    // run that silently bought nothing is indistinguishable from one that found nothing to buy.
+    const runMode: ResearchMode = mode === 'free' ? 'free' : 'paid';
+    const plan = buildPlan(countyName, runMode);
+    purchaseLog.info('Purchase', `Mode: ${plan.statement}`);
+
+    if (runMode === 'free') {
+      const skipped = recommendations.length;
+      purchaseLog.info(
+        'Purchase',
+        `FREE mode — the paid phase did not run. ${skipped} document(s) were recommended for ` +
+          `purchase and were NOT bought. Re-run in paid mode to reach them.`,
+      );
+      const freeReport: PurchaseReport = {
+        status: 'no_purchases_needed',
+        projectId,
+        purchases: [],
+        reanalysis: { status: 'skipped', documentReanalyses: [], discrepanciesResolved: [] },
+        updatedReconciliation: null,
+        billing: {
+          totalDocumentCost: 0, taxOrFees: 0, totalCharged: 0,
+          paymentMethod: 'account_balance', remainingBalance: budget || 25.0, invoicePath: '',
+        },
+        timing: { totalMs: 0, purchaseMs: 0, downloadMs: 0, reanalysisMs: 0 },
+        aiCalls: 0,
+        // An error list is the wrong home for this — nothing failed. It is a deliberate choice, and
+        // the sentence has to survive into the report a person reads, not only the run log.
+        errors: [],
+        mode: 'free',
+        modeStatement:
+          `FREE mode: the paid phase was not run. ${skipped} document(s) the confidence report ` +
+          `recommended buying were NOT purchased — this is a spending decision, not a finding that ` +
+          `nothing was available. ${plan.statement}`,
+      };
+      const outputPath = `/tmp/analysis/${projectId}/purchase_report.json`;
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(freeReport, null, 2));
+      return;
+    }
 
     // ── What the free pass already brought back (plan S-14) ─────────────────────────────
     //

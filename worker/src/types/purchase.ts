@@ -323,6 +323,17 @@ export interface PurchaseReport {
     savedUsd: number;
   };
 
+  /** Which research mode this run used (plan S-11). Absent on reports predating the mode picker.
+   *
+   *  On the report rather than only in the log because a FREE run and a run that found nothing worth
+   *  buying produce the same empty `purchases` array, and those are opposite facts: one is a
+   *  spending decision the researcher made, the other is a finding about the county. */
+  mode?: 'free' | 'paid';
+
+  /** What the mode meant for THIS run, in a sentence — including how many recommended documents went
+   *  unbought because of it. A count of zero purchases explains nothing on its own. */
+  modeStatement?: string;
+
   /** Purchases made from a dearer vendor than the cost policy would have chosen (plan R13).
    *
    *  The cost-ascending ordering in `paid-platform-registry.ts` was a SORT — a suggestion the buyer

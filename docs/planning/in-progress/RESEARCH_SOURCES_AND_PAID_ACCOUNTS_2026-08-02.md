@@ -212,6 +212,30 @@ portal.
 The 20–30 minute expectation is a real constraint, not a note: it means free mode has to run sources
 **concurrently** and report progress, or a researcher will assume it has hung.
 
+**WIRED 2026-08-03.** The note below already recorded that S-11 and S-12 "shipped as modules with no
+callers". S-12's wiring was fixed by S-13/S-14 — **S-11's was not, and stayed unwired for another
+day.** No type carried a mode, no endpoint read one, and `/research/purchase` bought documents
+regardless of what a researcher picked. The mode picker governed nothing.
+
+`/research/purchase` now takes `mode`, builds the plan for the county, and in FREE mode **returns
+before the purchase orchestrator is constructed**. That ordering is the whole point: filtering after
+the fact refunds nothing, so free mode has to mean the paid phase does not *run*. A test asserts the
+guard precedes the orchestrator, because a check placed after it would still spend.
+
+Three decisions worth keeping:
+
+- **The default is `paid`.** This endpoint *is* the paid phase, and silently turning it into a no-op
+  for every caller that has not been updated would look exactly like a run that found nothing to buy
+  — the failure this slice exists to prevent, reintroduced by the fix for it.
+- **The count of unbought documents is stated**, and the report carries `mode` and `modeStatement`.
+  A free run and a run that found nothing worth buying produce the identical empty `purchases` array,
+  and those are opposite facts: one is a spending decision the researcher made, the other is a
+  finding about the county.
+- **The skip is not filed as an error.** Nothing failed. Putting it in `errors` would drop a
+  successful run into a failure queue.
+
+Worker suite 81 files / 1,352 tests; root typecheck and `npm run build` clean.
+
 ### S-12. Document identity — the rule that stops us paying twice
 
 Owner's requirement, and the hard part: **never pay for a document we already have**, whether we got

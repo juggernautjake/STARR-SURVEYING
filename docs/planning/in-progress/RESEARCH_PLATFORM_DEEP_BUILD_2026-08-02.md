@@ -3376,6 +3376,48 @@ distinction matters: everything before this made a document arrive; nothing befo
 
 ---
 
+### The defect this document found ten times, and the check that ends it
+
+**DONE 2026-08-03** (`worker/src/__tests__/research-modules-are-reachable.test.ts`).
+
+Ten separate times, work in this plan was designed correctly, tested, written up as DONE — and had
+**no caller**. Three of those times the prose in this very document asserted the fix was live:
+
+| | what had no caller |
+|---|---|
+| S8 | the legibility check — a verdict computed and never read |
+| S10 | **all nine Phase I modules** — monuments, curves, varas, closure, the drawing: an island |
+| S11 | `bearing-rotation` — the owner's named feature, with no route and no button |
+| R13 | `platform-choice` — described here as *"the enforcement point"*, never asked |
+| R14 | the chain walk — wired, but its searches were never passed as arguments |
+| R16 | `frameParcel` — fixed the zoom-19 defect for nobody |
+| R18 | `chooseTiles` — the recommended grid, computed on every document and discarded |
+| S-11 | `research-modes` — a mode picker that governed nothing |
+
+**The reason it kept happening is that nothing could see it.** A module's own unit tests pass exactly
+the same whether or not anything calls it. `tsc` is happy. The production build is happy. It is
+invisible to every check this repo runs — so the fix is a check, not more care.
+
+The test walks `worker/src/services`, `worker/src/research`, `worker/src/chain-of-title` and
+`lib/research`, and fails on any module nothing outside a test file names.
+
+**It is an allowlist, not a ban**, because some modules genuinely should have no importer — entry
+points, and work deliberately parked. A test that failed on all of them would be noise, and noisy
+tests get skipped, which would leave this worse than before. So unreachable is *allowed*, but only as
+a **recorded decision with a reason**: `KNOWN_UNREACHABLE` is now a standing inventory of eleven
+modules that were built and never connected, each with why. Three further assertions keep the list
+honest — a module that later gets wired must be removed, a deleted module must not linger, and an
+entry with a token reason fails, since *"an exception without a reason is the defect wearing a
+permission slip"*.
+
+Two bugs in the check itself, both caught by running it. It re-read the whole source tree once per
+module and took ten seconds before timing out — a guard slow enough to annoy is one somebody
+eventually skips. And five of my own allowlist entries were wrong: the matcher counts a path string
+in a registry as a caller, which is a real way this codebase reaches a module, so those five were
+never unreachable at all.
+
+---
+
 ## 4. Decisions that are the owner's, not mine
 
 These block specific slices and must not be guessed:
