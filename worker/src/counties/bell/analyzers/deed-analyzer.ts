@@ -348,7 +348,7 @@ REQUIRED EXTRACTION — do not skip any section. Be exhaustive.
    - ALL curve data: radius, arc length, chord bearing, chord distance, delta angle, direction (left/right), center point if given
    - ALL monument descriptions at each call point: iron rod, iron pin, concrete monument, PK nail, railroad spike, cap stamped "RPLS #XXXX", etc. Note "found" vs "set" for each monument.
    - Along lines: "along the south line of Lot 12", "along the north R.O.W. line of FM 436" — note which boundary each call runs along
-   - Texas vara measurements: note if varas are used (1 vara = 33⅓ inches = 2.7778 feet). Convert to feet if possible.
+   - Texas vara measurements: note if varas are used (1 vara = 33⅓ inches ≈ 2.7778 feet). Report the vara figure AS WRITTEN — we convert exactly, so a rounded conversion here loses precision.
    - Closure: does the description close back to the POB? Note closure distance and bearing if stated.
    - If the legal description references a survey or field notes by book and page, transcribe that reference exactly.
    - If the description says "more or less" or "approximately", note it — this affects boundary precision.

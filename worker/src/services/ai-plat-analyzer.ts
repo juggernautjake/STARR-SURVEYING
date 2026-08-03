@@ -32,8 +32,10 @@ import type { ReconciliationResult, CallReconciliation } from './geo-reconcile.j
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
-/** 1 Texas vara = 33⅓ inches = 2.7778 feet (exact) */
-const VARAS_TO_FEET = 2.7778;
+/** 1 Texas vara = 33⅓ inches, in US survey feet.
+ *
+ *  Was a local `2.7778` labelled "(exact)", which it is not — see `survey-units.ts`. */
+import { VARAS_TO_US_SURVEY_FEET as VARAS_TO_FEET } from './survey-units.js';
 
 /** Valid values for the call status field coming from AI synthesis or reconciliation. */
 const VALID_CALL_STATUSES = ['confirmed', 'conflict', 'text_only', 'unresolved'] as const;
@@ -97,7 +99,7 @@ CRITICAL RULES:
 2. Extract every bearing and distance visible in the text. Do not skip any.
 3. For each lot/reserve: list every boundary call in traverse order.
 4. Bearings must be in DMS quadrant format: N ##°##'##" E
-5. Distances in feet, to hundredths. Convert varas: 1 vara = 2.7778 ft.
+5. Distances in feet, to hundredths. Where varas are used, report the vara figure as written (1 vara ≈ 2.7778 ft) and mark the unit — we convert exactly.
 6. Mark calls as "text_only" when only OCR text supports them (no visual measurement).
 7. Mark calls as "confirmed" when both OCR and visual geometry agree.
 8. Mark calls as "conflict" when OCR and visual geometry disagree by > 5 degrees or > 5% distance.

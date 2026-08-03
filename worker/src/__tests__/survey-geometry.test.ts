@@ -8,6 +8,8 @@
 // and every check downstream agrees with it, because it is perfectly self-consistent.
 
 import { describe, it, expect } from 'vitest';
+import fsMod from 'node:fs';
+import pathMod from 'node:path';
 import {
   azimuthToBearing, inverse, parseBearing, traverse,
 } from '../services/survey-geometry.js';
@@ -313,5 +315,65 @@ describe('rotateCalls and the falsy azimuth', () => {
     const { rotated, skipped } = rotateCalls([{ bearing: 'illegible', distance: 100 }], 2);
     expect(rotated).toHaveLength(0);
     expect(skipped[0]!.reason).toContain('could not be read');
+  });
+});
+
+describe('there is ONE vara, and one unit table', () => {
+  // The vara was defined SIX times with two different values, and two of the rounded copies were
+  // labelled "(exact)" — which is worse than being wrong quietly, because it tells the next reader
+  // the question is settled.
+  //
+  //   survey-units.ts        25 / 9      exact
+  //   reading-aggregator.ts  1000 / 360  exact — the same number written differently
+  //   ai-deed-analyzer.ts    2.7778      rounded, comment said "exact survey feet"
+  //   ai-plat-analyzer.ts    2.7778      rounded, comment said "(exact)"
+  //   validation.ts          2.7778      rounded, inline, in the LIVE Stage 4 closure path
+  //   three prompt strings   2.7778      what we tell the model
+  //
+  // The error is about 0.04 ft over a 1,900-vara league line. Small — and fixed anyway, because
+  // this module already distinguishes the two FEET in the seventh significant figure, and a platform
+  // that insists on that while rounding the vara in the sixth is not applying a standard, it is
+  // applying whichever number a given file happened to contain.
+  const read = (p: string) =>
+    fsMod.readFileSync(pathMod.join(process.cwd(), p), 'utf8');
+
+  it('the aggregator re-exports the shared constant rather than deriving its own', () => {
+    const src = read('src/services/reading-aggregator.ts');
+    expect(src).toContain('export const VARA_TO_FEET = VARAS_TO_US_SURVEY_FEET');
+    expect(src).not.toContain('1000 / 360;');
+  });
+
+  it('no analyzer keeps a local 2.7778', () => {
+    for (const p of ['src/services/ai-deed-analyzer.ts', 'src/services/ai-plat-analyzer.ts']) {
+      expect(read(p)).not.toMatch(/const VARAS_TO_FEET = 2\.7778/);
+      expect(read(p)).toContain("VARAS_TO_US_SURVEY_FEET as VARAS_TO_FEET");
+    }
+  });
+
+  it('validation.ts converts through the shared table, including METRES', () => {
+    // Its local table used 3.28084 — the INTERNATIONAL foot — in the live closure-and-area path,
+    // quietly undoing the very distinction survey-units.ts exists to keep.
+    const src = read('src/services/validation.ts');
+    expect(src).toContain("convertLength(value, u, 'us_survey_feet')");
+    // Asserted on the CODE form, not the bare number: the comment above `toFeet` names 3.28084 to
+    // explain what was wrong with it, and a test that forbade the digits would forbid the
+    // explanation too — which is how a comment recording a past mistake gets deleted to make a test
+    // pass, taking the reason with it.
+    expect(src).not.toMatch(/return value \* 3\.28084/);
+    expect(src).not.toMatch(/return value \* 2\.7778/);
+  });
+
+  it('and the metre really does differ between the two feet', () => {
+    const us = convertLength(1000, 'meters', 'us_survey_feet').value;
+    const intl = 1000 * 3.28084;
+    expect(us).not.toBeCloseTo(intl, 3);
+    // ~0.007 ft per 1000 m — seventh figure, which is exactly the size this module cares about.
+    expect(Math.abs(us - intl)).toBeLessThan(0.05);
+  });
+
+  it('prompts no longer tell the model a rounded figure is exact', () => {
+    for (const p of ['src/services/ai-extraction.ts', 'src/services/ai-plat-analyzer.ts']) {
+      expect(read(p)).not.toMatch(/1 vara = 2\.7778 ft\./);
+    }
   });
 });

@@ -3461,6 +3461,48 @@ wired and one of the pair should be retired rather than both connected.
 
 Worker suite 81 files / 1,356 tests; root 1,468 files; typecheck clean.
 
+#### And the same defect in the units — six vara constants, two of them lying
+
+The closure case pointed at a defect class the reachability check **cannot** catch: both files were
+wired, they simply disagreed. So the natural next question was where else one rule has two
+implementations — and the answer was the Texas vara, defined **six times**:
+
+| where | value | |
+|---|---|---|
+| `survey-units.ts` | `25 / 9` | exact |
+| `reading-aggregator.ts` | `1000 / 360` | exact — the same number written differently |
+| `ai-deed-analyzer.ts` | `2.7778` | rounded, and its comment said *"(exact survey feet)"* |
+| `ai-plat-analyzer.ts` | `2.7778` | rounded, and its comment said *"(exact)"* |
+| `validation.ts` | `2.7778` inline | rounded, in the **live Stage 4 closure-and-area path** |
+| three prompt strings | `2.7778` | what we tell the model to use |
+
+Two were **labelled exact and were not**, which is worse than being wrong quietly: it tells the next
+reader the question has been settled.
+
+The numerical error is small — about **0.04 ft over a 1,900-vara league line**, an inch or so, well
+under what compass-and-chain work supports. It is fixed anyway, and the reason is the same one this
+platform already committed to: `survey-units.ts` exists *because* the US survey foot and the
+international foot differ in the **seventh** significant figure. A platform that insists on that
+while rounding the vara in the sixth is not applying a standard — it is applying whichever number a
+given file happened to contain.
+
+**`validation.ts` also held the metre as `3.28084`, which is the INTERNATIONAL foot**, in the path
+that computes closure and area and compares that area to the CAD acreage. That is the exact
+distinction the unit module was written to preserve, undone inline in the file that does the
+arithmetic. All conversions there now go through `convertLength`.
+
+The prompts are deliberately **not** changed to `2.777777…`. A model reading a land description does
+better with the figure a surveyor would recognise, and every distance it returns is re-converted
+here anyway — so they now say `≈` and ask for the vara figure **as written**, which is strictly
+better: a conversion done by the model is a conversion nobody can check.
+
+One test of my own needed loosening rather than the code changing: it forbade the digits `3.28084`
+anywhere in `validation.ts`, which also forbade the comment explaining what had been wrong with it.
+A test like that is how a comment recording a past mistake gets deleted to make a suite pass, taking
+the reason with it. It now asserts on the code form.
+
+Worker suite 81 files / 1,361 tests; root 1,468 files; typecheck clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine

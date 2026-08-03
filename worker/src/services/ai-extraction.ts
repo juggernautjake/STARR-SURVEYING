@@ -55,7 +55,7 @@ const EXTRACTION_SYSTEM_PROMPT = `You are an expert Texas Registered Professiona
 
 - Texas metes and bounds legal descriptions (modern and historical)
 - Spanish land grants, Republic of Texas patents, Mexican-era surveys
-- Texas vara measurements (1 vara = 33⅓ inches = 2.7778 feet)
+- Texas vara measurements (1 vara = 33⅓ inches ≈ 2.7778 feet; report the vara figure as written and we convert exactly)
 - Chain measurements (1 chain = 66 feet, 1 rod = 16.5 feet)
 - Bearing notation: N 45°30'15" E, N45-30-15E, N45°30'E, S89°59'30"W
 - Curve data: radius, arc length, chord bearing, chord distance, delta angle

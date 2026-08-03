@@ -27,8 +27,13 @@ import type { PipelineLogger } from '../lib/logger.js';
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
 
-/** 1 Texas vara = 33⅓ inches = 2.7778 feet (exact survey feet) */
-const VARAS_TO_FEET = 2.7778;
+/** 1 Texas vara = 33⅓ inches, in US survey feet.
+ *
+ *  Was a local `2.7778` whose comment called it "exact survey feet". It is not exact — the exact
+ *  value is 25/9 — and five other places in this codebase held one or the other. See
+ *  `survey-units.ts` for the full list and why a rounded vara is inconsistent with a platform that
+ *  distinguishes the two feet in the seventh figure. */
+import { VARAS_TO_US_SURVEY_FEET as VARAS_TO_FEET } from './survey-units.js';
 
 // ── Metadata extraction prompt ────────────────────────────────────────────
 

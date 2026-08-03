@@ -12,6 +12,8 @@
 import { BoundaryCall, ValidationResult, ExtractedBoundaryData } from '../types/index.js';
 // One set of closure numbers for the whole platform (see the quality block below).
 import { DEFAULT_CLOSURE_THRESHOLDS, SCORECARD_EXCELLENT_RATIO } from '../lib/closure-tolerance.js';
+// One unit table for the whole platform — see toFeet below.
+import { convertLength, type LengthUnit } from './survey-units.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
 function bearingToAzimuth(decimalDegrees: number, quadrant: string): number {
@@ -28,15 +30,25 @@ function toRadians(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+/** Every distance in this file, in US survey feet.
+ *
+ *  Was a local switch with its own numbers — a rounded `2.7778` for the vara and, more consequently,
+ *  `3.28084` for the metre, which is the INTERNATIONAL foot. `survey-units.ts` exists precisely
+ *  because those two feet differ in the seventh figure, so converting metres through the wrong one
+ *  in the live closure-and-area path quietly undid the distinction the rest of the platform keeps.
+ *
+ *  Delegating rather than fixing the numbers in place: a corrected copy is still a copy, and the
+ *  reason there were six vara constants to begin with is that each was correct where it was written. */
 function toFeet(value: number, unit: string): number {
-  switch (unit) {
-    case 'varas':  return value * 2.7778;
-    case 'chains': return value * 66;
-    case 'meters': return value * 3.28084;
-    case 'rods':   return value * 16.5;
-    case 'links':  return value * 0.66;
-    default:       return value; // feet
-  }
+  const known: Record<string, LengthUnit> = {
+    varas: 'varas', chains: 'chains', meters: 'meters', rods: 'rods', links: 'links',
+    feet: 'us_survey_feet',
+  };
+  const u = known[unit];
+  // An unrecognised unit is returned unchanged, as before. Guessing a conversion for a unit nobody
+  // listed would be worse than treating it as feet, which is what a bare number in a Texas
+  // description means.
+  return u ? convertLength(value, u, 'us_survey_feet').value : value;
 }
 
 function computeLineEndpoint(

@@ -48,7 +48,32 @@ const METRES_PER: Record<LengthUnit, number> = {
   meters: 1,
 };
 
-/** 1 vara in US survey feet — exactly 2.777… , i.e. 25/9. */
+/** 1 vara in US survey feet — exactly 2.777… , i.e. 25/9.
+ *
+ *  ── This constant existed SIX times in this codebase, with two different values ────────────────
+ *
+ *  Found 2026-08-03 while consolidating the closure thresholds, which had the identical problem:
+ *
+ *      survey-units.ts        25 / 9      = 2.7777778   exact
+ *      reading-aggregator.ts  1000 / 360  = 2.7777778   exact, and the same number written differently
+ *      ai-deed-analyzer.ts    2.7778                    rounded, and its comment says "(exact survey feet)"
+ *      ai-plat-analyzer.ts    2.7778                    rounded, and its comment says "(exact)"
+ *      validation.ts          2.7778 inline             rounded, in the LIVE Stage 4 closure path
+ *      three prompt strings   2.7778                    what we tell the model to use
+ *
+ *  Two of them were labelled exact and were not, which is worse than being wrong quietly: it tells
+ *  the next reader the question has been settled.
+ *
+ *  The error is small — about 0.04 ft over a 1,900-vara league line, an inch or so — and well under
+ *  what old compass-and-chain work can support. It is fixed anyway, for the reason this module
+ *  exists at all: it already draws a distinction between the US survey foot and the international
+ *  foot in the SEVENTH significant figure, and a platform that insists on that while rounding the
+ *  vara in the sixth is not applying a standard, it is applying whichever number a given file
+ *  happened to contain.
+ *
+ *  Prompt text is deliberately NOT changed to `2.777777…` — a model reading a land description does
+ *  better with the figure a surveyor would recognise, and every distance it returns is re-converted
+ *  here anyway. The prompts now say "≈" instead of implying exactness. */
 export const VARAS_TO_US_SURVEY_FEET = 25 / 9;
 
 export function metresPerUnit(unit: LengthUnit): number {
