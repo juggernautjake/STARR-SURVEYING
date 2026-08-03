@@ -88,11 +88,24 @@ paragraph directly above it already reported as **disproven**. The doc contradic
 summary line, which is the version an owner actually reads. Four commits had shipped against S7c by then.
 Same defect slice 72 fixed in the contrast write-ups: prose kept asserting what the evidence had moved past.
 
+**⚑ CORRECTED AGAIN 2026-08-02 — the fourth drift, and the last one this table gets to have.**
+Two rows below were still describing work that had shipped. S10 said "needs data" four paragraphs
+under a banner reporting it resolved, and S7c still called the Magus/Summoner reduced tables blocked
+on a published source that had since shipped as `PF2_REDUCED_SLOTS`/`pf2ReducedSlots`.
+
+Rewriting the prose a fourth time buys the same few weeks the previous three did, so the claims are
+now **pinned by assertions** in `__tests__/dnd/slot-plan-blockers.test.ts` (14) rather than by
+editing. A row here that says "blocked on data" about something the code already has is now a
+failing test, not a paragraph someone has to notice.
+
+**Nothing in this table is waiting on data. All three are owner decisions.**
+
 | item | needs | kind |
 |---|---|---|
-| **S7c** — PF2 spell counts | **A decision, not data.** The count source (`pf2SpellCountsFor`), the cantrip cap, and both budget displays have shipped. What is left is whether to *enforce* the prepared cap — which cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare. Everything needed to implement it is in place. Separately, the Magus/Summoner **reduced** tables remain blocked on the published source (Ground Rule 3) — that half is data. | **owner call** (+ a data remnant) |
+| **S7c** — PF2 spell counts | Whether to *enforce* the prepared cap. It cuts against S15's recorded "only ACQUISITION is gated" boundary and is a rules change a player feels as a refused prepare, so it is a call rather than a task. Everything needed to implement it is in place. ~~Magus/Summoner reduced tables~~ — **shipped**; `pf2ReducedSlots` covers levels 1–20 for both, verified. | **owner call** |
 | **S9** — per-system dice rollers | Owner answer to **Q4**. The BUG half is closed (S-6 scoped both settings out of PF2/IG, so nothing claims to do something it cannot); what is left is a feature question. | owner call |
-| **S10** — IG Champion | Owner supplying Champion's powers/specializations. The catalog is scraped from intuitivegames.net and Champion is not in it; inventing the list is the one thing we must not do. | **data** |
+| ~~**S10** — IG Champion~~ | **RESOLVED 2026-07-27.** Champion is published on intuitivegames.net/classes; the earlier scrape missed it because the page lazy-renders subclass blocks. Catalogued, with every field traceable to the page. | ✅ shipped |
+| **Magus & Summoner in `PF2_CLASSES`** | **The one item that stops this doc closing.** Their spell tables are modelled and the builder already reads them, so each class works the moment it is catalogued — but `PF2_CLASSES` is asserted in several tests as *the 14 Remaster classes*, deliberately, to pin the CORE line-up. These two are Secrets of Magic. Adding them decides whether the catalogue means **core** or **all published**, which is a claim about what the app covers. Every figure needed is captured in the banner at the top of this doc. | **owner decision** |
 
 So the honest count is **one blocked item (S10), one data remnant inside S7c, and two decisions** — not
 three blocked items. The difference matters: a blocked item is waiting on the world, a decision is waiting

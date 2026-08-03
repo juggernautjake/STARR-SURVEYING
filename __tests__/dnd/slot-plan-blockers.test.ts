@@ -13,6 +13,8 @@ import { IG_CLASS_DETAILS } from '@/lib/dnd/systems/intuitive-games/content';
 import { IG_CLASS_TAXONOMY } from '@/lib/dnd/systems/intuitive-games/taxonomy';
 import { igFeatBudget } from '@/lib/dnd/systems/intuitive-games/builder-choices';
 import { PREF_SHARED_ENGINE_ONLY, prefAppliesToSystem } from '@/lib/dnd/preference-options';
+import { PF2_CLASSES, pf2Class } from '@/lib/dnd/systems/pathfinder2e/content';
+import { pf2IsReducedCaster, pf2ReducedSlots } from '@/lib/dnd/systems/pathfinder2e/spell-counts';
 
 describe('S10 — RESOLVED 2026-07-27: Champion IS published, and is now catalogued', () => {
   const champion = IG_CLASS_DETAILS.find((d) => d.name.toLowerCase() === 'champion');
@@ -109,5 +111,60 @@ describe('S9 — the dice-roller BUG half is closed; only the feature question (
 
   it('and an unknown system fails OPEN, so an ambiguous character is not shown an empty modal', () => {
     expect(prefAppliesToSystem('diceRollerStyle', undefined)).toBe(true);
+  });
+});
+
+// ── THE FOURTH DRIFT ────────────────────────────────────────────────────────────────────────────
+//
+// Added 2026-08-02. The plan's summary table has now gone stale three separate times, and the doc
+// itself records two of them ("the doc contradicted itself on its own summary line, which is the
+// version an owner actually reads"). It happened again: the table still listed S10 as waiting on
+// data a banner four paragraphs above it had already reported resolved, and still called the
+// Magus/Summoner reduced tables blocked on a published source that had since shipped as
+// PF2_REDUCED_SLOTS.
+//
+// Correcting the prose a fourth time would buy the same few weeks the previous three did. These
+// assertions instead make the two live claims fail out loud, so the summary table cannot say
+// "blocked on data" about something the code already has.
+describe('the plan summary must not outlive the code — verified, not asserted', () => {
+  it('the reduced-caster spell table IS modelled, so no row may call it blocked on a source', () => {
+    // What "blocked on the published source" claimed was missing. It is here, for both classes, and
+    // it is not the full-caster table.
+    expect(pf2IsReducedCaster('Magus')).toBe(true);
+    expect(pf2IsReducedCaster('Summoner')).toBe(true);
+    expect(pf2IsReducedCaster('Wizard')).toBe(false);
+
+    const magus5 = pf2ReducedSlots('Magus', 5);
+    expect(magus5).not.toBeNull();
+    // Rank-3 slots at level 5, and nothing above — the shape that distinguishes a reduced caster
+    // from the full table the builder used to hand a Magus by mistake.
+    expect(magus5!.slice(1).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+  });
+
+  it('and it is available at every level a character can reach', () => {
+    for (const level of [1, 2, 10, 20]) {
+      expect(pf2ReducedSlots('Summoner', level)).not.toBeNull();
+    }
+    // Clamped rather than undefined at the edges: a level read from bad data must not crash a sheet.
+    expect(pf2ReducedSlots('Summoner', 0)).not.toBeNull();
+    expect(pf2ReducedSlots('Summoner', 99)).not.toBeNull();
+  });
+
+  it('CATALOGUE DECISION, STILL OPEN: PF2_CLASSES is the 14 Remaster classes', () => {
+    // This is the doc's one genuinely open item and it is a decision, not effort — whether the
+    // catalogue means CORE or ALL PUBLISHED. Magus and Summoner are Secrets of Magic.
+    //
+    // WHEN THIS TEST FAILS, THE DECISION HAS BEEN MADE. Update this expectation and the plan's
+    // summary table in the same commit — that pairing is the whole point of the file.
+    expect(PF2_CLASSES).toHaveLength(14);
+    expect(pf2Class('Magus')).toBeNull();
+    expect(pf2Class('Summoner')).toBeNull();
+  });
+
+  it('so a Magus is currently unbuildable rather than half-built, which is the safer failure', () => {
+    // The reverted attempt left this the right way round: a catalogue whose guards disagree about
+    // how many classes exist is worse than one that is honestly missing two.
+    expect(pf2Class('Wizard')).not.toBeNull();
+    expect(PF2_CLASSES.every((c) => typeof c.summary === 'string' && c.summary.length > 0)).toBe(true);
   });
 });
