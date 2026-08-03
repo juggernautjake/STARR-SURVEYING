@@ -2924,12 +2924,29 @@ distinction matters: everything before this made a document arrive; nothing befo
   bearing is 10.5 px and no grid adds resolution the scan never had, so `recommendTiles` returns null
   rather than advice that looks like a fix and changes nothing.
 
-  **And it found a capture that cannot contain a bearing at all.** Avenu's viewer paints a letter page
-  at **304×561** — about 36 DPI, putting a 0.07" bearing at **~2.5 px**. Not marginal: the digits are
-  not in the image, and OCR asked to read them returns something *plausible*. The capture already
-  takes natural size; the natural size is the problem. The image URL carries `WIDTH`/`HEIGHT`/`ZOOM`,
-  so the fix is to request a larger render — a change to the request, not the capture. Every page
-  under the threshold now carries a warning that travels **with the page**, not only in a log.
+  **And it found a capture that could not contain a bearing at all — now fixed.** Avenu's viewer
+  painted a letter page at **304×561**: about 36 DPI, putting a 0.07" bearing at **~2.5 px**. Not
+  marginal — the digits were not in the image, and OCR asked to read them returns something
+  *plausible*. Nineteen counties route there, so shipping it would have meant nineteen counties of
+  confident nonsense that looked fine in a gallery.
+
+  The **token signs the render dimensions**: editing `CNTWIDTH`/`CNTHEIGHT` fails, including
+  re-sending the *identical* width, while the byte-identical original URL succeeds. So a bigger render
+  cannot be asked for after the fact. What works is asking the **viewer** — those parameters track the
+  browser viewport, and the size is fixed before the URL exists:
+
+  | viewport | render | effective DPI | bearing |
+  |---|---|---|---|
+  | 1280×720 | 304×561 | ~36 | ~2.5 px — unreadable |
+  | 2400×3200 | 1712×3162 | ~287 | ~20 px — comfortable |
+
+  Both measured live. The capture tab is now sized *before* the image renders and reloaded after
+  (resizing alone does not re-request it). `CAPTURE_VIEWPORT` is a **correctness** setting, and the
+  comment says so where someone would be tempted to shrink it.
+
+  This is what the arithmetic was for: the legibility check said the capture could not possibly work,
+  which sent me back to the portal to find out why. Every page still under the threshold carries a
+  warning that travels **with the page**, not only in a log.
 
   **Still needs a golden plat**, for the part that genuinely is a measurement: whether Tyler's
   `DEGRADED` rendering and Bastrop's viewer screenshots clear the threshold in practice, and whether
