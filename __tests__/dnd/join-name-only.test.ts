@@ -7,7 +7,10 @@ import path from 'node:path';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const ROUTE = read('app/api/dnd/auth/register/route.ts');
-const PAGE = read('app/dnd/join/[code]/page.tsx');
+// RE-POINTED 2026-08-02 (P14-10b). The join route was split so the PAGE could become a server component
+// and name the campaign an invite is for; the form itself moved to `JoinForm.tsx` unchanged. These
+// assertions are about the FORM — its fields and what it posts — so they follow the form, not the path.
+const PAGE = read('app/dnd/join/[code]/JoinForm.tsx');
 
 describe('the invite register route is name+password-only (Slice 36 convention)', () => {
   it('stores the identity as name:<normalized> via nameToKey — no real email', () => {

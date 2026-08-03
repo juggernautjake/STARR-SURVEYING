@@ -1262,7 +1262,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts, re-measured 2026-08-02 (end of session): 21 open, of which only 6 are actionable.**
+> **2. Counts, re-measured 2026-08-02 (end of session): 20 open, of which only 5 are actionable.**
 >
 > Counted by parsing the file (`grep -c '^- \[ \] \*\*'`), not by eye — the previous count said 15
 > actionable and listed `P8-1` and six Phase-13 items that were all already shipped, and it also missed
@@ -1272,7 +1272,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **6** | `P10-5b`, `P14-9b`, `P14-10b`, `P14-11`, `P14-12`, `QA-2` |
+> | **Actionable now** | **5** | `P10-5b`, `P14-9b`, `P14-11`, `P14-12`, `QA-2` |
 >
 > Shipped this session: `P5-7b` and `P8-2` (built), and `P8-1`, `P13-4`, `P13-5`, `P13-8`, `P13-11`,
 > `P13-12`, `P13-13`, `P13-14` (**ticked by reading the code and querying the database — all eight were
@@ -4198,12 +4198,38 @@ ticked that has not been verified.**
       — stable across surfaces and reloads, so it works as an identifier rather than decoration.
 
       Seed applied to the live database and re-run to prove idempotency. 22 tests.
-- [ ] **P14-10b — The invite-accept page never names the campaign.** *(Found while auditing P14-10's
-      "everywhere".)* `/dnd/join/[code]` renders a hardcoded "Join Campaign" — no name, no blurb, no
-      picture. It is the one screen where a person genuinely does not know what they are looking at, and
-      it is the only campaign surface that identifies nothing. Deliberately NOT folded into P14-10: it
-      needs the invite route to resolve and return the campaign, which is a data change rather than a
-      rendering one.
+- [x] **P14-10b — The invite-accept page never names the campaign. Done 2026-08-02.** *(Found while auditing P14-10's
+      "everywhere".)* ~~`/dnd/join/[code]` renders a hardcoded "Join Campaign" — no name, no blurb, no
+      picture.~~ It now names the campaign, shows its blurb and its P14-10 picture, and says what the
+      invite grants. `lib/dnd/invite-preview.ts` + the page split into a **server** shell and `JoinForm`.
+
+      **This was the first screen a new player ever sees, and it identified nothing.** An invite arrives
+      as a bare URL; the page asked a stranger to choose a display name and a password for a table it
+      would not name. Every other campaign surface names the campaign — this was the only one that did not.
+
+      **Server component, deliberately.** A client fetch would paint the unlabelled form first and then
+      swap in the name, which is the exact state the slice removes, briefly, on every load.
+
+      **What it may show, and why that is safe.** The CODE IS THE CREDENTIAL — holding it already buys
+      membership through `auth/register`, so the campaign's public identity reveals nothing that accepting
+      would not. The select is narrowed to `campaign_id, role, expires_at, used_by` (`register` selects
+      `*` because it CONSUMES the row; this only describes it, and `character_id`/`created_by` are other
+      people's ids), and the campaign read is `id, name, blurb, thumbnail_url` — never `theme`, the member
+      list, or the webhook.
+
+      **An unknown code renders the form anyway.** Refusing early would be a second gate that can disagree
+      with `register` — the only thing that actually judges a code — and an oracle for guessing codes.
+
+      **`used` / `expired` are REPORTED, never enforced**, and mirror `register`'s own two refusals
+      verbatim. Saying it up front is what stops someone picking a name and a password and only then being
+      told the invite was spent.
+
+      **The role is stated** because a DM invite grants control of the table, which is a materially
+      different thing to accept than a seat at it.
+
+      Driven in a browser on four real invites (live · DM · expired · unknown), created and **deleted**
+      afterwards — all four read correctly; the unknown code shows the generic title and leaks no name.
+      12 tests.
 - [ ] **P14-11 — Streamer parity on IG/PF2.** Background animation, effects and go-live/chat. 85
       `.dnd-sheet.skin-streamer` selectors, many targeting 5e-specific markup (`.stat .big`, `.ab .score`)
       that needs bespoke equivalents, not wider selectors. **Audit which are structural first.**
