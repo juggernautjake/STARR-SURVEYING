@@ -22,6 +22,7 @@ import styles from '../hextech.module.css';
 // M4-3 — the click-to-world conversion is SHARED with the asset tray. Two copies would be two answers
 // to "where did the DM click", and the argument for why it is not `rect.width / 100` lives in one place.
 import MapClickCatcher from './MapClickCatcher';
+import CreatureSearch from './CreatureSearch';
 
 export interface PlaceableSubject {
   /** `character` | `creature` — which id field the token's data carries. */
@@ -46,13 +47,25 @@ export default function PlaceToken({
   nodeId,
   subjects,
   placed = [],
+  system,
 }: {
   campaignId: string;
   nodeId: string;
-  /** What this campaign can put on a map: its party, plus creatures sent to the fight. */
+  /** What this campaign can put on a map WITHOUT a search: its party, plus creatures already sent to the
+   *  fight. Since P13-13b the whole catalogue is reachable too — see `CreatureSearch` — so this list is
+   *  the shortlist rather than the limit. */
   subjects: PlaceableSubject[];
   /** What is already standing on this node. */
   placed?: PlacedToken[];
+  /**
+   * Optionally scope the bestiary search to one system.
+   *
+   * The world page does NOT pass this, deliberately. A map node has no ruleset — the same reason
+   * `loadReach` takes the system from the CHARACTER rather than the map — and a campaign can seat a PF2
+   * character next to a 5e one. Defaulting the search to a system the map does not have would hide
+   * creatures for a reason the DM could not see. The prop exists for a caller that genuinely has one.
+   */
+  system?: string | null;
 }) {
   const router = useRouter();
   const [armed, setArmed] = useState<Armed | null>(null);
@@ -122,8 +135,12 @@ export default function PlaceToken({
           Place a token
         </span>
         {subjects.length === 0 && (
+          // P13-13b changed what this sentence can honestly say. It used to send the DM away — "send a
+          // creature from the bestiary to a fight" — because that WAS the only route to the board. The
+          // catalogue is now searchable right here, so the empty state points at the control beneath it
+          // instead of at another page.
           <span style={{ fontSize: 12.5, color: 'var(--hx-muted)' }}>
-            Nothing to place yet — add a character to the campaign, or send a creature from the bestiary to a fight.
+            No party members or fight creatures yet — search the bestiary below, or add a character to the campaign.
           </span>
         )}
         {subjects.map((s) => {
@@ -143,6 +160,27 @@ export default function PlaceToken({
           );
         })}
       </div>
+
+      {/* P13-13b — the whole catalogue, from here. Picking ARMS the same placement state the shortlist
+          buttons above arm, so there is still exactly one way a token gets onto the board: arm, then click
+          the map. The search adds a source of subjects, not a second way to place them. */}
+      <CreatureSearch
+        system={system}
+        disabled={busy}
+        onPick={(c) => setArmed({ mode: 'place', subject: { kind: 'creature', id: c.id, name: c.name } })}
+      />
+      {armed?.mode === 'place' && !subjects.some((s) => s.kind === armed.subject.kind && s.id === armed.subject.id) && (
+        // A creature pulled from the catalogue has no button of its own to show it is armed, so without
+        // this the DM types a name, picks it, and the panel looks exactly as it did before — the armed
+        // state would be invisible for precisely the path this slice added.
+        <div style={{ fontSize: 12.5, color: 'var(--hx-teal-1)' }}>
+          ☠ <strong>{armed.subject.name}</strong> is ready — click the map to place it.{' '}
+          <button
+            type="button" onClick={() => setArmed(null)} disabled={busy}
+            style={{ background: 'none', border: 'none', color: 'var(--hx-muted)', cursor: 'pointer', textDecoration: 'underline', fontSize: 12.5, padding: 0 }}
+          >cancel</button>
+        </div>
+      )}
 
       {/* ON THE BOARD — move and remove. Without these a misplaced token is permanent, which makes placing
           one a decision a DM hesitates over rather than a thing they do mid-session. */}

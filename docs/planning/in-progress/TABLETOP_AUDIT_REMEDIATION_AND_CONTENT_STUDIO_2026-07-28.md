@@ -1262,7 +1262,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > blocked, check the code first.** The sibling doc drifted five times; each drift cost a re-read, and
 > one of them manufactured a decision the owner then had to un-make.
 >
-> **2. Counts, re-measured 2026-08-02 (end of session): 23 open, of which only 8 are actionable.**
+> **2. Counts, re-measured 2026-08-02 (end of session): 22 open, of which only 7 are actionable.**
 >
 > Counted by parsing the file (`grep -c '^- \[ \] \*\*'`), not by eye — the previous count said 15
 > actionable and listed `P8-1` and six Phase-13 items that were all already shipped, and it also missed
@@ -1272,7 +1272,7 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > |---|---|---|
 > | Phase 7 — deferred by owner directive, do not start | 12 | all `P7-*` |
 > | Blocked on source material or a dependency | 3 | `P3-6`, `P5-4b`, `P5-4c` |
-> | **Actionable now** | **8** | `P10-5b`, `P13-13b`, `P14-8/9/10/11/12`, `QA-2` |
+> | **Actionable now** | **7** | `P10-5b`, `P14-8/9/10/11/12`, `QA-2` |
 >
 > Shipped this session: `P5-7b` and `P8-2` (built), and `P8-1`, `P13-4`, `P13-5`, `P13-8`, `P13-11`,
 > `P13-12`, `P13-13`, `P13-14` (**ticked by reading the code and querying the database — all eight were
@@ -3725,11 +3725,45 @@ be authored in any system, but `kindIsMechanicalIn` says whether it actually *do
       by **system, tag, creature type, CR band, alignment, plane and free text** — with facets returned from
       the data so only values that exist are offered. Linked from the global nav (`DndHeader.tsx:86`).
 
-- [ ] **P13-13b — Pull a creature INTO the map/encounter.** *(Split from P13-13, found while verifying it.)*
-      Today the only route from catalogue to table is a push from the creature page, so a DM who wants a
-      wolf mid-session has to leave the map, find the wolf, send it, and come back. `PlaceToken` needs the
-      same search `loadBestiary()` already backs, and the `FightSource` union already accepts all three
-      kinds — so this is a picker over finished machinery, not new mechanics.
+- [x] **P13-13b — Pull a creature INTO the map. Done 2026-08-02.** *(Split from P13-13, found while
+      verifying it.)* ~~The only route from catalogue to table is a push from the creature page.~~ The
+      predicted "picker over finished machinery" is exactly what it turned out to be:
+      `app/api/dnd/bestiary/search` (a GET over `loadBestiary`) + `maps/CreatureSearch.tsx`, wired into
+      `PlaceToken`.
+
+      **The machinery really was finished, and that was checked rather than assumed.** A token stores
+      `{ creatureId }` and `loadTokenSubjects` resolves it *directly* against `dnd_creatures` — so the
+      catalogue id a search returns is already a placeable id. Verified against the live database rather
+      than by reading: the first search hit resolves, and **500/500 sampled canonical-view ids exist in
+      `dnd_creatures`**. That mattered because the list reads a *materialized view*; had it exposed a
+      synthesised id, every pulled token would have rendered blank and nothing would have thrown.
+
+      **It ARMS, it does not place.** Picking hands the creature to `PlaceToken`'s existing armed state, so
+      there is still exactly one way a token reaches the board — arm, then click the map — and the server
+      still snaps to the grid and clamps to the bounds. A picker that placed at a guessed coordinate would
+      be a second answer to "which square is this on".
+
+      **The armed state needed its own indicator, and only for this path.** The shortlist buttons show
+      arming by lighting up; a creature pulled from the catalogue has no button, so without a ready/cancel
+      line the DM would type a name, pick it, and see a panel that looked untouched — invisible arming, on
+      precisely the path this slice adds.
+
+      **No system filter from the world page, deliberately.** A map node has no ruleset — the same reason
+      `loadReach` takes the system from the *character* — and a campaign can seat a PF2 character beside a
+      5e one. Defaulting the search to a system the map does not have would hide creatures for a reason the
+      DM could not see. The prop exists for a caller that genuinely has one.
+
+      **The empty state changed too, because it no longer has to send anyone away.** It said *"send a
+      creature from the bestiary to a fight"* — which was the only route, and is now the long way round.
+
+      Route verified live: 401 unauthenticated; `?q=wolf` → 20 of 24; `&system=pathfinder2e` → 12 of 12;
+      a nonsense query → 0 of 0; no query → 20 of **3,659** with the honest total. 16 tests.
+
+      **Not in scope, and stated so it reads as a decision:** *variants* (weak/base/elite) are not in the
+      search. `TokenSubject` already has a `creatureVariantId` arm, but choosing a tier is a per-creature
+      question that the bestiary answers next to the statblock with its variant carousel; a tier selector
+      inside a type-ahead would be a second, worse version of that. Variants still reach the board through
+      send-to-fight.
 
 ### The honest note
 
