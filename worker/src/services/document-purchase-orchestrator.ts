@@ -27,6 +27,7 @@ import { BillingTracker } from './billing-tracker.js';
 import { PipelineLogger } from '../lib/logger.js';
 // The firm-wide document library: never pay for the same page twice (research plan R13).
 import { findOwned, recordPurchase, summariseSavings, type OwnedDocument } from './purchase-ledger.js';
+import { DocumentIndex } from '../research/document-identity.js';
 import type {
   PurchaseOrchestratorConfig,
   DocumentPurchaseResult,
@@ -40,6 +41,27 @@ import type {
 import type { PurchaseRecommendation } from '../types/confidence.js';
 
 // ── Document Purchase Orchestrator ──────────────────────────────────────────
+
+/** Read a dollar figure out of an estimate that is usually a RANGE.
+ *
+ *  `PurchaseRecommender` emits strings like `"$6-12"` and `"$4-8"`. The previous reading of these
+ *  stripped every non-digit and parsed what was left, which concatenated the two ends of the range:
+ *
+ *      "$6-12"  -> 612          "$4-8"  -> 48          "$12-24" -> 1224
+ *
+ *  Against the default $25 budget that made EVERY recommendation unaffordable, so Phase 9 bought
+ *  nothing and logged "Budget exceeded" — a statement about the firm's spending limit standing in
+ *  for a bug in a regex. The run looked like a deliberate cost decision, which is why it survived.
+ *
+ *  The HIGH end of the range is used deliberately: this figure guards a spend that has not happened
+ *  yet, and starting a purchase that turns out to cost double the low estimate is the failure worth
+ *  avoiding. Returns null when nothing numeric can be read — the caller decides what an unknown
+ *  price means rather than having a fallback quietly chosen here. */
+export function parseEstimatedCost(raw: string | undefined, fallback = 5): number {
+  const numbers = (raw ?? '').match(/\d+(?:\.\d+)?/g);
+  if (!numbers || numbers.length === 0) return fallback;
+  return Math.max(...numbers.map(Number).filter((n) => Number.isFinite(n)));
+}
 
 export class DocumentPurchaseOrchestrator {
   private billing: BillingTracker;
@@ -60,6 +82,15 @@ export class DocumentPurchaseOrchestrator {
     config: PurchaseOrchestratorConfig,
     countyFIPS: string,
     countyName: string,
+    /** What this run already holds, free sources included (plan S-13/S-14).
+     *
+     *  Passing it is what makes "never pay for a document we already have" true for documents that
+     *  came back FREE. The ledger check below only knows what was BOUGHT, so without this a free
+     *  Kofile preview of an instrument does not stop the paid TexasFile purchase of the same one.
+     *
+     *  Optional so existing callers compile — but an absent index is not "nothing held", it is
+     *  "not checked", and the report says so rather than claiming zero. */
+    heldDocuments?: DocumentIndex,
   ): Promise<PurchaseReport> {
     // Guard against empty projectId
     if (!projectId) {
@@ -107,6 +138,9 @@ export class DocumentPurchaseOrchestrator {
     /** Documents this run did NOT have to buy. Reported, because an invisible saving is one nobody
      *  defends when somebody proposes turning the library off. */
     const reusedFromLibrary: OwnedDocument[] = [];
+    /** Counted so the identity summary can state both sides of the dedup bargain. */
+    let skippedAlreadyHeld = 0;
+    let boughtUnderUncertainty = 0;
     const reanalyses: DocumentReanalysis[] = [];
     const discrepanciesResolved: DiscrepancyResolution[] = [];
     let totalCharged = 0;
@@ -179,8 +213,7 @@ export class DocumentPurchaseOrchestrator {
 
       for (const rec of sorted) {
         // Budget check
-        const estCostNum =
-          parseFloat(rec.estimatedCost.replace(/[^0-9.]/g, '')) || 5;
+        const estCostNum = parseEstimatedCost(rec.estimatedCost);
         const budgetCheck = this.billing.checkBudget(projectId, estCostNum);
         if (!budgetCheck.allowed) {
           this.logger.warn(
@@ -206,6 +239,52 @@ export class DocumentPurchaseOrchestrator {
             error: `Budget exceeded: $${estCostNum} needed, $${budgetCheck.remaining.toFixed(2)} remaining`,
           });
           continue;
+        }
+
+        // ── Do we already HAVE it, from any source, paid or free? (plan S-13/S-14) ────────
+        //
+        // Before the ledger check, because this one is broader: the ledger knows what was bought,
+        // the index knows what the run is holding — including everything the free pass returned.
+        // It also matches ACROSS VENDORS, which raw instrument equality cannot: Kofile's `2019-3389`
+        // and Tyler Eagle's `20193389` are one document, and Avenu publishes no instrument number at
+        // all, so its documents key on book/page instead.
+        //
+        // The decision fails toward BUYING. A false match omits a document and hides that it did; a
+        // false miss costs a few dollars and shows up in the ledger where someone can see it.
+        if (heldDocuments) {
+          const decision = heldDocuments.decide({
+            county: rec.county ?? countyName,
+            instrumentNumber: rec.instrument,
+            book: rec.book,
+            page: rec.page,
+            recordingDate: rec.recordingDate,
+          });
+
+          if (!decision.buy) {
+            skippedAlreadyHeld += 1;
+            this.logger.info('Purchase', `${rec.instrument} not bought — ${decision.reason}`);
+            purchases.push({
+              instrument: rec.instrument,
+              documentType: rec.documentType,
+              source: rec.source,
+              status: 'already_owned',
+              pages: 0,
+              costPerPage: 0,
+              totalCost: 0,
+              paymentMethod: 'account_balance',
+              transactionId: null,
+              downloadedImages: [],
+              imageQuality: { format: 'unknown', hasWatermark: false, qualityScore: 0 },
+            });
+            continue;
+          }
+
+          if (decision.underUncertainty) {
+            // Said out loud, and counted. Buying under uncertainty is the correct call, but a run
+            // that reports its savings and swallows its duplicates is only telling half of it.
+            boughtUnderUncertainty += 1;
+            this.logger.warn('Purchase', `${rec.instrument} bought under uncertainty — ${decision.reason}`);
+          }
         }
 
         // ── Do we already own it? (plan R13) ─────────────────────────────
@@ -331,6 +410,21 @@ export class DocumentPurchaseOrchestrator {
           };
           this.billing.recordTransaction(tx);
           totalCharged += result.totalCost ?? 0;
+
+          // Register what we just bought, so a later recommendation in this same run cannot buy it
+          // again under a different vendor's citation. Registering only free documents would leave
+          // exactly that hole open.
+          heldDocuments?.register(
+            {
+              county: rec.county ?? countyName,
+              instrumentNumber: rec.instrument,
+              book: rec.book,
+              page: rec.page,
+              recordingDate: rec.recordingDate,
+              vendor: rec.source,
+            },
+            'paid',
+          );
 
           // The durable half (plan R13). BillingTracker writes JSON under /tmp, which the container
           // wipes on restart; this row is what still exists tomorrow, and what stops the next run
@@ -508,6 +602,21 @@ export class DocumentPurchaseOrchestrator {
         downloadMs: 0, // Included in purchaseMs
         reanalysisMs: reanalysisEnd - reanalysisStart,
       },
+      // Left undefined when no index was passed. An absent index means "not checked", and a zero
+      // here would read as "nothing was skipped and nothing was uncertain" — a measurement claim we
+      // did not make.
+      identity: heldDocuments
+        ? {
+            skippedAlreadyHeld,
+            boughtUnderUncertainty,
+            unkeyableHeld: heldDocuments.unkeyableCount,
+            summary:
+              `${heldDocuments.describe()} ` +
+              `${skippedAlreadyHeld} purchase(s) skipped as already held; ` +
+              `${boughtUnderUncertainty} bought under uncertainty (possible match that could not be confirmed — ` +
+              `buying is deliberate, since a false match omits a document invisibly).`,
+          }
+        : undefined,
       aiCalls,
       errors,
       librarySavings: summariseSavings(reusedFromLibrary),

@@ -3100,6 +3100,39 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
     const countyFIPS = confReport.propertyContext?.countyFIPS || '48027';
     const countyName = confReport.propertyContext?.county || 'Bell';
 
+    // ── What the free pass already brought back (plan S-14) ─────────────────────────────
+    //
+    // Built BEFORE any paid source is touched. That ordering is the whole mechanism: a document a
+    // free source already returned must be in the index before the purchase step can consider
+    // paying for it, because filtering after the fact does not refund anything.
+    //
+    // If the harvest result is missing or unreadable, no index is passed at all. That is on purpose
+    // — an EMPTY index would assert "we hold nothing", and the purchase step would buy everything
+    // while reporting a confident zero skipped. No index says "not checked", which is true.
+    let heldIndex: import('./research/held-documents.js').HeldIndexSummary | null = null;
+    try {
+      const harvestPath = `/tmp/harvest/${projectId}/harvest_result.json`;
+      if (fs.existsSync(harvestPath)) {
+        const { buildHeldIndexFromHarvest } = await import('./research/held-documents.js');
+        const harvest = JSON.parse(fs.readFileSync(harvestPath, 'utf-8'));
+        heldIndex = buildHeldIndexFromHarvest(harvest, countyName, 'free');
+        purchaseLog.info('Purchase', `Free pass: ${heldIndex.summary}`);
+      } else {
+        purchaseLog.warn(
+          'Purchase',
+          `No harvest result at ${harvestPath} — duplicate checking against the free pass is NOT ` +
+            `active for this run, so a document the free pass already returned may be bought again.`,
+        );
+      }
+    } catch (e) {
+      // Stated, not swallowed: the run proceeds and may pay for something it already has.
+      purchaseLog.warn(
+        'Purchase',
+        `Could not read the free pass results (${String(e)}) — proceeding without duplicate checking, ` +
+          `which risks paying for documents already in hand.`,
+      );
+    }
+
     const orchestrator = new DocumentPurchaseOrchestrator(projectId);
     const result = await orchestrator.executePurchases(
       projectId,
@@ -3120,6 +3153,7 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
       },
       countyFIPS,
       countyName,
+      heldIndex?.index,
     );
 
     const purchased = result.purchases.filter(p => p.status === 'purchased');
@@ -3127,6 +3161,9 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
       'Purchase',
       `Complete: ${purchased.length}/${result.purchases.length} purchased, $${result.billing.totalCharged.toFixed(2)} spent`,
     );
+    if (result.identity) {
+      purchaseLog.info('Purchase', `Identity: ${result.identity.summary}`);
+    }
 
     if (result.reanalysis.documentReanalyses.length > 0 && autoReanalyze !== false) {
       const totalChanged = result.reanalysis.documentReanalyses.reduce(

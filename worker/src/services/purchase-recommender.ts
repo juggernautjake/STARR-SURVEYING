@@ -22,6 +22,13 @@ export class PurchaseRecommender {
       type: string;
       source: string;
       pages: number;
+      /** Citation, carried through so the purchase step can tell whether we already hold this
+       *  document under some other vendor's numbering (plan S-13). Optional because older callers
+       *  do not supply it; a recommendation without it is bought rather than skipped. */
+      county?: string;
+      recordingDate?: string;
+      book?: string;
+      page?: string;
     }[],
     currentOverallConfidence: number,
   ): PurchaseRecommendation[] {
@@ -43,6 +50,12 @@ export class PurchaseRecommender {
           documentType: 'plat',
           instrument: platDoc.instrument,
           source: platDoc.source,
+          // Rule 1 is the only rule with a real document behind it, so it is the only one that can
+          // carry a citation. Rules 2 and 3 recommend a SEARCH, and a search has nothing to dedupe.
+          county: platDoc.county,
+          recordingDate: platDoc.recordingDate,
+          book: platDoc.book,
+          page: platDoc.page,
           estimatedCost: `$${estCost}-${estCost * 2}`,
           confidenceImpact: `+${confGain} overall`,
           callsImproved: lowConfPlatCalls.length,

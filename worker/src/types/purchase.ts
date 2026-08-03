@@ -322,4 +322,24 @@ export interface PurchaseReport {
     reused: number;
     savedUsd: number;
   };
+
+  /** What cross-vendor identity matching did to this run's spending (plan S-13/S-14).
+   *
+   *  `boughtUnderUncertainty` is the field that must not be hidden. The dedup rule deliberately buys
+   *  when identity is unclear — a false match omits a document invisibly, a false miss costs a few
+   *  dollars — but that trade is only defensible if the count is visible. Reporting the savings
+   *  while burying the duplicates would be advertising one side of the bargain.
+   *
+   *  Optional for the same reason as `librarySavings`: a run with no index attached has not measured
+   *  this, and a zero would read as "nothing was uncertain". */
+  identity?: {
+    /** Documents skipped because a free or already-bought copy is in hand. */
+    skippedAlreadyHeld: number;
+    /** Bought despite a possible match, because the match could not be confirmed. */
+    boughtUnderUncertainty: number;
+    /** Held documents that could not be keyed at all, so they can never prevent a purchase. */
+    unkeyableHeld: number;
+    /** One sentence for the report. */
+    summary: string;
+  };
 }

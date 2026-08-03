@@ -141,6 +141,21 @@ export interface PurchaseRecommendation {
   reason: string;
   priority: number;
   roi: number;                        // confidence points gained per dollar
+
+  // ── Citation, for cross-vendor duplicate detection (plan S-13) ────────────
+  //
+  // `instrument` alone cannot identify a document. The same instrument number exists in every
+  // county, some counties RESTART their numbering (so a 1994 and a 2011 deed can share one), and
+  // Avenu publishes no instrument numbers at all — its documents are cited `OR/00062/223`.
+  //
+  // These are optional because not every recommendation has a real document behind it: rules 2 and
+  // 3 in PurchaseRecommender emit `instrument: 'search_required'`, which is a search to run rather
+  // than a document to match. A recommendation without them is treated as unidentifiable and is
+  // BOUGHT — see DocumentIndex.decide, which fails toward spending rather than toward omitting.
+  county?: string;
+  recordingDate?: string;
+  book?: string;
+  page?: string;
 }
 
 // ── Surveyor Decision Matrix ─────────────────────────────────────────────────
