@@ -60,7 +60,7 @@ that *no* county of an unproven vendor routes to it.
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | R17 | Pixel regions on facts (`source_bounding_box` has never held a value) | Text extraction has no coordinates to give — unlocked by R18's vision path |
 | R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
-| R15 | A page image stored per plat instrument | Same document-attachment path R13 and R17 need — build once, not three times |
+| ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
 
 ### Owner requests added after the original 30 slices
@@ -744,8 +744,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   begins, which is research rather than engineering — 19 of them are now recorded in
   `uslandrecords-discovery.ts` as a by-product of S-7).
 
-- **R15. Complete plat history.** ◑ PART DONE 2026-08-02 — supersession + governing plat shipped;
-  page images per instrument remain
+- **R15. Complete plat history.** ✅ **DONE** — supersession + governing plat 2026-08-02; the packet
+  itself 2026-08-03
   Subdivision plats, replats, vacations, and their amendments; each with a page image and the
   recording data. Cross-link to the lots they create.
   *Acceptance:* for a platted lot the packet contains the governing plat and every later instrument
@@ -784,9 +784,36 @@ polish — nothing else in this plan can be trusted while the engine is down and
 
   Worker suite 362/362; both roots typecheck clean.
 
-  **Remaining:** a page image stored per plat instrument with its recording data — that is the same
-  document-attachment path R13's library and R17's evidence capture need, and is better built once
-  there than three times here.
+  **DONE 2026-08-03 — the packet** (`worker/src/services/plat-packet.ts`, wired into
+  `subdivision-intelligence.ts`).
+
+  The remainder was recorded as "a page image stored per plat instrument", waiting on a shared
+  document-attachment path. That path already existed — `artifact-uploader.ts` has stored page
+  images, bundled PDFs and `research_documents` rows per instrument the whole time. What was missing
+  was the join: nothing asked whether the plat that *governs a lot* is among the documents we hold.
+  `platPacketFor()` was exported with **no callers at all**, and `PlatInstrument.imagePaths` was
+  declared and never populated.
+
+  **Knowing a plat's number is not containing the plat**, and in a rendered packet the two look
+  identical — a lot governed by "Replat, Instrument 2004-11872" with no image reads exactly like a
+  lot whose replat is there to be opened. The surveyor finds out in the field.
+
+  The distribution is what makes it bite. The plat most likely to be **held** is the *superseded*
+  one: it is the one the CAD and the deed reference, so it is the one the harvest found. The packet
+  therefore tends to be missing an image for precisely the document that governs while showing one
+  for the document that does not — so that case says both halves out loud: the governing plat is not
+  here, *and* dimensions must not be read off the superseded plats that are.
+
+  **`not_checked` is a distinct status from `not_held`.** `undefined` documents mean no list was
+  available and nothing was established; `[]` means we looked and hold nothing. Only the second
+  raises "pull plat X" errands. Collapsing them would manufacture a work list out of a database
+  hiccup, and a work list that is sometimes fictional is one people stop reading.
+
+  Matching runs through one function on both sides (`platMatchKey`), because `research_documents` has
+  no instrument column — the instrument arrives inside `original_filename` as `plat_2004-11872`, and
+  two places agreeing about that convention is one place too many.
+
+  Worker suite 1,042/1,042; both roots typecheck clean; lint clean.
 
 - **R16. Imagery pack, per parcel.** ◑ PART DONE 2026-08-02 — framing + provenance + the plan
   shipped; the fetchers need provider keys and licensing decisions
