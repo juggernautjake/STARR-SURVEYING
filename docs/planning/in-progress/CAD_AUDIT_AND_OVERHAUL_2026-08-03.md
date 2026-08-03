@@ -383,6 +383,39 @@ been worth shipping.
 - **S3. Guard against losing work.** Independent of S2's cause: a refresh should not lose a drawing.
   Autosave/restore is worth doing even once the freeze is fixed, because a browser tab can always die.
 
+  #### ✅ S3 was ALREADY BUILT — verified in the browser 2026-08-03, not re-implemented
+
+  Checked the premise before writing anything, and the premise was wrong. This is the fifth time in
+  this program that something the plan called missing already existed, which by now is the single
+  most reliable prediction anyone can make about this subsystem.
+
+  What exists, and works:
+
+  | piece | where |
+  |---|---|
+  | per-document IndexedDB autosave | `lib/cad/persistence/autosave.ts` — slot `autosave:<docId>`, with a transparent migration off the old single `'current'` slot that used to destroy drawing A's autosave when you opened drawing B |
+  | periodic write | `CADLayout.tsx:1034`, `DEFAULT_AUTOSAVE_INTERVAL_MS = 60_000` |
+  | recovery UI | `RecentRecoveriesDialog.tsx` |
+  | discoverability | a clickable "N recoverable" pill in `StatusBar.tsx`, plus File → "Recover unsaved drawings…" |
+  | cleared on real save | `MenuBar.tsx` calls `clearAutosave` |
+  | desktop shell | `native-autosave.ts`, behind an `isTauri()` guard so the web bundle never pulls it in |
+
+  **Driven, not inferred.** With the 200k fixture loaded, the status bar showed a "1 recoverable"
+  pill; clicking it opened *Recent Crash Recoveries* listing two slots — "3 layers · 200000 features
+  · auto-saved 1 min ago · this drawing" and an 8-minute-old one — each with Restore and Discard.
+
+  **A discrepancy that turned out to be correct.** The pill says 1 while the dialog lists 2. The
+  count is `otherRecoveryCount`, which deliberately excludes the drawing you are already in — the
+  pill is for *other* work you might not know is recoverable. Filing that as an off-by-one would
+  have been a bug report against a deliberate decision, which §1 of this document warns is how a
+  cleanup undoes a fix.
+
+  **What S3 actually leaves open** is narrower than the slice as written, and is a judgement call
+  rather than a defect: the 60-second interval bounds a freeze at up to a minute of lost work. That
+  is a real cost for the owner but it is a *tuning* question (or an idle/dirty-triggered write),
+  not missing machinery — and after S2b the freeze it insures against is far less likely. Not worth
+  a slice on its own; folded into S4 if measurement there justifies it.
+
 - **S4. Load and render at scale.** Many layers, many images, many geometries. Measure first — frame
   time on change, time-to-first-render by element count — then act. Likely candidates: virtualise the
   layer/point tables, batch canvas invalidation, avoid full re-render on a single-element edit.
@@ -445,7 +478,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **Not started:** S1, S3–S9.
+window. **S3 was already built** — verified in the browser, not re-implemented. **Not started:** S1, S4–S9.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
