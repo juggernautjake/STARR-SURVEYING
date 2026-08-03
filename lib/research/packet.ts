@@ -55,6 +55,24 @@ export interface PacketSources {
   conflicts: Discrepancy[];
   planSummary?: string | null;
   documentLabels?: Record<string, string>;
+
+  /** Documents the run tried to fetch and could not.
+   *
+   *  These are the packet's most important absences and the packet had no way to mention them. A
+   *  crew reads the source-documents section, sees eleven documents, and has no way to know a
+   *  twelfth was attempted and missed — so the packet reads as complete. They are ERRANDS: the
+   *  record may exist and be perfectly findable at the courthouse.
+   *
+   *  Optional, and `undefined` is not `[]`: a run that never recorded them has not established that
+   *  none failed, and the cover says which of the two it is. */
+  retrievalFailures?: string[];
+
+  /** What the closure says about our READING of the description (`closure-diagnosis`).
+   *
+   *  On the cover rather than beside a fact, because it governs whether the numbers throughout the
+   *  packet can be trusted at all — and R25's own rule is that warnings go on the cover, since a
+   *  caveat at the back is a caveat nobody reads. */
+  readingCaveat?: string | null;
 }
 
 const SECTION_TITLE: Record<PacketItemKind, string> = {
@@ -176,6 +194,27 @@ export function assemblePacket(
       `${unsupported} item(s) in this packet have no source recorded or were never checked by a person. ` +
       'They are printed with that stated on the item, and must not be relied on as readings.',
     );
+  }
+
+  // ── What this packet does NOT contain ────────────────────────────────────────────────────
+  //
+  // The absences matter more than anything on the contents page. A packet lists what it has; only
+  // these lines can say what was attempted and missed.
+  if (src.retrievalFailures === undefined) {
+    warnings.push(
+      'Whether any document retrieval failed was NOT recorded for this run. This is not the same as ' +
+      'nothing having failed — treat the source-document list as possibly incomplete.',
+    );
+  } else if (src.retrievalFailures.length > 0) {
+    warnings.push(
+      `${src.retrievalFailures.length} document(s) could not be retrieved and are NOT in this packet. ` +
+      'These are errands, not absences — the record may exist and be findable at the courthouse: ' +
+      src.retrievalFailures.join('; '),
+    );
+  }
+
+  if (src.readingCaveat) {
+    warnings.push(src.readingCaveat);
   }
 
   const tableOfContents = sections.map((s, i) => ({

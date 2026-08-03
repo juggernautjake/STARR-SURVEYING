@@ -56,6 +56,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       documents,
       conflicts: (conflictRes.data ?? []) as Discrepancy[],
       documentLabels,
+      // Same list the packets route builds. This path assembles a packet LIVE (the approved path
+      // renders from the snapshot instead), so omitting it here would print "not recorded" on a
+      // draft PDF while the same packet showed the real list elsewhere.
+      retrievalFailures: documents
+        .filter((d) => d.processing_status === 'unreadable' || d.processing_status === 'error')
+        .map((d) => `${documentLabels[d.id]} (${d.processing_status === 'unreadable' ? 'could not be read' : 'processing failed'})`),
     });
   }
 

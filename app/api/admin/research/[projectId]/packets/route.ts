@@ -42,12 +42,30 @@ async function loadSources(projectId: string): Promise<PacketSources> {
 
   const plan = (planRes.data ?? [])[0] as { ai_plan?: { property_summary?: string } } | undefined;
 
+  // Documents this project holds that cannot be relied on, named for the cover.
+  //
+  // The worker's own `retrievalFailures` list — documents it tried to fetch and could not — is not
+  // visible from here; it lives on the pipeline result rather than in a table. What IS visible is
+  // the other half of the same fact, and it is the half a crew cares about: documents that arrived
+  // and could not be read (`unreadable`), and documents whose processing errored.
+  //
+  // Both belong on the cover for the reason R18 exists: an unreadable deed becomes a document with
+  // no facts, and the packet then reports the property as having no easements rather than as having
+  // a deed nobody could read.
+  const unusable = documents
+    .filter((d) => d.processing_status === 'unreadable' || d.processing_status === 'error')
+    .map((d) => `${documentLabels[d.id]} (${d.processing_status === 'unreadable' ? 'could not be read' : 'processing failed'})`);
+
   return {
     facts: (factRes.data ?? []) as ExtractedDataPoint[],
     documents,
     conflicts: (conflictRes.data ?? []) as Discrepancy[],
     planSummary: plan?.ai_plan?.property_summary ?? null,
     documentLabels,
+    // `[]` rather than undefined: this query DID run, so "none" is established rather than unknown.
+    // The distinction is the packet's, and handing it the wrong one would make a checked run look
+    // unchecked — or worse, the reverse.
+    retrievalFailures: unusable,
   };
 }
 

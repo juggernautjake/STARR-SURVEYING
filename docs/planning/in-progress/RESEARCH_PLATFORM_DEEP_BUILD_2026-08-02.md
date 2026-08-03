@@ -3748,6 +3748,38 @@ comparison" guard exists at all.
 
 Worker suite 86 files / 1,432 tests; root 1,469 files; typecheck clean.
 
+#### The same absence, in the document that actually goes to the field (R25)
+
+**DONE 2026-08-03** (`lib/research/packet.ts` + both routes that assemble a packet).
+
+The master report now names the documents a run failed to fetch. **The packet did not, and the
+packet is what a crew receives.** It lists what it has; nothing in it could say what was attempted
+and missed — so a crew reads the source-documents section, sees eleven documents, and has no way to
+know a twelfth arrived unreadable. The packet reads as complete.
+
+R25 already established where this belongs: *"warnings go on the cover, because a caveat at the back
+is a caveat nobody reads."* Two new cover lines, and neither is decoration:
+
+- **Documents that could not be retrieved or read**, named, and called **errands rather than
+  absences** — the record may exist and be perfectly findable at the courthouse, and "not in the
+  packet" and "does not exist" are different facts a crew acts on differently.
+- **What the closure says about our reading**, because it governs whether the numbers throughout the
+  packet can be trusted at all and therefore does not belong beside any one fact.
+
+**The worker's own `retrievalFailures` is not visible from the app** — it lives on the pipeline
+result rather than in a table — so the packet is fed the half that IS visible and is the half a crew
+cares about: documents whose `processing_status` is `unreadable` or `error`. That is R18's failure
+made visible at last: an unreadable deed becomes a document with no facts, and the packet then
+reports the property as having no easements rather than as having a deed nobody could read.
+
+`undefined` and `[]` are kept apart, as everywhere else in this document: the routes pass `[]`
+because the query genuinely ran, so "none" is *established* rather than unknown — and a packet handed
+the wrong one would make a checked run look unchecked, or worse, the reverse. Both routes that
+assemble a packet supply it, pinned by a test, because a draft PDF printing "not recorded" while the
+same packet showed the real list elsewhere would leave a crew not knowing which document to believe.
+
+Root suite 1,470 files; typecheck and `npm run build` clean.
+
 ---
 
 ## 4. Decisions that are the owner's, not mine
