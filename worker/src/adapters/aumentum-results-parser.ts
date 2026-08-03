@@ -125,6 +125,17 @@ export function parseRecord(cells: string[], dateIndex: number): AumentumRow | n
   };
 }
 
+/** Aumentum returns at most this many rows and offers NO pagination.
+ *
+ *  Verified on Bastrop 2026-08-02: "SMITH", "SMITH JAMES" and "ENSERCH" each returned exactly 100
+ *  records, and the first/prev/next/last controls named in the toolbar script are not present on the
+ *  results list at all — they belong to the document detail view.
+ *
+ *  So a search that matches 3,000 documents returns 100, with a counter that says "100 records" as
+ *  though that were the answer. This is the silent-truncation case: unlike Tyler's over-limit banner
+ *  or Avenu's timeout modal, NOTHING here announces that the result is partial. */
+export const AUMENTUM_RESULT_CAP = 100;
+
 export interface AumentumParseReport {
   rows: AumentumRow[];
   /** How many date boundaries were seen, whether or not they yielded a record. */
@@ -133,6 +144,8 @@ export interface AumentumParseReport {
   reportedRecords: number | null;
   /** True when the grid reported more records than were parsed. */
   short: boolean;
+  /** True when the result sits exactly on the cap, so the real total is unknown and probably larger. */
+  capped: boolean;
 }
 
 /** Parse the whole grid from its flattened cells.
@@ -171,7 +184,16 @@ export function parseResults(cells: string[], pageText = ''): AumentumParseRepor
   // Compare the portal's count against BOUNDARIES, not against merged documents. The grid counts
   // rows; merging several party rows into one document legitimately produces fewer documents than
   // rows, and comparing the merged total would cry INCOMPLETE on a complete read.
-  return { rows, boundaries, reportedRecords, short: reportedRecords !== null && boundaries < reportedRecords };
+  return {
+    rows,
+    boundaries,
+    reportedRecords,
+    short: reportedRecords !== null && boundaries < reportedRecords,
+    // Landing exactly on the cap is the only signal there is. It cannot distinguish "exactly 100
+    // documents exist" from "thousands exist" — which is precisely why it must be reported rather
+    // than assumed either way.
+    capped: boundaries >= AUMENTUM_RESULT_CAP,
+  };
 }
 
 export function describeParse(report: AumentumParseReport, county: string): string {
@@ -183,6 +205,13 @@ export function describeParse(report: AumentumParseReport, county: string): stri
       // document exists to prevent.
       parts.push(`INCOMPLETE — ${report.reportedRecords - report.rows.length} record(s) were not parsed; treat this page as partial.`);
     }
+  }
+  if (report.capped) {
+    parts.push(
+      `TRUNCATED — the portal returns at most ${AUMENTUM_RESULT_CAP} rows and offers NO pagination, ` +
+        `so the true total is UNKNOWN and probably larger. Narrow by document type, legal description ` +
+        `or a fuller name and search again. Do NOT treat this as the complete set.`,
+    );
   }
   return parts.join(' ');
 }

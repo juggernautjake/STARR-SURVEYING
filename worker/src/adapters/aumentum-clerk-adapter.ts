@@ -21,7 +21,7 @@ import {
   type PricingInfo,
 } from './clerk-adapter.js';
 import { BASTROP_TRAPS, REMAINING_COUNTY_SURVEY, freePathWarning } from './remaining-counties-survey.js';
-import { describeParse, parseResults } from './aumentum-results-parser.js';
+import { AUMENTUM_RESULT_CAP, describeParse, parseResults } from './aumentum-results-parser.js';
 import { resolveAdapter } from '../infra/adapter-registry.js';
 
 /** Counties on this vendor whose search has been driven. Bastrop only, so far. */
@@ -48,6 +48,8 @@ export class AumentumClerkAdapter extends ClerkAdapter {
   private context: BrowserContext | null = null;
   lastParseSummary: string | null = null;
   lastCoverageWarning: string | null = null;
+  /** True when the last search hit the portal's row cap, so the answer is partial by an unknown amount. */
+  lastResultTruncated = false;
 
   constructor(countyFIPS: string, countyName: string) {
     super(countyName, countyFIPS);
@@ -180,7 +182,9 @@ export class AumentumClerkAdapter extends ClerkAdapter {
     const grid = (await page.evaluate(`(${READ_GRID})()`)) as { cells: string[]; pageText: string };
     const report = parseResults(grid.cells, grid.pageText);
     this.lastParseSummary = describeParse(report, this.countyName);
+    this.lastResultTruncated = report.capped;
     console.log(`[Aumentum/${this.countyName}] ${this.lastParseSummary}`);
+    if (report.capped) console.warn(`[Aumentum/${this.countyName}] RESULT TRUNCATED at the portal's ${AUMENTUM_RESULT_CAP}-row cap.`);
 
     return report.rows.map((r) => ({
       instrumentNumber: r.instrumentNumber,
@@ -218,8 +222,14 @@ export class AumentumClerkAdapter extends ClerkAdapter {
   }
 
   async searchByLegalDescription(legalDesc: string): Promise<ClerkDocumentResult[]> {
+    // This adapter first claimed the vendor offers no legal-description search. It does — the form
+    // carries txtLDBook, txtLDLot, txtLDSection, txtLDMapId and txtLDFreeForm. They have not been
+    // driven, which is a different and smaller claim than "not offered", and saying the wrong one
+    // would send a researcher to a courthouse for something the portal can answer.
     throw new Error(
-      `[Aumentum/${this.countyName}] No legal-description search is offered (asked: ${legalDesc.slice(0, 40)}). Not an empty result.`,
+      `[Aumentum/${this.countyName}] Legal-description search EXISTS on this portal (txtLDBook, txtLDLot, ` +
+        `txtLDSection, txtLDMapId, txtLDFreeForm) but has NOT been driven (asked: ${legalDesc.slice(0, 40)}). ` +
+        `An unbuilt capability, not a missing one, and not an empty result.`,
     );
   }
 

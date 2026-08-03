@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  AUMENTUM_RESULT_CAP,
   DATE_CELL,
   describeParse,
   parseParties,
@@ -149,5 +150,45 @@ describe('the whole grid', () => {
     const report = parseResults(cells);
     expect(report.boundaries).toBe(2);
     expect(report.rows).toHaveLength(1);
+  });
+});
+
+describe('the portal caps results at 100 and says nothing about it', () => {
+  const record = (n: number): string[] => ['', 'View', '', String(1000 + n), '', String(1000 + n), '10', String(n), '01/02/1990', 'DEED', '', `[R] PARTY ${n} [E] OTHER ${n}`];
+  const grid = (count: number): string[] => Array.from({ length: count }, (_, i) => record(i)).flat();
+
+  it('records the cap', () => {
+    // Verified on Bastrop: "SMITH", "SMITH JAMES" and "ENSERCH" each returned exactly 100, and the
+    // first/prev/next/last controls are absent from the results list entirely.
+    expect(AUMENTUM_RESULT_CAP).toBe(100);
+  });
+
+  it('flags a result sitting exactly on the cap as truncated', () => {
+    expect(parseResults(grid(100), '100 records').capped).toBe(true);
+  });
+
+  it('does not flag a result below the cap', () => {
+    expect(parseResults(grid(12), '12 records').capped).toBe(false);
+  });
+
+  it('says the true total is unknown and how to narrow', () => {
+    // Unlike Tyler's over-limit banner or Avenu's timeout modal, NOTHING on this page announces
+    // that the result is partial. Landing on the cap is the only signal there is.
+    const s = describeParse(parseResults(grid(100), '100 records'), 'Bastrop');
+    expect(s).toContain('TRUNCATED');
+    expect(s).toContain('NO pagination');
+    expect(s).toContain('true total is UNKNOWN');
+    expect(s).toContain('Do NOT treat this as the complete set');
+  });
+
+  it('cannot tell "exactly 100 exist" from "thousands exist", and says so rather than choosing', () => {
+    // Both cases produce an identical page; the warning fires for both, which is the safe direction.
+    expect(describeParse(parseResults(grid(100), '100 records'), 'Bastrop')).toContain('probably larger');
+  });
+
+  it('stays quiet about truncation on a genuinely empty result', () => {
+    const r = parseResults([], '0 records');
+    expect(r.capped).toBe(false);
+    expect(describeParse(r, 'Bastrop')).not.toContain('TRUNCATED');
   });
 });

@@ -2082,6 +2082,42 @@ correctly for years before 1973.
 first 100 rows. Each throws rather than returning `[]`, because an empty array would read as "no such
 document recorded". Seed 559 supersedes 558.
 
+#### R39, thirteenth finding — the truncation that announces nothing
+
+The intended slice was Aumentum pagination. **There is none to build.** The portal caps results at
+100 rows and offers no pager:
+
+| Search | Result |
+|---|---|
+| `SMITH` | 100 records |
+| `SMITH JAMES` | 100 records |
+| `ENSERCH` | 100 records |
+| `ZZYZX` | 0 records |
+
+Three unrelated searches landing on exactly 100 is a cap, not a coincidence. The
+first/prev/next/last controls named in the toolbar script are **not present on the results list** —
+they belong to the document detail view, for stepping between selected documents.
+
+**This is the worst of the three truncations found in this build.** Tyler announces its over-limit
+with a banner. Avenu announces its timeout with a modal. Aumentum announces *nothing*: it returns
+100 rows and a counter reading "100 records", exactly as it would if the property had 100 documents
+and no more.
+
+So a search matching 3,000 instruments comes back looking like a complete answer of 100, and a
+surveyor would build a chain of title on it with nothing to suggest anything was missing. **That is
+the defect this document opened with, in its most convincing disguise yet.**
+
+Landing exactly on the cap is the only available signal, and it cannot distinguish "exactly 100
+exist" from "thousands exist". So it is *reported* rather than resolved — every capped result carries
+**"TRUNCATED — the true total is UNKNOWN and probably larger"**, and the adapter exposes
+`lastResultTruncated` for a caller to act on. Narrowing dimensions the form does offer: 160
+document-type checkboxes, legal-description fields, and a fuller party name.
+
+**A correction in the same pass:** the adapter claimed this vendor offers no legal-description
+search. It does — `txtLDBook`, `txtLDLot`, `txtLDSection`, `txtLDMapId`, `txtLDFreeForm`. They have
+not been *driven*, which is a smaller and different claim than "not offered"; saying the wrong one
+would send a researcher to a courthouse for something the portal can answer. Seed 560.
+
 #### Survey results, 2026-08-02 (seed 541)
 
 Vendor URL patterns were probed directly rather than inferred from each county's page layout: *"does
