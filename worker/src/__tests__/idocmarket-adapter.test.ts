@@ -65,8 +65,17 @@ describe('unbuilt capabilities throw rather than returning nothing', () => {
     await expect(a.searchByVolumePage('412', '88')).rejects.toThrow(/NOT implemented/);
   });
 
-  it('says images are charged and unwired, not absent', async () => {
-    await expect(a.getDocumentImages('2025-00232')).rejects.toThrow(/not "no images"/);
+  it('says the document view is ACCOUNT-GATED, not charged, and not absent', async () => {
+    // This test used to assert "charged and unwired". Driving Bosque on 2026-08-03 showed the
+    // opposite of the money half: /Document/Status returns owned:true with a $0.00 balance and no
+    // card on file, so there is no charge — but /Document/Detail redirects to "Must be signed in to
+    // continue". The index is free; the VIEW needs a free registration nobody has made.
+    //
+    // The distinction decides what to do next: "charged" would mean a wallet and a spending
+    // decision, "signed in" means somebody creates an account. Different errands entirely.
+    await expect(a.getDocumentImages('2025-00232')).rejects.toThrow(/signed-in iDocMarket account/);
+    await expect(a.getDocumentImages('2025-00232')).rejects.toThrow(/NOT a charge/);
+    await expect(a.getDocumentImages('2025-00232')).rejects.toThrow(/Not "no images"/);
   });
 
   it('treats quoted pricing as unconfirmed', async () => {

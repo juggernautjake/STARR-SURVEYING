@@ -340,10 +340,33 @@ export class IDocMarketAdapter extends ClerkAdapter {
     return this.submitAndRead(`legal="${exact ?? term}"${exact ? ' (exact subdivision)' : ' (free-form)'}`, options);
   }
 
+  /** Document viewing on this vendor is ACCOUNT-GATED, not charged (plan I/S7).
+   *
+   *  Driven on Bosque 2026-08-03, and the previous note here was wrong in a different direction from
+   *  the other four vendors' notes. It said images "are charged on this vendor". They are not.
+   *
+   *  A result row calls `viewDoc(token)`, which GETs `/BOSTX1/Document/Status`. For an ordinary
+   *  Bosque land record that returns:
+   *
+   *      {"allow":true,"currentBalance":"$0.00","owned":true,"validCC":false,...}
+   *
+   *  `owned: true` with a zero balance and no card on file — so there is no charge. But following the
+   *  flow to `/Document/Detail` redirects to `/Security/LoginNotice`: **"Must be signed in to
+   *  continue."**
+   *
+   *  So the index is free and searchable without an account (this adapter's searches work today), and
+   *  the DOCUMENT VIEW needs a signed-in iDocMarket account. That is an account somebody has to
+   *  create — an owner decision, not a code one — which is why this still throws rather than being
+   *  wired like the other four.
+   *
+   *  The distinction matters for what to do next: "charged" would mean a spending decision and a
+   *  wallet; "signed in" means a free registration. They are not the same errand. */
   async getDocumentImages(instrumentNo: string): Promise<DocumentImage[]> {
     throw new Error(
-      `[iDocMarket/${this.countyName}] Images for ${instrumentNo} open through viewDoc() with an opaque token and are ` +
-        `charged on this vendor. Not wired up, and not "no images".`,
+      `[iDocMarket/${this.countyName}] ${instrumentNo}: the index is free but the document VIEW requires a ` +
+        `signed-in iDocMarket account — /Document/Detail redirects to "Must be signed in to continue". ` +
+        `Its Status endpoint reports owned:true with a $0.00 balance and no card, so this is NOT a charge: ` +
+        `it is a free registration nobody has made. Not "no images".`,
     );
   }
 
