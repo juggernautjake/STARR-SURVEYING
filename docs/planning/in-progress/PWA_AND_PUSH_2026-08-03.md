@@ -170,6 +170,71 @@ business app a worker, and share one push backend.
   does yet — each needs its own subscription table and a subscribe UI, which is W4b and belongs with
   W3 (offline field packet) rather than here.
 
+- **W4b. The subscribe path — a crew member can say yes.** ✅ **DONE 2026-08-03.** Everything under
+  this already existed and could not reach the other pieces: W2's `/admin/` service worker, W4's
+  scope-agnostic sender, and now seed 571's table. What was missing was the **"yes"**. A complete
+  push stack with no subscribe path is the built-but-unreachable defect in its purest form, and this
+  codebase has produced it in push specifically before.
+
+  Three parts: `seeds/571_admin_push_subscriptions.sql`,
+  `app/api/admin/push/subscribe/route.ts` (POST / DELETE), and
+  `app/admin/components/EnableNotifications.tsx`, mounted on `/admin/install`.
+
+  **A separate table, not a `scope` column on the studio's.** The two reference different identity
+  tables (`registered_users` vs `va_users`), so one shared table would need a nullable FK pair and a
+  CHECK to keep them exclusive — a constraint one forgotten branch away from linking a crew member's
+  phone to a studio account. Columns otherwise mirror 539 deliberately: every one was there for a
+  reason that still applies, and re-deriving them differently is how two tables drift.
+
+  **On `/admin/install` rather than a settings page, because on iOS the install is a PRECONDITION.**
+  Push there works only from a home-screen install, so the two belong on one screen; a notifications
+  toggle anywhere else would be found by people who cannot yet act on it.
+
+  ### The states are the design
+
+  Collapsing these into "notifications unavailable" would leave a crew member with nothing to do, and
+  each has a different remedy:
+
+  | state | why it is its own branch |
+  |---|---|
+  | unconfigured | no VAPID key in the deployment. Renders **nothing** — an enable button is a promise the deployment cannot keep |
+  | unsupported | no `PushManager` at all |
+  | **iOS, not installed** | the most common dead end. iOS grants push only to a home-screen install and **the prompt never appears in Safari** — telling someone to "allow notifications" sends them hunting for something that cannot exist |
+  | denied | a site cannot re-prompt once refused, so a button that silently does nothing is a lie |
+  | subscribed | already on for this device; say so instead of offering to redo it |
+
+  ### The quiet failures it avoids
+
+  - **Upsert on `endpoint`** (UNIQUE). The endpoint is stable per browser install, so a plain insert
+    gives a phone one row per app launch and the crew member one copy of every alert per launch.
+  - **Re-subscribing re-arms a disabled device** — `failure_count` and `disabled_at` reset, because
+    the browser handing us a subscription IS it telling us the endpoint is live again.
+  - **A partial subscription is a 400, not a row.** A row missing a key looks like an enabled device
+    and can never deliver: the user believes alerts are on and simply never receives one.
+  - **DELETE is scoped to `user_id` as well as `endpoint`** — endpoint alone would let any signed-in
+    user unsubscribe any device by replaying an endpoint string.
+  - **A server rejection unsubscribes the browser again**, or the device sits with the UI saying
+    "on" while nothing can ever arrive.
+  - **`getRegistration('/admin/')`, not `serviceWorker.ready`** — `ready` resolves against any
+    controlling scope, and `/dnd/` and `/AndrewAsh/` run their own workers.
+
+  **The multi-tenancy gate caught this**, which is the check earning its keep: a new admin API route
+  must resolve to a bundle or a reasoned open. `push` is classified open alongside `notifications` —
+  gating device registration behind a bundle would mean a crew silently stops receiving push when a
+  plan changes, with the delivery channel rather than the content as the thing that broke.
+
+  ### ⚠ Not yet applied to the live database
+
+  **Seed 571 is committed, not run.** Applying it is a production schema change and the owner's call.
+  It is additive and safe (`CREATE TABLE IF NOT EXISTS`, one index, RLS deny-all), and until it runs
+  the route returns a 500 on POST — the UI is otherwise inert, since no VAPID key is configured yet
+  either. **To activate the whole feature: apply seed 571, set `PUSH_VAPID_PUBLIC_KEY` /
+  `PUSH_VAPID_PRIVATE_KEY` / `NEXT_PUBLIC_PUSH_VAPID_KEY`, `npm install web-push`, and set
+  `NEXT_PUBLIC_ADMIN_PWA=1`.**
+
+  **Still device-gated:** the runtime half — a real permission prompt and a real endpoint from a real
+  push service — cannot be verified without a phone. Tracked in W6b, not claimed here.
+
 - **W5. The iOS install walkthrough.** DONE 2026-08-03 — added to the EXISTING `/admin/install` page
   rather than as a new banner, because that page is already the "get the app" surface and is already
   reachable from the sidebar behind auth.
@@ -260,7 +325,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 partly shipped** (viewport correctness + a zoom-lock guard; the DEVICE pass W6b still needs a phone). **Next: W4b** (subscribe UI + a table per area) (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 partly shipped** (viewport correctness + a zoom-lock guard; the DEVICE pass W6b still needs a phone). **W4b shipped** (seed 571 + subscribe route + EnableNotifications on /admin/install; seed NOT yet applied to live). **What is left is device-gated (W6b) or owner-gated (apply seed 571, set VAPID keys, npm i web-push, NEXT_PUBLIC_ADMIN_PWA=1)** (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
 this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it

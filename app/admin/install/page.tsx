@@ -31,6 +31,8 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
+import EnableNotifications from '@/app/admin/components/EnableNotifications';
+
 import './install.css';
 
 const TESTFLIGHT_URL = process.env.NEXT_PUBLIC_MOBILE_TESTFLIGHT_URL || '';
@@ -268,6 +270,10 @@ export default function InstallPage() {
       </section>
 
       <PwaCard platform={platform} />
+      {/* W4b — directly under the install steps on purpose. On iOS the install is a PRECONDITION for
+          notifications, so the two belong on one screen; a notifications toggle anywhere else would
+          be reached by people who cannot yet act on it. */}
+      <EnableNotifications />
     </div>
   );
 }

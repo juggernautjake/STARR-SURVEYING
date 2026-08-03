@@ -76,6 +76,10 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'invites': { bundle: null, reason: 'Seat management is part of the account, not a bundle.' },
   'support': { bundle: null, reason: 'A firm that cannot reach support cannot report being wrongly gated.' },
   'notifications': { bundle: null, reason: 'Alerts span every bundle a firm holds.' },
+  // Registering a DEVICE to receive those alerts sits in the same class as the alerts themselves —
+  // gating it behind a bundle would mean a firm's crew silently stops getting push when a plan
+  // changes, with the delivery channel, not the content, as the thing that broke.
+  'push': { bundle: null, reason: 'Device registration follows the alerts, which span every bundle.' },
   'search': { bundle: null, reason: 'Search spans corpora and filters each by its own permissions (§3b).' },
   'nav-events': { bundle: null, reason: 'Navigation telemetry for the palette — UI plumbing, not a feature.' },
   // Counts on a workspace landing, one per workspace the firm can already open. Each count is taken
