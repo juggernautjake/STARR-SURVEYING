@@ -664,6 +664,54 @@ been worth shipping.
 
 ---
 
+  #### ✅ S9a DONE 2026-08-03 — the comparison core (`lib/cad/compare/survey-compare.ts`)
+
+  **The one idea this exists for.** Two surveys of the same land, written forty years apart, will
+  disagree about **every single bearing** and usually agree perfectly. They are on different bases of
+  bearings — magnetic north in 1952, grid north in 1998, a called line from an adjoining deed. A
+  naive diff reports *"18 discrepancies"* and sends a surveyor out to chase eighteen problems that do
+  not exist.
+
+  So the comparison estimates the constant rotation **first**, reports it as a **basis difference
+  rather than an error**, and only then reports the residuals. What is left is the real disagreement.
+  Same insight `rotation.service.ts` is built on — a rotation is a change of frame, not a discrepancy
+  — applied between two records instead of between a record and a field tie. That is what the slice
+  meant by depending on the rotation work.
+
+  **The median is load-bearing, not a refinement.** The offset is the median of the per-call deltas,
+  never the mean. A test proves why: with one course out by 10° (a transposed digit), a mean offset
+  of 2.5° flags **all four** courses and buries the real error among three false ones; the median
+  gives 0° and flags **exactly the bad one**. Mean-vs-median here is the difference between a useful
+  report and a misleading one.
+
+  **A reversed traverse is detected, not computed through.** One deed written clockwise and the other
+  counter-clockwise gives deltas clustered near ±180°, and averaging those produces nonsense. It is
+  reported in words instead: *"the two records appear to run in OPPOSITE directions."*
+
+  **What it refuses to do**, each pinned by a test:
+
+  | refusal | why |
+  |---|---|
+  | A missing bearing is never read as 0 | It would invent a due-north call and poison the median every other residual depends on |
+  | Differing call counts are named, never truncated | Usually one record splits a line the other runs through — exactly what a surveyor needs told |
+  | `median([])` returns `null`, not `0` | `0` means "same basis"; conflating it with "no data" would report agreement between records sharing no comparable course |
+  | Angle deltas are wrapped into (−180, 180] | Otherwise 359° vs 1° reads as a 358° disagreement |
+
+  Tolerances are configurable (default 1′ of bearing, 0.1 ft of distance), because a 1952 deed is not
+  a 2020 survey and holding both to the same standard flags the older one for being old.
+
+  16 tests.
+
+  ### S9b — what remains
+
+  The UI: pick a prior survey, run the comparison, and show the report beside the drawing — plus
+  overlaying the two figures on the canvas. Both need a browser, which this session could not keep
+  connected. **The pure half is deliberately shipped alone here rather than not at all**, but the
+  same caveat as S8b applies: a core with no caller is this repo's most frequent defect, so S9b
+  should be picked up promptly rather than left.
+
+---
+
 ## 3. Standing rules for this program
 
 Carried from the research platform work, where each was learned the expensive way:
@@ -689,7 +737,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S8b, S9.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9a is DONE** — the comparison core. **Not started:** S1b+, S4 (recommended for deferral), S5, S7, S9b (UI/overlay, needs a browser).
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
