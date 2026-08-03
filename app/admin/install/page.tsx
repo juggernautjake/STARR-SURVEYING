@@ -266,7 +266,87 @@ export default function InstallPage() {
           </p>
         </div>
       </section>
+
+      <PwaCard platform={platform} />
     </div>
+  );
+}
+
+/** Install straight from the browser — no store, no account, no review.
+ *
+ *  This page's original model was TestFlight for iPhone and a direct APK for Android, which needs an
+ *  Apple Developer account ($99/yr) and a Play account ($25). The PWA route needs neither, and this
+ *  app already has the parts: a manifest at `/manifest.json` and, since PWA plan W2, a service worker
+ *  scoped to `/admin/`.
+ *
+ *  iOS IS THE REASON THIS CARD EXISTS. Android shows its own install prompt; iOS shows nothing at
+ *  all, and push notifications there work ONLY from a home-screen install. So on iOS the steps have
+ *  to be spelled out or the capability is built and unreachable — which is this codebase's most
+ *  frequent defect, and it would be a poor place to repeat it.
+ *
+ *  Not shown once installed: a standalone display-mode means they already did this. */
+function PwaCard({ platform }: { platform: 'ios' | 'android' | 'other' }) {
+  const [standalone, setStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    setStandalone(
+      window.matchMedia?.('(display-mode: standalone)').matches === true
+      // iOS Safari predates the media query and reports it here instead.
+      || nav.standalone === true,
+    );
+  }, []);
+
+  if (standalone) {
+    return (
+      <section className="admin-install__card">
+        <h2>You are running the installed app</h2>
+        <p className="admin-install__muted">
+          This app is on your home screen, and notifications can reach you here.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="admin-install__card">
+      <h2>Install from this browser — no app store</h2>
+      <p className="admin-install__muted">
+        Adds this app to your home screen with its own icon, opens without browser chrome, and
+        can send you notifications. Nothing to download and no account needed.
+      </p>
+
+      {platform === 'ios' ? (
+        <ol className="admin-install__steps">
+          <li>Tap the <strong>Share</strong> button at the bottom of Safari (the square with an arrow).</li>
+          <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+          <li>Tap <strong>Add</strong>. Open it from the new icon, not from Safari.</li>
+        </ol>
+      ) : platform === 'android' ? (
+        <ol className="admin-install__steps">
+          <li>Tap the <strong>⋮</strong> menu in Chrome.</li>
+          <li>Tap <strong>Install app</strong> (Chrome may offer this to you automatically).</li>
+        </ol>
+      ) : (
+        <ol className="admin-install__steps">
+          <li>Open this page on your phone.</li>
+          <li>iPhone: Share → Add to Home Screen. Android: ⋮ → Install app.</li>
+        </ol>
+      )}
+
+      {platform === 'ios' && (
+        <div className="admin-install__note">
+          <CheckCircle2 size={18} />
+          <p>
+            {/* Stated because it is the one iOS rule that silently defeats notifications, and a crew
+                member who skips the install will simply never receive one. */}
+            <strong>On iPhone this step is required for notifications.</strong> Alerts cannot reach
+            you in an ordinary Safari tab — only from the home-screen icon.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 

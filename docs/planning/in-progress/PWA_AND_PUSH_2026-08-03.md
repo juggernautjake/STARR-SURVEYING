@@ -102,10 +102,25 @@ business app a worker, and share one push backend.
   than growing three. **Self-host it** — the protocol is simple, you already have the sender, and
   FCM/OneSignal would add a dependency and a data-sharing question for no capability you lack.
 
-- **W5. The iOS install walkthrough.** No automatic prompt exists on iOS; the user must use Share →
-  Add to Home Screen. A short, dismissible, iOS-only hint — shown once, and only in Safari, not in an
-  already-installed session. Without this, iOS push is built and unreachable, which is this
-  codebase's signature defect.
+- **W5. The iOS install walkthrough.** DONE 2026-08-03 — added to the EXISTING `/admin/install` page
+  rather than as a new banner, because that page is already the "get the app" surface and is already
+  reachable from the sidebar behind auth.
+
+  Worth noting what that page previously offered: TestFlight for iPhone and a direct APK for Android
+  — the native model needing the 9/yr and 5 accounts the owner asked to avoid. The browser-install
+  card now sits alongside them and says plainly that it needs no store and no account.
+
+  iOS gets real steps (Share, Add to Home Screen, open from the icon NOT from Safari) because it gets
+  no prompt; Android gets the shorter Chrome path and an acknowledgement that Chrome may offer it
+  unasked. The iOS card states the rule that silently defeats push: alerts cannot arrive in an
+  ordinary Safari tab, only from the home-screen icon.
+
+  It does not nag someone already inside the installed app — standalone is detected via the media
+  query AND `navigator.standalone`, which iOS Safari uses instead and which a media-query-only check
+  would miss.
+
+  A multi-tenancy ratchet (`starr-assumptions`) caught the first draft for hard-coding the firm name
+  three more times; the copy is generic now, which is better for tenanting and reads no worse.
 
 - **W6. Mobile fitness pass.** "Make sure everything works on mobile" is its own slice and needs a
   device pass, not a desktop resize. Worth doing after W1–W3 so it is tested inside the installed
