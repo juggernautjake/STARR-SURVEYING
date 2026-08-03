@@ -262,6 +262,18 @@ export interface LotPlatGovernance {
   vacated: boolean;
   statement: string;
   caveats: string[];
+
+  /** The plats themselves, and which of them we HOLD rather than merely name (plan R15).
+   *
+   *  R15's acceptance is that the packet *contains* the governing plat. Knowing its instrument
+   *  number is not containing it, and in a rendered packet the two look identical — the surveyor
+   *  finds out in the field. */
+  packet?: import('../services/plat-packet.js').PlatPacketEntry[];
+  /** Whether the plat that decides this lot's boundary is actually in hand. `not_checked` is a
+   *  distinct value from `not_held`: one is a finding, the other is an admission. */
+  governingImageStatus?: import('../services/plat-packet.js').PlatImageStatus | null;
+  /** Specific errands — "pull plat 2004-11872, it governs this lot and we do not have it". */
+  platNextSteps?: string[];
 }
 
 // ── Surveyor Info ───────────────────────────────────────────────────────────

@@ -18,6 +18,8 @@ import { SubdivisionAIAnalysis } from './subdivision-ai-analysis.js';
 import { TraverseComputation } from './traverse-closure.js';
 // Which plat controls each lot — a replat covers part of a subdivision (research plan R15).
 import { buildPlatHistory, governingPlatFor } from './plat-history.js';
+// …and whether we actually HOLD the plat that governs, rather than only its number (R15).
+import { assemblePlatPacket, summarisePlatPackets, type HeldPlatDocument, type PlatPacket } from './plat-packet.js';
 import type { CADAdapter } from '../adapters/cad-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 import type { BoundaryCall, ExtractedBoundaryData } from '../types/index.js';
@@ -423,10 +425,25 @@ export class SubdivisionIntelligenceEngine {
       })),
     ]);
 
+    // What this run actually holds, for the packet to check its plats against.
+    //
+    // `undefined` and `[]` mean different things downstream and the difference is preserved here:
+    // undefined is "no document list was available, nothing established", [] is "we looked and hold
+    // nothing". Reporting the first as the second sends somebody to the courthouse for a plat that
+    // may already be on disk.
+    const heldDocuments = await this.loadHeldPlatDocuments(projectId);
+
+    const platPackets: PlatPacket[] = [];
     const platGovernance = lotInventory.map((inv) => {
       const parsed = inv.lotName.match(/(?:LOT\s*)?([0-9]{1,4}[A-Z]?)/i);
       const blk = inv.lotName.match(/BLOCK\s*([0-9A-Z]+)/i)?.[1] ?? null;
       const g = governingPlatFor(platHistory, parsed?.[1] ?? inv.lotName, blk);
+
+      // R15's acceptance is that the packet CONTAINS the governing plat — not that it knows its
+      // number. `platPacketFor` had no callers at all until this line.
+      const packet = assemblePlatPacket(inv.lotName, g, heldDocuments);
+      platPackets.push(packet);
+
       return {
         lotName: inv.lotName,
         governingInstrument: g.governing?.instrument ?? null,
@@ -434,8 +451,16 @@ export class SubdivisionIntelligenceEngine {
         vacated: g.vacated,
         statement: g.statement,
         caveats: g.caveats,
+        // The plats themselves, and which of them we hold.
+        packet: packet.entries,
+        governingImageStatus: packet.governingImageStatus,
+        platNextSteps: packet.nextSteps,
       };
     });
+
+    if (platPackets.length > 0) {
+      console.log(`[Subdivision] Plat packets: ${summarisePlatPackets(platPackets)}`);
+    }
 
     const vacatedCount = platGovernance.filter((g) => g.vacated).length;
     const supersededCount = platGovernance.filter((g) => g.supersededInstruments.length > 0).length;
@@ -721,6 +746,56 @@ export class SubdivisionIntelligenceEngine {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  /** Which plat documents this run holds, for the packet to check against (plan R15).
+   *
+   *  Returns `undefined` — NOT `[]` — whenever the answer could not be established: no Supabase
+   *  client, a query error, an exception. The distinction is load-bearing. An empty array is a
+   *  finding ("we looked, we hold no plats") and produces `not_held` entries with "pull this plat"
+   *  errands attached. `undefined` produces `not_checked`, which claims nothing.
+   *
+   *  Collapsing them would manufacture a work list out of a database hiccup, and a work list that is
+   *  sometimes fictional is one people stop reading. */
+  private async loadHeldPlatDocuments(projectId: string): Promise<HeldPlatDocument[] | undefined> {
+    try {
+      const { getSupabase } = await import('./pipeline.js');
+      const supabase = await getSupabase();
+      if (!supabase) return undefined;
+
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            eq: (col: string, v: unknown) => Promise<{ data: unknown[] | null; error: unknown }>;
+          };
+        };
+      })
+        .from('research_documents')
+        .select('original_filename, document_label, pages_pdf_url, page_count, document_type')
+        .eq('research_project_id', projectId);
+
+      if (error) return undefined;
+
+      // `original_filename` is passed through as-is. `platMatchKey` strips the `plat_`/`deed_`
+      // category prefix at comparison time, so the filename convention is known in exactly one
+      // place — the moment two places disagree about it, every plat we hold reads as missing.
+      return (data ?? []).map((r) => {
+        const row = r as {
+          original_filename?: string | null;
+          document_label?: string | null;
+          pages_pdf_url?: string | null;
+          page_count?: number | null;
+        };
+        return {
+          instrument: row.original_filename ?? '',
+          documentLabel: row.document_label ?? null,
+          pagesPdfUrl: row.pages_pdf_url ?? null,
+          pageCount: row.page_count ?? null,
+        };
+      });
+    } catch {
+      return undefined;
+    }
+  }
 
   private failedModel(reason: string, startTime: number): SubdivisionModel {
     return {
