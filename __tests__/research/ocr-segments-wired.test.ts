@@ -45,8 +45,13 @@ describe('the tile geometry is measured, not asked of the model', () => {
   it('emits nothing rather than an empty region set', () => {
     // An empty `{pageSize, regions: []}` would read as "this document has no regions" — a finding —
     // where the truth is that none were recorded.
-    expect(documentService).toContain('measured.length ? { pageSize:');
-    expect(documentService).toContain('pdfPageSize && measuredPdf.length ?');
+    //
+    // Asserted on the GUARD rather than on a formatted line: the first version of this test matched
+    // `measured.length ? { pageSize:` as one contiguous string, and broke the moment the ternary was
+    // wrapped across lines by an unrelated edit. A test that fails on reformatting trains people to
+    // update tests without reading them.
+    expect(documentService).toMatch(/ocrSegments:\s*measured\.length\s*\n?\s*\?/);
+    expect(documentService).toMatch(/pdfPageSize && measuredPdf\.length\s*\n?\s*\?/);
   });
 });
 

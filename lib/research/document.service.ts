@@ -1,6 +1,8 @@
 // lib/research/document.service.ts — Document processing pipeline
 // Handles text extraction, OCR, document classification, and processing state.
 import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
+// Can the model actually read this? Assessed at capture time (plan I/S8).
+import { assessCapture, type CaptureAssessment } from '@/worker/src/services/ocr-legibility';
 import { callAI, callVision, callDocumentAI, AIServiceError } from './ai-client';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 // An unreadable page must say so rather than becoming a document with no facts (research plan R18).
@@ -134,6 +136,12 @@ interface ExtractionResult {
       boundingBox: { x: number; y: number; w: number; h: number };
       text: string;
     }>;
+    /** Whether fine survey text can be resolved at this capture size and tile grid (plan I/S8).
+     *
+     *  Stored WITH the segments because it is a property of this capture, not of the document: the
+     *  same deed fetched at 300 DPI and at 36 DPI is readable in one and not the other, and a fact
+     *  extracted from the second should be able to say which it came from. */
+    legibility?: CaptureAssessment;
   };
 }
 
@@ -811,12 +819,26 @@ async function extractFromImageTiled(
     return parseVisionResult(result, false);
   }
 
+  // Can the model actually read fine survey text off this? Assessed HERE, where the pixel size and
+  // the tile grid are both known, rather than being inferred later from a stored image.
+  //
+  // The grid is a constant (TILE_ROWS × TILE_COLS) whatever the page turns out to be, so this is the
+  // only place that reports whether the constant was enough for THIS document. An OCR that cannot
+  // resolve a bearing does not fail — it returns a plausible one.
+  const legibility = assessCapture(imgW, imgH, { rows: TILE_ROWS, cols: TILE_COLS },
+    meta.density && meta.density > 1
+      ? { widthIn: imgW / meta.density, heightIn: imgH / meta.density, source: 'image_density' }
+      : null);
+  console.log(`[Document] OCR legibility (${legibility.verdict}): ${legibility.fullStatement}`);
+
   return {
     text: mergedText,
     method: `ocr-tiled-${TILE_ROWS}x${TILE_COLS}`,
     ocrConfidence: avgConfidence,
     ocrRegions: tileRegions.length ? tileRegions : undefined,
-    ocrSegments: measured.length ? { pageSize: { width: imgW, height: imgH }, regions: measured } : undefined,
+    ocrSegments: measured.length
+      ? { pageSize: { width: imgW, height: imgH }, regions: measured, legibility }
+      : undefined,
   };
 }
 

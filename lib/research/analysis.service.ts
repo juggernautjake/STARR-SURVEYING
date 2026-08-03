@@ -1524,10 +1524,29 @@ ${textForExtraction.substring(0, 18000)}`;
   // them believe it is worse than offering nothing. Every refusal leaves the fact exactly as
   // evidenced as it was before.
   const segments = (doc as ResearchDocument & {
-    ocr_segments?: { pageSize?: { width: number; height: number }; regions?: OcrRegion[] } | null;
+    ocr_segments?: {
+      pageSize?: { width: number; height: number };
+      regions?: OcrRegion[];
+      legibility?: { verdict: string; fullStatement: string };
+    } | null;
   }).ocr_segments;
   const regions = segments?.regions ?? [];
   const pageSize = segments?.pageSize ?? null;
+
+  // Was this capture readable enough for the numbers about to be extracted from it? (plan I/S8)
+  //
+  // Said once, loudly, at the point the facts are created. A run that extracts twelve bearings from a
+  // 36 DPI scan produces twelve confident values and no error anywhere — the model does not decline
+  // to read text it cannot see, it guesses. This is the only place that knows both that the capture
+  // was marginal AND that facts are being written from it.
+  const legibility = segments?.legibility;
+  if (legibility && legibility.verdict !== 'good') {
+    console.warn(
+      `[Analysis] "${doc.document_label}": facts are being extracted from a capture rated ` +
+        `${legibility.verdict.toUpperCase()} for fine text. ${legibility.fullStatement} ` +
+        `Fine values (bearings, distances, curve data) from this document should be treated as unverified.`,
+    );
+  }
 
   const located: LocateResult[] = [];
 

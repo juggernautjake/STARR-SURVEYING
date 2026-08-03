@@ -236,3 +236,57 @@ export const OBSERVED_CAPTURES = {
  *  something delivered over the network produced a confident "no free preview" about the vendor
  *  carrying most of this platform's coverage. The right instrument was the network log. */
 export const KOFILE_RESOLUTION_UNMEASURED = false;
+
+// ── Assessing a real capture, where the physical size is often unknown ──────────────────────────
+//
+// `assessLegibility` needs the page's size in INCHES, and a scanned image does not carry one. Three
+// sources, in descending order of trust:
+//
+//   1. A PDF's `MediaBox` — the physical size in points, exact. This is how Tyler was measured.
+//   2. The image's embedded DPI (`density`), when the scanner wrote one. Often absent or wrong.
+//   3. Assuming US Letter.
+//
+// The third is a guess and is marked as one, because it is wrong in the case that matters most: a
+// 36×48 plat assumed to be 8.5×11 reports **four times** its true DPI, turning an unreadable capture
+// into a comfortable-looking one. That is the precise failure this module exists to prevent, so an
+// assumed size never yields a `good` verdict without saying what it assumed.
+
+export type SizeSource = 'pdf_mediabox' | 'image_density' | 'assumed_letter';
+
+export interface CaptureAssessment extends LegibilityReport {
+  sizeSource: SizeSource;
+  /** True when the physical page size was guessed rather than read. */
+  sizeAssumed: boolean;
+  /** The statement, plus what was assumed when anything was. */
+  fullStatement: string;
+}
+
+export const US_LETTER = { widthIn: 8.5, heightIn: 11 } as const;
+
+/** Assess a capture, being explicit about where the physical size came from. */
+export function assessCapture(
+  pixelWidth: number,
+  pixelHeight: number,
+  tiles: TileSpec,
+  physical?: { widthIn: number; heightIn: number; source: SizeSource } | null,
+): CaptureAssessment {
+  const source: SizeSource = physical?.source ?? 'assumed_letter';
+  const size = physical ?? { widthIn: US_LETTER.widthIn, heightIn: US_LETTER.heightIn };
+  const report = assessLegibility({ ...size, pixelWidth, pixelHeight }, tiles);
+  const assumed = source === 'assumed_letter';
+
+  const caveat = assumed
+    ? ' Page size was ASSUMED to be US Letter — nothing stated it. If this is a plat (36×48 is common) ' +
+      'the real DPI is roughly a QUARTER of the figure above, which would move this from readable to ' +
+      'unreadable. Treat the verdict as provisional until the sheet size is known.'
+    : source === 'image_density'
+      ? ' Page size came from the image\'s embedded DPI, which scanners often set wrongly.'
+      : '';
+
+  return {
+    ...report,
+    sizeSource: source,
+    sizeAssumed: assumed,
+    fullStatement: report.statement + caveat,
+  };
+}
