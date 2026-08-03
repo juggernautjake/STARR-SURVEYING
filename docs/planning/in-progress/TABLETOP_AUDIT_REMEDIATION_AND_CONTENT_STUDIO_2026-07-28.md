@@ -2294,13 +2294,68 @@ Every slice below serves that one rule.
 
 ## Phase 8 — Content coverage
 
-- [ ] **P8-1 — A bestiary.** *(E-1.)* No monster catalogue exists in any system; NPCs are hand- or AI-built
-      per campaign and reusable only within it. Every other content axis is catalogued — monsters are the
-      conspicuous omission, and they are what a DM needs most between sessions.
-      **Design:** `lib/dnd/monsters/<system>.ts` from the CC-licensed subsets (5e SRD; PF2 Monster Core),
-      sharing the creature model from P6-13 so a homebrew creature and an official one are the same shape.
-- [ ] **P8-2 — Magic items.** *(E-4.)* SRD magic items for 5e; PF2's runes are already modelled and are the
-      equivalent surface there.
+- [x] **P8-1 — A bestiary. ✅ ALREADY SHIPPED — ticked by reading the code, 2026-08-02.** ~~No monster
+      catalogue exists in any system.~~ It shipped on **2026-07-29**, three weeks before this line was last
+      read as open: `docs/planning/completed/BESTIARY_BUILDOUT_2026-07-29.md`, whose own §note already says
+      *"P8-1 in that doc went stale on 2026-07-29 and should be read as closed"* — so the correction was
+      written down and never propagated here.
+
+      What exists, measured rather than estimated: **5,025 rows in `dnd_creatures`** (3,659 distinct
+      creatures) plus 4,378 variants, `lib/dnd/bestiary/` (14 modules), `lib/dnd/statblocks/` (4),
+      `/dnd/bestiary` + `[slug]` with a system lens, variant carousel, rollable statblocks and fork,
+      9 licence-gated import/audit scripts, 4 seeds, and **22 test files / ~416 cases**. The design this
+      item proposed — share P6-13's creature model so a homebrew creature and an official one are the same
+      shape — is exactly what was built (`lib/dnd/homebrew/statblock.ts`, forks land in `dnd_homebrew`).
+
+      **This is the FOURTH stale item in this doc** (P5-8, P5-9, P8-3, now P8-1), and the pattern is worth
+      naming: each was closed by work recorded in a DIFFERENT doc, and nothing walks back to tick the
+      original. The handoff note at the top already says to check the code before starting anything marked
+      blocked; it should say the same about anything marked *open* in Phase 8+, because "no X exists in any
+      system" is precisely the sentence a later buildout falsifies without knowing this line is here.
+- [x] **P8-2 — Magic items. Done 2026-08-02.** *(E-4.)* SRD magic items for 5e; PF2's runes are already
+      modelled and are the equivalent surface there. **The premise held** — checked first, given P8-1
+      directly above: there was no `lib/dnd/magic-items/`, and the only magic-item data anywhere was PF2's
+      33 runes + one Bag of Holding, and IG's 12 Eldritch Jewel enchantments.
+
+      `lib/dnd/magic-items/{model,index}.ts` + a generated `dnd5e.ts` (**237 SRD items**),
+      `scripts/import-srd-magic-items.mjs`, and `MagicItemPicker` in the sheet's item builder.
+
+      **Licence is read from the data, not asserted here** — the rule `import-open5e.mjs` set for the
+      bestiary. The API serves **1,618** magic items across five documents; 1,381 of them belong to Kobold
+      Press, Level Up A5e, Tome of Heroes and Critical Role and are **refused by name, with counts printed**.
+      A catalogue that quietly grew to 1,618 would be a licence incident rather than a content win, so the
+      237 is asserted in the test.
+
+      **Three places a reasonable import lies, all measured against the real rows rather than assumed:**
+      · **Rarity is not always one of the six.** The SRD itself prints `varies`, `rarity by figurine`, and
+        `uncommon (+1), rare (+2), or very rare (+3)`. Casting those to the ladder means calling a Figurine
+        of Wondrous Power "rare" — true of one of its five figurines. So `rarity` is set only for an exact
+        single value and `rarityNote` keeps the book's sentence otherwise; exactly one is ever present.
+      · **`requires_attunement` is free text carrying a RULE**, not a boolean. `!!x` gets the flag right and
+        discards "by a druid" — the half a player can fail to satisfy.
+      · **`type` is a category and a restriction in one string.** `Weapon (any axe or sword)` splits, and an
+        unrecognised category is **refused rather than defaulted to `wondrous item`**, so a source-format
+        change looks like one instead of like a slightly odd catch-all.
+
+      **And a fourth, found only by reading the sheet: attunement is encoded BY PRESENCE.** `InvItem` has no
+      `requiresAttunement` field — the engine's separate `EquipItem` does, but the ledger reads
+      `const needsAttunement = i.attuned !== undefined`. So `undefined` = none, `false` = required and not
+      yet attuned, `true` = attuned. All three typecheck; writing `false` everywhere would tell the sheet a
+      Potion of Healing needs attunement, and omitting it on an Amulet of Health would let its effects apply
+      for free. Nothing imports pre-attuned, because attunement is a player action with a cap of three.
+
+      **No effects are invented.** The Amulet of Health's *"your Constitution score is 19"* stays prose; a
+      parsed effect changes a character's numbers on a guess. The builder's hand-authored effect editor is
+      unchanged and is still where that happens — stated in the picker's own footer so it is not a surprise.
+
+      **Absent reads as "not catalogued", never as "does not exist"** (`MAGIC_ITEM_GAPS`, the `PF2_*_GAPS`
+      convention). PF2 and IG are **answered rather than emptied**: `magicItemSurfaceFor` sends PF2 to its
+      runes and IG to its enchantments instead of rendering an empty 5e list at them.
+
+      `npm run verify:magic-items` regenerates in memory and fails on drift, so the generated file cannot be
+      hand-edited into disagreeing with its source. Driven in a browser: search → pick → the builder
+      prefilled name, verbatim rules text and kind `wondrous`, and the draft was cancelled rather than
+      saved (character re-read afterwards: 13 items, unchanged).
 - [x] **P8-3 — The IG glossary.** *(E-2.)* ~~Intuitive Games has 32 terms — fewer than **every** unbuilt
       system (Blades 60, Shadowrun 55, CoC 51) and a third of PF2's 96. Another scrape pass of
       intuitivegames.net.~~ **Every number in that sentence was stale.**
