@@ -51,6 +51,16 @@ export interface PipelineResult {
    * a temporary data access issue.  Please visit {url} to verify."
    */
   failureReason?: string;
+  /**
+   * Document-retrieval steps that FAILED during Stage 2, one message each.
+   *
+   * These used to be `logger.warn` only, so a run whose clerk searches all failed could still
+   * report `status: 'complete'` on the strength of CAD data alone. A reviewer would see a finished
+   * research run and no reason to doubt its document set (plan R39).
+   *
+   * A non-empty list downgrades `complete` to `partial` — the same rule the adjoiner worker uses.
+   */
+  retrievalFailures?: string[];
 }
 
 // ── User File Upload ─────────────────────────────────
