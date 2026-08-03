@@ -34,8 +34,14 @@ export type LengthUnit =
 const METRES_PER: Record<LengthUnit, number> = {
   us_survey_feet: 1200 / 3937,              // 0.3048006096012192…
   international_feet: 0.3048,               // exact by definition
-  // Texas vara = 33 1/3 inches = 33.333… × 0.0254 m.
-  varas: (100 / 3) * 0.0254,                // 0.84666… m
+  // Texas vara = 33 1/3 inches = 25/9 feet — and the foot meant is the US SURVEY foot, which is the
+  // one Texas land surveying and the Texas State Plane zones are defined in.
+  //
+  // Deriving it instead from 33 1/3 INTERNATIONAL inches (100/3 × 0.0254) gives 2.7777772… US survey
+  // feet rather than 2.7777778…, so the exported VARAS_TO_US_SURVEY_FEET constant and the actual
+  // conversion disagreed in the 7th figure. Small — about 0.01 ft over 1,900 varas — but a module
+  // whose published constant does not match its own arithmetic cannot be checked by anybody.
+  varas: (25 / 9) * (1200 / 3937),          // 0.84666… m
   chains: 66 * (1200 / 3937),               // Gunter's chain, in US survey feet
   rods: 16.5 * (1200 / 3937),
   links: 0.66 * (1200 / 3937),

@@ -272,3 +272,23 @@ describe('comparing one line, record against measured', () => {
     expect(s).toContain('a difference on one line only is usually the wrong monument');
   });
 });
+
+describe('the vara constant and the vara arithmetic must agree', () => {
+  // They did not. VARAS_TO_US_SURVEY_FEET was exported as 25/9 while the conversion factor was
+  // derived from 33 1/3 INTERNATIONAL inches, giving 2.7777772… instead of 2.7777778…. About 0.01 ft
+  // over 1,900 varas — small, but a module whose published constant does not match its own
+  // arithmetic cannot be checked by anybody, which is worse than the error itself.
+  it('converts exactly as the exported constant says', () => {
+    expect(convertLength(1, 'varas', 'us_survey_feet').value).toBeCloseTo(VARAS_TO_US_SURVEY_FEET, 12);
+  });
+
+  it('holds over a long line, where the discrepancy would show', () => {
+    const long = convertLength(1900, 'varas', 'us_survey_feet').value;
+    expect(long).toBeCloseTo(1900 * VARAS_TO_US_SURVEY_FEET, 9);
+    expect(long).toBeCloseTo(5277.7778, 4);
+  });
+
+  it('agrees with toInternal, which is what the traverse actually calls', () => {
+    expect(toInternal(1900, 'varas')).toBeCloseTo(convertLength(1900, 'varas', 'us_survey_feet').value, 12);
+  });
+});
