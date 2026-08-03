@@ -24,7 +24,7 @@ vi.mock('lucide-react', () => new Proxy({}, {
   get: () => () => React.createElement('span'),
 }));
 
-import RotationPanel from '@/app/admin/research/components/RotationPanel';
+import RotationPanel, { explainFailure } from '@/app/admin/research/components/RotationPanel';
 import { balanceLine, topupLine, type AccountRow } from '@/app/admin/research/components/VendorAccountsPanel';
 
 const html = (el: React.ReactElement) => ReactDOMServer.renderToStaticMarkup(el);
@@ -154,5 +154,47 @@ describe('auto top-up off is stated, not implied by an unchecked box', () => {
     // counted 0 as missing, the panel would say "unset" about a deliberate freeze.
     expect(topupLine(row({ low_water_usd: 0, topup_to_usd: 0, monthly_ceiling_usd: 0 })))
       .toContain('The limits are set');
+  });
+});
+
+describe('a failure says what to do, not just a status code', () => {
+  // Driving the panel in a browser showed it printing "Request failed (401)" — a status code and
+  // nothing else. Every other message in this panel tells the reader what to do next, and this one,
+  // the only one they see when something breaks, did not.
+  const res = (status: number, body?: unknown): Response => ({
+    ok: false,
+    status,
+    json: async () => {
+      if (body === undefined) throw new Error('not json');
+      return body;
+    },
+  } as unknown as Response);
+
+  it('prefers the route\'s own reason over anything invented here', async () => {
+    // The route answers a well-formed question it cannot serve WITH a reason. That reason is better
+    // than any status-code guess.
+    const msg = await explainFailure(res(400, { error: 'basis.ties[] is required for a ties fit.' }));
+    expect(msg).toBe('basis.ties[] is required for a ties fit.');
+  });
+
+  it('tells an unauthenticated user to sign in, and that nothing was lost', async () => {
+    const msg = await explainFailure(res(401));
+    expect(msg).toContain('Sign in again');
+    expect(msg).toContain('nothing was saved');
+  });
+
+  it('says a server failure is not the surveyor\'s measurements', async () => {
+    const msg = await explainFailure(res(500));
+    expect(msg).toContain('not a problem with your measurements');
+  });
+
+  it('survives a non-JSON body instead of throwing', async () => {
+    // An HTML error page is not a reason, and a panel that throws while reporting a failure shows
+    // the user nothing at all.
+    await expect(explainFailure(res(502))).resolves.toContain('502');
+  });
+
+  it('still names the status when it has nothing better', async () => {
+    expect(await explainFailure(res(418))).toContain('418');
   });
 });

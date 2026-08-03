@@ -86,7 +86,15 @@ export default function VendorAccountsPanel() {
     try {
       const res = await fetch('/api/admin/research/vendor-accounts');
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `Failed (${res.status})`);
+      // A bare "Unauthorized" tells a reader nothing to do. Driving this panel showed exactly that
+      // on screen — the route's one-word refusal, rendered verbatim.
+      if (!res.ok) {
+        throw new Error(
+          res.status === 401 || res.status === 403
+            ? 'Your session is no longer signed in, so the vendor accounts could not be loaded. Sign in again.'
+            : json.error || `The vendor accounts could not be loaded (HTTP ${res.status}).`,
+        );
+      }
       setAccounts(json.accounts as AccountRow[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

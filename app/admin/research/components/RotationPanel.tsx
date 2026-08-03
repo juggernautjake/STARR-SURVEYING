@@ -59,6 +59,36 @@ interface RotationPanelProps {
 
 const emptyTie = (): TieRow => ({ label: '', callIndex: '', n: '', e: '' });
 
+/** Turn a failed response into something a surveyor can act on.
+ *
+ *  Driving this panel in a browser showed it printing **"Request failed (401)"** — a status code and
+ *  nothing else. Every other message in this panel tells the reader what to do next, and this one,
+ *  the only one they see when something breaks, did not.
+ *
+ *  The route's own refusals are the useful part: it answers a well-formed question it cannot serve
+ *  with a reason in `error`, so that is preferred over anything invented here. The status-code
+ *  fallbacks exist because a 401 and a 500 need different actions — sign in again, versus tell
+ *  somebody — and "failed" covers both while helping with neither. */
+export async function explainFailure(res: Response): Promise<string> {
+  const fromRoute = await res.json().then(
+    (j: { error?: string }) => j?.error,
+    () => undefined,   // a non-JSON body (an HTML error page) is not a reason
+  );
+  if (fromRoute) return fromRoute;
+  if (res.status === 401 || res.status === 403) {
+    return 'Your session is no longer signed in, so the rotation could not run. Sign in again and ' +
+      're-enter the ties — nothing was lost on the server, because nothing was saved.';
+  }
+  if (res.status === 404) {
+    return 'The rotation service could not be found for this project. Nothing was computed.';
+  }
+  if (res.status >= 500) {
+    return `The server failed while computing the rotation (${res.status}). This is not a problem ` +
+      'with your measurements — try again, and report it if it persists.';
+  }
+  return `The rotation could not be computed (HTTP ${res.status}). Your ties were not changed.`;
+}
+
 export default function RotationPanel({ projectId, calls, isOpen, onClose }: RotationPanelProps) {
   const [mode, setMode] = useState<'ties' | 'backsight'>('ties');
   const [ties, setTies] = useState<TieRow[]>([emptyTie(), emptyTie()]);
@@ -101,7 +131,7 @@ export default function RotationPanel({ projectId, calls, isOpen, onClose }: Rot
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ calls, basis }),
       });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      if (!res.ok) throw new Error(await explainFailure(res));
       setResult((await res.json()) as RotationResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
