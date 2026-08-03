@@ -173,12 +173,30 @@ describe('the surface', () => {
   });
 });
 
-describe('the column that has never held a value', () => {
-  it('is still written as a literal null at the extraction site', () => {
-    // Recorded so this is a known gap rather than a surprise: text-based extraction cannot produce
-    // pixel coordinates at all, which is why `quoted` is the honest ceiling today and locateExcerpt
-    // is what the viewer uses. Vision-based extraction (R18) is what fills this in.
+describe('the column that had never held a value', () => {
+  // This assertion used to read "is STILL written as a literal null", recorded so the gap was known
+  // rather than surprising, with the note that vision extraction (R18) was what would fill it in.
+  //
+  // R18 had already shipped. The tiling OCR in document.service.ts knew exactly where each tile sat
+  // — it computes left/top/width/height for `sharp().extract()` — and discarded that geometry while
+  // collecting the OCR model's own invented `regions`. So the blocker was never that coordinates
+  // could not be produced; it was that the only thing producing them dropped them.
+
+  it('is no longer a hardcoded null', () => {
     const svc = read('lib/research/analysis.service.ts');
-    expect(svc).toContain('source_bounding_box: null');
+    expect(svc).not.toMatch(/source_bounding_box:\s*null,/);
+  });
+
+  it('is filled from the tile a fact was actually read from', () => {
+    const svc = read('lib/research/analysis.service.ts');
+    expect(svc).toContain('source_bounding_box: location.region?.box ?? null');
+    expect(svc).toContain('locateFactRegion');
+  });
+
+  it('still yields null when the region cannot be established', () => {
+    // The locator refuses far more often than it succeeds — an ambiguous quote, a box that does not
+    // fit the page, a document never tiled. Each of those must leave the fact exactly as evidenced
+    // as it was, not carry a guessed box.
+    expect(evidenceFor(dp({ source_bounding_box: null, source_page: 3 })).strength).toBe('page');
   });
 });

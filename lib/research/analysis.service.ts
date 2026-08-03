@@ -3,6 +3,8 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
+// Matching a fact's quote back to the tile it was read from (plan R17).
+import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
 import {
   normalizeBearing,
@@ -1510,7 +1512,30 @@ ${textForExtraction.substring(0, 18000)}`;
 
   if (!data?.data_points || !Array.isArray(data.data_points)) return [];
 
-  return data.data_points.map((dp, idx) => ({
+  // ── Give each fact a place on the page, where one can be established (plan R17) ──────────────
+  //
+  // `source_bounding_box` was a literal `null` here since seed 090 — the column had never held a
+  // value. The tiling OCR in `document.service.ts` knows exactly where each tile sat; it now records
+  // that geometry in `ocr_segments`, and this is where a fact's quote is matched back to the tile it
+  // was read from.
+  //
+  // `locateFactRegion` refuses far more often than it succeeds, and that is the point: a quote found
+  // in two tiles gets no box, because scrolling a reviewer to a plausible wrong place and letting
+  // them believe it is worse than offering nothing. Every refusal leaves the fact exactly as
+  // evidenced as it was before.
+  const segments = (doc as ResearchDocument & {
+    ocr_segments?: { pageSize?: { width: number; height: number }; regions?: OcrRegion[] } | null;
+  }).ocr_segments;
+  const regions = segments?.regions ?? [];
+  const pageSize = segments?.pageSize ?? null;
+
+  const located: LocateResult[] = [];
+
+  const points = data.data_points.map((dp, idx) => {
+    const location = locateFactRegion(dp.source_text_excerpt, regions, pageSize);
+    located.push(location);
+
+    return {
     research_project_id: doc.research_project_id,
     document_id: doc.id,
     data_category: (dp.data_category || 'other') as DataCategory,
@@ -1518,15 +1543,24 @@ ${textForExtraction.substring(0, 18000)}`;
     normalized_value: dp.normalized_value || null,
     display_value: dp.display_value || dp.raw_value || '',
     unit: null,
-    source_page: dp.source_page || null,
+    source_page: dp.source_page || location.region?.page || null,
     source_location: dp.source_location || null,
-    source_bounding_box: null,
+    source_bounding_box: location.region?.box ?? null,
     source_text_excerpt: dp.source_text_excerpt || null,
     sequence_order: dp.sequence_order ?? idx,
     sequence_group: dp.sequence_group || null,
     extraction_confidence: dp.extraction_confidence ?? null,
     confidence_reasoning: dp.confidence_reasoning || null,
-  }));
+    };
+  });
+
+  // Says how many facts got NO region and why. "37 of 210 located" reads as progress; "173 still
+  // have no place on the page, 41 because the quote was ambiguous" reads as the work list it is.
+  if (located.length > 0) {
+    console.log(`[Analysis] "${doc.document_label}": ${summariseLocations(located)}`);
+  }
+
+  return points;
 }
 
 // ── Normalization Attempt ───────────────────────────────────────────────────

@@ -52,7 +52,20 @@ export async function processDocument(documentId: string): Promise<void> {
       extracted_text_method: extraction.method,
       page_count: extraction.pageCount || null,
       ocr_confidence: extraction.ocrConfidence || null,
-      ocr_regions: extraction.ocrRegions || null,
+      // `ocr_regions` is DELIBERATELY NOT WRITTEN HERE (plan R17, seed 570).
+      //
+      // Despite its name it does not hold OCR regions: `artifact-uploader.ts` stores
+      // {"pageUrls": [...]} in it, and SourceDocumentViewer and ResearchRunPanel read it back to
+      // render a document's pages. This line used to write `extraction.ocrRegions || null` into it,
+      // which meant every processed document either overwrote those page URLs with the OCR model's
+      // own invented coordinates, or — far more often, since the field is usually absent — wrote
+      // NULL and wiped them. The symptom is a document that stops displaying its pages, which points
+      // nowhere near this line.
+      //
+      // Measured tile geometry goes to `ocr_segments` instead, and the model's claimed regions are
+      // not persisted at all: nothing validated them, nothing read them, and invented pixel
+      // coordinates are worse than none because they look authoritative.
+      ocr_segments: extraction.ocrSegments ?? null,
       processing_status: statusFor(assessment),
       readability: assessment.readability,
       readability_reason: assessment.reason,
@@ -100,7 +113,28 @@ interface ExtractionResult {
   method: string;
   pageCount?: number;
   ocrConfidence?: number;
+  /** The MODEL's own claimed regions. `bbox` is typed `unknown` because nothing has ever validated
+   *  or used it — see the note on `ocr_segments` below. Kept only so the shape of what the OCR
+   *  prompt returns stays visible. */
   ocrRegions?: unknown[];
+
+  /** Where each tile actually was, in pixels, with the page it was measured against (plan R17).
+   *
+   *  This is MEASURED, not asserted. The tiling loops below compute `left/top/width/height` with
+   *  `sharp().extract()` — they know exactly where each tile sat — and then threw that away while
+   *  collecting `data.regions`, coordinates the OCR model invented, which nothing validated and
+   *  nothing read. Model-invented pixel coordinates are worse than none: they look authoritative and
+   *  would scroll a reviewer to a confident wrong place. */
+  ocrSegments?: {
+    pageSize: { width: number; height: number };
+    regions: Array<{
+      segmentId: string;
+      depth: number;
+      page?: number;
+      boundingBox: { x: number; y: number; w: number; h: number };
+      text: string;
+    }>;
+  };
 }
 
 async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
@@ -329,6 +363,9 @@ async function extractFromPdfPageTiled(
   const allPageTexts: string[] = [];
   const allConfidences: number[] = [];
   const allRegions: unknown[] = [];
+  /** Measured tile geometry across pages, and the page size it is all measured against (plan R17). */
+  const measuredPdf: NonNullable<ExtractionResult['ocrSegments']>['regions'] = [];
+  let pdfPageSize: { width: number; height: number } | null = null;
   let successfulPages = 0;
 
   // For each page, try to render the PDF to an image.
@@ -407,6 +444,20 @@ async function extractFromPdfPageTiled(
 
             if (parsed.text.trim()) {
               tileTexts.push(`[Page ${pageIdx + 1} Tile ${row + 1}-${col + 1}]\n${parsed.text.trim()}`);
+              // Measured tile geometry (plan R17). Only pages rendered at the same size as the first
+              // are recorded: one `pageSize` cannot describe two differently-sized pages, and a box
+              // divided by the wrong page's dimensions lands confidently in the wrong place. A
+              // skipped page simply has no regions, which the locator reports honestly.
+              if (!pdfPageSize) pdfPageSize = { width: imgW, height: imgH };
+              if (pdfPageSize.width === imgW && pdfPageSize.height === imgH) {
+                measuredPdf.push({
+                  segmentId: `p${pageIdx + 1}r${row}c${col}`,
+                  depth: 0,
+                  page: pageIdx + 1,
+                  boundingBox: { x: left, y: top, w: width, h: height },
+                  text: parsed.text.trim(),
+                });
+              }
             }
             if (parsed.ocrConfidence != null) allConfidences.push(parsed.ocrConfidence);
             if (parsed.ocrRegions) allRegions.push(...parsed.ocrRegions);
@@ -454,6 +505,7 @@ async function extractFromPdfPageTiled(
     pageCount: processedPageCount,
     ocrConfidence: avgConfidence,
     ocrRegions: allRegions.length ? allRegions : undefined,
+    ocrSegments: pdfPageSize && measuredPdf.length ? { pageSize: pdfPageSize, regions: measuredPdf } : undefined,
   };
 }
 
@@ -705,6 +757,8 @@ async function extractFromImageTiled(
   const tileTexts: string[] = [];
   const tileConfidences: number[] = [];
   const tileRegions: unknown[] = [];
+  /** Where each tile actually was. Measured here, not asked of the model (plan R17). */
+  const measured: NonNullable<ExtractionResult['ocrSegments']>['regions'] = [];
 
   for (let row = 0; row < TILE_ROWS; row++) {
     for (let col = 0; col < TILE_COLS; col++) {
@@ -727,6 +781,15 @@ async function extractFromImageTiled(
 
         if (parsed.text.trim()) {
           tileTexts.push(`[Segment ${row + 1}-${col + 1}]\n${parsed.text.trim()}`);
+          // The tile's real geometry, paired with the text read from it. A fact quoted from this
+          // text can now be pointed at this part of the page.
+          measured.push({
+            segmentId: `r${row}c${col}`,
+            depth: 0,
+            page: 1,
+            boundingBox: { x: left, y: top, w: width, h: height },
+            text: parsed.text.trim(),
+          });
         }
         if (parsed.ocrConfidence != null) tileConfidences.push(parsed.ocrConfidence);
         if (parsed.ocrRegions) tileRegions.push(...parsed.ocrRegions);
@@ -753,6 +816,7 @@ async function extractFromImageTiled(
     method: `ocr-tiled-${TILE_ROWS}x${TILE_COLS}`,
     ocrConfidence: avgConfidence,
     ocrRegions: tileRegions.length ? tileRegions : undefined,
+    ocrSegments: measured.length ? { pageSize: { width: imgW, height: imgH }, regions: measured } : undefined,
   };
 }
 
