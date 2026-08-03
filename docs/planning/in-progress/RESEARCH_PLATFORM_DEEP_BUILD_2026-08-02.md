@@ -3669,6 +3669,20 @@ These block specific slices and must not be guessed:
    > *"every survey figure in this platform is validated against synthetic geometry only, which
    > proves the arithmetic and nothing about the reading."* An empty denominator producing a perfect
    > score is how a measurement becomes a reassurance.
+   >
+   > **And the loop is closed** (`extractedCallsFrom`). The harness compares against the pipeline's
+   > OWN output shape — `ExtractedBoundaryData`, the same thing `readSurvey()` takes at Stage 4 — so
+   > supplying the plat is the **only** manual step. Without that bridge this was half a form:
+   > somebody would have had to hand-transcribe a run's results before any measurement could happen,
+   > and transcription errors would have been **indistinguishable from extraction errors**, which is
+   > the one confusion a measurement of extraction cannot afford.
+   >
+   > A curve crosses as its **chord**, matching `survey-reading.ts`. A golden record states the chord
+   > for a curved call because the chord is the straight line between the two corners a crew
+   > occupies; comparing a chord against an arc length would score every curve in the document wrong
+   > and read as an extraction failure. Varas cross as **varas** rather than being pre-converted —
+   > the harness normalises both sides itself, and converting early would discard the fact that the
+   > deed recites varas, which is exactly what the golden record states.
  Every piece of survey geometry built in Phase I — traverse,
    monuments, curves, rotation, varas — is tested against *synthetic* figures, which proves the
    arithmetic and nothing about the **reading**. One plat where the bearings, curves and monuments are

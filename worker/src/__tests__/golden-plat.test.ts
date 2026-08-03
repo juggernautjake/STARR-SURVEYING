@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
-  measureAgainstGolden, bearingDeltaSec, BEARING_TOLERANCE_SEC,
+  measureAgainstGolden, bearingDeltaSec, extractedCallsFrom, BEARING_TOLERANCE_SEC,
   type GoldenPlat, type ExtractedCall,
 } from '../services/golden-plat.js';
 
@@ -213,5 +213,87 @@ describe('the harness is self-activating', () => {
   it('the drop-in directory and its instructions exist', () => {
     // The instructions ARE the interface for whoever supplies the plat.
     expect(fs.existsSync(path.join(dir, 'README.md'))).toBe(true);
+  });
+});
+
+describe('the pipeline\'s own output feeds the harness', () => {
+  // Without this bridge the harness is only half a form: somebody would hand-transcribe a run's
+  // results before any measurement could happen — and transcription errors would be
+  // indistinguishable from extraction errors, which is the one confusion a measurement cannot have.
+  const call = (o: Record<string, unknown>) => ({
+    sequence: 0, bearing: null, distance: null, curve: null, toPoint: null,
+    along: null, confidence: 0.9, ...o,
+  });
+  const data = (calls: unknown[]) => ({
+    type: 'metes_and_bounds', datum: 'unknown',
+    pointOfBeginning: { description: 'POB', referenceMonument: null },
+    calls, references: [], area: null, lotBlock: null, confidence: 0.9, warnings: [],
+  } as unknown as Parameters<typeof extractedCallsFrom>[0]);
+
+  it('carries bearing, distance, unit and monument across', () => {
+    const out = extractedCallsFrom(data([call({
+      sequence: 3,
+      bearing: { raw: 'N 45°30\'00" E', decimalDegrees: 45.5, quadrant: 'NE' },
+      distance: { raw: '247.50', value: 247.5, unit: 'feet' },
+      toPoint: 'a 5/8 inch iron rod found',
+    })]));
+    expect(out[0]).toEqual({
+      index: 3, bearing: 'N 45°30\'00" E', distance: 247.5,
+      unit: 'us_survey_feet', monument: 'a 5/8 inch iron rod found',
+    });
+  });
+
+  it('keeps varas as varas rather than pre-converting', () => {
+    // The harness normalises both sides itself. Converting here would throw away the fact that the
+    // deed recites varas, which is exactly what the golden record states.
+    const out = extractedCallsFrom(data([call({
+      distance: { raw: '1900', value: 1900, unit: 'varas' },
+      bearing: { raw: 'N 0°00\'00" E', decimalDegrees: 0, quadrant: 'NE' },
+    })]));
+    expect(out[0]!.unit).toBe('varas');
+    expect(out[0]!.distance).toBe(1900);
+  });
+
+  it('represents a curve by its CHORD', () => {
+    // A golden record states the chord for a curved call, because the chord is the straight line
+    // between the two corners a crew occupies. Comparing a chord against an ARC would score every
+    // curve in the document wrong and look like an extraction failure.
+    const out = extractedCallsFrom(data([call({
+      curve: {
+        radius: { raw: '500', value: 500 },
+        arcLength: { raw: '523.60', value: 523.6 },
+        chordBearing: { raw: 'N 60°00\'00" E', decimalDegrees: 60, quadrant: 'NE' },
+        chordDistance: { raw: '500.00', value: 500 },
+        direction: 'right', delta: { raw: '60°', decimalDegrees: 60 },
+      },
+    })]));
+    expect(out[0]!.bearing).toBe('N 60°00\'00" E');
+    expect(out[0]!.distance).toBe(500);
+    expect(out[0]!.distance).not.toBe(523.6);
+  });
+
+  it('produces nulls rather than inventing values for an unreadable call', () => {
+    const out = extractedCallsFrom(data([call({})]));
+    expect(out[0]!.bearing).toBeNull();
+    expect(out[0]!.distance).toBeNull();
+  });
+
+  it('returns nothing for a null boundary instead of throwing', () => {
+    expect(extractedCallsFrom(null)).toEqual([]);
+  });
+
+  it('closes the loop end to end', () => {
+    // Golden record and pipeline output agree; the measurement should say so without any manual
+    // step other than supplying the plat.
+    const golden = plat([{ index: 0, bearing: 'N 45°30\'00" E', distance: 247.5, monument: 'a 5/8 inch iron rod found' }]);
+    const extracted = extractedCallsFrom(data([call({
+      sequence: 0,
+      bearing: { raw: 'N 45-30-00 E', decimalDegrees: 45.5, quadrant: 'NE' },
+      distance: { raw: '247.5', value: 247.5, unit: 'feet' },
+      toPoint: 'found 5/8" iron rod',
+    })]));
+    const r = measureAgainstGolden([{ golden, extracted }]);
+    expect(r.measured).toBe(true);
+    expect(r.readCorrectly).toEqual({ bearings: 100, distances: 100, monuments: 100 });
   });
 });

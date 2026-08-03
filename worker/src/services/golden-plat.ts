@@ -39,6 +39,7 @@
 import { parseBearing } from './survey-geometry.js';
 import { convertLength, type LengthUnit } from './survey-units.js';
 import { parseMonument, type MonumentKind, type MonumentStatus } from './monuments.js';
+import type { ExtractedBoundaryData } from '../types/index.js';
 
 /** How close a bearing must be to count as read correctly.
  *
@@ -86,6 +87,46 @@ export interface ExtractedCall {
   unit?: LengthUnit;
   monument?: string | null;
 }
+
+/** The pipeline's own output, in the shape the harness compares.
+ *
+ *  Without this the harness is only half a form: somebody would have to hand-transcribe a run's
+ *  results into `ExtractedCall[]` before any measurement could happen — and a measurement that
+ *  requires manual transcription of the thing being measured is one nobody runs twice, and one whose
+ *  transcription errors are indistinguishable from extraction errors.
+ *
+ *  So supplying the plat stays the ONLY manual step. `readSurvey()` already runs at pipeline Stage 4
+ *  and its input is exactly `ExtractedBoundaryData`, so this is the whole bridge.
+ *
+ *  A curve is represented by its CHORD, matching `survey-reading.ts`: the chord is the straight line
+ *  between the two corners a crew occupies, and it is what a golden record naturally states for a
+ *  curved call. Comparing a chord against an arc length would score every curve wrong. */
+export function extractedCallsFrom(data: ExtractedBoundaryData | null): ExtractedCall[] {
+  if (!data) return [];
+  return data.calls.map((c) => {
+    const curve = c.curve;
+    const bearing = c.bearing?.raw ?? curve?.chordBearing?.raw ?? null;
+    const distance = c.distance?.value ?? curve?.chordDistance?.value ?? null;
+    // `'feet'` is the extraction type's only foot; in a Texas land description that is the US
+    // survey foot. Same mapping `survey-reading.ts` makes, and made here rather than defaulted so
+    // the two cannot drift apart.
+    const unit: LengthUnit | undefined = c.distance
+      ? UNIT_MAP[c.distance.unit]
+      : curve?.chordDistance
+        ? 'us_survey_feet'
+        : undefined;
+    return { index: c.sequence, bearing, distance, unit, monument: c.toPoint };
+  });
+}
+
+const UNIT_MAP: Record<NonNullable<ExtractedBoundaryData['calls'][number]['distance']>['unit'], LengthUnit> = {
+  feet: 'us_survey_feet',
+  varas: 'varas',
+  chains: 'chains',
+  meters: 'meters',
+  rods: 'rods',
+  links: 'links',
+};
 
 export type FieldVerdict = 'correct' | 'wrong' | 'missing' | 'not_in_golden';
 
