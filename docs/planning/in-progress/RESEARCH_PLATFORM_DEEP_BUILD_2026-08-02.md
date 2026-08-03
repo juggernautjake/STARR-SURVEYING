@@ -58,7 +58,7 @@ that *no* county of an unproven vendor routes to it.
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
-| R17 | Writing OCR segments into `ocr_segments` — the locator and the column exist, no producer does | **The stated blocker was wrong**: the vision path already measures boxes and `ai-extraction.ts` discards them. What is actually missing is threading regions worker → document row → `analysis.service` |
+| ~~R17~~ | **DONE 2026-08-03** — `source_bounding_box` holds a value. The producer was in the app all along: the tiling OCR already measured every tile and discarded the geometry. Also fixed a write that was wiping the document viewer's page URLs | — |
 | R28/R29 | The worker's poll loop calling `claim` → run → `report` on a timer | Logic and limits are proven from both ends; the wiring belongs with deploying the box |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
@@ -862,8 +862,8 @@ polish — nothing else in this plan can be trusted while the engine is down and
   10 years of the controlling deed, and Street View at each public road frontage — or a stated reason
   why not.
 
-- **R17. Evidence for everything.** ◑ PART DONE 2026-08-02 — evidence strength + the honest UI
-  shipped; pixel regions await vision extraction (R18)
+- **R17. Evidence for everything.** ✅ **DONE** — evidence strength + the honest UI 2026-08-02;
+  pixel regions 2026-08-03
 
   **Shipped** (`lib/research/fact-evidence.ts`, wired into `DataPointsPanel`).
 
@@ -922,14 +922,32 @@ polish — nothing else in this plan can be trusted while the engine is down and
   corrected in place, with the segments in a new `ocr_segments` column and `ocr_regions` now
   carrying a comment saying what it actually holds. A test pins all three facts.
 
-  **Still remaining, and deliberately not claimed as done:** nothing writes segments into
-  `ocr_segments` yet. The worker produces them and the app writes the facts, and no path carries
-  regions between the two — the same subsystem boundary R15 met. That is a threading change across
-  `ai-extraction` → document persistence → `analysis.service`, not a slice, and calling R17 done on
-  the strength of a locator with no producer would be the authored-but-not-wired defect this session
-  has now found four times.
+  **The producer, and it was never in the worker.** The first pass assumed the regions would have to
+  be threaded from the worker's `adaptive-vision.ts` into the app. They did not: `document.service.ts`
+  **already tiles** images and PDF pages for OCR, calling `sharp().extract()` with an exact
+  `left/top/width/height` per tile. Both loops threw that geometry away — while collecting
+  `data.regions`, coordinates the OCR *model* invented, typed `bbox: unknown`, never validated and
+  never read by anything. Model-invented pixel coordinates are worse than none: they look
+  authoritative and would scroll a reviewer confidently to the wrong part of a plat.
 
-  Root suite 21,953 passing; typecheck clean; lint clean. Seed 570 applied and verified.
+  The measured boxes are now recorded with the text read from each tile and the page size they were
+  measured against, and `analysis.service.ts` matches each fact's quote back to its tile.
+  **`source_bounding_box` holds a value** — whenever one can be established, and never otherwise.
+
+  **And a write that was wiping the document viewer.** `ocr_regions: extraction.ocrRegions || null`
+  overwrote the column holding `{"pageUrls": […]}`. Since `ocrRegions` is usually absent, that line
+  mostly wrote **NULL** — so processing a document erased its page URLs, and the symptom (a document
+  that stops displaying its pages) points nowhere near the line responsible. Removed.
+
+  PDF pages of differing sizes are never mixed under one `pageSize`, because pixels divided by the
+  wrong page's dimensions land confidently in the wrong place.
+
+  A test in `fact-evidence.test.ts` asserted this column was *"STILL written as a literal null"*,
+  noting that vision extraction would fill it in. R18 had already shipped — the blocker was never
+  that coordinates could not be produced.
+
+  Root suite 21,968 passing; typecheck clean; lint clean; `npm run build` compiles. Seed 570 applied
+  and verified.
 
   **Remaining:** `extracted_data_points.source_bounding_box` has existed since seed 090 and is
   written as a literal `null` at the only site that builds data points — it has never held a value.
