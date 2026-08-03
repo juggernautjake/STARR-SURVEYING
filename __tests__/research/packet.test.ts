@@ -257,3 +257,56 @@ describe('the PDF', () => {
     expect(route).toContain("row.status === 'approved' && row.rendered_json");
   });
 });
+
+describe('page images in the PDF (plan R25)', () => {
+  const built = assemblePacket(
+    'Survey research packet',
+    null,
+    [ref('document', 'd1', 0)],
+    sources(),
+  );
+
+  // A 1x1 PNG. Small enough to keep the test fast, real enough for jsPDF to accept.
+  const PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  it('embeds an image when one is supplied', () => {
+    const withImage = renderPacketPdf(built, { version: 1 }, {
+      d1: { status: 'embedded', dataUrl: PNG, width: 100, height: 100 },
+    });
+    const without = renderPacketPdf(built, { version: 1 });
+    // The embedded bytes have to land somewhere.
+    expect(withImage.length).toBeGreaterThan(without.length);
+    expect(withImage.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('does not throw when the image data is malformed', () => {
+    // Losing the plan and the open questions over one bad PNG would be the worse failure by far.
+    expect(() =>
+      renderPacketPdf(built, { version: 1 }, { d1: { status: 'embedded', dataUrl: 'data:image/png;base64,!!!!' } }),
+    ).not.toThrow();
+  });
+
+  it('states every kind of absence rather than printing silence', () => {
+    // A blank where an image should be is indistinguishable from "we have it, it just is not shown".
+    const src = read('lib/research/packet-pdf.ts');
+    expect(src).toContain('NO PAGE IMAGE IS HELD');
+    expect(src).toContain('COULD NOT BE LOADED');
+    expect(src).toContain('COULD NOT BE READ');
+    expect(src).toContain('Page images were not included in this print');
+  });
+
+  it('says how many pages of a multi-page document are shown', () => {
+    // One embedded page of a four-page deed reads as the whole deed otherwise — and the pages not
+    // shown are exactly where a reservation or an exception tends to be.
+    const src = read('lib/research/packet-pdf.ts');
+    expect(src).toContain('are in the research record and are NOT reproduced here');
+  });
+
+  it('renders text-only without accusing the research of losing anything', () => {
+    const buf = renderPacketPdf(built, { version: 1 });
+    expect(buf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    const src = read('lib/research/packet-pdf.ts');
+    expect(src).toContain('This is a text-only packet');
+  });
+});
