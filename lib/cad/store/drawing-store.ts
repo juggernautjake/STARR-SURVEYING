@@ -654,7 +654,26 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     // the previous doc so the renderer doesn't try to refresh
     // Graphics for ids that no longer exist.
     get().dirtyFeatureIds.clear();
-    set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
+
+    // CAD_AUDIT Slice S13f — two things, both the same bug class as S8c / S13 / S13e.
+    //
+    // 1. The active layer was `doc.layerOrder[0]`, and `layerOrder[0]` is **SURVEY-INFO** on every
+    //    document shaped like the default one. So opening a saved drawing made the reserved
+    //    title-block layer active, and the first thing a surveyor did was get refused by S13's draw
+    //    guard — on a drawing they had just opened, with no indication of why. Pick the first
+    //    DRAWABLE layer instead; fall back to `layerOrder[0]` only when every surviving layer is
+    //    reserved, and to `''` when the document genuinely has none (the guard handles that and
+    //    says so).
+    const firstDrawable = normalized.layerOrder.find((id) => !isReservedDrawLayer(id));
+    const nextActive = firstDrawable ?? normalized.layerOrder[0] ?? '';
+
+    // 2. A saved file can carry features whose layer is not in the file — an older format, a
+    //    hand-edited `.starr`, a partial recovery snapshot. Those features load, save again, and are
+    //    never drawn, which presents as "some of my drawing is missing" with nothing to point at.
+    //    The insertion-time warning cannot see this, because loading is not an insertion.
+    warnIfLayerMissing(normalized, Object.values(normalized.features), 'loadDocument');
+
+    set({ document: normalized, activeLayerId: nextActive, isDirty: false });
   },
 
   updateDocumentName: (name) =>

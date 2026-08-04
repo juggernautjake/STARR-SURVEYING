@@ -1541,3 +1541,42 @@ the empty-project behaviour.
 
 7 tests, including one that asserts its own premise (`drawableLayers()` has length 1) rather than
 assuming it. 3,401 CAD tests, `npm run build` clean.
+
+### ✅ S13f DONE 2026-08-04 — opening a saved drawing lands you somewhere you can draw
+
+**Fifth hiding place for one bug class**, after S8c, S13, S13d and S13e.
+
+`loadDocument` set `activeLayerId: doc.layerOrder[0]`, and `layerOrder[0]` is **SURVEY-INFO** on
+every document shaped like the default one. So opening a saved drawing made the reserved title-block
+layer active, and **the first thing a surveyor did was get refused** by S13's draw guard — on a
+drawing they had just opened, with no indication of why the program was arguing with them. It now
+picks the first drawable layer, falling back to the reserved one only when there is nothing else and
+to `''` when the document genuinely has no layers.
+
+**The second half is the one that loses work quietly.** A saved file can carry features whose layer
+is not in the file — an older format, a hand-edited `.starr`, a partial recovery snapshot. Those
+features load, save again, and are never drawn. It presents as *"some of my drawing is missing"* with
+nothing to point at. S13d's insertion-time warning cannot see it, because **loading is not an
+insertion**, so `loadDocument` now runs the same check over the whole document.
+
+**It warns and still opens the file.** Refusing to open a drawing because part of it is unrenderable
+would turn a display problem into lost access to everything else in it. A test pins that both
+features load, and that `getVisibleFeatures` returns only the one that can actually be seen — the
+document is opened honestly rather than optimistically.
+
+7 tests, both halves watched failing. 3,408 CAD tests, `npm run build` clean.
+
+### ▶ Five hiding places, one predicate
+
+| slice | where the bug lived |
+|---|---|
+| **S8c** | features created before their layer existed (research import) |
+| **S13** | a new drawing had no active layer, so everything drawn was orphaned |
+| **S13d** | no warning at insertion — the store now says so |
+| **S13e** | deleting a layer migrated its geometry onto the reserved layer |
+| **S13f** | opening a file activated the reserved layer, and orphans in the file were silent |
+
+All five trace to one line — `if (!layer) return false` in `getVisibleFeatures` — which is *correct*
+for a renderer and silent for everyone else. **A predicate that is right for one caller and
+catastrophic for the rest is worth hunting exhaustively rather than fixing where it surfaces.** Four
+of these were found by asking "where else?" after the first, not by anyone reporting them.
