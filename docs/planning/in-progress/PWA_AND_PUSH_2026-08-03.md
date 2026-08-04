@@ -706,3 +706,52 @@ this repo must be line-ending agnostic** — split on `/\r?\n/`, never match a l
 repaired assertion still fails when the short-circuit is reintroduced.
 
 47 PWA + middleware tests green; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9 DONE 2026-08-04 — the themes were consumed by ONE page, and the count says by how much
+
+Owner: *"make sure all of the themes and formatting settings are all functional and all look good on
+every page."*
+
+Answered by measuring rather than by looking, and the answer is not flattering.
+
+| measured 2026-08-04 | |
+|---|---|
+| built-in themes, each a complete 14-variable palette | **11** — one of which, `forest-dark`, had **no CSS block at all** |
+| hardcoded colour declarations in admin CSS | **4,199** |
+| uses of `var(--theme-*)` in admin CSS | **0** |
+
+Three separate failures stacked, each of which alone looks like "the themes are broken":
+
+1. **`ThemeProvider` mounts inside the Hub only.** A scoped `<div data-theme>`, rendered by
+   `HubProviders` in `HubMeClient`. Every other page in the product never saw the attribute.
+2. **`forest-dark` was offered and never defined** — it fell through to the `:root` light fallback,
+   so selecting it did nothing at all.
+3. **Nothing outside the Hub widgets reads the variables.** So even with the attribute on `<html>`,
+   the shell and every page paint themselves from 4,199 literal hex values.
+
+(3) is the one that matters most and is the least visible: with it unfixed, picking a dark theme
+would turn the Hub's widgets dark and leave the shell white. **Half a screen changing is worse than
+none** — it reads as a rendering fault rather than a setting.
+
+#### ▶ What shipped, and what deliberately did not
+
+`ShellTheme` puts `data-theme`, `data-density` and `--hub-font-scale` on `<html>` — on the element,
+not a wrapper, because dialogs, toasts, the command palette and the FAB portal to `document.body`
+and a wrapper would leave exactly the floating surfaces unthemed. `forest-dark` is written, from
+forest-light's hues at dark luminance. The **shell surfaces** — app background, top bar, its borders
+— now read the theme, each keeping its current literal as the CSS fallback, so the default theme is
+byte-identical and only a chosen theme overrides it.
+
+**The remaining ~4,000 are not deferred out of convenience.** Each needs its contrast checked against
+eleven palettes, and a blanket substitution is exactly how you get white text on a white card — a
+change that passes every structural check in this repo and is unusable. That is a real body of work
+with a per-page shape, and it is now a **number that must fall**: `theme-vars-are-adopted.test.ts`
+ratchets the count at 4,199 and fails if it rises.
+
+Two further assertions in the same file close the `forest-dark` class of bug for good: every declared
+`BuiltinThemeId` must have a block, and every block must define all 14 variables — because a palette
+missing `--theme-fg-primary` inherits the *light* default, putting near-black text on a near-black
+card, which looks deliberate and is worse than a missing theme. The control deletes `forest-dark`
+again and fails by name.
+
+1,849 hub + PWA tests green; `tsc`, `eslint` and `npm run build` clean.
