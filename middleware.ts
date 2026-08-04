@@ -83,6 +83,11 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // the DEFAULT role every staff member falls back to in this very file. A new hire could file a
   // receipt before that gate existed and could not afterwards. Found by driving the app at phone
   // width, not by review; see W6c in the PWA doc.
+  // F1b — the card registry. Admin only, matching `/api/admin/payment-cards`, which checks
+  // `isAdmin`. Not wider: the page lists holder names and what each card means for the books, and
+  // there is no nav entry offering it to anyone else, so nothing bounces. (W6c's rule cuts the other
+  // way here — the danger is a gate STRICTER than its API, and this one is equal to it.)
+  { prefix: '/admin/cards', roles: ['admin'] },
   { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager'] },
   { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },

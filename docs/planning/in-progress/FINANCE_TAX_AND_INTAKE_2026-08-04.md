@@ -915,3 +915,52 @@ matched nothing, and only `grep` showed the field was never added. Redone with a
 then failed by name.
 
 99 finance tests green; `tsc` and `eslint` clean.
+
+## ✅ F1b DONE 2026-08-04 — the card registry, built before the seed rather than after it
+
+This document recorded F1b as *"cannot be built until seeds 572/573 exist — there is nothing to
+render."* **Checked, after six stale reasons turned up elsewhere today, and it was not quite true.**
+
+The seed is written and was verified to apply cleanly (F7d). What a missing table changes is exactly
+one thing: the query fails. So the route handles that **one** failure honestly and the feature works
+the moment `apply-seeds.mjs` runs — instead of waiting for a session that happens to come afterwards.
+
+`lib/finance/payment-cards.ts` has answered the owner's question since F1 — *"recognize if the cards
+used to pay for things are on file, and what the card role is"* — and had **no caller** for that
+reason alone.
+
+### ▶ "No cards" and "no registry" are different sentences
+
+Postgres answers a query against a missing relation with **42P01**, distinguishable from every other
+failure. So the route reports a not-yet-created table as exactly that, with the command that fixes
+it — and the page renders it as a warning rather than an empty list.
+
+An empty list would invite a bookkeeper to register a card that cannot be saved, and would read as
+*"no cards are on file"*, which is a claim. It is the same distinction `describeBalance` makes about
+an unknown balance, and the same one S-9c made about an unwired source: **a thing we cannot see is not
+a thing that is not there.**
+
+Two smaller decisions in the same spirit: the tax treatment is computed **server-side** by
+`taxTreatmentForCard` and travels with each card, so the browser never holds a second opinion about
+tax treatment; and **retired cards are shown, not filtered**, because a receipt from March still
+points at whatever card paid it.
+
+### ▶ Three checks caught three of my own mistakes
+
+1. **The route's row shape was invented** — `holder_email`, `active`, `notes`. The real columns are
+   `holder_user_id` and `retired_at`. `tsc` caught it against the real `PaymentCard`.
+2. **The page declared its own `CardTaxTreatment`** with `statement` and `needsAnswer`. Neither
+   exists; the fields are `summary` and `needsResolution`. **`tsc` was silent**, because a local
+   interface is a perfectly valid type — the page would have rendered `undefined` for every card.
+   Importing the real type is what let the compiler answer the question, and it is the same lesson as
+   the `as never` casts removed elsewhere today: **declaring or casting a shape disables the only
+   check that would have found it wrong.**
+3. **S19's own guard caught the new page** — `/admin/cards` was neither gated nor recorded as open.
+   It is now `admin`, matching its API exactly. Not wider, and not stricter: W6c's rule is that a gate
+   stricter than the boundary it shadows locks people out, and this one is equal to it.
+
+Route + page both compile into the production build. 112 tests across the finance and middleware
+suites; `tsc` and `eslint` clean.
+
+**Still blocked:** F2b (pass-through recovery on screen) needs the same treatment and `cost_recoveries`
+from seed 573 — the pattern above makes it buildable now too, and it is the obvious next slice.
