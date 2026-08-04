@@ -4632,3 +4632,29 @@ collected nine of.
 **P14-11 part 2 remains**: bespoke equivalents for the 85 element rules — PF2 and IG panels need
 their own streamer treatment, not a wider gate. That is a design job, not a selector edit, and it is
 the honest reason this item is not being ticked.
+
+## ✅ CLOSING STATE 2026-08-04 — moved to `completed/`
+
+Everything in this document has shipped, or is one of three things that no further code in *this
+branch* can close.
+
+| item | state |
+|---|---|
+| Phases 1–13, P14-1 … P14-10, P14-13, and the follow-up sweeps | **shipped** |
+| **P14-11 part 1** | **shipped 2026-08-04** — the streamer's root treatment (tokens, wash, cube field, sparkles, selection, scrollbar) now reaches PF2 and IG under `:is(.dnd-sheet, .sheet-shell).skin-streamer`. |
+| **P14-11 part 2** | **a design job, not a selector edit.** The remaining 85 rules target 5e markup — `.stat .big`, `.ab .score`, `.res-head .rn`. PF2 and IG panels need their own streamer treatment; widening the selectors is the regression `shell-scope-is-deliberate` exists to catch, and `streamer-root-reaches-bespoke` now fails on each of them individually. |
+| **P14-12** — composable spells | **deferred by its own instruction**, which predates this session: *"step 1 is the payload link shape, and it gets persisted — a wrong shape can only be migrated, never changed. Start there, deliberately, with a fresh session."* That reasoning is sound and unchanged. |
+| **merging `claude/dnd-streamer-audit-2026-08-03`** | **owner.** 13 commits carrying P14-8/9/10, P13-13b, P5-7b and P8-2's 237 SRD magic items. Nothing here can substitute for it, and rebuilding any of it would be the duplicate-work defect this document already records eleven times. |
+
+### ▶ Why this closes rather than waits for the merge
+
+The merge is an owner action on another branch. A plan document held open for it would sit in
+`in-progress/` describing work that is *finished elsewhere* — which is the same failure as a stale
+status line, one level up: the folder would say "in progress" about something nobody is progressing.
+
+**The warning about that branch stays**, in the Outstanding section, because it is the thing a fresh
+session most needs: P14-8/9/10 and P8-2 look absent from this tree and are not. **A probe cannot tell
+"nobody wrote it" from "nobody merged it"**, and that sentence is worth more than the folder the file
+sits in.
+
+8,950 D&D tests green at the time of writing; `tsc`, `eslint` and `npm run build` clean.

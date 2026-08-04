@@ -8,7 +8,7 @@
 --
 -- Its entire data source is a TWO-ENTRY HARD-CODED ARRAY in `seeds.ts`. There has never been a table, so
 -- nobody has ever been able to author a piece. This is that table. See
--- docs/planning/in-progress/TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md, slice P6-2.
+-- docs/planning/completed/TABLETOP_AUDIT_REMEDIATION_AND_CONTENT_STUDIO_2026-07-28.md, slice P6-2.
 --
 -- WHY A NEW TABLE RATHER THAN EXTENDING `dnd_content`. `dnd_content` (Phase C19) already stores homebrew
 -- gear and feeds `engine/content.ts`. It is kept and left alone on purpose: it is in active use, its rows
