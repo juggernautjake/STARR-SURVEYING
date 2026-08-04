@@ -1706,3 +1706,35 @@ superset of the other is not.
 index (recorded against the module, deduplication sequenced with S5), the theme registry (a detector
 bug, corrected 56 → 44), and this one. None was left as an open TODO, which is the whole point of
 asking them out loud.
+
+#### ▶ Correction to S18's headline finding — the renderer hand-rolls nothing
+
+S18 reported *"the spatial index exists twice: once here, tested, and once in a 15,000-line
+component, where the version that actually runs lives."* **That was wrong**, and tracing the call
+chain instead of trusting the shape of the code gives a better answer:
+
+```
+geometry/spatial-index.ts   → createSpatialIndex                     ← LIVE
+  used by geometry/lod.ts   → buildFeatureIndex
+    used by CanvasViewport  → ensureFeatureIndex (a caching wrapper)
+
+spatial/feature-index.ts    → createFeatureIndex / buildFeatureIndex  ← DEAD, no importer anywhere
+```
+
+`ensureFeatureIndex` is a **ten-line caching wrapper**, not an implementation — it delegates to
+`buildFeatureIndex` imported from `geometry/lod`, which delegates to `geometry/spatial-index`. The
+renderer hand-rolls nothing. Two exported functions sharing the name `buildFeatureIndex` in two
+different modules is what made the wrong reading plausible.
+
+**The real finding is cleaner and the remedy is different.** `spatial/feature-index.ts` is a **dead
+parallel implementation** of a module that already exists and works. It does **not** need sequencing
+with the S5 `CanvasViewport` split — nothing in the renderer touches it. It needs one decision: which
+of the two survives.
+
+And the perf doc's *"P1 spatial index for feature bounds | DONE — `lib/cad/spatial/feature-index.ts`,
+a hand-rolled uniform grid"* **cites the dead one**. P1 did ship; the citation points at the wrong
+file.
+
+**Four sweep questions, four answers, and two of my own claims corrected in the process** (56 → 44,
+and this one). The pattern worth keeping: *a sweep produces candidates, not conclusions* — every one
+of these needed the call chain followed before it meant anything.

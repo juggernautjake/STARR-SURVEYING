@@ -30,13 +30,24 @@ import path from 'node:path';
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
   // ── The one worth fixing first ────────────────────────────────────────────────────────────────
-  // `CanvasViewport` defines its OWN `ensureFeatureIndex` inline (around line 2253) instead of
-  // importing this. So the uniform-grid spatial index exists twice: once here, tested, and once in
-  // a 15,000-line component, where the version that actually runs lives. The perf doc records P1 as
-  // "DONE — lib/cad/spatial/feature-index.ts", which is true of the file and not of the renderer.
-  // Deduplicating means touching CanvasViewport and should be sequenced with the S5 split, not
-  // bolted onto an unrelated change.
-  'spatial/feature-index.ts': 'DUPLICATED — CanvasViewport has its own inline ensureFeatureIndex; dedupe with the S5 split',
+  // A SECOND spatial index, in a different directory from the one that runs. Traced 2026-08-04:
+  //
+  //   geometry/spatial-index.ts  →  createSpatialIndex   ← LIVE
+  //     used by geometry/lod.ts → buildFeatureIndex → CanvasViewport's ensureFeatureIndex wrapper
+  //
+  //   spatial/feature-index.ts   →  createFeatureIndex / buildFeatureIndex   ← DEAD
+  //     no importer, in production or anywhere else
+  //
+  // The first version of this entry claimed CanvasViewport "has its own inline ensureFeatureIndex"
+  // and hand-rolls the index. **That was wrong.** `ensureFeatureIndex` is a ten-line caching wrapper;
+  // the actual index building is `buildFeatureIndex` imported from `geometry/lod`, which delegates to
+  // `geometry/spatial-index`. The renderer hand-rolls nothing.
+  //
+  // The real finding is better and the remedy is different: this is a parallel implementation of a
+  // module that already exists and works, and the perf doc's "P1 spatial index — DONE,
+  // lib/cad/spatial/feature-index.ts" cites the DEAD one. So it does not need sequencing with the
+  // S5 split at all — it needs someone to decide which of the two survives.
+  'spatial/feature-index.ts': 'DEAD PARALLEL IMPL of geometry/spatial-index.ts (the live one, via geometry/lod). Decide which survives; nothing in the renderer depends on this file',
 
   // ── Shipped this session, deliberately not yet wired ──────────────────────────────────────────
   // S16a built the zone table and corrected a mislabel (2277 is Central, not North Central). The
