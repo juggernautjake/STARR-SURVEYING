@@ -484,3 +484,45 @@ explanation and quietly fall back to something generic. 78 finance tests, `npm r
 **Still open in F7:** walkthroughs for the card registry and pass-through screens — which cannot be
 written until F1b/F2b exist, and those need seeds 572/573 applied. Documenting a screen before it
 exists is how the tutorial gets written twice, which is the reason F7 was sequenced last.
+
+---
+
+## ⚠ Correction 2026-08-04 — F1 and F2 are *wired but never fed*
+
+A reachability sweep over `lib/finance` (the same one S18 added for `lib/cad`) reported **zero**
+unreachable modules, which contradicted this document. Both claims were partly wrong, and the truth
+is more useful than either.
+
+**`payment-cards.ts` and `cost-recovery.ts` ARE reachable** — `tax-summary.ts` imports both, and F3b
+wired `taxSummaryFor` into the receipt panel. So the earlier note that F1–F3 "shipped as pure modules
+with no callers" was wrong by the time F3b landed.
+
+**But the call site supplies neither input:**
+
+```ts
+taxSummaryFor({
+  promotedToAsset: !!row.promoted_to_equipment_id,
+  deductibleFlag: (row.tax_deductible_flag as DeductibleFlag) ?? null,
+  category: row.category,
+});
+```
+
+No `card`. No `recovery`. So `taxTreatmentForCard` and `computeRecovery` are imported, bundled, and
+**never execute against real data** — the card-role branch and the recovery branch of the precedence
+chain are unreachable in practice, not because they are wrong but because nothing hands them
+anything.
+
+**This is exactly the failure the handoff names from R14**, and it is worth naming again because a
+module-reachability guard cannot see it:
+
+> *Authored but not wired* is findable with a caller grep. **Wired but never fed** is not — the caller
+> exists, the modules degrade honestly when their optional dependency is missing, and the result is a
+> feature that reports truthfully on work it never did.
+
+F3b was correct to ship that way — the columns do not exist until seeds 572/573 are applied, and
+passing a card the database cannot supply would have been worse. The point is that **"F3 is wired" and
+"F1/F2 run" are different claims**, and only the first is true today.
+
+**The test that would close it** belongs with F1b: once `receipts.payment_card_id` exists, assert
+that the receipt panel resolves the card and passes it, and that a receipt on a client card shows
+"not our transaction" *on screen* rather than only in a unit test.
