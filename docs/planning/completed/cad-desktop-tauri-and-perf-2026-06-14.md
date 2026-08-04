@@ -490,6 +490,34 @@ much higher than the current code path reaches.
 > cell-spanning features returned once, the large-bin path, and a
 > 10k-point stress that inserts within 1.5 s and queries a small
 > region in under 50 ms — well within the ceiling Phase 2 needs.
+
+> ### ⚠ Addendum 2026-08-04 — this module was BUILT but never WIRED
+>
+> Everything above is accurate about the module. What it does not say — and what a reader
+> reasonably assumes from "DONE" — is whether anything uses it. **Nothing does.**
+> `lib/cad/spatial/feature-index.ts` has no importer anywhere in production, verified by the
+> reachability sweep in `__tests__/cad/cad-modules-are-reachable.test.ts`.
+>
+> The spatial index the renderer actually runs is a **different one**:
+>
+> ```
+> geometry/spatial-index.ts  → createSpatialIndex
+>   used by geometry/lod.ts  → buildFeatureIndex
+>     used by CanvasViewport → ensureFeatureIndex (a caching wrapper)
+> ```
+>
+> Two modules export a function named `buildFeatureIndex`, which is what makes the confusion easy —
+> the CAD_AUDIT session first concluded that `CanvasViewport` hand-rolled its own index, and had to
+> correct that too. The renderer hand-rolls nothing; it uses `geometry/`, not `spatial/`.
+>
+> **So P1's goal was met by a different module than the one this section describes.** The grid here
+> has capabilities the live one lacks — incremental `upsert`/`remove` (which would pair with the
+> store's `dirtyFeatureIds`), a large-bin overflow, and false-positive filtering — but no profile
+> has ever shown index rebuild as a cost (S2b: 269 → 25.2 ms/frame; S4a: 25.8 ms/frame under
+> continuous pan/zoom), so migrating to it needs a measured reason first.
+>
+> Recorded here rather than only in the audit doc, because this is the page someone reads when they
+> want to know what P1 delivered.
 > Cleaned up a flaky `EnvironmentTeardownError` in the existing
 > Slice T7 menu-bridge undo / redo test by awaiting one
 > microtask so the lazy import of the zustand store settles

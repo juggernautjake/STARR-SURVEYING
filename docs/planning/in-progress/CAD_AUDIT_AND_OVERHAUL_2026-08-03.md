@@ -55,7 +55,7 @@ Each is sized to be shipped and verified independently, in the order that makes 
 
   | slice | state |
   |---|---|
-  | P1 spatial index for feature bounds | DONE — `lib/cad/spatial/feature-index.ts`, a hand-rolled uniform grid |
+  | P1 spatial index for feature bounds | BUILT, never wired — see the 2026-08-04 addendum in that doc. `lib/cad/spatial/feature-index.ts` has no importer; the renderer uses `geometry/spatial-index.ts` via `geometry/lod.ts` |
   | P2 viewport culling in the render loop | DONE |
   | P3 / P3b dirty-region tessellation, store + renderer | DONE — this is the guard I mistakenly reported as absent |
   | P4 / P4b non-blocking label regen, chunked + worker | shipped |
