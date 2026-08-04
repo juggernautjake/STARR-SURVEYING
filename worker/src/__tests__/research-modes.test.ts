@@ -17,9 +17,22 @@ describe('free sources run first, in BOTH modes', () => {
     // This is the anti-waste mechanism and it is an ORDERING rule. Filtering afterwards cannot fix
     // it, because by then the money is gone.
     const plan = buildPlan('Bell', 'paid');
-    const lastFree = Math.max(...plan.steps.filter((s) => s.phase === 'free').map((s) => s.order));
-    const firstPaid = Math.min(...plan.steps.filter((s) => s.phase === 'paid').map((s) => s.order));
-    expect(lastFree).toBeLessThan(firstPaid);
+    const freeOrders = plan.steps.filter((s) => s.phase === 'free').map((s) => s.order);
+    const paidOrders = plan.steps.filter((s) => s.phase === 'paid').map((s) => s.order);
+
+    // Both phases are asserted NON-EMPTY before the comparison, and that is not pedantry.
+    // `Math.max(...[])` is `-Infinity` and `Math.min(...[])` is `Infinity`, so the ordering check
+    // below reads `-Infinity < Infinity` — TRUE — for a plan with no steps at all, or with no paid
+    // step, or with no free one. The assertion would pass hardest at the exact moment the thing it
+    // guards stopped existing, which is how a check ends up defending nothing while looking green.
+    //
+    // The same shape was found and fixed twice elsewhere on 2026-08-04 (an `indexOf` ordering guard
+    // where -1 read as "earliest"). Worth hardening here specifically because this one guards a
+    // SPENDING rule: if paid sources ever ran first, the money would already be gone by the time
+    // anything downstream noticed.
+    expect(freeOrders.length, 'the plan must contain free steps').toBeGreaterThan(0);
+    expect(paidOrders.length, 'a paid-mode plan must contain paid steps').toBeGreaterThan(0);
+    expect(Math.max(...freeOrders)).toBeLessThan(Math.min(...paidOrders));
   });
 
   it('omits paid sources entirely in free mode', () => {

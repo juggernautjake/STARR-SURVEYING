@@ -512,3 +512,36 @@ and a ceiling of zero are different instructions, and zero would forbid every to
 looked fully configured.
 
 Root suite 1,467 files; `npm run build` clean.
+
+---
+
+## S-14 verified 2026-08-04 — and its guard was passing vacuously
+
+Checked rather than assumed, since "free sources run first" is a **spending** rule: if paid sources
+ever ran first, the money is gone before anything downstream could notice.
+
+**The rule is genuinely implemented.** `buildPlan` in `worker/src/research/research-modes.ts` emits
+free steps at orders `0..n-1` and paid steps from `n`, the module is wired into `worker/src/index.ts`,
+and `research-modes-wired.test.ts` already guards that reachability. No defect in the behaviour.
+
+**The defect was in the check.** Its assertion read:
+
+```ts
+const lastFree  = Math.max(...steps.filter(s => s.phase === 'free').map(s => s.order));
+const firstPaid = Math.min(...steps.filter(s => s.phase === 'paid').map(s => s.order));
+expect(lastFree).toBeLessThan(firstPaid);
+```
+
+`Math.max(...[])` is `-Infinity` and `Math.min(...[])` is `Infinity`, so the comparison reads
+`-Infinity < Infinity` — **true** — for a plan with no steps, no paid step, or no free step. **The
+assertion passed hardest at the exact moment the thing it guards stopped existing.** Both phases are
+now asserted non-empty before the comparison; verified by making `buildPlan` emit no paid steps and
+watching it go red, where the old form stayed green.
+
+That is the **third** instance of this one shape found on 2026-08-04 — after an `indexOf` ordering
+guard where `-1` read as "earliest", and a `toContain` that matched an import rather than a call. All
+three **failed by passing**, and none would have been caught by reading them.
+
+**State of this document:** S-6, S-7, S-8, S-10, S-11, S-12, S-13, S-14, S-15 and S-16 are done.
+**S-9 (Stripe SetupIntent + the charge) is the only slice left and it is owner-gated** — the limits
+form exists and the numbers can be entered today; what remains needs a live-payments decision.
