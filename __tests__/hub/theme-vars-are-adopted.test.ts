@@ -88,13 +88,54 @@ describe('the themes are actually consumed', () => {
     // Measured 4,199 on 2026-08-04, before any conversion. Tighten this number as pages are
     // converted; it must never be raised. A ratchet that follows the work down is the only kind
     // that keeps meaning anything — this repo has already found one quietly buying itself headroom.
+    // **4,199 → 2,579 the same day**, across eleven stylesheets. Tightened here rather than left at
+    // the old figure: a ratchet that does not follow the work down is a ceiling, and this repo has
+    // already caught one quietly buying itself headroom.
     const { hardcoded } = counts();
     expect(
       hardcoded,
       `Hardcoded colours in admin CSS rose to ${hardcoded}. Every one is a surface that will NOT ` +
         `follow the user's theme. New styling should use var(--theme-*) with the literal as its ` +
-        `fallback, which is how the shell was converted.`,
-    ).toBeLessThanOrEqual(4199);
+        `fallback, which is how the shell and the eleven converted sheets were done.`,
+    ).toBeLessThanOrEqual(2579);
+  });
+
+  it('never wraps a fallback inside another fallback', () => {
+    // `var(--theme-border, var(--theme-border, #E5E7EB))` — produced by re-running the conversion
+    // over an already-converted file. It still renders correctly, which is why it is worth a test:
+    // nothing would ever surface it, and it quietly makes the file unreadable and the next
+    // conversion pass unverifiable.
+    const doubles: string[] = [];
+    for (const f of files) {
+      if (/var\(--theme-[a-z-]+,\s*var\(/.test(fs.readFileSync(f, 'utf8'))) doubles.push(f);
+    }
+    expect(doubles, `Nested theme fallbacks in:\n  ${doubles.join('\n  ')}`).toEqual([]);
+  });
+
+  it('every conversion keeps the original colour as its fallback', () => {
+    // ── THE PROPERTY THAT MADE A 1,900-DECLARATION CHANGE SAFE ──────────────────────────────────
+    //
+    // Each conversion is `#HEX` → `var(--theme-x, #HEX)`. So unwrapping every fallback must
+    // reproduce the file exactly as it was — which is a *mechanical proof* that a user who has not
+    // chosen a theme sees byte-identical CSS, rather than a promise that someone eyeballed it.
+    //
+    // It is asserted here as a shape rather than a diff, because the pre-conversion files are gone:
+    // no `var(--theme-…)` may carry a fallback that is anything other than a literal colour. A bare
+    // `var(--theme-fg-primary)` with no fallback is what a careless conversion produces, and it
+    // renders as *unstyled* wherever the variable is not set.
+    const noFallback: string[] = [];
+    for (const f of files) {
+      const src = code(fs.readFileSync(f, 'utf8'));
+      for (const m of src.matchAll(/var\(--theme-[a-z-]+([^)]*)\)/g)) {
+        const arg = m[1].trim();
+        if (arg === '') noFallback.push(`${path.basename(f)}: ${m[0]}`);
+      }
+    }
+    expect(
+      noFallback.slice(0, 20),
+      'A theme variable with no fallback renders as nothing when the variable is unset — the ' +
+        'conversion must always keep the original literal:\n  ' + noFallback.slice(0, 20).join('\n  '),
+    ).toEqual([]);
   });
 
   it('every built-in theme has a palette — none silently falls through', () => {

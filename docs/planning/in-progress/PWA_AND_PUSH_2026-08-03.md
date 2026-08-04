@@ -755,3 +755,49 @@ card, which looks deliberate and is worse than a missing theme. The control dele
 again and fails by name.
 
 1,849 hub + PWA tests green; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9b DONE 2026-08-04 — 4,199 → 2,579, proved rather than eyeballed
+
+W9 converted the shell and left ~4,000 page-level colours, on the reasoning that a blanket
+substitution is how you get white text on a white card. That reasoning holds. **What it was missing
+is that the substitution can be made mechanically provable**, and then it is not blanket at all.
+
+Every conversion is `#HEX` → `var(--theme-x, #HEX)`. So **unwrapping every fallback must reproduce
+the file byte for byte** — and that is checked per file, before it is written. A file that does not
+round-trip is refused rather than fixed up. It is a proof that a user who has chosen no theme sees
+identical CSS, not a promise that somebody looked.
+
+Eleven stylesheets converted this way: research (796), learn (289), messaging (247), testing lab
+(149), field work (106), rewards (70), employee manage (66), errors (64), time logs (56), payroll
+(41), layout (77). **1,961 declarations; 4,199 → 2,579 hardcoded, 0 → 2,050 themed.**
+
+#### ▶ What was deliberately NOT mapped, and why the list is short
+
+- **`color: #FFF` — never.** Seventeen instances on the jobs page alone are label text sitting on a
+  navy button. Mapping white text to a foreground token inverts it on a light theme, and a button
+  whose label vanishes is a worse bug than one that ignores the theme.
+- **Brand tints and status colours** — `#1D3095`, `#EBF0FF`, `#059669`, `#DC2626`. A danger red that
+  differs per palette is a hazard, and the brand navy is the brand.
+- Only three neutral greys map to text, three to surfaces, two to borders. Anything not on that list
+  is left alone, because "I could not classify it" and "it is fine" are different statements.
+
+#### ▶ The verification caught a real bug in the conversion itself
+
+Re-running the mapping over `AdminLayout.css`, already partly converted by hand, produced
+`var(--theme-border, var(--theme-border, #E5E7EB))`. **Nested fallbacks still render correctly** —
+nothing would ever surface it — while making the file unreadable and the next pass unverifiable. The
+round-trip check refused the write; a lookbehind fixed it; a test now forbids it outright.
+
+The first version of the check was also wrong in a way worth recording: it compared `unwrap(new)`
+against the **raw** original, which can only hold for a file with no variables yet — so it refused
+`AdminLayout.css` for being *already converted* rather than for being wrong. A check that cannot
+distinguish "already done" from "done wrong" would have stopped the work at the first file.
+
+Two further assertions: no `var(--theme-*)` may carry an empty fallback (that renders as *unstyled*
+where the variable is unset — what a careless conversion produces), and the backlog ratchet is
+tightened 4,199 → 2,579 rather than left at the old number.
+
+**What remains** is genuinely per-page: 2,579 declarations that are brand colours, status colours,
+white-on-dark text, gradients and one-off accents. Each needs a human decision, not a rule.
+
+1,864 tests green; `tsc`, `eslint` and `npm run build` clean.
