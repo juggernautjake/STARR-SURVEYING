@@ -434,3 +434,26 @@ person, which is the failure the whole slice exists to prevent.
   function beneath it. **Both times the checker accused working code** — the most misleading way a
   checker can fail. It now reads the raw source and asserts *call shapes* (`await runBatch(`, a full
   `router.push` statement) that prose in that file does not contain. Watched failing.
+
+---
+
+## ✅ F3b — the tax summary reaches a screen. **DONE 2026-08-04.**
+
+F1, F2 and F3 shipped as pure, well-tested modules with **no callers** — this repo's single most
+frequent defect, and one this session has now named ten times in other people's code. This is the
+first of them pinned to a surface a bookkeeper actually opens: the receipt detail panel in
+`/admin/receipts`, directly under the raw "Tax flag" field it explains.
+
+**It uses only the fields that exist today.** The card role (F1) and the recovery state (F2) arrive
+with seeds 572/573, which are not applied. Rather than block the whole thing on that, the summary
+answers the questions it *can* — capital asset, deductibility, uncategorised — and **does not assume
+the answers to the others**. A test pins that specifically: with no card passed, the summary must
+never mention whose money it was. Reading "Deductible business expense" and silently meaning "assumed
+to be on a company card" is exactly the confident-wrong-answer this file was written to avoid; when
+the columns land, the same call gains the card and recovery inputs and the sentence gets stricter on
+its own.
+
+Wiring guard watched failing. `npm run build` clean, 75 finance tests green.
+
+**F1b/F2b — the card-registry and pass-through screens — remain**, and are the natural next slice
+once seeds 572/573 are applied. There is nothing useful to render until the tables exist.

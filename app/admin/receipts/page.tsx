@@ -20,6 +20,7 @@ import { usePageError } from '../hooks/usePageError';
 import type { AdminReceiptRow } from './receipt-types';
 import { MaintenancePicker, maintLinkStateChip, maintLinkStyles } from './MaintenanceLink';
 import { PromoteToAssetPanel } from './PromoteToAsset';
+import { taxSummaryFor, type DeductibleFlag } from '@/lib/finance/tax-summary';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -623,6 +624,21 @@ function ReceiptRow({
               }
             />
             <Field label="Tax flag" value={row.tax_deductible_flag} />
+            {/* FINANCE_TAX_AND_INTAKE Slice F3b — the one-line tax consequence, in the place a
+                bookkeeper is already looking. Derived from the fields on this row, never generated:
+                a sentence that can disagree with the data above it is worse than none, because a
+                plausible sentence is what stops someone checking.
+                Card role (F1) and pass-through recovery (F2) are not passed yet — those columns
+                arrive with seeds 572/573. The summary is honest about that: with no card it simply
+                answers the questions it CAN, rather than assuming company money. */}
+            <Field
+              label="Tax summary"
+              value={taxSummaryFor({
+                promotedToAsset: !!row.promoted_to_equipment_id,
+                deductibleFlag: (row.tax_deductible_flag as DeductibleFlag) ?? null,
+                category: row.category,
+              }).summary}
+            />
             <Field label="Notes" value={row.notes} />
             <Field label="Submitted by" value={row.submitted_by_email} />
             <Field label="Submitted at" value={formatDateTime(row.created_at)} />
