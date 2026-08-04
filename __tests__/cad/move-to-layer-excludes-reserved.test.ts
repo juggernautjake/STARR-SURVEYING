@@ -148,3 +148,36 @@ describe('the reserved-layer rule has ONE definition', () => {
     expect(drawableLayerIds(order, reserved)).toContain(reserved);
   });
 });
+
+// ── S13k: the thirteenth site, and the one that must NOT be filtered ─────────────────────────────
+//
+// S13j's sweep enumerated LayerTransferDialog among its candidates and did not check it. It has two
+// layer lists, and they are different kinds — which is why "filter every layer list on sight" would
+// have been the wrong fix:
+//
+//   * the transfer TARGET select (writes `options.targetLayerId`) — a destination. Filtered.
+//   * the "By layer ▾" dropdown — SELECTS features by layer rather than moving them. Not filtered,
+//     because a surveyor may legitimately want to select what is sitting on SURVEY-INFO — including,
+//     specifically, geometry that landed there before these rules existed and now needs moving off.
+
+describe('LayerTransferDialog distinguishes destination from selection', () => {
+  const dlg = fs.readFileSync(
+    path.join(process.cwd(), 'app/admin/cad/components/LayerTransferDialog.tsx'), 'utf8');
+
+  it('filters the transfer TARGET select', () => {
+    expect(dlg).toContain('drawableLayerIds(layerOrder)');
+  });
+
+  it('does NOT filter the by-layer SELECTION dropdown', () => {
+    // Asserted positively: the selection helper must still see every layer. If someone "tidies up"
+    // by filtering both, selecting the features stranded on the reserved layer becomes impossible —
+    // which would make the reserved-layer rule a trap rather than a guard.
+    const byLayer = dlg.slice(dlg.indexOf('helperByLayer'));
+    expect(byLayer).toContain('layerOrder.map');
+  });
+
+  it('still offers the create-a-new-layer escape hatch', () => {
+    // The transfer target list is now shorter; the way out of "no suitable layer" must remain.
+    expect(dlg).toContain("value=\"__new__\"");
+  });
+});

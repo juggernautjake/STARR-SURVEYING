@@ -22,6 +22,7 @@ import {
   useViewportStore,
 } from '@/lib/cad/store';
 import { featureBounds } from '@/lib/cad/geometry/bounds';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '@/lib/cad/feature-fields';
 import {
   isMasterPointFeature,
@@ -816,7 +817,13 @@ export default function LayerTransferDialog({ onClose }: Props) {
                 className="w-full bg-gray-700 text-white text-xs px-2 py-1.5 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
               >
                 <option value="">— select a layer —</option>
-                {layerOrder.map((lid) => {
+                {/* CAD_AUDIT Slice S13k — thirteenth destination site. This select writes
+                    `options.targetLayerId`, i.e. where the transfer LANDS, so the reserved sheet-info
+                    layer is filtered out. The "By layer" dropdown further down this same file is
+                    deliberately NOT filtered: it SELECTS features by layer rather than moving them
+                    anywhere, and a surveyor may legitimately want to select what is on SURVEY-INFO.
+                    Filtering every layer list on sight would have broken that. */}
+                {drawableLayerIds(layerOrder).map((lid) => {
                   const lyr = layers[lid];
                   if (!lyr) return null;
                   return (

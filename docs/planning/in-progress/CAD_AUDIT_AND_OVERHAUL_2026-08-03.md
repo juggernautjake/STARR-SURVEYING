@@ -1925,3 +1925,40 @@ Twelve sites, one predicate. The count is not the interesting number; **the inte
 that two of three completeness claims were false, and the third was never made.**
 
 15 tests. 3,433 CAD tests, `npm run build` clean.
+
+### ✅ S13k DONE 2026-08-04 — the thirteenth site, and the list that must NOT be filtered
+
+S13j's sweep **enumerated `LayerTransferDialog` among its candidates and never opened it.** The
+completeness claim had been dropped by then, but the coverage statement that replaced it — "every
+`layerOrder.map` in `app/admin/cad`" — was true of the *search* and not of the *reading*. A list of
+candidates is not a list of checks.
+
+It has two layer lists, and **they are different kinds**, which is exactly why "filter every layer
+list on sight" would have been the wrong fix:
+
+| list | what it does | filtered? |
+|---|---|---|
+| transfer **target** select | writes `options.targetLayerId` — where the transfer lands | **yes** |
+| **"By layer ▾"** dropdown | *selects* features by layer; moves nothing | **no, deliberately** |
+
+**The second one must keep listing SURVEY-INFO.** A surveyor may legitimately want to select what is
+sitting on it — and specifically, geometry that landed there before these rules existed and now needs
+moving off. Filtering it would turn the reserved-layer rule from a guard into a trap: the illegal
+state unreachable *and* the existing occupants unselectable.
+
+A test asserts that dropdown still sees every layer, positively — so a later "tidy up" that filters
+both cannot pass.
+
+### ▶ Thirteen sites, and the honest shape of the search
+
+| round | claim made | result |
+|---|---|---|
+| S13d | "the store now says so" | missed two store paths |
+| S13h | "the last route" | missed two in the context menu |
+| S13i | *no claim* — "go looking" | found three |
+| S13j | coverage stated, not completeness | **enumerated a file it did not read** |
+| S13k | — | found the thirteenth, and one that must stay unfiltered |
+
+Dropping the completeness claim was an improvement and **not** sufficient: S13j's replacement was a
+statement about which grep ran, which is a weaker claim than it sounds and still overstated the work.
+The reliable unit is not *"I searched X"* — it is *"I opened Y and Z."*
