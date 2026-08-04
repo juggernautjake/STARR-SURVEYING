@@ -2046,3 +2046,38 @@ problem the surveyor can fix in one move.
 Every claim was weaker and more careful than the last, and all four were wrong. The thing that
 finally worked was not a better claim or a better search — it was **moving the check to a place where
 being wrong about coverage stops mattering.**
+
+### ✅ S13n DONE 2026-08-04 — the browser pass this repo's own rule requires
+
+Fourteen slices in this family edited **six UI components** — `PropertyPanel`, `FeatureContextMenu`,
+`FeaturePropertiesDialog`, `PointDataViewer`, `LayerTransferDialog`, `CopilotCard` — plus four store
+paths, and every one was verified by unit tests only. This codebase's standing rule is *drive it in a
+browser*, and it exists because a green suite has repeatedly missed rendering and wiring faults here.
+
+Run against a **production build** (`npm run build` + `npm start`), not `next dev`:
+
+| check | result |
+|---|---|
+| Editor mounts | canvas live, 77 controls, **zero page errors** |
+| Draw with no active layer | refused with the S13 message, verbatim: *"No drawing layer is active. Pick one in the Layers panel — or use "New Layer" — then draw. Nothing was added."* |
+| `New Layer` | created and activated **Layer 2** |
+| Draw on it | committed |
+| **Property panel layer dropdown** | **`["Layer 1", "Layer 2"]` — Survey Info absent** |
+| Page errors across all of it | **none** |
+
+That last row is S13h/S13j confirmed against the real bundle rather than against source text. Every
+other test in this family reads files; this one asked the running application.
+
+### ▶ And the environment lied first, again
+
+The first attempt failed with *"the layers panel intercepts pointer events"* on the tool palette. The
+tool button was at **x = −18**: the browser context was still **390 × 844** from the abandoned phone
+measurement hours earlier, so the palette was off-screen left.
+
+**Nothing was wrong with the product.** Had that been read as a finding rather than a symptom, it
+would have produced a fifth false instrument report today — after Playwright "unable to reach
+localhost", the phone pass measuring a blank page, the orphan detector blind to side-effect imports,
+and the suite-wide grep the reporter swallowed. Checking `document.elementFromPoint` and the viewport
+took under a minute and named it.
+
+3,445 CAD tests, `npm run build` clean, and now a browser that agrees with them.
